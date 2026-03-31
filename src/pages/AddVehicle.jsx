@@ -656,7 +656,13 @@ export default function AddVehicle() {
                 <div className="relative flex-1">
                   <div className="absolute right-0 top-0 bottom-0 w-9 rounded-r-lg bg-[#003DA5] flex flex-col items-center justify-center gap-0.5 pointer-events-none z-10">
                     <span className="text-white text-[8px] font-bold leading-none tracking-wider">IL</span>
-                    <span className="text-yellow-300 text-[10px] leading-none">★</span>
+                    <svg viewBox="0 0 60 40" className="w-5 h-3 mt-0.5">
+                      <rect width="60" height="40" fill="white"/>
+                      <rect y="4" width="60" height="5" fill="#003DA5"/>
+                      <rect y="31" width="60" height="5" fill="#003DA5"/>
+                      <polygon points="30,10 34.5,21 25.5,21" fill="none" stroke="#003DA5" strokeWidth="2"/>
+                      <polygon points="30,26 25.5,15 34.5,15" fill="none" stroke="#003DA5" strokeWidth="2"/>
+                    </svg>
                   </div>
                   <input
                     type="text"
