@@ -1,0 +1,407 @@
+import React, { useState } from 'react';
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import StatusBadge from "../shared/StatusBadge";
+import { getDateStatus, formatDateHe, getVehicleTypeIcon, usesKm, usesHours, isVessel, getVehicleLabels } from "../shared/DateStatusUtils";
+import { Gauge, Clock, Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Fuel, Info, Hash, Tag, Palette, Building2, Cog } from "lucide-react";
+import MileageUpdateWidget from "./MileageUpdateWidget";
+import { getTheme } from '@/lib/designTokens';
+import { useQuery } from '@tanstack/react-query';
+import { format, parseISO } from 'date-fns';
+import { toast } from "sonner";
+
+function generateICS(title, description, eventDate, reminderDays) {
+  const date = parseISO(eventDate);
+  const startDateTime = format(date, "yyyyMMdd'T'080000");
+  const endDateTime = format(date, "yyyyMMdd'T'090000");
+
+  return [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Vehicle Manager//Reminder//HE',
+    'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+    `DTSTART;TZID=Asia/Jerusalem:${startDateTime}`,
+    `DTEND;TZID=Asia/Jerusalem:${endDateTime}`,
+    `SUMMARY:${title}`, `DESCRIPTION:${description}`,
+    'BEGIN:VALARM', `TRIGGER:-P${reminderDays}D`, 'ACTION:DISPLAY',
+    `DESCRIPTION:${title}`, 'END:VALARM',
+    'STATUS:CONFIRMED', 'SEQUENCE:0', 'END:VEVENT', 'END:VCALENDAR',
+  ].join('\r\n');
+}
+
+function downloadICS(filename, icsContent) {
+  const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+}
+
+function generateGoogleCalendarLink(title, description, eventDate) {
+  const date = parseISO(eventDate);
+  const startDateTime = format(date, "yyyyMMdd'T'080000");
+  const endDateTime = format(date, "yyyyMMdd'T'090000");
+  const params = new URLSearchParams({
+    action: 'TEMPLATE', text: title, details: description,
+    dates: `${startDateTime}/${endDateTime}`, ctz: 'Asia/Jerusalem',
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function AddToCalendarButton({ dateField, vehicle, T }) {
+  const [open, setOpen] = useState(false);
+  const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
+
+  const handleAddToCalendar = (eventType) => {
+    if (!vehicle[dateField]) return;
+    const isTest = dateField === 'test_due_date';
+    const titlePrefix = isTest ? labels.testWord : 'חידוש ביטוח';
+    const reminderDays = 14;
+    const title = `${titlePrefix} ל${labels.vehicleWord} ${vehicle.nickname || vehicle.license_plate}`;
+    let description = `תזכורת ${titlePrefix} ל${labels.vehicleWord} ${vehicle.manufacturer} ${vehicle.model} (${vehicle.license_plate}).`;
+    if (!isTest && vehicle.insurance_company) description += ` חברת ביטוח: ${vehicle.insurance_company}.`;
+    description += ' נוצר מהאפליקציה.';
+
+    if (eventType === 'ics') {
+      const icsContent = generateICS(title, description, vehicle[dateField], reminderDays);
+      downloadICS(`${isTest ? 'test' : 'insurance'}-reminder-${vehicle.license_plate}.ics`, icsContent);
+    } else {
+      window.open(generateGoogleCalendarLink(title, description, vehicle[dateField]), '_blank', 'noopener,noreferrer');
+    }
+    toast.success('אירוע נוסף ליומן');
+    setOpen(false);
+  };
+
+  if (!vehicle[dateField]) return null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl transition-all active:scale-[0.97]"
+          style={{ background: T.light, color: T.primary, border: `1px solid ${T.border}` }}>
+          <Calendar className="h-3 w-3" />
+          הוסף ליומן
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-2" align="start">
+        <div className="flex flex-col gap-1">
+          <Button variant="ghost" size="sm" className="justify-end gap-2 text-sm"
+            style={{ '--hover-bg': T.light }}
+            onClick={() => handleAddToCalendar('google')}>
+            <Calendar className="h-4 w-4" /> Google Calendar
+          </Button>
+          <Button variant="ghost" size="sm" className="justify-end gap-2 text-sm"
+            onClick={() => handleAddToCalendar('ics')}>
+            <Download className="h-4 w-4" /> הורד קובץ ICS
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ── Status Card ──────────────────────────────────────────────────────────────
+function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMode }) {
+  const isMissing = !vehicle[dateField];
+
+  // Use teal for "ok" status on vessels, green for regular vehicles
+  const okTheme = vesselMode
+    ? { grad: 'linear-gradient(135deg, #E0F7FA 0%, #B2EBF2 100%)', iconBg: '#0C7B93', border: '#80DEEA', accent: '#065A6E' }
+    : { grad: 'linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%)', iconBg: '#2E7D32', border: '#A5D6A7', accent: '#1B5E20' };
+
+  const STATUS_THEME = {
+    ok:      okTheme,
+    warn:    { grad: 'linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)', iconBg: '#F57F17', border: '#FFD54F', accent: '#E65100' },
+    danger:  { grad: 'linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%)', iconBg: '#C62828', border: '#EF9A9A', accent: '#B71C1C' },
+    missing: { grad: 'linear-gradient(135deg, #F5F5F5 0%, #EEEEEE 100%)', iconBg: '#9E9E9E', border: '#E0E0E0', accent: '#757575' },
+  };
+
+  const st = isMissing ? 'missing' : (status.status || 'missing');
+  const theme = STATUS_THEME[st] || STATUS_THEME.missing;
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3 relative overflow-hidden"
+      style={{ background: theme.grad, border: `1.5px solid ${theme.border}`, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+      <div className="flex items-center gap-2">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+          style={{ background: theme.iconBg, boxShadow: `0 3px 10px ${theme.iconBg}40` }}>
+          <Icon className="w-4.5 h-4.5 text-white" />
+        </div>
+        <span className="text-sm font-black" style={{ color: theme.accent }}>{label}</span>
+      </div>
+
+      {isMissing ? (
+        <p className="text-sm font-medium" style={{ color: '#9CA3AF' }}>לא הוזן</p>
+      ) : (
+        <>
+          <StatusBadge status={status.status} label={status.label} />
+          <AddToCalendarButton dateField={dateField} vehicle={vehicle} T={T} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Info Row ────────────────────────────────────────────────────────────────
+function InfoRow({ label, value, T }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-center justify-between py-2.5 px-1"
+      style={{ borderBottom: `1px solid ${T.border}40` }}>
+      <span className="text-xs font-medium" style={{ color: T.muted }}>{label}</span>
+      <span className="text-sm font-bold" style={{ color: T.text }}>{value}</span>
+    </div>
+  );
+}
+
+// ── Vessel Inspection Readiness Checklist ─────────────────────────────────────
+function statusIcon(status) {
+  if (status === 'ok')     return <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />;
+  if (status === 'danger') return <XCircle className="h-4 w-4 text-red-500 shrink-0" />;
+  if (status === 'warn')   return <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />;
+  return <MinusCircle className="h-4 w-4 text-gray-300 shrink-0" />;
+}
+
+function statusLabel(status, label, fieldMissing) {
+  if (fieldMissing) return <span className="text-gray-400 text-xs">לא הוזן</span>;
+  const color = status === 'ok' ? 'text-emerald-600' : status === 'danger' ? 'text-red-600' : status === 'warn' ? 'text-amber-600' : 'text-gray-400';
+  return <span className={`text-xs font-medium ${color}`}>{label}</span>;
+}
+
+function VesselInspectionChecklist({ vehicle, T }) {
+  const [open, setOpen] = useState(false);
+
+  const testSt  = getDateStatus(vehicle.test_due_date);
+  const insSt   = getDateStatus(vehicle.insurance_due_date);
+  const pyroSt  = getDateStatus(vehicle.pyrotechnics_expiry_date);
+  const extSt   = getDateStatus(vehicle.fire_extinguisher_expiry_date);
+  const raftSt  = getDateStatus(vehicle.life_raft_expiry_date);
+
+  const tracked = [
+    { label: 'רישיון כושר שייט בתוקף',      st: testSt, has: !!vehicle.test_due_date, key: 'test' },
+    { label: 'ביטוח צד ג׳ תוספת 14 בתוקף', st: insSt,  has: !!vehicle.insurance_due_date, key: 'ins' },
+    { label: 'פירוטכניקה בתוקף',             st: pyroSt, has: !!vehicle.pyrotechnics_expiry_date, key: 'pyro' },
+    { label: 'מטף כיבוי בתוקף',              st: extSt,  has: !!vehicle.fire_extinguisher_expiry_date, key: 'ext' },
+    { label: 'אסדת הצלה בתוקף',              st: raftSt, has: !!vehicle.life_raft_expiry_date, key: 'raft' },
+  ];
+
+  const readyCount  = tracked.filter(i => i.has && i.st.status === 'ok').length;
+  const warnCount   = tracked.filter(i => i.has && (i.st.status === 'warn' || i.st.status === 'danger')).length;
+  const totalTracked = tracked.filter(i => i.has).length;
+
+  const headerBg = warnCount > 0
+    ? { bg: '#FEF3C7', border: '#FDE68A', text: '#92400E' }
+    : readyCount === tracked.length
+    ? { bg: T.light, border: T.border, text: T.primary }
+    : { bg: T.light, border: T.border, text: T.primary };
+
+  return (
+    <div className="rounded-2xl overflow-hidden" dir="rtl"
+      style={{ background: headerBg.bg, border: `1.5px solid ${headerBg.border}` }}>
+      <button className="w-full flex items-center justify-between px-4 py-3.5 gap-3"
+        onClick={() => setOpen(o => !o)}>
+        <div className="flex items-center gap-2">
+          <ClipboardList className="h-4 w-4 shrink-0" style={{ color: headerBg.text }} />
+          <span className="text-sm font-bold" style={{ color: headerBg.text }}>מוכנות לבדיקת כושר שייט</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {totalTracked > 0 && (
+            <span className="text-xs font-bold tabular-nums" style={{ color: headerBg.text }}>
+              {readyCount}/{tracked.length}
+            </span>
+          )}
+          {open
+            ? <ChevronUp className="h-4 w-4" style={{ color: headerBg.text }} />
+            : <ChevronDown className="h-4 w-4" style={{ color: headerBg.text }} />}
+        </div>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-4">
+          <div className="space-y-2">
+            {tracked.map(item => (
+              <div key={item.key} className="flex items-center justify-between rounded-xl px-3 py-2.5"
+                style={{ background: '#FFFFFF', border: `1px solid ${T.border}` }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  {statusIcon(item.has ? item.st.status : 'neutral')}
+                  <span className="text-xs font-medium truncate" style={{ color: T.text }}>{item.label}</span>
+                </div>
+                <div className="shrink-0 mr-2">
+                  {statusLabel(item.st.status, item.st.label, !item.has)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-xl p-3" style={{ background: '#FFFFFF', border: `1.5px dashed ${T.border}` }}>
+            <p className="text-[11px] font-bold mb-2 flex items-center gap-1" style={{ color: T.primary }}>
+              📌 נדרש גם להביא לבדיקה:
+            </p>
+            <ul className="space-y-1.5 text-xs" style={{ color: T.muted }}>
+              {['תעודת רישום — לכלי שייט שאורכם מעל 7 מטר',
+                'בדיקת מערכות — מנוע, הגה, ציוד ניווט',
+                '3 צילומי השייט — מדופן שמאל · מדופן ימין · ירכתיים',
+                'רישיון השייט — לאחר תשלום ואישור בנק הדואר (ללא נספח עליון)']
+                .map((text, i) => (
+                <li key={i} className="flex items-start gap-1.5">
+                  <span className="mt-0.5 shrink-0" style={{ color: T.primary }}>•</span>
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="space-y-1.5 text-[11px] pt-3" style={{ color: T.muted, borderTop: `1px solid ${T.border}` }}>
+            <p>⚠️ <span className="font-semibold">מומלץ לבצע לפני פקיעת הרישיון הקודם</span></p>
+            <p>💡 כלי שייט <span className="font-semibold">פרטיים ומסחריים</span> — תדירות שנתית.</p>
+            <p>🔁 בדיקה חוזרת כרוכה בתשלום אגרה נוספת.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+export default function VehicleInfoSection({ vehicle }) {
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname);
+  const testStatus = getDateStatus(vehicle.test_due_date);
+  const insuranceStatus = getDateStatus(vehicle.insurance_due_date);
+  const vesselMode = isVessel(vehicle.vehicle_type, vehicle.nickname);
+  const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
+  const pyroStatus     = vesselMode ? getDateStatus(vehicle.pyrotechnics_expiry_date) : null;
+  const extStatus      = vesselMode ? getDateStatus(vehicle.fire_extinguisher_expiry_date) : null;
+  const lifeRaftStatus = vesselMode ? getDateStatus(vehicle.life_raft_expiry_date) : null;
+
+  return (
+    <div className="space-y-4" dir="rtl">
+
+      {/* ── Vehicle quick details — colorful tile grid ── */}
+      {(() => {
+        const TILE_COLORS = [
+          { bg: 'linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%)', iconBg: '#2D5233', iconColor: '#FFFFFF', border: '#A5D6A7' },
+          { bg: 'linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)', iconBg: '#F59E0B', iconColor: '#FFFFFF', border: '#FFD54F' },
+          { bg: 'linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%)', iconBg: '#1976D2', iconColor: '#FFFFFF', border: '#90CAF9' },
+          { bg: 'linear-gradient(135deg, #F3E5F5 0%, #E1BEE7 100%)', iconBg: '#8E24AA', iconColor: '#FFFFFF', border: '#CE93D8' },
+          { bg: 'linear-gradient(135deg, #E0F7FA 0%, #B2EBF2 100%)', iconBg: '#0097A7', iconColor: '#FFFFFF', border: '#80DEEA' },
+          { bg: 'linear-gradient(135deg, #FBE9E7 0%, #FFCCBC 100%)', iconBg: '#E64A19', iconColor: '#FFFFFF', border: '#FFAB91' },
+        ];
+
+        const tiles = [
+          { icon: Hash, label: vesselMode ? 'מספר רישום' : 'מספר רישוי', value: vehicle.license_plate, dir: 'ltr' },
+          { icon: Tag, label: 'סוג', value: vesselMode ? 'כלי שייט' : vehicle.vehicle_type },
+          { icon: Calendar, label: 'שנה', value: vehicle.year, dir: 'ltr' },
+          vehicle.color && { icon: Palette, label: 'צבע', value: vehicle.color },
+          vehicle.insurance_company && { icon: Shield, label: vesselMode ? 'חברת ביטוח ימי' : 'חברת ביטוח', value: vehicle.insurance_company },
+          vesselMode && vehicle.engine_manufacturer && { icon: Cog, label: 'יצרן מנוע', value: vehicle.engine_manufacturer },
+        ].filter(Boolean);
+
+        return (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: T.grad }}>
+                <Info className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-black text-base" style={{ color: T.text }}>פרטי {labels.vehicleWord}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {tiles.map((tile, i) => {
+                const c = TILE_COLORS[i % TILE_COLORS.length];
+                return (
+                  <div key={i} className="rounded-2xl p-4 flex flex-col gap-2.5 relative overflow-hidden"
+                    style={{ background: c.bg, border: `1.5px solid ${c.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ background: c.iconBg, boxShadow: `0 2px 8px ${c.iconBg}40` }}>
+                        <tile.icon className="w-4 h-4" style={{ color: c.iconColor }} />
+                      </div>
+                      <span className="text-xs font-bold" style={{ color: c.iconBg, opacity: 0.8 }}>{tile.label}</span>
+                    </div>
+                    <p className="text-base font-black leading-tight"
+                      dir={tile.dir || 'rtl'}
+                      style={{ color: '#1a1a1a' }}>
+                      {tile.value}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {vehicle.is_vintage && !vesselMode && (
+              <div className="mt-3 rounded-2xl px-4 py-3 flex items-center gap-2.5"
+                style={{ background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', border: '1.5px solid #DDD6FE' }}>
+                <span className="text-lg">🏛️</span>
+                <span className="text-sm font-bold" style={{ color: '#7C3AED' }}>רכב אספנות — טסט כל חצי שנה</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── Mileage / Engine hours ── */}
+      <MileageUpdateWidget vehicle={vehicle} />
+
+      {/* ── Test & Insurance Status ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <StatusCard
+          icon={Calendar}
+          label={labels.testWord}
+          status={testStatus}
+          dateField="test_due_date"
+          vehicle={vehicle}
+          T={T}
+          vesselMode={vesselMode}
+        />
+        <StatusCard
+          icon={Shield}
+          label={vesselMode ? 'ביטוח ימי' : 'ביטוח'}
+          status={insuranceStatus}
+          dateField="insurance_due_date"
+          vehicle={vehicle}
+          T={T}
+          vesselMode={vesselMode}
+        />
+      </div>
+
+      {/* ── Vessel-specific sections ── */}
+      {vesselMode && (
+        <>
+          {/* Safety equipment */}
+          {(vehicle.pyrotechnics_expiry_date || vehicle.fire_extinguisher_expiry_date || vehicle.life_raft_expiry_date) && (
+            <div className="rounded-2xl p-4" style={{ background: T.light, border: `1.5px solid ${T.border}` }}>
+              <div className="flex items-center gap-1.5 mb-3">
+                <span className="text-sm">⚓</span>
+                <span className="text-sm font-bold" style={{ color: T.text }}>ציוד בטיחות</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {vehicle.pyrotechnics_expiry_date && (
+                  <div className="rounded-xl p-3 space-y-2" style={{ background: T.card, border: `1px solid ${T.border}` }}>
+                    <span className="text-xs font-medium flex items-center gap-1" style={{ color: T.muted }}>🔴 פירוטכניקה</span>
+                    <StatusBadge status={pyroStatus.status} label={pyroStatus.label} />
+                  </div>
+                )}
+                {vehicle.fire_extinguisher_expiry_date && (
+                  <div className="rounded-xl p-3 space-y-2" style={{ background: T.card, border: `1px solid ${T.border}` }}>
+                    <span className="text-xs font-medium flex items-center gap-1" style={{ color: T.muted }}>🧯 מטף כיבוי</span>
+                    <StatusBadge status={extStatus.status} label={extStatus.label} />
+                  </div>
+                )}
+                {vehicle.life_raft_expiry_date && (
+                  <div className="rounded-xl p-3 space-y-2" style={{ background: T.card, border: `1px solid ${T.border}` }}>
+                    <span className="text-xs font-medium flex items-center gap-1" style={{ color: T.muted }}>🛟 אסדת הצלה</span>
+                    <StatusBadge status={lifeRaftStatus.status} label={lifeRaftStatus.label} />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Inspection checklist */}
+          <VesselInspectionChecklist vehicle={vehicle} T={T} />
+        </>
+      )}
+    </div>
+  );
+}

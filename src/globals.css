@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-scale: 1;
+  --accent: #2D5233;
+  --accent-hover: #1E3D24;
+  --accent-light: #8B5E3C;
+  --accent-bg: #E8F2EA;
+  --accent-border: #D8E5D9;
+  --status-ok: #16A34A;
+  --status-ok-bg: #DCFCE7;
+  --status-warn: #D97706;
+  --status-warn-bg: #FEF3C7;
+  --status-danger: #DC2626;
+  --status-danger-bg: #FEE2E2;
+}
+
+* {
+  direction: rtl;
+}
+
+html, body {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="ltr"] {
+  direction: ltr;
+  text-align: left;
+}
+
+body {
+  font-family: 'Inter', 'Rubik', sans-serif;
+  background: #FAFAF9;
+  color: #1F2937;
+  font-size: calc(16px * var(--font-scale));
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-size: calc(1em * var(--font-scale));
+}
+
+p, span, div, button, input, textarea, select, label {
+  font-size: inherit;
+}
+
+.text-xs { font-size: calc(0.75rem * var(--font-scale)); }
+.text-sm { font-size: calc(0.875rem * var(--font-scale)); }
+.text-base { font-size: calc(1rem * var(--font-scale)); }
+.text-lg { font-size: calc(1.125rem * var(--font-scale)); }
+.text-xl { font-size: calc(1.25rem * var(--font-scale)); }
+.text-2xl { font-size: calc(1.5rem * var(--font-scale)); }
+.text-3xl { font-size: calc(1.875rem * var(--font-scale)); }
+
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+button {
+  transition: all 0.2s ease;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+.card-hover {
+  transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 25 45% 28%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 28 80% 52%;
+    --radius: 0.75rem;
+  }
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
