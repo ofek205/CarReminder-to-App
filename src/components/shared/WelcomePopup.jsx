@@ -5,9 +5,12 @@ import { Car, Wrench, Bell, Star, Smartphone, Search, MessageSquare, Sparkles } 
 import { base44 } from "@/api/base44Client";
 import usePWAInstall from "./usePWAInstall";
 import IOSInstallModal from "./IOSInstallModal";
+import { isNative } from "@/lib/capacitor";
 
 export default function WelcomePopup({ open, onClose, isReturningUser = false, userName = '' }) {
-  const { canInstall, install } = usePWAInstall();
+  // In native app, PWA install is irrelevant
+  const { canInstall: _canInstall, install } = usePWAInstall();
+  const canInstall = isNative ? false : _canInstall;
   const [showIOSModal, setShowIOSModal] = useState(false);
   const [installSnoozed, setInstallSnoozed] = useState(false);
 

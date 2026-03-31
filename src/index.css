@@ -87,6 +87,32 @@
   }
 }
 
+/* ── Capacitor Native Safe Areas ─────────────────────────────────────────── */
+/* Adds padding for status bar, notch, and navigation gestures on native */
+html.native-app {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+html.native-app body {
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+}
+
+/* Prevent overscroll bounce on native */
+html.native-app {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Keyboard visible — shrink bottom padding */
+body.keyboard-visible {
+  padding-bottom: 0 !important;
+}
+
 /* Leaflet map — keep below modals/sheets/overlays */
 .leaflet-container {
   z-index: 0 !important;

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 2400">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16A34A"/>
+      <stop offset="100%" stop-color="#15803D"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="2400" fill="url(#bg)"/>
+
+  <!-- Car silhouette centered -->
+  <g transform="translate(600, 1100)">
+    <path d="M-200,30 L-185,-30 L-120,-90 L120,-90 L185,-30 L200,30 L200,60 L-200,60 Z"
+          fill="white" opacity="0.95"/>
+    <path d="M-105,-22 L-85,-75 L-5,-75 L-5,-22 Z" fill="#16A34A" opacity="0.5"/>
+    <path d="M8,-22 L8,-75 L98,-75 L115,-22 Z" fill="#16A34A" opacity="0.5"/>
+    <circle cx="-120" cy="68" r="38" fill="white" opacity="0.9"/>
+    <circle cx="-120" cy="68" r="23" fill="#16A34A"/>
+    <circle cx="120" cy="68" r="38" fill="white" opacity="0.9"/>
+    <circle cx="120" cy="68" r="23" fill="#16A34A"/>
+    <rect x="175" y="-15" width="30" height="22" rx="4" fill="#FDE047"/>
+    <rect x="-205" y="-15" width="30" height="22" rx="4" fill="#FDE047"/>
+  </g>
+
+  <!-- App name -->
+  <text x="600" y="1300" text-anchor="middle" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="white">
+    CarReminders
+  </text>
+</svg>

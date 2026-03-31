@@ -20,4 +20,6 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Capacitor loads from file:// so paths must be relative
+  base: './',
 });

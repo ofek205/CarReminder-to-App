@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Smartphone } from "lucide-react";
 import usePWAInstall from "../shared/usePWAInstall";
 import IOSInstallModal from "../shared/IOSInstallModal";
+import { isNative } from "@/lib/capacitor";
 
 export default function InstallCard() {
+  // Don't show install CTA inside native app
+  if (isNative) return null;
   const { install } = usePWAInstall();
   const [showIOSModal, setShowIOSModal] = useState(false);
   const [hidden, setHidden] = useState(false);

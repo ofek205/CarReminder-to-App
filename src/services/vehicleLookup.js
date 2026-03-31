@@ -1,7 +1,9 @@
 const RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';
-// In dev, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
-// In production the browser can call the API directly (CKAN has CORS enabled).
-const API_BASE = import.meta.env.DEV
+import { isNative } from '@/lib/capacitor';
+
+// In dev browser, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
+// In production (browser or Capacitor native) call the API directly.
+const API_BASE = (import.meta.env.DEV && !isNative)
   ? '/gov-api/api/3/action/datastore_search'
   : 'https://data.gov.il/api/3/action/datastore_search';
 
