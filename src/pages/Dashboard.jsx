@@ -152,6 +152,16 @@ function VehicleCard({ vehicle, isDemo }) {
             </span>
           </div>
 
+          {/* Demo badge */}
+          {isDemo && (
+            <div className="absolute top-4 left-4 z-10">
+              <span className="text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm"
+                style={{ background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.9)' }}>
+                לדוגמה
+              </span>
+            </div>
+          )}
+
           {/* Vehicle name on image */}
           <div className="absolute bottom-4 right-4 left-4 z-10" dir="rtl">
             <h3 className="font-black text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>

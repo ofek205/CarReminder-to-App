@@ -240,7 +240,7 @@ export const DEMO_VESSEL = {
   model: 'Oceanis 38.1',
   year: 2020,
   nickname: 'יאכטה נוני',
-  license_plate: '',
+  license_plate: 'IL-4821',
   current_engine_hours: 620,
   notes: 'מפרשית 38 רגל, מנוע Yanmar 30HP, עגינה במרינה הרצליה. יאכטה נוני — הסירה של המשפחה.',
   vehicle_photo: 'https://images.pexels.com/photos/273886/pexels-photo-273886.jpeg?auto=compress&cs=tinysrgb&w=600',

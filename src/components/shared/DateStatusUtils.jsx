@@ -37,7 +37,7 @@ const VESSEL_TYPES = new Set([
 ]);
 
 // Nickname keywords that indicate a vessel even when vehicle_type is generic (e.g. 'רכב')
-const _VESSEL_NICK_KEYWORDS = ['יאכטה', 'סירה', 'שייט', 'מפרשית', 'ספינה', 'סירת', 'גומי'];
+const _VESSEL_NICK_KEYWORDS = ['יאכטה', 'סירה', 'שייט', 'מפרשית', 'ספינה', 'סירת', 'גומי', 'אופנוע ים', 'ג\'ט סקי', 'jet ski'];
 
 /** Returns true if this vehicle type is a watercraft (vessel). Checks both vehicle_type and nickname. */
 export function isVessel(vehicleType, nickname) {
