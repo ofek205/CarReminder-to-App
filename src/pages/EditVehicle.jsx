@@ -21,12 +21,15 @@ import { trackUserAction } from "../components/shared/ReviewManager";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
 import { getTheme, isVesselType } from '@/lib/designTokens';
+import useAccountRole from '@/hooks/useAccountRole';
+import { isViewOnly } from '@/lib/permissions';
 
 export default function EditVehicle() {
   const urlParams = new URLSearchParams(window.location.search);
   const vehicleId = urlParams.get('id');
   const navigate = useNavigate();
   const { isGuest, guestVehicles, updateGuestVehicle } = useAuth();
+  const { role, isGuest: isGuestRole } = useAccountRole();
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -184,6 +187,18 @@ export default function EditVehicle() {
   };
 
   if (loading || !form) return <LoadingSpinner />;
+
+  if (!isGuestRole && isViewOnly(role)) {
+    return (
+      <div dir="rtl" className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="rounded-2xl p-6 max-w-sm" style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }}>
+          <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה לערוך רכב</p>
+          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר — תצוגה בלבד</p>
+          <button onClick={() => navigate(-1)} className="px-6 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563EB' }}>חזרה</button>
+        </div>
+      </div>
+    );
+  }
 
   const T = getTheme(form.vehicle_type, form.nickname);
   const vesselMode = isVesselType(form.vehicle_type, form.nickname);

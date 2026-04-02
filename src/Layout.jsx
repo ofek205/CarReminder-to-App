@@ -34,7 +34,7 @@ const navItems = [
   { name: 'ReminderSettingsPage',  label: 'הגדרות תזכורות',  icon: Bell,            guestAllowed: true },
   // ── חשבון ──
   { name: 'UserProfile',           label: 'אזור אישי',       icon: UserCircle,      guestAllowed: true },
-  { name: 'AccountSettings',       label: 'חשבון',            icon: Users,           guestAllowed: true },
+  { name: 'AccountSettings',       label: 'שיתוף משפחתי',     icon: Users,           guestAllowed: true },
   { name: 'AdminReviews',          label: 'חוות דעת',         icon: Star,            guestAllowed: true },
   { name: 'AdminDashboard',        label: 'לוח ניהול',        icon: ShieldCheck,     guestAllowed: false, adminOnly: true },
 ];
@@ -56,16 +56,16 @@ function isBirthdayToday(birthDate) {
 function GuestBanner() {
   const navigate = useNavigate();
   return (
-    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between gap-3" dir="rtl">
-      <p className="text-xs text-amber-800">מצב אורח - הנתונים נשמרים זמנית במכשיר בלבד</p>
+    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between gap-2" dir="rtl">
+      <p className="text-sm font-semibold text-amber-800 leading-tight">מצב אורח - הנתונים נשמרים זמנית במכשיר בלבד</p>
       <div className="flex items-center gap-2 shrink-0">
         <Link
           to={createPageUrl('Auth')}
-          className="text-xs text-amber-700 underline underline-offset-2 hover:text-amber-900 transition-colors py-2 px-2 touch-manipulation"
+          className="text-sm font-bold text-amber-700 underline underline-offset-2 hover:text-amber-900 transition-colors py-2 px-2 touch-manipulation"
         >
           יש לי חשבון
         </Link>
-        <Button onClick={() => navigate(createPageUrl('Auth'))} className="bg-[#2D5233] hover:bg-[#1E3D24] text-white text-sm h-11 px-4 gap-1.5 touch-manipulation">
+        <Button onClick={() => navigate(createPageUrl('Auth'))} className="bg-[#2D5233] hover:bg-[#1E3D24] text-white text-sm font-bold h-11 px-4 gap-1.5 touch-manipulation">
           <UserPlus className="h-4 w-4" />
           הירשם בחינם
         </Button>

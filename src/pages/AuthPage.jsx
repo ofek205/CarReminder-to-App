@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
+import { isNative } from '@/lib/capacitor';
 import logo from '@/assets/logo.png';
 import { ChevronLeft, Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 
@@ -119,12 +120,48 @@ export default function AuthPage() {
   const handleOAuth = async (provider) => {
     setOauthLoading(provider);
     setError('');
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: window.location.origin + createPageUrl('Dashboard') },
-    });
-    if (error) setError(error.message);
-    setOauthLoading('');
+
+    if (isNative) {
+      // Native: open OAuth in system browser, then listen for app resume
+      try {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo: 'https://zuqvolqapwcxomuzoodu.supabase.co',
+            skipBrowserRedirect: true,
+          },
+        });
+        if (error) { setError(error.message); setOauthLoading(''); return; }
+
+        // Open the auth URL in the system browser
+        const { Browser } = await import('@capacitor/browser');
+        await Browser.open({ url: data.url, windowName: '_system' });
+
+        // When user returns to app, check if session exists
+        const { App } = await import('@capacitor/app');
+        const listener = await App.addListener('appStateChange', async ({ isActive }) => {
+          if (isActive) {
+            listener.remove();
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              navigate(createPageUrl('Dashboard'), { replace: true });
+            }
+            setOauthLoading('');
+          }
+        });
+      } catch (e) {
+        setError(e.message || 'שגיאה בהתחברות');
+        setOauthLoading('');
+      }
+    } else {
+      // Web: normal redirect flow
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: window.location.origin + createPageUrl('Dashboard') },
+      });
+      if (error) setError(error.message);
+      setOauthLoading('');
+    }
   };
 
   const handleSubmit = async (e) => {

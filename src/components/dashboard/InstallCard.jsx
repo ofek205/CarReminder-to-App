@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Smartphone } from "lucide-react";
@@ -15,15 +14,10 @@ export default function InstallCard() {
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    async function check() {
-      try {
-        const user = await base44.auth.me();
-        if (!user) return;
-        const snoozed = user.install_cta_snoozed_until;
-        if (snoozed && new Date(snoozed) > new Date()) setHidden(true);
-      } catch (e) {}
-    }
-    check();
+    try {
+      const snoozed = localStorage.getItem('install_cta_snoozed_until');
+      if (snoozed && new Date(snoozed) > new Date()) setHidden(true);
+    } catch (e) {}
   }, []);
 
   const handleInstall = async () => {

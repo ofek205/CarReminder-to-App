@@ -59,7 +59,7 @@ function fmtDate(d) {
 
 // ── Issue Card ───────────────────────────────────────────────────────────────
 
-function IssueCard({ issue, onEdit, onDelete, onToggleComplete }) {
+function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false }) {
   const [expanded, setExpanded] = useState(false);
   const [adviceLoading, setAdviceLoading] = useState(false);
   const [advice, setAdvice] = useState(null);
@@ -170,27 +170,31 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete }) {
               style={{ background: expanded ? '#E0F7FA' : 'transparent' }}>
               {expanded ? <ChevronUp className="w-4 h-4" style={{ color: '#0C7B93' }} /> : <ChevronDown className="w-4 h-4" style={{ color: '#6B9EA8' }} />}
             </button>
-            <button onClick={() => onEdit(issue)}
-              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-50">
-              <Pencil className="w-3.5 h-3.5" style={{ color: '#6B9EA8' }} />
-            </button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <button className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50">
-                  <Trash2 className="w-3.5 h-3.5" style={{ color: '#EF4444' }} />
+            {!readOnly && (
+              <>
+                <button onClick={() => onEdit(issue)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-50">
+                  <Pencil className="w-3.5 h-3.5" style={{ color: '#6B9EA8' }} />
                 </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent dir="rtl">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>מחיקת תקלה</AlertDialogTitle>
-                  <AlertDialogDescription>האם למחוק את "{issue.title}"? לא ניתן לבטל.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter className="flex-row-reverse gap-2">
-                  <AlertDialogAction onClick={() => onDelete(issue.id)} className="bg-red-600 hover:bg-red-700">מחק</AlertDialogAction>
-                  <AlertDialogCancel>ביטול</AlertDialogCancel>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50">
+                      <Trash2 className="w-3.5 h-3.5" style={{ color: '#EF4444' }} />
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent dir="rtl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>מחיקת תקלה</AlertDialogTitle>
+                      <AlertDialogDescription>האם למחוק את "{issue.title}"? לא ניתן לבטל.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="flex-row-reverse gap-2">
+                      <AlertDialogAction onClick={() => onDelete(issue.id)} className="bg-red-600 hover:bg-red-700">מחק</AlertDialogAction>
+                      <AlertDialogCancel>ביטול</AlertDialogCancel>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -271,20 +275,22 @@ function EmptyState({ onAdd }) {
       <p className="text-xs mb-4" style={{ color: '#6B9EA8' }}>
         הוסף תקלות ופגמים כדי לעקוב אחרי מצב כלי השייט
       </p>
-      <button
-        onClick={onAdd}
-        className="px-5 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] text-white"
-        style={{ background: '#0C7B93', boxShadow: '0 4px 12px rgba(12,123,147,0.25)' }}>
-        <Plus className="w-4 h-4 inline ml-1" />
-        הוסף תקלה ראשונה
-      </button>
+      {onAdd && (
+        <button
+          onClick={onAdd}
+          className="px-5 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] text-white"
+          style={{ background: '#0C7B93', boxShadow: '0 4px 12px rgba(12,123,147,0.25)' }}>
+          <Plus className="w-4 h-4 inline ml-1" />
+          הוסף תקלה ראשונה
+        </button>
+      )}
     </div>
   );
 }
 
 // ── Main Section Component ───────────────────────────────────────────────────
 
-export default function VesselIssuesSection({ vehicle, isGuest }) {
+export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false }) {
   const queryClient = useQueryClient();
   const { user, guestVesselIssues, addGuestVesselIssue, updateGuestVesselIssue, removeGuestVesselIssue } = useAuth();
 
@@ -390,13 +396,15 @@ export default function VesselIssuesSection({ vehicle, isGuest }) {
             </p>
           </div>
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs transition-all active:scale-[0.98] text-white"
-          style={{ background: '#0C7B93', boxShadow: '0 3px 10px rgba(12,123,147,0.25)' }}>
-          <Plus className="w-3.5 h-3.5" />
-          חדשה
-        </button>
+        {!(readOnly && !isGuest) && (
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs transition-all active:scale-[0.98] text-white"
+            style={{ background: '#0C7B93', boxShadow: '0 3px 10px rgba(12,123,147,0.25)' }}>
+            <Plus className="w-3.5 h-3.5" />
+            חדשה
+          </button>
+        )}
       </div>
 
       {/* Filter tabs */}
@@ -425,7 +433,7 @@ export default function VesselIssuesSection({ vehicle, isGuest }) {
             <Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: '#0C7B93' }} />
           </div>
         ) : issues.length === 0 ? (
-          <EmptyState onAdd={openAdd} />
+          <EmptyState onAdd={(readOnly && !isGuest) ? undefined : openAdd} />
         ) : filtered.length === 0 ? (
           <p className="text-center py-6 text-xs" style={{ color: '#6B9EA8' }} dir="rtl">
             אין תקלות בסטטוס זה
@@ -438,6 +446,7 @@ export default function VesselIssuesSection({ vehicle, isGuest }) {
               onEdit={openEdit}
               onDelete={handleDelete}
               onToggleComplete={handleToggleComplete}
+              readOnly={readOnly && !isGuest}
             />
           ))
         )}

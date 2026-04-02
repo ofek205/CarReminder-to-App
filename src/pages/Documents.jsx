@@ -23,6 +23,8 @@ import VehicleScanWizard from "../components/vehicle/VehicleScanWizard";
 import ConfirmDeleteDialog from "../components/shared/ConfirmDeleteDialog";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
+import useAccountRole from '@/hooks/useAccountRole';
+import { canEdit } from '@/lib/permissions';
 
 // ── Document category definitions ─────────────────────────────────────────────
 const DOC_CATEGORIES = [
@@ -584,6 +586,7 @@ export default function Documents() {
 
 // ── Auth Documents ─────────────────────────────────────────────────────────────
 function AuthDocuments({ vehicleIdParam }) {
+  const { role } = useAccountRole();
   const [accountId, setAccountId] = useState(null);
   const [userId, setUserId] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -669,13 +672,13 @@ function AuthDocuments({ vehicleIdParam }) {
       <PageHeader
         title="מסמכים"
         backPage={vehicleIdParam ? `VehicleDetail?id=${vehicleIdParam}` : undefined}
-        actions={
+        actions={canEdit(role) && (
           <Button onClick={() => setShowAdd(true)} className="gap-2 text-xs sm:text-sm rounded-2xl font-bold" style={{ background: '#FFBF00', color: '#2D5233' }}>
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">סרוק / העלה מסמך</span>
             <span className="sm:hidden">העלה</span>
           </Button>
-        }
+        )}
       />
 
       <VehicleScanWizard

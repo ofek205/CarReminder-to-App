@@ -261,24 +261,35 @@ export default function AdminDashboard() {
   const [reviews, setReviews]       = useState([]);
   const [documents, setDocuments]   = useState([]);
 
-  // Step 1: verify admin role
+  // Step 1: verify admin role (using Supabase user metadata)
   useEffect(() => {
-    base44.auth.me()
-      .then(user => setIsAdmin(user?.role === 'admin'))
-      .catch(() => setIsAdmin(false));
+    async function checkAdmin() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setIsAdmin(false); return; }
+        // Check user_metadata role or account_members for admin flag
+        const isAdminUser = user.user_metadata?.role === 'admin'
+          || user.email === 'ofek205@gmail.com'; // fallback: app owner
+        setIsAdmin(isAdminUser);
+      } catch {
+        setIsAdmin(false);
+      }
+    }
+    checkAdmin();
   }, []);
 
-  // Step 2: fetch data (admin only)
+  // Step 2: fetch data (admin only) — using Supabase entities
   useEffect(() => {
     if (isAdmin !== true) return;
     setLoading(true);
     Promise.all([
-      base44.entities.Account.list().catch(() => []),
-      base44.entities.Vehicle.list().catch(() => []),
-      base44.entities.MaintenanceLog.list().catch(() => []),
-      base44.entities.RepairLog.list().catch(() => []),
-      base44.entities.Review.list().catch(() => []),
-      base44.entities.Document.list().catch(() => []),
+      db.accounts.list().catch(() => []),
+      db.vehicles.list().catch(() => []),
+      // MaintenanceLog, RepairLog, Review, Document not yet in Supabase — return empty
+      Promise.resolve([]),  // maintLogs placeholder
+      Promise.resolve([]),  // repairLogs placeholder
+      Promise.resolve([]),  // reviews placeholder
+      Promise.resolve([]),  // documents placeholder
     ]).then(([accs, vehs, maint, repairs, revs, docs]) => {
       setFetchError(false);
       setAccounts(accs   || []);

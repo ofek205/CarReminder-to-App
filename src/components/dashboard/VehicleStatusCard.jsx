@@ -1,6 +1,5 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Card } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -56,14 +55,25 @@ function getNextMaintenanceInfo(vehicle, maintenanceLogs, allTemplates) {
 }
 
 export default function VehicleStatusCard({ vehicle }) {
+  // Maintenance data disabled — not yet migrated from Base44
   const { data: maintenanceLogs = [] } = useQuery({
     queryKey: ['maintenance-logs-dash', vehicle.id],
-    queryFn: () => base44.entities.MaintenanceLog.filter({ vehicle_id: vehicle.id })
+    queryFn: async () => {
+      try {
+        // TODO: migrate MaintenanceLog entity to Supabase
+        return [];
+      } catch (e) { return []; }
+    },
   });
 
   const { data: allTemplates = [] } = useQuery({
     queryKey: ['templates-all-dash'],
-    queryFn: () => base44.entities.MaintenanceTemplate.filter({ is_active: true })
+    queryFn: async () => {
+      try {
+        // TODO: migrate MaintenanceTemplate entity to Supabase
+        return [];
+      } catch (e) { return []; }
+    },
   });
 
   const testStatus = getDateStatus(vehicle.test_due_date);

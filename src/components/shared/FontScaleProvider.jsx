@@ -1,5 +1,4 @@
 ﻿import { createContext, useContext, useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
 
 const FontScaleContext = createContext();
 
@@ -31,28 +30,15 @@ export function FontScaleProvider({ children }) {
 
   const loadFromUser = async () => {
     try {
-      const user = await base44.auth.me();
-      if (user.font_scale && FONT_SCALES.includes(user.font_scale)) {
-        // User has a saved preference - use it
-        applyFontScale(user.font_scale);
-        setFontScale(user.font_scale);
-        localStorage.setItem('font_scale', user.font_scale);
-      } else if (!localStorage.getItem('font_scale')) {
-        // No saved preference at all - apply device default and save it
-        const deviceDefault = getDeviceDefault();
-        applyFontScale(deviceDefault);
-        setFontScale(deviceDefault);
-        localStorage.setItem('font_scale', deviceDefault);
-        await base44.auth.updateMe({ font_scale: deviceDefault });
-      }
-    } catch (e) {
-      // User not logged in or error - apply device default from localStorage or detect
+      // Use localStorage only — no server dependency
       if (!localStorage.getItem('font_scale')) {
         const deviceDefault = getDeviceDefault();
         applyFontScale(deviceDefault);
         setFontScale(deviceDefault);
         localStorage.setItem('font_scale', deviceDefault);
       }
+    } catch (e) {
+      // Fallback
     } finally {
       setLoading(false);
     }
@@ -70,12 +56,7 @@ export function FontScaleProvider({ children }) {
     setFontScale(newScale);
     localStorage.setItem('font_scale', newScale);
 
-    // Save to user preferences
-    try {
-      await base44.auth.updateMe({ font_scale: newScale });
-    } catch (e) {
-      // Silent fail - localStorage is enough
-    }
+    // localStorage is the source of truth for font scale
   };
 
   const getPercentage = () => Math.round(fontScale * 100);

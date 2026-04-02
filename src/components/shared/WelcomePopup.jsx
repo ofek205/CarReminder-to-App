@@ -2,7 +2,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Car, Wrench, Bell, Star, Smartphone, Search, MessageSquare, Sparkles } from "lucide-react";
-import { base44 } from "@/api/base44Client";
 import usePWAInstall from "./usePWAInstall";
 import IOSInstallModal from "./IOSInstallModal";
 import { isNative } from "@/lib/capacitor";
@@ -15,15 +14,10 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
   const [installSnoozed, setInstallSnoozed] = useState(false);
 
   useEffect(() => {
-    async function checkSnooze() {
-      try {
-        const user = await base44.auth.me();
-        if (!user) return;
-        const snoozed = user.install_cta_snoozed_until;
-        if (snoozed && new Date(snoozed) > new Date()) setInstallSnoozed(true);
-      } catch (e) {}
-    }
-    if (open) checkSnooze();
+    try {
+      const snoozed = localStorage.getItem('install_cta_snoozed_until');
+      if (snoozed && new Date(snoozed) > new Date()) setInstallSnoozed(true);
+    } catch (e) {}
   }, [open]);
 
   const handleInstall = async () => {
@@ -31,11 +25,11 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
     if (!installed) setShowIOSModal(true);
   };
 
-  const handleSnoozeInstall = async () => {
+  const handleSnoozeInstall = () => {
     setInstallSnoozed(true);
     try {
       const until = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      await base44.auth.updateMe({ install_cta_snoozed_until: until });
+      localStorage.setItem('install_cta_snoozed_until', until);
     } catch (e) {}
   };
 

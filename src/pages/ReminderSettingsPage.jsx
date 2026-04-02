@@ -1,26 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useQueryClient } from '@tanstack/react-query';
+import { db } from '@/lib/supabaseEntities';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, Mail, Bell } from "lucide-react";
+import { Loader2, Save, Mail, Bell, Smartphone, Calendar, Shield, Wrench, FileText, Anchor, MessageCircle } from "lucide-react";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
+import { isNative } from "@/lib/capacitor";
+import { requestNotificationPermission, checkNotificationPermission } from "@/lib/notificationChannels";
+import { C } from '@/lib/designTokens';
 
-// ── Fields for the "days before" section ──────────────────────────────────────
+// ── Notification type toggles ────────────────────────────────────────────────
+const NOTIFICATION_TYPES = [
+  { key: 'notify_test',        label: 'טסט / כושר שייט',  icon: Calendar,  emoji: '📋', description: 'תזכורת לפני פקיעת הטסט' },
+  { key: 'notify_insurance',   label: 'ביטוח',            icon: Shield,    emoji: '🛡️', description: 'תזכורת לפני פקיעת הביטוח' },
+  { key: 'notify_maintenance', label: 'טיפול תקופתי',     icon: Wrench,    emoji: '🔧', description: 'תזכורת לטיפולים שמתקרבים' },
+  { key: 'notify_document',    label: 'מסמכים',           icon: FileText,  emoji: '📄', description: 'תזכורת למסמכים שפוקעים' },
+  { key: 'notify_safety',      label: 'ציוד בטיחות (שייט)', icon: Anchor, emoji: '🛟', description: 'תזכורת לציוד בטיחות ימי' },
+];
+
+// ── Timing fields ────────────────────────────────────────────────────────────
 const TIMING_FIELDS = [
-  { key: 'remind_test_days_before',         label: 'תזכורת לפני טסט',            icon: '📋', hint: 'ימים לפני תפוגת הטסט',             suffix: 'ימים', max: 365 },
-  { key: 'remind_insurance_days_before',     label: 'תזכורת לפני ביטוח',          icon: '🛡️', hint: 'ימים לפני תפוגת הביטוח',           suffix: 'ימים', max: 365 },
-  { key: 'remind_document_days_before',      label: 'תזכורת לפני מסמך',           icon: '📄', hint: 'ימים לפני תפוגת מסמך',             suffix: 'ימים', max: 365 },
-  { key: 'remind_maintenance_days_before',   label: 'תזכורת לפני טיפול',          icon: '🔧', hint: 'ימים לפני מועד הטיפול',            suffix: 'ימים', max: 365 },
-  { key: 'overdue_repeat_every_days',        label: 'חזרה על תזכורת באיחור',      icon: '🔁', hint: 'כל כמה ימים לחזור על תזכורת שעברה', suffix: 'ימים', max: 365 },
-  { key: 'daily_job_hour',                   label: 'שעת שליחת התראות יומית',     icon: '⏰', hint: 'בחר שעה בין 0 ל-23',               suffix: ':00',  max: 23, isTimeField: true },
+  { key: 'remind_test_days_before',         label: 'טסט',         icon: '📋', suffix: 'ימים', max: 365 },
+  { key: 'remind_insurance_days_before',     label: 'ביטוח',       icon: '🛡️', suffix: 'ימים', max: 365 },
+  { key: 'remind_document_days_before',      label: 'מסמכים',      icon: '📄', suffix: 'ימים', max: 365 },
+  { key: 'remind_maintenance_days_before',   label: 'טיפולים',     icon: '🔧', suffix: 'ימים', max: 365 },
+  { key: 'overdue_repeat_every_days',        label: 'חזרה על איחור', icon: '🔁', suffix: 'ימים', max: 30 },
 ];
 
 const DEFAULT_FORM = {
@@ -30,6 +41,16 @@ const DEFAULT_FORM = {
   remind_maintenance_days_before: 7,
   overdue_repeat_every_days:      3,
   daily_job_hour:                 8,
+  // Notification type toggles (all on by default)
+  notify_test: true,
+  notify_insurance: true,
+  notify_maintenance: true,
+  notify_document: true,
+  notify_safety: true,
+  // Channel toggles
+  device_notifications_enabled: true,
+  email_enabled: false,
+  whatsapp_enabled: false,
 };
 
 // ── Guest version ─────────────────────────────────────────────────────────────
@@ -38,82 +59,13 @@ function GuestReminderSettings() {
   const [form, setForm] = useState({ ...DEFAULT_FORM, ...guestReminderSettings });
 
   const handleSave = () => {
-    const updated = {};
-    TIMING_FIELDS.forEach(f => { updated[f.key] = Number(form[f.key]) || 0; });
-    updateGuestReminderSettings(updated);
-    toast.success('ההגדרות נשמרו בהצלחה');
+    updateGuestReminderSettings(form);
+    toast.success('ההגדרות נשמרו');
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
-      <PageHeader title="הגדרות תזכורות" subtitle="מתי תרצה לקבל תזכורות?" />
-
-      <Card className="p-5 border border-gray-100">
-        <div className="flex items-center gap-2 mb-5">
-          <Bell className="h-5 w-5 text-[#2D5233]" />
-          <h3 className="font-semibold text-gray-900">כמה ימים מראש?</h3>
-        </div>
-        <div className="space-y-4">
-          {TIMING_FIELDS.map(field => (
-            <div key={field.key} className="flex items-center justify-between gap-4" dir="rtl">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <span className="text-xl shrink-0">{field.icon}</span>
-                <div>
-                  <Label className="text-sm font-medium text-gray-800">{field.label}</Label>
-                  <p className="text-xs text-gray-400">{field.hint}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {field.isTimeField ? (
-                  <Select
-                    value={String(form[field.key] ?? 8)}
-                    onValueChange={v => setForm(f => ({ ...f, [field.key]: Number(v) }))}
-                  >
-                    <SelectTrigger className="w-20 font-semibold text-center">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 24 }, (_, h) => (
-                        <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={field.max ?? 365}
-                      className="w-16 text-center font-semibold"
-                      value={form[field.key] ?? ''}
-                      onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
-                    />
-                    <span className="text-xs text-gray-400">{field.suffix ?? 'ימים'}</span>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-        <Button
-          onClick={handleSave}
-          className="w-full mt-6 bg-[#2D5233] hover:bg-[#1E3D24] text-white gap-2 h-11"
-        >
-          <Save className="h-4 w-4" /> שמור הגדרות
-        </Button>
-      </Card>
-
-      <Card className="p-4 border border-amber-200 bg-amber-50" dir="rtl">
-        <p className="text-sm text-amber-800">
-          התראות במייל זמינות רק לאחר הרשמה.{' '}
-          <button
-            onClick={() => window.location.href = '/Auth'}
-            className="underline font-medium"
-          >
-            הירשם בחינם
-          </button>
-        </p>
-      </Card>
+    <div className="px-4 pb-20" dir="rtl">
+      <SettingsUI form={form} setForm={setForm} onSave={handleSave} saving={false} isGuest={true} />
     </div>
   );
 }
@@ -127,202 +79,269 @@ export default function ReminderSettingsPage() {
 
 // ── Auth version ──────────────────────────────────────────────────────────────
 function AuthReminderSettings() {
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [settingsId, setSettingsId] = useState(null);
-  const [user, setUser]         = useState(null);
-  const [form, setForm]         = useState({ ...DEFAULT_FORM });
-  const [emailSettings, setEmailSettings] = useState({
-    email_test_reminders_enabled:      false,
-    email_insurance_reminders_enabled: false,
-    email_document_reminders_enabled:  false,
-  });
+  const [form, setForm] = useState({ ...DEFAULT_FORM });
 
   useEffect(() => {
     async function init() {
-      const { data: { user: supaUser } } = await supabase.auth.getUser();
-      if (!supaUser) { setLoading(false); return; }
-      const currentUser = {
-        id: supaUser.id,
-        email: supaUser.email,
-        full_name: supaUser.user_metadata?.full_name,
-        // Email reminder flags stored in user_metadata
-        email_test_reminders_enabled: supaUser.user_metadata?.email_test_reminders_enabled || false,
-        email_insurance_reminders_enabled: supaUser.user_metadata?.email_insurance_reminders_enabled || false,
-        email_document_reminders_enabled: supaUser.user_metadata?.email_document_reminders_enabled || false,
-      };
-      setUser(currentUser);
+      if (!user?.id) { setLoading(false); return; }
 
-      setEmailSettings({
-        email_test_reminders_enabled:      currentUser.email_test_reminders_enabled      || false,
-        email_insurance_reminders_enabled: currentUser.email_insurance_reminders_enabled || false,
-        email_document_reminders_enabled:  currentUser.email_document_reminders_enabled  || false,
-      });
-
-      // TODO: ReminderSettings entity not yet in Supabase — using defaults
-      let settings = [];
-      // let settings = await db.reminder_settings.filter({ user_id: currentUser.id });
-      if (settings.length === 0) {
-        // const created = await db.reminder_settings.create({ user_id: currentUser.id, ...DEFAULT_FORM });
-        // settings = [created];
-        settings = [{ id: 'temp', ...DEFAULT_FORM }];
+      try {
+        let rows = await db.reminder_settings.filter({ user_id: user.id });
+        if (rows.length === 0) {
+          // Create default settings
+          const created = await db.reminder_settings.create({ user_id: user.id, ...DEFAULT_FORM });
+          rows = [created];
+        }
+        const s = rows[0];
+        setSettingsId(s.id);
+        setForm({ ...DEFAULT_FORM, ...s });
+      } catch (e) {
+        console.warn('Failed to load reminder settings:', e);
+        // Use defaults
+      } finally {
+        setLoading(false);
       }
-      const s = settings[0];
-      setSettingsId(s.id);
-      setForm({
-        remind_test_days_before:       s.remind_test_days_before       ?? 14,
-        remind_insurance_days_before:  s.remind_insurance_days_before  ?? 14,
-        remind_document_days_before:   s.remind_document_days_before   ?? 14,
-        remind_maintenance_days_before:s.remind_maintenance_days_before ?? 7,
-        overdue_repeat_every_days:     s.overdue_repeat_every_days     ?? 3,
-        daily_job_hour:                s.daily_job_hour                ?? 8,
-      });
-      setLoading(false);
     }
     init();
-  }, []);
+  }, [user?.id]);
 
   const handleSave = async () => {
     setSaving(true);
-    const payload = {};
-    TIMING_FIELDS.forEach(f => { payload[f.key] = Number(form[f.key]) || 0; });
-    // TODO: ReminderSettings entity not yet in Supabase — save is a no-op for now
-    // await db.reminder_settings.update(settingsId, payload);
-    toast.success('ההגדרות נשמרו בהצלחה');
-    setSaving(false);
-  };
+    try {
+      const payload = {};
+      Object.keys(DEFAULT_FORM).forEach(k => {
+        if (typeof DEFAULT_FORM[k] === 'boolean') {
+          payload[k] = !!form[k];
+        } else {
+          payload[k] = Number(form[k]) || 0;
+        }
+      });
 
-  const toggleEmail = async (key) => {
-    if (!user?.email) {
-      toast.error('כדי לקבל תזכורות במייל יש להוסיף כתובת מייל לפרופיל');
-      return;
+      if (settingsId) {
+        await db.reminder_settings.update(settingsId, payload);
+      } else {
+        const created = await db.reminder_settings.create({ user_id: user.id, ...payload });
+        setSettingsId(created.id);
+      }
+      toast.success('ההגדרות נשמרו');
+    } catch (e) {
+      toast.error('שגיאה בשמירה');
+      console.error(e);
+    } finally {
+      setSaving(false);
     }
-    const newVal = !emailSettings[key];
-    setEmailSettings(prev => ({ ...prev, [key]: newVal }));
-    await supabase.auth.updateUser({ data: { [key]: newVal } });
-    toast.success('ההגדרות נשמרו');
   };
 
   if (loading) return <LoadingSpinner />;
 
-  const hasEmail = !!user?.email;
+  return (
+    <div className="px-4 pb-20" dir="rtl">
+      <SettingsUI form={form} setForm={setForm} onSave={handleSave} saving={saving} isGuest={false} />
+    </div>
+  );
+}
 
-  const emailToggles = [
-    { key: 'email_test_reminders_enabled',      label: 'תזכורות טסט במייל',            icon: '📋' },
-    { key: 'email_insurance_reminders_enabled',  label: 'תזכורות ביטוח במייל',          icon: '🛡️' },
-    { key: 'email_document_reminders_enabled',   label: 'תזכורות מסמכים פוקעים במייל', icon: '📄' },
-  ];
+// ── Shared Settings UI ────────────────────────────────────────────────────────
+function SettingsUI({ form, setForm, onSave, saving, isGuest }) {
+  const [devicePermission, setDevicePermission] = useState(null);
+
+  useEffect(() => {
+    if (isNative) {
+      checkNotificationPermission().then(setDevicePermission);
+    }
+  }, []);
+
+  const handleRequestPermission = async () => {
+    const granted = await requestNotificationPermission();
+    setDevicePermission(granted);
+    if (granted) toast.success('התראות הופעלו');
+    else toast.error('ההרשאה נדחתה — ניתן להפעיל בהגדרות המכשיר');
+  };
+
+  const toggleType = (key) => {
+    setForm(f => ({ ...f, [key]: !f[key] }));
+  };
 
   return (
-    <div className="space-y-6" dir="rtl">
-      <PageHeader title="הגדרות תזכורות" subtitle="מתי תרצה לקבל תזכורות?" />
-
-      {/* ── Timing settings ── */}
-      <Card className="p-5 border border-gray-100">
-        <div className="flex items-center gap-2 mb-5">
-          <Bell className="h-5 w-5 text-[#2D5233]" />
-          <h3 className="font-semibold text-gray-900">כמה ימים מראש?</h3>
+    <>
+      {/* Header */}
+      <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
+        style={{ background: C.grad, boxShadow: `0 8px 32px ${C.primary}40` }}>
+        <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+            <Bell className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="font-black text-xl text-white">הגדרות התראות</h1>
+            <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
+              בחר מה ומתי לקבל התראות
+            </p>
+          </div>
         </div>
-        <div className="space-y-4">
-          {TIMING_FIELDS.map(field => (
-            <div key={field.key} className="flex items-center justify-between gap-4" dir="rtl">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <span className="text-xl shrink-0">{field.icon}</span>
-                <div>
-                  <Label className="text-sm font-medium text-gray-800">{field.label}</Label>
-                  <p className="text-xs text-gray-400">{field.hint}</p>
+      </div>
+
+      {/* ── Device notifications permission ── */}
+      {isNative && (
+        <div className="rounded-2xl p-4 mb-5 flex items-center justify-between"
+          style={{
+            background: devicePermission ? '#F0FDF4' : '#FEF3C7',
+            border: `1.5px solid ${devicePermission ? '#BBF7D0' : '#FDE68A'}`,
+          }}>
+          <div className="flex items-center gap-3">
+            <Smartphone className="w-5 h-5" style={{ color: devicePermission ? '#16A34A' : '#D97706' }} />
+            <div>
+              <p className="font-bold text-sm" style={{ color: devicePermission ? '#166534' : '#92400E' }}>
+                {devicePermission ? 'התראות במכשיר פעילות' : 'התראות במכשיר כבויות'}
+              </p>
+              <p className="text-xs" style={{ color: devicePermission ? '#16A34A' : '#D97706' }}>
+                {devicePermission ? 'תקבל התראות push למכשיר' : 'לחץ להפעיל'}
+              </p>
+            </div>
+          </div>
+          {!devicePermission && (
+            <Button onClick={handleRequestPermission} size="sm"
+              className="rounded-xl font-bold" style={{ background: '#D97706', color: 'white' }}>
+              הפעל
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* ── Which notifications to receive ── */}
+      <div className="mb-5">
+        <h2 className="font-bold text-base text-gray-900 mb-3 flex items-center gap-2">
+          <Bell className="w-4 h-4" style={{ color: C.primary }} />
+          איזה התראות לקבל?
+        </h2>
+        <div className="space-y-2">
+          {NOTIFICATION_TYPES.map(nt => {
+            const active = !!form[nt.key];
+            return (
+              <div key={nt.key}
+                className="rounded-2xl p-3.5 flex items-center justify-between transition-all"
+                style={{
+                  background: active ? '#F0FDF4' : '#FAFAFA',
+                  border: `1.5px solid ${active ? '#BBF7D0' : '#E5E7EB'}`,
+                }}>
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">{nt.emoji}</span>
+                  <div>
+                    <p className="font-bold text-sm" style={{ color: active ? '#166534' : '#6B7280' }}>{nt.label}</p>
+                    <p className="text-xs" style={{ color: '#9CA3AF' }}>{nt.description}</p>
+                  </div>
                 </div>
+                <Switch checked={active} onCheckedChange={() => toggleType(nt.key)} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Timing: how many days before ── */}
+      <div className="mb-5">
+        <h2 className="font-bold text-base text-gray-900 mb-3 flex items-center gap-2">
+          <Calendar className="w-4 h-4" style={{ color: C.primary }} />
+          כמה ימים מראש?
+        </h2>
+        <div className="rounded-2xl overflow-hidden" style={{ border: '1.5px solid #E5E7EB' }}>
+          {TIMING_FIELDS.map((field, i) => (
+            <div key={field.key}
+              className="flex items-center justify-between gap-3 px-4 py-3.5"
+              style={{ borderTop: i > 0 ? '1px solid #F3F4F6' : 'none' }}>
+              <div className="flex items-center gap-2.5">
+                <span className="text-base">{field.icon}</span>
+                <span className="font-bold text-sm text-gray-800">{field.label}</span>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                {field.isTimeField ? (
-                  <Select
-                    value={String(form[field.key] ?? 8)}
-                    onValueChange={v => setForm(f => ({ ...f, [field.key]: Number(v) }))}
-                  >
-                    <SelectTrigger className="w-20 font-semibold text-center">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 24 }, (_, h) => (
-                        <SelectItem key={h} value={String(h)}>{h}:00</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={field.max ?? 365}
-                      className="w-16 text-center font-semibold"
-                      value={form[field.key] ?? ''}
-                      onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
-                    />
-                    <span className="text-xs text-gray-400">{field.suffix ?? 'ימים'}</span>
-                  </>
-                )}
+                <Input
+                  type="number"
+                  min={0}
+                  max={field.max}
+                  className="w-16 text-center font-bold text-sm h-9"
+                  value={form[field.key] ?? ''}
+                  onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
+                />
+                <span className="text-xs text-gray-400 font-medium">{field.suffix}</span>
               </div>
             </div>
           ))}
         </div>
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full mt-6 bg-[#2D5233] hover:bg-[#1E3D24] text-white gap-2 h-11"
-        >
-          {saving
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <><Save className="h-4 w-4" /> שמור הגדרות</>
-          }
-        </Button>
-      </Card>
+      </div>
 
-      {/* ── Email notifications ── */}
-      <Card className="p-5 border border-gray-100">
-        <div className="flex items-center gap-2 mb-4">
-          <Mail className="h-5 w-5 text-[#2D5233]" />
-          <h3 className="font-semibold text-gray-900">התראות במייל</h3>
-        </div>
-
-        {!hasEmail && (
-          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 mb-4">
-            <p className="text-sm text-amber-800">
-              כדי לקבל תזכורות במייל יש להוסיף כתובת מייל לפרופיל שלך
-            </p>
+      {/* ── Notification time ── */}
+      <div className="mb-5">
+        <h2 className="font-bold text-base text-gray-900 mb-3">שעת שליחת התראות</h2>
+        <div className="rounded-2xl p-4 flex items-center justify-between"
+          style={{ border: '1.5px solid #E5E7EB' }}>
+          <div className="flex items-center gap-2.5">
+            <span className="text-base">⏰</span>
+            <span className="font-bold text-sm text-gray-800">בכל בוקר בשעה</span>
           </div>
-        )}
+          <Select
+            value={String(form.daily_job_hour ?? 8)}
+            onValueChange={v => setForm(f => ({ ...f, daily_job_hour: Number(v) }))}
+          >
+            <SelectTrigger className="w-24 font-bold text-center h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 24 }, (_, h) => (
+                <SelectItem key={h} value={String(h)}>{String(h).padStart(2, '0')}:00</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-        <div className="space-y-3">
-          {emailToggles.map(t => (
-            <div
-              key={t.key}
-              className={`flex items-center justify-between p-3.5 rounded-xl transition-colors
-                ${emailSettings[t.key] ? 'bg-[#E8F2EA] border border-[#D8E5D9]' : 'bg-gray-50 border border-transparent'}`}
-              dir="rtl"
-            >
+      {/* ── Future channels ── */}
+      {!isGuest && (
+        <div className="mb-5">
+          <h2 className="font-bold text-base text-gray-900 mb-3">ערוצי התראה נוספים</h2>
+          <div className="space-y-2">
+            {/* Email — coming soon */}
+            <div className="rounded-2xl p-3.5 flex items-center justify-between"
+              style={{ background: '#F9FAFB', border: '1.5px solid #E5E7EB', opacity: 0.6 }}>
               <div className="flex items-center gap-3">
-                <span className="text-lg">{t.icon}</span>
-                <Label className={`text-sm font-medium ${!hasEmail ? 'text-gray-400' : 'text-gray-800'}`}>
-                  {t.label}
-                </Label>
+                <Mail className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="font-bold text-sm text-gray-500">התראות באימייל</p>
+                  <p className="text-xs text-gray-400">בקרוב</p>
+                </div>
               </div>
-              <Switch
-                checked={emailSettings[t.key]}
-                onCheckedChange={() => toggleEmail(t.key)}
-                disabled={!hasEmail}
-              />
+              <Switch disabled checked={false} />
             </div>
-          ))}
-        </div>
-
-        {hasEmail && (
-          <div className="mt-4 p-3 rounded-xl bg-blue-50 border border-blue-200">
-            <p className="text-xs text-blue-800 leading-relaxed">
-              💡 מיילים נשלחים בשעה {form.daily_job_hour}:00 בכל בוקר, פעם אחת לכל התראה.
-            </p>
+            {/* WhatsApp — coming soon */}
+            <div className="rounded-2xl p-3.5 flex items-center justify-between"
+              style={{ background: '#F9FAFB', border: '1.5px solid #E5E7EB', opacity: 0.6 }}>
+              <div className="flex items-center gap-3">
+                <MessageCircle className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="font-bold text-sm text-gray-500">התראות ב-WhatsApp</p>
+                  <p className="text-xs text-gray-400">בקרוב</p>
+                </div>
+              </div>
+              <Switch disabled checked={false} />
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Save button */}
+      <Button onClick={onSave} disabled={saving}
+        className="w-full h-14 rounded-2xl font-bold text-base gap-2 mb-4"
+        style={{ background: C.grad, color: 'white', boxShadow: `0 6px 24px ${C.primary}40` }}>
+        {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+          <>
+            <Save className="h-5 w-5" />
+            שמור הגדרות
+          </>
         )}
-      </Card>
-    </div>
+      </Button>
+    </>
   );
 }

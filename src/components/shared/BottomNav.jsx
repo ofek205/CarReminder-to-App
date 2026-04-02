@@ -30,7 +30,7 @@ export default function BottomNav() {
                 <tab.icon className="w-6 h-6" strokeWidth={active ? 2.5 : 2}
                   style={{ color: active ? '#FFBF00' : '#6B7280' }} />
               </div>
-              <span className="text-xs font-bold"
+              <span className="text-sm font-extrabold"
                 style={{ color: active ? '#2D5233' : '#6B7280' }}>{tab.label}</span>
             </Link>
           );

@@ -13,6 +13,8 @@ import { lookupVehicleByPlate } from '../services/vehicleLookup';
 import { toast } from 'sonner';
 import { useAuth } from '../components/shared/GuestContext';
 import { DEMO_ACCIDENTS, DEMO_VEHICLE } from '../components/shared/demoVehicleData';
+import useAccountRole from '@/hooks/useAccountRole';
+import { isViewOnly } from '@/lib/permissions';
 import { C } from '@/lib/designTokens';
 import ImageViewer from '../components/shared/ImageViewer';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -60,6 +62,7 @@ export default function AddAccident() {
   const queryClient = useQueryClient();
   const { isAuthenticated, isGuest, user, guestVehicles, guestAccidents,
     addGuestAccident, updateGuestAccident } = useAuth();
+  const { role, isGuest: isGuestRole } = useAccountRole();
 
   const urlParams = new URLSearchParams(window.location.search);
   const editId = urlParams.get('id');
@@ -226,6 +229,18 @@ export default function AddAccident() {
   };
 
   if (loading) return <LoadingSpinner />;
+
+  if (!isGuestRole && isViewOnly(role)) {
+    return (
+      <div dir="rtl" className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="rounded-2xl p-6 max-w-sm" style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }}>
+          <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה לתעד תאונה</p>
+          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר — תצוגה בלבד</p>
+          <button onClick={() => navigate(-1)} className="px-6 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563EB' }}>חזרה</button>
+        </div>
+      </div>
+    );
+  }
 
   const isDemo = form._isDemo === true;
   const selectedVehicle = vehicles.find(v => v.id === form.vehicle_id);

@@ -55,4 +55,7 @@ export const db = {
   vehicles:        makeEntity('vehicles'),
   accidents:       makeEntity('accidents'),
   vessel_issues:   makeEntity('vessel_issues'),
+  invites:            makeEntity('invites'),
+  reminder_settings:  makeEntity('reminder_settings'),
+  notification_log:   makeEntity('notification_log'),
 };

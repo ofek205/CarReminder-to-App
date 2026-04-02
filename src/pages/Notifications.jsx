@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock } from "lucide-react";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { formatDateHe, getVehicleLabels } from "../components/shared/DateStatusUtils";
 import { useAuth } from "../components/shared/GuestContext";
+import { calcReminders } from "../components/shared/ReminderEngine";
+import { markNotificationRead } from "@/lib/notificationChannels";
 import { C } from '@/lib/designTokens';
 
 const TYPE_CONFIG = {
@@ -192,32 +195,78 @@ function GuestNotifications() {
   );
 }
 
+// ── Map ReminderEngine output → NotifCard shape ─────────────────────────────
+const REMINDER_TYPE_MAP = {
+  test: 'טסט',
+  insurance: 'ביטוח',
+  maintenance: 'טיפול',
+  safety: 'טיפול',
+  document: 'מסמך',
+};
+
+function remindersToNotifs(reminders) {
+  return reminders.map(r => ({
+    id: r.id,
+    notification_type: REMINDER_TYPE_MAP[r.type] || 'טיפול',
+    message: `${r.typeName || r.type} — ${r.name}`,
+    due_date: r.dueDate,
+    days_left: r.daysLeft,
+    is_overdue: r.daysLeft !== null && r.daysLeft < 0,
+    is_read: false,
+  }));
+}
+
 // ── Auth Notifications ───────────────────────────────────────────────────────
 function AuthNotifications() {
-  const [userId, setUserId] = useState(null);
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
-    }
-    init();
-  }, []);
-
-  const { data: notifications = [], isLoading } = useQuery({
-    queryKey: ['notifications', userId],
-    queryFn: async () => [],
-    enabled: !!userId,
+  // Fetch vehicles
+  const { data: accountData } = useQuery({
+    queryKey: ['auth-notif-account', user?.id],
+    queryFn: async () => {
+      const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
+      if (members.length === 0) return { accountId: null, vehicles: [] };
+      const accountId = members[0].account_id;
+      const vehicles = await db.vehicles.filter({ account_id: accountId });
+      return { accountId, vehicles };
+    },
+    enabled: !!user?.id,
   });
 
+  // Fetch reminder settings
+  const { data: settings } = useQuery({
+    queryKey: ['reminder-settings', user?.id],
+    queryFn: async () => {
+      try {
+        const rows = await db.reminder_settings.filter({ user_id: user.id });
+        return rows.length > 0 ? rows[0] : null;
+      } catch { return null; }
+    },
+    enabled: !!user?.id,
+  });
+
+  const vehicles = accountData?.vehicles || [];
+  const isLoading = !accountData;
+
+  // Calculate notifications from vehicle data
+  const notifications = remindersToNotifs(
+    calcReminders({ vehicles, documents: [], settings: settings || undefined })
+  );
+
   const markAsRead = async (id) => {
+    // For now, just remove from UI — future: persist to notification_log
     queryClient.invalidateQueries({ queryKey: ['notifications'] });
   };
 
-  if (!userId || isLoading) return <LoadingSpinner />;
+  if (!user?.id || isLoading) return <LoadingSpinner />;
 
-  const sorted = [...notifications].sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+  const sorted = [...notifications].sort((a, b) => {
+    // Overdue first, then by days_left ascending
+    if (a.is_overdue && !b.is_overdue) return -1;
+    if (!a.is_overdue && b.is_overdue) return 1;
+    return (a.days_left ?? 999) - (b.days_left ?? 999);
+  });
   const unread = sorted.filter(n => !n.is_read);
   const read = sorted.filter(n => n.is_read);
 

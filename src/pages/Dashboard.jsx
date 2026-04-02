@@ -79,11 +79,11 @@ function UrgentBanner({ reminders, vehicles }) {
             ⚠️ התראה דחופה
           </span>
         </div>
-        <h2 className="font-black text-2xl mb-1 leading-tight text-white" dir="rtl">
+        <h2 className="font-black text-[1.5rem] sm:text-2xl mb-1.5 leading-tight text-white" dir="rtl">
           {typeLabel} קרב
         </h2>
         {vehicleName && (
-          <p className="text-sm mb-5" style={{ color: 'rgba(255,255,255,0.75)' }} dir="rtl">
+          <p className="text-base font-semibold mb-5" style={{ color: 'rgba(255,255,255,0.85)' }} dir="rtl">
             {vehicleName} &bull; {daysLabel(urgent.days)}
           </p>
         )}
@@ -157,7 +157,7 @@ function VehicleCard({ vehicle, isDemo }) {
             <h3 className="font-black text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
               {name}
             </h3>
-            <p className="text-sm mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>
+            <p className="text-base mt-1 font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>
               {[make, model, vehicle.year].filter(Boolean).join(' · ')}
             </p>
           </div>
@@ -179,8 +179,8 @@ function VehicleCard({ vehicle, isDemo }) {
           ].map((stat, i) => (
             <div key={i} className={`py-4 px-3 text-center ${i < 2 ? 'border-l' : ''}`}
               style={{ borderColor: T.border }}>
-              <p className="font-black text-lg" style={{ color: T.text }}>{stat.value}</p>
-              <p className="text-xs mt-0.5 font-medium" style={{ color: T.muted }}>{stat.label}</p>
+              <p className="font-black text-base sm:text-lg" style={{ color: T.text }}>{stat.value}</p>
+              <p className="text-sm mt-1 font-bold" style={{ color: T.muted }}>{stat.label}</p>
             </div>
           ))}
         </div>
@@ -206,8 +206,8 @@ function InfoTile({ icon: Icon, label, value, status }) {
         <Icon className="w-5 h-5 text-white" />
       </div>
       <div dir="rtl" className="relative z-10">
-        <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>{label}</p>
-        <p className="font-black text-lg mt-0.5 text-white">{value}</p>
+        <p className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.8)' }}>{label}</p>
+        <p className="font-black text-lg mt-1 text-white">{value}</p>
       </div>
     </div>
   );
@@ -230,11 +230,11 @@ function ReminderRow({ reminder }) {
         <Icon className="w-5 h-5 text-white" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-sm" style={{ color: C.text }}>{reminder.title}</p>
-        <p className="text-xs mt-0.5 font-semibold" style={{ color: urgencyColor }}>{daysLabel(days)}</p>
+        <p className="font-bold text-base" style={{ color: C.text }}>{reminder.title}</p>
+        <p className="text-sm mt-0.5 font-bold" style={{ color: urgencyColor }}>{daysLabel(days)}</p>
       </div>
       <div className="text-left shrink-0">
-        <p className="font-bold text-sm" style={{ color: C.text }}>{fmtDate(reminder.date)}</p>
+        <p className="font-bold text-base" style={{ color: C.text }}>{fmtDate(reminder.date)}</p>
       </div>
     </div>
   );
@@ -336,8 +336,8 @@ function VehicleRow({ vehicle }) {
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-base truncate" style={{ color: T.text }}>{name}</h3>
-          <p className="text-xs mt-0.5 truncate" style={{ color: T.muted }}>{subtitle}</p>
+          <h3 className="font-extrabold text-base truncate" style={{ color: T.text }}>{name}</h3>
+          <p className="text-sm mt-0.5 truncate font-medium" style={{ color: T.muted }}>{subtitle}</p>
           {isVessel ? (
             vehicle.current_engine_hours && (
               <p className="text-xs mt-0.5" style={{ color: T.muted }}>
@@ -375,6 +375,8 @@ function VehicleRow({ vehicle }) {
 // BottomNav moved to Layout — shared across all pages
 
 // ── Main Dashboard ──────────────────────────────────────────────────────────
+import useNotificationScheduler from '@/hooks/useNotificationScheduler';
+
 export default function Dashboard() {
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles, getStoredGuestVehicles,
     getStoredGuestDocuments, getStoredGuestReminderSettings, clearGuestData, isDemoDismissed } = useAuth();
@@ -382,6 +384,9 @@ export default function Dashboard() {
   const [filteredVehicles, setFilteredVehicles] = useState(null);
   const [showSignUp, setShowSignUp] = useState(false);
   const navigate = useNavigate();
+
+  // Schedule device notifications for authenticated users
+  const { unreadCount } = useNotificationScheduler(filteredVehicles || [], accountId);
 
   // ── Authenticated init (Supabase) ────────────────────────────────────────
   useEffect(() => {
@@ -481,14 +486,14 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4" dir="rtl">
             <h2 className="font-black text-2xl" style={{ color: C.text }}>הרכבים שלי</h2>
             <Link to={createPageUrl('Vehicles')}
-              className="flex items-center gap-1 text-sm font-bold" style={{ color: C.green }}>
+              className="flex items-center gap-1 text-base font-extrabold" style={{ color: C.green }}>
               נהל רכבים <ChevronLeft className="w-4 h-4" />
             </Link>
           </div>
 
           {/* Demo badge */}
           {isShowingDemo && (
-            <div className="rounded-xl px-3 py-2 mb-3 text-center text-xs font-medium"
+            <div className="rounded-xl px-3 py-2.5 mb-3 text-center text-sm font-bold"
               style={{ background: '#FEF3C7', color: '#92400E' }}>
               רכב לדוגמה — הוסף את הרכב שלך
             </div>

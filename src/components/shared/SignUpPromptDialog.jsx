@@ -2,11 +2,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Shield, UserPlus, CloudUpload } from "lucide-react";
-import { base44 } from '@/api/base44Client';
 
 export default function SignUpPromptDialog({ open, onClose, reason }) {
   const handleLogin = () => {
-    base44.auth.redirectToLogin(window.location.href);
+    window.location.href = '/Auth';
   };
 
   return (

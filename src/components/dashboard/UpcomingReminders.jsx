@@ -7,7 +7,6 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Card } from '@/components/ui/card';
@@ -67,19 +66,26 @@ export default function UpcomingReminders({ vehicles = [], accountId }) {
   const [expanded, setExpanded] = useState(false);
   const MAX_COLLAPSED = 3;
 
-  // Fetch documents (auth only)
+  // Fetch documents (disabled — not yet migrated from Base44)
   const { data: documents = [] } = useQuery({
     queryKey: ['documents-reminders', accountId],
-    queryFn: () => base44.entities.Document.filter({ account_id: accountId }),
+    queryFn: async () => {
+      try {
+        // TODO: migrate Document entity to Supabase
+        return [];
+      } catch (e) { return []; }
+    },
     enabled: !!accountId && !isGuest,
   });
 
-  // Fetch reminder settings (auth only)
+  // Fetch reminder settings (disabled — not yet migrated from Base44)
   const { data: settingsArr = [] } = useQuery({
     queryKey: ['reminder-settings-dash'],
     queryFn: async () => {
-      const u = await base44.auth.me();
-      return base44.entities.ReminderSettings.filter({ user_id: u.id });
+      try {
+        // TODO: migrate ReminderSettings entity to Supabase
+        return [];
+      } catch (e) { return []; }
     },
     enabled: !isGuest,
   });

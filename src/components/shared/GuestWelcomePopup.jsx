@@ -1,7 +1,6 @@
 ﻿import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { base44 } from "@/api/base44Client";
 import logo from "@/assets/logo.png";
 
 /**
@@ -10,7 +9,7 @@ import logo from "@/assets/logo.png";
  */
 export default function GuestWelcomePopup({ open, onClose }) {
   const handleSignup = () => {
-    base44.auth.redirectToLogin(window.location.href);
+    window.location.href = '/Auth';
   };
 
   return (

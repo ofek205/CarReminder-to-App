@@ -14,6 +14,8 @@ import MaintenanceSection from "../components/vehicle/MaintenanceSection";
 import VesselIssuesSection from "../components/vehicle/VesselIssuesSection";
 import { SafeComponent } from "../components/shared/SafeComponent";
 import { useAuth } from "../components/shared/GuestContext";
+import useAccountRole from '@/hooks/useAccountRole';
+import { canEdit, canDelete, isViewOnly } from '@/lib/permissions';
 
 
 // ── Vehicle icon helper ───────────────────────────────────────────────────────
@@ -140,6 +142,7 @@ export default function VehicleDetail() {
 
 function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   const { user } = useAuth();
+  const { role } = useAccountRole();
   const [accountIds, setAccountIds] = useState([]);
 
   useEffect(() => {
@@ -235,15 +238,24 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         </div>
       </div>
 
+      {/* ── View-only banner for חבר ── */}
+      {isViewOnly(role) && (
+        <div className="mx-4 mb-3 rounded-2xl px-4 py-2.5 flex items-center gap-2 text-sm font-medium" style={{ background: '#DBEAFE', color: '#1E40AF', border: '1px solid #93C5FD' }} dir="rtl">
+          הצטרפת כחבר — תצוגה בלבד
+        </div>
+      )}
+
       {/* ── Action buttons ── */}
       <div className="px-4 -mt-5 relative z-20 flex gap-2 mb-4">
-        <Link to={createPageUrl(`EditVehicle?id=${vehicleId}`)}>
-          <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-            style={{ background: T.yellow, color: T.primary, boxShadow: `0 4px 12px ${T.yellow}40` }}>
-            <Edit className="h-4 w-4" />
-            עריכה
-          </button>
-        </Link>
+        {canEdit(role) && (
+          <Link to={createPageUrl(`EditVehicle?id=${vehicleId}`)}>
+            <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              style={{ background: T.yellow, color: T.primary, boxShadow: `0 4px 12px ${T.yellow}40` }}>
+              <Edit className="h-4 w-4" />
+              עריכה
+            </button>
+          </Link>
+        )}
         <Link to={createPageUrl(`Documents?vehicle_id=${vehicleId}`)}>
           <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             style={{ background: T.light, color: T.primary, border: `1.5px solid ${T.border}` }}>
@@ -251,26 +263,28 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             מסמכים
           </button>
         </Link>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-              style={{ background: '#FEF2F2', color: '#DC2626', border: '1.5px solid #FECACA' }}>
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </AlertDialogTrigger>
-          <AlertDialogContent dir="rtl">
-            <AlertDialogHeader>
-              <AlertDialogTitle>מחיקת {isVessel ? 'כלי שייט' : 'רכב'}</AlertDialogTitle>
-              <AlertDialogDescription>
-                פעולה זו תמחק את ה{isVessel ? 'כלי שייט' : 'רכב'} וכל המידע המשויך אליו. לא ניתן לבטל פעולה זו.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-row-reverse gap-2">
-              <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">מחק</AlertDialogAction>
-              <AlertDialogCancel>ביטול</AlertDialogCancel>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {canDelete(role) && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                style={{ background: '#FEF2F2', color: '#DC2626', border: '1.5px solid #FECACA' }}>
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent dir="rtl">
+              <AlertDialogHeader>
+                <AlertDialogTitle>מחיקת {isVessel ? 'כלי שייט' : 'רכב'}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  פעולה זו תמחק את ה{isVessel ? 'כלי שייט' : 'רכב'} וכל המידע המשויך אליו. לא ניתן לבטל פעולה זו.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-row-reverse gap-2">
+                <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">מחק</AlertDialogAction>
+                <AlertDialogCancel>ביטול</AlertDialogCancel>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
 
       {/* ── Vehicle info + maintenance ── */}
@@ -283,7 +297,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         </SafeComponent>
         {isVessel && (
           <SafeComponent label="VesselIssuesSection">
-            <VesselIssuesSection vehicle={vehicle} />
+            <VesselIssuesSection vehicle={vehicle} readOnly={isViewOnly(role)} />
           </SafeComponent>
         )}
       </div>

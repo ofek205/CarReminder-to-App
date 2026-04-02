@@ -14,6 +14,10 @@ initStatusBar();
 initKeyboard();
 initBackButton();
 
+// Initialize notification system
+import { initNotifications } from '@/lib/notificationService';
+initNotifications();
+
 // Hide splash screen after app mounts
 setTimeout(() => hideSplash(), 500);
 
