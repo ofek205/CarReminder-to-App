@@ -102,10 +102,24 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <p className="text-base font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>{subtitle}</p>
               {vehicle.license_plate && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-black tracking-wide"
+                <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded"
                   dir="ltr"
-                  style={{ background: '#FFBF00', color: '#1a1a1a', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}>
-                  {vehicle.license_plate}
+                  style={{ background: '#FFBF00', boxShadow: '0 2px 6px rgba(0,0,0,0.25)', border: '2px solid #1A3A5C' }}>
+                  {/* Israel flag badge */}
+                  <span className="flex flex-col items-center justify-center px-1 py-0.5 rounded-sm"
+                    style={{ background: '#1A3A5C' }}>
+                    <span className="text-white font-bold" style={{ fontSize: '6px', lineHeight: 1 }}>IL</span>
+                    <svg viewBox="0 0 60 40" style={{ width: '14px', height: '9px' }}>
+                      <rect width="60" height="40" fill="white"/>
+                      <rect y="4" width="60" height="5" fill="#003DA5"/>
+                      <rect y="31" width="60" height="5" fill="#003DA5"/>
+                      <polygon points="30,10 34.5,21 25.5,21" fill="none" stroke="#003DA5" strokeWidth="2"/>
+                      <polygon points="30,26 25.5,15 34.5,15" fill="none" stroke="#003DA5" strokeWidth="2"/>
+                    </svg>
+                  </span>
+                  <span className="text-xs font-black tracking-wider px-1" style={{ color: '#1a1a1a' }}>
+                    {vehicle.license_plate}
+                  </span>
                 </span>
               )}
             </div>
