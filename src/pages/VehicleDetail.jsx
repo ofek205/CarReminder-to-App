@@ -17,6 +17,7 @@ import { SafeComponent } from "../components/shared/SafeComponent";
 import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from '@/hooks/useAccountRole';
 import { canEdit, canDelete, isViewOnly } from '@/lib/permissions';
+import { daysUntil } from '../components/shared/ReminderEngine';
 
 
 // ── Vehicle icon helper ───────────────────────────────────────────────────────
@@ -44,43 +45,97 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
     navigate(createPageUrl('Dashboard'));
   };
 
+  const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
+  const testDays = daysUntil(vehicle.test_due_date);
+  const insDays = daysUntil(vehicle.insurance_due_date);
+  const needsAction = (testDays !== null && testDays <= 60) || (insDays !== null && insDays <= 60);
+  const statusBadge = needsAction
+    ? { label: 'תחזוקה נדרשת', bg: T.yellow, color: T.primary }
+    : { label: 'תקין', bg: '#E8F5E9', color: '#2E7D32' };
+
+  function daysLabel(d) {
+    if (d === null) return '—';
+    if (d < 0) return 'פג תוקף';
+    if (d === 0) return 'היום';
+    if (d < 30) return `${d} ימים`;
+    return `${Math.round(d / 30)} חודשים`;
+  }
+
   return (
     <div className="-mx-4 -mt-4" dir="rtl">
-      {/* Hero */}
-      <div className="relative overflow-hidden" style={{ height: hasPhoto ? '220px' : '160px' }}>
-        {hasPhoto ? (
-          <img src={vehicle.vehicle_photo} alt={name} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: '50% 55%' }} />
-        ) : (
-          <div className="absolute inset-0" style={{ background: T.grad }} />
-        )}
-        <div className="absolute inset-0" style={{ background: hasPhoto ? 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.15) 60%)' : 'none' }} />
-        <Link to={createPageUrl('Dashboard')} className="absolute top-4 right-4 z-20">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center backdrop-blur-sm" style={{ background: 'rgba(255,255,255,0.2)' }}>
-            <ChevronLeft className="w-5 h-5 text-white" style={{ transform: 'rotate(180deg)' }} />
+      {/* Hero card — matches Dashboard style */}
+      <div className="rounded-b-3xl overflow-hidden" style={{ boxShadow: `0 8px 32px ${T.primary}25` }}>
+        {/* Photo / gradient */}
+        <div className="relative" style={{ height: hasPhoto ? '240px' : '180px' }}>
+          {hasPhoto ? (
+            <img src={vehicle.vehicle_photo} alt={name} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: '50% 55%' }} />
+          ) : (
+            <div className="absolute inset-0" style={{ background: T.grad }} />
+          )}
+          <div className="absolute inset-0" style={{ background: hasPhoto ? 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.1) 100%)' : 'none' }} />
+
+          {/* Back button */}
+          <Link to={createPageUrl('Dashboard')} className="absolute top-4 right-4 z-20">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center backdrop-blur-sm" style={{ background: 'rgba(255,255,255,0.2)' }}>
+              <ChevronLeft className="w-5 h-5 text-white" style={{ transform: 'rotate(180deg)' }} />
+            </div>
+          </Link>
+
+          {/* Status badge */}
+          <div className="absolute top-4 left-4 z-10">
+            <span className="text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm"
+              style={{ background: statusBadge.bg, color: statusBadge.color }}>
+              {statusBadge.label}
+            </span>
           </div>
-        </Link>
-        {!hasPhoto && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <VehicleIcon className="w-20 h-20" style={{ color: 'rgba(255,255,255,0.12)' }} />
+
+          {/* No-photo icon */}
+          {!hasPhoto && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <VehicleIcon className="w-20 h-20" style={{ color: 'rgba(255,255,255,0.12)' }} />
+            </div>
+          )}
+
+          {/* Vehicle name */}
+          <div className="absolute bottom-4 right-4 left-4 z-10">
+            <h1 className="font-black text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{name}</h1>
+            <p className="text-base mt-1 font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>{subtitle}</p>
           </div>
-        )}
-        <div className="absolute bottom-4 right-4 left-4 z-10">
-          <h1 className="font-black text-white text-2xl leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{name}</h1>
-          <p className="text-sm mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>{subtitle}</p>
+        </div>
+
+        {/* Stats bar — like Dashboard */}
+        <div className="grid grid-cols-3" style={{ background: '#fff' }}>
+          {[
+            { label: isVessel ? 'שעות מנוע' : 'קילומטראז\'', value: isVessel ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '—') : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '—') },
+            { label: 'שנת ייצור', value: vehicle.year || '—' },
+            { label: isVessel ? 'כושר שייט' : 'טסט', value: testDays !== null ? daysLabel(testDays) : '—' },
+          ].map((stat, i) => (
+            <div key={i} className={`py-4 px-3 text-center ${i < 2 ? 'border-l' : ''}`}
+              style={{ borderColor: T.border }}>
+              <p className="font-black text-base" style={{ color: T.text }}>{stat.value}</p>
+              <p className="text-sm mt-1 font-bold" style={{ color: T.muted }}>{stat.label}</p>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Action buttons */}
-      <div className="px-4 -mt-5 relative z-20 flex gap-2 mb-3">
-        <Link to={createPageUrl(`EditVehicle?id=${vehicleId}`)}>
-          <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-            style={{ background: T.yellow, color: T.primary, boxShadow: `0 4px 12px ${T.yellow}40` }}>
+      <div className="px-4 mt-4 flex gap-2 mb-3">
+        <Link to={createPageUrl(`EditVehicle?id=${vehicleId}`)} className="flex-1">
+          <button className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            style={{ background: T.primary, color: 'white', boxShadow: `0 4px 16px ${T.primary}40` }}>
             <Edit className="h-4 w-4" /> עריכה
+          </button>
+        </Link>
+        <Link to={createPageUrl(`Documents?vehicle_id=${vehicleId}`)}>
+          <button className="py-3.5 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            style={{ background: T.light, color: T.primary, border: `1.5px solid ${T.border}` }}>
+            <FileText className="h-4 w-4" /> מסמכים
           </button>
         </Link>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            <button className="py-3.5 px-4 rounded-2xl font-bold text-sm flex items-center justify-center transition-all active:scale-[0.98]"
               style={{ background: '#FEF2F2', color: '#DC2626', border: '1.5px solid #FECACA' }}>
               <Trash2 className="h-4 w-4" />
             </button>
@@ -101,7 +156,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
       {/* Guest banner */}
       <div className="mx-4 mb-4 rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: T.yellowSoft, border: `1px solid ${T.border}` }}>
         <Lock className="h-4 w-4 shrink-0" style={{ color: T.primary }} />
-        <p className="text-sm" style={{ color: T.text }}>
+        <p className="text-sm font-medium" style={{ color: T.text }}>
           {vWord} זמני - נשמר במכשיר בלבד.{' '}
           <Link to={createPageUrl('Auth')} className="underline font-bold" style={{ color: T.primary }}>הירשם כדי לשמור</Link>
         </p>

@@ -239,13 +239,13 @@ export const DEMO_VESSEL = {
   manufacturer: 'Beneteau',
   model: 'Oceanis 38.1',
   year: 2020,
-  nickname: 'רוח ים',
+  nickname: 'יאכטה נוני',
   license_plate: '',
   current_engine_hours: 620,
-  notes: 'מפרשית 38 רגל, מנוע Yanmar 30HP, עגינה במרינה הרצליה',
-  vehicle_photo: 'https://images.pexels.com/photos/163236/luxury-yacht-boat-speed-water-163236.jpeg?auto=compress&cs=tinysrgb&w=600',
+  notes: 'מפרשית 38 רגל, מנוע Yanmar 30HP, עגינה במרינה הרצליה. יאכטה נוני — הסירה של המשפחה.',
+  vehicle_photo: 'https://images.pexels.com/photos/273886/pexels-photo-273886.jpeg?auto=compress&cs=tinysrgb&w=600',
   test_due_date: '2026-11-15',
-  insurance_due_date: '2026-07-20',
+  insurance_due_date: '2026-10-20',
   insurance_company: 'הכשרה',
   pyrotechnics_expiry_date: '2026-12-01',
   fire_extinguisher_expiry_date: '2027-03-15',
@@ -329,7 +329,7 @@ export const DEMO_VESSEL_CORK_NOTES = [
 
 export const DEMO_VESSEL_DOCUMENTS = [
   { id: 'demo_vdoc_001', title: 'רישיון שייט', document_type: 'רישיון רכב', expiry_date: '2026-11-15', file_type: 'pdf', _isDemo: true },
-  { id: 'demo_vdoc_002', title: 'ביטוח ימי', document_type: 'ביטוח', expiry_date: '2026-07-20', file_type: 'pdf', _isDemo: true },
+  { id: 'demo_vdoc_002', title: 'ביטוח ימי', document_type: 'ביטוח', expiry_date: '2026-10-20', file_type: 'pdf', _isDemo: true },
   { id: 'demo_vdoc_003', title: 'אישור מספנה', document_type: 'קבלה', file_type: 'pdf', _isDemo: true },
 ];
 
