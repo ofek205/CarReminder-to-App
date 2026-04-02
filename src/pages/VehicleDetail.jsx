@@ -12,6 +12,7 @@ import LoadingSpinner from "../components/shared/LoadingSpinner";
 import VehicleInfoSection from "../components/vehicle/VehicleInfoSection";
 import MaintenanceSection from "../components/vehicle/MaintenanceSection";
 import VesselIssuesSection from "../components/vehicle/VesselIssuesSection";
+import CorkBoard from "../components/vehicle/CorkBoard";
 import { SafeComponent } from "../components/shared/SafeComponent";
 import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from '@/hooks/useAccountRole';
@@ -116,6 +117,9 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
             <VesselIssuesSection vehicle={vehicle} isGuest />
           </SafeComponent>
         )}
+        <SafeComponent label="CorkBoard">
+          <CorkBoard vehicle={vehicle} isGuest />
+        </SafeComponent>
       </div>
     </div>
   );
@@ -300,6 +304,9 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             <VesselIssuesSection vehicle={vehicle} readOnly={isViewOnly(role)} />
           </SafeComponent>
         )}
+        <SafeComponent label="CorkBoard">
+          <CorkBoard vehicle={vehicle} readOnly={isViewOnly(role)} />
+        </SafeComponent>
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ const DOCS_KEY             = 'fleet_guest_documents';
 const SETTINGS_KEY         = 'fleet_guest_reminder_settings';
 const ACCIDENTS_KEY        = 'fleet_guest_accidents';
 const VESSEL_ISSUES_KEY    = 'fleet_guest_vessel_issues';
+const CORK_NOTES_KEY       = 'fleet_guest_cork_notes';
 
 const DEFAULT_REMINDER_SETTINGS = {
   remind_test_days_before:       14,
@@ -40,6 +41,10 @@ export function GuestProvider({ children }) {
 
   const [guestVesselIssues, setGuestVesselIssues] = useState(() => {
     try { return JSON.parse(localStorage.getItem(VESSEL_ISSUES_KEY) || '[]'); } catch { return []; }
+  });
+
+  const [guestCorkNotes, setGuestCorkNotes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(CORK_NOTES_KEY) || '[]'); } catch { return []; }
   });
 
   const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
@@ -87,6 +92,9 @@ export function GuestProvider({ children }) {
       if (e.key === VESSEL_ISSUES_KEY) {
         try { setGuestVesselIssues(JSON.parse(e.newValue || '[]')); } catch {}
       }
+      if (e.key === CORK_NOTES_KEY) {
+        try { setGuestCorkNotes(JSON.parse(e.newValue || '[]')); } catch {}
+      }
     };
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
@@ -130,10 +138,12 @@ export function GuestProvider({ children }) {
     localStorage.removeItem(SETTINGS_KEY);
     localStorage.removeItem(ACCIDENTS_KEY);
     localStorage.removeItem(VESSEL_ISSUES_KEY);
+    localStorage.removeItem(CORK_NOTES_KEY);
     setGuestVehicles([]);
     setGuestDocuments([]);
     setGuestAccidents([]);
     setGuestVesselIssues([]);
+    setGuestCorkNotes([]);
     setGuestReminderSettings(DEFAULT_REMINDER_SETTINGS);
   };
 
@@ -234,6 +244,34 @@ export function GuestProvider({ children }) {
     });
   };
 
+  // ── Cork notes ─────────────────────────────────────────────────────────────
+
+  const addGuestCorkNote = (noteData) => {
+    const note = { ...noteData, id: `guest_note_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
+    setGuestCorkNotes(prev => {
+      const updated = [...prev, note].slice(0, 100);
+      localStorage.setItem(CORK_NOTES_KEY, JSON.stringify(updated));
+      return updated;
+    });
+    return note;
+  };
+
+  const updateGuestCorkNote = (id, changes) => {
+    setGuestCorkNotes(prev => {
+      const updated = prev.map(n => n.id === id ? { ...n, ...changes } : n);
+      localStorage.setItem(CORK_NOTES_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const removeGuestCorkNote = (id) => {
+    setGuestCorkNotes(prev => {
+      const updated = prev.filter(n => n.id !== id);
+      localStorage.setItem(CORK_NOTES_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // ── Reminder settings ───────────────────────────────────────────────────────
 
   const updateGuestReminderSettings = (changes) => {
@@ -296,6 +334,11 @@ export function GuestProvider({ children }) {
       addGuestVesselIssue,
       updateGuestVesselIssue,
       removeGuestVesselIssue,
+      // Cork Notes
+      guestCorkNotes,
+      addGuestCorkNote,
+      updateGuestCorkNote,
+      removeGuestCorkNote,
       // Reminder settings
       guestReminderSettings,
       updateGuestReminderSettings,

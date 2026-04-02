@@ -260,6 +260,7 @@ export default function AdminDashboard() {
   const [repairLogs, setRepairLogs] = useState([]);
   const [reviews, setReviews]       = useState([]);
   const [documents, setDocuments]   = useState([]);
+  const [analyticsData, setAnalyticsData] = useState([]);
 
   // Step 1: verify admin role (using Supabase user metadata)
   useEffect(() => {
@@ -300,7 +301,33 @@ export default function AdminDashboard() {
       setDocuments(docs  || []);
     }).catch(() => setFetchError(true))
       .finally(() => setLoading(false));
+
+    // Fetch anonymous analytics
+    db.analytics.list().then(rows => setAnalyticsData(rows || [])).catch(() => {});
   }, [isAdmin]);
+
+  // ── Analytics aggregations ────────────────────────────────────────────────
+
+  const analyticsAgg = useMemo(() => {
+    const agg = {};
+    analyticsData.forEach(row => {
+      if (!agg[row.event]) agg[row.event] = 0;
+      agg[row.event] += row.count || 0;
+    });
+    return agg;
+  }, [analyticsData]);
+
+  const analyticsRecent = useMemo(() => {
+    // Last 7 days of guest sessions
+    const last7 = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = format(subDays(TODAY, i), 'yyyy-MM-dd');
+      const label = format(subDays(TODAY, i), 'dd/MM', { locale: he });
+      const row = analyticsData.find(r => r.event === 'guest_session' && r.date === d);
+      last7.push({ name: label, אורחים: row?.count || 0 });
+    }
+    return last7;
+  }, [analyticsData]);
 
   // ── Filtered slices (all driven by the global `filter`) ────────────────────
 
@@ -859,9 +886,62 @@ export default function AdminDashboard() {
               </section>
             )}
 
+            {/* ══════════════════════════════════════════════════════
+                SECTION — ANONYMOUS ANALYTICS
+            ══════════════════════════════════════════════════════ */}
+            <section>
+              <SectionLabel>אנליטיקס אנונימי (כל הזמנים)</SectionLabel>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <MetricCard
+                  icon={Users}
+                  label="כניסות אורחים"
+                  value={(analyticsAgg['guest_session'] || 0).toLocaleString()}
+                  sub="סה״כ כניסות ללא הרשמה"
+                  color={C.purple}
+                />
+                <MetricCard
+                  icon={TrendingUp}
+                  label="התחברויות"
+                  value={(analyticsAgg['auth_login'] || 0).toLocaleString()}
+                  sub="כניסות עם חשבון"
+                  color={C.blue}
+                />
+                <MetricCard
+                  icon={Users}
+                  label="הרשמות"
+                  value={(analyticsAgg['auth_signup'] || 0).toLocaleString()}
+                  sub="חשבונות חדשים"
+                  color={C.green}
+                />
+                <MetricCard
+                  icon={Car}
+                  label="רכבים (אורחים)"
+                  value={(analyticsAgg['guest_vehicle_added'] || 0).toLocaleString()}
+                  sub="רכבים שנוספו במצב אורח"
+                  color={C.amber}
+                />
+              </div>
+              <ChartCard title="כניסות אורחים — 7 ימים אחרונים">
+                {analyticsRecent.every(d => d['אורחים'] === 0)
+                  ? <EmptyChart text="אין נתוני אורחים עדיין" />
+                  : (
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={analyticsRecent} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                        <Tooltip content={<BiTooltip />} />
+                        <Bar dataKey="אורחים" fill={C.purple} radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )
+                }
+              </ChartCard>
+            </section>
+
             {/* Footer */}
             <p className="text-[10px] text-center text-gray-300">
-              נתונים בזמן אמת ממסד הנתונים · אורחים אינם נשמרים בצד שרת · {format(TODAY, 'HH:mm')}
+              נתונים בזמן אמת ממסד הנתונים · {format(TODAY, 'HH:mm')}
             </p>
 
           </>

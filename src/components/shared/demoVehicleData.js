@@ -180,6 +180,159 @@ export const DEMO_ACCIDENTS = [
   },
 ];
 
+/** Cork board sticky notes for demo car */
+export const DEMO_CORK_NOTES = [
+  {
+    id: 'demo_note_001',
+    vehicle_id: DEMO_VEHICLE_ID,
+    title: 'החלפת שמן בעוד 3,000 ק"מ',
+    content: 'לתאם עם המוסך של אבי ברחוב הרצל',
+    color: 'yellow',
+    rotation: -2,
+    due_date: '2026-09-01',
+    is_done: false,
+    created_date: '2026-03-01T10:00:00.000Z',
+  },
+  {
+    id: 'demo_note_002',
+    vehicle_id: DEMO_VEHICLE_ID,
+    title: 'לחדש ביטוח',
+    content: 'לבדוק הצעות מחיר מ-3 חברות לפחות. ביטוח נגמר בספטמבר.',
+    color: 'pink',
+    rotation: 1.5,
+    due_date: '2026-08-15',
+    is_done: false,
+    created_date: '2026-03-10T14:00:00.000Z',
+  },
+  {
+    id: 'demo_note_003',
+    vehicle_id: DEMO_VEHICLE_ID,
+    title: 'בדיקת לחץ צמיגים',
+    content: '',
+    color: 'green',
+    rotation: -1,
+    is_done: true,
+    created_date: '2026-02-20T08:00:00.000Z',
+  },
+  {
+    id: 'demo_note_004',
+    vehicle_id: DEMO_VEHICLE_ID,
+    title: 'מספר מוסך: 03-6123456',
+    content: 'מוסך שלמה — רחוב התעשייה 12, חולון. שעות: 08:00-17:00',
+    color: 'blue',
+    rotation: 2,
+    is_done: false,
+    created_date: '2026-01-15T12:00:00.000Z',
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Demo Vessel (Yacht / Sailboat) ──────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DEMO_VESSEL_ID = 'demo_vessel_001';
+
+export const DEMO_VESSEL = {
+  id: DEMO_VESSEL_ID,
+  _isDemo: true,
+  vehicle_type: 'מפרשית',
+  manufacturer: 'Beneteau',
+  model: 'Oceanis 38.1',
+  year: 2020,
+  nickname: 'רוח ים',
+  license_plate: '',
+  current_engine_hours: 620,
+  notes: 'מפרשית 38 רגל, מנוע Yanmar 30HP, עגינה במרינה הרצליה',
+  vehicle_photo: 'https://images.pexels.com/photos/163236/luxury-yacht-boat-speed-water-163236.jpeg?auto=compress&cs=tinysrgb&w=600',
+  test_due_date: '2026-11-15',
+  insurance_due_date: '2026-07-20',
+  insurance_company: 'הכשרה',
+  pyrotechnics_expiry_date: '2026-12-01',
+  fire_extinguisher_expiry_date: '2027-03-15',
+  life_raft_expiry_date: '2027-06-01',
+  engine_manufacturer: 'Yanmar',
+  last_shipyard_date: '2025-09-10',
+  hours_since_shipyard: 180,
+  created_date: '2023-06-01T10:00:00.000Z',
+};
+
+export const DEMO_VESSEL_TREATMENTS = [
+  {
+    id: 'demo_vt_001', vehicle_id: DEMO_VESSEL_ID, _type: 'maintenance',
+    title: 'החלפת שמן מנוע + פילטרים', date: '2025-10-15', cost: 1200, status: 'completed',
+    notes: 'שמן Yanmar, פילטר שמן, פילטר דלק, פילטר אוויר',
+  },
+  {
+    id: 'demo_vt_002', vehicle_id: DEMO_VESSEL_ID, _type: 'maintenance',
+    title: 'בדיקת מערכות חשמל', date: '2025-12-01', cost: 800, status: 'completed',
+    notes: 'בדיקת מערכת טעינה, סוללות, תאורת ניווט',
+  },
+  {
+    id: 'demo_vt_003', vehicle_id: DEMO_VESSEL_ID, _type: 'repair',
+    title: 'תיקון מפרש ראשי', date: '2026-01-20', cost: 2500, status: 'completed',
+    notes: 'קרע בגודל 40 ס"מ ליד הלאף. תופר ותוקן במפרשייה של עמי, הרצליה.',
+  },
+  {
+    id: 'demo_vt_004', vehicle_id: DEMO_VESSEL_ID, _type: 'maintenance',
+    title: 'העלאה למספנה — ניקוי תחתית', date: '2026-10-01', cost: 4500, status: 'upcoming',
+    notes: 'ניקוי, צביעת אנטיפאולינג, בדיקת הגה ופרופלר',
+  },
+];
+
+export const DEMO_VESSEL_ISSUES = [
+  {
+    id: 'demo_vi_001', vehicle_id: DEMO_VESSEL_ID,
+    title: 'נזילה קלה בברז מים ראשי',
+    description: 'טפטוף איטי מהברז הראשי במטבח. צריך להחליף אטם או את הברז כולו.',
+    category: 'plumbing', priority: 'medium', status: 'open',
+    created_date: '2026-03-01T10:00:00.000Z',
+  },
+  {
+    id: 'demo_vi_002', vehicle_id: DEMO_VESSEL_ID,
+    title: 'נורת ניווט ירכתיים לא עובדת',
+    description: 'הנורה האחורית (לבנה) כבתה. יש לבדוק נורה ונתיך.',
+    category: 'electrical', priority: 'high', status: 'in-progress',
+    created_date: '2026-02-15T08:00:00.000Z',
+  },
+  {
+    id: 'demo_vi_003', vehicle_id: DEMO_VESSEL_ID,
+    title: 'צביעת ג\'לקוט — שריטות בצד ימין',
+    description: 'שריטות שטחיות מעגינה. לא חמור אבל כדאי לטפל לפני החורף.',
+    category: 'hull', priority: 'low', status: 'open',
+    created_date: '2026-01-20T14:00:00.000Z',
+  },
+];
+
+export const DEMO_VESSEL_CORK_NOTES = [
+  {
+    id: 'demo_vnote_001', vehicle_id: DEMO_VESSEL_ID,
+    title: 'להזמין מקום במרינה לקיץ',
+    content: 'מרינה הרצליה — לצלצל לרונית 09-9541234. מקדמה עד סוף אפריל.',
+    color: 'blue', rotation: -1.5, due_date: '2026-04-30', is_done: false,
+    created_date: '2026-03-15T10:00:00.000Z',
+  },
+  {
+    id: 'demo_vnote_002', vehicle_id: DEMO_VESSEL_ID,
+    title: 'לבדוק מצב חבלים',
+    content: 'חבל עוגן ראשי + שני חבלי עגינה. להחליף אם בלויים.',
+    color: 'orange', rotation: 2, is_done: false,
+    created_date: '2026-03-10T09:00:00.000Z',
+  },
+  {
+    id: 'demo_vnote_003', vehicle_id: DEMO_VESSEL_ID,
+    title: 'אנטיפאולינג חדש',
+    content: 'לקנות צבע International Micron Extra 2 — 2.5 ליטר',
+    color: 'yellow', rotation: -2.5, due_date: '2026-09-15', is_done: false,
+    created_date: '2026-02-01T12:00:00.000Z',
+  },
+];
+
+export const DEMO_VESSEL_DOCUMENTS = [
+  { id: 'demo_vdoc_001', title: 'רישיון שייט', document_type: 'רישיון רכב', expiry_date: '2026-11-15', file_type: 'pdf', _isDemo: true },
+  { id: 'demo_vdoc_002', title: 'ביטוח ימי', document_type: 'ביטוח', expiry_date: '2026-07-20', file_type: 'pdf', _isDemo: true },
+  { id: 'demo_vdoc_003', title: 'אישור מספנה', document_type: 'קבלה', file_type: 'pdf', _isDemo: true },
+];
+
 // Legacy exports kept for backward compat with DemoVehicleDetail
 export const DEMO_MAINTENANCE_LOGS = DEMO_TREATMENTS.filter(t => t._type === 'maintenance');
 export const DEMO_REPAIR_LOGS = DEMO_TREATMENTS.filter(t => t._type === 'repair');

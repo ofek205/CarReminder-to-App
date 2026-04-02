@@ -127,7 +127,7 @@ function UserPopover() {
 function NavContent({ currentPath, onItemClick }) {
   const { isAuthenticated, isGuest, user } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.email === 'ofek205@gmail.com';
   const visibleItems = navItems.filter(item =>
     (isAuthenticated || item.guestAllowed) && (!item.adminOnly || isAdmin)
   );

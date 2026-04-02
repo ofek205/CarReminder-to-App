@@ -58,4 +58,6 @@ export const db = {
   invites:            makeEntity('invites'),
   reminder_settings:  makeEntity('reminder_settings'),
   notification_log:   makeEntity('notification_log'),
+  analytics:          makeEntity('anonymous_analytics'),
+  cork_notes:         makeEntity('cork_notes'),
 };

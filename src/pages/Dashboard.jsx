@@ -10,7 +10,7 @@ import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { useAuth } from "../components/shared/GuestContext";
 import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
-import { DEMO_VEHICLE, DEMO_REMINDERS } from "../components/shared/demoVehicleData";
+import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_REMINDERS, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VESSEL_ISSUES } from "../components/shared/demoVehicleData";
 import { format, parseISO } from 'date-fns';
 import { getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 
@@ -454,9 +454,22 @@ export default function Dashboard() {
 
   // ── GUEST MODE ─────────────────────────────────────────────────────────────
   if (isGuest) {
+    // Seed demo data on first visit (synchronous — no useEffect needed)
+    if (guestVehicles.length === 0 && !isDemoDismissed) {
+      const stored = localStorage.getItem('fleet_guest_vehicles');
+      if (!stored || stored === '[]') {
+        localStorage.setItem('fleet_guest_vehicles', JSON.stringify([DEMO_VEHICLE, DEMO_VESSEL]));
+        localStorage.setItem('fleet_guest_cork_notes', JSON.stringify([...DEMO_CORK_NOTES, ...DEMO_VESSEL_CORK_NOTES]));
+        localStorage.setItem('fleet_guest_vessel_issues', JSON.stringify(DEMO_VESSEL_ISSUES));
+        // Force reload to pick up seeded data from GuestContext
+        window.location.reload();
+        return <LoadingSpinner />;
+      }
+    }
+
     const hasGuestVehicles = guestVehicles.length > 0;
-    const vehiclesToShow = hasGuestVehicles ? guestVehicles : [DEMO_VEHICLE];
-    const isShowingDemo = !hasGuestVehicles;
+    const vehiclesToShow = hasGuestVehicles ? guestVehicles : [DEMO_VEHICLE, DEMO_VESSEL];
+    const isShowingDemo = vehiclesToShow.some(v => v._isDemo);
 
     // Build reminders from vehicle dates
     const reminders = vehiclesToShow.flatMap(v => [

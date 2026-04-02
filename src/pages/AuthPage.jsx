@@ -114,6 +114,7 @@ export default function AuthPage() {
 
   const handleGuest = () => {
     sessionStorage.setItem('guest_confirmed', '1');
+    import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.GUEST_SESSION));
     navigate(createPageUrl('Dashboard'));
   };
 
@@ -173,6 +174,7 @@ export default function AuthPage() {
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) setError(error.message.includes('Invalid login credentials') ? 'אימייל או סיסמה שגויים' : error.message);
+        else import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_LOGIN));
       } else {
         if (password.length < 6) { setError('הסיסמה חייבת להכיל לפחות 6 תווים'); setLoading(false); return; }
         const { error } = await supabase.auth.signUp({
@@ -183,6 +185,7 @@ export default function AuthPage() {
           setError(error.message.includes('already registered') ? 'האימייל הזה כבר רשום. נסה להתחבר.' : error.message);
         } else {
           setSuccess('נשלח אימייל אימות. אנא אשר ואז התחבר.');
+          import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_SIGNUP));
           setMode('login');
         }
       }
