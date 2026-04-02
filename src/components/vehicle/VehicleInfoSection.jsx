@@ -102,7 +102,7 @@ function AddToCalendarButton({ dateField, vehicle, T }) {
 }
 
 // ── Status Card ──────────────────────────────────────────────────────────────
-function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMode }) {
+function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMode, subtitle }) {
   const isMissing = !vehicle[dateField];
 
   // Use teal for "ok" status on vessels, green for regular vehicles
@@ -130,6 +130,9 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
         </div>
         <span className="text-sm font-black" style={{ color: theme.accent }}>{label}</span>
       </div>
+      {subtitle && (
+        <p className="text-xs font-bold" style={{ color: theme.accent, opacity: 0.7 }}>{subtitle}</p>
+      )}
 
       {isMissing ? (
         <p className="text-sm font-medium" style={{ color: '#9CA3AF' }}>לא הוזן</p>
@@ -277,68 +280,14 @@ export default function VehicleInfoSection({ vehicle }) {
   return (
     <div className="space-y-4" dir="rtl">
 
-      {/* ── Vehicle quick details — colorful tile grid ── */}
-      {(() => {
-        const TILE_COLORS = [
-          { bg: 'linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%)', iconBg: '#2D5233', iconColor: '#FFFFFF', border: '#A5D6A7' },
-          { bg: 'linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)', iconBg: '#F59E0B', iconColor: '#FFFFFF', border: '#FFD54F' },
-          { bg: 'linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%)', iconBg: '#1976D2', iconColor: '#FFFFFF', border: '#90CAF9' },
-          { bg: 'linear-gradient(135deg, #F3E5F5 0%, #E1BEE7 100%)', iconBg: '#8E24AA', iconColor: '#FFFFFF', border: '#CE93D8' },
-          { bg: 'linear-gradient(135deg, #E0F7FA 0%, #B2EBF2 100%)', iconBg: '#0097A7', iconColor: '#FFFFFF', border: '#80DEEA' },
-          { bg: 'linear-gradient(135deg, #FBE9E7 0%, #FFCCBC 100%)', iconBg: '#E64A19', iconColor: '#FFFFFF', border: '#FFAB91' },
-        ];
-
-        const tiles = [
-          { icon: Hash, label: vesselMode ? 'מספר רישום' : 'מספר רישוי', value: vehicle.license_plate, dir: 'ltr' },
-          { icon: Tag, label: 'סוג', value: vesselMode ? 'כלי שייט' : vehicle.vehicle_type },
-          { icon: Calendar, label: 'שנה', value: vehicle.year, dir: 'ltr' },
-          vehicle.color && { icon: Palette, label: 'צבע', value: vehicle.color },
-          vehicle.insurance_company && { icon: Shield, label: vesselMode ? 'חברת ביטוח ימי' : 'חברת ביטוח', value: vehicle.insurance_company },
-          vesselMode && vehicle.engine_manufacturer && { icon: Cog, label: 'יצרן מנוע', value: vehicle.engine_manufacturer },
-        ].filter(Boolean);
-
-        return (
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: T.grad }}>
-                <Info className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-black text-base" style={{ color: T.text }}>פרטי {labels.vehicleWord}</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {tiles.map((tile, i) => {
-                const c = TILE_COLORS[i % TILE_COLORS.length];
-                return (
-                  <div key={i} className="rounded-2xl p-4 flex flex-col gap-2.5 relative overflow-hidden"
-                    style={{ background: c.bg, border: `1.5px solid ${c.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                        style={{ background: c.iconBg, boxShadow: `0 2px 8px ${c.iconBg}40` }}>
-                        <tile.icon className="w-4 h-4" style={{ color: c.iconColor }} />
-                      </div>
-                      <span className="text-xs font-bold" style={{ color: c.iconBg, opacity: 0.8 }}>{tile.label}</span>
-                    </div>
-                    <p className="text-base font-black leading-tight"
-                      dir={tile.dir || 'rtl'}
-                      style={{ color: '#1a1a1a' }}>
-                      {tile.value}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-
-            {vehicle.is_vintage && !vesselMode && (
-              <div className="mt-3 rounded-2xl px-4 py-3 flex items-center gap-2.5"
-                style={{ background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', border: '1.5px solid #DDD6FE' }}>
-                <span className="text-lg">🏛️</span>
-                <span className="text-sm font-bold" style={{ color: '#7C3AED' }}>רכב אספנות — טסט כל חצי שנה</span>
-              </div>
-            )}
-          </div>
-        );
-      })()}
+      {/* ── Vintage badge ── */}
+      {vehicle.is_vintage && !vesselMode && (
+        <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
+          style={{ background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', border: '1.5px solid #DDD6FE' }}>
+          <span className="text-lg">🏛️</span>
+          <span className="text-sm font-bold" style={{ color: '#7C3AED' }}>רכב אספנות — טסט כל חצי שנה</span>
+        </div>
+      )}
 
       {/* ── Mileage / Engine hours ── */}
       <MileageUpdateWidget vehicle={vehicle} />
@@ -357,6 +306,7 @@ export default function VehicleInfoSection({ vehicle }) {
         <StatusCard
           icon={Shield}
           label={vesselMode ? 'ביטוח ימי' : 'ביטוח'}
+          subtitle={vehicle.insurance_company}
           status={insuranceStatus}
           dateField="insurance_due_date"
           vehicle={vehicle}

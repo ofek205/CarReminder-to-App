@@ -96,10 +96,19 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
             </div>
           )}
 
-          {/* Vehicle name */}
+          {/* Vehicle name + license plate badge */}
           <div className="absolute bottom-4 right-4 left-4 z-10">
             <h1 className="font-black text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{name}</h1>
-            <p className="text-base mt-1 font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>{subtitle}</p>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <p className="text-base font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>{subtitle}</p>
+              {vehicle.license_plate && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-black tracking-wide"
+                  dir="ltr"
+                  style={{ background: '#FFBF00', color: '#1a1a1a', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}>
+                  {vehicle.license_plate}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
