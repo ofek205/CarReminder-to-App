@@ -62,34 +62,34 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
   return (
     <div className="rounded-2xl px-4 py-3.5" dir="rtl"
       style={{
-        background: 'linear-gradient(135deg, #E0F2F1 0%, #B2DFDB 100%)',
-        border: '1.5px solid #80CBC4',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+        background: '#FFFFFF',
+        border: '1.5px solid #E5E7EB',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
       }}>
 
       {!open ? (
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center"
-              style={{ background: '#00695C', boxShadow: '0 3px 10px rgba(0,105,92,0.3)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: T.light }}>
               {isKm
-                ? <Gauge className="h-5 w-5 text-white" />
-                : <Clock className="h-5 w-5 text-white" />}
+                ? <Gauge className="h-5 w-5" style={{ color: T.primary }} />
+                : <Clock className="h-5 w-5" style={{ color: T.primary }} />}
             </div>
             <div>
-              <p className="text-xs font-bold" style={{ color: '#00695C' }}>{sectionLabel}</p>
+              <p className="text-xs font-bold" style={{ color: '#6B7280' }}>{sectionLabel}</p>
               {currentValue ? (
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-xl font-black" style={{ color: '#004D40' }}>
+                  <span className="text-xl font-black" style={{ color: '#111827' }}>
                     {Number(currentValue).toLocaleString()}
                   </span>
-                  <span className="text-xs font-bold" style={{ color: '#00695C' }}>{unit}</span>
+                  <span className="text-xs font-bold" style={{ color: '#9CA3AF' }}>{unit}</span>
                 </div>
               ) : (
-                <span className="text-sm font-medium" style={{ color: '#00695C' }}>טרם עודכן</span>
+                <span className="text-sm font-medium" style={{ color: '#9CA3AF' }}>טרם עודכן</span>
               )}
               {updateDate && (
-                <p className="text-[11px]" style={{ color: '#4DB6AC' }}>
+                <p className="text-[11px]" style={{ color: '#9CA3AF' }}>
                   עודכן {new Date(updateDate).toLocaleDateString('he-IL')}
                 </p>
               )}
@@ -99,7 +99,7 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
           <button
             onClick={() => { setValue(currentValue ? String(currentValue) : ''); setOpen(true); }}
             className="flex items-center gap-1.5 text-xs font-bold px-4 py-2.5 rounded-xl transition-all active:scale-[0.97]"
-            style={{ background: '#00695C', color: '#FFFFFF', boxShadow: '0 3px 10px rgba(0,105,92,0.3)' }}>
+            style={{ background: T.primary, color: '#FFFFFF' }}>
             <RefreshCw className="h-3.5 w-3.5" />
             עדכן
           </button>

@@ -101,37 +101,29 @@ function AddToCalendarButton({ dateField, vehicle, T }) {
   );
 }
 
-// ── Status Card ──────────────────────────────────────────────────────────────
+// ── Status Card (clean, white-based with colored accent) ─────────────────────
 function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMode, subtitle }) {
   const isMissing = !vehicle[dateField];
 
-  // Use teal for "ok" status on vessels, green for regular vehicles
-  const okTheme = vesselMode
-    ? { grad: 'linear-gradient(135deg, #E0F7FA 0%, #B2EBF2 100%)', iconBg: '#0C7B93', border: '#80DEEA', accent: '#065A6E' }
-    : { grad: 'linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%)', iconBg: '#2E7D32', border: '#A5D6A7', accent: '#1B5E20' };
-
-  const STATUS_THEME = {
-    ok:      okTheme,
-    warn:    { grad: 'linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)', iconBg: '#F57F17', border: '#FFD54F', accent: '#E65100' },
-    danger:  { grad: 'linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%)', iconBg: '#C62828', border: '#EF9A9A', accent: '#B71C1C' },
-    missing: { grad: 'linear-gradient(135deg, #F5F5F5 0%, #EEEEEE 100%)', iconBg: '#9E9E9E', border: '#E0E0E0', accent: '#757575' },
+  const STATUS_ACCENT = {
+    ok:      { color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0' },
+    warn:    { color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+    danger:  { color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
+    missing: { color: '#9CA3AF', bg: '#F9FAFB', border: '#E5E7EB' },
   };
 
   const st = isMissing ? 'missing' : (status.status || 'missing');
-  const theme = STATUS_THEME[st] || STATUS_THEME.missing;
+  const accent = STATUS_ACCENT[st] || STATUS_ACCENT.missing;
 
   return (
-    <div className="rounded-2xl p-4 space-y-3 relative overflow-hidden"
-      style={{ background: theme.grad, border: `1.5px solid ${theme.border}`, boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
+    <div className="rounded-2xl p-4 space-y-2.5"
+      style={{ background: '#FFFFFF', border: `1.5px solid ${accent.border}`, borderRight: `4px solid ${accent.color}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
       <div className="flex items-center gap-2">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: theme.iconBg, boxShadow: `0 3px 10px ${theme.iconBg}40` }}>
-          <Icon className="w-4.5 h-4.5 text-white" />
-        </div>
-        <span className="text-sm font-black" style={{ color: theme.accent }}>{label}</span>
+        <Icon className="w-4 h-4" style={{ color: accent.color }} />
+        <span className="text-sm font-bold" style={{ color: '#374151' }}>{label}</span>
       </div>
       {subtitle && (
-        <p className="text-xs font-bold" style={{ color: theme.accent, opacity: 0.7 }}>{subtitle}</p>
+        <p className="text-xs font-medium" style={{ color: '#9CA3AF' }}>{subtitle}</p>
       )}
 
       {isMissing ? (

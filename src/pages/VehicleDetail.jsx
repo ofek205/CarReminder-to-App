@@ -128,24 +128,24 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
         </div>
       </div>
 
-      {/* Action buttons */}
+      {/* Action buttons — clean, outlined */}
       <div className="px-4 mt-4 flex gap-2 mb-3">
         <Link to={createPageUrl(`EditVehicle?id=${vehicleId}`)} className="flex-1">
-          <button className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-            style={{ background: T.primary, color: 'white', boxShadow: `0 4px 16px ${T.primary}40` }}>
+          <button className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            style={{ background: '#fff', color: T.primary, border: `1.5px solid ${T.border}` }}>
             <Edit className="h-4 w-4" /> עריכה
           </button>
         </Link>
         <Link to={createPageUrl(`Documents?vehicle_id=${vehicleId}`)}>
-          <button className="py-3.5 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-            style={{ background: T.light, color: T.primary, border: `1.5px solid ${T.border}` }}>
+          <button className="py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            style={{ background: '#fff', color: '#6B7280', border: '1.5px solid #E5E7EB' }}>
             <FileText className="h-4 w-4" /> מסמכים
           </button>
         </Link>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <button className="py-3.5 px-4 rounded-2xl font-bold text-sm flex items-center justify-center transition-all active:scale-[0.98]"
-              style={{ background: '#FEF2F2', color: '#DC2626', border: '1.5px solid #FECACA' }}>
+            <button className="py-3 px-3 rounded-xl font-bold text-sm flex items-center justify-center transition-all active:scale-[0.98]"
+              style={{ background: '#fff', color: '#DC2626', border: '1.5px solid #FECACA' }}>
               <Trash2 className="h-4 w-4" />
             </button>
           </AlertDialogTrigger>
