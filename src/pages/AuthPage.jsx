@@ -248,11 +248,11 @@ export default function AuthPage() {
               boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
               transition: 'all 0.4s cubic-bezier(0.4,0,0.2,1)',
             }}>
-            <img src={logo} alt="CarReminders" className="w-full h-full object-contain" />
+            <img src={logo} alt="CarReminder" className="w-full h-full object-contain" />
           </div>
           {!showForm && (
-            <p className="text-white font-semibold text-xs tracking-[0.25em] uppercase mt-3" style={{ opacity: 0.8 }}>
-              CarReminders
+            <p className="text-white font-semibold text-sm tracking-[0.15em] mt-3" style={{ opacity: 0.8 }}>
+              CarReminder
             </p>
           )}
         </div>
