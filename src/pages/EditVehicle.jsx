@@ -200,7 +200,7 @@ export default function EditVehicle() {
     );
   }
 
-  const T = getTheme(form.vehicle_type, form.nickname);
+  const T = getTheme(form.vehicle_type, form.nickname, form.manufacturer);
   const vesselMode = isVesselType(form.vehicle_type, form.nickname);
 
   const VehicleIcon = vesselMode ? Ship : Car;

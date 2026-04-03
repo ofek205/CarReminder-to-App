@@ -63,7 +63,7 @@ function UrgentBanner({ reminders, vehicles }) {
 
   const urgentVehicle = vehicles?.find(v => v.id === urgent.vehicle_id);
   const vehicleName = urgentVehicle?.nickname || urgentVehicle?.manufacturer || '';
-  const T = getTheme(urgentVehicle?.vehicle_type, urgentVehicle?.nickname);
+  const T = getTheme(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
 
   return (
     <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
@@ -100,7 +100,7 @@ function UrgentBanner({ reminders, vehicles }) {
 
 // ── Hero Vehicle Card (premium design — photo background) ──────────────────
 function VehicleCard({ vehicle, isDemo }) {
-  const T = getTheme(vehicle.vehicle_type, vehicle.nickname);
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
 
@@ -289,7 +289,7 @@ function StatusSummary({ vehicles }) {
 
 // ── Compact Vehicle Row (for multi-vehicle authenticated view) ─────────────
 function VehicleRow({ vehicle }) {
-  const T = getTheme(vehicle.vehicle_type, vehicle.nickname);
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
 

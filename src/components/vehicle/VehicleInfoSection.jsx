@@ -260,7 +260,7 @@ function VesselInspectionChecklist({ vehicle, T }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function VehicleInfoSection({ vehicle }) {
-  const T = getTheme(vehicle.vehicle_type, vehicle.nickname);
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const testStatus = getDateStatus(vehicle.test_due_date);
   const insuranceStatus = getDateStatus(vehicle.insurance_due_date);
   const vesselMode = isVessel(vehicle.vehicle_type, vehicle.nickname);

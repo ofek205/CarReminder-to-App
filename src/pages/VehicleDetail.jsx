@@ -33,7 +33,7 @@ function vehicleWord(vt, nn) { return isVesselType(vt, nn) ? 'כלי שייט' :
 function GuestVehicleDetail({ vehicle, vehicleId }) {
   const { removeGuestVehicle } = useAuth();
   const navigate = useNavigate();
-  const T = getTheme(vehicle.vehicle_type, vehicle.nickname);
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const vWord = vehicleWord(vehicle.vehicle_type, vehicle.nickname);
   const name = vehicle.nickname || [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ') || vWord;
@@ -273,7 +273,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
     );
   }
 
-  const T = getTheme(vehicle.vehicle_type, vehicle.nickname);
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const name = vehicle.nickname || `${vehicle.manufacturer || ''} ${vehicle.model || ''}`.trim() || (isVessel ? 'כלי שייט' : 'רכב');

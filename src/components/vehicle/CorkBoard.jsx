@@ -231,7 +231,7 @@ function NoteDialog({ open, onClose, note, onSave, onDelete }) {
 export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }) {
   const { user, guestCorkNotes, addGuestCorkNote, updateGuestCorkNote, removeGuestCorkNote } = useAuth();
   const queryClient = useQueryClient();
-  const T = getTheme(vehicle.vehicle_type, vehicle.nickname);
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
   const ThemeIcon = isVessel ? Anchor : Wrench;
 

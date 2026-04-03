@@ -40,7 +40,7 @@ function getNextDueDate(lastDate, unit, value) {
 }
 
 export default function MaintenanceSection({ vehicle }) {
-  const T = getTheme(vehicle.vehicle_type, vehicle.nickname);
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const [showLogDialog, setShowLogDialog] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [logForm, setLogForm] = useState({});

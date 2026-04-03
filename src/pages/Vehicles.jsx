@@ -24,7 +24,7 @@ function daysUntil(dateStr) {
 
 // ── Compact vehicle row (matches Dashboard design) ─────────────────────────
 function VehicleListRow({ vehicle }) {
-  const T = getTheme(vehicle.vehicle_type, vehicle.nickname);
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
 
