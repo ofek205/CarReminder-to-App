@@ -26,6 +26,7 @@ import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { useQueryClient } from '@tanstack/react-query';
 import useAccountRole from '@/hooks/useAccountRole';
 import { isViewOnly } from '@/lib/permissions';
+import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
 
 const EMPTY_FORM = {
   vehicle_type_id: '',
@@ -53,6 +54,8 @@ const EMPTY_FORM = {
   life_raft_expiry_date: '',
   // Vessel engine
   engine_manufacturer: '',
+  // Vessel flag country
+  flag_country: '',
   // Vessel shipyard
   last_shipyard_date: '',
   hours_since_shipyard: '',
@@ -912,16 +915,25 @@ export default function AddVehicle() {
                     </div>
                   </div>
 
-                  {/* Engine manufacturer — vessels only */}
+                  {/* Engine manufacturer + Flag — vessels only */}
                   {selectedCategory?.label === 'כלי שייט' && (
-                    <div>
-                      <Label>יצרן מנוע</Label>
-                      <Input
-                        value={form.engine_manufacturer}
-                        onChange={e => handleChange('engine_manufacturer', e.target.value)}
-                        placeholder="לדוגמה: Yamaha, Mercury, Volvo"
-                      />
-                    </div>
+                    <>
+                      <div>
+                        <Label>יצרן מנוע</Label>
+                        <Input
+                          value={form.engine_manufacturer}
+                          onChange={e => handleChange('engine_manufacturer', e.target.value)}
+                          placeholder="לדוגמה: Yamaha, Mercury, Volvo"
+                        />
+                      </div>
+                      <div>
+                        <Label>דגל מדינה (רישום)</Label>
+                        <CountryFlagSelect
+                          value={form.flag_country}
+                          onChange={v => handleChange('flag_country', v)}
+                        />
+                      </div>
+                    </>
                   )}
 
                   {/* שנת ייצור + סוג דלק — 2 columns */}
