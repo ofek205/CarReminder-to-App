@@ -65,6 +65,8 @@ const VESSEL_EXACT = new Set([
 ]);
 const VESSEL_KEYWORDS = ['שייט', 'סירה', 'יאכטה', 'מפרשית', 'ספינה', 'אופנוע ים', 'גומי', 'סירת'];
 
+const VESSEL_MANUFACTURERS = ['sea-doo', 'yamaha marine', 'beneteau', 'jeanneau', 'zodiac', 'highfield', 'brig'];
+
 function checkVessel(vehicleType, nickname) {
   if (!vehicleType && !nickname) return false;
   const combined = `${vehicleType || ''} ${nickname || ''}`;
@@ -72,11 +74,18 @@ function checkVessel(vehicleType, nickname) {
   return VESSEL_KEYWORDS.some(kw => combined.includes(kw));
 }
 
+// Extended check including manufacturer
+function checkVesselFull(vehicleType, nickname, manufacturer) {
+  if (checkVessel(vehicleType, nickname)) return true;
+  if (manufacturer && VESSEL_MANUFACTURERS.some(m => manufacturer.toLowerCase().includes(m))) return true;
+  return false;
+}
+
 /**
  * Get theme tokens based on vehicle type.
  */
-export function getTheme(vehicleType, nickname) {
-  if (checkVessel(vehicleType, nickname)) return marine;
+export function getTheme(vehicleType, nickname, manufacturer) {
+  if (checkVesselFull(vehicleType, nickname, manufacturer)) return marine;
   return C;
 }
 
@@ -100,7 +109,7 @@ const TRUCK_MANUFACTURERS = ['man', 'scania', 'volvo trucks', 'daf', 'iveco', 'm
 
 export function getVehicleCategory(vehicleType, nickname, manufacturer) {
   const combined = `${vehicleType || ''} ${nickname || ''} ${manufacturer || ''}`.toLowerCase();
-  if (checkVessel(vehicleType, nickname)) return 'vessel';
+  if (checkVesselFull(vehicleType, nickname, manufacturer)) return 'vessel';
   if (MOTO_KEYWORDS.some(kw => combined.includes(kw))) return 'motorcycle';
   if (MOTO_MANUFACTURERS.some(m => combined.includes(m))) return 'motorcycle';
   if (TRUCK_KEYWORDS.some(kw => combined.includes(kw))) return 'truck';

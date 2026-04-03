@@ -10,7 +10,7 @@ const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 export default function GuestVehicleCard({ vehicle, onRegisterClick }) {
   const category = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const VehicleIcon = ICON_MAP[category] || Car;
-  const T = getTheme(vehicle.vehicle_type, vehicle.nickname);
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = category === 'vessel';
 
   const name = vehicle.nickname || [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ') || (isVessel ? 'כלי שייט' : 'רכב זמני');
