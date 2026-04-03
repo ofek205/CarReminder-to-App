@@ -6,8 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronsUpDown, Check, Plus, Car, Truck, Bus, Ship, Star, Bike, Loader2 } from "lucide-react";
+import { ChevronsUpDown, Check, Plus, Car, Truck, Bus, Ship, Star, Bike, Loader2, Mountain } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getTheme } from '@/lib/designTokens';
 
 // ─── Sub-categories for "כלי שייט" ──────────────────────────────────────────
 export const BOAT_SUBCATEGORIES = [
@@ -38,6 +39,37 @@ export const SPECIAL_SUBCATEGORIES = [
   { label: 'אוטובוס ומיניבוס',             dbName: 'אוטובוס',                        usageMetric: 'קילומטרים' },
 ];
 
+// ─── Sub-categories for "כלי שטח" ───────────────────────────────────────────
+export const OFFROAD_SUBCATEGORIES = [
+  { label: "ג'יפ שטח",       dbName: "ג'יפ שטח",       usageMetric: 'קילומטרים' },
+  { label: 'טרקטורון',       dbName: 'טרקטורון שטח',   usageMetric: 'קילומטרים' },
+  { label: 'אופנוע שטח',    dbName: 'אופנוע שטח',     usageMetric: 'קילומטרים' },
+  { label: 'RZR / באגי',     dbName: 'RZR',             usageMetric: 'שעות מנוע' },
+  { label: "ריינג'ר / מיול", dbName: 'מיול',            usageMetric: 'שעות מנוע' },
+  { label: 'באגי חולות',     dbName: 'באגי חולות',      usageMetric: 'קילומטרים' },
+];
+
+// ─── Off-road equipment & usage type options ────────────────────────────────
+export const OFFROAD_EQUIPMENT = [
+  { key: 'winch',               label: 'כננת' },
+  { key: 'snorkel',             label: 'שנורקל' },
+  { key: 'offroad_tires',       label: 'גלגלי שטח' },
+  { key: 'underbody_armor',     label: 'מיגון תחתון' },
+  { key: 'upgraded_suspension', label: 'מתלים מוגברים' },
+  { key: 'roof_rack',           label: 'גגון' },
+  { key: 'offroad_lights',      label: 'תאורת שטח' },
+  { key: 'offroad_spare',       label: 'גלגל רזרבי שטח' },
+];
+
+export const OFFROAD_USAGE_TYPES = [
+  { value: 'sand',        label: 'שטח חולות' },
+  { value: 'rocky',       label: 'שטח סלעי' },
+  { value: 'trails',      label: 'טיולים' },
+  { value: 'agriculture', label: 'חקלאות' },
+  { value: 'sport',       label: 'ספורט' },
+  { value: 'general',     label: 'שימוש כללי' },
+];
+
 // ─── Manufacturers per sub-category (for non-car categories) ────────────────
 export const MANUFACTURERS_BY_SUBCATEGORY = {
   'אופנוע כביש':  ['Honda', 'Yamaha', 'SYM', 'Kawasaki', 'Suzuki', 'KTM', 'BMW Motorrad', 'Ducati', 'Harley-Davidson', 'Triumph', 'Royal Enfield', 'Aprilia'],
@@ -54,6 +86,11 @@ export const MANUFACTURERS_BY_SUBCATEGORY = {
   'קרוואן':       ['Knaus', 'Hobby', 'Adria', 'Airstream', 'Bürstner', 'Weinsberg', 'Bailey', 'Trigano', 'Caravelair'],
   'רכב אספנות':   ['Ferrari', 'Porsche', 'Jaguar', 'Ford', 'Chevrolet', 'Mercedes-Benz', 'Aston Martin', 'Lamborghini', 'Alfa Romeo', 'BMW', 'Triumph', 'MG'],
   'משאית':        ['Mercedes-Benz', 'Volvo', 'Scania', 'MAN', 'DAF', 'Iveco', 'Renault', 'Ford', 'Isuzu', 'Mitsubishi Fuso'],
+  "ג'יפ שטח":     ['Jeep', 'Toyota', 'Land Rover', 'Suzuki', 'Mitsubishi', 'Nissan', 'Ford', 'Mercedes-Benz', 'Isuzu'],
+  'טרקטורון שטח': ['Can-Am', 'Yamaha', 'Honda', 'Polaris', 'Kawasaki', 'Suzuki', 'CFMOTO', 'Arctic Cat', 'Linhai'],
+  'RZR':           ['Polaris', 'Can-Am', 'Yamaha', 'Honda', 'Kawasaki', 'CFMOTO', 'Arctic Cat', 'Segway'],
+  'מיול':          ['Polaris', 'Kawasaki', 'Can-Am', 'John Deere', 'Kubota', 'Honda', 'Yamaha', 'CFMOTO'],
+  'באגי חולות':    ['Polaris', 'Can-Am', 'Yamaha', 'Arctic Cat', 'Kawasaki', 'CFMOTO'],
 };
 
 // ─── The 6 main categories (fixed, maps to DB by keyword) ───────────────────
@@ -93,6 +130,15 @@ export const VEHICLE_CATEGORIES = [
     hasSubcategories: true,
   },
   {
+    label: 'כלי שטח',
+    icon: Mountain,
+    keywords: ['שטח', "ג'יפ", 'טרקטורון', 'באגי', 'RZR'],
+    dbName: 'כלי שטח',
+    usageMetric: 'קילומטרים',
+    methods: ['scan', 'manual'],
+    hasSubcategories: true,
+  },
+  {
     label: 'מיוחדים',
     icon: Star,
     keywords: ['מיוחד', 'טרקטור', 'קלנוע', 'אחר'],
@@ -124,6 +170,11 @@ const LOCAL_VEHICLE_TYPES = [
   { id: 'vt-caravan',   name: 'קרוואן',          usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-plow',      name: 'מחרשה',           usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-bus',       name: 'אוטובוס',         usage_metric: 'קילומטרים',  scope: 'global' },
+  { id: 'vt-jeep-off', name: "ג'יפ שטח",       usage_metric: 'קילומטרים',  scope: 'global' },
+  { id: 'vt-atv-off',  name: 'טרקטורון שטח',   usage_metric: 'קילומטרים',  scope: 'global' },
+  { id: 'vt-rzr',      name: 'RZR',             usage_metric: 'שעות מנוע',  scope: 'global' },
+  { id: 'vt-mule',     name: 'מיול',            usage_metric: 'שעות מנוע',  scope: 'global' },
+  { id: 'vt-dunebuggy',name: 'באגי חולות',      usage_metric: 'קילומטרים',  scope: 'global' },
 ];
 
 // Find the best matching type for a category
@@ -140,6 +191,7 @@ function TabVariant({ selectedCategory, onSelectCategory }) {
       {VEHICLE_CATEGORIES.map(cat => {
         const Icon = cat.icon;
         const active = selectedCategory?.label === cat.label;
+        const T = getTheme(cat.dbName);
         return (
           <button
             key={cat.label}
@@ -147,25 +199,20 @@ function TabVariant({ selectedCategory, onSelectCategory }) {
             onClick={() => onSelectCategory(cat)}
             className={cn(
               'flex flex-col items-center justify-center gap-1.5 py-3 px-1 rounded-xl border-2 transition-all duration-200 focus:outline-none select-none',
-              active
-                ? 'border-[#2D5233] bg-[#E8F2EA] shadow-md'
-                : 'border-gray-200 bg-white hover:border-[#8B5E3C] hover:bg-[#FBF5EF] active:scale-95'
+              !active && 'border-gray-200 bg-white hover:border-[#8B5E3C] hover:bg-[#FBF5EF] active:scale-95'
             )}
+            style={active ? { borderColor: T.primary, background: T.light, boxShadow: `0 4px 12px ${T.primary}20` } : undefined}
           >
-            <div className={cn(
-              'w-9 h-9 rounded-xl flex items-center justify-center transition-colors',
-              active ? 'bg-[#2D5233]' : 'bg-gray-100'
-            )}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+              style={{ background: active ? T.primary : '#F3F4F6' }}>
               <Icon className={cn('h-4 w-4', active ? 'text-white' : 'text-gray-500')} />
             </div>
-            <span className={cn(
-              'text-[10px] sm:text-xs font-semibold text-center leading-tight',
-              active ? 'text-[#2D5233]' : 'text-gray-600'
-            )}>
+            <span className="text-[10px] sm:text-xs font-semibold text-center leading-tight"
+              style={{ color: active ? T.primary : '#4B5563' }}>
               {cat.label}
             </span>
             {active && (
-              <div className="w-1.5 h-1.5 rounded-full bg-[#2D5233]" />
+              <div className="w-1.5 h-1.5 rounded-full" style={{ background: T.primary }} />
             )}
           </button>
         );
@@ -222,11 +269,16 @@ export default function VehicleTypeSelector({
   // ── Tab variant: resolve type on category select ──
   const handleCategorySelect = (cat) => {
     if (onSelectCategory) onSelectCategory(cat);
-    const localType = findLocalType(cat);
-    if (localType) {
-      onChange(localType.id, localType.name, localType.usage_metric);
-    } else {
+    if (cat.hasSubcategories) {
+      // Don't set vehicle_type yet — wait for subcategory selection
       onChange('', cat.dbName, cat.usageMetric);
+    } else {
+      const localType = findLocalType(cat);
+      if (localType) {
+        onChange(localType.id, localType.name, localType.usage_metric);
+      } else {
+        onChange('', cat.dbName, cat.usageMetric);
+      }
     }
   };
 

@@ -60,6 +60,31 @@ export const MAINTENANCE_CATALOG = {
     { name: 'בדיקת חיבורי חשמל ותאורה', months: 12, km: null },
     { name: 'בדיקת מסגרת וחיבורים', months: 24, km: null },
   ],
+  "ג'יפ שטח": [
+    { name: 'טיפול שמן מנוע', months: 6, km: 5000 },
+    { name: 'החלפת מסנן אוויר', months: 6, km: 5000 },
+    { name: 'בדיקת מתלים וזרועות', months: 12, km: 10000 },
+    { name: 'החלפת נוזל בלמים', months: 12, km: 15000 },
+    { name: 'בדיקת כננת ושימון', months: 12, km: null },
+    { name: 'בדיקת מיגון תחתון', months: 12, km: null },
+    { name: 'החלפת צמיגי שטח', months: 24, km: 40000 },
+    { name: 'בדיקת גומיות וחיבורי הנעה', months: 12, km: 10000 },
+  ],
+  'RZR': [
+    { name: 'טיפול שמן מנוע', months: 6, km: null },
+    { name: 'החלפת מסנן אוויר', months: 3, km: null },
+    { name: 'בדיקת חגורות הנעה', months: 12, km: null },
+    { name: 'החלפת נוזל קירור', months: 24, km: null },
+    { name: 'שימון מפרקים וציוד', months: 6, km: null },
+    { name: 'בדיקת בלמים', months: 12, km: null },
+  ],
+  'מיול': [
+    { name: 'טיפול שמן מנוע', months: 6, km: null },
+    { name: 'החלפת מסנן אוויר', months: 6, km: null },
+    { name: 'בדיקת בלמים', months: 12, km: null },
+    { name: 'בדיקת מערכת הנעה', months: 12, km: null },
+    { name: 'החלפת צמיגים', months: 36, km: null },
+  ],
 };
 
 /**
@@ -76,6 +101,9 @@ export function getCatalogForVehicleType(vehicleType) {
   const lower = vehicleType.toLowerCase();
   if (lower.includes('משאית') || lower.includes('דיזל')) return MAINTENANCE_CATALOG['משאית'];
   if (lower.includes('נגרר')) return MAINTENANCE_CATALOG['נגרר'];
+  if (lower.includes('rzr') || lower.includes('באגי')) return MAINTENANCE_CATALOG['RZR'];
+  if (lower.includes('מיול') || lower.includes("ריינג'ר")) return MAINTENANCE_CATALOG['מיול'];
+  if (lower.includes("ג'יפ שטח")) return MAINTENANCE_CATALOG["ג'יפ שטח"];
   if (lower.includes('טרקטורון')) return MAINTENANCE_CATALOG['טרקטורון'];
   if (lower.includes('שטח') || lower.includes('דרט') || lower.includes('dirt')) return MAINTENANCE_CATALOG['אופנוע שטח'];
   if (lower.includes('אופנוע') || lower.includes('מוטו')) return MAINTENANCE_CATALOG['אופנוע כביש'];

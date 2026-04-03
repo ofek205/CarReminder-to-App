@@ -5,7 +5,7 @@
  */
 
 import { differenceInDays, parseISO } from 'date-fns';
-import { getVehicleLabels } from './DateStatusUtils';
+import { getVehicleLabels, isVessel } from './DateStatusUtils';
 
 // ── Primitive helpers ──────────────────────────────────────────────────────────
 
@@ -81,10 +81,6 @@ export function getDocEmoji(documentType) {
  *   linkTo: string,       page URL fragment
  * }
  */
-/** Vessel type names — keep in sync with DateStatusUtils.isVessel */
-const VESSEL_TYPE_SET = new Set([
-  'כלי שייט', 'מפרשית', 'סירה מנועית', 'אופנוע ים', 'סירת גומי',
-]);
 
 export function calcReminders({ vehicles = [], documents = [], settings = {} }) {
   const testDays   = settings.remind_test_days_before      ?? 14;
@@ -96,7 +92,7 @@ export function calcReminders({ vehicles = [], documents = [], settings = {} }) 
 
   // ── Vehicles ──
   vehicles.forEach(v => {
-    const vLabels = getVehicleLabels(v.vehicle_type);
+    const vLabels = getVehicleLabels(v.vehicle_type, v.nickname);
     const vName = v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || vLabels.vehicleFallback;
 
     if (v.test_due_date) {
@@ -123,7 +119,7 @@ export function calcReminders({ vehicles = [], documents = [], settings = {} }) 
           id: `ins-${v.id}`,
           type: 'insurance',
           emoji: '🛡️',
-          typeName: 'ביטוח',
+          typeName: vLabels.insuranceWord || 'ביטוח',
           name: vName,
           dueDate: v.insurance_due_date,
           daysLeft: dl,
@@ -134,7 +130,7 @@ export function calcReminders({ vehicles = [], documents = [], settings = {} }) 
     }
 
     // ── Vessel safety equipment ──
-    if (VESSEL_TYPE_SET.has(v.vehicle_type)) {
+    if (isVessel(v.vehicle_type, v.nickname)) {
       if (v.pyrotechnics_expiry_date) {
         const dl = daysUntil(v.pyrotechnics_expiry_date);
         if (dl !== null && dl <= safetyDays) {

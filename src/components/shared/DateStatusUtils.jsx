@@ -22,13 +22,28 @@ export function getVehicleTypeIcon(type) {
     case 'רכב': return '🚗';
     case 'אופנוע כביש': return '🏍️';
     case 'אופנוע שטח': return '🏔️';
-    case 'טרקטורון': return '🏎️';
+    case 'טרקטורון': case 'טרקטורון שטח': return '🏎️';
+    case "ג'יפ שטח": case 'כלי שטח': return '🏔️';
+    case 'RZR': return '🏁';
+    case 'מיול': return '🚜';
+    case 'באגי חולות': return '🏜️';
     default: return '🚗';
   }
 }
 
 export function normalizePlate(plate) {
   return plate.replace(/[^0-9]/g, '');
+}
+
+/** Off-road vehicle types */
+const OFFROAD_TYPES = new Set([
+  'כלי שטח', "ג'יפ שטח", 'טרקטורון שטח', 'RZR', 'מיול', 'באגי חולות',
+]);
+const OFFROAD_HOURS_TYPES = new Set(['RZR', 'מיול']);
+
+/** Returns true if this vehicle type is an off-road vehicle. */
+export function isOffroad(vehicleType) {
+  return OFFROAD_TYPES.has(vehicleType);
 }
 
 /** Vessel type names — used to identify boats/yachts/watercraft. */
@@ -48,11 +63,15 @@ export function isVessel(vehicleType, nickname) {
 
 export function usesKm(vehicleType, nickname) {
   if (isVessel(vehicleType, nickname)) return false;
-  return vehicleType === 'רכב' || vehicleType === 'אופנוע כביש';
+  if (OFFROAD_HOURS_TYPES.has(vehicleType)) return false;
+  return vehicleType === 'רכב' || vehicleType === 'אופנוע כביש'
+    || vehicleType === "ג'יפ שטח" || vehicleType === 'טרקטורון שטח'
+    || vehicleType === 'באגי חולות';
 }
 
 export function usesHours(vehicleType, nickname) {
   if (isVessel(vehicleType, nickname)) return true;
+  if (OFFROAD_HOURS_TYPES.has(vehicleType)) return true;
   return vehicleType === 'אופנוע שטח' || vehicleType === 'טרקטורון';
 }
 
@@ -67,6 +86,17 @@ export function isVintageVehicle(year) {
  * For vessels: uses "כלי שייט" / "כושר שייט" instead of "רכב" / "טסט".
  */
 export function getVehicleLabels(vehicleType, nickname) {
+  if (isOffroad(vehicleType)) {
+    return {
+      vehicleWord:    'כלי שטח',
+      testWord:       'טסט',
+      testDateLabel:  'תאריך טסט',
+      testNextLabel:  'תאריך טסט הבא',
+      testExpiredMsg: 'הטסט עבר את תאריך התוקף',
+      insuranceWord:  'ביטוח',
+      vehicleFallback:'כלי שטח',
+    };
+  }
   if (isVessel(vehicleType, nickname)) {
     return {
       vehicleWord:    'כלי שייט',      // replaces "רכב"
@@ -74,6 +104,7 @@ export function getVehicleLabels(vehicleType, nickname) {
       testDateLabel:  'תאריך כושר שייט',
       testNextLabel:  'כושר שייט הבא',
       testExpiredMsg: 'כושר השייט פג תוקף',
+      insuranceWord:  'ביטוח ימי',     // replaces "ביטוח"
       vehicleFallback:'כלי שייט',      // fallback name when no nickname
     };
   }
@@ -83,6 +114,7 @@ export function getVehicleLabels(vehicleType, nickname) {
     testDateLabel:  'תאריך טסט',
     testNextLabel:  'תאריך טסט הבא',
     testExpiredMsg: 'הטסט עבר את תאריך התוקף',
+    insuranceWord:  'ביטוח',
     vehicleFallback:'רכב',
   };
 }

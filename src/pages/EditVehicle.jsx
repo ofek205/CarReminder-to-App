@@ -13,9 +13,9 @@ import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine } from "lucide-react"
 import { Link } from 'react-router-dom';
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
-import { normalizePlate, usesKm, usesHours, isVintageVehicle, isVessel, getVehicleLabels } from "../components/shared/DateStatusUtils";
+import { normalizePlate, usesKm, usesHours, isVintageVehicle, isVessel, isOffroad, getVehicleLabels } from "../components/shared/DateStatusUtils";
 import { getCatalogForVehicleType } from "../components/shared/MaintenanceCatalog";
-import VehicleTypeSelector from "../components/vehicle/VehicleTypeSelector";
+import VehicleTypeSelector, { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { trackUserAction } from "../components/shared/ReviewManager";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import { useAuth } from "../components/shared/GuestContext";
 import { getTheme, isVesselType } from '@/lib/designTokens';
 import useAccountRole from '@/hooks/useAccountRole';
 import { isViewOnly } from '@/lib/permissions';
+import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
 
 export default function EditVehicle() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -68,11 +69,16 @@ export default function EditVehicle() {
     pyrotechnics_expiry_date: v.pyrotechnics_expiry_date || '',
     fire_extinguisher_expiry_date: v.fire_extinguisher_expiry_date || '',
     life_raft_expiry_date: v.life_raft_expiry_date || '',
-    // Vessel engine
+    // Vessel engine + flag
     engine_manufacturer: v.engine_manufacturer || '',
+    flag_country: v.flag_country || '',
     // Vessel shipyard
     last_shipyard_date: v.last_shipyard_date || '',
     hours_since_shipyard: v.hours_since_shipyard || '',
+    // Off-road
+    offroad_equipment: v.offroad_equipment || [],
+    offroad_usage_type: v.offroad_usage_type || '',
+    last_offroad_service_date: v.last_offroad_service_date || '',
   });
 
   useEffect(() => {
@@ -202,6 +208,8 @@ export default function EditVehicle() {
 
   const T = getTheme(form.vehicle_type, form.nickname, form.manufacturer);
   const vesselMode = isVesselType(form.vehicle_type, form.nickname);
+  const offroadMode = isOffroad(form.vehicle_type);
+  const hasOffroadData = (form.offroad_equipment?.length > 0 || form.offroad_usage_type || form.last_offroad_service_date);
 
   const VehicleIcon = vesselMode ? Ship : Car;
 
@@ -312,11 +320,17 @@ export default function EditVehicle() {
             </div>
           </div>
 
-          {/* Engine manufacturer — vessels */}
+          {/* Engine manufacturer + flag — vessels */}
           {vesselMode && (
-            <div>
-              <Label>יצרן מנוע</Label>
-              <Input value={form.engine_manufacturer} onChange={e => handleChange('engine_manufacturer', e.target.value)} placeholder="Yamaha, Mercury, Volvo" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>יצרן מנוע</Label>
+                <Input value={form.engine_manufacturer} onChange={e => handleChange('engine_manufacturer', e.target.value)} placeholder="Yamaha, Mercury, Volvo" />
+              </div>
+              <div>
+                <Label>דגל מדינה (רישום)</Label>
+                <CountryFlagSelect value={form.flag_country} onChange={v => handleChange('flag_country', v)} />
+              </div>
             </div>
           )}
 
@@ -434,10 +448,57 @@ export default function EditVehicle() {
             </div>
           )}
 
+          {/* ── Off-road equipment section ── */}
+          {(offroadMode || hasOffroadData) && (
+            <div className="border border-green-200 bg-green-50 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-base">🏔️</span>
+                <span className="font-semibold text-green-800 text-sm">ציוד ושימוש שטח</span>
+              </div>
+              <div>
+                <Label className="text-right block mb-1.5 text-green-800">ציוד מותקן</Label>
+                <div className="flex flex-wrap gap-2">
+                  {OFFROAD_EQUIPMENT.map(eq => {
+                    const selected = (form.offroad_equipment || []).includes(eq.key);
+                    return (
+                      <button key={eq.key} type="button"
+                        onClick={() => {
+                          const current = form.offroad_equipment || [];
+                          const next = selected ? current.filter(k => k !== eq.key) : [...current, eq.key];
+                          handleChange('offroad_equipment', next);
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                          selected ? 'bg-green-100 text-green-700 border-green-300' : 'bg-white text-gray-600 border-gray-200'
+                        }`}>
+                        {selected && '✓ '}{eq.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <Label className="text-right block mb-1.5 text-green-800">סוג שימוש</Label>
+                <Select value={form.offroad_usage_type} onValueChange={v => handleChange('offroad_usage_type', v)}>
+                  <SelectTrigger><SelectValue placeholder="בחר סוג שימוש..." /></SelectTrigger>
+                  <SelectContent>
+                    {OFFROAD_USAGE_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-right block mb-1.5 text-green-800">תאריך טיפול שטח אחרון</Label>
+                <DateInput value={form.last_offroad_service_date}
+                  onChange={e => handleChange('last_offroad_service_date', e.target.value)} />
+              </div>
+            </div>
+          )}
+
           <button type="submit" disabled={saving}
             className="w-full h-14 rounded-2xl font-bold text-base transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
             style={{ background: T.yellow, color: T.primary, boxShadow: `0 4px 16px ${T.yellow}50` }}>
-            {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : vesselMode ? 'עדכן כלי שייט' : 'עדכן רכב'}
+            {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : offroadMode ? 'עדכן כלי שטח' : vesselMode ? 'עדכן כלי שייט' : 'עדכן רכב'}
           </button>
         </form>
       </div>

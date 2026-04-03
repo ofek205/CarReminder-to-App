@@ -5,6 +5,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Calendar, Bell } from 'lucide-react';
+import { getTheme } from '@/lib/designTokens';
+
+const M = getTheme('כלי שייט');
 
 const CATEGORIES = [
   { value: 'hull',       label: 'גוף/שלד' },
@@ -84,7 +87,7 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-lg font-black" style={{ color: '#0A3D4D' }}>
+          <DialogTitle className="text-lg font-black" style={{ color: M.text }}>
             {issue ? 'עריכת תקלה' : 'תקלה חדשה'}
           </DialogTitle>
         </DialogHeader>
@@ -92,7 +95,7 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
         <div className="space-y-4 mt-2">
           {/* Title */}
           <div>
-            <label className="text-sm font-bold mb-1.5 block" style={{ color: '#0A3D4D' }}>כותרת *</label>
+            <label className="text-sm font-bold mb-1.5 block" style={{ color: M.text }}>כותרת *</label>
             <Input
               placeholder="למשל: חלודה בגוף התחתון"
               value={form.title}
@@ -104,7 +107,7 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
           {/* Category + Priority row */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-bold mb-1.5 block" style={{ color: '#0A3D4D' }}>קטגוריה</label>
+              <label className="text-sm font-bold mb-1.5 block" style={{ color: M.text }}>קטגוריה</label>
               <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
                 <SelectTrigger className="rounded-xl">
                   <SelectValue placeholder="בחר קטגוריה" />
@@ -118,7 +121,7 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
             </div>
 
             <div>
-              <label className="text-sm font-bold mb-1.5 block" style={{ color: '#0A3D4D' }}>עדיפות</label>
+              <label className="text-sm font-bold mb-1.5 block" style={{ color: M.text }}>עדיפות</label>
               <Select value={form.priority} onValueChange={v => setForm(f => ({ ...f, priority: v }))}>
                 <SelectTrigger className="rounded-xl">
                   <SelectValue />
@@ -140,7 +143,7 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
           {/* Status */}
           {issue && (
             <div>
-              <label className="text-sm font-bold mb-1.5 block" style={{ color: '#0A3D4D' }}>סטטוס</label>
+              <label className="text-sm font-bold mb-1.5 block" style={{ color: M.text }}>סטטוס</label>
               <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger className="rounded-xl">
                   <SelectValue />
@@ -156,7 +159,7 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
 
           {/* Description */}
           <div>
-            <label className="text-sm font-bold mb-1.5 block" style={{ color: '#0A3D4D' }}>תיאור</label>
+            <label className="text-sm font-bold mb-1.5 block" style={{ color: M.text }}>תיאור</label>
             <Textarea
               placeholder="תאר את התקלה בפירוט..."
               value={form.description}
@@ -166,11 +169,11 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
           </div>
 
           {/* Target date + reminder toggle */}
-          <div className="rounded-xl p-3" style={{ background: '#E0F7FA', border: '1px solid #B2EBF2' }}>
+          <div className="rounded-xl p-3" style={{ background: M.light, border: `1px solid ${M.border}` }}>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Bell className="w-4 h-4" style={{ color: '#0C7B93' }} />
-                <span className="text-sm font-bold" style={{ color: '#0A3D4D' }}>תזכורת לטיפול</span>
+                <Bell className="w-4 h-4" style={{ color: M.primary }} />
+                <span className="text-sm font-bold" style={{ color: M.text }}>תזכורת לטיפול</span>
               </div>
               <Switch
                 checked={form.has_reminder}
@@ -179,7 +182,7 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
             </div>
             {form.has_reminder && (
               <div className="flex items-center gap-2 mt-2">
-                <Calendar className="w-4 h-4 shrink-0" style={{ color: '#0C7B93' }} />
+                <Calendar className="w-4 h-4 shrink-0" style={{ color: M.primary }} />
                 <input
                   type="date"
                   value={form.target_date}
@@ -196,7 +199,7 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
             onClick={handleSave}
             disabled={!form.title.trim() || saving}
             className="w-full py-3.5 rounded-2xl font-bold text-base transition-all active:scale-[0.98] disabled:opacity-50 text-white"
-            style={{ background: '#0C7B93', boxShadow: '0 4px 16px rgba(12,123,147,0.3)' }}>
+            style={{ background: M.primary, boxShadow: `0 4px 16px ${M.primary}4D` }}>
             {saving ? 'שומר...' : issue ? 'עדכן תקלה' : 'הוסף תקלה'}
           </button>
         </div>

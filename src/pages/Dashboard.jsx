@@ -12,23 +12,11 @@ import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
 import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_REMINDERS, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VESSEL_ISSUES } from "../components/shared/demoVehicleData";
 import { format, parseISO } from 'date-fns';
-import { getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
+import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 function getVehicleIcon(vt, nn, mfr) { return ICON_MAP[getVehicleCategory(vt, nn, mfr)] || Car; }
 import { he } from 'date-fns/locale';
-
-// ── Design tokens ───────────────────────────────────────────────────────────
-const C = {
-  bg:        '#FFFFFF',   // White background
-  green:     '#4B7A53',   // Olive/nature green — clearly green
-  greenDark: '#2D5233',   // Dark green for headings & text
-  yellow:    '#FFBF00',   // Amber accent
-  card:      '#FFFFFF',
-  muted:     '#7A8A7C',   // Green-tinted gray
-  border:    '#D8E5D9',   // Soft green border
-  text:      '#1C2E20',   // Near-black with green tint
-};
 
 // ── Helper: format date nicely ──────────────────────────────────────────────
 function fmtDate(dateStr) {
@@ -55,13 +43,13 @@ function UrgentBanner({ reminders, vehicles }) {
 
   if (!urgent) return null;
 
+  const urgentVehicle = vehicles?.find(v => v.id === urgent.vehicle_id);
+  const isUrgentVessel = isVesselType(urgentVehicle?.vehicle_type, urgentVehicle?.nickname);
   const typeLabel = {
-    insurance: 'חידוש ביטוח',
-    test:      'טסט רכב',
+    insurance: isUrgentVessel ? 'חידוש ביטוח ימי' : 'חידוש ביטוח',
+    test:      isUrgentVessel ? 'כושר שייט' : 'טסט רכב',
     maintenance: 'טיפול תקופתי',
   }[urgent.type] || urgent.title;
-
-  const urgentVehicle = vehicles?.find(v => v.id === urgent.vehicle_id);
   const vehicleName = urgentVehicle?.nickname || urgentVehicle?.manufacturer || '';
   const T = getTheme(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
 

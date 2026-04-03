@@ -11,6 +11,9 @@ import {
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { getTheme } from '@/lib/designTokens';
+
+const M = getTheme('כלי שייט'); // marine theme tokens
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -38,7 +41,7 @@ const PRIORITY_STYLES = {
 
 const STATUS_STYLES = {
   'open':        { bg: '#FEF3C7', color: '#D97706', label: 'פתוח',   icon: AlertTriangle },
-  'in-progress': { bg: '#E0F7FA', color: '#0C7B93', label: 'בטיפול', icon: Clock },
+  'in-progress': { bg: M.light, color: M.primary, label: 'בטיפול', icon: Clock },
   'done':        { bg: '#E8F5E9', color: '#2E7D32', label: 'הושלם',  icon: CheckCircle },
 };
 
@@ -88,7 +91,7 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
       className={`rounded-2xl mb-3 overflow-hidden transition-all ${isDone ? 'opacity-70' : ''}`}
       style={{
         background: '#fff',
-        border: `1px solid ${isOverdue ? '#FECACA' : '#B2EBF2'}`,
+        border: `1px solid ${isOverdue ? '#FECACA' : M.border}`,
         boxShadow: isOverdue ? '0 2px 12px rgba(220,38,38,0.08)' : '0 2px 12px rgba(12,123,147,0.06)',
       }}
       dir="rtl"
@@ -101,21 +104,21 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
             onClick={() => onToggleComplete(issue)}
             className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 transition-all active:scale-95"
             style={{
-              background: isDone ? '#E8F5E9' : '#E0F7FA',
-              border: `1.5px solid ${isDone ? '#A5D6A7' : '#B2EBF2'}`,
+              background: isDone ? '#E8F5E9' : M.light,
+              border: `1.5px solid ${isDone ? '#A5D6A7' : M.border}`,
             }}
           >
             {isDone ? (
               <CheckCircle className="w-4 h-4" style={{ color: '#2E7D32' }} />
             ) : (
-              <div className="w-3.5 h-3.5 rounded-full border-2" style={{ borderColor: '#0C7B93' }} />
+              <div className="w-3.5 h-3.5 rounded-full border-2" style={{ borderColor: M.primary }} />
             )}
           </button>
 
           {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h4 className={`font-bold text-sm ${isDone ? 'line-through' : ''}`} style={{ color: '#0A3D4D' }}>
+              <h4 className={`font-bold text-sm ${isDone ? 'line-through' : ''}`} style={{ color: M.text }}>
                 {issue.title}
               </h4>
             </div>
@@ -167,8 +170,8 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
           <div className="flex items-center gap-1 shrink-0">
             <button onClick={() => setExpanded(!expanded)}
               className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-              style={{ background: expanded ? '#E0F7FA' : 'transparent' }}>
-              {expanded ? <ChevronUp className="w-4 h-4" style={{ color: '#0C7B93' }} /> : <ChevronDown className="w-4 h-4" style={{ color: '#6B9EA8' }} />}
+              style={{ background: expanded ? M.light : 'transparent' }}>
+              {expanded ? <ChevronUp className="w-4 h-4" style={{ color: M.primary }} /> : <ChevronDown className="w-4 h-4" style={{ color: '#6B9EA8' }} />}
             </button>
             {!readOnly && (
               <>
@@ -201,10 +204,10 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
 
       {/* Expanded section */}
       {expanded && (
-        <div className="px-4 pb-4 pt-0 border-t" style={{ borderColor: '#E0F7FA' }}>
+        <div className="px-4 pb-4 pt-0 border-t" style={{ borderColor: M.light }}>
           {/* Description */}
           {issue.description && (
-            <p className="text-sm mt-3 leading-relaxed" style={{ color: '#0A3D4D' }}>
+            <p className="text-sm mt-3 leading-relaxed" style={{ color: M.text }}>
               {issue.description}
             </p>
           )}
@@ -216,7 +219,7 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
                 onClick={handleAdvice}
                 disabled={adviceLoading}
                 className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50"
-                style={{ background: '#E0F7FA', color: '#0C7B93', border: '1px solid #B2EBF2' }}>
+                style={{ background: M.light, color: M.primary, border: `1px solid ${M.border}` }}>
                 {adviceLoading ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
@@ -251,7 +254,7 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-xs font-medium mt-2 hover:underline"
-              style={{ color: '#0C7B93' }}>
+              style={{ color: M.primary }}>
               <Search className="w-3 h-3" />
               חפש באינטרנט
             </a>
@@ -268,10 +271,10 @@ function EmptyState({ onAdd }) {
   return (
     <div className="text-center py-8" dir="rtl">
       <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
-        style={{ background: '#E0F7FA' }}>
-        <Anchor className="w-8 h-8" style={{ color: '#0C7B93', opacity: 0.5 }} />
+        style={{ background: M.light }}>
+        <Anchor className="w-8 h-8" style={{ color: M.primary, opacity: 0.5 }} />
       </div>
-      <h4 className="font-bold text-sm mb-1" style={{ color: '#0A3D4D' }}>אין תקלות רשומות</h4>
+      <h4 className="font-bold text-sm mb-1" style={{ color: M.text }}>אין תקלות רשומות</h4>
       <p className="text-xs mb-4" style={{ color: '#6B9EA8' }}>
         הוסף תקלות ופגמים כדי לעקוב אחרי מצב כלי השייט
       </p>
@@ -279,7 +282,7 @@ function EmptyState({ onAdd }) {
         <button
           onClick={onAdd}
           className="px-5 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] text-white"
-          style={{ background: '#0C7B93', boxShadow: '0 4px 12px rgba(12,123,147,0.25)' }}>
+          style={{ background: M.primary, boxShadow: `0 4px 12px ${M.primary}40` }}>
           <Plus className="w-4 h-4 inline ml-1" />
           הוסף תקלה ראשונה
         </button>
@@ -377,7 +380,7 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
   // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="rounded-2xl overflow-hidden"
-      style={{ background: '#fff', border: '1px solid #B2EBF2', boxShadow: '0 2px 16px rgba(12,123,147,0.08)' }}>
+      style={{ background: '#fff', border: `1px solid ${M.border}`, boxShadow: `0 2px 16px ${M.primary}14` }}>
 
       {/* Header */}
       <div className="p-4 flex items-center justify-between"
@@ -385,11 +388,11 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
         dir="rtl">
         <div className="flex items-center gap-2.5">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: '#0C7B93', boxShadow: '0 4px 12px rgba(12,123,147,0.25)' }}>
+            style={{ background: M.primary, boxShadow: `0 4px 12px ${M.primary}40` }}>
             <Anchor className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-black text-sm" style={{ color: '#0A3D4D' }}>תקלות ופגמים</h3>
+            <h3 className="font-black text-sm" style={{ color: M.text }}>תקלות ופגמים</h3>
             <p className="text-[11px] font-medium" style={{ color: '#6B9EA8' }}>
               {counts.open > 0 ? `${counts.open} פתוחים` : 'אין תקלות פתוחות'}
               {counts['in-progress'] > 0 && ` · ${counts['in-progress']} בטיפול`}
@@ -400,7 +403,7 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
           <button
             onClick={openAdd}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs transition-all active:scale-[0.98] text-white"
-            style={{ background: '#0C7B93', boxShadow: '0 3px 10px rgba(12,123,147,0.25)' }}>
+            style={{ background: M.primary, boxShadow: `0 3px 10px ${M.primary}40` }}>
             <Plus className="w-3.5 h-3.5" />
             חדשה
           </button>
@@ -416,8 +419,8 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
               onClick={() => setFilter(f.key)}
               className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
               style={{
-                background: filter === f.key ? '#0C7B93' : '#F0F9FF',
-                color: filter === f.key ? '#fff' : '#0C7B93',
+                background: filter === f.key ? M.primary : M.light,
+                color: filter === f.key ? '#fff' : M.primary,
               }}>
               {f.label}
               {counts[f.key] > 0 && ` (${counts[f.key]})`}
@@ -430,7 +433,7 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
       <div className="p-4 pt-2">
         {isLoading ? (
           <div className="text-center py-6">
-            <Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: '#0C7B93' }} />
+            <Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: M.primary }} />
           </div>
         ) : issues.length === 0 ? (
           <EmptyState onAdd={(readOnly && !isGuest) ? undefined : openAdd} />

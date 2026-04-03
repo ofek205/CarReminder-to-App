@@ -6,7 +6,8 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { useAuth } from '../components/shared/GuestContext';
-import { C } from '@/lib/designTokens';
+import { C, getTheme } from '@/lib/designTokens';
+import { isVessel, getVehicleLabels } from '../components/shared/DateStatusUtils';
 import { DEMO_ACCIDENTS, DEMO_VEHICLE } from '../components/shared/demoVehicleData';
 import { format, parseISO } from 'date-fns';
 
@@ -49,18 +50,20 @@ function StatusSummary({ accidents }) {
 }
 
 // ── Accident Card (premium) ─────────────────────────────────────────────────
-function AccidentRow({ accident, vehicleName }) {
+function AccidentRow({ accident, vehicleName, vehicle }) {
   const status = STATUS_MAP[accident.status] || STATUS_MAP['פתוח'];
   const hasPhotos = accident.photos?.length > 0;
   const StatusIcon = status.icon;
+  const T = getTheme(vehicle?.vehicle_type, vehicle?.nickname, vehicle?.manufacturer);
+  const labels = getVehicleLabels(vehicle?.vehicle_type, vehicle?.nickname);
 
   return (
     <Link to={`${createPageUrl('AddAccident')}?id=${accident.id}`}>
       <div className="rounded-2xl overflow-hidden mb-3 transition-all active:scale-[0.99]"
         style={{
-          background: C.card,
-          border: `1px solid ${C.border}`,
-          boxShadow: `0 4px 20px ${C.primary}12`,
+          background: T.card,
+          border: `1px solid ${T.border}`,
+          boxShadow: `0 4px 20px ${T.primary}12`,
         }}
         dir="rtl">
 
@@ -92,7 +95,7 @@ function AccidentRow({ accident, vehicleName }) {
             {/* Vehicle + driver on photo */}
             <div className="absolute bottom-3 right-3 left-3 z-10">
               <h3 className="font-black text-white text-base leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
-                {vehicleName || 'רכב'}
+                {vehicleName || labels.vehicleFallback}
                 {accident.other_driver_name && ` — ${accident.other_driver_name}`}
               </h3>
             </div>
@@ -100,13 +103,13 @@ function AccidentRow({ accident, vehicleName }) {
         ) : (
           /* No photo: compact gradient header */
           <div className="relative px-4 pt-4 pb-3 overflow-hidden"
-            style={{ background: `linear-gradient(135deg, ${status.bg} 0%, ${C.card} 100%)` }}>
+            style={{ background: `linear-gradient(135deg, ${status.bg} 0%, ${T.card} 100%)` }}>
             <div className="absolute -top-6 -left-6 w-20 h-20 rounded-full"
               style={{ background: `${status.color}08` }} />
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-sm truncate" style={{ color: C.text }}>
-                  {vehicleName || 'רכב'}
+                <h3 className="font-bold text-sm truncate" style={{ color: T.text }}>
+                  {vehicleName || labels.vehicleFallback}
                   {accident.other_driver_name && ` — ${accident.other_driver_name}`}
                 </h3>
               </div>
@@ -123,12 +126,12 @@ function AccidentRow({ accident, vehicleName }) {
         <div className="px-4 py-3">
           {/* Date + Location row */}
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="flex items-center gap-1 text-xs font-medium" style={{ color: C.muted }}>
+            <span className="flex items-center gap-1 text-xs font-medium" style={{ color: T.muted }}>
               <Calendar className="w-3.5 h-3.5" />
               {fmtDate(accident.date)}
             </span>
             {accident.location && (
-              <span className="flex items-center gap-1 text-xs truncate" style={{ color: C.muted }}>
+              <span className="flex items-center gap-1 text-xs truncate" style={{ color: T.muted }}>
                 <MapPin className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">{accident.location}</span>
               </span>
@@ -139,7 +142,7 @@ function AccidentRow({ accident, vehicleName }) {
           <div className="flex items-center gap-2 mt-2.5 flex-wrap">
             {accident.other_driver_plate && (
               <span className="text-xs font-bold px-2.5 py-1 rounded-lg flex items-center gap-1"
-                style={{ background: C.light, color: C.primary, border: `1px solid ${C.border}` }}
+                style={{ background: T.light, color: T.primary, border: `1px solid ${T.border}` }}
                 dir="ltr">
                 <Car className="w-3 h-3" />
                 {accident.other_driver_plate}
@@ -161,7 +164,7 @@ function AccidentRow({ accident, vehicleName }) {
             )}
             {!hasPhotos && accident.photos?.length === 0 && null}
             {!hasPhotos && (
-              <span className="flex items-center gap-1 text-xs" style={{ color: C.muted }}>
+              <span className="flex items-center gap-1 text-xs" style={{ color: T.muted }}>
                 <Camera className="w-3 h-3" style={{ opacity: 0.4 }} />
                 ללא תמונות
               </span>
@@ -171,7 +174,7 @@ function AccidentRow({ accident, vehicleName }) {
 
         {/* Bottom arrow hint */}
         <div className="px-4 pb-3 flex justify-start">
-          <span className="text-xs font-medium flex items-center gap-1" style={{ color: C.muted }}>
+          <span className="text-xs font-medium flex items-center gap-1" style={{ color: T.muted }}>
             <ChevronLeft className="w-3.5 h-3.5" />
             לחץ לפרטים
           </span>
@@ -252,10 +255,12 @@ export default function Accidents() {
   const allVehicles = isGuest ? [...guestVehicles, DEMO_VEHICLE] : authVehicles;
   const sortedAccidents = [...allAccidents].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
+  const getVehicle = (vehicleId) => allVehicles.find(v => v.id === vehicleId);
   const getVehicleName = (vehicleId) => {
-    const v = allVehicles.find(v => v.id === vehicleId);
+    const v = getVehicle(vehicleId);
     if (!v) return '';
-    return v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || 'רכב';
+    const labels = getVehicleLabels(v.vehicle_type, v.nickname);
+    return v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || labels.vehicleFallback;
   };
 
   const loading = isAuthenticated && accidentsLoading;
@@ -323,6 +328,7 @@ export default function Accidents() {
               <AccidentRow
                 key={accident.id}
                 accident={accident}
+                vehicle={getVehicle(accident.vehicle_id)}
                 vehicleName={getVehicleName(accident.vehicle_id)}
               />
             ))}

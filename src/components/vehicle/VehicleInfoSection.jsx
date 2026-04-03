@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import StatusBadge from "../shared/StatusBadge";
-import { getDateStatus, formatDateHe, getVehicleTypeIcon, usesKm, usesHours, isVessel, getVehicleLabels } from "../shared/DateStatusUtils";
+import { getDateStatus, formatDateHe, getVehicleTypeIcon, usesKm, usesHours, isVessel, isOffroad, getVehicleLabels } from "../shared/DateStatusUtils";
+import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES } from "../vehicle/VehicleTypeSelector";
+import { COUNTRIES } from "../vehicle/CountryFlagSelect";
 import { Gauge, Clock, Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Fuel, Info, Hash, Tag, Palette, Building2, Cog } from "lucide-react";
 import MileageUpdateWidget from "./MileageUpdateWidget";
 import { getTheme } from '@/lib/designTokens';
@@ -264,6 +266,7 @@ export default function VehicleInfoSection({ vehicle }) {
   const testStatus = getDateStatus(vehicle.test_due_date);
   const insuranceStatus = getDateStatus(vehicle.insurance_due_date);
   const vesselMode = isVessel(vehicle.vehicle_type, vehicle.nickname);
+  const offroadMode = isOffroad(vehicle.vehicle_type);
   const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
   const pyroStatus     = vesselMode ? getDateStatus(vehicle.pyrotechnics_expiry_date) : null;
   const extStatus      = vesselMode ? getDateStatus(vehicle.fire_extinguisher_expiry_date) : null;
@@ -310,6 +313,26 @@ export default function VehicleInfoSection({ vehicle }) {
       {/* ── Vessel-specific sections ── */}
       {vesselMode && (
         <>
+          {/* Flag + engine info */}
+          {(vehicle.flag_country || vehicle.engine_manufacturer) && (
+            <div className="rounded-2xl p-4 space-y-2" style={{ background: '#fff', border: `1.5px solid ${T.border}` }}>
+              {vehicle.flag_country && (() => {
+                const country = COUNTRIES.find(c => c.code === vehicle.flag_country);
+                return country ? (
+                  <div className="flex items-center justify-between" dir="rtl">
+                    <span className="text-sm font-medium" style={{ color: T.muted }}>דגל רישום</span>
+                    <span className="text-sm font-bold" style={{ color: T.text }}>{country.flag} {country.name}</span>
+                  </div>
+                ) : null;
+              })()}
+              {vehicle.engine_manufacturer && (
+                <div className="flex items-center justify-between" dir="rtl">
+                  <span className="text-sm font-medium" style={{ color: T.muted }}>יצרן מנוע</span>
+                  <span className="text-sm font-bold" style={{ color: T.text }}>{vehicle.engine_manufacturer}</span>
+                </div>
+              )}
+            </div>
+          )}
           {/* Safety equipment */}
           {(vehicle.pyrotechnics_expiry_date || vehicle.fire_extinguisher_expiry_date || vehicle.life_raft_expiry_date) && (
             <div className="rounded-2xl p-4" style={{ background: T.light, border: `1.5px solid ${T.border}` }}>
@@ -342,6 +365,49 @@ export default function VehicleInfoSection({ vehicle }) {
 
           {/* Inspection checklist */}
           <VesselInspectionChecklist vehicle={vehicle} T={T} />
+        </>
+      )}
+
+      {/* ── Off-road equipment display ── */}
+      {(offroadMode || vehicle.offroad_equipment?.length > 0) && (
+        <>
+          {vehicle.offroad_equipment?.length > 0 && (
+            <div className="rounded-2xl p-4" style={{ background: T.light, border: `1.5px solid ${T.border}` }}>
+              <div className="flex items-center gap-1.5 mb-3">
+                <span className="text-sm">🏔️</span>
+                <span className="text-sm font-bold" style={{ color: T.text }}>ציוד שטח</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {vehicle.offroad_equipment.map(key => {
+                  const eq = OFFROAD_EQUIPMENT.find(e => e.key === key);
+                  return eq ? (
+                    <span key={key} className="px-2.5 py-1 rounded-full text-xs font-medium"
+                      style={{ background: '#fff', color: T.primary, border: `1px solid ${T.border}` }}>
+                      {eq.label}
+                    </span>
+                  ) : null;
+                })}
+              </div>
+            </div>
+          )}
+          {(vehicle.offroad_usage_type || vehicle.last_offroad_service_date) && (
+            <div className="rounded-2xl p-4 space-y-2" style={{ background: '#fff', border: `1.5px solid ${T.border}` }}>
+              {vehicle.offroad_usage_type && (
+                <div className="flex items-center justify-between" dir="rtl">
+                  <span className="text-sm font-medium" style={{ color: T.muted }}>סוג שימוש</span>
+                  <span className="text-sm font-bold" style={{ color: T.text }}>
+                    {OFFROAD_USAGE_TYPES.find(t => t.value === vehicle.offroad_usage_type)?.label || vehicle.offroad_usage_type}
+                  </span>
+                </div>
+              )}
+              {vehicle.last_offroad_service_date && (
+                <div className="flex items-center justify-between" dir="rtl">
+                  <span className="text-sm font-medium" style={{ color: T.muted }}>טיפול שטח אחרון</span>
+                  <span className="text-sm font-bold" style={{ color: T.text }}>{formatDateHe(vehicle.last_offroad_service_date)}</span>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

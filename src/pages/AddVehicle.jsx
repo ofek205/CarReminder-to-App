@@ -14,7 +14,7 @@ import { lookupVehicleByPlate } from "../services/vehicleLookup";
 import PageHeader from "../components/shared/PageHeader";
 import { normalizePlate, isVintageVehicle, isVessel, getVehicleLabels } from "../components/shared/DateStatusUtils";
 import { cn } from "@/lib/utils";
-import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
+import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { trackUserAction } from "../components/shared/ReviewManager";
 import VehicleScanWizard from "../components/vehicle/VehicleScanWizard";
@@ -59,6 +59,10 @@ const EMPTY_FORM = {
   // Vessel shipyard
   last_shipyard_date: '',
   hours_since_shipyard: '',
+  // Off-road
+  offroad_equipment: [],
+  offroad_usage_type: '',
+  last_offroad_service_date: '',
 };
 
 // Autofill visual helper - renders "מולא אוטומטית" hint if field was autofilled
@@ -109,6 +113,9 @@ export default function AddVehicle() {
 
   // Dynamic theme — switches to marine when כלי שייט is selected
   const isVesselCategory = selectedCategory?.label === 'כלי שייט';
+  const isOffroadCategory = selectedCategory?.label === 'כלי שטח';
+  const isJeepOffroad = selectedSubcategory?.dbName === "ג'יפ שטח";
+  const [showOffroadSection, setShowOffroadSection] = useState(false);
   const T = isVesselCategory ? getTheme('כלי שייט') : defaultC;
 
   useEffect(() => {
@@ -312,6 +319,13 @@ export default function AddVehicle() {
       delete data.last_shipyard_date;
       delete data.hours_since_shipyard;
     }
+    // Clean offroad fields if not applicable
+    if (!isOffroadCategory && !(isJeepOffroad && showOffroadSection)) {
+      delete data.offroad_equipment;
+      delete data.offroad_usage_type;
+      delete data.last_offroad_service_date;
+    }
+    if (data.offroad_equipment && data.offroad_equipment.length === 0) delete data.offroad_equipment;
     // _vesselLicenseFileUrl is internal — don't persist to DB
     const vesselLicenseFileUrl = data._vesselLicenseFileUrl;
     delete data._vesselLicenseFileUrl;
@@ -556,7 +570,9 @@ export default function AddVehicle() {
                   ? MOTO_SUBCATEGORIES
                   : selectedCategory.label === 'כלי שייט'
                     ? BOAT_SUBCATEGORIES
-                    : SPECIAL_SUBCATEGORIES),
+                    : selectedCategory.label === 'כלי שטח'
+                      ? OFFROAD_SUBCATEGORIES
+                      : SPECIAL_SUBCATEGORIES),
                 ...(customSubcategories[selectedCategory.label] || []),
               ].map(sub => {
                 const active = selectedSubcategory?.label === sub.label;
@@ -861,17 +877,28 @@ export default function AddVehicle() {
 
                 {/* ── Form fields ── */}
                 <div className="space-y-4" dir="rtl">
-                  {/* מספר רישוי — full width */}
-                  <div>
-                    <Label>מספר רישוי *</Label>
-                    <Input
-                      value={form.license_plate}
-                      onChange={e => handleChange('license_plate', e.target.value)}
-                      onClear={() => handleChange('license_plate', '')}
-                      required dir="ltr" placeholder="00-000-00"
-                      className={autofillCls('license_plate', autofillFields)}
-                    />
-                    <AutofillHint name="license_plate" autofillFields={autofillFields} />
+                  {/* מספר רישוי + דגל (vessels) */}
+                  <div className={isVesselCategory ? 'grid grid-cols-2 gap-3' : ''}>
+                    <div>
+                      <Label>{isVesselCategory ? 'מספר זיהוי *' : 'מספר רישוי *'}</Label>
+                      <Input
+                        value={form.license_plate}
+                        onChange={e => handleChange('license_plate', e.target.value)}
+                        onClear={() => handleChange('license_plate', '')}
+                        required dir="ltr" placeholder={isVesselCategory ? 'IL-12345' : '00-000-00'}
+                        className={autofillCls('license_plate', autofillFields)}
+                      />
+                      <AutofillHint name="license_plate" autofillFields={autofillFields} />
+                    </div>
+                    {isVesselCategory && (
+                      <div>
+                        <Label>דגל מדינה</Label>
+                        <CountryFlagSelect
+                          value={form.flag_country}
+                          onChange={v => handleChange('flag_country', v)}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* יצרן + דגם — 2 columns */}
@@ -915,25 +942,16 @@ export default function AddVehicle() {
                     </div>
                   </div>
 
-                  {/* Engine manufacturer + Flag — vessels only */}
+                  {/* Engine manufacturer — vessels only */}
                   {selectedCategory?.label === 'כלי שייט' && (
-                    <>
-                      <div>
-                        <Label>יצרן מנוע</Label>
-                        <Input
-                          value={form.engine_manufacturer}
-                          onChange={e => handleChange('engine_manufacturer', e.target.value)}
-                          placeholder="לדוגמה: Yamaha, Mercury, Volvo"
-                        />
-                      </div>
-                      <div>
-                        <Label>דגל מדינה (רישום)</Label>
-                        <CountryFlagSelect
-                          value={form.flag_country}
-                          onChange={v => handleChange('flag_country', v)}
-                        />
-                      </div>
-                    </>
+                    <div>
+                      <Label>יצרן מנוע</Label>
+                      <Input
+                        value={form.engine_manufacturer}
+                        onChange={e => handleChange('engine_manufacturer', e.target.value)}
+                        placeholder="לדוגמה: Yamaha, Mercury, Volvo"
+                      />
+                    </div>
                   )}
 
                   {/* שנת ייצור + סוג דלק — 2 columns */}
@@ -1136,6 +1154,74 @@ export default function AddVehicle() {
                           />
                         </div>
                       </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Off-road equipment section ── */}
+                {(isOffroadCategory || isJeepOffroad) && (
+                  <div className="border border-green-200 bg-green-50 rounded-xl p-4 space-y-3">
+                    {isJeepOffroad ? (
+                      /* Jeep gets a checkbox to opt into off-road fields */
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" checked={showOffroadSection}
+                          onChange={e => setShowOffroadSection(e.target.checked)}
+                          className="w-5 h-5 rounded border-green-300 text-green-700 focus:ring-green-500" />
+                        <span className="font-semibold text-green-800 text-sm">🏔️ הוסף רובריקת שטח</span>
+                      </label>
+                    ) : (
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-base">🏔️</span>
+                        <span className="font-semibold text-green-800 text-sm">ציוד ושימוש שטח</span>
+                        <span className="text-xs text-green-600 font-normal">(אופציונלי)</span>
+                      </div>
+                    )}
+
+                    {(isJeepOffroad ? showOffroadSection : true) && (
+                      <>
+                        {/* Equipment chips */}
+                        <div>
+                          <Label className="text-right block mb-1.5 text-green-800">ציוד מותקן</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {OFFROAD_EQUIPMENT.map(eq => {
+                              const selected = (form.offroad_equipment || []).includes(eq.key);
+                              return (
+                                <button key={eq.key} type="button"
+                                  onClick={() => {
+                                    const current = form.offroad_equipment || [];
+                                    const next = selected ? current.filter(k => k !== eq.key) : [...current, eq.key];
+                                    handleChange('offroad_equipment', next);
+                                  }}
+                                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                                    selected
+                                      ? 'bg-green-100 text-green-700 border-green-300'
+                                      : 'bg-white text-gray-600 border-gray-200'
+                                  }`}>
+                                  {selected && '✓ '}{eq.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        {/* Usage type */}
+                        <div>
+                          <Label className="text-right block mb-1.5 text-green-800">סוג שימוש</Label>
+                          <Select value={form.offroad_usage_type} onValueChange={v => handleChange('offroad_usage_type', v)}>
+                            <SelectTrigger><SelectValue placeholder="בחר סוג שימוש..." /></SelectTrigger>
+                            <SelectContent>
+                              {OFFROAD_USAGE_TYPES.map(t => (
+                                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {/* Last off-road service date */}
+                        <div>
+                          <Label className="text-right block mb-1.5 text-green-800">תאריך טיפול שטח אחרון</Label>
+                          <DateInput value={form.last_offroad_service_date}
+                            onChange={e => handleChange('last_offroad_service_date', e.target.value)} />
+                        </div>
+                      </>
                     )}
                   </div>
                 )}

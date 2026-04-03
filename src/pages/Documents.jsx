@@ -16,7 +16,7 @@ import { buttonVariants } from "@/components/ui/button";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import EmptyState from "../components/shared/EmptyState";
-import { formatDateHe } from "../components/shared/DateStatusUtils";
+import { formatDateHe, isVessel } from "../components/shared/DateStatusUtils";
 import { daysLabel, daysUntil } from "../components/shared/ReminderEngine";
 import { trackUserAction } from "../components/shared/ReviewManager";
 import VehicleScanWizard from "../components/vehicle/VehicleScanWizard";
@@ -37,10 +37,28 @@ const DOC_CATEGORIES = [
   { type: 'טיפול תקופתי', emoji: '⚙️', bg: 'bg-purple-50',  text: 'text-purple-700', border: 'border-purple-200'},
   { type: 'מסמך אחר',     emoji: '📄', bg: 'bg-gray-50',    text: 'text-gray-600',   border: 'border-gray-200'  },
 ];
+
+const VESSEL_DOC_CATEGORIES = [
+  { type: 'ביטוח ימי חובה', emoji: '🛡️', bg: 'bg-cyan-50',    text: 'text-cyan-700',    border: 'border-cyan-200'  },
+  { type: 'ביטוח ימי מקיף', emoji: '🔒', bg: 'bg-cyan-50',    text: 'text-cyan-700',    border: 'border-cyan-200'  },
+  { type: 'ביטוח צד ג',     emoji: '🤝', bg: 'bg-cyan-50',    text: 'text-cyan-700',    border: 'border-cyan-200'  },
+  { type: 'רישיון כלי שייט', emoji: '⚓', bg: 'bg-teal-50',    text: 'text-teal-700',    border: 'border-teal-200'  },
+  { type: 'רישיון שייט',     emoji: '👤', bg: 'bg-yellow-50',  text: 'text-yellow-700',  border: 'border-yellow-200'},
+  { type: 'כושר שייט',       emoji: '🔧', bg: 'bg-teal-50',    text: 'text-teal-700',    border: 'border-teal-200'  },
+  { type: 'טיפול תקופתי',   emoji: '⚙️', bg: 'bg-purple-50',  text: 'text-purple-700',  border: 'border-purple-200'},
+  { type: 'מסמך אחר',       emoji: '📄', bg: 'bg-gray-50',    text: 'text-gray-600',    border: 'border-gray-200'  },
+];
+
+function getDocCategories(vehicleType, nickname) {
+  return isVessel(vehicleType, nickname) ? VESSEL_DOC_CATEGORIES : DOC_CATEGORIES;
+}
+
 const docTypes = DOC_CATEGORIES.map(c => c.type);
+const allDocTypes = [...new Set([...DOC_CATEGORIES, ...VESSEL_DOC_CATEGORIES].map(c => c.type))];
 
 function getCat(type) {
-  return DOC_CATEGORIES.find(c => c.type === type) || DOC_CATEGORIES[DOC_CATEGORIES.length - 1];
+  return [...DOC_CATEGORIES, ...VESSEL_DOC_CATEGORIES].find(c => c.type === type)
+    || DOC_CATEGORIES[DOC_CATEGORIES.length - 1];
 }
 
 // ── Parse DD/MM/YYYY → YYYY-MM-DD ─────────────────────────────────────────────
@@ -63,6 +81,10 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
   const [aiScanning, setAiScanning] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [fileName, setFileName] = useState('');
+
+  // Vehicle-aware document categories
+  const selectedVehicle = vehicles?.find(v => v.id === (form.vehicle_id || vehicleIdParam));
+  const categories = getDocCategories(selectedVehicle?.vehicle_type, selectedVehicle?.nickname);
 
   useEffect(() => {
     if (!open) {
@@ -261,7 +283,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
           <div>
             <Label className="text-right block mb-1.5">קטגוריה</Label>
             <div className="grid grid-cols-2 gap-2">
-              {DOC_CATEGORIES.map(cat => (
+              {categories.map(cat => (
                 <button
                   key={cat.type}
                   type="button"
@@ -442,14 +464,18 @@ function DocCard({ doc, vehicle, onOpen, onDelete, openingId }) {
 function GroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
   const [collapsed, setCollapsed] = useState({});
 
-  const grouped = DOC_CATEGORIES.reduce((acc, cat) => {
+  const allCategories = [...DOC_CATEGORIES, ...VESSEL_DOC_CATEGORIES];
+  const seen = new Set();
+  const grouped = allCategories.reduce((acc, cat) => {
+    if (seen.has(cat.type)) return acc;
+    seen.add(cat.type);
     const catDocs = docs.filter(d => d.document_type === cat.type);
     if (catDocs.length > 0) acc.push({ cat, docs: catDocs });
     return acc;
   }, []);
 
   // Docs with unknown category
-  const knownTypes = new Set(docTypes);
+  const knownTypes = new Set(allDocTypes);
   const otherDocs = docs.filter(d => !knownTypes.has(d.document_type));
   if (otherDocs.length > 0) {
     grouped.push({ cat: getCat('מסמך אחר'), docs: otherDocs });

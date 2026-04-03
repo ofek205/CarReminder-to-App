@@ -106,6 +106,11 @@ const MOTO_KEYWORDS = ['אופנוע', 'קטנוע', 'moto', 'bike', 'scooter', 
 const MOTO_MANUFACTURERS = ['sym', 'kymco', 'vespa', 'piaggio', 'yamaha moto', 'honda moto', 'ktm', 'bmw motorrad', 'harley', 'ducati', 'kawasaki', 'suzuki moto', 'aprilia', 'triumph', 'royal enfield'];
 const TRUCK_KEYWORDS = ['משאית', 'truck', 'מלגזה', 'טרקטור'];
 const TRUCK_MANUFACTURERS = ['man', 'scania', 'volvo trucks', 'daf', 'iveco', 'mercedes trucks'];
+const OFFROAD_EXACT = new Set(["כלי שטח", "ג'יפ שטח", 'טרקטורון שטח', 'RZR', 'מיול', 'באגי חולות']);
+
+export function isOffroadType(vehicleType) {
+  return OFFROAD_EXACT.has(vehicleType);
+}
 
 export function getVehicleCategory(vehicleType, nickname, manufacturer) {
   const combined = `${vehicleType || ''} ${nickname || ''} ${manufacturer || ''}`.toLowerCase();
@@ -114,5 +119,5 @@ export function getVehicleCategory(vehicleType, nickname, manufacturer) {
   if (MOTO_MANUFACTURERS.some(m => combined.includes(m))) return 'motorcycle';
   if (TRUCK_KEYWORDS.some(kw => combined.includes(kw))) return 'truck';
   if (TRUCK_MANUFACTURERS.some(m => combined.includes(m))) return 'truck';
-  return 'car';
+  return 'car'; // off-road uses the same green theme as cars
 }

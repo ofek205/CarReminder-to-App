@@ -17,8 +17,9 @@ import EmptyState from "../components/shared/EmptyState";
 import ConfirmDeleteDialog from "../components/shared/ConfirmDeleteDialog";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
+import { C } from '@/lib/designTokens';
 
-const vehicleTypes = ['רכב', 'אופנוע כביש', 'אופנוע שטח', 'טרקטורון'];
+const vehicleTypes = ['רכב', 'אופנוע כביש', 'אופנוע שטח', 'טרקטורון', 'כלי שייט', 'מפרשית', 'סירה מנועית', 'אופנוע ים', 'סירת גומי', "ג'יפ שטח", 'טרקטורון שטח', 'RZR', 'מיול', 'באגי חולות'];
 const intervalUnits = ['ימים', 'שבועות', 'חודשים'];
 
 export default function MaintenanceTemplates() {
@@ -28,14 +29,14 @@ export default function MaintenanceTemplates() {
       <div>
         <PageHeader title="טיפולים ותיקונים" />
         <Card className="p-8 border border-gray-100 shadow-sm rounded-2xl text-center space-y-4" dir="rtl">
-          <div className="w-16 h-16 rounded-full bg-[#E8F2EA] flex items-center justify-center mx-auto">
-            <Wrench className="h-8 w-8 text-[#2D5233]" />
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ background: C.light }}>
+            <Wrench className="h-8 w-8" style={{ color: C.primary }} />
           </div>
           <h2 className="font-semibold text-gray-900 text-lg">תבניות טיפולים</h2>
-          <p className="text-sm text-gray-500">צור תבניות טיפול מותאמות אישית ועקוב אחרי לוח הזמנים של הרכב שלך - זמין לאחר הרשמה.</p>
+          <p className="text-sm text-gray-500">צור תבניות טיפול מותאמות אישית ועקוב אחרי לוח הזמנים של כלי הרכב שלך - זמין לאחר הרשמה.</p>
           <Button onClick={() => window.location.href = '/Auth'}
             className="text-white gap-2 rounded-2xl font-bold"
-            style={{ background: '#FFBF00', color: '#2D5233' }}>
+            style={{ background: C.yellow, color: C.primary }}>
             <Plus className="h-4 w-4" />
             הירשם בחינם
           </Button>

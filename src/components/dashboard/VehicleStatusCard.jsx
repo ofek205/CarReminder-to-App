@@ -4,8 +4,9 @@ import { Card } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import StatusBadge from "../shared/StatusBadge";
-import { getDateStatus, getVehicleTypeIcon, usesKm, getVehicleLabels } from "../shared/DateStatusUtils";
+import { getDateStatus, getVehicleTypeIcon, usesKm, getVehicleLabels, isVessel } from "../shared/DateStatusUtils";
 import { getCatalogForVehicleType, getMaintenanceStatus } from "../shared/MaintenanceCatalog";
+import { getTheme } from '@/lib/designTokens';
 import { ChevronRight, Gauge, Clock, Wrench } from "lucide-react";
 
 function getNextMaintenanceInfo(vehicle, maintenanceLogs, allTemplates) {
@@ -80,13 +81,15 @@ export default function VehicleStatusCard({ vehicle }) {
   const insuranceStatus = getDateStatus(vehicle.insurance_due_date);
   const maintStatus = getNextMaintenanceInfo(vehicle, maintenanceLogs, allTemplates);
   const icon = getVehicleTypeIcon(vehicle.vehicle_type);
-  const labels = getVehicleLabels(vehicle.vehicle_type);
+  const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
+  const vesselMode = isVessel(vehicle.vehicle_type, vehicle.nickname);
 
   return (
     <Link to={createPageUrl(`VehicleDetail?id=${vehicle.id}`)}>
       <Card className="p-4 sm:p-5 hover:shadow-lg transition-all duration-300 border border-gray-100 group cursor-pointer card-hover rounded-2xl">
         <div className="flex items-start justify-between">
-          <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-[#2D5233] transition-colors mt-1 shrink-0" />
+          <ChevronRight className="h-5 w-5 text-gray-300 transition-colors mt-1 shrink-0" style={{ '--tw-text-opacity': 1 }} />
           <div className="flex items-center gap-3 flex-1 min-w-0 ml-2">
             <div className="min-w-0 flex-1">
               <h3 className="font-semibold text-gray-900 text-right leading-snug">
@@ -127,7 +130,7 @@ export default function VehicleStatusCard({ vehicle }) {
             <StatusBadge status={testStatus.status} label={testStatus.label} />
           </div>
           <div className="flex items-center gap-1">
-            <span className="text-xs text-gray-400">ביטוח:</span>
+            <span className="text-xs text-gray-400">{labels.insuranceWord || 'ביטוח'}:</span>
             <StatusBadge status={insuranceStatus.status} label={insuranceStatus.label} />
           </div>
           <div className="flex items-center gap-1">

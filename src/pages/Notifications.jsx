@@ -12,10 +12,15 @@ import { markNotificationRead } from "@/lib/notificationChannels";
 import { C } from '@/lib/designTokens';
 
 const TYPE_CONFIG = {
-  'טסט':   { icon: Calendar,  bg: '#E3F2FD', color: '#1565C0', border: '#90CAF9' },
-  'ביטוח': { icon: Shield,    bg: '#F3E5F5', color: '#7B1FA2', border: '#CE93D8' },
-  'טיפול': { icon: Wrench,    bg: '#FFF8E1', color: '#F57F17', border: '#FFD54F' },
-  'מסמך':  { icon: FileText,  bg: C.light,   color: C.primary, border: C.border },
+  'טסט':        { icon: Calendar,  bg: '#E3F2FD', color: '#1565C0', border: '#90CAF9' },
+  'כושר שייט':  { icon: Calendar,  bg: '#E0F7FA', color: '#0C7B93', border: '#B2EBF2' },
+  'ביטוח':      { icon: Shield,    bg: '#F3E5F5', color: '#7B1FA2', border: '#CE93D8' },
+  'ביטוח ימי':  { icon: Shield,    bg: '#E0F7FA', color: '#0C7B93', border: '#B2EBF2' },
+  'טיפול':      { icon: Wrench,    bg: '#FFF8E1', color: '#F57F17', border: '#FFD54F' },
+  'מסמך':       { icon: FileText,  bg: C.light,   color: C.primary, border: C.border },
+  'פירוטכניקה': { icon: AlertTriangle, bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
+  'מטף כיבוי':  { icon: AlertTriangle, bg: '#FEF3C7', color: '#D97706', border: '#FDE68A' },
+  'אסדת הצלה':  { icon: AlertTriangle, bg: '#E0F7FA', color: '#0C7B93', border: '#B2EBF2' },
 };
 
 // ── Notification Card ────────────────────────────────────────────────────────
@@ -85,7 +90,7 @@ function NotifEmptyState() {
           </div>
           <h3 className="font-black text-lg mb-2" style={{ color: C.text }}>אין התראות</h3>
           <p className="text-sm max-w-xs mx-auto leading-relaxed" style={{ color: C.muted }}>
-            ההתראות שלך יופיעו כאן כשמועד הטסט, הביטוח או הטיפול מתקרב
+            ההתראות שלך יופיעו כאן כשמועד הטסט/כושר שייט, הביטוח או הטיפול מתקרב
           </p>
         </div>
       </div>
@@ -125,16 +130,16 @@ function GuestNotifications() {
   const today = new Date();
 
   guestVehicles.forEach(v => {
-    const name = v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || 'הרכב';
+    const vLabels = getVehicleLabels(v.vehicle_type, v.nickname);
+    const name = v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || vLabels.vehicleFallback;
     const remindTestBefore = guestReminderSettings?.remind_test_days_before ?? 14;
     const remindInsBefore = guestReminderSettings?.remind_insurance_days_before ?? 14;
 
     if (v.test_due_date) {
       const days = Math.ceil((new Date(v.test_due_date) - today) / 86400000);
-      const vLabels = getVehicleLabels(v.vehicle_type, v.nickname);
       if (days <= remindTestBefore) {
         notifications.push({
-          id: `notif_test_${v.id}`, notification_type: 'טסט', due_date: v.test_due_date,
+          id: `notif_test_${v.id}`, notification_type: vLabels.testWord, due_date: v.test_due_date,
           is_overdue: days < 0, days_left: days,
           message: days < 0 ? `${vLabels.testWord} של ${name} עבר את תאריך התוקף`
             : days === 0 ? `${vLabels.testWord} של ${name} היום!`
@@ -144,13 +149,14 @@ function GuestNotifications() {
     }
     if (v.insurance_due_date) {
       const days = Math.ceil((new Date(v.insurance_due_date) - today) / 86400000);
+      const insWord = vLabels.insuranceWord || 'ביטוח';
       if (days <= remindInsBefore) {
         notifications.push({
-          id: `notif_ins_${v.id}`, notification_type: 'ביטוח', due_date: v.insurance_due_date,
+          id: `notif_ins_${v.id}`, notification_type: insWord, due_date: v.insurance_due_date,
           is_overdue: days < 0, days_left: days,
-          message: days < 0 ? `הביטוח של ${name} עבר את תאריך התוקף`
-            : days === 0 ? `הביטוח של ${name} מסתיים היום!`
-            : `ביטוח ל${name} בעוד ${days} ימים`,
+          message: days < 0 ? `ה${insWord} של ${name} עבר את תאריך התוקף`
+            : days === 0 ? `ה${insWord} של ${name} מסתיים היום!`
+            : `${insWord} ל${name} בעוד ${days} ימים`,
         });
       }
     }
@@ -196,7 +202,7 @@ function GuestNotifications() {
 }
 
 // ── Map ReminderEngine output → NotifCard shape ─────────────────────────────
-const REMINDER_TYPE_MAP = {
+const REMINDER_TYPE_FALLBACK = {
   test: 'טסט',
   insurance: 'ביטוח',
   maintenance: 'טיפול',
@@ -207,7 +213,7 @@ const REMINDER_TYPE_MAP = {
 function remindersToNotifs(reminders) {
   return reminders.map(r => ({
     id: r.id,
-    notification_type: REMINDER_TYPE_MAP[r.type] || 'טיפול',
+    notification_type: r.typeName || REMINDER_TYPE_FALLBACK[r.type] || 'טיפול',
     message: `${r.typeName || r.type} — ${r.name}`,
     due_date: r.dueDate,
     days_left: r.daysLeft,
