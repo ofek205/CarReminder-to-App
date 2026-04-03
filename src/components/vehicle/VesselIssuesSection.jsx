@@ -283,8 +283,8 @@ function EmptyState({ onAdd }) {
           onClick={onAdd}
           className="px-5 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] text-white"
           style={{ background: M.primary, boxShadow: `0 4px 12px ${M.primary}40` }}>
-          <Plus className="w-4 h-4 inline ml-1" />
           הוסף תקלה ראשונה
+          <Plus className="w-4 h-4 inline mr-1" />
         </button>
       )}
     </div>

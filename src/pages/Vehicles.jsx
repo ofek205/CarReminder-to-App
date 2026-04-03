@@ -138,8 +138,8 @@ export default function Vehicles() {
             <Link to={createPageUrl('AddVehicle')}>
               <button className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
                 style={{ background: C.yellow, color: C.greenDark }}>
-                <Plus className="h-4 w-4" />
                 רכב חדש
+                <Plus className="h-4 w-4" />
               </button>
             </Link>
           }
@@ -180,8 +180,8 @@ export default function Vehicles() {
           <Link to={createPageUrl('AddVehicle')}>
             <button className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
               style={{ background: C.yellow, color: C.greenDark }}>
-              <Plus className="h-4 w-4" />
               רכב חדש
+              <Plus className="h-4 w-4" />
             </button>
           </Link>
         }

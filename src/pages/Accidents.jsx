@@ -211,8 +211,8 @@ function EmptyState() {
                 color: C.greenDark,
                 boxShadow: '0 4px 16px rgba(255,191,0,0.3)',
               }}>
-              <Plus className="w-4 h-4 inline ml-1" />
               תעד תאונה ראשונה
+              <Plus className="w-4 h-4 inline mr-1" />
             </button>
           </Link>
         </div>
@@ -294,8 +294,8 @@ export default function Accidents() {
             <Link to={createPageUrl('AddAccident')}>
               <button className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
                 style={{ background: C.yellow, color: '#991B1B', boxShadow: '0 4px 12px rgba(255,191,0,0.3)' }}>
-                <Plus className="h-4 w-4" />
                 חדשה
+                <Plus className="h-4 w-4" />
               </button>
             </Link>
           </div>

@@ -543,8 +543,8 @@ export default function Dashboard() {
           <Link to={createPageUrl('AddVehicle')}>
             <button className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-6 transition-all active:scale-[0.98]"
               style={{ background: C.yellow, color: C.greenDark }}>
-              <Plus className="w-4 h-4" />
               הוספת רכב חדש
+              <Plus className="w-4 h-4" />
             </button>
           </Link>
 
@@ -630,8 +630,8 @@ export default function Dashboard() {
             <Link to={createPageUrl('AddVehicle')}>
               <button className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-6 transition-all active:scale-[0.98]"
                 style={{ background: C.yellow, color: C.greenDark }}>
-                <Plus className="w-4 h-4" />
                 הוספת רכב חדש
+                <Plus className="w-4 h-4" />
               </button>
             </Link>
 

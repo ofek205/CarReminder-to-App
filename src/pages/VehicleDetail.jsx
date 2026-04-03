@@ -147,13 +147,13 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
         <Link to={createPageUrl(`EditVehicle?id=${vehicleId}`)} className="flex-1">
           <button className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             style={{ background: '#fff', color: T.primary, border: `1.5px solid ${T.border}` }}>
-            <Edit className="h-4 w-4" /> עריכה
+            עריכה <Edit className="h-4 w-4" />
           </button>
         </Link>
         <Link to={createPageUrl(`Documents?vehicle_id=${vehicleId}`)}>
           <button className="py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             style={{ background: '#fff', color: '#6B7280', border: '1.5px solid #E5E7EB' }}>
-            <FileText className="h-4 w-4" /> מסמכים
+            מסמכים <FileText className="h-4 w-4" />
           </button>
         </Link>
         <AlertDialog>
@@ -333,16 +333,16 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           <Link to={createPageUrl(`EditVehicle?id=${vehicleId}`)}>
             <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
               style={{ background: T.yellow, color: T.primary, boxShadow: `0 4px 12px ${T.yellow}40` }}>
-              <Edit className="h-4 w-4" />
               עריכה
+              <Edit className="h-4 w-4" />
             </button>
           </Link>
         )}
         <Link to={createPageUrl(`Documents?vehicle_id=${vehicleId}`)}>
           <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             style={{ background: T.light, color: T.primary, border: `1.5px solid ${T.border}` }}>
-            <FileText className="h-4 w-4" />
             מסמכים
+            <FileText className="h-4 w-4" />
           </button>
         </Link>
         {canDelete(role) && (
