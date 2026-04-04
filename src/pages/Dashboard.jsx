@@ -62,9 +62,10 @@ function UrgentBanner({ reminders, vehicles }) {
 
       <div className="relative z-10">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-bold px-3 py-1 rounded-full"
-            style={{ background: T.yellow, color: T.primary }}>
-            ⚠️ התראה דחופה
+          <span className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5"
+            style={{ background: '#fff', color: '#DC2626', border: '1.5px solid #FECACA' }}>
+            <AlertTriangle className="w-3.5 h-3.5" />
+            התראה דחופה
           </span>
         </div>
         <h2 className="font-black text-[1.5rem] sm:text-2xl mb-1.5 leading-tight text-white" dir="rtl">
