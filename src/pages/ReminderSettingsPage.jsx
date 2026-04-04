@@ -57,10 +57,10 @@ const DEFAULT_FORM = {
 function GuestReminderSettings() {
   const { guestReminderSettings, updateGuestReminderSettings } = useAuth();
   const [form, setForm] = useState({ ...DEFAULT_FORM, ...guestReminderSettings });
+  const [showGuestSignup, setShowGuestSignup] = useState(false);
 
   const handleSave = () => {
-    updateGuestReminderSettings(form);
-    toast.success('ההגדרות נשמרו');
+    setShowGuestSignup(true);
   };
 
   return (
@@ -77,6 +77,35 @@ function GuestReminderSettings() {
         </div>
       </div>
       <SettingsUI form={form} setForm={setForm} onSave={handleSave} saving={false} isGuest={true} />
+
+      {/* Guest signup prompt */}
+      {showGuestSignup && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
+            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: '#FFF8E1' }}>
+              <span className="text-2xl">🔒</span>
+            </div>
+            <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
+            <p className="text-sm" style={{ color: '#6B7280' }}>
+              הרשמה בחינם — ותוכל לשמור הגדרות, לקבל תזכורות אמיתיות ולגשת מכל מכשיר
+            </p>
+            <button
+              onClick={() => { window.location.href = '/Auth'; }}
+              className="w-full h-12 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+              style={{ background: '#FFBF00', color: '#2D5233' }}
+            >
+              הירשם בחינם
+            </button>
+            <button
+              onClick={() => setShowGuestSignup(false)}
+              className="w-full text-xs py-1 font-medium"
+              style={{ color: '#D1D5DB' }}
+            >
+              חזרה
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
