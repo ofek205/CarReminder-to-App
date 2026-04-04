@@ -36,36 +36,65 @@ function daysLabel(days) {
 // ── Urgent Banner ───────────────────────────────────────────────────────────
 function UrgentBanner({ reminders, vehicles }) {
   const allReminders = reminders || [];
-  const urgent = allReminders
+  const withDays = allReminders
     .map(r => ({ ...r, days: daysUntil(r.date) }))
-    .filter(r => r.days !== null && r.days <= 180)
-    .sort((a, b) => a.days - b.days)[0];
+    .filter(r => r.days !== null)
+    .sort((a, b) => a.days - b.days);
 
+  // Only show banner for truly urgent items: expired or within 30 days
+  const urgent = withDays.find(r => r.days <= 30);
   if (!urgent) return null;
+
+  const isExpired = urgent.days < 0;
+  const isDanger = urgent.days <= 14; // 0-14 days or expired
 
   const urgentVehicle = vehicles?.find(v => v.id === urgent.vehicle_id);
   const isUrgentVessel = isVesselType(urgentVehicle?.vehicle_type, urgentVehicle?.nickname);
-  const typeLabel = {
-    insurance: isUrgentVessel ? 'חידוש ביטוח ימי מתקרב' : 'חידוש ביטוח מתקרב',
-    test:      isUrgentVessel ? 'כושר שייט מתקרב' : 'טסט הרכב מתקרב',
-    maintenance: 'טיפול תקופתי מתקרב',
-  }[urgent.type] || urgent.title;
   const vehicleName = urgentVehicle?.nickname || urgentVehicle?.manufacturer || '';
   const T = getTheme(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
 
+  // Urgency levels: expired → red, 0-14 days → red, 15-30 → amber
+  const urgencyConfig = isExpired ? {
+    badgeBg: '#FEF2F2', badgeColor: '#DC2626', badgeBorder: '#FECACA',
+    badgeIcon: AlertTriangle, badgeText: 'פג תוקף!',
+    bannerBg: 'linear-gradient(135deg, #991B1B 0%, #DC2626 100%)',
+    bannerShadow: 'rgba(153,27,27,0.4)',
+  } : isDanger ? {
+    badgeBg: '#FEF2F2', badgeColor: '#DC2626', badgeBorder: '#FECACA',
+    badgeIcon: AlertTriangle, badgeText: 'דחוף',
+    bannerBg: T.grad,
+    bannerShadow: `${T.primary}40`,
+  } : {
+    badgeBg: '#FFF8E1', badgeColor: '#D97706', badgeBorder: '#FDE68A',
+    badgeIcon: Clock, badgeText: 'בקרוב',
+    bannerBg: T.grad,
+    bannerShadow: `${T.primary}40`,
+  };
+
+  const typeLabel = isExpired ? ({
+    insurance: isUrgentVessel ? 'ביטוח ימי פג תוקף' : 'הביטוח פג תוקף',
+    test:      isUrgentVessel ? 'כושר שייט פג תוקף' : 'הטסט פג תוקף',
+    maintenance: 'טיפול תקופתי באיחור',
+  }[urgent.type] || urgent.title) : ({
+    insurance: isUrgentVessel ? 'חידוש ביטוח ימי מתקרב' : 'חידוש ביטוח מתקרב',
+    test:      isUrgentVessel ? 'כושר שייט מתקרב' : 'טסט הרכב מתקרב',
+    maintenance: 'טיפול תקופתי מתקרב',
+  }[urgent.type] || urgent.title);
+
+  const BadgeIcon = urgencyConfig.badgeIcon;
+
   return (
     <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
-      style={{ background: T.grad, boxShadow: `0 8px 32px ${T.primary}40` }}>
-      {/* Decorative circles */}
+      style={{ background: urgencyConfig.bannerBg, boxShadow: `0 8px 32px ${urgencyConfig.bannerShadow}` }}>
       <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
       <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full" style={{ background: `${T.yellow}20` }} />
 
       <div className="relative z-10">
         <div className="flex items-center gap-2 mb-3">
           <span className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5"
-            style={{ background: '#fff', color: '#DC2626', border: '1.5px solid #FECACA' }}>
-            <AlertTriangle className="w-3.5 h-3.5" />
-            התראה דחופה
+            style={{ background: urgencyConfig.badgeBg, color: urgencyConfig.badgeColor, border: `1.5px solid ${urgencyConfig.badgeBorder}` }}>
+            <BadgeIcon className="w-3.5 h-3.5" />
+            {urgencyConfig.badgeText}
           </span>
         </div>
         <h2 className="font-black text-[1.5rem] sm:text-2xl mb-1.5 leading-tight text-white" dir="rtl">
