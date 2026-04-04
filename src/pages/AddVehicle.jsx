@@ -93,6 +93,7 @@ export default function AddVehicle() {
   const [showVesselScanWizard, setShowVesselScanWizard] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showGuestSignup, setShowGuestSignup] = useState(false);
   const [existingVehicles, setExistingVehicles] = useState([]);
   const [duplicateVehicle, setDuplicateVehicle] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -332,14 +333,9 @@ export default function AddVehicle() {
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
 
     if (isGuest) {
-      if (guestVehicles.length >= 20) {
-        toast.error('הגעת למגבלת 20 רכבים במצב אורח. הירשם כדי להוסיף עוד.');
-        setSaving(false);
-        return;
-      }
-      addGuestVehicle(data);
+      // Block save — force registration
       setSaving(false);
-      setShowSuccess(true);
+      setShowGuestSignup(true);
       return;
     }
 
@@ -486,6 +482,35 @@ export default function AddVehicle() {
                 הוסף רכב נוסף
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guest signup prompt — must register to save */}
+      {showGuestSignup && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
+            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: '#FFF8E1' }}>
+              <span className="text-2xl">🔒</span>
+            </div>
+            <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
+            <p className="text-sm" style={{ color: '#6B7280' }}>
+              הרשמה בחינם תוך שניות — ותוכל לשמור רכבים, לקבל תזכורות ולגשת מכל מכשיר
+            </p>
+            <Button
+              onClick={() => { window.location.href = '/Auth'; }}
+              className="w-full h-12 text-white rounded-2xl font-bold text-sm"
+              style={{ background: C.yellow, color: C.greenDark }}
+            >
+              הירשם בחינם
+            </Button>
+            <button
+              onClick={() => setShowGuestSignup(false)}
+              className="w-full text-xs py-1 font-medium"
+              style={{ color: '#D1D5DB' }}
+            >
+              חזרה
+            </button>
           </div>
         </div>
       )}

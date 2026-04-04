@@ -561,6 +561,18 @@ function GuestDocuments({ vehicleIdParam }) {
         }
       />
 
+      {/* Demo banner */}
+      {docs.some(d => d._isDemo) && (
+        <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
+          style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
+          <span className="text-lg">👀</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black" style={{ color: '#92400E' }}>מסמכים לדוגמה</p>
+            <p className="text-xs" style={{ color: '#B45309' }}>הוסף מסמכים אמיתיים או הירשם כדי לשמור לצמיתות</p>
+          </div>
+        </div>
+      )}
+
       <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3" dir="rtl">
         <Lock className="h-4 w-4 text-amber-600 shrink-0" />
         <p className="text-sm text-amber-800">

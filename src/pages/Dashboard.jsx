@@ -10,7 +10,7 @@ import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { useAuth } from "../components/shared/GuestContext";
 import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
-import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_REMINDERS, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VESSEL_ISSUES } from "../components/shared/demoVehicleData";
+import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_REMINDERS, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VESSEL_ISSUES, DEMO_DOCUMENTS, DEMO_VESSEL_DOCUMENTS } from "../components/shared/demoVehicleData";
 import { format, parseISO } from 'date-fns';
 import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 
@@ -46,9 +46,9 @@ function UrgentBanner({ reminders, vehicles }) {
   const urgentVehicle = vehicles?.find(v => v.id === urgent.vehicle_id);
   const isUrgentVessel = isVesselType(urgentVehicle?.vehicle_type, urgentVehicle?.nickname);
   const typeLabel = {
-    insurance: isUrgentVessel ? 'חידוש ביטוח ימי' : 'חידוש ביטוח',
-    test:      isUrgentVessel ? 'כושר שייט' : 'טסט רכב',
-    maintenance: 'טיפול תקופתי',
+    insurance: isUrgentVessel ? 'חידוש ביטוח ימי מתקרב' : 'חידוש ביטוח מתקרב',
+    test:      isUrgentVessel ? 'כושר שייט מתקרב' : 'טסט הרכב מתקרב',
+    maintenance: 'טיפול תקופתי מתקרב',
   }[urgent.type] || urgent.title;
   const vehicleName = urgentVehicle?.nickname || urgentVehicle?.manufacturer || '';
   const T = getTheme(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
@@ -68,7 +68,7 @@ function UrgentBanner({ reminders, vehicles }) {
           </span>
         </div>
         <h2 className="font-black text-[1.5rem] sm:text-2xl mb-1.5 leading-tight text-white" dir="rtl">
-          {typeLabel} קרב
+          {typeLabel}
         </h2>
         {vehicleName && (
           <p className="text-base font-semibold mb-5" style={{ color: 'rgba(255,255,255,0.85)' }} dir="rtl">
@@ -143,9 +143,9 @@ function VehicleCard({ vehicle, isDemo }) {
           {/* Demo badge */}
           {isDemo && (
             <div className="absolute top-4 left-4 z-10">
-              <span className="text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-sm"
-                style={{ background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.9)' }}>
-                לדוגמה
+              <span className="text-xs font-black px-3 py-1.5 rounded-full backdrop-blur-md flex items-center gap-1"
+                style={{ background: '#FFBF00', color: '#92400E', boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }}>
+                👀 לדוגמה
               </span>
             </div>
           )}
@@ -459,6 +459,7 @@ export default function Dashboard() {
         localStorage.setItem('fleet_guest_vehicles', JSON.stringify([DEMO_VEHICLE, DEMO_VESSEL]));
         localStorage.setItem('fleet_guest_cork_notes', JSON.stringify([...DEMO_CORK_NOTES, ...DEMO_VESSEL_CORK_NOTES]));
         localStorage.setItem('fleet_guest_vessel_issues', JSON.stringify(DEMO_VESSEL_ISSUES));
+        localStorage.setItem('fleet_guest_documents', JSON.stringify([...DEMO_DOCUMENTS, ...DEMO_VESSEL_DOCUMENTS]));
         // Force reload to pick up seeded data from GuestContext
         window.location.reload();
         return <LoadingSpinner />;
@@ -502,33 +503,29 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          {/* Demo badge */}
+          {/* Demo banner — prominent */}
           {isShowingDemo && (
-            <div className="rounded-xl px-3 py-2.5 mb-3 text-center text-sm font-bold"
-              style={{ background: '#FEF3C7', color: '#92400E' }}>
-              רכב לדוגמה — הוסף את הרכב שלך
+            <div className="rounded-2xl p-4 mb-4 relative overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
+              <div className="flex items-center gap-3" dir="rtl">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: '#FFBF00' }}>
+                  <span className="text-lg">👀</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-black" style={{ color: '#92400E' }}>אלו רכבים לדוגמה בלבד</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>כך ייראה המסך שלך — הוסף את הרכב האמיתי שלך</p>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Single demo vehicle → big card. Multiple vehicles → compact rows + status summary */}
+          {/* Demo vehicles → show ALL as cards. Real vehicles → compact rows + summary */}
           {isShowingDemo ? (
             <>
-              <VehicleCard key={vehiclesToShow[0].id} vehicle={vehiclesToShow[0]} isDemo={true} />
-              {/* Info tiles for single demo */}
-              <div className="flex gap-3 mb-4">
-                <InfoTile
-                  icon={Calendar}
-                  label="טסט שנתי"
-                  value={testDays !== null ? daysLabel(testDays) : 'לא הוזן'}
-                  status={testDays === null ? 'ok' : testDays < 0 ? 'danger' : testDays <= 30 ? 'warn' : 'ok'}
-                />
-                <InfoTile
-                  icon={Shield}
-                  label="ביטוח מקיף"
-                  value={insDays !== null ? (insDays >= 0 ? 'בתוקף' : 'פג תוקף') : 'לא הוזן'}
-                  status={insDays === null ? 'ok' : insDays < 0 ? 'danger' : insDays <= 30 ? 'warn' : 'ok'}
-                />
-              </div>
+              {vehiclesToShow.map(v => (
+                <VehicleCard key={v.id} vehicle={v} isDemo={true} />
+              ))}
             </>
           ) : (
             <>

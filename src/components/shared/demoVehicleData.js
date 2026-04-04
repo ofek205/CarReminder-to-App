@@ -108,14 +108,16 @@ export const DEMO_REMINDERS = [
 export const DEMO_DOCUMENTS = [
   {
     id: 'demo_doc_001',
+    vehicle_id: 'demo_vehicle_001',
     title: 'פוליסת ביטוח',
-    document_type: 'ביטוח',
+    document_type: 'ביטוח חובה',
     expiry_date: '2026-09-15',
     file_type: 'pdf',
     _isDemo: true,
   },
   {
     id: 'demo_doc_002',
+    vehicle_id: 'demo_vehicle_001',
     title: 'רישיון רכב',
     document_type: 'רישיון רכב',
     expiry_date: '2027-01-31',
@@ -124,8 +126,9 @@ export const DEMO_DOCUMENTS = [
   },
   {
     id: 'demo_doc_003',
+    vehicle_id: 'demo_vehicle_001',
     title: 'קבלת טיפול',
-    document_type: 'קבלה',
+    document_type: 'טיפול תקופתי',
     file_type: 'image',
     _isDemo: true,
   },
@@ -328,9 +331,9 @@ export const DEMO_VESSEL_CORK_NOTES = [
 ];
 
 export const DEMO_VESSEL_DOCUMENTS = [
-  { id: 'demo_vdoc_001', title: 'רישיון שייט', document_type: 'רישיון רכב', expiry_date: '2026-11-15', file_type: 'pdf', _isDemo: true },
-  { id: 'demo_vdoc_002', title: 'ביטוח ימי', document_type: 'ביטוח', expiry_date: '2026-10-20', file_type: 'pdf', _isDemo: true },
-  { id: 'demo_vdoc_003', title: 'אישור מספנה', document_type: 'קבלה', file_type: 'pdf', _isDemo: true },
+  { id: 'demo_vdoc_001', vehicle_id: 'demo_vessel_001', title: 'רישיון שייט', document_type: 'כושר שייט', expiry_date: '2026-11-15', file_type: 'pdf', _isDemo: true },
+  { id: 'demo_vdoc_002', vehicle_id: 'demo_vessel_001', title: 'ביטוח ימי', document_type: 'ביטוח ימי חובה', expiry_date: '2026-10-20', file_type: 'pdf', _isDemo: true },
+  { id: 'demo_vdoc_003', vehicle_id: 'demo_vessel_001', title: 'אישור מספנה', document_type: 'מסמך אחר', file_type: 'pdf', _isDemo: true },
 ];
 
 // Legacy exports kept for backward compat with DemoVehicleDetail

@@ -336,11 +336,17 @@ export default function FindGarage() {
   // ── Loading ──
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4" dir="rtl">
-        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: C.light }}>
-          <Loader2 className="w-8 h-8 animate-spin" style={{ color: C.primary }} />
+      <div className="-mx-4 -mt-4 min-h-[85vh] flex flex-col items-center justify-center gap-5 relative overflow-hidden" dir="rtl">
+        <div className="absolute inset-0" style={{ background: C.grad }} />
+        <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="relative z-10 flex flex-col items-center gap-4">
+          <div className="w-20 h-20 rounded-3xl flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.15)' }}>
+            <Loader2 className="w-10 h-10 animate-spin text-white" />
+          </div>
+          <p className="text-lg font-bold text-white">מאתר את המיקום שלך...</p>
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>אנא אשר גישה למיקום</p>
         </div>
-        <p className="text-lg font-medium" style={{ color: C.text }}>מאתר את המיקום שלך...</p>
       </div>
     );
   }
@@ -348,44 +354,73 @@ export default function FindGarage() {
   // ── Error / city search ──
   if (locError && !userLocation) {
     return (
-      <div className="flex flex-col items-center min-h-[60vh] gap-5 px-4 pt-8" dir="rtl">
-        <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: C.light }}>
-          <MapPinOff className="w-7 h-7" style={{ color: C.primary }} />
-        </div>
-        <div className="text-center">
-          <p className="text-lg font-bold" style={{ color: C.text }}>חפש מוסך לפי עיר</p>
-          <p className="text-sm mt-1" style={{ color: C.muted }}>הזן שם עיר או כתובת למציאת מוסכים בסביבה</p>
-        </div>
-        <div className="w-full max-w-sm">
-          <div className="flex gap-2">
-            <input value={cityQuery} onChange={e => setCityQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') searchByCity(cityQuery); }}
-              placeholder="הזן עיר או כתובת..." dir="rtl"
-              className="flex-1 h-12 px-4 rounded-2xl text-sm font-medium"
-              style={{ background: '#fff', border: `1.5px solid ${C.border}` }} />
-            <button onClick={() => searchByCity(cityQuery)} disabled={searchingCity || !cityQuery.trim()}
-              className="h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 disabled:opacity-50"
-              style={{ background: C.primary, color: '#fff' }}>
-              {searchingCity ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-            </button>
+      <div className="-mx-4 -mt-4 min-h-[85vh] relative overflow-hidden" dir="rtl">
+        {/* Premium gradient background */}
+        <div className="absolute inset-0" style={{ background: C.grad }} />
+        <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full" style={{ background: `${C.yellow}15` }} />
+        <div className="absolute top-1/3 left-10 w-24 h-24 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }} />
+
+        <div className="relative z-10 flex flex-col items-center gap-6 px-6 pt-12 pb-8">
+          {/* Icon */}
+          <div className="w-20 h-20 rounded-3xl flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.15)', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
+            <Wrench className="w-10 h-10 text-white" />
           </div>
-        </div>
-        <div className="w-full max-w-sm">
-          <p className="text-xs font-bold mb-2" style={{ color: C.muted }}>או בחר עיר:</p>
-          <div className="flex flex-wrap gap-2">
-            {QUICK_CITIES.map(city => (
-              <button key={city.name}
-                onClick={() => { setLocError(null); setUserLocation({ lat: city.lat, lng: city.lng }); }}
-                className="px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.97]"
-                style={{ background: C.yellow, color: C.text }}>{city.name}</button>
-            ))}
+
+          <div className="text-center">
+            <h1 className="text-2xl font-black text-white mb-2">מצא מוסך קרוב</h1>
+            <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              מוסכים, פנצ'ריות, מכונאים וחנויות חלפים
+            </p>
           </div>
+
+          {/* Search card */}
+          <div className="w-full max-w-sm rounded-3xl p-5" style={{ background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.15)' }}>
+            <p className="text-sm font-bold mb-3 text-center" style={{ color: C.text }}>חפש לפי עיר או כתובת</p>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
+                <input value={cityQuery} onChange={e => setCityQuery(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') searchByCity(cityQuery); }}
+                  placeholder="הזן עיר או כתובת..." dir="rtl"
+                  className="w-full h-12 pr-10 pl-4 rounded-2xl text-sm font-medium outline-none"
+                  style={{ background: C.light, border: `1.5px solid ${C.border}`, color: C.text }} />
+              </div>
+              <button onClick={() => searchByCity(cityQuery)} disabled={searchingCity || !cityQuery.trim()}
+                className="h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 disabled:opacity-50 transition-all active:scale-[0.95]"
+                style={{ background: C.yellow, color: C.greenDark, boxShadow: '0 4px 12px rgba(255,191,0,0.4)' }}>
+                {searchingCity ? <Loader2 className="w-5 h-5 animate-spin" /> : <Navigation className="w-5 h-5" />}
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <p className="text-[11px] font-bold mb-2" style={{ color: C.muted }}>ערים מובילות:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_CITIES.map(city => (
+                  <button key={city.name}
+                    onClick={() => { setLocError(null); setUserLocation({ lat: city.lat, lng: city.lng }); }}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-[0.95]"
+                    style={{ background: C.light, color: C.primary, border: `1px solid ${C.border}` }}>
+                    <MapPin className="w-3 h-3 inline ml-1" style={{ opacity: 0.6 }} />
+                    {city.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* GPS retry */}
+          <button onClick={() => { setLoading(true); setLocError(null); navigator.geolocation.getCurrentPosition(
+            (pos) => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLoading(false); },
+            () => { setLocError('גישה חסומה.'); setLoading(false); },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }); }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.97]"
+            style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.2)' }}>
+            <Navigation className="w-4 h-4" />
+            זהה מיקום אוטומטית
+          </button>
         </div>
-        <button onClick={() => { setLoading(true); setLocError(null); navigator.geolocation.getCurrentPosition(
-          (pos) => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLoading(false); },
-          () => { setLocError('גישה חסומה.'); setLoading(false); },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }); }}
-          className="text-xs underline" style={{ color: C.muted }}>נסה שוב עם GPS</button>
       </div>
     );
   }
@@ -394,15 +429,17 @@ export default function FindGarage() {
   return (
     <div className="-mx-4 lg:-mx-8 -mt-4 lg:-mt-8" dir="rtl">
       {/* Hero header */}
-      <div className="px-5 pt-5 pb-4" style={{ background: C.grad }}>
-        <div className="max-w-5xl mx-auto">
+      <div className="px-5 pt-5 pb-4 relative overflow-hidden" style={{ background: C.grad }}>
+        <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full" style={{ background: `${C.yellow}15` }} />
+        <div className="max-w-5xl mx-auto relative z-10">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
               <MapPin className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">{hasVessel ? 'מצא מוסך / מרינה' : 'מצא מוסך קרוב'}</h1>
-              <p className="text-xs text-white/70">
+              <h1 className="text-xl font-black text-white">{hasVessel ? 'מצא מוסך / מרינה' : 'מצא מוסך קרוב'}</h1>
+              <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
                 {hasVessel ? 'מוסכים, פנצ\'ריות, חלפים, מרינות ושירותי שייט' : 'מוסכים, פנצ\'ריות, מכונאים וחנויות חלפים'}
               </p>
             </div>
@@ -591,19 +628,19 @@ export default function FindGarage() {
             const isSelected = selectedGarage === g.id;
             return (
               <div key={g.id} id={`garage-card-${g.id}`}
-                className="rounded-2xl border p-4 transition-all duration-200"
+                className="rounded-2xl p-4 transition-all duration-200 active:scale-[0.99]"
                 style={{
                   background: '#fff',
-                  borderColor: isSelected ? tc.color : C.border,
-                  borderWidth: isSelected ? '2px' : '1.5px',
-                  boxShadow: isSelected ? `0 0 0 3px ${tc.color}15, 0 4px 16px rgba(0,0,0,0.1)` : '0 1px 4px rgba(0,0,0,0.04)',
+                  border: `1.5px solid ${isSelected ? tc.color : C.border}`,
+                  borderRight: `4px solid ${tc.color}`,
+                  boxShadow: isSelected ? `0 0 0 3px ${tc.color}12, 0 8px 24px rgba(0,0,0,0.1)` : `0 2px 12px ${tc.color}08`,
                 }}
                 onClick={() => setSelectedGarage(g.id)}>
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3.5">
                   {/* Type icon */}
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: tc.bg, border: `1.5px solid ${tc.border}` }}>
-                    <div dangerouslySetInnerHTML={{ __html: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${tc.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${tc.svg}</svg>` }} />
+                  <div className="w-13 h-13 rounded-2xl flex items-center justify-center shrink-0"
+                    style={{ background: tc.bg, border: `1.5px solid ${tc.border}`, width: 52, height: 52 }}>
+                    <div dangerouslySetInnerHTML={{ __html: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${tc.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${tc.svg}</svg>` }} />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -639,21 +676,22 @@ export default function FindGarage() {
                     {/* Action buttons */}
                     <div className="flex gap-2 mt-3 flex-wrap">
                       <button onClick={e => { e.stopPropagation(); openGoogleNav(g.lat, g.lon); }}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white transition-all active:scale-[0.97]"
-                        style={{ background: '#4285F4', boxShadow: '0 2px 8px rgba(66,133,244,0.35)' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-bold text-white transition-all active:scale-[0.95]"
+                        style={{ background: 'linear-gradient(135deg, #4285F4, #3367D6)', boxShadow: '0 3px 12px rgba(66,133,244,0.35)' }}>
+                        <Navigation className="w-3.5 h-3.5" />
                         Google Maps
                       </button>
                       <button onClick={e => { e.stopPropagation(); openWazeNav(g.lat, g.lon); }}
-                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white transition-all active:scale-[0.97]"
-                        style={{ background: '#33CCFF', boxShadow: '0 2px 8px rgba(51,204,255,0.35)' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 2.76 1.12 5.26 2.93 7.07L12 22l7.07-2.93A9.96 9.96 0 0022 12c0-5.52-4.48-10-10-10zm-2 14a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm4 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm2.5-5.5c-.28 0-.5-.22-.5-.5V9c0-2.21-1.79-4-4-4S8 6.79 8 9v1c0 .28-.22.5-.5.5S7 10.28 7 10V9c0-2.76 2.24-5 5-5s5 2.24 5 5v1c0 .28-.22.5-.5.5z"/></svg>
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-bold text-white transition-all active:scale-[0.95]"
+                        style={{ background: 'linear-gradient(135deg, #33CCFF, #00B4E6)', boxShadow: '0 3px 12px rgba(51,204,255,0.35)' }}>
+                        <Navigation className="w-3.5 h-3.5" />
                         Waze
                       </button>
                       <button onClick={e => { e.stopPropagation(); openGoogleSearch(g.name, g.lat, g.lon); }}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all active:scale-[0.97]"
-                        style={{ background: '#F5F5F5', color: '#666', border: '1px solid #E0E0E0' }}>
-                        <Star className="w-3.5 h-3.5" style={{ color: '#FBBC04' }} />דירוגים
+                        className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all active:scale-[0.95]"
+                        style={{ background: '#FFF8E1', color: '#F57F17', border: '1px solid #FFE082' }}>
+                        <Star className="w-3.5 h-3.5" style={{ color: '#FBBC04' }} />
+                        דירוגים
                       </button>
                     </div>
                   </div>

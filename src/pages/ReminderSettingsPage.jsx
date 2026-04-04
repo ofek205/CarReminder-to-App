@@ -257,16 +257,18 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest }) {
                 <span className="text-base">{field.icon}</span>
                 <span className="font-bold text-sm text-gray-800">{field.label}</span>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Input
+              <div className="flex items-center gap-2 shrink-0">
+                <input
                   type="number"
                   min={0}
                   max={field.max}
-                  className="w-16 text-center font-bold text-sm h-9"
+                  className="w-14 h-10 text-center font-black text-base rounded-xl outline-none transition-all focus:ring-2 focus:ring-[#3A7D44]/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  style={{ background: '#F0F4F1', color: '#2D5233', border: '1.5px solid #D8E5D9' }}
                   value={form[field.key] ?? ''}
                   onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
+                  dir="ltr"
                 />
-                <span className="text-xs text-gray-400 font-medium">{field.suffix}</span>
+                <span className="text-xs text-gray-500 font-bold">{field.suffix}</span>
               </div>
             </div>
           ))}
