@@ -34,7 +34,7 @@ const navItems = [
   { name: 'ReminderSettingsPage',  label: 'הגדרות תזכורות',  icon: Bell,            guestAllowed: true },
   // ── חשבון ──
   { name: 'UserProfile',           label: 'אזור אישי',       icon: UserCircle,      guestAllowed: true },
-  { name: 'AccountSettings',       label: 'שיתוף משפחתי',     icon: Users,           guestAllowed: true },
+  { name: 'AccountSettings',       label: 'שיתוף חשבון',      icon: Users,           guestAllowed: true },
   { name: 'AdminReviews',          label: 'חוות דעת',         icon: Star,            guestAllowed: true },
   { name: 'AdminDashboard',        label: 'לוח ניהול',        icon: ShieldCheck,     guestAllowed: false, adminOnly: true },
 ];
