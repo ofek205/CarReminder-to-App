@@ -41,8 +41,8 @@ function UrgentBanner({ reminders, vehicles }) {
     .filter(r => r.days !== null)
     .sort((a, b) => a.days - b.days);
 
-  // Only show banner for truly urgent items: expired or within 30 days
-  const urgent = withDays.find(r => r.days <= 30);
+  // Show the nearest upcoming reminder
+  const urgent = withDays[0];
   if (!urgent) return null;
 
   const isExpired = urgent.days < 0;
@@ -53,7 +53,8 @@ function UrgentBanner({ reminders, vehicles }) {
   const vehicleName = urgentVehicle?.nickname || urgentVehicle?.manufacturer || '';
   const T = getTheme(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
 
-  // Urgency levels: expired → red, 0-14 days → red, 15-30 → amber
+  // Urgency levels: expired → red, 0-14 → red, 15-30 → amber, 30+ → calm info
+  const isFarAway = urgent.days > 30;
   const urgencyConfig = isExpired ? {
     badgeBg: '#FEF2F2', badgeColor: '#DC2626', badgeBorder: '#FECACA',
     badgeIcon: AlertTriangle, badgeText: 'פג תוקף!',
@@ -64,6 +65,11 @@ function UrgentBanner({ reminders, vehicles }) {
     badgeIcon: AlertTriangle, badgeText: 'דחוף',
     bannerBg: T.grad,
     bannerShadow: `${T.primary}40`,
+  } : isFarAway ? {
+    badgeBg: T.light, badgeColor: T.primary, badgeBorder: T.border,
+    badgeIcon: Calendar, badgeText: 'תזכורת קרובה',
+    bannerBg: T.grad,
+    bannerShadow: `${T.primary}30`,
   } : {
     badgeBg: '#FFF8E1', badgeColor: '#D97706', badgeBorder: '#FDE68A',
     badgeIcon: Clock, badgeText: 'בקרוב',
