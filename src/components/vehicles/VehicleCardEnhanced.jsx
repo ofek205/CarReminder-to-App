@@ -60,7 +60,7 @@ export default function VehicleCardEnhanced({ vehicle }) {
               <div className="flex items-center gap-2">
                 <h3 className="font-extrabold text-base truncate" style={{ color: C.text }}>{name}</h3>
                 {vehicle._isDemo && (
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full shrink-0"
+                  <span className="text-xs font-black px-2 py-0.5 rounded-full shrink-0"
                     style={{ background: '#FFBF00', color: '#92400E' }}>
                     לדוגמה
                   </span>

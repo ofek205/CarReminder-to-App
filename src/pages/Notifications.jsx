@@ -187,6 +187,19 @@ function GuestNotifications() {
         </div>
       </div>
 
+      {/* Guest banner */}
+      <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
+        style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
+        <span className="text-lg">🔒</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-black" style={{ color: '#92400E' }}>התראות זמניות</p>
+          <p className="text-xs" style={{ color: '#B45309' }}>
+            <button onClick={() => window.location.href = '/Auth'} className="underline font-bold">הירשם</button>
+            {' '}כדי לקבל התראות אמיתיות למכשיר
+          </p>
+        </div>
+      </div>
+
       {notifications.length === 0 ? (
         <NotifEmptyState />
       ) : (

@@ -25,19 +25,44 @@ const intervalUnits = ['ימים', 'שבועות', 'חודשים'];
 export default function MaintenanceTemplates() {
   const { isGuest } = useAuth();
   if (isGuest) {
+    const demoItems = [
+      { name: 'טיפול שמן מנוע', interval: 'כל 6 חודשים / 10,000 ק"מ', icon: '🛢️' },
+      { name: 'החלפת מסנן אוויר', interval: 'כל 12 חודשים / 20,000 ק"מ', icon: '💨' },
+      { name: 'בדיקת בלמים', interval: 'כל 12 חודשים / 15,000 ק"מ', icon: '🔧' },
+    ];
     return (
-      <div>
+      <div dir="rtl">
         <PageHeader title="טיפולים ותיקונים" />
-        <Card className="p-8 border border-gray-100 shadow-sm rounded-2xl text-center space-y-4" dir="rtl">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ background: C.light }}>
-            <Wrench className="h-8 w-8" style={{ color: C.primary }} />
+        {/* Demo banner */}
+        <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
+          style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
+          <span className="text-lg">👀</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black" style={{ color: '#92400E' }}>טיפולים לדוגמה</p>
+            <p className="text-xs" style={{ color: '#B45309' }}>הירשם כדי ליצור תבניות טיפול מותאמות אישית</p>
           </div>
-          <h2 className="font-semibold text-gray-900 text-lg">תבניות טיפולים</h2>
-          <p className="text-sm text-gray-500">צור תבניות טיפול מותאמות אישית ועקוב אחרי לוח הזמנים של כלי הרכב שלך - זמין לאחר הרשמה.</p>
+        </div>
+        {/* Demo items */}
+        <div className="space-y-2 mb-6">
+          {demoItems.map(item => (
+            <div key={item.name} className="rounded-2xl p-4 flex items-center gap-3"
+              style={{ background: '#fff', border: `1.5px solid ${C.border}`, opacity: 0.7 }}>
+              <span className="text-lg">{item.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold" style={{ color: C.text }}>{item.name}</p>
+                <p className="text-xs" style={{ color: C.muted }}>{item.interval}</p>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: '#FFBF00', color: '#92400E' }}>לדוגמה</span>
+            </div>
+          ))}
+        </div>
+        {/* CTA */}
+        <Card className="p-6 border border-gray-100 shadow-sm rounded-2xl text-center space-y-3">
+          <p className="text-sm font-medium text-gray-500">הירשם כדי ליצור תבניות מותאמות ולעקוב אחרי לוח הזמנים</p>
           <Button onClick={() => window.location.href = '/Auth'}
             className="text-white gap-2 rounded-2xl font-bold"
             style={{ background: C.yellow, color: C.primary }}>
-            <Plus className="h-4 w-4" />
             הירשם בחינם
           </Button>
         </Card>

@@ -65,6 +65,17 @@ function GuestReminderSettings() {
 
   return (
     <div className="px-4 pb-20" dir="rtl">
+      <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
+        style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
+        <span className="text-lg">🔒</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-black" style={{ color: '#92400E' }}>הגדרות זמניות</p>
+          <p className="text-xs" style={{ color: '#B45309' }}>
+            נשמרות במכשיר בלבד.{' '}
+            <button onClick={() => window.location.href = '/Auth'} className="underline font-bold">הירשם לשמירה קבועה</button>
+          </p>
+        </div>
+      </div>
       <SettingsUI form={form} setForm={setForm} onSave={handleSave} saving={false} isGuest={true} />
     </div>
   );

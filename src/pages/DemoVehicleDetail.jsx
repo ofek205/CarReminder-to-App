@@ -322,14 +322,12 @@ export default function DemoVehicleDetail() {
       />
 
       {/* Demo notice banner */}
-      <div className="mb-5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-start gap-3" dir="rtl">
-        <Sparkles className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+      <div className="mb-5 rounded-2xl p-3.5 flex items-center gap-3"
+        style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
+        <span className="text-lg">👀</span>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-amber-800">זהו רכב לדוגמה</p>
-          <p className="text-xs text-amber-700 mt-0.5">
-            הדף הזה מדגים איך ניהול הרכב שלך יראה - כולל מצב טסט וביטוח, יומן טיפולים, תזכורות ומסמכים.
-            הוסף את הרכב שלך כדי להתחיל.
-          </p>
+          <p className="text-sm font-black" style={{ color: '#92400E' }}>רכב לדוגמה</p>
+          <p className="text-xs" style={{ color: '#B45309' }}>כך ייראה ניהול הרכב שלך — הוסף את הרכב האמיתי שלך כדי להתחיל</p>
         </div>
       </div>
 
