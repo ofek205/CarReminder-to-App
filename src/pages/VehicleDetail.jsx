@@ -2,7 +2,7 @@
 import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
-import { Trash2, Edit, FileText, Lock, Pencil, Car, Ship, Calendar, Shield, ChevronLeft, Bike, Truck } from "lucide-react";
+import { Trash2, Edit, FileText, Lock, Pencil, Car, Ship, Calendar, Shield, ChevronLeft, Bike, Truck, Bell, Clock, Wrench } from "lucide-react";
 import { getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -18,7 +18,75 @@ import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from '@/hooks/useAccountRole';
 import { canEdit, canDelete, isViewOnly } from '@/lib/permissions';
 import { daysUntil } from '../components/shared/ReminderEngine';
+import { getDateStatus, formatDateHe, getVehicleLabels } from '../components/shared/DateStatusUtils';
+import StatusBadge from '../components/shared/StatusBadge';
 
+
+// ── Inline Reminders Section ─────────────────────────────────────────────────
+function RemindersPreview({ vehicle, T }) {
+  const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
+  const items = [
+    vehicle.test_due_date && { icon: Calendar, label: labels.testWord, date: vehicle.test_due_date, status: getDateStatus(vehicle.test_due_date) },
+    vehicle.insurance_due_date && { icon: Shield, label: labels.insuranceWord || 'ביטוח', date: vehicle.insurance_due_date, status: getDateStatus(vehicle.insurance_due_date) },
+  ].filter(Boolean);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: `1.5px solid ${T.border}` }} dir="rtl">
+      <div className="flex items-center gap-2 px-4 py-3" style={{ background: T.light }}>
+        <Bell className="w-4 h-4" style={{ color: T.primary }} />
+        <span className="text-sm font-black" style={{ color: T.text }}>תזכורות</span>
+        <span className="text-xs font-bold px-1.5 py-0.5 rounded-full mr-auto" style={{ background: T.primary, color: '#fff' }}>{items.length}</span>
+      </div>
+      <div className="divide-y" style={{ borderColor: `${T.border}60` }}>
+        {items.map(item => (
+          <div key={item.label} className="flex items-center gap-3 px-4 py-3">
+            <item.icon className="w-4 h-4 shrink-0" style={{ color: T.muted }} />
+            <span className="text-sm font-bold flex-1" style={{ color: T.text }}>{item.label}</span>
+            <StatusBadge status={item.status.status} label={item.status.label} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Inline Documents Preview ─────────────────────────────────────────────────
+function DocumentsPreview({ vehicleId, documents, T }) {
+  const vehicleDocs = (documents || []).filter(d => d.vehicle_id === vehicleId).slice(0, 4);
+  if (vehicleDocs.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: `1.5px solid ${T.border}` }} dir="rtl">
+      <div className="flex items-center gap-2 px-4 py-3" style={{ background: T.light }}>
+        <FileText className="w-4 h-4" style={{ color: T.primary }} />
+        <span className="text-sm font-black" style={{ color: T.text }}>מסמכים</span>
+        <span className="text-xs font-bold px-1.5 py-0.5 rounded-full mr-auto" style={{ background: T.primary, color: '#fff' }}>{vehicleDocs.length}</span>
+      </div>
+      <div className="divide-y" style={{ borderColor: `${T.border}60` }}>
+        {vehicleDocs.map(doc => {
+          const expStatus = doc.expiry_date ? getDateStatus(doc.expiry_date) : null;
+          return (
+            <div key={doc.id} className="flex items-center gap-3 px-4 py-3">
+              <FileText className="w-4 h-4 shrink-0" style={{ color: T.muted }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold truncate" style={{ color: T.text }}>{doc.title}</p>
+                <p className="text-xs" style={{ color: T.muted }}>{doc.document_type}</p>
+              </div>
+              {expStatus && <StatusBadge status={expStatus.status} label={expStatus.label} />}
+            </div>
+          );
+        })}
+      </div>
+      <Link to={`${createPageUrl('Documents')}?vehicle_id=${vehicleId}`}>
+        <div className="px-4 py-2.5 text-center text-xs font-bold" style={{ color: T.primary, borderTop: `1px solid ${T.border}60` }}>
+          כל המסמכים →
+        </div>
+      </Link>
+    </div>
+  );
+}
 
 // ── Vehicle icon helper ───────────────────────────────────────────────────────
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
@@ -31,7 +99,7 @@ function vehicleWord(vt, nn) { return isVesselType(vt, nn) ? 'כלי שייט' :
 
 // ── Guest vehicle detail ──────────────────────────────────────────────────────
 function GuestVehicleDetail({ vehicle, vehicleId }) {
-  const { removeGuestVehicle } = useAuth();
+  const { removeGuestVehicle, guestDocuments } = useAuth();
   const navigate = useNavigate();
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
@@ -176,20 +244,38 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
         </AlertDialog>
       </div>
 
-      {/* Guest banner */}
-      <div className="mx-4 mb-4 rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: T.yellowSoft, border: `1px solid ${T.border}` }}>
-        <Lock className="h-4 w-4 shrink-0" style={{ color: T.primary }} />
-        <p className="text-sm font-medium" style={{ color: T.text }}>
-          {vWord} זמני - נשמר במכשיר בלבד.{' '}
-          <Link to={createPageUrl('Auth')} className="underline font-bold" style={{ color: T.primary }}>הירשם כדי לשמור</Link>
-        </p>
-      </div>
+      {/* Demo / Guest banner */}
+      {vehicle._isDemo ? (
+        <div className="mx-4 mb-4 rounded-2xl p-3.5 flex items-center gap-3"
+          style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
+          <span className="text-lg">👀</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black" style={{ color: '#92400E' }}>{vWord} לדוגמה</p>
+            <p className="text-xs" style={{ color: '#B45309' }}>הוסף את ה{vWord} האמיתי שלך כדי להתחיל</p>
+          </div>
+        </div>
+      ) : (
+        <div className="mx-4 mb-4 rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: T.yellowSoft, border: `1px solid ${T.border}` }}>
+          <Lock className="h-4 w-4 shrink-0" style={{ color: T.primary }} />
+          <p className="text-sm font-medium" style={{ color: T.text }}>
+            {vWord} זמני - נשמר במכשיר בלבד.{' '}
+            <Link to={createPageUrl('Auth')} className="underline font-bold" style={{ color: T.primary }}>הירשם כדי לשמור</Link>
+          </p>
+        </div>
+      )}
 
       {/* Vehicle info */}
       <div className="px-4 space-y-4 pb-8">
         <SafeComponent label="VehicleInfoSection">
           <VehicleInfoSection vehicle={vehicle} />
         </SafeComponent>
+
+        {/* Inline reminders */}
+        <RemindersPreview vehicle={vehicle} T={T} />
+
+        {/* Inline documents */}
+        <DocumentsPreview vehicleId={vehicleId} documents={guestDocuments} T={T} />
+
         {isVesselType(vehicle.vehicle_type, vehicle.nickname) && (
           <SafeComponent label="VesselIssuesSection">
             <VesselIssuesSection vehicle={vehicle} isGuest />
@@ -374,6 +460,10 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         <SafeComponent label="VehicleInfoSection">
           <VehicleInfoSection vehicle={vehicle} />
         </SafeComponent>
+
+        {/* Inline reminders */}
+        <RemindersPreview vehicle={vehicle} T={T} />
+
         <SafeComponent label="MaintenanceSection">
           <MaintenanceSection vehicle={vehicle} />
         </SafeComponent>

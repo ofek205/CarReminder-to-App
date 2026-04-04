@@ -139,9 +139,7 @@ function VehicleCard({ vehicle, isDemo }) {
   const name = vehicle.nickname || [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ') || (isVessel ? 'כלי שייט' : 'רכב');
   const make = vehicle.manufacturer || '';
   const model = vehicle.model || '';
-  const detailUrl = isDemo
-    ? createPageUrl('DemoVehicleDetail')
-    : `${createPageUrl('VehicleDetail')}?id=${vehicle.id}`;
+  const detailUrl = `${createPageUrl('VehicleDetail')}?id=${vehicle.id}`;
 
   const hasPhoto = !!vehicle.vehicle_photo;
 
