@@ -22,7 +22,7 @@ import BottomNav from "@/components/shared/BottomNav";
 
 const navItems = [
   // ── ראשי ──
-  { name: 'Dashboard',             label: 'מסך הבית שלי',    icon: LayoutDashboard, guestAllowed: true },
+  { name: 'Dashboard',             label: 'דף הבית שלי',     icon: LayoutDashboard, guestAllowed: true },
   { name: 'Vehicles',              label: 'רכבים',            icon: Car,             guestAllowed: true },
   { name: 'MaintenanceTemplates',  label: 'טיפולים ותיקונים', icon: Settings,        guestAllowed: true },
   // ── מסמכים ותאונות ──
