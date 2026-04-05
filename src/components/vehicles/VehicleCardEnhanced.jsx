@@ -142,7 +142,7 @@ export default function VehicleCardEnhanced({ vehicle }) {
               style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
               <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#EA580C' }} />
               <span className="text-[11px] font-bold" style={{ color: '#EA580C' }}>
-                חסר: {missingFields.join(', ')}
+                פרטים חסרים: {missingFields.join(', ')}
               </span>
             </div>
           )}
