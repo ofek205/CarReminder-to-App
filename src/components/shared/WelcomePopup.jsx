@@ -47,7 +47,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
               <Car className="h-8 w-8 text-white" />
             </div>
           </div>
-          <p className="text-[#2D5233] text-sm font-bold text-center tracking-wide">carReminder</p>
+          <p className="text-[#2D5233] text-sm font-bold text-center tracking-wide">CarReminder</p>
           <DialogTitle className="text-2xl font-bold text-center text-gray-900">
             {isReturningUser ? `כיף שחזרת${userName ? `, ${userName.split(' ')[0]}` : ''}! 👋` : 'ברוך הבא! 👋'}
           </DialogTitle>
