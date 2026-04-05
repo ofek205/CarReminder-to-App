@@ -130,7 +130,7 @@ function CategoryTabs({ activeTab, onTab, categoryCounts }) {
 }
 
 // ── Search + Filter Row ─────────────────────────────────────────────────────
-function SearchFilterRow({ searchQuery, onSearch, sortBy, onSort, showFilters, onToggleFilters, activeFilterCount }) {
+function SearchFilterRow({ searchQuery, onSearch, sortBy, onSort, isVessel }) {
   return (
     <div className="flex items-center gap-2 mb-3" dir="rtl">
       {/* Search */}
@@ -140,7 +140,7 @@ function SearchFilterRow({ searchQuery, onSearch, sortBy, onSort, showFilters, o
           type="text"
           value={searchQuery}
           onChange={e => onSearch(e.target.value)}
-          placeholder="חפש רכב..."
+          placeholder={isVessel ? 'חפש כלי שייט...' : 'חפש רכב...'}
           className="w-full h-10 pr-9 pl-3 rounded-xl border text-sm font-medium outline-none transition-all focus:ring-2"
           style={{
             background: '#fff',
@@ -396,6 +396,7 @@ function VehiclesContent({ vehicles, isLoading }) {
             onSearch={setSearchQuery}
             sortBy={sortBy}
             onSort={setSortBy}
+            isVessel={isVesselPage}
           />
 
           {/* Result count */}
