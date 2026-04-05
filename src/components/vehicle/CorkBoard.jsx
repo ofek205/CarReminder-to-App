@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, Reorder } from 'framer-motion';
 import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -40,14 +40,15 @@ function StickyNote({ note, readOnly, onEdit }) {
   const isOverdue = note.due_date && new Date(note.due_date) < new Date();
 
   return (
-    <motion.div
-      layout
+    <Reorder.Item
+      value={note}
+      dragListener={!readOnly}
       initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      whileTap={readOnly ? {} : { scale: 0.95 }}
+      animate={{ scale: 1, opacity: 1, rotate: rotation }}
+      whileDrag={{ scale: 1.05, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', zIndex: 50 }}
+      whileTap={readOnly ? {} : { scale: 0.97 }}
       onClick={() => !readOnly && onEdit(note)}
-      className="relative cursor-pointer select-none"
-      style={{ transform: `rotate(${rotation}deg)` }}
+      className="relative cursor-grab active:cursor-grabbing select-none"
     >
       {/* Pin */}
       <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">
@@ -93,7 +94,7 @@ function StickyNote({ note, readOnly, onEdit }) {
           </p>
         )}
       </div>
-    </motion.div>
+    </Reorder.Item>
   );
 }
 
@@ -251,9 +252,19 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
     : [];
 
   const guestNotesForVehicle = (guestCorkNotes || []).filter(n => n.vehicle_id === vehicle.id);
-  const notes = isGuest
+  const rawNotes = isGuest
     ? (guestNotesForVehicle.length > 0 ? guestNotesForVehicle : demoNotes)
     : authNotes;
+  const [orderedIds, setOrderedIds] = useState(null);
+
+  // Maintain drag order while keeping data fresh
+  const notes = orderedIds
+    ? orderedIds.map(id => rawNotes.find(n => n.id === id)).filter(Boolean)
+    : rawNotes;
+
+  const setOrderedNotes = (newOrder) => {
+    setOrderedIds(newOrder.map(n => n.id));
+  };
 
   const randomRotation = () => Math.round((Math.random() - 0.5) * 6);
 
@@ -378,7 +389,13 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 relative z-10">
+          <Reorder.Group
+            axis="y"
+            values={notes}
+            onReorder={setOrderedNotes}
+            className="grid grid-cols-2 sm:grid-cols-3 gap-4 relative z-10"
+            as="div"
+          >
             {notes.map(note => (
               <StickyNote
                 key={note.id}
@@ -403,7 +420,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
                 <span className="text-xs font-bold" style={{ color: 'rgba(255,255,255,0.7)' }}>פתק חדש</span>
               </motion.button>
             )}
-          </div>
+          </Reorder.Group>
         )}
       </div>
 
