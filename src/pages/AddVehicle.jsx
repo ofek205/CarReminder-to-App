@@ -493,15 +493,12 @@ export default function AddVehicle() {
             <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
               <PartyPopper className="h-8 w-8 text-green-600" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">הרכב נוסף בהצלחה! 🎉</h2>
+            <h2 className="text-xl font-bold text-gray-900">
+              {isVesselCategory ? 'כלי השייט נוסף בהצלחה! ⛵' : 'הרכב נוסף בהצלחה! 🎉'}
+            </h2>
             <p className="text-gray-500 text-sm leading-relaxed">
-              {form?.nickname || [form?.manufacturer, form?.model].filter(Boolean).join(' ') || 'הרכב החדש'} נוסף למערכת ועכשיו אפשר לעקוב אחרי טיפולים, טסטים וביטוחים
+              {form?.nickname || [form?.manufacturer, form?.model].filter(Boolean).join(' ') || (isVesselCategory ? 'כלי השייט' : 'הרכב')} נוסף למערכת ועכשיו אפשר לעקוב אחרי {isVesselCategory ? 'כושר שייט, ביטוח ימי וטיפולים' : 'טיפולים, טסטים וביטוחים'}
             </p>
-            {isGuest && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                הירשם בחינם כדי לשמור את הרכב לצמיתות ולגשת אליו מכל מכשיר
-              </p>
-            )}
             <div className="space-y-2 pt-2">
               <Button
                 onClick={() => navigate(createPageUrl('Dashboard'))}
@@ -514,7 +511,7 @@ export default function AddVehicle() {
                 variant="outline"
                 className="w-full h-11 border-gray-200"
               >
-                הוסף רכב נוסף
+                {isVesselCategory ? 'הוסף כלי שייט נוסף' : 'הוסף רכב נוסף'}
               </Button>
             </div>
           </div>
