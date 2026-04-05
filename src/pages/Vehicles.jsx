@@ -236,9 +236,19 @@ function PremiumEmptyState({ hasFilters, onClearFilters }) {
 function VehiclesContent({ vehicles, isLoading }) {
   // ── Filter & sort state ─────────────────────────────────────────────────
   const urlCategory = new URLSearchParams(window.location.search).get('category');
+  const isVesselPage = urlCategory === 'vessel';
+
+  // Pre-filter: vessel page shows only vessels, regular page shows only non-vessels
+  const filteredByPage = useMemo(() => {
+    return vehicles.filter(v => {
+      const cat = getCategory(v);
+      return isVesselPage ? cat === 'vessel' : cat !== 'vessel';
+    });
+  }, [vehicles, isVesselPage]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [activeCategoryTab, setActiveCategoryTab] = useState(urlCategory || 'all');
+  const [activeCategoryTab, setActiveCategoryTab] = useState('all');
   const [sortBy, setSortBy] = useState('name');
 
   // Debounce search
@@ -249,25 +259,25 @@ function VehiclesContent({ vehicles, isLoading }) {
 
   // ── Computed: status & category per vehicle ─────────────────────────────
   const vehicleMeta = useMemo(() => {
-    return vehicles.map(v => ({
+    return filteredByPage.map(v => ({
       vehicle: v,
       status: getWorstStatus(v),
       category: getCategory(v),
     }));
-  }, [vehicles]);
+  }, [filteredByPage]);
 
   // ── Counts ──────────────────────────────────────────────────────────────
   const statusCounts = useMemo(() => {
-    const c = { total: vehicles.length, ok: 0, soon: 0, overdue: 0 };
+    const c = { total: filteredByPage.length, ok: 0, soon: 0, overdue: 0 };
     vehicleMeta.forEach(m => { if (c[m.status] !== undefined) c[m.status]++; });
     return c;
-  }, [vehicleMeta, vehicles.length]);
+  }, [vehicleMeta, filteredByPage.length]);
 
   const categoryCounts = useMemo(() => {
-    const c = { all: vehicles.length, car: 0, motorcycle: 0, vessel: 0, offroad: 0, special: 0 };
+    const c = { all: filteredByPage.length, car: 0, motorcycle: 0, vessel: 0, offroad: 0, special: 0 };
     vehicleMeta.forEach(m => { if (c[m.category] !== undefined) c[m.category]++; else c.car++; });
     return c;
-  }, [vehicleMeta, vehicles.length]);
+  }, [vehicleMeta, filteredByPage.length]);
 
   // ── Filtering pipeline ──────────────────────────────────────────────────
   const filteredVehicles = useMemo(() => {
@@ -319,7 +329,7 @@ function VehiclesContent({ vehicles, isLoading }) {
   if (isLoading) {
     return (
       <div dir="rtl">
-        <PageHeader title="רכבים" subtitle="טוען..." />
+        <PageHeader title={isVesselPage ? 'כלי שייט' : 'רכבים'} subtitle="טוען..." />
         <div>{[1,2,3].map(i => <SkeletonCard key={i} />)}</div>
       </div>
     );
@@ -329,13 +339,13 @@ function VehiclesContent({ vehicles, isLoading }) {
   return (
     <div dir="rtl">
       <PageHeader
-        title="רכבים"
-        subtitle={`${vehicles.length} כלי רכב`}
+        title={isVesselPage ? 'כלי שייט' : 'רכבים'}
+        subtitle={`${filteredByPage.length} ${isVesselPage ? 'כלי שייט' : 'כלי רכב'}`}
         actions={
           <Link to={createPageUrl('AddVehicle')}>
             <button className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
               style={{ background: C.yellow, color: C.greenDark }}>
-              רכב חדש
+              {isVesselPage ? 'כלי שייט חדש' : 'רכב חדש'}
               <Plus className="h-4 w-4" />
             </button>
           </Link>
@@ -343,7 +353,7 @@ function VehiclesContent({ vehicles, isLoading }) {
       />
 
       {/* Demo banner */}
-      {vehicles.some(v => v._isDemo) && (
+      {filteredByPage.some(v => v._isDemo) && (
         <div className="rounded-2xl p-3.5 mb-4 flex items-center gap-3"
           style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
           <span className="text-lg">👀</span>
@@ -354,7 +364,7 @@ function VehiclesContent({ vehicles, isLoading }) {
         </div>
       )}
 
-      {vehicles.length === 0 ? (
+      {filteredByPage.length === 0 ? (
         <PremiumEmptyState hasFilters={false} />
       ) : (
         <>
@@ -374,8 +384,8 @@ function VehiclesContent({ vehicles, isLoading }) {
             </div>
           )}
 
-          {/* Category Tabs */}
-          {Object.values(categoryCounts).filter(c => c > 0).length > 2 && (
+          {/* Category Tabs — hide on vessel page (only one category) */}
+          {!isVesselPage && Object.values(categoryCounts).filter(c => c > 0).length > 2 && (
             <CategoryTabs activeTab={activeCategoryTab} onTab={setActiveCategoryTab} categoryCounts={categoryCounts} />
           )}
 
@@ -391,7 +401,7 @@ function VehiclesContent({ vehicles, isLoading }) {
           {hasActiveFilters && (
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-medium" style={{ color: C.muted }}>
-                מציג {filteredVehicles.length} מתוך {vehicles.length}
+                מציג {filteredVehicles.length} מתוך {filteredByPage.length}
               </p>
               <button onClick={clearAllFilters}
                 className="text-xs font-bold flex items-center gap-1 px-2 py-1 rounded-lg transition-all hover:bg-gray-100"
