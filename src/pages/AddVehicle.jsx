@@ -163,6 +163,9 @@ export default function AddVehicle() {
     setSelectedCategory(cat);
     setSelectedSubcategory(sub);
     if (cat) setUsageMetric(sub?.usageMetric ?? cat.usageMetric);
+    // Restore vehicle_type — resetAll set it back to 'רכב'
+    const correctType = sub?.dbName || cat?.dbName || 'רכב';
+    setForm(prev => ({ ...prev, vehicle_type: correctType }));
     if (method === 'scan') {
       if (cat?.label === 'כלי שייט') {
         setShowVesselScanWizard(true);
