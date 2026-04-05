@@ -192,7 +192,7 @@ function NavContent({ currentPath, onItemClick }) {
 }
 
 function DraggableA11yButton({ onClick }) {
-  const [pos, setPos] = useState({ x: 24, y: window.innerHeight - 72 });
+  const [pos, setPos] = useState({ x: 24, y: window.innerHeight - 140 });
   const dragging = useRef(false);
   const offset = useRef({ x: 0, y: 0 });
   const moved = useRef(false);
@@ -210,7 +210,7 @@ function DraggableA11yButton({ onClick }) {
       moved.current = true;
       setPos({
         x: Math.max(0, Math.min(window.innerWidth - 40, e.clientX - offset.current.x)),
-        y: Math.max(0, Math.min(window.innerHeight - 40, e.clientY - offset.current.y)),
+        y: Math.max(0, Math.min(window.innerHeight - 120, e.clientY - offset.current.y)),
       });
     };
     const onMouseUp = () => { dragging.current = false; };
