@@ -76,11 +76,15 @@ export default function JoinInvite() {
         return;
       }
 
+      // Validate role — only allow safe roles, never 'בעלים' via invite
+      const ALLOWED_INVITE_ROLES = ['מנהל', 'שותף'];
+      const safeRole = ALLOWED_INVITE_ROLES.includes(invite.role_to_assign) ? invite.role_to_assign : 'שותף';
+
       // Join the account!
       await db.account_members.create({
         account_id: invite.account_id,
         user_id: user.id,
-        role: invite.role_to_assign,
+        role: safeRole,
         status: 'פעיל',
         joined_at: new Date().toISOString(),
         vehicle_ids: invite.vehicle_ids || null, // null = all vehicles, array = specific
@@ -101,7 +105,7 @@ export default function JoinInvite() {
       );
 
     } catch (e) {
-      console.error('Join invite error:', e);
+      if (import.meta.env.DEV) console.error('Join invite error:', e);
       setStatus('error');
       setMessage('אירעה שגיאה. נסה שוב.');
     }

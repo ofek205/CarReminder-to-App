@@ -3,7 +3,7 @@ import { C } from '@/lib/designTokens';
 import { isVesselType } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { db } from '@/lib/supabaseEntities';
-import { MapPin, Navigation, Wrench, Search, Loader2, AlertCircle, MapPinOff, Phone, Star, Filter, ArrowUpDown, ExternalLink, Anchor } from 'lucide-react';
+import { MapPin, Navigation, Wrench, Search, Loader2, AlertCircle, MapPinOff, Phone, Star, Filter, ArrowUpDown, ExternalLink, Anchor, Ship, Package, Settings } from 'lucide-react';
 
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -92,6 +92,12 @@ const TYPE_DESC = {
 };
 
 const ALL_TYPE_CONFIG = { ...TYPE_CONFIG, ...MARINE_TYPE_CONFIG };
+
+// Safe icon mapping (no dangerouslySetInnerHTML)
+const TYPE_ICONS = {
+  garage: Wrench, tire: Settings, parts: Package, mechanic: Settings,
+  marina: Anchor, boat_repair: Ship, marine_parts: Anchor,
+};
 
 function makeIcon(typeKey) {
   const t = ALL_TYPE_CONFIG[typeKey] || TYPE_CONFIG.garage;
@@ -638,9 +644,9 @@ export default function FindGarage() {
                 onClick={() => setSelectedGarage(g.id)}>
                 <div className="flex items-start gap-3.5">
                   {/* Type icon */}
-                  <div className="w-13 h-13 rounded-2xl flex items-center justify-center shrink-0"
+                  <div className="rounded-2xl flex items-center justify-center shrink-0"
                     style={{ background: tc.bg, border: `1.5px solid ${tc.border}`, width: 52, height: 52 }}>
-                    <div dangerouslySetInnerHTML={{ __html: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${tc.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${tc.svg}</svg>` }} />
+                    {(() => { const Icon = TYPE_ICONS[g.typeKey] || Wrench; return <Icon className="w-6 h-6" style={{ color: tc.color }} />; })()}
                   </div>
 
                   <div className="flex-1 min-w-0">

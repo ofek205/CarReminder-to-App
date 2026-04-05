@@ -239,8 +239,8 @@ function AuthAccountSettings() {
       queryClient.invalidateQueries({ queryKey: ['active-invites'] });
       toast.success('ההזמנה נוצרה בהצלחה');
     } catch (e) {
-      console.error('Invite creation error:', e);
-      toast.error(`שגיאה ביצירת ההזמנה: ${e?.message || 'נסה שוב'}`);
+      if (import.meta.env.DEV) console.error('Invite creation error:', e);
+      toast.error('שגיאה ביצירת ההזמנה. נסה שוב.');
     } finally {
       setCreating(false);
     }
