@@ -308,7 +308,7 @@ export default function Accidents() {
           style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
           dir="rtl">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>תאונות לדוגמה — הוסף את הרכב שלך כדי לתעד תאונות אמיתיות</span>
+          <span>תאונות לדוגמה — הוסף את כלי הרכב שלך כדי לתעד תאונות אמיתיות</span>
         </div>
       )}
 

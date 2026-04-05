@@ -490,8 +490,9 @@ export default function AddVehicle() {
       {showSuccess && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
           <div className="bg-white rounded-2xl p-8 max-w-sm w-full text-center space-y-4 shadow-2xl">
-            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-              <PartyPopper className="h-8 w-8 text-green-600" />
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
+              style={{ background: T.light }}>
+              <PartyPopper className="h-8 w-8" style={{ color: T.primary }} />
             </div>
             <h2 className="text-xl font-bold text-gray-900">
               {isVesselCategory ? 'כלי השייט נוסף בהצלחה! ⛵' : 'הרכב נוסף בהצלחה! 🎉'}
@@ -502,7 +503,8 @@ export default function AddVehicle() {
             <div className="space-y-2 pt-2">
               <Button
                 onClick={() => navigate(createPageUrl('Dashboard'))}
-                className="w-full bg-[#2D5233] hover:bg-[#1E3D24] text-white h-11"
+                className="w-full text-white h-11"
+                style={{ background: T.primary }}
               >
                 עבור למסך הבית שלי
               </Button>
@@ -527,7 +529,7 @@ export default function AddVehicle() {
             </div>
             <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
             <p className="text-sm" style={{ color: '#6B7280' }}>
-              הרשמה בחינם תוך שניות — ותוכל לשמור רכבים, לקבל תזכורות ולגשת מכל מכשיר
+              הרשמה בחינם תוך שניות — ותוכל לשמור {isVesselCategory ? 'כלי שייט' : 'רכבים'}, לקבל תזכורות ולגשת מכל מכשיר
             </p>
             <Button
               onClick={() => { window.location.href = '/Auth'; }}
@@ -899,7 +901,8 @@ export default function AddVehicle() {
                       )}
                     </label>
                     {/* Camera capture badge */}
-                    <label className="absolute -bottom-2 -left-2 cursor-pointer bg-[#2D5233] text-white rounded-full p-2.5 shadow-md hover:bg-[#1E3D24] transition-colors" aria-label="צלם תמונה">
+                    <label className="absolute -bottom-2 -left-2 cursor-pointer text-white rounded-full p-2.5 shadow-md transition-colors" aria-label="צלם תמונה"
+                      style={{ background: T.primary }}>
                       <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
                       <Camera className="h-3.5 w-3.5" />
                     </label>
