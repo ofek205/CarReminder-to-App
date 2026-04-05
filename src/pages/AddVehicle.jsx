@@ -275,7 +275,7 @@ export default function AddVehicle() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
 
     // vehicle_type is required by the backend — guard before saving
     if (!form.vehicle_type || form.vehicle_type.trim() === '') {
@@ -1277,7 +1277,8 @@ export default function AddVehicle() {
                 )}
 
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handleSubmit}
                   disabled={saving || (!form?.vehicle_type_id && !form?.vehicle_type)}
                   className="w-full h-14 rounded-2xl font-bold text-base transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
                   style={{ background: T.yellow, color: T.primary, boxShadow: `0 4px 16px ${T.yellow}50` }}
