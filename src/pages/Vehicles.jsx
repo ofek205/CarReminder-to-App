@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus, Car, Ship, Bike, Truck, Star, Mountain, Search, SlidersHorizontal, X, CheckCircle, Clock, AlertTriangle, ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { C, getTheme, getVehicleCategory, isOffroadType } from '@/lib/designTokens';
 import { isVessel, isOffroad, getVehicleLabels } from '../components/shared/DateStatusUtils';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import PageHeader from '../components/shared/PageHeader';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
@@ -235,7 +235,8 @@ function PremiumEmptyState({ hasFilters, onClearFilters }) {
 
 function VehiclesContent({ vehicles, isLoading }) {
   // ── Filter & sort state ─────────────────────────────────────────────────
-  const urlCategory = new URLSearchParams(window.location.search).get('category');
+  const location = useLocation();
+  const urlCategory = new URLSearchParams(location.search).get('category');
   const isVesselPage = urlCategory === 'vessel';
 
   // Pre-filter: vessel page shows only vessels, regular page shows only non-vessels
