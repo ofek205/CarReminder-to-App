@@ -160,7 +160,10 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
           {/* No-photo icon */}
           {!hasPhoto && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <VehicleIcon className="w-20 h-20" style={{ color: 'rgba(255,255,255,0.12)' }} />
+              <div className="w-24 h-24 rounded-3xl flex items-center justify-center"
+                style={{ background: 'rgba(255,255,255,0.1)' }}>
+                <VehicleIcon className="w-12 h-12" style={{ color: 'rgba(255,255,255,0.5)', strokeWidth: 1.5 }} />
+              </div>
             </div>
           )}
 
@@ -390,10 +393,13 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           </div>
         </Link>
 
-        {/* No-photo icon */}
+        {/* No-photo vehicle icon */}
         {!hasPhoto && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <VehicleIcon className="w-20 h-20" style={{ color: 'rgba(255,255,255,0.12)' }} />
+            <div className="w-24 h-24 rounded-3xl flex items-center justify-center"
+              style={{ background: 'rgba(255,255,255,0.1)' }}>
+              <VehicleIcon className="w-12 h-12" style={{ color: 'rgba(255,255,255,0.5)', strokeWidth: 1.5 }} />
+            </div>
           </div>
         )}
 
