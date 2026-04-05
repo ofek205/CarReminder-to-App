@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Car, FileText, User, Home, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck } from "lucide-react";
+import { Plus, Car, FileText, User, Home, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, AlertCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
@@ -327,6 +327,14 @@ function VehicleRow({ vehicle }) {
   const name = vehicle.nickname || [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ') || (isVessel ? 'כלי שייט' : 'רכב');
   const subtitle = [vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' · ');
 
+  // Missing fields
+  const missingFields = [];
+  if (!vehicle.test_due_date) missingFields.push(isVessel ? 'כושר שייט' : 'טסט');
+  if (!vehicle.insurance_due_date) missingFields.push(isVessel ? 'ביטוח ימי' : 'ביטוח');
+  if (!vehicle.license_plate) missingFields.push('מספר רישוי');
+  if (!vehicle.vehicle_photo) missingFields.push('תמונה');
+  const hasMissing = missingFields.length > 0 && !vehicle._isDemo;
+
   // Status badges
   const badges = [];
   if (testDays !== null) {
@@ -382,6 +390,14 @@ function VehicleRow({ vehicle }) {
                 {Number(vehicle.current_km).toLocaleString()} ק"מ
               </p>
             )
+          )}
+          {hasMissing && (
+            <div className="flex items-center gap-1 mt-1">
+              <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} />
+              <span className="text-[10px] font-bold" style={{ color: '#EA580C' }}>
+                פרטים חסרים: {missingFields.join(', ')}
+              </span>
+            </div>
           )}
         </div>
 
