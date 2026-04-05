@@ -348,7 +348,7 @@ function VehiclesContent({ vehicles, isLoading }) {
         actions={
           <Link to={createPageUrl('AddVehicle')}>
             <button className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-              style={{ background: T.yellow, color: T.primary }}>
+              style={{ background: isVesselPage ? T.primary : C.yellow, color: isVesselPage ? '#fff' : C.greenDark, boxShadow: `0 4px 12px ${T.primary}40` }}>
               {isVesselPage ? 'כלי שייט חדש' : 'רכב חדש'}
               <Plus className="h-4 w-4" />
             </button>
