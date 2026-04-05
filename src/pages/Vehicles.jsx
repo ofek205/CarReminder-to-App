@@ -235,9 +235,10 @@ function PremiumEmptyState({ hasFilters, onClearFilters }) {
 
 function VehiclesContent({ vehicles, isLoading }) {
   // ── Filter & sort state ─────────────────────────────────────────────────
+  const urlCategory = new URLSearchParams(window.location.search).get('category');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [activeCategoryTab, setActiveCategoryTab] = useState('all');
+  const [activeCategoryTab, setActiveCategoryTab] = useState(urlCategory || 'all');
   const [sortBy, setSortBy] = useState('name');
 
   // Debounce search

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, LayoutDashboard, Bell, Settings, Users, FileText, Menu, X, LogOut, Wrench, Star, UserCircle, CheckCircle, AlertTriangle, XCircle, Phone, Mail, CreditCard, UserPlus, ShieldCheck, MapPin } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Bell, Settings, Users, FileText, Menu, X, LogOut, Wrench, Star, UserCircle, CheckCircle, AlertTriangle, XCircle, Phone, Mail, CreditCard, UserPlus, ShieldCheck, MapPin } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -24,6 +24,7 @@ const navItems = [
   // ── ראשי ──
   { name: 'Dashboard',             label: 'דף הבית שלי',     icon: LayoutDashboard, guestAllowed: true },
   { name: 'Vehicles',              label: 'רכבים',            icon: Car,             guestAllowed: true },
+  { name: 'Vehicles?category=vessel', label: 'כלי שייט',      icon: Ship,            guestAllowed: true, vesselOnly: true },
   // ── ניהול ──
   { divider: true, title: 'ניהול' },
   { name: 'MaintenanceTemplates',  label: 'טיפולים ותיקונים', icon: Settings,        guestAllowed: true },
@@ -127,12 +128,16 @@ function UserPopover() {
   );
 }
 
-function NavContent({ currentPath, onItemClick }) {
+function NavContent({ currentPath, onItemClick, hasVessel }) {
   const { isAuthenticated, isGuest, user } = useAuth();
   const navigate = useNavigate();
   const isAdmin = user?.role === 'admin' || user?.email === 'ofek205@gmail.com';
   const visibleItems = navItems.filter(item =>
-    item.divider || ((isAuthenticated || item.guestAllowed) && (!item.adminOnly || isAdmin))
+    item.divider || (
+      (isAuthenticated || item.guestAllowed) &&
+      (!item.adminOnly || isAdmin) &&
+      (!item.vesselOnly || hasVessel)
+    )
   );
 
   const handleLogout = async () => {
@@ -161,11 +166,14 @@ function NavContent({ currentPath, onItemClick }) {
               </div>
             );
           }
-          const isActive = currentPath.includes(createPageUrl(item.name));
+          const itemUrl = item.name.includes('?') ? `/${item.name}` : createPageUrl(item.name);
+          const isActive = item.name.includes('?')
+            ? currentPath === `/${item.name}`
+            : currentPath.includes(createPageUrl(item.name));
           return (
             <Link
               key={item.name}
-              to={createPageUrl(item.name)}
+              to={itemUrl}
               onClick={onItemClick}
               className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
                 ${isActive ?
@@ -256,7 +264,30 @@ function LayoutInner({ children }) {
   );
   const [mileageReminderOpen, setMileageReminderOpen] = useState(false);
   const [mileageCheckDone, setMileageCheckDone] = useState(false);
-  const { isAuthenticated, isGuest, isLoading, user } = useAuth();
+  const { isAuthenticated, isGuest, isLoading, user, guestVehicles } = useAuth();
+  const [hasVessel, setHasVessel] = useState(false);
+
+  // Detect if user has vessels
+  useEffect(() => {
+    if (isGuest) {
+      setHasVessel((guestVehicles || []).some(v =>
+        ['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי'].includes(v.vehicle_type)
+      ));
+    } else if (isAuthenticated && user) {
+      (async () => {
+        try {
+          const { db } = await import('@/lib/supabaseEntities');
+          const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
+          if (members.length > 0) {
+            const vehicles = await db.vehicles.filter({ account_id: members[0].account_id });
+            setHasVessel(vehicles.some(v =>
+              ['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי'].includes(v.vehicle_type)
+            ));
+          }
+        } catch {}
+      })();
+    }
+  }, [isGuest, isAuthenticated, user, guestVehicles]);
 
   const isAuthRoute = location.pathname === '/Auth' || location.pathname === '/';
 
@@ -316,7 +347,7 @@ function LayoutInner({ children }) {
       <div className="min-h-screen bg-white flex">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-64 bg-white border-l border-gray-100 flex-col fixed right-0 top-0 bottom-0 z-30">
-        <NavContent currentPath={location.pathname} />
+        <NavContent currentPath={location.pathname} hasVessel={hasVessel} />
       </aside>
 
       {/* Mobile top bar */}
@@ -330,7 +361,7 @@ function LayoutInner({ children }) {
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="p-0 w-72">
-              <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} />
+              <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} hasVessel={hasVessel} />
             </SheetContent>
           </Sheet>
           {isAuthenticated ? <UserPopover /> : (
