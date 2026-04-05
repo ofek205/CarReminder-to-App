@@ -307,7 +307,6 @@ export default function AddVehicle() {
 
     const data = {
       ...form,
-      license_plate_normalized: normalizePlate(form.license_plate),
       year: form.year ? Number(form.year) : undefined,
       current_km: form.current_km ? Number(form.current_km) : undefined,
       // km_baseline is set once at creation — used as the counting floor for service alerts
@@ -354,9 +353,9 @@ export default function AddVehicle() {
       }
 
       // Only keep known DB columns — strip everything else
-      const DB_COLUMNS = ['account_id','vehicle_type_id','vehicle_type','manufacturer_id','manufacturer','model','year',
-        'nickname','license_plate','license_plate_normalized','test_due_date','insurance_due_date','insurance_company',
-        'current_km','current_engine_hours','km_baseline','engine_hours_baseline','vehicle_photo','fuel_type','is_vintage',
+      const DB_COLUMNS = ['account_id','vehicle_type','manufacturer','model','year',
+        'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
+        'current_km','current_engine_hours','vehicle_photo','fuel_type','is_vintage',
         'last_tire_change_date','km_since_tire_change',
         'flag_country','engine_manufacturer','pyrotechnics_expiry_date','fire_extinguisher_expiry_date',
         'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
@@ -369,7 +368,7 @@ export default function AddVehicle() {
         savedVehicle = await db.vehicles.create(cleanData);
       } catch (firstErr) {
         // Retry with even fewer fields
-        const MINIMAL = ['account_id','vehicle_type','manufacturer','model','year','nickname','license_plate','license_plate_normalized'];
+        const MINIMAL = ['account_id','vehicle_type','manufacturer','model','year','nickname','license_plate'];
         const minData = {};
         MINIMAL.forEach(k => { if (cleanData[k] !== undefined) minData[k] = cleanData[k]; });
         savedVehicle = await db.vehicles.create(minData);
