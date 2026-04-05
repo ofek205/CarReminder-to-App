@@ -268,11 +268,17 @@ function LayoutInner({ children }) {
   const [hasVessel, setHasVessel] = useState(false);
 
   // Detect if user has vessels
+  const VESSEL_TYPES = ['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי','יאכטה מנועית'];
+  const VESSEL_MFRS = ['beneteau','jeanneau','sea-doo','yamaha marine','zodiac','highfield','brig','sea ray','boston whaler'];
+  const isVesselVehicle = (v) => {
+    if (VESSEL_TYPES.includes(v.vehicle_type)) return true;
+    const mfr = (v.manufacturer || '').toLowerCase();
+    return VESSEL_MFRS.some(m => mfr.includes(m));
+  };
+
   useEffect(() => {
     if (isGuest) {
-      setHasVessel((guestVehicles || []).some(v =>
-        ['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי'].includes(v.vehicle_type)
-      ));
+      setHasVessel((guestVehicles || []).some(isVesselVehicle));
     } else if (isAuthenticated && user) {
       (async () => {
         try {
@@ -280,9 +286,7 @@ function LayoutInner({ children }) {
           const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
           if (members.length > 0) {
             const vehicles = await db.vehicles.filter({ account_id: members[0].account_id });
-            setHasVessel(vehicles.some(v =>
-              ['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי'].includes(v.vehicle_type)
-            ));
+            setHasVessel(vehicles.some(isVesselVehicle));
           }
         } catch {}
       })();
