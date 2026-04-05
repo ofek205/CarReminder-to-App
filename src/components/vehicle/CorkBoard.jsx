@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { motion, Reorder } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -34,21 +34,26 @@ function PinSvg({ color = '#DC2626' }) {
 }
 
 // ── Sticky Note ────────────────────────────────────────────────────────────
-function StickyNote({ note, readOnly, onEdit }) {
+function StickyNote({ note, readOnly, onEdit, constraintsRef }) {
   const colorDef = COLORS[note.color] || COLORS.yellow;
   const rotation = note.rotation || 0;
   const isOverdue = note.due_date && new Date(note.due_date) < new Date();
+  const [isDragging, setIsDragging] = useState(false);
 
   return (
-    <Reorder.Item
-      value={note}
-      dragListener={!readOnly}
+    <motion.div
+      drag={!readOnly}
+      dragConstraints={constraintsRef}
+      dragElastic={0.1}
+      dragMomentum={false}
+      onDragStart={() => setIsDragging(true)}
+      onDragEnd={() => setTimeout(() => setIsDragging(false), 100)}
       initial={{ scale: 0.8, opacity: 0 }}
       animate={{ scale: 1, opacity: 1, rotate: rotation }}
-      whileDrag={{ scale: 1.05, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', zIndex: 50 }}
-      whileTap={readOnly ? {} : { scale: 0.97 }}
-      onClick={() => !readOnly && onEdit(note)}
-      className="relative cursor-grab active:cursor-grabbing select-none"
+      whileDrag={{ scale: 1.08, rotate: 0, zIndex: 50, boxShadow: '0 12px 40px rgba(0,0,0,0.25)' }}
+      onClick={() => { if (!isDragging && !readOnly) onEdit(note); }}
+      className={`relative select-none ${readOnly ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
+      style={{ touchAction: 'none' }}
     >
       {/* Pin */}
       <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">
@@ -94,7 +99,7 @@ function StickyNote({ note, readOnly, onEdit }) {
           </p>
         )}
       </div>
-    </Reorder.Item>
+    </motion.div>
   );
 }
 
@@ -232,6 +237,7 @@ function NoteDialog({ open, onClose, note, onSave, onDelete }) {
 export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }) {
   const { user, guestCorkNotes, addGuestCorkNote, updateGuestCorkNote, removeGuestCorkNote } = useAuth();
   const queryClient = useQueryClient();
+  const boardRef = useRef(null);
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
   const ThemeIcon = isVessel ? Anchor : Wrench;
@@ -252,19 +258,9 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
     : [];
 
   const guestNotesForVehicle = (guestCorkNotes || []).filter(n => n.vehicle_id === vehicle.id);
-  const rawNotes = isGuest
+  const notes = isGuest
     ? (guestNotesForVehicle.length > 0 ? guestNotesForVehicle : demoNotes)
     : authNotes;
-  const [orderedIds, setOrderedIds] = useState(null);
-
-  // Maintain drag order while keeping data fresh
-  const notes = orderedIds
-    ? orderedIds.map(id => rawNotes.find(n => n.id === id)).filter(Boolean)
-    : rawNotes;
-
-  const setOrderedNotes = (newOrder) => {
-    setOrderedIds(newOrder.map(n => n.id));
-  };
 
   const randomRotation = () => Math.round((Math.random() - 0.5) * 6);
 
@@ -345,7 +341,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
       </div>
 
       {/* Cork board surface */}
-      <div className="relative p-4" dir="rtl"
+      <div ref={boardRef} className="relative p-4" dir="rtl"
         style={{
           minHeight: '200px',
           background: `
@@ -389,19 +385,14 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
             )}
           </div>
         ) : (
-          <Reorder.Group
-            axis="y"
-            values={notes}
-            onReorder={setOrderedNotes}
-            className="grid grid-cols-2 sm:grid-cols-3 gap-4 relative z-10"
-            as="div"
-          >
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 relative z-10">
             {notes.map(note => (
               <StickyNote
                 key={note.id}
                 note={note}
                 readOnly={readOnly}
                 onEdit={openEdit}
+                constraintsRef={boardRef}
               />
             ))}
 
@@ -420,7 +411,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
                 <span className="text-xs font-bold" style={{ color: 'rgba(255,255,255,0.7)' }}>פתק חדש</span>
               </motion.button>
             )}
-          </Reorder.Group>
+          </div>
         )}
       </div>
 
