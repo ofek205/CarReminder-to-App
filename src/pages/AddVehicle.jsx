@@ -339,16 +339,22 @@ export default function AddVehicle() {
       return;
     }
 
-    data.account_id = accountId;
-    const savedVehicle = await db.vehicles.create(data);
-    queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+    try {
+      data.account_id = accountId;
+      const savedVehicle = await db.vehicles.create(data);
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
 
-    // TODO: migrate Document entity to Supabase for vessel license
-    // if (vesselLicenseFileUrl && savedVehicle?.id) { ... }
+      // TODO: migrate Document entity to Supabase for vessel license
+      // if (vesselLicenseFileUrl && savedVehicle?.id) { ... }
 
-    if (user) await trackUserAction(user.id);
-    setSaving(false);
-    setShowSuccess(true);
+      if (user) await trackUserAction(user.id);
+      setSaving(false);
+      setShowSuccess(true);
+    } catch (err) {
+      if (import.meta.env.DEV) console.error('Vehicle save error:', err);
+      toast.error('שגיאה בשמירת הרכב. נסה שוב.');
+      setSaving(false);
+    }
   };
 
   const handleAddAnother = () => {
