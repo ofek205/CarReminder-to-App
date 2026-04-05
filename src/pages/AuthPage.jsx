@@ -306,10 +306,10 @@ export default function AuthPage() {
 
               {/* Guest — very subtle */}
               <button onClick={handleGuest}
-                className="w-full py-3.5 rounded-2xl font-semibold text-sm transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
-                style={{ background: C.yellowSoft, color: C.greenDark, border: `1px solid #F0E4B0` }}>
+                className="w-full py-2.5 text-sm font-medium transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-1"
+                style={{ color: '#9CA3AF' }}>
                 <span>כניסה כאורח</span>
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
             </div>
 

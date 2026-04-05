@@ -134,7 +134,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
       {/* Hero card — matches Dashboard style */}
       <div className="rounded-b-3xl overflow-hidden" style={{ boxShadow: `0 8px 32px ${T.primary}25` }}>
         {/* Photo / gradient */}
-        <div className="relative" style={{ height: hasPhoto ? '240px' : '180px' }}>
+        <div className="relative" style={{ height: hasPhoto ? '220px' : '150px' }}>
           {hasPhoto ? (
             <img src={vehicle.vehicle_photo} alt={name} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: '50% 55%' }} />
           ) : (
@@ -372,7 +372,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   return (
     <div className="-mx-4 -mt-4" dir="rtl">
       {/* ── Hero Card ── */}
-      <div className="relative overflow-hidden" style={{ height: hasPhoto ? '240px' : '180px' }}>
+      <div className="relative overflow-hidden" style={{ height: hasPhoto ? '220px' : '150px' }}>
         {hasPhoto ? (
           <img src={vehicle.vehicle_photo} alt={name}
             className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: '50% 55%' }} />

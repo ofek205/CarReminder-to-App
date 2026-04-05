@@ -237,7 +237,6 @@ function VehiclesContent({ vehicles, isLoading }) {
   // ── Filter & sort state ─────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [activeStatusFilter, setActiveStatusFilter] = useState(undefined); // null='all', 'ok', 'soon', 'overdue'
   const [activeCategoryTab, setActiveCategoryTab] = useState('all');
   const [sortBy, setSortBy] = useState('name');
 
@@ -273,11 +272,6 @@ function VehiclesContent({ vehicles, isLoading }) {
   const filteredVehicles = useMemo(() => {
     let result = [...vehicleMeta];
 
-    // Status filter
-    if (activeStatusFilter) {
-      result = result.filter(m => m.status === activeStatusFilter);
-    }
-
     // Category filter
     if (activeCategoryTab !== 'all') {
       result = result.filter(m => m.category === activeCategoryTab);
@@ -310,14 +304,13 @@ function VehiclesContent({ vehicles, isLoading }) {
     });
 
     return result.map(m => m.vehicle);
-  }, [vehicleMeta, activeStatusFilter, activeCategoryTab, debouncedSearch, sortBy]);
+  }, [vehicleMeta, activeCategoryTab, debouncedSearch, sortBy]);
 
-  const hasActiveFilters = activeStatusFilter || activeCategoryTab !== 'all' || debouncedSearch.trim();
+  const hasActiveFilters = activeCategoryTab !== 'all' || debouncedSearch.trim();
 
   const clearAllFilters = () => {
     setSearchQuery('');
     setDebouncedSearch('');
-    setActiveStatusFilter(undefined);
     setActiveCategoryTab('all');
   };
 
@@ -364,8 +357,21 @@ function VehiclesContent({ vehicles, isLoading }) {
         <PremiumEmptyState hasFilters={false} />
       ) : (
         <>
-          {/* Status Summary */}
-          <StatusSummaryBar counts={statusCounts} activeFilter={activeStatusFilter} onFilter={setActiveStatusFilter} />
+          {/* Quick status line */}
+          {(statusCounts.overdue > 0 || statusCounts.soon > 0) && (
+            <div className="flex items-center gap-3 mb-3 px-1" dir="rtl">
+              {statusCounts.overdue > 0 && (
+                <span className="text-xs font-bold flex items-center gap-1" style={{ color: C.error }}>
+                  <AlertTriangle className="w-3.5 h-3.5" /> {statusCounts.overdue} באיחור
+                </span>
+              )}
+              {statusCounts.soon > 0 && (
+                <span className="text-xs font-bold flex items-center gap-1" style={{ color: C.warn }}>
+                  <Clock className="w-3.5 h-3.5" /> {statusCounts.soon} בקרוב
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Category Tabs */}
           {Object.values(categoryCounts).filter(c => c > 0).length > 2 && (

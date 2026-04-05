@@ -24,15 +24,18 @@ const navItems = [
   // ── ראשי ──
   { name: 'Dashboard',             label: 'דף הבית שלי',     icon: LayoutDashboard, guestAllowed: true },
   { name: 'Vehicles',              label: 'רכבים',            icon: Car,             guestAllowed: true },
+  // ── ניהול ──
+  { divider: true, title: 'ניהול' },
   { name: 'MaintenanceTemplates',  label: 'טיפולים ותיקונים', icon: Settings,        guestAllowed: true },
-  // ── מסמכים ותאונות ──
   { name: 'Documents',             label: 'מסמכים',           icon: FileText,        guestAllowed: true },
   { name: 'Accidents',             label: 'תאונות',           icon: AlertTriangle,   guestAllowed: true },
   // ── כלים ──
+  { divider: true, title: 'כלים' },
   { name: 'FindGarage',            label: 'מצא מוסך',        icon: MapPin,          guestAllowed: true },
   { name: 'Notifications',         label: 'התראות',           icon: Bell,            guestAllowed: true },
-  { name: 'ReminderSettingsPage',  label: 'הגדרות תזכורות',  icon: Bell,            guestAllowed: true },
+  { name: 'ReminderSettingsPage',  label: 'הגדרות תזכורות',  icon: Settings,        guestAllowed: true },
   // ── חשבון ──
+  { divider: true, title: 'חשבון' },
   { name: 'UserProfile',           label: 'אזור אישי',       icon: UserCircle,      guestAllowed: true },
   { name: 'AccountSettings',       label: 'שיתוף חשבון',      icon: Users,           guestAllowed: true },
   { name: 'AdminReviews',          label: 'חוות דעת',         icon: Star,            guestAllowed: true },
@@ -129,7 +132,7 @@ function NavContent({ currentPath, onItemClick }) {
   const navigate = useNavigate();
   const isAdmin = user?.role === 'admin' || user?.email === 'ofek205@gmail.com';
   const visibleItems = navItems.filter(item =>
-    (isAuthenticated || item.guestAllowed) && (!item.adminOnly || isAdmin)
+    item.divider || ((isAuthenticated || item.guestAllowed) && (!item.adminOnly || isAdmin))
   );
 
   const handleLogout = async () => {
@@ -149,8 +152,15 @@ function NavContent({ currentPath, onItemClick }) {
           </div>
         )}
       </div>
-      <nav className="flex-1 p-3 space-y-1" dir="rtl">
-        {visibleItems.map((item) => {
+      <nav className="flex-1 p-3 space-y-0.5" dir="rtl">
+        {visibleItems.map((item, i) => {
+          if (item.divider) {
+            return (
+              <div key={`div-${i}`} className="pt-3 pb-1.5 px-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#9CA3AF' }}>{item.title}</p>
+              </div>
+            );
+          }
           const isActive = currentPath.includes(createPageUrl(item.name));
           return (
             <Link
