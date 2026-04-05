@@ -1294,9 +1294,13 @@ export default function AddVehicle() {
                   onClick={handleSubmit}
                   disabled={saving || (!form?.vehicle_type_id && !form?.vehicle_type)}
                   className="w-full h-14 rounded-2xl font-bold text-base transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
-                  style={{ background: T.yellow, color: T.primary, boxShadow: `0 4px 16px ${T.yellow}50` }}
+                  style={{
+                    background: isVesselCategory ? T.primary : T.yellow,
+                    color: isVesselCategory ? '#fff' : T.primary,
+                    boxShadow: `0 4px 16px ${T.primary}40`
+                  }}
                 >
-                  {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : 'שמור רכב'}
+                  {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : isVesselCategory ? 'שמור כלי שייט' : 'שמור רכב'}
                 </button>
               </form>
             </div>
