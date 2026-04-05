@@ -931,7 +931,7 @@ export default function AddVehicle() {
                         value={form.license_plate}
                         onChange={e => handleChange('license_plate', e.target.value)}
                         onClear={() => handleChange('license_plate', '')}
-                        required dir="ltr" placeholder={isVesselCategory ? 'IL-12345' : '00-000-00'}
+                        dir="ltr" placeholder={isVesselCategory ? 'IL-12345' : '00-000-00'}
                         className={autofillCls('license_plate', autofillFields)}
                       />
                       <AutofillHint name="license_plate" autofillFields={autofillFields} />
