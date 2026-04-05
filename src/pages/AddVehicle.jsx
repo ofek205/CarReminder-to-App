@@ -123,11 +123,17 @@ export default function AddVehicle() {
     if (!isAuthenticated || !user) return;
     async function init() {
       setUserId(user.id);
-      const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-      if (members.length > 0) {
-        setAccountId(members[0].account_id);
-        const vs = await db.vehicles.filter({ account_id: members[0].account_id });
-        setExistingVehicles(vs);
+      try {
+        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
+        if (members.length > 0) {
+          setAccountId(members[0].account_id);
+          const vs = await db.vehicles.filter({ account_id: members[0].account_id });
+          setExistingVehicles(vs);
+        } else {
+          console.warn('AddVehicle: No active account_members found for user', user.id);
+        }
+      } catch (err) {
+        console.error('AddVehicle: Failed to load account info', err);
       }
     }
     init();
@@ -279,7 +285,7 @@ export default function AddVehicle() {
 
     // vehicle_type is required by the backend — guard before saving
     if (!form.vehicle_type || form.vehicle_type.trim() === '') {
-      toast.error('יש לבחור סוג כלי רכב לפני השמירה');
+      alert('יש לבחור סוג כלי רכב לפני השמירה');
       return;
     }
 
@@ -292,7 +298,7 @@ export default function AddVehicle() {
       );
       if (duplicate) {
         setDuplicateVehicle(duplicate);
-        toast.error('רכב עם מספר רישוי זה כבר קיים במערכת');
+        alert('רכב עם מספר רישוי זה כבר קיים במערכת');
         return;
       }
     }
@@ -343,7 +349,7 @@ export default function AddVehicle() {
     try {
       data.account_id = accountId;
       if (!accountId) {
-        toast.error('שגיאה: חשבון לא נמצא. נסה להתנתק ולהתחבר מחדש.');
+        alert('שגיאה: חשבון לא נמצא. נסה להתנתק ולהתחבר מחדש.');
         setSaving(false);
         return;
       }
@@ -367,11 +373,10 @@ export default function AddVehicle() {
 
       try { if (user) await trackUserAction(user.id); } catch {}
       setSaving(false);
-      toast.success('הרכב נוסף בהצלחה!');
       setShowSuccess(true);
     } catch (err) {
-      if (import.meta.env.DEV) console.error('Vehicle save error:', err);
-      toast.error('שגיאה בשמירת הרכב. נסה שוב.');
+      console.error('Vehicle save error:', err);
+      alert('שגיאה בשמירת הרכב. נסה שוב.');
       setSaving(false);
     }
   };
