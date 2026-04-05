@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Car, Ship, Bike, Truck, ChevronLeft, Gauge, Clock, Calendar, Shield, Wrench, MoreVertical, Edit, FileText, Trash2 } from 'lucide-react';
+import { Car, Ship, Bike, Truck, ChevronLeft, Gauge, Clock, Calendar, Shield, Wrench, MoreVertical, Edit, FileText, Trash2, AlertCircle } from 'lucide-react';
 import { getTheme, getVehicleCategory, C } from '@/lib/designTokens';
 import { getDateStatus, isVessel, isOffroad, usesKm, usesHours, getVehicleLabels } from '../shared/DateStatusUtils';
 import StatusBadge from '../shared/StatusBadge';
@@ -20,6 +20,14 @@ export default function VehicleCardEnhanced({ vehicle }) {
 
   const testStatus = getDateStatus(vehicle.test_due_date);
   const insStatus = getDateStatus(vehicle.insurance_due_date);
+
+  // Missing fields detection
+  const missingFields = [];
+  if (!vehicle.test_due_date) missingFields.push(labels.testWord);
+  if (!vehicle.insurance_due_date) missingFields.push(labels.insuranceWord || 'ביטוח');
+  if (!vehicle.license_plate) missingFields.push('מספר רישוי');
+  if (!vehicle.vehicle_photo) missingFields.push('תמונה');
+  const hasMissing = missingFields.length > 0 && !vehicle._isDemo;
 
   // Worst status for card border color
   const worstSt = [testStatus.status, insStatus.status].includes('danger') ? 'danger'
@@ -127,6 +135,17 @@ export default function VehicleCardEnhanced({ vehicle }) {
               <StatusBadge status={insStatus.status} label={insStatus.label} />
             </div>
           </div>
+
+          {/* Missing fields indicator */}
+          {hasMissing && (
+            <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1.5 rounded-lg"
+              style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#EA580C' }} />
+              <span className="text-[11px] font-bold" style={{ color: '#EA580C' }}>
+                חסר: {missingFields.join(', ')}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Chevron */}
