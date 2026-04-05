@@ -355,15 +355,19 @@ export default function AddVehicle() {
         const BASIC_FIELDS = ['account_id','vehicle_type_id','vehicle_type','manufacturer_id','manufacturer','model','year',
           'nickname','license_plate','license_plate_normalized','test_due_date','insurance_due_date','insurance_company',
           'current_km','current_engine_hours','km_baseline','engine_hours_baseline','vehicle_photo','fuel_type','is_vintage',
-          'last_tire_change_date','km_since_tire_change'];
+          'last_tire_change_date','km_since_tire_change',
+          'flag_country','engine_manufacturer','pyrotechnics_expiry_date','fire_extinguisher_expiry_date',
+          'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
+          'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
         const basicData = {};
         BASIC_FIELDS.forEach(k => { if (data[k] !== undefined) basicData[k] = data[k]; });
         savedVehicle = await db.vehicles.create(basicData);
       }
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
 
-      if (user) await trackUserAction(user.id);
+      try { if (user) await trackUserAction(user.id); } catch {}
       setSaving(false);
+      toast.success('הרכב נוסף בהצלחה!');
       setShowSuccess(true);
     } catch (err) {
       if (import.meta.env.DEV) console.error('Vehicle save error:', err);
