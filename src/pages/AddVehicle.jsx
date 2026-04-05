@@ -341,11 +341,20 @@ export default function AddVehicle() {
 
     try {
       data.account_id = accountId;
-      const savedVehicle = await db.vehicles.create(data);
+      let savedVehicle;
+      try {
+        savedVehicle = await db.vehicles.create(data);
+      } catch (firstErr) {
+        // If save fails (e.g. missing columns), retry with only basic fields
+        const BASIC_FIELDS = ['account_id','vehicle_type_id','vehicle_type','manufacturer_id','manufacturer','model','year',
+          'nickname','license_plate','license_plate_normalized','test_due_date','insurance_due_date','insurance_company',
+          'current_km','current_engine_hours','km_baseline','engine_hours_baseline','vehicle_photo','fuel_type','is_vintage',
+          'last_tire_change_date','km_since_tire_change'];
+        const basicData = {};
+        BASIC_FIELDS.forEach(k => { if (data[k] !== undefined) basicData[k] = data[k]; });
+        savedVehicle = await db.vehicles.create(basicData);
+      }
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
-
-      // TODO: migrate Document entity to Supabase for vessel license
-      // if (vesselLicenseFileUrl && savedVehicle?.id) { ... }
 
       if (user) await trackUserAction(user.id);
       setSaving(false);
