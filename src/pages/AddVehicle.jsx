@@ -347,27 +347,32 @@ export default function AddVehicle() {
     }
 
     try {
-      data.account_id = accountId;
       if (!accountId) {
         alert('שגיאה: חשבון לא נמצא. נסה להתנתק ולהתחבר מחדש.');
         setSaving(false);
         return;
       }
+
+      // Only keep known DB columns — strip everything else
+      const DB_COLUMNS = ['account_id','vehicle_type_id','vehicle_type','manufacturer_id','manufacturer','model','year',
+        'nickname','license_plate','license_plate_normalized','test_due_date','insurance_due_date','insurance_company',
+        'current_km','current_engine_hours','km_baseline','engine_hours_baseline','vehicle_photo','fuel_type','is_vintage',
+        'last_tire_change_date','km_since_tire_change',
+        'flag_country','engine_manufacturer','pyrotechnics_expiry_date','fire_extinguisher_expiry_date',
+        'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
+        'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
+      const cleanData = { account_id: accountId };
+      DB_COLUMNS.forEach(k => { if (data[k] !== undefined && data[k] !== null && data[k] !== '') cleanData[k] = data[k]; });
+
       let savedVehicle;
       try {
-        savedVehicle = await db.vehicles.create(data);
+        savedVehicle = await db.vehicles.create(cleanData);
       } catch (firstErr) {
-        // If save fails (e.g. missing columns), retry with only basic fields
-        const BASIC_FIELDS = ['account_id','vehicle_type_id','vehicle_type','manufacturer_id','manufacturer','model','year',
-          'nickname','license_plate','license_plate_normalized','test_due_date','insurance_due_date','insurance_company',
-          'current_km','current_engine_hours','km_baseline','engine_hours_baseline','vehicle_photo','fuel_type','is_vintage',
-          'last_tire_change_date','km_since_tire_change',
-          'flag_country','engine_manufacturer','pyrotechnics_expiry_date','fire_extinguisher_expiry_date',
-          'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
-          'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
-        const basicData = {};
-        BASIC_FIELDS.forEach(k => { if (data[k] !== undefined) basicData[k] = data[k]; });
-        savedVehicle = await db.vehicles.create(basicData);
+        // Retry with even fewer fields
+        const MINIMAL = ['account_id','vehicle_type','manufacturer','model','year','nickname','license_plate','license_plate_normalized'];
+        const minData = {};
+        MINIMAL.forEach(k => { if (cleanData[k] !== undefined) minData[k] = cleanData[k]; });
+        savedVehicle = await db.vehicles.create(minData);
       }
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
 
@@ -376,7 +381,8 @@ export default function AddVehicle() {
       setShowSuccess(true);
     } catch (err) {
       console.error('Vehicle save error:', err);
-      alert('שגיאה בשמירת הרכב. נסה שוב.');
+      const msg = err?.message || JSON.stringify(err) || 'שגיאה לא ידועה';
+      alert('שגיאה בשמירת הרכב:\n' + msg);
       setSaving(false);
     }
   };
