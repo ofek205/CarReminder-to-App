@@ -363,7 +363,7 @@ function LayoutInner({ children }) {
       </aside>
 
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed inset-x-0 top-0 z-50">
+      <div className="lg:hidden fixed inset-x-0 top-0 z-50" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', background: '#fff' }}>
         {isGuest && <GuestBanner />}
         <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-2">
           <Sheet open={open} onOpenChange={setOpen}>

@@ -20,8 +20,9 @@ export async function initStatusBar() {
   try {
     const { StatusBar, Style } = await import('@capacitor/status-bar');
     await StatusBar.setStyle({ style: Style.Light });
+    await StatusBar.setOverlaysWebView({ overlay: false });
     if (isAndroid) {
-      await StatusBar.setBackgroundColor({ color: '#16A34A' });
+      await StatusBar.setBackgroundColor({ color: '#2D5233' });
     }
   } catch (e) {
     console.warn('StatusBar plugin not available:', e);
