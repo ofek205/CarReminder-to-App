@@ -392,8 +392,9 @@ function VehicleRow({ vehicle }) {
             )
           )}
           {hasMissing && (
-            <div className="flex items-center gap-1 mt-1">
-              <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} />
+            <div className="flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-lg"
+              style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#EA580C' }} />
               <span className="text-[10px] font-bold" style={{ color: '#EA580C' }}>
                 פרטים חסרים: {missingFields.join(', ')}
               </span>
