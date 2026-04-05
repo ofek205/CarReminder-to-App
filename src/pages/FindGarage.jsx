@@ -157,11 +157,9 @@ function classifyType(tags, isMarine = false) {
   return 'garage';
 }
 
-const RADIUS_OPTIONS = [
-  { label: '2 ק"מ', value: 2000 },
-  { label: '5 ק"מ', value: 5000 },
-  { label: '10 ק"מ', value: 10000 },
-];
+const RADIUS_MIN = 1000;
+const RADIUS_MAX = 25000;
+const RADIUS_STEP = 1000;
 
 const QUICK_CITIES = [
   { name: 'תל אביב', lat: 32.0853, lng: 34.7818 },
@@ -451,29 +449,54 @@ export default function FindGarage() {
             </div>
           </div>
 
-          {/* Radius + Sort */}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-white/70">רדיוס:</span>
-              <div className="flex gap-1.5">
-                {RADIUS_OPTIONS.map(opt => (
-                  <button key={opt.value} onClick={() => setSearchRadius(opt.value)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                    style={{ background: searchRadius === opt.value ? C.yellow : 'rgba(255,255,255,0.15)', color: searchRadius === opt.value ? C.text : '#fff' }}>
-                    {opt.label}
-                  </button>
-                ))}
+          {/* City search */}
+          <div className="flex gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+              <input
+                value={cityQuery}
+                onChange={e => setCityQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') searchByCity(cityQuery); }}
+                placeholder="חפש עיר או כתובת..."
+                dir="rtl"
+                className="w-full h-10 pr-9 pl-3 rounded-xl text-sm font-medium outline-none"
+                style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
+              />
+            </div>
+            <button onClick={() => searchByCity(cityQuery)} disabled={searchingCity || !cityQuery.trim()}
+              className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 disabled:opacity-50 transition-all active:scale-[0.95]"
+              style={{ background: C.yellow, color: C.greenDark }}>
+              {searchingCity ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {/* Radius slider + Sort */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] text-white/70">רדיוס חיפוש:</span>
+                <span className="text-xs font-black text-white">{(searchRadius / 1000).toFixed(0)} ק"מ</span>
               </div>
+              <input
+                type="range"
+                min={RADIUS_MIN}
+                max={RADIUS_MAX}
+                step={RADIUS_STEP}
+                value={searchRadius}
+                onChange={e => setSearchRadius(Number(e.target.value))}
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to left, ${C.yellow} ${((searchRadius - RADIUS_MIN) / (RADIUS_MAX - RADIUS_MIN)) * 100}%, rgba(255,255,255,0.2) ${((searchRadius - RADIUS_MIN) / (RADIUS_MAX - RADIUS_MIN)) * 100}%)`,
+                  accentColor: C.yellow,
+                }}
+              />
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-white/70">מיון:</span>
-              <button onClick={() => setSortBy(s => s === 'distance' ? 'name' : 'distance')}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold"
-                style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}>
-                <ArrowUpDown className="w-3 h-3" />
-                {sortBy === 'distance' ? 'מרחק' : 'שם'}
-              </button>
-            </div>
+            <button onClick={() => setSortBy(s => s === 'distance' ? 'name' : 'distance')}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0"
+              style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}>
+              <ArrowUpDown className="w-3 h-3" />
+              {sortBy === 'distance' ? 'מרחק' : 'שם'}
+            </button>
           </div>
           {fetching && <Loader2 className="w-4 h-4 animate-spin text-white/70 mt-2" />}
         </div>
