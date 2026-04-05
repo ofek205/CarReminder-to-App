@@ -167,9 +167,17 @@ function NavContent({ currentPath, onItemClick, hasVessel }) {
             );
           }
           const itemUrl = item.name.includes('?') ? `/${item.name}` : createPageUrl(item.name);
-          const isActive = item.name.includes('?')
-            ? currentPath === `/${item.name}`
-            : currentPath.includes(createPageUrl(item.name));
+          const currentSearch = window.location.search || '';
+          let isActive;
+          if (item.vesselOnly) {
+            // "כלי שייט" is active only when on /Vehicles?category=vessel
+            isActive = currentPath.includes('/Vehicles') && currentSearch.includes('category=vessel');
+          } else if (item.name === 'Vehicles') {
+            // "רכבים" is active on /Vehicles WITHOUT ?category=vessel
+            isActive = currentPath.includes('/Vehicles') && !currentSearch.includes('category=vessel');
+          } else {
+            isActive = currentPath.includes(createPageUrl(item.name));
+          }
           return (
             <Link
               key={item.name}
