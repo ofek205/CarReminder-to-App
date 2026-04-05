@@ -130,12 +130,13 @@ function CategoryTabs({ activeTab, onTab, categoryCounts }) {
 }
 
 // ── Search + Filter Row ─────────────────────────────────────────────────────
-function SearchFilterRow({ searchQuery, onSearch, sortBy, onSort, isVessel }) {
+function SearchFilterRow({ searchQuery, onSearch, sortBy, onSort, isVessel, theme }) {
+  const T = theme || C;
   return (
     <div className="flex items-center gap-2 mb-3" dir="rtl">
       {/* Search */}
       <div className="relative flex-1">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: T.muted }} />
         <input
           type="text"
           value={searchQuery}
@@ -144,16 +145,16 @@ function SearchFilterRow({ searchQuery, onSearch, sortBy, onSort, isVessel }) {
           className="w-full h-10 pr-9 pl-3 rounded-xl border text-sm font-medium outline-none transition-all focus:ring-2"
           style={{
             background: '#fff',
-            borderColor: C.border,
-            color: C.text,
-            '--tw-ring-color': C.primary,
+            borderColor: T.border,
+            color: T.text,
+            '--tw-ring-color': T.primary,
           }}
           dir="rtl"
         />
         {searchQuery && (
           <button onClick={() => onSearch('')}
             className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-gray-100">
-            <X className="w-3 h-3" style={{ color: C.muted }} />
+            <X className="w-3 h-3" style={{ color: T.muted }} />
           </button>
         )}
       </div>
@@ -161,8 +162,8 @@ function SearchFilterRow({ searchQuery, onSearch, sortBy, onSort, isVessel }) {
       {/* Sort */}
       <Select value={sortBy} onValueChange={onSort}>
         <SelectTrigger className="w-[110px] h-10 rounded-xl text-xs font-bold shrink-0"
-          style={{ borderColor: C.border, color: C.text }}>
-          <ArrowUpDown className="w-3.5 h-3.5 shrink-0" style={{ color: C.muted }} />
+          style={{ borderColor: T.border, color: T.text }}>
+          <ArrowUpDown className="w-3.5 h-3.5 shrink-0" style={{ color: T.muted }} />
           <SelectValue />
         </SelectTrigger>
         <SelectContent dir="rtl">
@@ -191,34 +192,35 @@ function SkeletonCard() {
 }
 
 // ── Premium Empty State ─────────────────────────────────────────────────────
-function PremiumEmptyState({ hasFilters, onClearFilters }) {
+function PremiumEmptyState({ hasFilters, onClearFilters, theme, isVessel }) {
+  const T = theme || C;
   return (
-    <div className="rounded-3xl p-8 relative overflow-hidden" style={{ background: C.light }}>
-      <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full" style={{ background: `${C.primary}08` }} />
-      <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full" style={{ background: `${C.yellow}15` }} />
+    <div className="rounded-3xl p-8 relative overflow-hidden" style={{ background: T.light }}>
+      <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full" style={{ background: `${T.primary}08` }} />
+      <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full" style={{ background: `${T.yellow}15` }} />
       <div className="relative z-10 text-center">
         <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-          style={{ background: C.border }}>
-          <Car className="w-8 h-8" style={{ color: C.primary, opacity: 0.5 }} />
+          style={{ background: T.border }}>
+          {isVessel ? <Ship className="w-8 h-8" style={{ color: T.primary, opacity: 0.5 }} /> : <Car className="w-8 h-8" style={{ color: T.primary, opacity: 0.5 }} />}
         </div>
         {hasFilters ? (
           <>
-            <h3 className="font-black text-lg mb-2" style={{ color: C.text }}>לא נמצאו תוצאות</h3>
-            <p className="text-sm mb-5 max-w-xs mx-auto" style={{ color: C.muted }}>נסה לשנות את החיפוש או הסינון</p>
+            <h3 className="font-black text-lg mb-2" style={{ color: T.text }}>לא נמצאו תוצאות</h3>
+            <p className="text-sm mb-5 max-w-xs mx-auto" style={{ color: T.muted }}>נסה לשנות את החיפוש או הסינון</p>
             <button onClick={onClearFilters}
               className="px-6 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-              style={{ background: C.primary, color: '#fff' }}>
+              style={{ background: T.primary, color: '#fff' }}>
               נקה סינון
             </button>
           </>
         ) : (
           <>
-            <h3 className="font-black text-lg mb-2" style={{ color: C.text }}>אין רכבים עדיין</h3>
-            <p className="text-sm mb-5 max-w-xs mx-auto" style={{ color: C.muted }}>הוסף את הרכב הראשון שלך וקבל תזכורות לטסט, ביטוח וטיפולים</p>
+            <h3 className="font-black text-lg mb-2" style={{ color: T.text }}>{isVessel ? 'אין כלי שייט עדיין' : 'אין רכבים עדיין'}</h3>
+            <p className="text-sm mb-5 max-w-xs mx-auto" style={{ color: T.muted }}>{isVessel ? 'הוסף את כלי השייט הראשון שלך' : 'הוסף את הרכב הראשון שלך וקבל תזכורות לטסט, ביטוח וטיפולים'}</p>
             <Link to={createPageUrl('AddVehicle')}>
               <button className="px-8 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-                style={{ background: C.yellow, color: C.greenDark }}>
-                הוסף רכב
+                style={{ background: T.yellow, color: T.primary }}>
+                {isVessel ? 'הוסף כלי שייט' : 'הוסף רכב'}
                 <Plus className="w-4 h-4 inline mr-1.5" />
               </button>
             </Link>
@@ -238,6 +240,7 @@ function VehiclesContent({ vehicles, isLoading }) {
   const location = useLocation();
   const urlCategory = new URLSearchParams(location.search).get('category');
   const isVesselPage = urlCategory === 'vessel';
+  const T = isVesselPage ? getTheme('כלי שייט') : C; // page-level theme
 
   // Pre-filter: vessel page shows only vessels, regular page shows only non-vessels
   const filteredByPage = useMemo(() => {
@@ -345,7 +348,7 @@ function VehiclesContent({ vehicles, isLoading }) {
         actions={
           <Link to={createPageUrl('AddVehicle')}>
             <button className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-              style={{ background: C.yellow, color: C.greenDark }}>
+              style={{ background: T.yellow, color: T.primary }}>
               {isVesselPage ? 'כלי שייט חדש' : 'רכב חדש'}
               <Plus className="h-4 w-4" />
             </button>
@@ -359,14 +362,14 @@ function VehiclesContent({ vehicles, isLoading }) {
           style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
           <span className="text-lg">👀</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black" style={{ color: '#92400E' }}>רכבים לדוגמה</p>
+            <p className="text-sm font-black" style={{ color: '#92400E' }}>{isVesselPage ? 'כלי שייט לדוגמה' : 'רכבים לדוגמה'}</p>
             <p className="text-xs" style={{ color: '#B45309' }}>הוסף את הרכב האמיתי שלך כדי להתחיל</p>
           </div>
         </div>
       )}
 
       {filteredByPage.length === 0 ? (
-        <PremiumEmptyState hasFilters={false} />
+        <PremiumEmptyState hasFilters={false} theme={T} isVessel={isVesselPage} />
       ) : (
         <>
           {/* Quick status line */}
@@ -397,6 +400,7 @@ function VehiclesContent({ vehicles, isLoading }) {
             sortBy={sortBy}
             onSort={setSortBy}
             isVessel={isVesselPage}
+            theme={T}
           />
 
           {/* Result count */}
@@ -416,7 +420,7 @@ function VehiclesContent({ vehicles, isLoading }) {
 
           {/* Vehicle list */}
           {filteredVehicles.length === 0 ? (
-            <PremiumEmptyState hasFilters={true} onClearFilters={clearAllFilters} />
+            <PremiumEmptyState hasFilters={true} onClearFilters={clearAllFilters} theme={T} isVessel={isVesselPage} />
           ) : (
             <div>
               {filteredVehicles.map(v => (
