@@ -895,19 +895,17 @@ export default function AddVehicle() {
                     <label className="cursor-pointer">
                       <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
                       {photoPreview ? (
-                        <img src={photoPreview} alt="" className="w-28 h-28 rounded-2xl object-cover border-2 border-dashed border-gray-200" />
+                        <img src={photoPreview} alt="" className="w-full h-32 rounded-2xl object-cover border-2 border-gray-200" />
                       ) : (
-                        <div className="w-28 h-28 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 hover:border-[#4B7A53] transition-all duration-200">
-                          <Camera className="h-6 w-6 mb-1" />
-                          <span className="text-xs">גלריה</span>
+                        <div className="w-full h-32 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-2 transition-all duration-200"
+                          style={{ borderColor: T.border, background: T.light }}>
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: T.primary }}>
+                            <Camera className="h-6 w-6 text-white" />
+                          </div>
+                          <span className="text-sm font-bold" style={{ color: T.primary }}>צרף תמונה</span>
+                          <span className="text-[10px]" style={{ color: T.muted }}>גלריה או מצלמה</span>
                         </div>
                       )}
-                    </label>
-                    {/* Camera capture badge */}
-                    <label className="absolute -bottom-2 -left-2 cursor-pointer text-white rounded-full p-2.5 shadow-md transition-colors" aria-label="צלם תמונה"
-                      style={{ background: T.primary }}>
-                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
-                      <Camera className="h-3.5 w-3.5" />
                     </label>
                   </div>
                 </div>
