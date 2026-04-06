@@ -54,6 +54,7 @@ const SelectContent = React.forwardRef(({ className, children, position = "poppe
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
+      dir="rtl"
       className={cn(
         "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-2xl border border-[#E5E0D8] bg-white text-[#1C2E20] shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
         position === "popper" &&
@@ -90,12 +91,12 @@ const SelectItem = React.forwardRef(({ className, children, ...props }, ref) => 
       className
     )}
     {...props}>
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+    <SelectPrimitive.ItemText className="flex-1 text-right">{children}</SelectPrimitive.ItemText>
+    <span className="flex h-3.5 w-3.5 items-center justify-center shrink-0 mr-2">
       <SelectPrimitive.ItemIndicator>
         <Check className="h-4 w-4" />
       </SelectPrimitive.ItemIndicator>
     </span>
-    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ))
 SelectItem.displayName = SelectPrimitive.Item.displayName
