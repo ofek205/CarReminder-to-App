@@ -106,10 +106,11 @@ function UrgentBanner({ reminders, vehicles }) {
         <h2 className="font-black text-[1.5rem] sm:text-2xl mb-1.5 leading-tight text-white" dir="rtl">
           {typeLabel}
         </h2>
-        {vehicleName && (
-          <p className="text-base font-semibold mb-5" style={{ color: 'rgba(255,255,255,0.85)' }} dir="rtl">
+        {vehicleName && urgentVehicle && (
+          <Link to={`${createPageUrl('VehicleDetail')}?id=${urgentVehicle.id}`}
+            className="text-base font-semibold mb-5 block underline decoration-white/30 hover:decoration-white/60 transition-all" style={{ color: 'rgba(255,255,255,0.85)' }} dir="rtl">
             {vehicleName} &bull; {daysLabel(urgent.days)}
-          </p>
+          </Link>
         )}
         <Link to={createPageUrl('Notifications')}>
           <button className="w-full py-3.5 rounded-2xl font-bold text-base transition-all active:scale-[0.98]"
