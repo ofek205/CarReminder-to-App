@@ -912,29 +912,14 @@ export default function AddVehicle() {
                   </div>
                 </div>
 
-                {/* ── Nickname card (green) ── */}
-                <div className="rounded-2xl p-4 mb-4 relative overflow-hidden"
-                  style={{ background: T.grad }}>
-                  <div className="absolute -top-6 -left-6 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-                  <div className="flex items-center gap-3 mb-3" dir="rtl">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: T.yellow }}>
-                      <Car className="w-5 h-5" style={{ color: T.primary }} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>כינוי לרכב</p>
-                      <p className="text-white font-bold text-base">{form.nickname || 'הקורולה של אבא'}</p>
-                    </div>
-                    <button type="button" className="mr-auto" onClick={() => document.getElementById('nickname-input')?.focus()}>
-                      <PenLine className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.5)' }} />
-                    </button>
-                  </div>
+                {/* ── Nickname field ── */}
+                <div>
+                  <Label className="text-right block mb-1.5">{isVesselCategory ? 'כינוי לכלי שייט' : 'כינוי לרכב'}</Label>
                   <Input
-                    id="nickname-input"
                     value={form.nickname}
                     onChange={e => handleChange('nickname', e.target.value)}
                     onClear={() => handleChange('nickname', '')}
-                    placeholder='למשל: "הקורולה של אבא"'
-                    className="!bg-white/10 !border-white/20 !text-white !placeholder:text-white/40 rounded-xl"
+                    placeholder={isVesselCategory ? 'למשל: "היאכטה של אבא"' : 'למשל: "הקורולה של אבא"'}
                   />
                 </div>
 
