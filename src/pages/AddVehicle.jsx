@@ -912,23 +912,21 @@ export default function AddVehicle() {
                   </div>
                 </div>
 
-                {/* ── Nickname field ── */}
-                <div>
-                  <Label className="text-right block mb-1.5">{isVesselCategory ? 'כינוי לכלי שייט' : 'כינוי לרכב'}</Label>
-                  <Input
-                    value={form.nickname}
-                    onChange={e => handleChange('nickname', e.target.value)}
-                    onClear={() => handleChange('nickname', '')}
-                    placeholder={isVesselCategory ? 'למשל: "היאכטה של אבא"' : 'למשל: "הקורולה של אבא"'}
-                  />
-                </div>
-
                 {/* ── Form fields ── */}
-                <div className="space-y-4" dir="rtl">
-                  {/* מספר רישוי + דגל (vessels) */}
-                  <div className={isVesselCategory ? 'grid grid-cols-2 gap-3' : ''}>
+                <div className="space-y-3" dir="rtl">
+                  {/* כינוי + מספר רישוי — 2 columns */}
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>{isVesselCategory ? 'מספר זיהוי *' : 'מספר רישוי *'}</Label>
+                      <Label>{isVesselCategory ? 'כינוי' : 'כינוי'}</Label>
+                      <Input
+                        value={form.nickname}
+                        onChange={e => handleChange('nickname', e.target.value)}
+                        onClear={() => handleChange('nickname', '')}
+                        placeholder={isVesselCategory ? 'היאכטה שלי' : 'הקורולה שלי'}
+                      />
+                    </div>
+                    <div>
+                      <Label>{isVesselCategory ? 'מספר זיהוי' : 'מספר רישוי'}</Label>
                       <Input
                         value={form.license_plate}
                         onChange={e => handleChange('license_plate', e.target.value)}
@@ -938,15 +936,6 @@ export default function AddVehicle() {
                       />
                       <AutofillHint name="license_plate" autofillFields={autofillFields} />
                     </div>
-                    {isVesselCategory && (
-                      <div>
-                        <Label>דגל מדינה</Label>
-                        <CountryFlagSelect
-                          value={form.flag_country}
-                          onChange={v => handleChange('flag_country', v)}
-                        />
-                      </div>
-                    )}
                   </div>
 
                   {/* יצרן + דגם — 2 columns */}
@@ -990,19 +979,7 @@ export default function AddVehicle() {
                     </div>
                   </div>
 
-                  {/* Engine manufacturer — vessels only */}
-                  {selectedCategory?.label === 'כלי שייט' && (
-                    <div>
-                      <Label>יצרן מנוע</Label>
-                      <Input
-                        value={form.engine_manufacturer}
-                        onChange={e => handleChange('engine_manufacturer', e.target.value)}
-                        placeholder="לדוגמה: Yamaha, Mercury, Volvo"
-                      />
-                    </div>
-                  )}
-
-                  {/* שנת ייצור + סוג דלק — 2 columns */}
+                  {/* שנת ייצור + סוג דלק / יצרן מנוע — 2 columns */}
                   <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>שנת ייצור</Label>
@@ -1031,28 +1008,41 @@ export default function AddVehicle() {
                     )}
                   </div>
                   <div>
-                    <Label>סוג דלק / הנעה</Label>
-                    <SelectWithClear
-                      value={form.fuel_type}
-                      onValueChange={v => handleChange('fuel_type', v)}
-                      onClear={() => handleChange('fuel_type', '')}
-                      placeholder="בחר סוג דלק"
-                      triggerClassName={autofillCls('fuel_type', autofillFields)}
-                    >
-                      <SelectContent>
-                        {['בנזין', 'סולר', 'חשמלי', 'היברידי', 'גז'].map(f => (
-                          <SelectItem key={f} value={f}>{f}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </SelectWithClear>
-                    <AutofillHint name="fuel_type" autofillFields={autofillFields} />
+                    {isVesselCategory ? (
+                      <>
+                        <Label>יצרן מנוע</Label>
+                        <Input
+                          value={form.engine_manufacturer}
+                          onChange={e => handleChange('engine_manufacturer', e.target.value)}
+                          placeholder="Yamaha, Mercury..."
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <Label>סוג דלק</Label>
+                        <SelectWithClear
+                          value={form.fuel_type}
+                          onValueChange={v => handleChange('fuel_type', v)}
+                          onClear={() => handleChange('fuel_type', '')}
+                          placeholder="בחר"
+                          triggerClassName={autofillCls('fuel_type', autofillFields)}
+                        >
+                          <SelectContent>
+                            {['בנזין', 'סולר', 'חשמלי', 'היברידי', 'גז'].map(f => (
+                              <SelectItem key={f} value={f}>{f}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </SelectWithClear>
+                        <AutofillHint name="fuel_type" autofillFields={autofillFields} />
+                      </>
+                    )}
                   </div>
-                  </div>{/* end grid שנה+דלק */}
+                  </div>{/* end grid שנה+דלק/מנוע */}
 
-                  {/* תאריך טסט + ביטוח — 2 columns */}
+                  {/* טסט + ביטוח + ק"מ/שעות + חברת ביטוח — 2x2 grid */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>{selectedCategory?.label === 'כלי שייט' ? 'תאריך כושר שייט' : 'תאריך טסט קרוב'}</Label>
+                      <Label>{isVesselCategory ? 'כושר שייט' : 'תאריך טסט'}</Label>
                       <DateInput
                         value={form.test_due_date}
                         onChange={e => handleChange('test_due_date', e.target.value)}
@@ -1061,7 +1051,7 @@ export default function AddVehicle() {
                       <AutofillHint name="test_due_date" autofillFields={autofillFields} />
                     </div>
                     <div>
-                      <Label>חידוש ביטוח קרוב</Label>
+                      <Label>{isVesselCategory ? 'ביטוח ימי' : 'חידוש ביטוח'}</Label>
                       <DateInput
                         value={form.insurance_due_date}
                         onChange={e => handleChange('insurance_due_date', e.target.value)}
@@ -1069,23 +1059,17 @@ export default function AddVehicle() {
                     </div>
                   </div>
 
-                  {/* קילומטראז' */}
-                  {usageMetric === 'קילומטרים' && (
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>קילומטראז׳ נוכחי</Label>
-                      <Input type="number" value={form.current_km} onChange={e => handleChange('current_km', e.target.value)} placeholder="0" dir="ltr" />
+                      <Label>{usageMetric === 'שעות מנוע' ? 'שעות מנוע' : 'קילומטראז׳'}</Label>
+                      {usageMetric === 'שעות מנוע' ? (
+                        <Input type="number" value={form.current_engine_hours} onChange={e => handleChange('current_engine_hours', e.target.value)} placeholder="0" dir="ltr" />
+                      ) : (
+                        <Input type="number" value={form.current_km} onChange={e => handleChange('current_km', e.target.value)} placeholder="0" dir="ltr" />
+                      )}
                     </div>
-                  )}
-                  {usageMetric === 'שעות מנוע' && (
                     <div>
-                      <Label>שעות מנוע</Label>
-                      <Input type="number" value={form.current_engine_hours} onChange={e => handleChange('current_engine_hours', e.target.value)} placeholder="0" dir="ltr" />
-                    </div>
-                  )}
-
-                  {/* חברת ביטוח */}
-                  <div>
-                    <Label>חברת ביטוח</Label>
+                      <Label>חברת ביטוח</Label>
                     <SelectWithClear
                       value={form.insurance_company}
                       onValueChange={v => handleChange('insurance_company', v)}
@@ -1102,6 +1086,18 @@ export default function AddVehicle() {
                       <Input className="mt-2" placeholder="שם החברה" value={form.insurance_company_other} onChange={e => handleChange('insurance_company_other', e.target.value)} />
                     )}
                   </div>
+                  </div>{/* end grid ק"מ+ביטוח */}
+
+                  {/* דגל מדינה — vessels only */}
+                  {isVesselCategory && (
+                    <div>
+                      <Label>דגל מדינה (רישום)</Label>
+                      <CountryFlagSelect
+                        value={form.flag_country}
+                        onChange={v => handleChange('flag_country', v)}
+                      />
+                    </div>
+                  )}
 
                   {/* Safety Equipment — vessels only */}
                   {selectedCategory?.label === 'כלי שייט' && (
