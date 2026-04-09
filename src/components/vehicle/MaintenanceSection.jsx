@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
-import { Wrench, Plus, Calendar, Trash2, AlertTriangle } from 'lucide-react';
+import { Wrench, Plus, Calendar, Trash2, AlertTriangle, Settings } from 'lucide-react';
 import { getTheme } from '@/lib/designTokens';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ export default function MaintenanceSection({ vehicle }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState('טיפול'); // 'טיפול' or 'תיקון'
   const [saving, setSaving] = useState(false);
+  const [serviceSize, setServiceSize] = useState('small'); // 'small' or 'big' — only for טיפול
   const [form, setForm] = useState({ title: '', date: '', cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
 
   // Fetch logs from Supabase (or empty for guest)
@@ -50,7 +51,7 @@ export default function MaintenanceSection({ vehicle }) {
       const { supabase } = await import('@/lib/supabase');
       const row = {
         vehicle_id: vehicle.id,
-        type: dialogType,
+        type: dialogType === 'טיפול' ? (serviceSize === 'big' ? 'טיפול גדול' : 'טיפול קטן') : 'תיקון',
         title: form.title.trim(),
         date: form.date || null,
         cost: form.cost ? Number(form.cost) : null,
@@ -170,10 +171,64 @@ export default function MaintenanceSection({ vehicle }) {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2">
+            {/* Service size selector — only for טיפול */}
+            {dialogType === 'טיפול' && (
+              <div>
+                <Label className="mb-2 block">סוג הטיפול</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => { setServiceSize('small'); setForm(f => ({ ...f, title: '' })); }}
+                    className="rounded-xl p-3 text-center transition-all border-2"
+                    style={{
+                      background: serviceSize === 'small' ? T.light : '#fff',
+                      borderColor: serviceSize === 'small' ? T.primary : '#E5E7EB',
+                    }}>
+                    <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
+                      style={{ background: serviceSize === 'small' ? T.primary : '#E5E7EB' }}>
+                      <Wrench className="w-4 h-4" style={{ color: serviceSize === 'small' ? '#fff' : '#9CA3AF' }} />
+                    </div>
+                    <p className="text-sm font-bold" style={{ color: serviceSize === 'small' ? T.primary : '#6B7280' }}>טיפול קטן</p>
+                    <p className="text-[10px]" style={{ color: T.muted }}>שמן, פילטרים, מזגן</p>
+                  </button>
+                  <button type="button" onClick={() => { setServiceSize('big'); setForm(f => ({ ...f, title: '' })); }}
+                    className="rounded-xl p-3 text-center transition-all border-2"
+                    style={{
+                      background: serviceSize === 'big' ? '#FFF7ED' : '#fff',
+                      borderColor: serviceSize === 'big' ? '#F59E0B' : '#E5E7EB',
+                    }}>
+                    <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
+                      style={{ background: serviceSize === 'big' ? '#F59E0B' : '#E5E7EB' }}>
+                      <Settings className="w-4 h-4" style={{ color: serviceSize === 'big' ? '#fff' : '#9CA3AF' }} />
+                    </div>
+                    <p className="text-sm font-bold" style={{ color: serviceSize === 'big' ? '#D97706' : '#6B7280' }}>טיפול גדול</p>
+                    <p className="text-[10px]" style={{ color: T.muted }}>פלאגים, תזמון, בלמים</p>
+                  </button>
+                </div>
+                {/* Quick-pick chips */}
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  <Label className="w-full text-xs mb-0.5">מה בוצע?</Label>
+                  {(serviceSize === 'small'
+                    ? ['החלפת שמן', 'החלפת פילטר שמן', 'החלפת פילטר אוויר', 'החלפת פילטר מזגן']
+                    : ['החלפת פלאגים', 'החלפת חגורות תזמון', 'החלפת בלמים', 'החלפת מצמד', 'החלפת רפידות', 'טיפול במערכת קירור']
+                  ).map(item => (
+                    <button key={item} type="button"
+                      onClick={() => setForm(f => ({ ...f, title: f.title ? `${f.title}, ${item}` : item }))}
+                      className="px-2.5 py-1 rounded-full text-xs font-medium border transition-all active:scale-[0.95]"
+                      style={{
+                        background: form.title?.includes(item) ? T.light : '#fff',
+                        borderColor: form.title?.includes(item) ? T.primary : '#E5E7EB',
+                        color: form.title?.includes(item) ? T.primary : '#6B7280',
+                      }}>
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
-              <Label>כותרת *</Label>
+              <Label>{dialogType === 'טיפול' ? 'תיאור (או הוסף ידנית)' : 'כותרת *'}</Label>
               <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                placeholder={dialogType === 'תיקון' ? 'למשל: החלפת בלמים' : 'למשל: טיפול 10,000'} />
+                placeholder={dialogType === 'תיקון' ? 'למשל: החלפת בלמים' : 'טיפול שלא קיים ברשימה...'} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
