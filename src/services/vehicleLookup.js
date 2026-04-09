@@ -52,6 +52,15 @@ function mapRecord(r) {
   // tokef_dt = תאריך תוקף הרישיון (מועד הטסט הבא)
   if (r.tokef_dt) fields.test_due_date = safeDate(r.tokef_dt);
 
+  // Additional fields from gov API
+  if (r.zmig_kidmi)    fields.front_tire    = safeStr(r.zmig_kidmi, 40);
+  if (r.zmig_ahori)    fields.rear_tire     = safeStr(r.zmig_ahori, 40);
+  if (r.degem_manoa)   fields.engine_model  = safeStr(r.degem_manoa, 60);
+  if (r.tzeva_rechev)  fields.color         = safeStr(r.tzeva_rechev, 30);
+  if (r.mivchan_acharon_dt) fields.last_test_date = safeDate(r.mivchan_acharon_dt);
+  if (r.moed_aliya_lakvish) fields.first_registration_date = safeDate(r.moed_aliya_lakvish);
+  if (r.baalut)        fields.ownership     = safeStr(r.baalut, 30);
+
   return fields;
 }
 
