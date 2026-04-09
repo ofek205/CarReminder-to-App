@@ -646,7 +646,6 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-4" dir="rtl">
           <div>
             <h2 className="font-black text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
-            <p className="text-xs font-medium mt-0.5" style={{ color: C.muted }}>{vehicles.length} כלי תחבורה</p>
           </div>
           <Link to={createPageUrl('Vehicles')}
             className="flex items-center gap-1 text-sm font-bold" style={{ color: C.green }}>
