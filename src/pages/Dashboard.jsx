@@ -466,11 +466,12 @@ export default function Dashboard() {
         const sanitizeStr = (v, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '');
         const sanitizeNum = (v, min = 0, max = 9999999) => { const n = Number(v); return Number.isFinite(n) ? Math.min(Math.max(n, min), max) : undefined; };
         const sanitizeDateStr = (v) => { if (typeof v !== 'string') return undefined; return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined; };
-        const storedVehicles = getStoredGuestVehicles();
+        const storedVehicles = getStoredGuestVehicles().filter(v => !v._isDemo);
         if (storedVehicles.length > 0 && finalAccountId) {
           for (const gv of storedVehicles.slice(0, 20)) {
             await db.vehicles.create({
               account_id: finalAccountId,
+              vehicle_type: sanitizeStr(gv.vehicle_type, 40) || 'רכב',
               manufacturer: sanitizeStr(gv.manufacturer, 60),
               model: sanitizeStr(gv.model, 60),
               year: sanitizeNum(gv.year, 1900, 2030),
