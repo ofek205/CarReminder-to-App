@@ -678,7 +678,7 @@ export default function AddVehicle() {
                     onKeyDown={e => {
                       if (e.key === 'Enter') {
                         if (!newSubName.trim()) return;
-                        const newSub = { label: newSubName.trim(), dbName: newSubName.trim(), usageMetric: selectedCategory?.usageMetric || 'קילומטרים' };
+                        const newSub = { label: newSubName.trim(), dbName: selectedCategory?.dbName || newSubName.trim(), usageMetric: selectedCategory?.usageMetric || 'קילומטרים' };
                         setCustomSubcategories(prev => ({
                           ...prev,
                           [selectedCategory.label]: [...(prev[selectedCategory.label] || []), newSub],
@@ -698,7 +698,7 @@ export default function AddVehicle() {
                     disabled={!newSubName.trim()}
                     onClick={() => {
                       if (!newSubName.trim()) return;
-                      const newSub = { label: newSubName.trim(), dbName: newSubName.trim(), usageMetric: selectedCategory?.usageMetric || 'קילומטרים' };
+                      const newSub = { label: newSubName.trim(), dbName: selectedCategory?.dbName || newSubName.trim(), usageMetric: selectedCategory?.usageMetric || 'קילומטרים' };
                       setCustomSubcategories(prev => ({
                         ...prev,
                         [selectedCategory.label]: [...(prev[selectedCategory.label] || []), newSub],
