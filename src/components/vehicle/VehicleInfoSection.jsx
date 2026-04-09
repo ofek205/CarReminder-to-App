@@ -310,6 +310,54 @@ export default function VehicleInfoSection({ vehicle }) {
         />
       </div>
 
+      {/* ── Technical details from gov API ── */}
+      {(vehicle.engine_model || vehicle.front_tire || vehicle.rear_tire || vehicle.color || vehicle.ownership) && (
+        <div className="rounded-2xl p-4 space-y-2" style={{ background: '#fff', border: `1.5px solid ${T.border}` }}>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Cog className="w-4 h-4" style={{ color: T.primary }} />
+            <span className="text-sm font-bold" style={{ color: T.text }}>פרטים טכניים</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+            {vehicle.engine_model && (
+              <div className="flex items-center justify-between col-span-2" dir="rtl">
+                <span className="text-xs font-medium" style={{ color: T.muted }}>מנוע</span>
+                <span className="text-xs font-bold" style={{ color: T.text }}>{vehicle.engine_model}</span>
+              </div>
+            )}
+            {vehicle.color && (
+              <div className="flex items-center justify-between" dir="rtl">
+                <span className="text-xs font-medium" style={{ color: T.muted }}>צבע</span>
+                <span className="text-xs font-bold" style={{ color: T.text }}>{vehicle.color}</span>
+              </div>
+            )}
+            {vehicle.ownership && (
+              <div className="flex items-center justify-between" dir="rtl">
+                <span className="text-xs font-medium" style={{ color: T.muted }}>בעלות</span>
+                <span className="text-xs font-bold" style={{ color: T.text }}>{vehicle.ownership}</span>
+              </div>
+            )}
+            {vehicle.front_tire && (
+              <div className="flex items-center justify-between" dir="rtl">
+                <span className="text-xs font-medium" style={{ color: T.muted }}>צמיג קדמי</span>
+                <span className="text-xs font-bold" style={{ color: T.text }} dir="ltr">{vehicle.front_tire}</span>
+              </div>
+            )}
+            {vehicle.rear_tire && (
+              <div className="flex items-center justify-between" dir="rtl">
+                <span className="text-xs font-medium" style={{ color: T.muted }}>צמיג אחורי</span>
+                <span className="text-xs font-bold" style={{ color: T.text }} dir="ltr">{vehicle.rear_tire}</span>
+              </div>
+            )}
+            {vehicle.first_registration_date && (
+              <div className="flex items-center justify-between col-span-2" dir="rtl">
+                <span className="text-xs font-medium" style={{ color: T.muted }}>עלייה לכביש</span>
+                <span className="text-xs font-bold" style={{ color: T.text }}>{formatDateHe(vehicle.first_registration_date)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Vessel-specific sections ── */}
       {vesselMode && (
         <>

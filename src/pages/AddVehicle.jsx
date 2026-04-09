@@ -271,6 +271,14 @@ export default function AddVehicle() {
         test_due_date: fields.test_due_date || '',
         fuel_type: fields.fuel_type || '',
         is_vintage: isVintageVehicle(fields.year),
+        // Extra fields from gov API
+        front_tire: fields.front_tire || '',
+        rear_tire: fields.rear_tire || '',
+        engine_model: fields.engine_model || '',
+        color: fields.color || '',
+        last_test_date: fields.last_test_date || '',
+        first_registration_date: fields.first_registration_date || '',
+        ownership: fields.ownership || '',
       };
       setForm(prev => ({ ...prev, ...updates }));
       const filled = new Set(Object.entries(updates).filter(([k, v]) => v && k !== 'is_vintage').map(([k]) => k));
@@ -362,6 +370,7 @@ export default function AddVehicle() {
         'last_tire_change_date','km_since_tire_change',
         'flag_country','engine_manufacturer','pyrotechnics_expiry_date','fire_extinguisher_expiry_date',
         'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
+        'front_tire','rear_tire','engine_model','color','last_test_date','first_registration_date','ownership',
         'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
       const cleanData = { account_id: accountId };
       DB_COLUMNS.forEach(k => { if (data[k] !== undefined && data[k] !== null && data[k] !== '') cleanData[k] = data[k]; });
