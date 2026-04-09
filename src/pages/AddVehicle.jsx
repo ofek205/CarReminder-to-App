@@ -669,7 +669,7 @@ export default function AddVehicle() {
                     onKeyDown={e => {
                       if (e.key === 'Enter') {
                         if (!newSubName.trim()) return;
-                        const newSub = { label: newSubName.trim(), dbName: newSubName.trim(), usageMetric: 'קילומטרים' };
+                        const newSub = { label: newSubName.trim(), dbName: newSubName.trim(), usageMetric: selectedCategory?.usageMetric || 'קילומטרים' };
                         setCustomSubcategories(prev => ({
                           ...prev,
                           [selectedCategory.label]: [...(prev[selectedCategory.label] || []), newSub],
@@ -689,7 +689,7 @@ export default function AddVehicle() {
                     disabled={!newSubName.trim()}
                     onClick={() => {
                       if (!newSubName.trim()) return;
-                      const newSub = { label: newSubName.trim(), dbName: newSubName.trim(), usageMetric: 'קילומטרים' };
+                      const newSub = { label: newSubName.trim(), dbName: newSubName.trim(), usageMetric: selectedCategory?.usageMetric || 'קילומטרים' };
                       setCustomSubcategories(prev => ({
                         ...prev,
                         [selectedCategory.label]: [...(prev[selectedCategory.label] || []), newSub],
@@ -1067,7 +1067,7 @@ export default function AddVehicle() {
                       )}
                     </div>
                     <div>
-                      <Label>חברת ביטוח</Label>
+                      <Label>{isVesselCategory ? 'ביטוח ימי' : 'חברת ביטוח'}</Label>
                     <SelectWithClear
                       value={form.insurance_company}
                       onValueChange={v => handleChange('insurance_company', v)}
@@ -1075,7 +1075,10 @@ export default function AddVehicle() {
                       placeholder="בחר חברה..."
                     >
                       <SelectContent>
-                        {['ליברה', 'הפניקס', 'כלל', 'ישיר', 'מגדל', 'הראל', 'איילון', 'AIG', 'שומרה', 'אחר'].map(c => (
+                        {(isVesselCategory
+                          ? ['הכשרה', 'הראל', 'כלל', 'הפניקס', 'מגדל', 'איילון', 'שירביט', 'AIG', 'אחר']
+                          : ['ליברה', 'הפניקס', 'כלל', 'ישיר', 'מגדל', 'הראל', 'איילון', 'AIG', 'שומרה', 'אחר']
+                        ).map(c => (
                           <SelectItem key={c} value={c}>{c}</SelectItem>
                         ))}
                       </SelectContent>
