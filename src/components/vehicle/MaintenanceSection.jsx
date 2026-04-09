@@ -263,7 +263,12 @@ export default function MaintenanceSection({ vehicle }) {
                     : ['החלפת פלאגים', 'החלפת חגורות תזמון', 'החלפת בלמים', 'החלפת מצמד', 'החלפת רפידות', 'טיפול במערכת קירור']
                   ).map(item => (
                     <button key={item} type="button"
-                      onClick={() => setForm(f => ({ ...f, title: f.title ? `${f.title}, ${item}` : item }))}
+                      onClick={() => setForm(f => {
+                        const parts = (f.title || '').split(', ').filter(Boolean);
+                        const has = parts.includes(item);
+                        const next = has ? parts.filter(p => p !== item) : [...parts, item];
+                        return { ...f, title: next.join(', ') };
+                      })}
                       className="px-2.5 py-1 rounded-full text-xs font-medium border transition-all active:scale-[0.95]"
                       style={{
                         background: form.title?.includes(item) ? T.light : '#fff',
