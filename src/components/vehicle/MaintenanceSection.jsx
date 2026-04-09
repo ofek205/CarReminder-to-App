@@ -347,7 +347,7 @@ export default function MaintenanceSection({ vehicle }) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>ק"מ בזמן הטיפול</Label>
+                <Label>{vesselMode ? 'שעות מנוע בזמן הטיפול' : 'ק"מ בזמן הטיפול'}</Label>
                 <Input type="number" value={form.km_at_service} onChange={e => setForm(f => ({ ...f, km_at_service: e.target.value }))} placeholder="0" dir="ltr" />
               </div>
               <div className="relative">
