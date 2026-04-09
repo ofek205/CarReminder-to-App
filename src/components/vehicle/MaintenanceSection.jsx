@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
-import { Wrench, Plus, Calendar, Trash2, AlertTriangle, Settings, Camera, Image, X } from 'lucide-react';
+import { Wrench, Plus, Calendar, Trash2, AlertTriangle, Settings, Camera, Image, X, Sparkles, Loader2 } from 'lucide-react';
 import { getTheme } from '@/lib/designTokens';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,8 @@ export default function MaintenanceSection({ vehicle }) {
   const [dialogType, setDialogType] = useState('טיפול'); // 'טיפול' or 'תיקון'
   const [saving, setSaving] = useState(false);
   const [serviceSize, setServiceSize] = useState('small');
-  const [receiptPhoto, setReceiptPhoto] = useState(null); // base64 or URL
+  const [receiptPhoto, setReceiptPhoto] = useState(null);
+  const [aiScanning, setAiScanning] = useState(false);
   const [form, setForm] = useState({ title: '', date: '', cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
 
   // Fetch logs from Supabase (or empty for guest)
@@ -38,6 +39,54 @@ export default function MaintenanceSection({ vehicle }) {
     },
     enabled: !isGuest && !!vehicle.id,
   });
+
+  // AI receipt scanner
+  const scanReceipt = async (base64) => {
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+    if (!apiKey) return;
+    setAiScanning(true);
+    try {
+      const mediaType = base64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const imageData = base64.split(',')[1];
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 300,
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
+            { type: 'text', text: 'סרוק את הקבלה/חשבונית הזו וחלץ: 1) שם המוסך/עסק 2) סכום לתשלום 3) תאריך 4) תיאור קצר של העבודה. החזר JSON בלבד: {"garage":"","cost":"","date":"YYYY-MM-DD","description":""}. אם לא ניתן לזהות שדה — השאר ריק.' }
+          ]}],
+        }),
+      });
+      const json = await res.json();
+      const text = json?.content?.[0]?.text || '';
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        setForm(f => ({
+          ...f,
+          garage_name: parsed.garage || f.garage_name,
+          cost: parsed.cost || f.cost,
+          date: parsed.date || f.date,
+          title: parsed.description || f.title,
+        }));
+      }
+    } catch {} finally { setAiScanning(false); }
+  };
+
+  const handleReceiptUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const base64 = ev.target.result;
+      setReceiptPhoto(base64);
+      scanReceipt(base64);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const openDialog = (type) => {
     setDialogType(type);
@@ -258,41 +307,52 @@ export default function MaintenanceSection({ vehicle }) {
               <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="פרטים נוספים..." rows={2} />
             </div>
 
-            {/* Receipt photo */}
+            {/* Receipt photo + AI scan */}
             <div>
-              <Label>צילום קבלה / חשבונית</Label>
+              <Label className="flex items-center gap-1.5">
+                צילום קבלה / חשבונית
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"
+                  style={{ background: '#F0F4FF', color: '#6366F1', border: '1px solid #C7D2FE' }}>
+                  <Sparkles className="w-2.5 h-2.5" /> AI
+                </span>
+              </Label>
+
               {receiptPhoto ? (
-                <div className="relative mt-1">
-                  <img src={receiptPhoto} alt="קבלה" className="w-full h-32 object-cover rounded-xl border" style={{ borderColor: T.border }} />
-                  <button type="button" onClick={() => setReceiptPhoto(null)}
-                    className="absolute top-2 left-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow">
-                    <X className="w-3 h-3" />
+                <div className="relative mt-1.5">
+                  <img src={receiptPhoto} alt="קבלה" className="w-full h-36 object-cover rounded-xl border" style={{ borderColor: T.border }} />
+                  {aiScanning && (
+                    <div className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#6366F1' }} />
+                      <span className="text-xs font-bold" style={{ color: '#6366F1' }}>סורק קבלה...</span>
+                    </div>
+                  )}
+                  <button type="button" onClick={() => { setReceiptPhoto(null); setAiScanning(false); }}
+                    className="absolute top-2 left-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg">
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ) : (
-                <div className="flex gap-2 mt-1">
-                  <label className="flex-1 cursor-pointer">
-                    <input type="file" accept="image/*" className="hidden" onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) { const reader = new FileReader(); reader.onload = ev => setReceiptPhoto(ev.target.result); reader.readAsDataURL(file); }
-                    }} />
-                    <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed transition-all"
-                      style={{ borderColor: T.border, color: T.muted }}>
-                      <Image className="w-4 h-4" />
-                      <span className="text-xs font-bold">גלריה</span>
-                    </div>
-                  </label>
-                  <label className="flex-1 cursor-pointer">
-                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => {
-                      const file = e.target.files?.[0];
-                      if (file) { const reader = new FileReader(); reader.onload = ev => setReceiptPhoto(ev.target.result); reader.readAsDataURL(file); }
-                    }} />
-                    <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed transition-all"
-                      style={{ borderColor: T.border, color: T.muted }}>
-                      <Camera className="w-4 h-4" />
-                      <span className="text-xs font-bold">צלם קבלה</span>
-                    </div>
-                  </label>
+                <div className="mt-1.5 rounded-xl p-3 text-center"
+                  style={{ background: '#F8FAFC', border: `2px dashed ${T.border}` }}>
+                  <p className="text-[11px] mb-2" style={{ color: T.muted }}>
+                    צלם קבלה וה-AI ימלא את הפרטים אוטומטית
+                  </p>
+                  <div className="flex gap-2 justify-center">
+                    <label className="cursor-pointer">
+                      <input type="file" accept="image/*" className="hidden" onChange={handleReceiptUpload} />
+                      <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-[0.95]"
+                        style={{ background: '#fff', color: T.primary, border: `1.5px solid ${T.border}` }}>
+                        <Image className="w-3.5 h-3.5" /> גלריה
+                      </div>
+                    </label>
+                    <label className="cursor-pointer">
+                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleReceiptUpload} />
+                      <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-[0.95]"
+                        style={{ background: T.primary, color: '#fff' }}>
+                        <Camera className="w-3.5 h-3.5" /> צלם קבלה
+                      </div>
+                    </label>
+                  </div>
                 </div>
               )}
             </div>
