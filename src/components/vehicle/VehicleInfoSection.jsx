@@ -5,7 +5,17 @@ import StatusBadge from "../shared/StatusBadge";
 import { getDateStatus, formatDateHe, getVehicleTypeIcon, usesKm, usesHours, isVessel, isOffroad, getVehicleLabels } from "../shared/DateStatusUtils";
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES } from "../vehicle/VehicleTypeSelector";
 import { COUNTRIES } from "../vehicle/CountryFlagSelect";
-import { Gauge, Clock, Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Fuel, Info, Hash, Tag, Palette, Building2, Cog } from "lucide-react";
+import { Gauge, Clock, Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Fuel, Info, Hash, Tag, Palette, Building2, Cog, Anchor, MapPin, Edit } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { db } from '@/lib/supabaseEntities';
+
+// Israeli marinas
+const ISRAEL_MARINAS = [
+  'מרינה הרצליה', 'מרינה אשקלון', 'מרינה אשדוד', 'מרינה יפו',
+  'מרינה עתלית', 'מרינה חיפה', 'מרינה עכו', 'מרינה אילת',
+  'מרינה קיסריה', 'מרינה נתניה',
+];
 import MileageUpdateWidget from "./MileageUpdateWidget";
 import { getTheme } from '@/lib/designTokens';
 import { useQuery } from '@tanstack/react-query';
@@ -267,6 +277,24 @@ export default function VehicleInfoSection({ vehicle }) {
   const insuranceStatus = getDateStatus(vehicle.insurance_due_date);
   const vesselMode = isVessel(vehicle.vehicle_type, vehicle.nickname);
   const offroadMode = isOffroad(vehicle.vehicle_type);
+  const [editingMarina, setEditingMarina] = useState(false);
+  const [marinaValue, setMarinaValue] = useState(vehicle.marina || '');
+  const [marinaType, setMarinaType] = useState(vehicle.marina_abroad ? 'abroad' : 'israel');
+  const [savingMarina, setSavingMarina] = useState(false);
+
+  const saveMarina = async () => {
+    setSavingMarina(true);
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      await supabase.from('vehicles').update({
+        marina: marinaValue,
+        marina_abroad: marinaType === 'abroad',
+      }).eq('id', vehicle.id);
+      vehicle.marina = marinaValue;
+      vehicle.marina_abroad = marinaType === 'abroad';
+      setEditingMarina(false);
+    } catch {} finally { setSavingMarina(false); }
+  };
   const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
   const pyroStatus     = vesselMode ? getDateStatus(vehicle.pyrotechnics_expiry_date) : null;
   const extStatus      = vesselMode ? getDateStatus(vehicle.fire_extinguisher_expiry_date) : null;
@@ -361,6 +389,69 @@ export default function VehicleInfoSection({ vehicle }) {
       {/* ── Vessel-specific sections ── */}
       {vesselMode && (
         <>
+          {/* Marina */}
+          <div className="rounded-2xl p-4" style={{ background: '#fff', border: `1.5px solid ${T.border}` }} dir="rtl">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <Anchor className="w-4 h-4" style={{ color: T.primary }} />
+                <span className="text-sm font-bold" style={{ color: T.text }}>מרינת עגינה</span>
+              </div>
+              {!editingMarina && (
+                <button onClick={() => setEditingMarina(true)}
+                  className="text-xs font-bold flex items-center gap-1" style={{ color: T.primary }}>
+                  <Edit className="w-3 h-3" /> {vehicle.marina ? 'שנה' : 'הוסף'}
+                </button>
+              )}
+            </div>
+            {editingMarina ? (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => { setMarinaType('israel'); setMarinaValue(''); }}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-bold text-center transition-all"
+                    style={{ background: marinaType === 'israel' ? T.primary : '#F3F4F6', color: marinaType === 'israel' ? '#fff' : '#6B7280' }}>
+                    🇮🇱 ישראל
+                  </button>
+                  <button type="button" onClick={() => { setMarinaType('abroad'); setMarinaValue(''); }}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-bold text-center transition-all"
+                    style={{ background: marinaType === 'abroad' ? T.primary : '#F3F4F6', color: marinaType === 'abroad' ? '#fff' : '#6B7280' }}>
+                    🌍 חו"ל
+                  </button>
+                </div>
+                {marinaType === 'israel' ? (
+                  <Select value={marinaValue} onValueChange={setMarinaValue}>
+                    <SelectTrigger className="h-10 text-sm"><SelectValue placeholder="בחר מרינה..." /></SelectTrigger>
+                    <SelectContent dir="rtl">
+                      {ISRAEL_MARINAS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={marinaValue} onChange={e => setMarinaValue(e.target.value)} placeholder="שם המרינה בחו״ל..." />
+                )}
+                <div className="flex gap-2">
+                  <button onClick={saveMarina} disabled={!marinaValue || savingMarina}
+                    className="flex-1 py-2 rounded-lg text-xs font-bold text-white disabled:opacity-50 transition-all"
+                    style={{ background: T.primary }}>
+                    {savingMarina ? 'שומר...' : 'שמור'}
+                  </button>
+                  <button onClick={() => setEditingMarina(false)}
+                    className="px-3 py-2 rounded-lg text-xs font-bold" style={{ color: '#9CA3AF' }}>
+                    ביטול
+                  </button>
+                </div>
+              </div>
+            ) : (
+              vehicle.marina ? (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" style={{ color: T.primary }} />
+                  <span className="text-sm font-bold" style={{ color: T.text }}>{vehicle.marina}</span>
+                  {vehicle.marina_abroad && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: T.light, color: T.primary }}>חו"ל</span>}
+                </div>
+              ) : (
+                <p className="text-xs" style={{ color: T.muted }}>לא הוגדרה מרינת עגינה</p>
+              )
+            )}
+          </div>
+
           {/* Flag + engine info */}
           {(vehicle.flag_country || vehicle.engine_manufacturer) && (
             <div className="rounded-2xl p-4 space-y-2" style={{ background: '#fff', border: `1.5px solid ${T.border}` }}>
