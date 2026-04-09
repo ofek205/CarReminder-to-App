@@ -95,7 +95,7 @@ function UserPopover() {
         >
           <img src={logo} alt="CarReminder" className="w-10 h-10 rounded-xl object-cover shadow-sm transition-transform duration-200 group-hover:scale-105" />
           <div>
-            <h1 className="text-gray-900 mx-4 text-lg font-bold leading-tight group-hover:text-[#2D5233] transition-colors duration-200">ניהול רכבים</h1>
+            <h1 className="text-gray-900 mx-4 text-lg font-bold leading-tight group-hover:text-[#2D5233] transition-colors duration-200">ניהול כלי תחבורה</h1>
             <p className="text-slate-500 mx-4 my-1 text-xs">פתח אזור אישי</p>
           </div>
         </div>
@@ -151,7 +151,7 @@ function NavContent({ currentPath, onItemClick, hasVessel }) {
           <div className="flex items-center gap-3 px-1 py-1">
             <img src={logo} alt="CarReminder" className="w-10 h-10 rounded-xl object-cover shadow-sm" />
             <div>
-              <h1 className="text-gray-900 mx-4 text-lg font-bold leading-tight">ניהול רכבים</h1>
+              <h1 className="text-gray-900 mx-4 text-lg font-bold leading-tight">ניהול כלי תחבורה</h1>
               <p className="text-slate-500 mx-4 my-1 text-xs">מצב אורח</p>
             </div>
           </div>

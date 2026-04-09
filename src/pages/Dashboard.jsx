@@ -549,10 +549,10 @@ export default function Dashboard() {
 
           {/* Section header */}
           <div className="flex items-center justify-between mb-4" dir="rtl">
-            <h2 className="font-black text-2xl" style={{ color: C.text }}>הרכבים שלי</h2>
+            <h2 className="font-black text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
             <Link to={createPageUrl('Vehicles')}
               className="flex items-center gap-1 text-base font-extrabold" style={{ color: C.green }}>
-              נהל רכבים <ChevronLeft className="w-4 h-4" />
+              ניהול <ChevronLeft className="w-4 h-4" />
             </Link>
           </div>
 
@@ -645,12 +645,12 @@ export default function Dashboard() {
         {/* Header with vehicle count */}
         <div className="flex items-center justify-between mb-4" dir="rtl">
           <div>
-            <h2 className="font-black text-2xl" style={{ color: C.text }}>הרכבים שלי</h2>
-            <p className="text-xs font-medium mt-0.5" style={{ color: C.muted }}>{vehicles.length} כלי רכב</p>
+            <h2 className="font-black text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
+            <p className="text-xs font-medium mt-0.5" style={{ color: C.muted }}>{vehicles.length} כלי תחבורה</p>
           </div>
           <Link to={createPageUrl('Vehicles')}
             className="flex items-center gap-1 text-sm font-bold" style={{ color: C.green }}>
-            נהל רכבים <ChevronLeft className="w-4 h-4" />
+            ניהול <ChevronLeft className="w-4 h-4" />
           </Link>
         </div>
 
