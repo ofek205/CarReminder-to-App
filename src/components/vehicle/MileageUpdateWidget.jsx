@@ -37,10 +37,9 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
     }
     setSaving(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
       const update = isKm
-        ? { current_km: num, km_update_date: today }
-        : { current_engine_hours: num, engine_hours_update_date: today };
+        ? { current_km: num }
+        : { current_engine_hours: num };
 
       if (isGuest) {
         updateGuestVehicle(vehicle.id, update);
@@ -48,12 +47,11 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
         await db.vehicles.update(vehicle.id, update);
         queryClient.invalidateQueries({ queryKey: ['vehicle', vehicle.id] });
       }
-      toast.success(`${unit} עודכנו בהצלחה`);
       setOpen(false);
       setValue('');
       onUpdated?.(update);
-    } catch {
-      toast.error('שגיאה בשמירה, נסה שוב');
+    } catch (err) {
+      alert('שגיאה בשמירה: ' + (err?.message || 'נסה שוב'));
     } finally {
       setSaving(false);
     }
