@@ -1009,11 +1009,21 @@ export default function AddVehicle() {
                     {isVesselCategory ? (
                       <>
                         <Label>יצרן מנוע</Label>
-                        <Input
+                        <SelectWithClear
                           value={form.engine_manufacturer}
-                          onChange={e => handleChange('engine_manufacturer', e.target.value)}
-                          placeholder="Yamaha, Mercury..."
-                        />
+                          onValueChange={v => handleChange('engine_manufacturer', v)}
+                          onClear={() => handleChange('engine_manufacturer', '')}
+                          placeholder="בחר יצרן..."
+                        >
+                          <SelectContent>
+                            {['Yamaha', 'Mercury', 'Volvo Penta', 'Yanmar', 'Honda Marine', 'Suzuki Marine', 'Tohatsu', 'Evinrude', 'Mercruiser', 'Cummins', 'Caterpillar', 'Nanni', 'Vetus', 'אחר'].map(m => (
+                              <SelectItem key={m} value={m}>{m}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </SelectWithClear>
+                        {form.engine_manufacturer === 'אחר' && (
+                          <Input className="mt-2" placeholder="שם היצרן" value={form.engine_manufacturer_other || ''} onChange={e => handleChange('engine_manufacturer_other', e.target.value)} />
+                        )}
                       </>
                     ) : (
                       <>
