@@ -261,6 +261,56 @@ function DraggableA11yButton({ onClick }) {
   );
 }
 
+// ── Notification Bell (authenticated users only) ────────────────────────────
+function NotificationBell() {
+  const [count, setCount] = useState(0);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const { db } = await import('@/lib/supabaseEntities');
+        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
+        if (members.length === 0) return;
+        const vehicles = await db.vehicles.filter({ account_id: members[0].account_id });
+        // Count items that need attention (expired or within 30 days)
+        let urgent = 0;
+        const now = new Date();
+        vehicles.forEach(v => {
+          if (v.test_due_date) {
+            const days = Math.ceil((new Date(v.test_due_date) - now) / 86400000);
+            if (days <= 30) urgent++;
+          }
+          if (v.insurance_due_date) {
+            const days = Math.ceil((new Date(v.insurance_due_date) - now) / 86400000);
+            if (days <= 30) urgent++;
+          }
+        });
+        setCount(urgent);
+      } catch {}
+    })();
+  }, [user]);
+
+  return (
+    <button
+      onClick={() => navigate(createPageUrl('Notifications'))}
+      className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-[0.95]"
+      style={{ background: count > 0 ? '#FEF2F2' : '#F3F4F6' }}
+      aria-label="התראות"
+    >
+      <Bell className="w-5 h-5" style={{ color: count > 0 ? '#DC2626' : '#6B7280' }} />
+      {count > 0 && (
+        <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white"
+          style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220,38,38,0.4)' }}>
+          {count > 9 ? '9+' : count}
+        </span>
+      )}
+    </button>
+  );
+}
+
 function LayoutInner({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -376,7 +426,13 @@ function LayoutInner({ children }) {
               <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} hasVessel={hasVessel} />
             </SheetContent>
           </Sheet>
-          {isAuthenticated ? <UserPopover /> : (
+          {isAuthenticated ? (
+            <>
+              <UserPopover />
+              <div className="flex-1" />
+              <NotificationBell />
+            </>
+          ) : (
             <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
               <img src={logo} alt="CarReminder" className="h-11 rounded-xl object-contain shadow-sm" />
             </Link>
