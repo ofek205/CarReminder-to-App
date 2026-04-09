@@ -22,6 +22,21 @@ export default function MaintenanceSection({ vehicle }) {
   const [serviceSize, setServiceSize] = useState('small');
   const [receiptPhoto, setReceiptPhoto] = useState(null);
   const [aiScanning, setAiScanning] = useState(false);
+  const [garageDropdownOpen, setGarageDropdownOpen] = useState(false);
+
+  // Saved garages — persisted per user in localStorage
+  const GARAGES_KEY = 'saved_garages';
+  const getSavedGarages = () => {
+    try { return JSON.parse(localStorage.getItem(GARAGES_KEY) || '[]'); } catch { return []; }
+  };
+  const saveGarage = (name) => {
+    if (!name?.trim()) return;
+    const garages = getSavedGarages();
+    if (!garages.includes(name.trim())) {
+      garages.unshift(name.trim());
+      localStorage.setItem(GARAGES_KEY, JSON.stringify(garages.slice(0, 20)));
+    }
+  };
   const [form, setForm] = useState({ title: '', date: '', cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
 
   // Fetch logs from Supabase (or empty for guest)
@@ -109,7 +124,7 @@ export default function MaintenanceSection({ vehicle }) {
         notes: form.notes.trim() || null,
       };
       if (form.km_at_service) row.km_at_service = Number(form.km_at_service);
-      if (form.garage_name?.trim()) row.garage_name = form.garage_name.trim();
+      if (form.garage_name?.trim()) { row.garage_name = form.garage_name.trim(); saveGarage(row.garage_name); }
       if (form.performed_by?.trim()) row.performed_by = form.performed_by.trim();
       if (receiptPhoto) row.receipt_photo = receiptPhoto;
       await supabase.from('maintenance_logs').insert(row);
@@ -302,9 +317,33 @@ export default function MaintenanceSection({ vehicle }) {
                 <Label>ק"מ בזמן הטיפול</Label>
                 <Input type="number" value={form.km_at_service} onChange={e => setForm(f => ({ ...f, km_at_service: e.target.value }))} placeholder="0" dir="ltr" />
               </div>
-              <div>
+              <div className="relative">
                 <Label>מוסך / מבצע</Label>
-                <Input value={form.garage_name} onChange={e => setForm(f => ({ ...f, garage_name: e.target.value }))} placeholder="שם המוסך..." />
+                <Input
+                  value={form.garage_name}
+                  onChange={e => { setForm(f => ({ ...f, garage_name: e.target.value })); setGarageDropdownOpen(true); }}
+                  onFocus={() => setGarageDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setGarageDropdownOpen(false), 200)}
+                  placeholder="שם המוסך..."
+                />
+                {garageDropdownOpen && (() => {
+                  const saved = getSavedGarages();
+                  const filtered = saved.filter(g => !form.garage_name || g.includes(form.garage_name));
+                  if (filtered.length === 0) return null;
+                  return (
+                    <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-xl bg-white border shadow-lg max-h-32 overflow-y-auto"
+                      style={{ borderColor: T.border }}>
+                      {filtered.map(g => (
+                        <button key={g} type="button"
+                          onMouseDown={(e) => { e.preventDefault(); setForm(f => ({ ...f, garage_name: g })); setGarageDropdownOpen(false); }}
+                          className="w-full text-right px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
+                          style={{ color: T.text }}>
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <div>
