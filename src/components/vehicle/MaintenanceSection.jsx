@@ -4,6 +4,8 @@ import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import { Wrench, Plus, Calendar, Trash2, AlertTriangle, Settings, Camera, Image, X, Sparkles, Loader2 } from 'lucide-react';
 import { getTheme } from '@/lib/designTokens';
+import { isVessel as checkVessel } from '../shared/DateStatusUtils';
+import { Anchor } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +16,7 @@ import { formatDateHe } from '../shared/DateStatusUtils';
 
 export default function MaintenanceSection({ vehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
+  const vesselMode = checkVessel(vehicle.vehicle_type, vehicle.nickname);
   const { isGuest } = useAuth();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -106,6 +109,7 @@ export default function MaintenanceSection({ vehicle }) {
   const openDialog = (type) => {
     setDialogType(type);
     setForm({ title: '', date: new Date().toISOString().split('T')[0], cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
+    setServiceSize(vesselMode ? 'engine' : 'small');
     setReceiptPhoto(null);
     setDialogOpen(true);
   };
@@ -117,7 +121,9 @@ export default function MaintenanceSection({ vehicle }) {
       const { supabase } = await import('@/lib/supabase');
       const row = {
         vehicle_id: vehicle.id,
-        type: dialogType === 'טיפול' ? (serviceSize === 'big' ? 'טיפול גדול' : 'טיפול קטן') : 'תיקון',
+        type: dialogType === 'תיקון' ? 'תיקון'
+          : vesselMode ? (serviceSize === 'hull' ? 'טיפול גוף' : 'טיפול מנוע')
+          : (serviceSize === 'big' ? 'טיפול גדול' : 'טיפול קטן'),
         title: form.title.trim(),
         date: form.date || null,
         cost: form.cost ? Number(form.cost) : null,
@@ -238,44 +244,71 @@ export default function MaintenanceSection({ vehicle }) {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2">
-            {/* Service size selector — only for טיפול */}
+            {/* Service type selector — only for טיפול */}
             {dialogType === 'טיפול' && (
               <div>
                 <Label className="mb-2 block">סוג הטיפול</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => { setServiceSize('small'); setForm(f => ({ ...f, title: '' })); }}
-                    className="rounded-xl p-3 text-center transition-all border-2"
-                    style={{
-                      background: serviceSize === 'small' ? T.light : '#fff',
-                      borderColor: serviceSize === 'small' ? T.primary : '#E5E7EB',
-                    }}>
-                    <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
-                      style={{ background: serviceSize === 'small' ? T.primary : '#E5E7EB' }}>
-                      <Wrench className="w-4 h-4" style={{ color: serviceSize === 'small' ? '#fff' : '#9CA3AF' }} />
-                    </div>
-                    <p className="text-sm font-bold" style={{ color: serviceSize === 'small' ? T.primary : '#6B7280' }}>טיפול קטן</p>
-                    <p className="text-[10px]" style={{ color: T.muted }}>שמן, פילטרים, מזגן</p>
-                  </button>
-                  <button type="button" onClick={() => { setServiceSize('big'); setForm(f => ({ ...f, title: '' })); }}
-                    className="rounded-xl p-3 text-center transition-all border-2"
-                    style={{
-                      background: serviceSize === 'big' ? '#FFF7ED' : '#fff',
-                      borderColor: serviceSize === 'big' ? '#F59E0B' : '#E5E7EB',
-                    }}>
-                    <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
-                      style={{ background: serviceSize === 'big' ? '#F59E0B' : '#E5E7EB' }}>
-                      <Settings className="w-4 h-4" style={{ color: serviceSize === 'big' ? '#fff' : '#9CA3AF' }} />
-                    </div>
-                    <p className="text-sm font-bold" style={{ color: serviceSize === 'big' ? '#D97706' : '#6B7280' }}>טיפול גדול</p>
-                    <p className="text-[10px]" style={{ color: T.muted }}>פלאגים, תזמון, בלמים</p>
-                  </button>
+                <div className={`grid gap-2 ${vesselMode ? 'grid-cols-2' : 'grid-cols-2'}`}>
+                  {vesselMode ? (
+                    <>
+                      {/* Vessel: engine vs hull */}
+                      <button type="button" onClick={() => { setServiceSize('engine'); setForm(f => ({ ...f, title: '' })); }}
+                        className="rounded-xl p-3 text-center transition-all border-2"
+                        style={{ background: serviceSize === 'engine' ? T.light : '#fff', borderColor: serviceSize === 'engine' ? T.primary : '#E5E7EB' }}>
+                        <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
+                          style={{ background: serviceSize === 'engine' ? T.primary : '#E5E7EB' }}>
+                          <Settings className="w-4 h-4" style={{ color: serviceSize === 'engine' ? '#fff' : '#9CA3AF' }} />
+                        </div>
+                        <p className="text-sm font-bold" style={{ color: serviceSize === 'engine' ? T.primary : '#6B7280' }}>מנוע</p>
+                        <p className="text-[10px]" style={{ color: T.muted }}>שמן, פילטרים, אנודות</p>
+                      </button>
+                      <button type="button" onClick={() => { setServiceSize('hull'); setForm(f => ({ ...f, title: '' })); }}
+                        className="rounded-xl p-3 text-center transition-all border-2"
+                        style={{ background: serviceSize === 'hull' ? '#E0F7FA' : '#fff', borderColor: serviceSize === 'hull' ? '#0097A7' : '#E5E7EB' }}>
+                        <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
+                          style={{ background: serviceSize === 'hull' ? '#0097A7' : '#E5E7EB' }}>
+                          <Anchor className="w-4 h-4" style={{ color: serviceSize === 'hull' ? '#fff' : '#9CA3AF' }} />
+                        </div>
+                        <p className="text-sm font-bold" style={{ color: serviceSize === 'hull' ? '#0097A7' : '#6B7280' }}>גוף / שלד</p>
+                        <p className="text-[10px]" style={{ color: T.muted }}>ניקוי תחתית, מפרשים, צבע</p>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {/* Cars: small vs big */}
+                      <button type="button" onClick={() => { setServiceSize('small'); setForm(f => ({ ...f, title: '' })); }}
+                        className="rounded-xl p-3 text-center transition-all border-2"
+                        style={{ background: serviceSize === 'small' ? T.light : '#fff', borderColor: serviceSize === 'small' ? T.primary : '#E5E7EB' }}>
+                        <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
+                          style={{ background: serviceSize === 'small' ? T.primary : '#E5E7EB' }}>
+                          <Wrench className="w-4 h-4" style={{ color: serviceSize === 'small' ? '#fff' : '#9CA3AF' }} />
+                        </div>
+                        <p className="text-sm font-bold" style={{ color: serviceSize === 'small' ? T.primary : '#6B7280' }}>טיפול קטן</p>
+                        <p className="text-[10px]" style={{ color: T.muted }}>שמן, פילטרים, מזגן</p>
+                      </button>
+                      <button type="button" onClick={() => { setServiceSize('big'); setForm(f => ({ ...f, title: '' })); }}
+                        className="rounded-xl p-3 text-center transition-all border-2"
+                        style={{ background: serviceSize === 'big' ? '#FFF7ED' : '#fff', borderColor: serviceSize === 'big' ? '#F59E0B' : '#E5E7EB' }}>
+                        <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
+                          style={{ background: serviceSize === 'big' ? '#F59E0B' : '#E5E7EB' }}>
+                          <Settings className="w-4 h-4" style={{ color: serviceSize === 'big' ? '#fff' : '#9CA3AF' }} />
+                        </div>
+                        <p className="text-sm font-bold" style={{ color: serviceSize === 'big' ? '#D97706' : '#6B7280' }}>טיפול גדול</p>
+                        <p className="text-[10px]" style={{ color: T.muted }}>פלאגים, תזמון, בלמים</p>
+                      </button>
+                    </>
+                  )}
                 </div>
                 {/* Quick-pick chips */}
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   <Label className="w-full text-xs mb-0.5">מה בוצע?</Label>
-                  {(serviceSize === 'small'
-                    ? ['החלפת שמן', 'החלפת פילטר שמן', 'החלפת פילטר אוויר', 'החלפת פילטר מזגן']
-                    : ['החלפת פלאגים', 'החלפת חגורות תזמון', 'החלפת בלמים', 'החלפת מצמד', 'החלפת רפידות', 'טיפול במערכת קירור']
+                  {(vesselMode
+                    ? (serviceSize === 'engine'
+                      ? ['החלפת שמן מנוע', 'החלפת פילטר שמן', 'החלפת פילטר דלק', 'החלפת אנודות', 'החלפת מאייד מים', 'בדיקת רמת שמן', 'שטיפת מערכת קירור']
+                      : ['ניקוי תחתית', 'צביעת אנטי פאולינג', 'החלפת מפרשים', 'תיקון ג\'לקוט', 'שימון ונצ\'ים', 'בדיקת חיבורי שלד', 'ליטוש גוף', 'החלפת חבלים'])
+                    : (serviceSize === 'small'
+                      ? ['החלפת שמן', 'החלפת פילטר שמן', 'החלפת פילטר אוויר', 'החלפת פילטר מזגן']
+                      : ['החלפת פלאגים', 'החלפת חגורות תזמון', 'החלפת בלמים', 'החלפת מצמד', 'החלפת רפידות', 'טיפול במערכת קירור'])
                   ).map(item => (
                     <button key={item} type="button"
                       onClick={() => setForm(f => {
