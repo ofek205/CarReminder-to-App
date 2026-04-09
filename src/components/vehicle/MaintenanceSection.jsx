@@ -19,7 +19,7 @@ export default function MaintenanceSection({ vehicle }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState('טיפול'); // 'טיפול' or 'תיקון'
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ title: '', date: '', cost: '', notes: '' });
+  const [form, setForm] = useState({ title: '', date: '', cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
 
   // Fetch logs from Supabase (or empty for guest)
   const { data: logs = [] } = useQuery({
@@ -39,7 +39,7 @@ export default function MaintenanceSection({ vehicle }) {
 
   const openDialog = (type) => {
     setDialogType(type);
-    setForm({ title: '', date: new Date().toISOString().split('T')[0], cost: '', notes: '' });
+    setForm({ title: '', date: new Date().toISOString().split('T')[0], cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
     setDialogOpen(true);
   };
 
@@ -48,14 +48,18 @@ export default function MaintenanceSection({ vehicle }) {
     setSaving(true);
     try {
       const { supabase } = await import('@/lib/supabase');
-      await supabase.from('maintenance_logs').insert({
+      const row = {
         vehicle_id: vehicle.id,
         type: dialogType,
         title: form.title.trim(),
         date: form.date || null,
         cost: form.cost ? Number(form.cost) : null,
         notes: form.notes.trim() || null,
-      });
+      };
+      if (form.km_at_service) row.km_at_service = Number(form.km_at_service);
+      if (form.garage_name?.trim()) row.garage_name = form.garage_name.trim();
+      if (form.performed_by?.trim()) row.performed_by = form.performed_by.trim();
+      await supabase.from('maintenance_logs').insert(row);
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
       setDialogOpen(false);
     } catch (err) {
@@ -101,9 +105,25 @@ export default function MaintenanceSection({ vehicle }) {
 
         {/* Log list */}
         {logs.length === 0 ? (
-          <div className="py-6 text-center">
-            <Wrench className="w-7 h-7 mx-auto mb-2" style={{ color: T.muted, opacity: 0.3 }} />
-            <p className="text-xs font-medium" style={{ color: T.muted }}>עדיין לא תועדו טיפולים או תיקונים</p>
+          <div className="py-8 text-center px-4">
+            <div className="w-14 h-14 rounded-2xl mx-auto mb-3 flex items-center justify-center"
+              style={{ background: T.light }}>
+              <Wrench className="w-7 h-7" style={{ color: T.primary, opacity: 0.5 }} />
+            </div>
+            <p className="text-sm font-bold mb-1" style={{ color: T.text }}>עדיין לא תועדו טיפולים</p>
+            <p className="text-xs mb-4" style={{ color: T.muted }}>תעד טיפולים ותיקונים כדי לעקוב אחרי התחזוקה</p>
+            <div className="flex justify-center gap-2">
+              <button onClick={() => openDialog('טיפול')}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.95]"
+                style={{ background: T.primary, color: '#fff' }}>
+                הוסף טיפול <Plus className="w-4 h-4" />
+              </button>
+              <button onClick={() => openDialog('תיקון')}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.95]"
+                style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                הוסף תיקון <Plus className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: `${T.border}60` }}>
@@ -123,9 +143,11 @@ export default function MaintenanceSection({ vehicle }) {
                       {log.type}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     {log.date && <span className="text-[11px]" style={{ color: T.muted }}>{formatDateHe(log.date)}</span>}
                     {log.cost && <span className="text-[11px]" style={{ color: T.muted }}>₪{Number(log.cost).toLocaleString()}</span>}
+                    {log.km_at_service && <span className="text-[11px]" style={{ color: T.muted }}>{Number(log.km_at_service).toLocaleString()} ק"מ</span>}
+                    {log.garage_name && <span className="text-[11px]" style={{ color: T.muted }}>{log.garage_name}</span>}
                   </div>
                   {log.notes && <p className="text-xs mt-1 leading-relaxed" style={{ color: T.muted }}>{log.notes}</p>}
                 </div>
@@ -147,7 +169,7 @@ export default function MaintenanceSection({ vehicle }) {
               {dialogType === 'תיקון' ? 'הוספת תיקון' : 'הוספת טיפול'}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
+          <div className="space-y-3 pt-2">
             <div>
               <Label>כותרת *</Label>
               <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
@@ -161,6 +183,16 @@ export default function MaintenanceSection({ vehicle }) {
               <div>
                 <Label>עלות (₪)</Label>
                 <Input type="number" value={form.cost} onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} placeholder="0" dir="ltr" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>ק"מ בזמן הטיפול</Label>
+                <Input type="number" value={form.km_at_service} onChange={e => setForm(f => ({ ...f, km_at_service: e.target.value }))} placeholder="0" dir="ltr" />
+              </div>
+              <div>
+                <Label>מוסך / מבצע</Label>
+                <Input value={form.garage_name} onChange={e => setForm(f => ({ ...f, garage_name: e.target.value }))} placeholder="שם המוסך..." />
               </div>
             </div>
             <div>
