@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
-import { Wrench, Plus, Calendar, Trash2, AlertTriangle, Settings } from 'lucide-react';
+import { Wrench, Plus, Calendar, Trash2, AlertTriangle, Settings, Camera, Image, X } from 'lucide-react';
 import { getTheme } from '@/lib/designTokens';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,8 @@ export default function MaintenanceSection({ vehicle }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState('טיפול'); // 'טיפול' or 'תיקון'
   const [saving, setSaving] = useState(false);
-  const [serviceSize, setServiceSize] = useState('small'); // 'small' or 'big' — only for טיפול
+  const [serviceSize, setServiceSize] = useState('small');
+  const [receiptPhoto, setReceiptPhoto] = useState(null); // base64 or URL
   const [form, setForm] = useState({ title: '', date: '', cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
 
   // Fetch logs from Supabase (or empty for guest)
@@ -41,6 +42,7 @@ export default function MaintenanceSection({ vehicle }) {
   const openDialog = (type) => {
     setDialogType(type);
     setForm({ title: '', date: new Date().toISOString().split('T')[0], cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
+    setReceiptPhoto(null);
     setDialogOpen(true);
   };
 
@@ -60,6 +62,7 @@ export default function MaintenanceSection({ vehicle }) {
       if (form.km_at_service) row.km_at_service = Number(form.km_at_service);
       if (form.garage_name?.trim()) row.garage_name = form.garage_name.trim();
       if (form.performed_by?.trim()) row.performed_by = form.performed_by.trim();
+      if (receiptPhoto) row.receipt_photo = receiptPhoto;
       await supabase.from('maintenance_logs').insert(row);
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
       setDialogOpen(false);
@@ -254,6 +257,46 @@ export default function MaintenanceSection({ vehicle }) {
               <Label>הערות</Label>
               <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="פרטים נוספים..." rows={2} />
             </div>
+
+            {/* Receipt photo */}
+            <div>
+              <Label>צילום קבלה / חשבונית</Label>
+              {receiptPhoto ? (
+                <div className="relative mt-1">
+                  <img src={receiptPhoto} alt="קבלה" className="w-full h-32 object-cover rounded-xl border" style={{ borderColor: T.border }} />
+                  <button type="button" onClick={() => setReceiptPhoto(null)}
+                    className="absolute top-2 left-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2 mt-1">
+                  <label className="flex-1 cursor-pointer">
+                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) { const reader = new FileReader(); reader.onload = ev => setReceiptPhoto(ev.target.result); reader.readAsDataURL(file); }
+                    }} />
+                    <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed transition-all"
+                      style={{ borderColor: T.border, color: T.muted }}>
+                      <Image className="w-4 h-4" />
+                      <span className="text-xs font-bold">גלריה</span>
+                    </div>
+                  </label>
+                  <label className="flex-1 cursor-pointer">
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) { const reader = new FileReader(); reader.onload = ev => setReceiptPhoto(ev.target.result); reader.readAsDataURL(file); }
+                    }} />
+                    <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed transition-all"
+                      style={{ borderColor: T.border, color: T.muted }}>
+                      <Camera className="w-4 h-4" />
+                      <span className="text-xs font-bold">צלם קבלה</span>
+                    </div>
+                  </label>
+                </div>
+              )}
+            </div>
+
             <Button onClick={handleSave} disabled={saving} className="w-full h-11 rounded-2xl font-bold"
               style={{ background: dialogType === 'תיקון' ? '#DC2626' : T.primary, color: '#fff' }}>
               {saving ? 'שומר...' : dialogType === 'תיקון' ? 'שמור תיקון' : 'שמור טיפול'}
