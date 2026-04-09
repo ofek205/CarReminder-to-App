@@ -18,16 +18,14 @@ export const BOAT_SUBCATEGORIES = [
   { label: 'סירת גומי',   dbName: 'סירת גומי',    usageMetric: 'שעות מנוע' },
 ];
 
-// ─── Sub-categories for "אופנועים" ──────────────────────────────────────────
+// ─── Sub-categories for "אופנועים" (כביש בלבד) ─────────────────────────────
 export const MOTO_SUBCATEGORIES = [
   { label: 'אופנוע כביש',  dbName: 'אופנוע כביש',  usageMetric: 'קילומטרים' },
-  { label: 'אופנוע שטח',  dbName: 'אופנוע שטח',   usageMetric: 'קילומטרים' },
   { label: 'קטנוע',        dbName: 'קטנוע',         usageMetric: 'קילומטרים' },
 ];
 
-// ─── Sub-categories for "מיוחדים" ───────────────────────────────────────────
+// ─── Sub-categories for "מיוחדים" (ללא כלי שטח — יש להם קטגוריה נפרדת) ──
 export const SPECIAL_SUBCATEGORIES = [
-  { label: 'טרקטורונים',                   dbName: 'טרקטורון',                      usageMetric: 'קילומטרים' },
   { label: 'רכב אספנות',                   dbName: 'רכב אספנות',                    usageMetric: 'קילומטרים' },
   { label: 'טרקטור',                        dbName: 'טרקטור',                         usageMetric: 'שעות מנוע'  },
   { label: 'רכבים תפעוליים',               dbName: 'רכב תפעולי',                    usageMetric: 'קילומטרים' },
@@ -39,10 +37,10 @@ export const SPECIAL_SUBCATEGORIES = [
   { label: 'אוטובוס ומיניבוס',             dbName: 'אוטובוס',                        usageMetric: 'קילומטרים' },
 ];
 
-// ─── Sub-categories for "כלי שטח" ───────────────────────────────────────────
+// ─── Sub-categories for "כלי שטח" (כולל אופנוע שטח וטרקטורון) ──────────────
 export const OFFROAD_SUBCATEGORIES = [
   { label: "ג'יפ שטח",       dbName: "ג'יפ שטח",       usageMetric: 'קילומטרים' },
-  { label: 'טרקטורון',       dbName: 'טרקטורון שטח',   usageMetric: 'קילומטרים' },
+  { label: 'טרקטורון',       dbName: 'טרקטורון',        usageMetric: 'קילומטרים' },
   { label: 'אופנוע שטח',    dbName: 'אופנוע שטח',     usageMetric: 'קילומטרים' },
   { label: 'RZR / באגי',     dbName: 'RZR',             usageMetric: 'שעות מנוע' },
   { label: "ריינג'ר / מיול", dbName: 'מיול',            usageMetric: 'שעות מנוע' },
@@ -151,16 +149,26 @@ export const VEHICLE_CATEGORIES = [
 
 // ─── Local vehicle types (no DB dependency) ────────────────────────────────
 const LOCAL_VEHICLE_TYPES = [
+  // ── רכב ──
   { id: 'vt-car',       name: 'רכב',             usage_metric: 'קילומטרים',  scope: 'global' },
+  // ── אופנועים (כביש בלבד) ──
   { id: 'vt-moto-road', name: 'אופנוע כביש',    usage_metric: 'קילומטרים',  scope: 'global' },
-  { id: 'vt-moto-off',  name: 'אופנוע שטח',     usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-scooter',   name: 'קטנוע',           usage_metric: 'קילומטרים',  scope: 'global' },
+  // ── משאיות ──
   { id: 'vt-truck',     name: 'משאית',           usage_metric: 'קילומטרים',  scope: 'global' },
+  // ── כלי שייט ──
   { id: 'vt-sail',      name: 'מפרשית',          usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-motor',     name: 'סירה מנועית',     usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-jetski',    name: 'אופנוע ים',       usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-dinghy',    name: 'סירת גומי',       usage_metric: 'שעות מנוע',  scope: 'global' },
+  // ── כלי שטח (אופנוע שטח + טרקטורון כאן בלבד) ──
+  { id: 'vt-jeep-off',  name: "ג'יפ שטח",       usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-atv',       name: 'טרקטורון',        usage_metric: 'קילומטרים',  scope: 'global' },
+  { id: 'vt-moto-off',  name: 'אופנוע שטח',     usage_metric: 'קילומטרים',  scope: 'global' },
+  { id: 'vt-rzr',       name: 'RZR',             usage_metric: 'שעות מנוע',  scope: 'global' },
+  { id: 'vt-mule',      name: 'מיול',            usage_metric: 'שעות מנוע',  scope: 'global' },
+  { id: 'vt-dunebuggy', name: 'באגי חולות',      usage_metric: 'קילומטרים',  scope: 'global' },
+  // ── מיוחדים ──
   { id: 'vt-vintage',   name: 'רכב אספנות',      usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-tractor',   name: 'טרקטור',          usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-utility',   name: 'רכב תפעולי',      usage_metric: 'קילומטרים',  scope: 'global' },
@@ -170,11 +178,6 @@ const LOCAL_VEHICLE_TYPES = [
   { id: 'vt-caravan',   name: 'קרוואן',          usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-plow',      name: 'מחרשה',           usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-bus',       name: 'אוטובוס',         usage_metric: 'קילומטרים',  scope: 'global' },
-  { id: 'vt-jeep-off', name: "ג'יפ שטח",       usage_metric: 'קילומטרים',  scope: 'global' },
-  { id: 'vt-atv-off',  name: 'טרקטורון שטח',   usage_metric: 'קילומטרים',  scope: 'global' },
-  { id: 'vt-rzr',      name: 'RZR',             usage_metric: 'שעות מנוע',  scope: 'global' },
-  { id: 'vt-mule',     name: 'מיול',            usage_metric: 'שעות מנוע',  scope: 'global' },
-  { id: 'vt-dunebuggy',name: 'באגי חולות',      usage_metric: 'קילומטרים',  scope: 'global' },
 ];
 
 // Find the best matching type for a category

@@ -106,7 +106,7 @@ const MOTO_KEYWORDS = ['אופנוע', 'קטנוע', 'moto', 'bike', 'scooter', 
 const MOTO_MANUFACTURERS = ['sym', 'kymco', 'vespa', 'piaggio', 'yamaha moto', 'honda moto', 'ktm', 'bmw motorrad', 'harley', 'ducati', 'kawasaki', 'suzuki moto', 'aprilia', 'triumph', 'royal enfield'];
 const TRUCK_KEYWORDS = ['משאית', 'truck', 'מלגזה', 'טרקטור'];
 const TRUCK_MANUFACTURERS = ['man', 'scania', 'volvo trucks', 'daf', 'iveco', 'mercedes trucks'];
-const OFFROAD_EXACT = new Set(["כלי שטח", "ג'יפ שטח", 'טרקטורון שטח', 'RZR', 'מיול', 'באגי חולות']);
+const OFFROAD_EXACT = new Set(["כלי שטח", "ג'יפ שטח", 'טרקטורון', 'אופנוע שטח', 'RZR', 'מיול', 'באגי חולות']);
 
 export function isOffroadType(vehicleType) {
   return OFFROAD_EXACT.has(vehicleType);

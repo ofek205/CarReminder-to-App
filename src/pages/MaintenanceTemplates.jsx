@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
 import { C } from '@/lib/designTokens';
 
-const vehicleTypes = ['רכב', 'אופנוע כביש', 'אופנוע שטח', 'טרקטורון', 'כלי שייט', 'מפרשית', 'סירה מנועית', 'אופנוע ים', 'סירת גומי', "ג'יפ שטח", 'טרקטורון שטח', 'RZR', 'מיול', 'באגי חולות'];
+const vehicleTypes = ['רכב', 'אופנוע כביש', 'קטנוע', 'כלי שייט', 'מפרשית', 'סירה מנועית', 'אופנוע ים', 'סירת גומי', "ג'יפ שטח", 'טרקטורון', 'אופנוע שטח', 'RZR', 'מיול', 'באגי חולות'];
 const intervalUnits = ['ימים', 'שבועות', 'חודשים'];
 
 export default function MaintenanceTemplates() {

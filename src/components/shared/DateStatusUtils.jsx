@@ -22,7 +22,8 @@ export function getVehicleTypeIcon(type) {
     case 'רכב': return '🚗';
     case 'אופנוע כביש': return '🏍️';
     case 'אופנוע שטח': return '🏔️';
-    case 'טרקטורון': case 'טרקטורון שטח': return '🏎️';
+    case 'טרקטורון': return '🏎️';
+    case 'קטנוע': return '🛵';
     case "ג'יפ שטח": case 'כלי שטח': return '🏔️';
     case 'RZR': return '🏁';
     case 'מיול': return '🚜';
@@ -37,7 +38,7 @@ export function normalizePlate(plate) {
 
 /** Off-road vehicle types */
 const OFFROAD_TYPES = new Set([
-  'כלי שטח', "ג'יפ שטח", 'טרקטורון שטח', 'RZR', 'מיול', 'באגי חולות',
+  'כלי שטח', "ג'יפ שטח", 'טרקטורון', 'אופנוע שטח', 'RZR', 'מיול', 'באגי חולות',
 ]);
 const OFFROAD_HOURS_TYPES = new Set(['RZR', 'מיול']);
 
@@ -64,15 +65,15 @@ export function isVessel(vehicleType, nickname) {
 export function usesKm(vehicleType, nickname) {
   if (isVessel(vehicleType, nickname)) return false;
   if (OFFROAD_HOURS_TYPES.has(vehicleType)) return false;
-  return vehicleType === 'רכב' || vehicleType === 'אופנוע כביש'
-    || vehicleType === "ג'יפ שטח" || vehicleType === 'טרקטורון שטח'
-    || vehicleType === 'באגי חולות';
+  return vehicleType === 'רכב' || vehicleType === 'אופנוע כביש' || vehicleType === 'קטנוע'
+    || vehicleType === "ג'יפ שטח" || vehicleType === 'טרקטורון'
+    || vehicleType === 'באגי חולות' || vehicleType === 'אופנוע שטח';
 }
 
 export function usesHours(vehicleType, nickname) {
   if (isVessel(vehicleType, nickname)) return true;
-  if (OFFROAD_HOURS_TYPES.has(vehicleType)) return true;
-  return vehicleType === 'אופנוע שטח' || vehicleType === 'טרקטורון';
+  if (OFFROAD_HOURS_TYPES.has(vehicleType)) return true; // RZR, מיול
+  return false;
 }
 
 /** Returns true if the vehicle is considered vintage (age >= 20 years). */
