@@ -261,9 +261,13 @@ function DraggableA11yButton({ onClick }) {
   );
 }
 
-// ── Notification Bell (authenticated users only) ────────────────────────────
+// ── Notification Bell with dropdown (authenticated users only) ───────────────
 function NotificationBell() {
-  const [count, setCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [readIds, setReadIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('read_notif_ids') || '[]')); } catch { return new Set(); }
+  });
+  const [popupOpen, setPopupOpen] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -275,39 +279,117 @@ function NotificationBell() {
         const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
         if (members.length === 0) return;
         const vehicles = await db.vehicles.filter({ account_id: members[0].account_id });
-        // Count items that need attention (expired or within 30 days)
-        let urgent = 0;
+        const items = [];
         const now = new Date();
         vehicles.forEach(v => {
+          const name = v.nickname || v.manufacturer || 'רכב';
           if (v.test_due_date) {
             const days = Math.ceil((new Date(v.test_due_date) - now) / 86400000);
-            if (days <= 30) urgent++;
+            if (days <= 60) items.push({ id: `test-${v.id}`, vehicleId: v.id, type: 'test', label: days < 0 ? 'טסט פג תוקף' : `טסט בעוד ${days} ימים`, name, days, isExpired: days < 0 });
           }
           if (v.insurance_due_date) {
             const days = Math.ceil((new Date(v.insurance_due_date) - now) / 86400000);
-            if (days <= 30) urgent++;
+            if (days <= 60) items.push({ id: `ins-${v.id}`, vehicleId: v.id, type: 'insurance', label: days < 0 ? 'ביטוח פג תוקף' : `ביטוח בעוד ${days} ימים`, name, days, isExpired: days < 0 });
           }
         });
-        setCount(urgent);
+        items.sort((a, b) => a.days - b.days);
+        setNotifications(items);
       } catch {}
     })();
   }, [user]);
 
+  const unreadCount = notifications.filter(n => !readIds.has(n.id)).length;
+
+  const markRead = (id) => {
+    setReadIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      localStorage.setItem('read_notif_ids', JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const markAllRead = () => {
+    const allIds = new Set(notifications.map(n => n.id));
+    setReadIds(allIds);
+    localStorage.setItem('read_notif_ids', JSON.stringify([...allIds]));
+  };
+
   return (
-    <button
-      onClick={() => navigate(createPageUrl('Notifications'))}
-      className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-[0.95]"
-      style={{ background: count > 0 ? '#FEF2F2' : '#F3F4F6' }}
-      aria-label="התראות"
-    >
-      <Bell className="w-5 h-5" style={{ color: count > 0 ? '#DC2626' : '#6B7280' }} />
-      {count > 0 && (
-        <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white"
-          style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220,38,38,0.4)' }}>
-          {count > 9 ? '9+' : count}
-        </span>
+    <div className="relative">
+      <button
+        onClick={() => setPopupOpen(o => !o)}
+        className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-[0.95]"
+        style={{ background: unreadCount > 0 ? '#FEF2F2' : '#F3F4F6' }}
+        aria-label="התראות"
+      >
+        <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? '#DC2626' : '#6B7280' }} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white"
+            style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220,38,38,0.4)' }}>
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {/* Dropdown popup */}
+      {popupOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setPopupOpen(false)} />
+          <div className="absolute left-0 top-12 z-50 w-80 rounded-2xl bg-white shadow-2xl border overflow-hidden"
+            style={{ borderColor: '#E5E7EB' }} dir="rtl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#F3F4F6' }}>
+              <span className="text-sm font-black" style={{ color: '#1C2E20' }}>התראות</span>
+              {unreadCount > 0 && (
+                <button onClick={markAllRead} className="text-[11px] font-bold" style={{ color: '#3A7D44' }}>
+                  סמן הכל כנקרא
+                </button>
+              )}
+            </div>
+
+            {/* Items */}
+            <div className="max-h-64 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="py-8 text-center">
+                  <Bell className="w-8 h-8 mx-auto mb-2" style={{ color: '#D1D5DB' }} />
+                  <p className="text-sm font-medium" style={{ color: '#9CA3AF' }}>אין התראות</p>
+                </div>
+              ) : (
+                notifications.slice(0, 8).map(n => {
+                  const isRead = readIds.has(n.id);
+                  return (
+                    <button key={n.id}
+                      onClick={() => { markRead(n.id); setPopupOpen(false); navigate(`${createPageUrl('VehicleDetail')}?id=${n.vehicleId}`); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-right transition-all hover:bg-gray-50"
+                      style={{ background: isRead ? '#fff' : '#FEFCE8', borderBottom: '1px solid #F9FAFB' }}>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ background: n.isExpired ? '#FEF2F2' : '#FFF8E1' }}>
+                        {n.isExpired ? <AlertTriangle className="w-4 h-4" style={{ color: '#DC2626' }} /> : <Bell className="w-4 h-4" style={{ color: '#D97706' }} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold truncate" style={{ color: n.isExpired ? '#DC2626' : '#1C2E20' }}>{n.label}</p>
+                        <p className="text-[10px] truncate" style={{ color: '#9CA3AF' }}>{n.name}</p>
+                      </div>
+                      {!isRead && <div className="w-2 h-2 rounded-full shrink-0" style={{ background: '#DC2626' }} />}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            {notifications.length > 0 && (
+              <button onClick={() => { setPopupOpen(false); navigate(createPageUrl('Notifications')); }}
+                className="w-full py-2.5 text-center text-xs font-bold border-t transition-all hover:bg-gray-50"
+                style={{ color: '#3A7D44', borderColor: '#F3F4F6' }}>
+                כל ההתראות →
+              </button>
+            )}
+          </div>
+        </>
       )}
-    </button>
+    </div>
   );
 }
 
