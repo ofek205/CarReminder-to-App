@@ -93,11 +93,18 @@ export function AccessibilityProvider({ children }) {
     applyClasses(settings);
   }, [settings]);
 
+  const update = (key, value) => {
+    const next = { ...settings, [key]: value };
+    // Apply classes immediately (before React re-render) to avoid visual flash
+    applyClasses(next);
+    setSettings(next);
+  };
+
   return (
     <AccessibilityContext.Provider value={{
       settings,
-      update: (key, value) => setSettings(prev => ({ ...prev, [key]: value })),
-      resetAll: () => setSettings({ ...defaultSettings }),
+      update,
+      resetAll: () => { const d = { ...defaultSettings }; applyClasses(d); setSettings(d); },
     }}>
       {children}
     </AccessibilityContext.Provider>

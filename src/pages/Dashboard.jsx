@@ -13,6 +13,7 @@ import { daysUntil } from "../components/shared/ReminderEngine";
 import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_REMINDERS, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VESSEL_ISSUES, DEMO_DOCUMENTS, DEMO_VESSEL_DOCUMENTS } from "../components/shared/demoVehicleData";
 import { format, parseISO } from 'date-fns';
 import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
+import CompleteProfileScreen, { hasCompletedProfile } from '../components/shared/CompleteProfileScreen';
 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 function getVehicleIcon(vt, nn, mfr) { return ICON_MAP[getVehicleCategory(vt, nn, mfr)] || Car; }
@@ -433,6 +434,8 @@ export default function Dashboard() {
   const [accountId, setAccountId] = useState(null);
   const [filteredVehicles, setFilteredVehicles] = useState(null);
   const [showSignUp, setShowSignUp] = useState(false);
+  const [showCompleteProfile, setShowCompleteProfile] = useState(false);
+  const [profileMissing, setProfileMissing] = useState(false);
   const navigate = useNavigate();
 
   // Schedule device notifications for authenticated users
@@ -461,6 +464,28 @@ export default function Dashboard() {
           finalAccountId = account.id;
         }
         setAccountId(finalAccountId);
+
+        // Check if profile is complete
+        if (!hasCompletedProfile()) {
+          try {
+            const profiles = await db.user_profiles.filter({ user_id: user.id });
+            if (profiles.length === 0 || !profiles[0].phone) {
+              setShowCompleteProfile(true);
+            } else {
+              localStorage.setItem('profile_completed', '1');
+            }
+          } catch {
+            setShowCompleteProfile(true); // Table may not exist yet — show screen anyway
+          }
+        } else {
+          // Profile was completed before — check if phone is still missing (for banner)
+          try {
+            const profiles = await db.user_profiles.filter({ user_id: user.id });
+            if (profiles.length === 0 || !profiles[0].phone) {
+              setProfileMissing(true);
+            }
+          } catch {}
+        }
 
         // Guest → authenticated migration
         const sanitizeStr = (v, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '');
@@ -623,6 +648,11 @@ export default function Dashboard() {
         {/* BottomNav is now in Layout */}
       </div>
     );
+  }
+
+  // ── Complete Profile Screen (one-time) ──────────────────────────────────────
+  if (showCompleteProfile && user) {
+    return <CompleteProfileScreen user={user} onDone={() => { setShowCompleteProfile(false); setProfileMissing(false); }} />;
   }
 
   // ── AUTHENTICATED MODE ─────────────────────────────────────────────────────

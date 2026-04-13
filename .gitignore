@@ -36,3 +36,15 @@ android/build/
 android/capacitor-cordova-android-plugins/build/
 *.keystore
 *.jks
+
+# iOS build artifacts
+ios/App/build/
+ios/App/Pods/
+ios/DerivedData/
+ios/App/App/public/
+
+# Claude local files
+.claude/plans/
+.claude/shell-snapshots/
+.claude/todos/
+.claude/projects/

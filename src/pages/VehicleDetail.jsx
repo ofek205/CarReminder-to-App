@@ -1,8 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button } from "@/components/ui/button";
-import { Trash2, Edit, FileText, Lock, Pencil, Car, Ship, Calendar, Shield, ChevronLeft, Bike, Truck, Bell, Clock, Wrench } from "lucide-react";
+import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell } from "lucide-react";
 import { getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -11,7 +10,6 @@ import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import VehicleInfoSection from "../components/vehicle/VehicleInfoSection";
 import MaintenanceSection from "../components/vehicle/MaintenanceSection";
-import VesselIssuesSection from "../components/vehicle/VesselIssuesSection";
 import CorkBoard from "../components/vehicle/CorkBoard";
 import { SafeComponent } from "../components/shared/SafeComponent";
 import { useAuth } from "../components/shared/GuestContext";
@@ -24,6 +22,7 @@ import StatusBadge from '../components/shared/StatusBadge';
 
 // ── Inline Reminders Section ─────────────────────────────────────────────────
 function RemindersPreview({ vehicle, T }) {
+  const [open, setOpen] = useState(false);
   const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
   const items = [
     vehicle.test_due_date && { icon: Calendar, label: labels.testWord, date: vehicle.test_due_date, status: getDateStatus(vehicle.test_due_date) },
@@ -34,20 +33,27 @@ function RemindersPreview({ vehicle, T }) {
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: `1.5px solid ${T.border}` }} dir="rtl">
-      <div className="flex items-center gap-2 px-4 py-3" style={{ background: T.light }}>
+      <button type="button" onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-4 py-3" style={{ background: T.light }}>
         <Bell className="w-4 h-4" style={{ color: T.primary }} />
         <span className="text-sm font-black" style={{ color: T.text }}>תזכורות</span>
-        <span className="text-xs font-bold px-1.5 py-0.5 rounded-full mr-auto" style={{ background: T.primary, color: '#fff' }}>{items.length}</span>
-      </div>
-      <div className="divide-y" style={{ borderColor: `${T.border}60` }}>
-        {items.map(item => (
-          <div key={item.label} className="flex items-center gap-3 px-4 py-3">
-            <item.icon className="w-4 h-4 shrink-0" style={{ color: T.muted }} />
-            <span className="text-sm font-bold flex-1" style={{ color: T.text }}>{item.label}</span>
-            <StatusBadge status={item.status.status} label={item.status.label} />
-          </div>
-        ))}
-      </div>
+        <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: T.primary, color: '#fff' }}>{items.length}</span>
+        {open
+          ? <ChevronUp className="w-4 h-4 mr-auto" style={{ color: T.primary }} />
+          : <ChevronDown className="w-4 h-4 mr-auto" style={{ color: T.primary }} />
+        }
+      </button>
+      {open && (
+        <div className="divide-y" style={{ borderColor: `${T.border}60` }}>
+          {items.map(item => (
+            <div key={item.label} className="flex items-center gap-3 px-4 py-3">
+              <item.icon className="w-4 h-4 shrink-0" style={{ color: T.muted }} />
+              <span className="text-sm font-bold flex-1" style={{ color: T.text }}>{item.label}</span>
+              <StatusBadge status={item.status.status} label={item.status.label} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -142,7 +148,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
           )}
           <div className="absolute inset-0" style={{ background: hasPhoto ? 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.1) 100%)' : 'none' }} />
 
-          {/* Back button */}
+          {/* Back button → Dashboard for guests */}
           <Link to={createPageUrl('Dashboard')} className="absolute top-4 right-4 z-20">
             <div className="w-10 h-10 rounded-2xl flex items-center justify-center backdrop-blur-sm" style={{ background: 'rgba(255,255,255,0.2)' }}>
               <ChevronLeft className="w-5 h-5 text-white" style={{ transform: 'rotate(180deg)' }} />
@@ -239,9 +245,9 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
               <AlertDialogTitle>מחיקת {vWord}</AlertDialogTitle>
               <AlertDialogDescription>פעולה זו תמחק את ה{vWord} מהמכשיר שלך. לא ניתן לבטל.</AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter className="flex-row-reverse gap-2">
-              <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">מחק</AlertDialogAction>
+            <AlertDialogFooter className="flex gap-2 justify-end">
               <AlertDialogCancel>ביטול</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">מחק</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -279,11 +285,6 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
         {/* Inline documents */}
         <DocumentsPreview vehicleId={vehicleId} documents={guestDocuments} T={T} />
 
-        {isVesselType(vehicle.vehicle_type, vehicle.nickname) && (
-          <SafeComponent label="VesselIssuesSection">
-            <VesselIssuesSection vehicle={vehicle} isGuest />
-          </SafeComponent>
-        )}
         <SafeComponent label="CorkBoard">
           <CorkBoard vehicle={vehicle} isGuest />
         </SafeComponent>
@@ -335,9 +336,49 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
       return [];
     },
     enabled: !!vehicleId && accountIds.length > 0,
+    refetchOnMount: 'always', // Always fetch fresh data when navigating to this page
+    staleTime: 0,
   });
 
   const vehicle = vehicles[0];
+
+  // One-time auto-enrich: if vehicle has license plate but missing tech spec fields, fetch from gov API
+  const [enrichDone, setEnrichDone] = useState(false);
+  useEffect(() => {
+    if (!vehicle || enrichDone || !vehicle.license_plate) return;
+    if (isVesselType(vehicle.vehicle_type, vehicle.nickname)) return; // Vessels don't use gov API
+    const specFields = ['model_code','trim_level','vin','pollution_group','vehicle_class','safety_rating',
+      'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
+      'transmission','body_type','country_of_origin','co2','green_index','tow_capacity'];
+    const missing = specFields.filter(f => !vehicle[f]);
+    if (missing.length === 0) { setEnrichDone(true); return; }
+    // Check localStorage flag — only try once per vehicle per version
+    // Version 2: reset after DB columns were added
+    const enrichKey = `enriched_v4_${vehicle.id}`;
+    if (localStorage.getItem(enrichKey)) { setEnrichDone(true); return; }
+    (async () => {
+      try {
+        const { lookupVehicleByPlate } = await import('../services/vehicleLookup');
+        const govData = await lookupVehicleByPlate(vehicle.license_plate);
+        if (!govData) { localStorage.setItem(enrichKey, '1'); setEnrichDone(true); return; }
+        const allFields = ['engine_model','model_code','trim_level','vin','pollution_group',
+          'vehicle_class','safety_rating','front_tire','rear_tire','color','ownership',
+          'first_registration_date','fuel_type',
+          'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
+          'transmission','body_type','country_of_origin','co2','green_index','tow_capacity'];
+        const update = {};
+        allFields.forEach(f => { if (govData[f] && !vehicle[f]) update[f] = govData[f]; });
+        if (Object.keys(update).length > 0) {
+          for (const [key, val] of Object.entries(update)) {
+            try { await db.vehicles.update(vehicle.id, { [key]: val }); } catch {}
+          }
+          queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+        }
+        localStorage.setItem(`enriched_v4_${vehicle.id}`, '1');
+      } catch {}
+      setEnrichDone(true);
+    })();
+  }, [vehicle?.id, enrichDone]);
 
   const vehicleIsOwned = vehicle && accountIds.length > 0 && accountIds.includes(vehicle.account_id);
 
@@ -385,8 +426,8 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             : 'none'
         }} />
 
-        {/* Back button */}
-        <Link to={createPageUrl('Dashboard')} className="absolute top-4 right-4 z-20">
+        {/* Back button → Vehicles list */}
+        <Link to={createPageUrl('Vehicles')} className="absolute top-4 right-4 z-20">
           <div className="w-10 h-10 rounded-2xl flex items-center justify-center backdrop-blur-sm"
             style={{ background: 'rgba(255,255,255,0.2)' }}>
             <ChevronLeft className="w-5 h-5 text-white" style={{ transform: 'rotate(180deg)' }} />
@@ -473,11 +514,6 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         <SafeComponent label="MaintenanceSection">
           <MaintenanceSection vehicle={vehicle} />
         </SafeComponent>
-        {isVessel && (
-          <SafeComponent label="VesselIssuesSection">
-            <VesselIssuesSection vehicle={vehicle} readOnly={isViewOnly(role)} />
-          </SafeComponent>
-        )}
         <SafeComponent label="CorkBoard">
           <CorkBoard vehicle={vehicle} readOnly={isViewOnly(role)} />
         </SafeComponent>

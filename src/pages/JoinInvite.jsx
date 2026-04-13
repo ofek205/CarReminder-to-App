@@ -112,8 +112,9 @@ export default function JoinInvite() {
   }
 
   const goToAuth = () => {
-    // Redirect to auth with return URL
-    const returnUrl = `/JoinInvite?token=${token}`;
+    // Redirect to auth with return URL — sanitize token to prevent injection
+    const safeToken = encodeURIComponent(String(token).replace(/[^a-zA-Z0-9_-]/g, ''));
+    const returnUrl = `/JoinInvite?token=${safeToken}`;
     window.location.href = `/Auth?redirect=${encodeURIComponent(returnUrl)}`;
   };
 

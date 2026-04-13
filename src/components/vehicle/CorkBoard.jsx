@@ -4,12 +4,12 @@ import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
 import { getTheme, isVesselType } from '@/lib/designTokens';
+import { isVessel as isVesselCheck, isOffroad } from '../shared/DateStatusUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Pin, Plus, Wrench, Anchor, Trash2, Check } from 'lucide-react';
-import { toast } from 'sonner';
+import { Pin, Plus, Wrench, Anchor, Trash2, Check, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VEHICLE_ID, DEMO_VESSEL_ID } from '@/components/shared/demoVehicleData';
 
@@ -21,6 +21,28 @@ const COLORS = {
   green:  { bg: '#E8F5E9', border: '#A5D6A7', pin: '#388E3C' },
   orange: { bg: '#FFF3E0', border: '#FFB74D', pin: '#E65100' },
 };
+
+// ── Categories per vehicle type ────────────────────────────────────────────
+const CATEGORIES = {
+  vessel: ['גוף', 'מנוע', 'חשמל', 'אינסטלציה', 'בטיחות', 'מפרשים'],
+  car: ['מנוע', 'בלמים', 'צמיגים', 'חשמל', 'מרכב', 'פנים'],
+  motorcycle: ['מנוע', 'שלדה', 'חשמל', 'צמיגים'],
+  offroad: ['מנוע', 'שלדה', 'גלגלים', 'ציוד'],
+};
+
+const PRIORITY_CONFIG = {
+  urgent: { color: '#DC2626', bg: '#FEF2F2', label: 'דחוף', dot: '#DC2626' },
+  high:   { color: '#D97706', bg: '#FFF8E1', label: 'גבוה', dot: '#D97706' },
+  medium: { color: '#2563EB', bg: '#EFF6FF', label: 'בינוני', dot: '#2563EB' },
+  low:    { color: '#6B7280', bg: '#F3F4F6', label: 'נמוך', dot: '#6B7280' },
+};
+
+function getVehicleCategories(vehicleType, nickname) {
+  if (isVesselCheck(vehicleType, nickname)) return CATEGORIES.vessel;
+  if (isOffroad(vehicleType)) return CATEGORIES.offroad;
+  if (['אופנוע כביש', 'קטנוע'].includes(vehicleType)) return CATEGORIES.motorcycle;
+  return CATEGORIES.car;
+}
 
 // ── Pin SVG ────────────────────────────────────────────────────────────────
 function PinSvg({ color = '#DC2626' }) {
@@ -34,10 +56,11 @@ function PinSvg({ color = '#DC2626' }) {
 }
 
 // ── Sticky Note ────────────────────────────────────────────────────────────
-function StickyNote({ note, readOnly, onEdit, constraintsRef }) {
+function StickyNote({ note, T, readOnly, onEdit, constraintsRef }) {
   const colorDef = COLORS[note.color] || COLORS.yellow;
   const rotation = note.rotation || 0;
-  const isOverdue = note.due_date && new Date(note.due_date) < new Date();
+  const isOverdue = note.due_date && !note.is_done && new Date(note.due_date) < new Date();
+  const priority = PRIORITY_CONFIG[note.priority] || null;
   const [isDragging, setIsDragging] = useState(false);
 
   return (
@@ -49,7 +72,7 @@ function StickyNote({ note, readOnly, onEdit, constraintsRef }) {
       onDragStart={() => setIsDragging(true)}
       onDragEnd={() => setTimeout(() => setIsDragging(false), 100)}
       initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1, rotate: rotation }}
+      animate={{ scale: 1, opacity: note.is_done ? 0.55 : 1, rotate: rotation }}
       whileDrag={{ scale: 1.08, rotate: 0, zIndex: 50, boxShadow: '0 12px 40px rgba(0,0,0,0.25)' }}
       onClick={() => { if (!isDragging && !readOnly) onEdit(note); }}
       className={`relative select-none ${readOnly ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
@@ -57,7 +80,7 @@ function StickyNote({ note, readOnly, onEdit, constraintsRef }) {
     >
       {/* Pin */}
       <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">
-        <PinSvg color={colorDef.pin} />
+        <PinSvg color={priority ? priority.dot : colorDef.pin} />
       </div>
 
       {/* Note body */}
@@ -76,26 +99,42 @@ function StickyNote({ note, readOnly, onEdit, constraintsRef }) {
           </div>
         )}
 
+        {/* Priority dot */}
+        {priority && !note.is_done && (
+          <div className="absolute top-2 left-2">
+            <span className="w-2 h-2 rounded-full block" style={{ background: priority.dot }} />
+          </div>
+        )}
+
         {/* Title */}
         <p className="font-bold text-xs text-gray-900 leading-tight mb-1 line-clamp-2" dir="rtl"
           style={{ textDecoration: note.is_done ? 'line-through' : 'none', opacity: note.is_done ? 0.5 : 1 }}>
           {note.title}
         </p>
 
+        {/* Category chip */}
+        {note.category && !note.is_done && (
+          <span className="inline-block text-[8px] font-bold px-1.5 py-0.5 rounded-full mb-1"
+            style={{ background: T.light, color: T.primary }}>
+            {note.category}
+          </span>
+        )}
+
         {/* Content */}
-        {note.content && (
+        {note.content && !note.is_done && (
           <p className="text-[10px] text-gray-600 leading-snug line-clamp-2" dir="rtl"
-            style={{ opacity: note.is_done ? 0.4 : 0.75 }}>
+            style={{ opacity: 0.75 }}>
             {note.content}
           </p>
         )}
 
         {/* Due date */}
         {note.due_date && (
-          <p className="text-[9px] font-bold mt-1.5" dir="rtl"
+          <p className="text-[9px] font-bold mt-1.5 flex items-center gap-0.5" dir="rtl"
             style={{ color: isOverdue ? '#DC2626' : '#78909C' }}>
-            📅 {(() => { try { return format(parseISO(note.due_date), 'dd/MM/yy'); } catch { return ''; } })()}
-            {isOverdue && ' ⚠️'}
+            <Calendar className="w-2.5 h-2.5" />
+            {(() => { try { return format(parseISO(note.due_date), 'dd/MM/yy'); } catch { return ''; } })()}
+            {isOverdue && ' \u26a0\ufe0f'}
           </p>
         )}
       </div>
@@ -104,13 +143,15 @@ function StickyNote({ note, readOnly, onEdit, constraintsRef }) {
 }
 
 // ── Add/Edit Dialog ────────────────────────────────────────────────────────
-function NoteDialog({ open, onClose, note, onSave, onDelete }) {
+function NoteDialog({ open, onClose, note, onSave, onDelete, categories, T }) {
   const isEdit = !!note?.id;
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [color, setColor] = useState('yellow');
   const [dueDate, setDueDate] = useState('');
   const [isDone, setIsDone] = useState(false);
+  const [category, setCategory] = useState('');
+  const [priority, setPriority] = useState('medium');
   const [saving, setSaving] = useState(false);
 
   React.useEffect(() => {
@@ -120,11 +161,13 @@ function NoteDialog({ open, onClose, note, onSave, onDelete }) {
       setColor(note?.color || 'yellow');
       setDueDate(note?.due_date || '');
       setIsDone(note?.is_done || false);
+      setCategory(note?.category || '');
+      setPriority(note?.priority || 'medium');
     }
   }, [open, note]);
 
   const handleSave = async () => {
-    if (!title.trim()) { toast.error('הכנס כותרת לפתק'); return; }
+    if (!title.trim()) { alert('הכנס כותרת לפתק'); return; }
     setSaving(true);
     try {
       await onSave({
@@ -134,6 +177,8 @@ function NoteDialog({ open, onClose, note, onSave, onDelete }) {
         color,
         due_date: dueDate || null,
         is_done: isDone,
+        category: category || null,
+        priority,
       });
     } catch (e) {
       console.error('Note save error:', e);
@@ -150,7 +195,7 @@ function NoteDialog({ open, onClose, note, onSave, onDelete }) {
             {isEdit ? 'עריכת פתק' : 'פתק חדש'} 📌
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 pt-1">
+        <div className="space-y-3 pt-1">
           <Input
             value={title}
             onChange={e => setTitle(e.target.value)}
@@ -161,34 +206,73 @@ function NoteDialog({ open, onClose, note, onSave, onDelete }) {
           <Textarea
             value={content}
             onChange={e => setContent(e.target.value)}
-            placeholder="תוכן (אופציונלי)..."
+            placeholder="פירוט (אופציונלי)..."
             rows={2}
             maxLength={200}
             className="text-sm resize-none"
           />
 
-          {/* Color picker */}
-          <div>
-            <p className="text-xs font-bold text-gray-600 mb-2">צבע</p>
-            <div className="flex gap-2.5">
-              {Object.entries(COLORS).map(([key, c]) => (
-                <button key={key} type="button" onClick={() => setColor(key)}
-                  className="w-10 h-10 rounded-xl transition-all border-2 flex items-center justify-center"
-                  style={{
-                    background: c.bg,
-                    borderColor: color === key ? c.border : 'transparent',
-                    transform: color === key ? 'scale(1.15)' : 'scale(1)',
-                    boxShadow: color === key ? `0 0 0 3px ${c.border}40` : 'none',
-                  }}>
-                  {color === key && <Check className="w-4 h-4" style={{ color: c.pin }} />}
-                </button>
-              ))}
+          {/* Category chips */}
+          {categories.length > 0 && (
+            <div>
+              <p className="text-xs font-bold text-gray-600 mb-1.5">קטגוריה</p>
+              <div className="flex flex-wrap gap-1.5">
+                {categories.map(cat => (
+                  <button key={cat} type="button"
+                    onClick={() => setCategory(category === cat ? '' : cat)}
+                    className="px-2.5 py-1 rounded-full text-xs font-medium border transition-all active:scale-[0.95]"
+                    style={{
+                      background: category === cat ? T.light : '#fff',
+                      borderColor: category === cat ? T.primary : '#E5E7EB',
+                      color: category === cat ? T.primary : '#6B7280',
+                    }}>
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Priority + Color row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-bold text-gray-600 mb-1.5">עדיפות</p>
+              <div className="flex gap-1">
+                {Object.entries(PRIORITY_CONFIG).map(([key, cfg]) => (
+                  <button key={key} type="button"
+                    onClick={() => setPriority(key)}
+                    className="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-center transition-all border"
+                    style={{
+                      background: priority === key ? cfg.bg : '#fff',
+                      borderColor: priority === key ? cfg.color : '#E5E7EB',
+                      color: cfg.color,
+                    }}>
+                    {cfg.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-600 mb-1.5">צבע</p>
+              <div className="flex gap-1.5">
+                {Object.entries(COLORS).map(([key, c]) => (
+                  <button key={key} type="button" onClick={() => setColor(key)}
+                    className="w-7 h-7 rounded-lg transition-all border-2 flex items-center justify-center"
+                    style={{
+                      background: c.bg,
+                      borderColor: color === key ? c.border : 'transparent',
+                      boxShadow: color === key ? `0 0 0 2px ${c.border}` : 'none',
+                    }}>
+                    {color === key && <Check className="w-3 h-3" style={{ color: c.pin }} />}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Due date — simple text input instead of DateInput to avoid bugs */}
+          {/* Due date */}
           <div>
-            <p className="text-xs font-bold text-gray-600 mb-2">תאריך יעד (אופציונלי)</p>
+            <p className="text-xs font-bold text-gray-600 mb-1.5">תאריך יעד (אופציונלי)</p>
             <Input
               type="date"
               value={dueDate}
@@ -208,7 +292,7 @@ function NoteDialog({ open, onClose, note, onSave, onDelete }) {
                 {isDone && <Check className="w-3 h-3 text-white" />}
               </div>
               <span className="text-sm font-bold" style={{ color: isDone ? '#2E7D32' : '#6B7280' }}>
-                {isDone ? 'בוצע! ✓' : 'סמן כבוצע'}
+                {isDone ? 'בוצע! \u2713' : 'סמן כבוצע'}
               </span>
             </button>
           )}
@@ -217,8 +301,8 @@ function NoteDialog({ open, onClose, note, onSave, onDelete }) {
           <div className="flex gap-2 pt-1">
             <Button onClick={handleSave} disabled={saving || !title.trim()}
               className="flex-1 h-11 rounded-xl font-bold text-sm"
-              style={{ background: '#2D5233', color: 'white' }}>
-              {saving ? '...' : isEdit ? 'שמור שינויים' : '📌 הצמד פתק'}
+              style={{ background: T.primary, color: 'white' }}>
+              {saving ? '...' : isEdit ? 'שמור שינויים' : '\ud83d\udccc הצמד פתק'}
             </Button>
             {isEdit && onDelete && (
               <Button onClick={() => { onDelete(note.id); onClose(); }} variant="outline"
@@ -241,9 +325,11 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
   const ThemeIcon = isVessel ? Anchor : Wrench;
+  const categories = getVehicleCategories(vehicle.vehicle_type, vehicle.nickname);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
+  const [showDone, setShowDone] = useState(false);
 
   // ── Data ──
   const { data: authNotes = [] } = useQuery({
@@ -258,14 +344,24 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
     : [];
 
   const guestNotesForVehicle = (guestCorkNotes || []).filter(n => n.vehicle_id === vehicle.id);
-  const notes = isGuest
+  const allNotes = isGuest
     ? (guestNotesForVehicle.length > 0 ? guestNotesForVehicle : demoNotes)
     : authNotes;
+
+  const openNotes = allNotes.filter(n => !n.is_done);
+  const doneNotes = allNotes.filter(n => n.is_done);
 
   const randomRotation = () => Math.round((Math.random() - 0.5) * 6);
 
   // ── CRUD ──
   const handleSave = async (noteData) => {
+    // DB columns: vehicle_id, title, content, color, due_date, is_done, rotation
+    // category + priority don't exist in DB yet — stored in guest/localStorage only
+    const dbFields = {
+      title: noteData.title, content: noteData.content,
+      color: noteData.color, due_date: noteData.due_date, is_done: noteData.is_done,
+    };
+
     if (isGuest) {
       if (noteData.id) {
         updateGuestCorkNote(noteData.id, noteData);
@@ -279,21 +375,17 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
     } else {
       try {
         if (noteData.id) {
-          await db.cork_notes.update(noteData.id, {
-            title: noteData.title, content: noteData.content,
-            color: noteData.color, due_date: noteData.due_date, is_done: noteData.is_done,
-          });
+          await db.cork_notes.update(noteData.id, dbFields);
         } else {
           await db.cork_notes.create({
             vehicle_id: vehicle.id,
-            title: noteData.title, content: noteData.content,
-            color: noteData.color, due_date: noteData.due_date,
+            ...dbFields,
             rotation: randomRotation(),
           });
         }
         queryClient.invalidateQueries({ queryKey: ['cork-notes', vehicle.id] });
       } catch (e) {
-        toast.error('שגיאה בשמירת הפתק');
+        alert('שגיאה בשמירת הפתק');
         console.error(e);
       }
     }
@@ -302,21 +394,19 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
   const handleDelete = async (noteId) => {
     if (isGuest) {
       removeGuestCorkNote(noteId);
-      toast.success('הפתק הוסר');
     } else {
       try {
         await db.cork_notes.delete(noteId);
         queryClient.invalidateQueries({ queryKey: ['cork-notes', vehicle.id] });
-        toast.success('הפתק הוסר');
       } catch {
-        toast.error('שגיאה במחיקה');
+        alert('שגיאה במחיקה');
       }
     }
   };
 
   const openAdd = () => { setEditingNote(null); setDialogOpen(true); };
   const openEdit = (note) => { setEditingNote(note); setDialogOpen(true); };
-  const canAdd = !readOnly && notes.length < 20;
+  const canAdd = !readOnly && allNotes.length < 20;
 
   return (
     <div className="rounded-3xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }}>
@@ -324,11 +414,14 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
       <div className="flex items-center justify-between px-4 py-3" style={{ background: T.light }}>
         <div className="flex items-center gap-2" dir="rtl">
           <Pin className="w-4 h-4" style={{ color: T.primary }} />
-          <h3 className="font-bold text-base" style={{ color: T.text }}>לוח פתקים</h3>
-          {notes.length > 0 && (
+          <div>
+            <h3 className="font-bold text-base leading-tight" style={{ color: T.text }}>לוח פתקים</h3>
+            <p className="text-[10px] font-medium" style={{ color: T.muted }}>תקלות, משימות ותזכורות לטיפול</p>
+          </div>
+          {openNotes.length > 0 && (
             <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ background: T.primary + '15', color: T.primary }}>
-              {notes.length}
+              style={{ background: T.primary, color: '#fff' }}>
+              {openNotes.length}
             </span>
           )}
         </div>
@@ -340,10 +433,10 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
         )}
       </div>
 
-      {/* Cork board surface */}
+      {/* Cork board surface — open notes */}
       <div ref={boardRef} className="relative p-4" dir="rtl"
         style={{
-          minHeight: '200px',
+          minHeight: openNotes.length === 0 && doneNotes.length === 0 ? '200px' : '120px',
           background: `
             radial-gradient(ellipse at 20% 50%, #C4956A 0%, transparent 50%),
             radial-gradient(ellipse at 80% 30%, #D4A574 0%, transparent 50%),
@@ -366,8 +459,8 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
           <ThemeIcon className="w-14 h-14 text-white" />
         </div>
 
-        {/* Notes grid */}
-        {notes.length === 0 ? (
+        {/* Notes grid — open only */}
+        {openNotes.length === 0 && doneNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 gap-3 relative z-10">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
               style={{ background: 'rgba(255,255,255,0.25)' }}>
@@ -386,10 +479,11 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 relative z-10">
-            {notes.map(note => (
+            {openNotes.map(note => (
               <StickyNote
                 key={note.id}
                 note={note}
+                T={T}
                 readOnly={readOnly}
                 onEdit={openEdit}
                 constraintsRef={boardRef}
@@ -415,6 +509,34 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
         )}
       </div>
 
+      {/* Done notes — collapsed section */}
+      {doneNotes.length > 0 && (
+        <>
+          <button onClick={() => setShowDone(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold transition-all hover:bg-gray-50"
+            style={{ color: T.muted, background: '#fff', borderTop: `1px solid ${T.border}40` }}
+            dir="rtl">
+            <span>הושלמו ({doneNotes.length})</span>
+            {showDone ? <ChevronUp className="w-4 h-4" style={{ color: T.primary }} /> : <ChevronDown className="w-4 h-4" style={{ color: T.primary }} />}
+          </button>
+          {showDone && (
+            <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-3" dir="rtl"
+              style={{ background: '#F9FAFB', borderTop: `1px solid ${T.border}20` }}>
+              {doneNotes.map(note => (
+                <StickyNote
+                  key={note.id}
+                  note={note}
+                  T={T}
+                  readOnly={readOnly}
+                  onEdit={openEdit}
+                  constraintsRef={boardRef}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
       {/* Dialog */}
       <NoteDialog
         open={dialogOpen}
@@ -422,6 +544,8 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
         note={editingNote}
         onSave={handleSave}
         onDelete={handleDelete}
+        categories={categories}
+        T={T}
       />
     </div>
   );

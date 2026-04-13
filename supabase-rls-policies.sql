@@ -96,13 +96,23 @@ ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "vehicles_select" ON vehicles
   FOR SELECT USING (account_id = ANY(user_account_ids()));
 
--- Users with edit permission can create vehicles
+-- Only owners and admins can create vehicles (not viewers/שותף)
 CREATE POLICY "vehicles_insert" ON vehicles
-  FOR INSERT WITH CHECK (account_id = ANY(user_account_ids()));
+  FOR INSERT WITH CHECK (
+    account_id IN (
+      SELECT account_id FROM account_members
+      WHERE user_id = auth.uid() AND role IN ('בעלים', 'מנהל') AND status = 'פעיל'
+    )
+  );
 
--- Users with edit permission can update vehicles
+-- Only owners and admins can update vehicles (not viewers/שותף)
 CREATE POLICY "vehicles_update" ON vehicles
-  FOR UPDATE USING (account_id = ANY(user_account_ids()));
+  FOR UPDATE USING (
+    account_id IN (
+      SELECT account_id FROM account_members
+      WHERE user_id = auth.uid() AND role IN ('בעלים', 'מנהל') AND status = 'פעיל'
+    )
+  );
 
 -- Only owners can delete vehicles
 CREATE POLICY "vehicles_delete" ON vehicles
@@ -255,6 +265,67 @@ CREATE POLICY "analytics_insert" ON anonymous_analytics
 
 -- No one can read analytics (admin only via service_role key)
 -- No SELECT policy = blocked for anon/authenticated users
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 11. DOCUMENTS (add BEFORE creating the table!)
+-- ═══════════════════════════════════════════════════════════════════════════
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "documents_select" ON documents
+  FOR SELECT USING (
+    account_id = ANY(user_account_ids())
+  );
+
+CREATE POLICY "documents_insert" ON documents
+  FOR INSERT WITH CHECK (
+    account_id IN (
+      SELECT account_id FROM account_members
+      WHERE user_id = auth.uid() AND role IN ('בעלים', 'מנהל') AND status = 'פעיל'
+    )
+  );
+
+CREATE POLICY "documents_update" ON documents
+  FOR UPDATE USING (
+    account_id IN (
+      SELECT account_id FROM account_members
+      WHERE user_id = auth.uid() AND role IN ('בעלים', 'מנהל') AND status = 'פעיל'
+    )
+  );
+
+CREATE POLICY "documents_delete" ON documents
+  FOR DELETE USING (
+    account_id IN (
+      SELECT account_id FROM account_members
+      WHERE user_id = auth.uid() AND role = 'בעלים'
+    )
+  );
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 12. MAINTENANCE_LOGS
+-- ═══════════════════════════════════════════════════════════════════════════
+ALTER TABLE maintenance_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "maintenance_logs_select" ON maintenance_logs
+  FOR SELECT USING (
+    vehicle_id IN (SELECT id FROM vehicles WHERE account_id = ANY(user_account_ids()))
+  );
+
+CREATE POLICY "maintenance_logs_insert" ON maintenance_logs
+  FOR INSERT WITH CHECK (
+    vehicle_id IN (SELECT id FROM vehicles WHERE account_id = ANY(user_account_ids()))
+  );
+
+CREATE POLICY "maintenance_logs_update" ON maintenance_logs
+  FOR UPDATE USING (
+    vehicle_id IN (SELECT id FROM vehicles WHERE account_id = ANY(user_account_ids()))
+  );
+
+CREATE POLICY "maintenance_logs_delete" ON maintenance_logs
+  FOR DELETE USING (
+    vehicle_id IN (SELECT id FROM vehicles WHERE account_id = ANY(user_account_ids()))
+  );
 
 
 -- ═══════════════════════════════════════════════════════════════════════════

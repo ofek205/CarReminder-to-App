@@ -458,6 +458,8 @@ export default function Vehicles() {
     queryKey: ['vehicles', accountId],
     queryFn: () => db.vehicles.filter({ account_id: accountId }),
     enabled: !!accountId,
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 
   if (authLoading) return <LoadingSpinner />;

@@ -128,7 +128,7 @@ export default function AuthPage() {
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider,
           options: {
-            redirectTo: 'https://zuqvolqapwcxomuzoodu.supabase.co',
+            redirectTo: window.location.origin + '/Dashboard',
             skipBrowserRedirect: true,
           },
         });
@@ -304,13 +304,15 @@ export default function AuthPage() {
                 <span>{oauthLoading === 'google' ? 'מתחבר...' : 'המשך עם Google'}</span>
               </button>
 
-              {/* Guest — very subtle */}
-              <button onClick={handleGuest}
-                className="w-full py-2.5 text-sm font-medium transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-1"
-                style={{ color: '#9CA3AF' }}>
-                <span>כניסה כאורח</span>
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
+              {/* Guest */}
+              <div className="mt-4 pt-3" style={{ borderTop: '1px solid #E5E7EB' }}>
+                <button onClick={handleGuest}
+                  className="w-full py-3.5 text-sm font-bold rounded-2xl transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
+                  style={{ color: '#374151', background: '#F9FAFB', border: '1.5px solid #D1D5DB', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                  <span>👋</span>
+                  <span>כניסה כאורח - בלי הרשמה</span>
+                </button>
+              </div>
             </div>
 
             {/* Trust signal */}

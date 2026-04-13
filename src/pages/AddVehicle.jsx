@@ -27,6 +27,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import useAccountRole from '@/hooks/useAccountRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
+import AiDateScan from '../components/shared/AiDateScan';
 
 const EMPTY_FORM = {
   vehicle_type_id: '',
@@ -51,11 +52,14 @@ const EMPTY_FORM = {
   // Vessel safety equipment
   pyrotechnics_expiry_date: '',
   fire_extinguisher_expiry_date: '',
+  fire_extinguishers: null, // array of { date: '' } — null means use single field
   life_raft_expiry_date: '',
   // Vessel engine
   engine_manufacturer: '',
-  // Vessel flag country
+  // Vessel flag country + marina
   flag_country: '',
+  marina: '',
+  marina_abroad: false,
   // Vessel shipyard
   last_shipyard_date: '',
   hours_since_shipyard: '',
@@ -279,6 +283,26 @@ export default function AddVehicle() {
         last_test_date: fields.last_test_date || '',
         first_registration_date: fields.first_registration_date || '',
         ownership: fields.ownership || '',
+        // Tech spec fields
+        model_code: fields.model_code || '',
+        trim_level: fields.trim_level || '',
+        vin: fields.vin || '',
+        pollution_group: fields.pollution_group || '',
+        vehicle_class: fields.vehicle_class || '',
+        safety_rating: fields.safety_rating || '',
+        horsepower: fields.horsepower || '',
+        engine_cc: fields.engine_cc || '',
+        drivetrain: fields.drivetrain || '',
+        total_weight: fields.total_weight || '',
+        doors: fields.doors || '',
+        seats: fields.seats || '',
+        airbags: fields.airbags || '',
+        transmission: fields.transmission || '',
+        body_type: fields.body_type || '',
+        country_of_origin: fields.country_of_origin || '',
+        co2: fields.co2 || '',
+        green_index: fields.green_index || '',
+        tow_capacity: fields.tow_capacity || '',
       };
       setForm(prev => ({ ...prev, ...updates }));
       const filled = new Set(Object.entries(updates).filter(([k, v]) => v && k !== 'is_vintage').map(([k]) => k));
@@ -315,6 +339,37 @@ export default function AddVehicle() {
     }
 
     setSaving(true);
+
+    // Auto-enrich: if license plate exists, fetch technical spec from gov API
+    // and fill missing fields (model_code, trim_level, vin, pollution_group, etc.)
+    if (form.license_plate && !isVesselCategory) {
+      try {
+        const govData = await lookupVehicleByPlate(form.license_plate);
+        if (govData) {
+          // Only fill fields that are currently empty — don't overwrite user input
+          const enrichFields = [
+            'engine_model', 'model_code', 'trim_level', 'vin', 'pollution_group',
+            'vehicle_class', 'safety_rating',
+            'front_tire', 'rear_tire', 'color', 'ownership', 'first_registration_date',
+            'fuel_type', 'test_due_date',
+            'horsepower', 'engine_cc', 'drivetrain', 'total_weight', 'doors', 'seats',
+            'airbags', 'transmission', 'body_type', 'country_of_origin', 'co2', 'green_index', 'tow_capacity',
+          ];
+          enrichFields.forEach(f => {
+            if (govData[f] && !form[f]) {
+              form[f] = govData[f];
+            }
+          });
+          // Also fill manufacturer/model/year if empty
+          if (govData.manufacturer && !form.manufacturer) form.manufacturer = govData.manufacturer;
+          if (govData.model && !form.model) form.model = govData.model;
+          if (govData.year && !form.year) form.year = govData.year;
+        }
+      } catch (err) {
+        // Silent fail — enrichment is optional
+        console.log('Auto-enrich skipped:', err.message);
+      }
+    }
 
     const data = {
       ...form,
@@ -368,9 +423,12 @@ export default function AddVehicle() {
         'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
         'current_km','current_engine_hours','vehicle_photo','fuel_type','is_vintage',
         'last_tire_change_date','km_since_tire_change',
-        'flag_country','engine_manufacturer','pyrotechnics_expiry_date','fire_extinguisher_expiry_date',
+        'flag_country','marina','marina_abroad','engine_manufacturer','pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
         'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
         'front_tire','rear_tire','engine_model','color','last_test_date','first_registration_date','ownership',
+        'model_code','trim_level','vin','pollution_group','vehicle_class','safety_rating',
+        'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
+        'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
         'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
       const cleanData = { account_id: accountId };
       DB_COLUMNS.forEach(k => { if (data[k] !== undefined && data[k] !== null && data[k] !== '') cleanData[k] = data[k]; });
@@ -1068,7 +1126,7 @@ export default function AddVehicle() {
                       <AutofillHint name="test_due_date" autofillFields={autofillFields} />
                     </div>
                     <div>
-                      <Label>{isVesselCategory ? 'ביטוח ימי' : 'חידוש ביטוח'}</Label>
+                      <Label>{isVesselCategory ? 'תוקף ביטוח ימי' : 'חידוש ביטוח'}</Label>
                       <DateInput
                         value={form.insurance_due_date}
                         onChange={e => handleChange('insurance_due_date', e.target.value)}
@@ -1086,7 +1144,7 @@ export default function AddVehicle() {
                       )}
                     </div>
                     <div>
-                      <Label>{isVesselCategory ? 'ביטוח ימי' : 'חברת ביטוח'}</Label>
+                      <Label>{isVesselCategory ? 'חברת ביטוח ימי' : 'חברת ביטוח'}</Label>
                     <SelectWithClear
                       value={form.insurance_company}
                       onValueChange={v => handleChange('insurance_company', v)}
@@ -1117,14 +1175,45 @@ export default function AddVehicle() {
                   </div>
                   </div>{/* end grid ק"מ+ביטוח */}
 
-                  {/* דגל מדינה — vessels only */}
+                  {/* דגל + מרינה — vessels only */}
                   {isVesselCategory && (
-                    <div>
-                      <Label>דגל מדינה (רישום)</Label>
-                      <CountryFlagSelect
-                        value={form.flag_country}
-                        onChange={v => handleChange('flag_country', v)}
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>דגל מדינה</Label>
+                        <CountryFlagSelect
+                          value={form.flag_country}
+                          onChange={v => handleChange('flag_country', v)}
+                        />
+                      </div>
+                      <div>
+                        <Label>מרינת עגינה</Label>
+                        {!form.marina_abroad ? (
+                          <Select value={form.marina} onValueChange={v => {
+                            if (v === '__abroad') { handleChange('marina', ''); handleChange('marina_abroad', true); }
+                            else { handleChange('marina', v); handleChange('marina_abroad', false); }
+                          }}>
+                            <SelectTrigger className="h-11"><SelectValue placeholder="בחר מרינה..." /></SelectTrigger>
+                            <SelectContent dir="rtl">
+                              {['מרינה הרצליה','מרינה אשקלון','מרינה אשדוד','מרינה יפו','מרינה עתלית','מרינה חיפה','מרינה עכו','מרינה אילת','מרינה קיסריה','מרינה נתניה'].map(m => (
+                                <SelectItem key={m} value={m}>{m}</SelectItem>
+                              ))}
+                              <SelectItem value="__abroad">🌍 מרינה בחו"ל...</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <Input placeholder="שם המרינה בחו״ל..."
+                              value={form.marina}
+                              onChange={e => handleChange('marina', e.target.value)}
+                              className="h-11"
+                            />
+                            <button type="button" onClick={() => { handleChange('marina', ''); handleChange('marina_abroad', false); }}
+                              className="text-[10px] font-bold underline text-gray-400">
+                              חזרה לרשימת מרינות בישראל
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -1141,15 +1230,57 @@ export default function AddVehicle() {
                           <div>
                             <Label className="text-cyan-900 text-xs font-semibold">🔴 תוקף ציוד פירוטכניקה</Label>
                             <DateInput value={form.pyrotechnics_expiry_date} onChange={e => handleChange('pyrotechnics_expiry_date', e.target.value)} className="mt-1 bg-white border-cyan-200" />
+                            <AiDateScan onDateExtracted={d => handleChange('pyrotechnics_expiry_date', d)} label="📷 סרוק תוקף" />
                           </div>
-                          <div>
-                            <Label className="text-cyan-900 text-xs font-semibold">🧯 תוקף מטף</Label>
-                            <DateInput value={form.fire_extinguisher_expiry_date} onChange={e => handleChange('fire_extinguisher_expiry_date', e.target.value)} className="mt-1 bg-white border-cyan-200" />
+                          <div className="col-span-1 sm:col-span-2">
+                            <Label className="text-cyan-900 text-xs font-semibold">🧯 מטפי כיבוי</Label>
+                            {(form.fire_extinguishers || [{ date: form.fire_extinguisher_expiry_date || '' }]).map((ext, i) => (
+                              <div key={i} className="flex items-center gap-2 mt-1.5">
+                                <span className="text-[10px] font-bold text-cyan-700 shrink-0">מטף {i + 1}</span>
+                                <DateInput
+                                  value={ext.date || ''}
+                                  onChange={e => {
+                                    const list = [...(form.fire_extinguishers || [{ date: form.fire_extinguisher_expiry_date || '' }])];
+                                    list[i] = { ...list[i], date: e.target.value };
+                                    handleChange('fire_extinguishers', list);
+                                    if (i === 0) handleChange('fire_extinguisher_expiry_date', e.target.value);
+                                  }}
+                                  className="bg-white border-cyan-200 flex-1"
+                                />
+                                {i > 0 && (
+                                  <button type="button" onClick={() => {
+                                    const list = [...(form.fire_extinguishers || [])];
+                                    list.splice(i, 1);
+                                    handleChange('fire_extinguishers', list);
+                                  }} className="text-red-400 text-xs font-bold px-1">✕</button>
+                                )}
+                              </div>
+                            ))}
+                            <div className="flex items-center gap-3 mt-2">
+                              <button type="button" onClick={() => {
+                                const list = [...(form.fire_extinguishers || [{ date: form.fire_extinguisher_expiry_date || '' }])];
+                                list.push({ date: '' });
+                                handleChange('fire_extinguishers', list);
+                              }} className="text-[11px] font-bold text-cyan-700 flex items-center gap-1">
+                                + הוסף מטף נוסף
+                              </button>
+                              <AiDateScan onDateExtracted={d => {
+                                const list = [...(form.fire_extinguishers || [{ date: form.fire_extinguisher_expiry_date || '' }])];
+                                const emptyIdx = list.findIndex(e => !e.date);
+                                if (emptyIdx >= 0) { list[emptyIdx] = { date: d }; }
+                                else { list.push({ date: d }); }
+                                handleChange('fire_extinguishers', list);
+                                if (list[0]?.date) handleChange('fire_extinguisher_expiry_date', list[0].date);
+                              }} label="📷 סרוק תוקף מטף" />
+                            </div>
                           </div>
                           <div>
                             <Label className="text-cyan-900 text-xs font-semibold">🛟 תוקף אסדת הצלה</Label>
                             <DateInput value={form.life_raft_expiry_date} onChange={e => handleChange('life_raft_expiry_date', e.target.value)} className="mt-1 bg-white border-cyan-200" />
-                            <p className="text-xs text-cyan-600 mt-0.5">תוקף ל-3 שנים ממועד הרכישה</p>
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-cyan-600 mt-0.5">תוקף ל-3 שנים ממועד הרכישה</p>
+                              <AiDateScan onDateExtracted={d => handleChange('life_raft_expiry_date', d)} label="📷 סרוק תוקף" />
+                            </div>
                           </div>
                         </div>
                       </div>

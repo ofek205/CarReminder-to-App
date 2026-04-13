@@ -23,29 +23,51 @@ export function GuestProvider({ children }) {
   const [authState, setAuthState] = useState('loading'); // 'loading' | 'authenticated' | 'guest'
   const [user, setUser] = useState(null);
 
-  const [guestVehicles, setGuestVehicles] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
-  });
+  // Deep sanitize all strings in data loaded from localStorage to prevent stored XSS
+  const sanitizeValue = (v) => {
+    if (typeof v === 'string') {
+      return v.replace(/&#x([0-9a-f]+);?/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+              .replace(/&#(\d+);?/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
+              .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+              .replace(/[\uFF1C\uFE64]/g, '<').replace(/[\uFF1E\uFE65]/g, '>')
+              .replace(/<[^>]*>/g, '')
+              .replace(/on\w+\s*=/gi, '')
+              .replace(/j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '');
+    }
+    if (Array.isArray(v)) return v.map(sanitizeValue);
+    if (v && typeof v === 'object') {
+      const clean = {};
+      for (const [key, val] of Object.entries(v)) {
+        if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+        clean[key] = sanitizeValue(val);
+      }
+      return clean;
+    }
+    return v;
+  };
 
-  const [guestDocuments, setGuestDocuments] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(DOCS_KEY) || '[]'); } catch { return []; }
-  });
+  const sanitizeLocalData = (arr) => {
+    if (!Array.isArray(arr)) return [];
+    return arr.map(sanitizeValue);
+  };
+
+  const safeLoadArray = (key) => {
+    try {
+      const data = JSON.parse(localStorage.getItem(key) || '[]');
+      return sanitizeLocalData(data);
+    } catch { return []; }
+  };
+
+  const [guestVehicles, setGuestVehicles] = useState(() => safeLoadArray(STORAGE_KEY));
+  const [guestDocuments, setGuestDocuments] = useState(() => safeLoadArray(DOCS_KEY));
 
   const [guestReminderSettings, setGuestReminderSettings] = useState(() => {
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || DEFAULT_REMINDER_SETTINGS; } catch { return DEFAULT_REMINDER_SETTINGS; }
   });
 
-  const [guestAccidents, setGuestAccidents] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(ACCIDENTS_KEY) || '[]'); } catch { return []; }
-  });
-
-  const [guestVesselIssues, setGuestVesselIssues] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(VESSEL_ISSUES_KEY) || '[]'); } catch { return []; }
-  });
-
-  const [guestCorkNotes, setGuestCorkNotes] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(CORK_NOTES_KEY) || '[]'); } catch { return []; }
-  });
+  const [guestAccidents, setGuestAccidents] = useState(() => safeLoadArray(ACCIDENTS_KEY));
+  const [guestVesselIssues, setGuestVesselIssues] = useState(() => safeLoadArray(VESSEL_ISSUES_KEY));
+  const [guestCorkNotes, setGuestCorkNotes] = useState(() => safeLoadArray(CORK_NOTES_KEY));
 
   const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
 
@@ -80,20 +102,21 @@ export function GuestProvider({ children }) {
 
   useEffect(() => {
     const handleStorage = (e) => {
+      // All storage events pass through sanitizeLocalData to prevent stored XSS
       if (e.key === STORAGE_KEY) {
-        try { setGuestVehicles(JSON.parse(e.newValue || '[]')); } catch {}
+        try { setGuestVehicles(sanitizeLocalData(JSON.parse(e.newValue || '[]'))); } catch {}
       }
       if (e.key === DOCS_KEY) {
-        try { setGuestDocuments(JSON.parse(e.newValue || '[]')); } catch {}
+        try { setGuestDocuments(sanitizeLocalData(JSON.parse(e.newValue || '[]'))); } catch {}
       }
       if (e.key === ACCIDENTS_KEY) {
-        try { setGuestAccidents(JSON.parse(e.newValue || '[]')); } catch {}
+        try { setGuestAccidents(sanitizeLocalData(JSON.parse(e.newValue || '[]'))); } catch {}
       }
       if (e.key === VESSEL_ISSUES_KEY) {
-        try { setGuestVesselIssues(JSON.parse(e.newValue || '[]')); } catch {}
+        try { setGuestVesselIssues(sanitizeLocalData(JSON.parse(e.newValue || '[]'))); } catch {}
       }
       if (e.key === CORK_NOTES_KEY) {
-        try { setGuestCorkNotes(JSON.parse(e.newValue || '[]')); } catch {}
+        try { setGuestCorkNotes(sanitizeLocalData(JSON.parse(e.newValue || '[]'))); } catch {}
       }
     };
     window.addEventListener('storage', handleStorage);

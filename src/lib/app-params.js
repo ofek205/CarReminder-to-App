@@ -20,8 +20,12 @@ const getAppParamValue = (paramName, { defaultValue = undefined, removeFromUrl =
 		window.history.replaceState({}, document.title, newUrl);
 	}
 	if (searchParam) {
-		storage.setItem(storageKey, searchParam);
-		return searchParam;
+		// Validate: only allow safe alphanumeric + common JWT chars
+		const safeParam = /^[A-Za-z0-9._\-=]+$/.test(searchParam) ? searchParam : null;
+		if (safeParam) {
+			storage.setItem(storageKey, safeParam);
+			return safeParam;
+		}
 	}
 	if (defaultValue) {
 		storage.setItem(storageKey, defaultValue);

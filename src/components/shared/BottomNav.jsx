@@ -1,13 +1,13 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Home, Car, FileText, Bell } from 'lucide-react';
+import { Home, MapPin, FileText, AlertTriangle } from 'lucide-react';
 
 const tabs = [
-  { label: 'ראשי',    icon: Home,     path: 'Dashboard' },
-  { label: 'רכבים',   icon: Car,      path: 'Vehicles'  },
-  { label: 'מסמכים',  icon: FileText, path: 'Documents' },
-  { label: 'התראות',  icon: Bell,     path: 'Notifications' },
+  { label: 'ראשי',    icon: Home,           path: 'Dashboard' },
+  { label: 'מסמכים',  icon: FileText,       path: 'Documents' },
+  { label: 'מצא מוסך', icon: MapPin,         path: 'FindGarage'  },
+  { label: 'תאונות',  icon: AlertTriangle,  path: 'Accidents' },
 ];
 
 export default function BottomNav() {

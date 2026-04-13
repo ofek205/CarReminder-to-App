@@ -125,29 +125,42 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
     setAiScanning(true);
     setAiResult(null);
     try {
-      const schema = {
-        type: 'object',
-        properties: {
-          document_type: { type: 'string', description: `סוג המסמך. אחד מהאפשרויות: ${docTypes.join(' / ')}` },
-          title: { type: 'string', description: 'כותרת קצרה - שם המבטחת, מספר פוליסה וכו' },
-          issue_date: { type: 'string', description: 'תאריך הנפקה/תחילת תוקף בפורמט DD/MM/YYYY' },
-          expiry_date: { type: 'string', description: 'תאריך תפוגה/סיום תוקף בפורמט DD/MM/YYYY' },
-        },
-      };
-      // TODO: migrate AI scan to Supabase Edge Function or external service
-      const result = { status: 'error' }; // Stub — AI scan not yet available in Supabase
-      if (result.status === 'success' && result.output) {
-        const raw = result.output;
+      const { aiRequest } = await import('@/lib/aiProxy');
+      // Read the file as base64 for AI vision
+      const mediaType = form.file_url.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const imageData = form.file_url.split(',')[1];
+      if (!imageData) { toast.error('לא ניתן לקרוא את הקובץ'); setAiScanning(false); return; }
+
+      const json = await aiRequest({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
+            { type: 'text', text: `סרוק מסמך זה וחלץ פרטים. סוגי מסמכים אפשריים: ${docTypes.join(' / ')}.
+החזר JSON בלבד: {"document_type":"סוג", "title":"כותרת/שם מנפיק", "issue_date":"YYYY-MM-DD", "expiry_date":"YYYY-MM-DD"}.
+אם לא ניתן לזהות שדה — השאר ריק.` },
+          ],
+        }],
+      });
+
+      const text = json?.content?.[0]?.text || '';
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        const raw = JSON.parse(match[0]);
+        const validDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(new Date(d).getTime()) ? d : '';
         setAiResult({
           document_type: docTypes.includes(raw.document_type) ? raw.document_type : '',
-          title: raw.title || '',
-          issue_date: parseDocDate(raw.issue_date || ''),
-          expiry_date: parseDocDate(raw.expiry_date || ''),
+          title: (raw.title || '').replace(/<[^>]*>/g, '').slice(0, 100),
+          issue_date: validDate(raw.issue_date),
+          expiry_date: validDate(raw.expiry_date),
         });
       } else {
-        toast.error('לא הצלחתי לקרוא את המסמך - מלא ידנית');
+        toast.error('לא הצלחתי לקרוא את המסמך — מלא ידנית');
       }
-    } catch {
+    } catch (err) {
+      console.error('Document AI scan error:', err);
       toast.error('שגיאה בסריקת המסמך');
     } finally {
       setAiScanning(false);
@@ -506,20 +519,58 @@ function GroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
               }
             </button>
 
-            {!isCollapsed && (
-              <div className="space-y-2 pr-1">
-                {catDocs.map(doc => (
-                  <DocCard
-                    key={doc.id}
-                    doc={doc}
-                    vehicle={vehicles.find(v => v.id === doc.vehicle_id)}
-                    onOpen={onOpen}
-                    onDelete={onDelete}
-                    openingId={openingId}
-                  />
-                ))}
-              </div>
-            )}
+            {!isCollapsed && (() => {
+              // Sort by expiry_date descending (newest first), then by created_date
+              const sorted = [...catDocs].sort((a, b) => {
+                const da = a.expiry_date || a.created_date || '';
+                const db2 = b.expiry_date || b.created_date || '';
+                return db2.localeCompare(da);
+              });
+              const latest = sorted[0];
+              const older = sorted.slice(1);
+              const [showOlder, setShowOlder] = [
+                collapsed[`${cat.type}_older`],
+                (v) => setCollapsed(c => ({ ...c, [`${cat.type}_older`]: v }))
+              ];
+
+              return (
+                <div className="space-y-2 pr-1">
+                  {/* Latest document — always visible */}
+                  {latest && (
+                    <DocCard
+                      key={latest.id}
+                      doc={latest}
+                      vehicle={vehicles.find(v => v.id === latest.vehicle_id)}
+                      onOpen={onOpen}
+                      onDelete={onDelete}
+                      openingId={openingId}
+                    />
+                  )}
+                  {/* Older documents — collapsed by default */}
+                  {older.length > 0 && (
+                    <>
+                      <button type="button" onClick={() => setShowOlder(!showOlder)}
+                        className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg transition-all"
+                        style={{ color: '#9CA3AF' }}>
+                        {showOlder ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        הצג ישנים ({older.length})
+                      </button>
+                      {showOlder && older.map(doc => (
+                        <div key={doc.id} style={{ opacity: 0.6 }}>
+                          <DocCard
+                            doc={doc}
+                            vehicle={vehicles.find(v => v.id === doc.vehicle_id)}
+                            onOpen={onOpen}
+                            onDelete={onDelete}
+                            openingId={openingId}
+                          />
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         );
       })}
@@ -539,7 +590,29 @@ function GuestDocuments({ vehicleIdParam }) {
     ? guestDocuments.filter(d => d.vehicle_id === vehicleIdParam)
     : guestDocuments;
 
-  const handleSave = () => {
+  const handleSave = (formData) => {
+    if (formData) {
+      const vid = formData.vehicle_id || vehicleIdParam || null;
+      // Auto-name: if title is empty, use type + date
+      if (!formData.title && formData.expiry_date) {
+        formData.title = `${formData.document_type} - ${new Date(formData.expiry_date).toLocaleDateString('he-IL')}`;
+      }
+      // Check for existing document of same type for this vehicle — mark old as superseded
+      const existingDocs = guestDocuments.filter(d => d.vehicle_id === vid && d.document_type === formData.document_type);
+      if (existingDocs.length > 0 && formData.expiry_date) {
+        // Mark all older docs as not latest
+        existingDocs.forEach(old => {
+          if (!old.expiry_date || new Date(formData.expiry_date) >= new Date(old.expiry_date)) {
+            updateGuestDocument?.(old.id, { _superseded: true });
+          }
+        });
+      }
+      addGuestDocument({
+        ...formData,
+        vehicle_id: vid,
+        _superseded: false, // This is the latest
+      });
+    }
     setShowAdd(false);
     setShowGuestSignup(true);
   };

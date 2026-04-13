@@ -16,13 +16,38 @@ export const DEMO_VEHICLE = {
   nickname: 'הקורולה שלי',
   license_plate: '12-345-67',
   license_plate_normalized: '1234567',
-  test_due_date: '2026-08-01',        // ~4 months ahead → status: ok
-  insurance_due_date: '2026-09-15',   // ~6 months ahead → status: ok
+  test_due_date: '2026-08-01',
+  insurance_due_date: '2026-09-15',
   insurance_company: 'הראל',
   current_km: 148200,
   notes: 'רכב במצב טוב, משמש לנסיעות יומיות',
   vehicle_photo: '/demo-corolla.jpg',
   created_date: '2024-01-15T10:00:00.000Z',
+  // מפרט טכני
+  color: 'כסוף מטאלי',
+  fuel_type: 'בנזין',
+  engine_model: '1ZR-FE',
+  model_code: 'NRE180L-AHXNKW',
+  trim_level: 'COMFORT',
+  vin: 'JTDKN3DU4G0123456',
+  pollution_group: '10',
+  vehicle_class: 'פרטי',
+  ownership: 'פרטי',
+  first_registration_date: '2016-03-15',
+  horsepower: '132 כ"ס',
+  engine_cc: '1598 סמ"ק',
+  transmission: 'אוטומטי CVT',
+  drivetrain: '4X2',
+  total_weight: '1735 ק"ג',
+  doors: '4',
+  seats: '5',
+  airbags: '7',
+  body_type: 'סדאן',
+  country_of_origin: 'יפן',
+  co2: '127 גר\'/ק"מ',
+  green_index: '186',
+  front_tire: '195/65R15',
+  rear_tire: '195/65R15',
 };
 
 /** Treatments – completed and upcoming */
@@ -256,7 +281,21 @@ export const DEMO_VESSEL = {
   engine_manufacturer: 'Yanmar',
   last_shipyard_date: '2025-09-10',
   hours_since_shipyard: 180,
+  flag_country: 'IL',
+  marina: 'מרינה הרצליה',
   created_date: '2023-06-01T10:00:00.000Z',
+  // מפרט טכני — כלי שייט
+  color: 'לבן',
+  fuel_type: 'דיזל',
+  engine_model: '3YM30',
+  horsepower: '29 כ"ס',
+  engine_cc: '1115 סמ"ק',
+  total_weight: '7200 ק"ג',
+  seats: '8',
+  body_type: 'מפרשית',
+  country_of_origin: 'צרפת',
+  vin: 'FR-BEN38120P607',
+  ownership: 'פרטי',
 };
 
 export const DEMO_VESSEL_TREATMENTS = [

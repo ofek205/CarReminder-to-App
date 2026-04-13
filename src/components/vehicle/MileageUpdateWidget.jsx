@@ -22,7 +22,10 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
   if (!isKm && !isHours) return null;
 
   const currentValue = isKm ? vehicle.current_km : vehicle.current_engine_hours;
-  const updateDate   = isKm ? vehicle.km_update_date : vehicle.engine_hours_update_date;
+  const dbDate       = isKm ? vehicle.km_update_date : vehicle.engine_hours_update_date;
+  // Also check localStorage (always works even if DB column doesn't exist)
+  const localDate    = (() => { try { return JSON.parse(localStorage.getItem('carreminder_mileage_dates') || '{}')[vehicle.id] || null; } catch { return null; } })();
+  const updateDate   = localDate || dbDate || null;
   const unit         = isKm ? 'ק״מ' : 'שעות מנוע';
   const sectionLabel = isKm ? 'קילומטראז\'' : 'שעות מנוע';
 
@@ -37,21 +40,29 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
     }
     setSaving(true);
     try {
-      const update = isKm
-        ? { current_km: num }
-        : { current_engine_hours: num };
+      const now = new Date().toISOString();
+      const coreUpdate = isKm ? { current_km: num } : { current_engine_hours: num };
+      const dateUpdate = isKm ? { km_update_date: now } : { engine_hours_update_date: now };
 
       if (isGuest) {
-        updateGuestVehicle(vehicle.id, update);
+        updateGuestVehicle(vehicle.id, { ...coreUpdate, ...dateUpdate });
       } else {
-        await db.vehicles.update(vehicle.id, update);
+        await db.vehicles.update(vehicle.id, coreUpdate);
+        // Try saving update date (column may not exist yet in DB)
+        try { await db.vehicles.update(vehicle.id, dateUpdate); } catch {}
         queryClient.invalidateQueries({ queryKey: ['vehicle', vehicle.id] });
       }
+      // Save to localStorage so the quick-update button on Vehicles list hides for 30 days
+      try {
+        const all = JSON.parse(localStorage.getItem('carreminder_mileage_dates') || '{}');
+        all[vehicle.id] = now;
+        localStorage.setItem('carreminder_mileage_dates', JSON.stringify(all));
+      } catch {}
       setOpen(false);
       setValue('');
-      onUpdated?.(update);
+      onUpdated?.({ ...coreUpdate, ...dateUpdate });
     } catch (err) {
-      alert('שגיאה בשמירה: ' + (err?.message || 'נסה שוב'));
+      alert('שגיאה בשמירה. נסה שוב.');
     } finally {
       setSaving(false);
     }
@@ -86,11 +97,17 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
               ) : (
                 <span className="text-sm font-medium" style={{ color: '#9CA3AF' }}>טרם עודכן</span>
               )}
-              {updateDate && (
-                <p className="text-[11px]" style={{ color: '#9CA3AF' }}>
-                  עודכן {new Date(updateDate).toLocaleDateString('he-IL')}
-                </p>
-              )}
+              {updateDate && (() => {
+                const days = Math.floor((Date.now() - new Date(updateDate).getTime()) / (1000 * 60 * 60 * 24));
+                const isOld = days > 30;
+                const timeAgo = days === 0 ? 'היום' : days === 1 ? 'אתמול' : days < 30 ? `לפני ${days} ימים` : days < 60 ? 'לפני חודש' : `לפני ${Math.round(days / 30)} חודשים`;
+                return (
+                  <p className="text-[10px] font-medium" style={{ color: isOld ? '#D97706' : '#9CA3AF' }}>
+                    עודכן {timeAgo} · {new Date(updateDate).toLocaleDateString('he-IL')}
+                    {isOld && ' ⚠️'}
+                  </p>
+                );
+              })()}
             </div>
           </div>
 

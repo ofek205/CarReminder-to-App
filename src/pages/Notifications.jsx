@@ -3,7 +3,9 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
-import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock } from "lucide-react";
+import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User } from "lucide-react";
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { formatDateHe, getVehicleLabels } from "../components/shared/DateStatusUtils";
 import { useAuth } from "../components/shared/GuestContext";
@@ -24,18 +26,19 @@ const TYPE_CONFIG = {
 };
 
 // ── Notification Card ────────────────────────────────────────────────────────
-function NotifCard({ notif, onMarkRead, isRead }) {
+function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
   const tc = TYPE_CONFIG[notif.notification_type] || { icon: Bell, bg: '#F5F5F5', color: '#757575', border: '#E0E0E0' };
   const Icon = tc.icon;
   const isOverdue = notif.is_overdue;
 
   return (
     <div
-      className={`rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all ${isRead ? 'opacity-50' : ''}`}
+      className={`rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all`}
       style={{
-        background: isOverdue ? '#FEF2F2' : '#fff',
-        border: `1.5px solid ${isOverdue ? '#FECACA' : C.border}`,
+        background: isOverdue ? '#FEF2F2' : isRead ? '#FAFAFA' : '#fff',
+        border: `1.5px solid ${isOverdue ? '#FECACA' : isRead ? '#E5E7EB' : C.border}`,
         boxShadow: isRead ? 'none' : `0 2px 10px ${C.primary}08`,
+        opacity: isRead ? 0.65 : 1,
       }}
       dir="rtl"
     >
@@ -47,7 +50,10 @@ function NotifCard({ notif, onMarkRead, isRead }) {
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold" style={{ color: isOverdue ? '#991B1B' : C.text }}>{notif.message}</p>
+        <p className={`text-sm ${isRead ? 'font-medium' : 'font-bold'}`}
+          style={{ color: isOverdue ? '#991B1B' : isRead ? '#6B7280' : C.text }}>
+          {notif.message}
+        </p>
         <div className="flex items-center gap-2 mt-1">
           <span className="text-xs font-medium" style={{ color: isOverdue ? '#DC2626' : C.muted }}>
             {formatDateHe(notif.due_date)}
@@ -65,12 +71,25 @@ function NotifCard({ notif, onMarkRead, isRead }) {
         </div>
       </div>
 
-      {/* Mark as read */}
-      {onMarkRead && !isRead && (
-        <button onClick={() => onMarkRead(notif.id)}
-          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 hover:bg-gray-50 transition-all">
-          <CheckCircle className="w-4 h-4" style={{ color: C.muted }} />
-        </button>
+      {/* Read/unread toggle */}
+      {isRead ? (
+        onMarkUnread && (
+          <button onClick={() => onMarkUnread(notif.id)}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all"
+            style={{ color: '#6B7280' }}>
+            <div className="w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: '#D1D5DB' }} />
+            סמן כלא נקרא
+          </button>
+        )
+      ) : (
+        onMarkRead && (
+          <button onClick={() => onMarkRead(notif.id)}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all"
+            style={{ color: C.primary }}>
+            <CheckCircle className="w-3.5 h-3.5" />
+            נקרא
+          </button>
+        )
       )}
     </div>
   );
@@ -268,26 +287,69 @@ function AuthNotifications() {
   const vehicles = accountData?.vehicles || [];
   const isLoading = !accountData;
 
+  // Check if profile is incomplete
+  const { data: profileData } = useQuery({
+    queryKey: ['user-profile-check', user?.id],
+    queryFn: async () => {
+      try {
+        const profiles = await db.user_profiles.filter({ user_id: user.id });
+        return profiles.length > 0 ? profiles[0] : null;
+      } catch { return null; }
+    },
+    enabled: !!user?.id,
+  });
+  const profileIncomplete = !profileData || !profileData.phone;
+
+  // Check license expiration
+  const licenseExpDate = profileData?.license_expiration_date;
+  const licenseDays = licenseExpDate ? Math.ceil((new Date(licenseExpDate) - new Date()) / 86400000) : null;
+  const licenseAlert = licenseDays !== null && licenseDays <= 30;
+
   // Calculate notifications from vehicle data
   const notifications = remindersToNotifs(
     calcReminders({ vehicles, documents: [], settings: settings || undefined })
   );
 
-  const markAsRead = async (id) => {
-    // For now, just remove from UI — future: persist to notification_log
-    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  // Read state — synced with localStorage (same as bell)
+  const [readIds, setReadIds] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('read_notif_ids') || '[]');
+      const timedReads = JSON.parse(localStorage.getItem('read_notif_timed') || '{}');
+      const now = Date.now();
+      const validTimedIds = Object.entries(timedReads)
+        .filter(([_, ts]) => now - ts < 7 * 24 * 60 * 60 * 1000)
+        .map(([id]) => id);
+      return new Set([...stored, ...validTimedIds]);
+    } catch { return new Set(); }
+  });
+
+  const markAsRead = (id) => {
+    setReadIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      localStorage.setItem('read_notif_ids', JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const markAsUnread = (id) => {
+    setReadIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      localStorage.setItem('read_notif_ids', JSON.stringify([...next]));
+      return next;
+    });
   };
 
   if (!user?.id || isLoading) return <LoadingSpinner />;
 
   const sorted = [...notifications].sort((a, b) => {
-    // Overdue first, then by days_left ascending
     if (a.is_overdue && !b.is_overdue) return -1;
     if (!a.is_overdue && b.is_overdue) return 1;
     return (a.days_left ?? 999) - (b.days_left ?? 999);
   });
-  const unread = sorted.filter(n => !n.is_read);
-  const read = sorted.filter(n => n.is_read);
+  const unread = sorted.filter(n => !readIds.has(n.id));
+  const read = sorted.filter(n => readIds.has(n.id));
 
   return (
     <div dir="rtl">
@@ -308,9 +370,45 @@ function AuthNotifications() {
         </div>
       </div>
 
-      {sorted.length === 0 ? (
+      {/* Profile incomplete notification */}
+      {profileIncomplete && (
+        <Link to={createPageUrl('UserProfile')}
+          className="rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all active:scale-[0.99]"
+          style={{ background: '#EEF2FF', border: '1.5px solid #C7D2FE', boxShadow: '0 2px 10px rgba(67,56,202,0.08)' }}
+          dir="rtl">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: '#4338CA', boxShadow: '0 3px 10px rgba(67,56,202,0.3)' }}>
+            <User className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold" style={{ color: '#312E81' }}>השלם פרטים אישיים</p>
+            <p className="text-xs mt-0.5" style={{ color: '#6366F1' }}>הוסף טלפון ותאריך לידה באזור האישי</p>
+          </div>
+        </Link>
+      )}
+
+      {/* License expiration alert */}
+      {licenseAlert && (
+        <Link to={createPageUrl('UserProfile')}
+          className="rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all active:scale-[0.99]"
+          style={{ background: licenseDays < 0 ? '#FEF2F2' : '#FFF8E1', border: `1.5px solid ${licenseDays < 0 ? '#FECACA' : '#FDE68A'}` }}
+          dir="rtl">
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: licenseDays < 0 ? '#DC2626' : '#D97706', boxShadow: `0 3px 10px ${licenseDays < 0 ? 'rgba(220,38,38,0.3)' : 'rgba(217,119,6,0.3)'}` }}>
+            <FileText className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold" style={{ color: licenseDays < 0 ? '#991B1B' : '#92400E' }}>
+              {licenseDays < 0 ? 'רישיון נהיגה פג תוקף!' : `רישיון נהיגה פג בעוד ${licenseDays} ימים`}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: licenseDays < 0 ? '#DC2626' : '#B45309' }}>לחץ לעדכון באזור האישי</p>
+          </div>
+        </Link>
+      )}
+
+      {sorted.length === 0 && !profileIncomplete && !licenseAlert ? (
         <NotifEmptyState />
-      ) : (
+      ) : sorted.length > 0 ? (
         <>
           {unread.length > 0 && (
             <p className="text-xs font-bold mb-2 px-1" style={{ color: C.muted }}>חדשות</p>
@@ -322,12 +420,12 @@ function AuthNotifications() {
             <>
               <p className="text-xs font-bold mt-4 mb-2 px-1" style={{ color: C.muted }}>נקראו</p>
               {read.map(n => (
-                <NotifCard key={n.id} notif={n} isRead />
+                <NotifCard key={n.id} notif={n} isRead onMarkUnread={markAsUnread} />
               ))}
             </>
           )}
         </>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -24,6 +24,7 @@ import { getTheme, isVesselType } from '@/lib/designTokens';
 import useAccountRole from '@/hooks/useAccountRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
+import AiDateScan from '../components/shared/AiDateScan';
 
 export default function EditVehicle() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -68,10 +69,13 @@ export default function EditVehicle() {
     // Vessel safety equipment
     pyrotechnics_expiry_date: v.pyrotechnics_expiry_date || '',
     fire_extinguisher_expiry_date: v.fire_extinguisher_expiry_date || '',
+    fire_extinguishers: v.fire_extinguishers || null,
     life_raft_expiry_date: v.life_raft_expiry_date || '',
     // Vessel engine + flag
     engine_manufacturer: v.engine_manufacturer || '',
     flag_country: v.flag_country || '',
+    marina: v.marina || '',
+    marina_abroad: v.marina_abroad || false,
     // Vessel shipyard
     last_shipyard_date: v.last_shipyard_date || '',
     hours_since_shipyard: v.hours_since_shipyard || '',
@@ -79,10 +83,31 @@ export default function EditVehicle() {
     offroad_equipment: v.offroad_equipment || [],
     offroad_usage_type: v.offroad_usage_type || '',
     last_offroad_service_date: v.last_offroad_service_date || '',
+    // Technical spec (from gov API)
+    model_code: v.model_code || '',
+    trim_level: v.trim_level || '',
+    vin: v.vin || '',
+    pollution_group: v.pollution_group || '',
+    vehicle_class: v.vehicle_class || '',
+    safety_rating: v.safety_rating || '',
+    horsepower: v.horsepower || '',
+    engine_cc: v.engine_cc || '',
+    drivetrain: v.drivetrain || '',
+    total_weight: v.total_weight || '',
+    doors: v.doors || '',
+    seats: v.seats || '',
+    airbags: v.airbags || '',
+    transmission: v.transmission || '',
+    body_type: v.body_type || '',
+    country_of_origin: v.country_of_origin || '',
+    co2: v.co2 || '',
+    green_index: v.green_index || '',
+    tow_capacity: v.tow_capacity || '',
   });
 
   useEffect(() => {
     async function load() {
+      try {
       // Guest vehicle - load from local state
       if (isGuestVehicle) {
         const v = guestVehicles.find(v => v.id === vehicleId);
@@ -121,6 +146,11 @@ export default function EditVehicle() {
         setPhotoPreview(v.vehicle_photo || null);
       }
       setLoading(false);
+      } catch (err) {
+        console.error('EditVehicle load error:', err);
+        alert('שגיאה בטעינת פרטי הרכב');
+        setLoading(false);
+      }
     }
     load();
   }, [vehicleId, isGuestVehicle]);
@@ -158,16 +188,30 @@ export default function EditVehicle() {
     e.preventDefault();
     setSaving(true);
 
-    const data = {
-      ...form,
-      license_plate_normalized: normalizePlate(form.license_plate),
-      year: form.year ? Number(form.year) : undefined,
-      current_km: form.current_km ? Number(form.current_km) : undefined,
-      current_engine_hours: form.current_engine_hours ? Number(form.current_engine_hours) : undefined,
-      km_since_tire_change: form.km_since_tire_change ? Number(form.km_since_tire_change) : undefined,
-      insurance_company: form.insurance_company === 'אחר' ? form.insurance_company_other : form.insurance_company,
-    };
-    delete data.insurance_company_other;
+    // Only send columns that exist in Supabase
+    const DB_COLUMNS = ['vehicle_type','manufacturer','model','year',
+      'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
+      'current_km','current_engine_hours','vehicle_photo','fuel_type',
+      'last_tire_change_date','km_since_tire_change',
+      'flag_country','marina','marina_abroad','engine_manufacturer',
+      'pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
+      'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
+      'front_tire','rear_tire','engine_model','color','last_test_date','first_registration_date','ownership',
+      'model_code','trim_level','vin','pollution_group','vehicle_class','safety_rating',
+      'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
+      'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
+      'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
+
+    const data = {};
+    DB_COLUMNS.forEach(k => { if (form[k] !== undefined && form[k] !== null) data[k] = form[k]; });
+    // Type conversions
+    if (form.year) data.year = Number(form.year);
+    if (form.current_km) data.current_km = Number(form.current_km);
+    if (form.current_engine_hours) data.current_engine_hours = Number(form.current_engine_hours);
+    if (form.km_since_tire_change) data.km_since_tire_change = Number(form.km_since_tire_change);
+    if (form.insurance_company === 'אחר') data.insurance_company = form.insurance_company_other;
+    // Remove empty strings
+    Object.keys(data).forEach(k => { if (data[k] === '') delete data[k]; });
     if (tireQuestion !== 'yes') {
       data.last_tire_change_date = null;
       data.km_since_tire_change = null;
@@ -182,14 +226,46 @@ export default function EditVehicle() {
     if (isGuestVehicle) {
       updateGuestVehicle(vehicleId, data);
       toast.success(vesselMode ? 'פרטי כלי השייט עודכנו בהצלחה' : 'פרטי הרכב עודכנו בהצלחה');
-      navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`));
+      navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true });
       return;
     }
 
     if (!accountId) { setSaving(false); return; }
-    await db.vehicles.update(vehicleId, data);
-    toast.success(vesselMode ? 'פרטי כלי השייט עודכנו בהצלחה' : 'פרטי הרכב עודכנו בהצלחה');
-    navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`));
+    try {
+      await db.vehicles.update(vehicleId, data);
+      toast.success(vesselMode ? 'פרטי כלי השייט עודכנו בהצלחה' : 'פרטי הרכב עודכנו בהצלחה');
+      navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true });
+    } catch (firstErr) {
+      console.error('Vehicle update error (full):', firstErr);
+      // DEBUG: show raw error temporarily
+      alert('DEBUG ERROR: ' + JSON.stringify(firstErr?.message || firstErr));
+      // Retry: save core fields first, then spec fields one by one
+      try {
+        const CORE = ['vehicle_type','manufacturer','model','year','nickname','license_plate',
+          'test_due_date','insurance_due_date','insurance_company','current_km','current_engine_hours',
+          'vehicle_photo','fuel_type','is_vintage','last_tire_change_date','km_since_tire_change',
+          'flag_country','marina','marina_abroad','engine_manufacturer',
+          'pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
+          'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
+          'front_tire','rear_tire','engine_model','color','last_test_date','first_registration_date','ownership',
+          'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
+        const coreData = {};
+        CORE.forEach(k => { if (data[k] !== undefined) coreData[k] = data[k]; });
+        await db.vehicles.update(vehicleId, coreData);
+        // Now try spec fields one by one (some columns may not exist yet)
+        const specKeys = Object.keys(data).filter(k => !CORE.includes(k));
+        for (const k of specKeys) {
+          try { await db.vehicles.update(vehicleId, { [k]: data[k] }); } catch {}
+        }
+        toast.success(vesselMode ? 'פרטי כלי השייט עודכנו בהצלחה' : 'פרטי הרכב עודכנו בהצלחה');
+        navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true });
+      } catch (retryErr) {
+        alert('DEBUG RETRY ERROR: ' + JSON.stringify(retryErr?.message || retryErr));
+        console.error('Vehicle update error (retry):', retryErr);
+        alert('שגיאה בעדכון הרכב. נסה שוב.');
+        setSaving(false);
+      }
+    }
   };
 
   if (loading || !form) return <LoadingSpinner />;
@@ -218,38 +294,16 @@ export default function EditVehicle() {
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
-          <Link to={createPageUrl(`VehicleDetail?id=${vehicleId}`)}>
+          <button onClick={() => navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true })}>
             <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: T.light }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.primary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </div>
-          </Link>
+          </button>
           <h1 className="font-black text-xl" style={{ color: T.text }}>{vesselMode ? 'עריכת כלי שייט' : 'עריכת רכב'}</h1>
         </div>
       </div>
 
-      {/* ── Nickname Card (green/marine) ── */}
-      <div className="rounded-2xl p-4 mb-5 relative overflow-hidden" style={{ background: T.grad }}>
-        <div className="absolute -top-6 -left-6 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: T.yellow }}>
-            <VehicleIcon className="w-5 h-5" style={{ color: T.primary }} />
-          </div>
-          <div>
-            <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>{vesselMode ? 'כינוי כלי השייט' : 'כינוי לרכב'}</p>
-            <p className="text-white font-bold text-base">{form.nickname || (vesselMode ? 'היאכטה שלי' : 'הקורולה של אבא')}</p>
-          </div>
-          <button type="button" className="mr-auto" onClick={() => document.getElementById('edit-nickname')?.focus()}>
-            <PenLine className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.5)' }} />
-          </button>
-        </div>
-        <Input
-          id="edit-nickname"
-          value={form.nickname}
-          onChange={e => handleChange('nickname', e.target.value)}
-          placeholder={vesselMode ? 'למשל: "היאכטה של אבא"' : 'למשל: "הקורולה של אבא"'}
-          className="!bg-white/10 !border-white/20 !text-white !placeholder:text-white/40 rounded-xl"
-        />
-      </div>
+      {/* ── Photo + Form ── */}
 
       {/* ── Photo ── */}
       <div className="flex justify-center mb-5">
@@ -276,6 +330,13 @@ export default function EditVehicle() {
       <div className="p-4 sm:p-6 rounded-3xl" style={{ background: '#F5F1EB', border: `1px solid ${T.border}` }}>
         <form onSubmit={handleSubmit} className="space-y-4">
 
+          {/* כינוי */}
+          <div>
+            <Label>{vesselMode ? 'כינוי כלי השייט' : 'כינוי לרכב'}</Label>
+            <Input value={form.nickname} onChange={e => handleChange('nickname', e.target.value)}
+              placeholder={vesselMode ? 'למשל: היאכטה שלי' : 'למשל: הקורולה של אבא'} />
+          </div>
+
           {/* מספר רישוי — full width */}
           <div>
             <Label>{vesselMode ? 'מספר זיהוי כלי שייט *' : 'מספר רישוי *'}</Label>
@@ -294,7 +355,7 @@ export default function EditVehicle() {
             </div>
           </div>
 
-          {/* שנה + דלק — 2 columns */}
+          {/* שנה + דלק/יצרן מנוע — 2 columns */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>שנת ייצור</Label>
@@ -308,111 +369,194 @@ export default function EditVehicle() {
               </Select>
             </div>
             <div>
-              <Label>סוג דלק / הנעה</Label>
-              <Select value={form.fuel_type} onValueChange={v => handleChange('fuel_type', v)}>
-                <SelectTrigger><SelectValue placeholder="בחר" /></SelectTrigger>
-                <SelectContent>
-                  {['בנזין', 'סולר', 'חשמלי', 'היברידי', 'גז'].map(f => (
-                    <SelectItem key={f} value={f}>{f}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {vesselMode ? (
+                <>
+                  <Label>יצרן מנוע</Label>
+                  <Select value={form.engine_manufacturer} onValueChange={v => handleChange('engine_manufacturer', v)}>
+                    <SelectTrigger><SelectValue placeholder="בחר יצרן..." /></SelectTrigger>
+                    <SelectContent>
+                      {['Yamaha', 'Mercury', 'Volvo Penta', 'Yanmar', 'Honda Marine', 'Suzuki Marine', 'Tohatsu', 'Evinrude', 'Mercruiser', 'Cummins', 'Caterpillar', 'Nanni', 'Vetus', 'אחר'].map(m => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <>
+                  <Label>סוג דלק / הנעה</Label>
+                  <Select value={form.fuel_type} onValueChange={v => handleChange('fuel_type', v)}>
+                    <SelectTrigger><SelectValue placeholder="בחר" /></SelectTrigger>
+                    <SelectContent>
+                      {['בנזין', 'סולר', 'חשמלי', 'היברידי', 'גז'].map(f => (
+                        <SelectItem key={f} value={f}>{f}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
             </div>
           </div>
-
-          {/* Engine manufacturer + flag — vessels */}
-          {vesselMode && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>יצרן מנוע</Label>
-                <Input value={form.engine_manufacturer} onChange={e => handleChange('engine_manufacturer', e.target.value)} placeholder="Yamaha, Mercury, Volvo" />
-              </div>
-              <div>
-                <Label>דגל מדינה (רישום)</Label>
-                <CountryFlagSelect value={form.flag_country} onChange={v => handleChange('flag_country', v)} />
-              </div>
-            </div>
-          )}
 
           {/* טסט + ביטוח — 2 columns */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>{vesselMode ? 'תאריך כושר שייט' : 'תאריך טסט קרוב'}</Label>
+              <Label>{vesselMode ? 'כושר שייט' : 'תאריך טסט'}</Label>
               <DateInput value={form.test_due_date} onChange={e => handleChange('test_due_date', e.target.value)} />
             </div>
             <div>
-              <Label>{vesselMode ? 'תוקף ביטוח ימי' : 'חידוש ביטוח קרוב'}</Label>
+              <Label>{vesselMode ? 'תוקף ביטוח ימי' : 'חידוש ביטוח'}</Label>
               <DateInput value={form.insurance_due_date} onChange={e => handleChange('insurance_due_date', e.target.value)} />
             </div>
           </div>
 
-          {/* קילומטראז' / שעות מנוע */}
-          <div>
-            <Label>{vesselMode ? 'שעות מנוע' : 'קילומטראז׳ נוכחי'}</Label>
-            <Input type="number" dir="ltr" placeholder="0"
-              value={vesselMode ? form.current_engine_hours : form.current_km}
-              onChange={e => handleChange(vesselMode ? 'current_engine_hours' : 'current_km', e.target.value)} />
+          {/* ק"מ/שעות + חברת ביטוח — 2 columns */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>{vesselMode ? 'שעות מנוע' : 'קילומטראז׳'}</Label>
+              <Input type="number" dir="ltr" placeholder="0"
+                value={vesselMode ? form.current_engine_hours : form.current_km}
+                onChange={e => handleChange(vesselMode ? 'current_engine_hours' : 'current_km', e.target.value)} />
+            </div>
+            <div>
+              <Label>{vesselMode ? 'חברת ביטוח ימי' : 'חברת ביטוח'}</Label>
+              <Select value={form.insurance_company} onValueChange={v => handleChange('insurance_company', v)}>
+                <SelectTrigger><SelectValue placeholder="בחר חברה..." /></SelectTrigger>
+                <SelectContent>
+                  {(vesselMode
+                    ? ['הכשרה','כלל','הפניקס','הראל','איילון','מגדל','שירביט','AIG','אחר']
+                    : ['הפניקס','כלל','ישיר','מגדל','הראל','איילון','ליברה','AIG','שומרה','הכשרה','מנורה מבטחים','שירביט','אחר']
+                  ).map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.insurance_company === 'אחר' && (
+                <Input className="mt-2" placeholder="שם החברה" value={form.insurance_company_other} onChange={e => handleChange('insurance_company_other', e.target.value)} />
+              )}
+            </div>
           </div>
 
-          {/* חברת ביטוח */}
-          <div>
-            <Label>חברת ביטוח</Label>
-            <Select value={form.insurance_company} onValueChange={v => handleChange('insurance_company', v)}>
-              <SelectTrigger><SelectValue placeholder="בחר חברה..." /></SelectTrigger>
-              <SelectContent>
-                {['ליברה','הפניקס','כלל','ישיר','מגדל','הראל','איילון','AIG','שומרה','אחר'].map(c => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {form.insurance_company === 'אחר' && (
-              <Input className="mt-2" placeholder="שם החברה" value={form.insurance_company_other} onChange={e => handleChange('insurance_company_other', e.target.value)} />
-            )}
-          </div>
+          {/* דגל + מרינה — vessels only */}
+          {vesselMode && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>דגל מדינה</Label>
+                <CountryFlagSelect value={form.flag_country} onChange={v => handleChange('flag_country', v)} />
+              </div>
+              <div>
+                <Label>מרינת עגינה</Label>
+                {!form.marina_abroad ? (
+                  <Select value={form.marina} onValueChange={v => {
+                    if (v === '__abroad') { handleChange('marina', ''); handleChange('marina_abroad', true); }
+                    else { handleChange('marina', v); handleChange('marina_abroad', false); }
+                  }}>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="בחר מרינה..." /></SelectTrigger>
+                    <SelectContent dir="rtl">
+                      {['מרינה הרצליה','מרינה אשקלון','מרינה אשדוד','מרינה יפו','מרינה עתלית','מרינה חיפה','מרינה עכו','מרינה אילת','מרינה קיסריה','מרינה נתניה'].map(m => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                      <SelectItem value="__abroad">🌍 מרינה בחו"ל...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Input placeholder="שם המרינה בחו״ל..." value={form.marina} onChange={e => handleChange('marina', e.target.value)} className="h-11" />
+                    <button type="button" onClick={() => { handleChange('marina', ''); handleChange('marina_abroad', false); }}
+                      className="text-[10px] font-bold underline text-gray-400">
+                      חזרה לרשימת מרינות בישראל
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Safety equipment — vessels only */}
           {vesselMode && (
-            <div className="rounded-2xl p-4 space-y-3" style={{ background: T.light, border: `1.5px solid ${T.border}` }}>
+            <div className="border border-cyan-200 bg-cyan-50 rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-base">⚓</span>
-                <span className="font-bold text-sm" style={{ color: T.primary }}>בטיחות וציוד</span>
+                <span className="font-semibold text-cyan-800 text-sm">בטיחות וציוד</span>
+                <span className="text-xs text-cyan-600 font-normal">(אופציונלי)</span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>תוקף פירוטכניקה</Label><DateInput value={form.pyrotechnics_expiry_date} onChange={e => handleChange('pyrotechnics_expiry_date', e.target.value)} /></div>
-                <div><Label>תוקף מטף</Label><DateInput value={form.fire_extinguisher_expiry_date} onChange={e => handleChange('fire_extinguisher_expiry_date', e.target.value)} /></div>
-                <div className="col-span-2"><Label>תוקף אסדת הצלה</Label><DateInput value={form.life_raft_expiry_date} onChange={e => handleChange('life_raft_expiry_date', e.target.value)} /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-cyan-900 text-xs font-semibold">🔴 תוקף ציוד פירוטכניקה</Label>
+                  <DateInput value={form.pyrotechnics_expiry_date} onChange={e => handleChange('pyrotechnics_expiry_date', e.target.value)} className="mt-1 bg-white border-cyan-200" />
+                  <AiDateScan onDateExtracted={d => handleChange('pyrotechnics_expiry_date', d)} label="📷 סרוק תוקף" />
+                </div>
+                <div className="col-span-1 sm:col-span-2">
+                  <Label className="text-cyan-900 text-xs font-semibold">🧯 מטפי כיבוי</Label>
+                  {(form.fire_extinguishers || [{ date: form.fire_extinguisher_expiry_date || '' }]).map((ext, i) => (
+                    <div key={i} className="flex items-center gap-2 mt-1.5">
+                      <span className="text-[10px] font-bold text-cyan-700 shrink-0">מטף {i + 1}</span>
+                      <DateInput
+                        value={ext.date || ''}
+                        onChange={e => {
+                          const list = [...(form.fire_extinguishers || [{ date: form.fire_extinguisher_expiry_date || '' }])];
+                          list[i] = { ...list[i], date: e.target.value };
+                          handleChange('fire_extinguishers', list);
+                          if (i === 0) handleChange('fire_extinguisher_expiry_date', e.target.value);
+                        }}
+                        className="bg-white border-cyan-200 flex-1"
+                      />
+                      {i > 0 && (
+                        <button type="button" onClick={() => {
+                          const list = [...(form.fire_extinguishers || [])];
+                          list.splice(i, 1);
+                          handleChange('fire_extinguishers', list);
+                        }} className="text-red-400 text-xs font-bold px-1">✕</button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-3 mt-2">
+                    <button type="button" onClick={() => {
+                      const list = [...(form.fire_extinguishers || [{ date: form.fire_extinguisher_expiry_date || '' }])];
+                      list.push({ date: '' });
+                      handleChange('fire_extinguishers', list);
+                    }} className="text-[11px] font-bold text-cyan-700 flex items-center gap-1">
+                      + הוסף מטף נוסף
+                    </button>
+                    <AiDateScan onDateExtracted={d => {
+                      const list = [...(form.fire_extinguishers || [{ date: form.fire_extinguisher_expiry_date || '' }])];
+                      const emptyIdx = list.findIndex(e => !e.date);
+                      if (emptyIdx >= 0) { list[emptyIdx] = { date: d }; }
+                      else { list.push({ date: d }); }
+                      handleChange('fire_extinguishers', list);
+                      if (list[0]?.date) handleChange('fire_extinguisher_expiry_date', list[0].date);
+                    }} label="📷 סרוק תוקף מטף" />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-cyan-900 text-xs font-semibold">🛟 תוקף אסדת הצלה</Label>
+                  <DateInput value={form.life_raft_expiry_date} onChange={e => handleChange('life_raft_expiry_date', e.target.value)} className="mt-1 bg-white border-cyan-200" />
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-cyan-600 mt-0.5">תוקף ל-3 שנים ממועד הרכישה</p>
+                    <AiDateScan onDateExtracted={d => handleChange('life_raft_expiry_date', d)} label="📷 סרוק תוקף" />
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
           {/* Shipyard — vessels / Tires — cars */}
           {vesselMode ? (
-            <div className="rounded-2xl p-5 space-y-3" style={{ background: T.light, border: `1.5px solid ${T.border}` }}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: T.primary }}>
-                  <span className="text-lg">🚢</span>
-                </div>
-                <div>
-                  <p className="font-bold text-sm" style={{ color: T.text }}>טיפול מנוע</p>
-                  <p className="text-xs" style={{ color: T.muted }}>האם כלי השייט עבר טיפול מנוע לאחרונה?</p>
-                </div>
-              </div>
+            <div className="border border-cyan-200 rounded-xl p-4 space-y-3 bg-cyan-50">
+              <p className="font-medium text-cyan-800">🚢 האם כלי השייט היה במספנה לאחרונה?</p>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setShipyardQuestion('yes')}
-                  className="px-6 py-2.5 rounded-xl text-sm font-bold transition-all"
-                  style={{ background: shipyardQuestion === 'yes' ? T.yellow : '#fff', color: shipyardQuestion === 'yes' ? T.primary : T.muted, border: `1.5px solid ${shipyardQuestion === 'yes' ? T.yellow : T.border}` }}>
+                  className={`px-5 py-2 rounded-lg text-sm font-medium border transition-all ${shipyardQuestion === 'yes' ? 'bg-cyan-100 text-cyan-700 border-cyan-300' : 'bg-white text-gray-600 border-gray-200'}`}>
                   כן
                 </button>
                 <button type="button" onClick={() => setShipyardQuestion('no')}
-                  className="px-6 py-2.5 rounded-xl text-sm font-bold transition-all"
-                  style={{ background: shipyardQuestion === 'no' ? '#E5E7EB' : '#fff', color: shipyardQuestion === 'no' ? T.text : T.muted, border: `1.5px solid ${shipyardQuestion === 'no' ? '#D1D5DB' : T.border}` }}>
+                  className={`px-5 py-2 rounded-lg text-sm font-medium border transition-all ${shipyardQuestion === 'no' ? 'bg-gray-200 text-gray-700 border-gray-300' : 'bg-white text-gray-600 border-gray-200'}`}>
                   לא
                 </button>
               </div>
               {shipyardQuestion === 'yes' && (
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div><Label>תאריך טיפול אחרון</Label><DateInput value={form.last_shipyard_date} onChange={e => handleChange('last_shipyard_date', e.target.value)} /></div>
-                  <div><Label>שעות מנוע מאז</Label><Input type="number" dir="ltr" value={form.hours_since_shipyard} onChange={e => handleChange('hours_since_shipyard', e.target.value)} placeholder="0" /></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div><Label>מתי הייתה הביקור האחרון במספנה?</Label><DateInput value={form.last_shipyard_date} onChange={e => handleChange('last_shipyard_date', e.target.value)} /></div>
+                  <div><Label>כמה שעות מנוע מאז? (אופציונלי)</Label><Input type="number" dir="ltr" value={form.hours_since_shipyard} onChange={e => handleChange('hours_since_shipyard', e.target.value)} placeholder="שעות מנוע" /></div>
                 </div>
               )}
             </div>
@@ -497,7 +641,7 @@ export default function EditVehicle() {
 
           <button type="submit" disabled={saving}
             className="w-full h-14 rounded-2xl font-bold text-base transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
-            style={{ background: T.yellow, color: T.primary, boxShadow: `0 4px 16px ${T.yellow}50` }}>
+            style={{ background: T.primary, color: '#fff', boxShadow: `0 4px 16px ${T.primary}40` }}>
             {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : offroadMode ? 'עדכן כלי שטח' : vesselMode ? 'עדכן כלי שייט' : 'עדכן רכב'}
           </button>
         </form>

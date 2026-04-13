@@ -1,14 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "../shared/StatusBadge";
 import { getDateStatus, formatDateHe, getVehicleTypeIcon, usesKm, usesHours, isVessel, isOffroad, getVehicleLabels } from "../shared/DateStatusUtils";
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES } from "../vehicle/VehicleTypeSelector";
 import { COUNTRIES } from "../vehicle/CountryFlagSelect";
-import { Gauge, Clock, Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Fuel, Info, Hash, Tag, Palette, Building2, Cog, Anchor, MapPin, Edit } from "lucide-react";
+import { Gauge, Clock, Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Fuel, Info, Hash, Tag, Palette, Building2, Cog, Anchor, MapPin, Edit, ExternalLink, Camera, Loader2, Upload, AlertTriangle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { db } from '@/lib/supabaseEntities';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+import { useAuth } from '../shared/GuestContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { aiRequest } from '@/lib/aiProxy';
 
 // Israeli marinas
 const ISRAEL_MARINAS = [
@@ -17,6 +23,225 @@ const ISRAEL_MARINAS = [
   'מרינה קיסריה', 'מרינה נתניה',
 ];
 import MileageUpdateWidget from "./MileageUpdateWidget";
+
+// ── Renewal Dialog — scan document + update dates ──────────────────────────
+function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
+  const fileRef = useRef(null);
+  const [step, setStep] = useState('upload'); // upload | scanning | confirm | done
+  const [aiResult, setAiResult] = useState(null);
+  const [error, setError] = useState('');
+  const { isGuest, updateGuestVehicle, addGuestDocument } = useAuth();
+  const queryClient = useQueryClient();
+
+  const currentDate = vehicle[dateField];
+  const isTest = dateField === 'test_due_date';
+  const docLabel = isTest
+    ? (vesselMode ? 'כושר שייט' : 'רישיון רכב')
+    : (vesselMode ? 'ביטוח ימי' : 'ביטוח');
+
+  const reset = () => { setStep('upload'); setAiResult(null); setError(''); };
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (ev) => scanDocument(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const scanDocument = async (base64) => {
+    setStep('scanning');
+    setError('');
+    try {
+      const mediaType = base64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const imageData = base64.split(',')[1];
+
+      const json = await aiRequest({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
+            { type: 'text', text: `סרוק מסמך זה וחלץ את הפרטים. החזר JSON בלבד:
+{"document_type":"סוג (רישיון רכב/כושר שייט/ביטוח חובה/ביטוח מקיף/ביטוח צד ג/ביטוח ימי חובה/ביטוח ימי מקיף)", "title":"שם החברה או הגוף המנפיק", "issue_date":"YYYY-MM-DD", "expiry_date":"YYYY-MM-DD"}.
+אם לא ניתן לזהות שדה — השאר ריק.` },
+          ],
+        }],
+      });
+
+      const text = json?.content?.[0]?.text || '';
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        // Validate dates
+        const validDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(new Date(d).getTime());
+        setAiResult({
+          document_type: parsed.document_type || docLabel,
+          title: (parsed.title || '').replace(/<[^>]*>/g, '').slice(0, 100),
+          issue_date: validDate(parsed.issue_date) ? parsed.issue_date : '',
+          expiry_date: validDate(parsed.expiry_date) ? parsed.expiry_date : '',
+        });
+        setStep('confirm');
+      } else {
+        setError('לא הצלחתי לקרוא את המסמך. נסה תמונה ברורה יותר.');
+        setStep('upload');
+      }
+    } catch (err) {
+      console.error('Document scan error:', err);
+      setError('שגיאה בסריקה. נסה שוב.');
+      setStep('upload');
+    }
+  };
+
+  const isNewer = aiResult?.expiry_date && currentDate
+    ? new Date(aiResult.expiry_date) > new Date(currentDate)
+    : true; // If no current date, anything is fine
+
+  const handleSave = async () => {
+    if (!aiResult?.expiry_date) { setError('חסר תאריך תוקף'); return; }
+    setStep('done');
+    try {
+      // 1. Save document
+      const doc = {
+        document_type: aiResult.document_type,
+        title: aiResult.title || docLabel,
+        issue_date: aiResult.issue_date || null,
+        expiry_date: aiResult.expiry_date,
+        vehicle_id: vehicle.id,
+      };
+      if (isGuest) {
+        addGuestDocument(doc);
+      }
+      // Auth: document save is TODO until Supabase table ready
+
+      // 2. Update vehicle date
+      const update = { [dateField]: aiResult.expiry_date };
+      if (isGuest) {
+        updateGuestVehicle(vehicle.id, update);
+      } else {
+        await db.vehicles.update(vehicle.id, update);
+        await queryClient.refetchQueries({ queryKey: ['vehicle'] });
+      }
+      setTimeout(() => { onClose(); reset(); }, 800);
+    } catch (err) {
+      console.error('Renewal save error:', err);
+      setError('שגיאה בשמירה. נסה שוב.');
+      setStep('confirm');
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); reset(); } }}>
+      <DialogContent className="max-w-sm mx-4" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="text-base font-black">{step === 'done' ? '✅ עודכן!' : `חידוש ${docLabel}`}</DialogTitle>
+        </DialogHeader>
+
+        {/* Upload step */}
+        {step === 'upload' && (
+          <div className="space-y-3 pt-1">
+            <p className="text-sm" style={{ color: '#6B7280' }}>
+              אם חידשת {docLabel} — העלה את המסמך כדי שנעדכן את הפרטים אוטומטית
+            </p>
+            {error && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-red-50 border border-red-200">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                <span className="text-xs font-bold text-red-700">{error}</span>
+              </div>
+            )}
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+            <div className="flex gap-2">
+              <button type="button" onClick={() => fileRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
+                style={{ background: T.light, color: T.primary, border: `1.5px solid ${T.border}` }}>
+                <Upload className="w-4 h-4" /> העלה תמונה
+              </button>
+              <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm cursor-pointer transition-all active:scale-[0.97]"
+                style={{ background: T.primary, color: '#fff' }}>
+                <Camera className="w-4 h-4" /> צלם
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* Scanning step */}
+        {step === 'scanning' && (
+          <div className="flex flex-col items-center py-8 gap-3">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: T.primary }} />
+            <p className="text-sm font-bold" style={{ color: T.text }}>סורק את המסמך...</p>
+            <p className="text-xs" style={{ color: '#9CA3AF' }}>מחלץ תאריכים ופרטים</p>
+          </div>
+        )}
+
+        {/* Confirm step */}
+        {step === 'confirm' && aiResult && (
+          <div className="space-y-3 pt-1">
+            {/* Extracted info */}
+            <div className="rounded-xl p-3 space-y-2" style={{ background: T.light, border: `1px solid ${T.border}` }}>
+              <div className="flex justify-between text-xs">
+                <span style={{ color: T.muted }}>סוג מסמך</span>
+                <span className="font-bold" style={{ color: T.text }}>{aiResult.document_type}</span>
+              </div>
+              {aiResult.title && (
+                <div className="flex justify-between text-xs">
+                  <span style={{ color: T.muted }}>מנפיק</span>
+                  <span className="font-bold" style={{ color: T.text }}>{aiResult.title}</span>
+                </div>
+              )}
+              {aiResult.issue_date && (
+                <div className="flex justify-between text-xs">
+                  <span style={{ color: T.muted }}>תאריך הנפקה</span>
+                  <span className="font-bold" style={{ color: T.text }}>{formatDateHe(aiResult.issue_date)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-xs">
+                <span style={{ color: T.muted }}>תוקף</span>
+                <Input type="date" dir="ltr" className="w-36 h-7 text-xs"
+                  value={aiResult.expiry_date}
+                  onChange={e => setAiResult(r => ({ ...r, expiry_date: e.target.value }))} />
+              </div>
+            </div>
+
+            {/* Warning if not newer */}
+            {!isNewer && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="text-xs font-bold text-amber-700">
+                  התאריך שזוהה ({formatDateHe(aiResult.expiry_date)}) אינו חדש יותר מהקיים ({formatDateHe(currentDate)}). בדוק שוב.
+                </span>
+              </div>
+            )}
+
+            {error && <p className="text-xs font-bold text-red-600">{error}</p>}
+
+            <div className="flex gap-2">
+              <button onClick={handleSave}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
+                style={{ background: T.primary, color: '#fff' }}>
+                <CheckCircle2 className="w-4 h-4 inline ml-1" /> שמור ועדכן
+              </button>
+              <button onClick={() => { reset(); }}
+                className="px-4 py-2.5 rounded-xl font-bold text-sm" style={{ color: '#9CA3AF' }}>
+                ביטול
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Done step */}
+        {step === 'done' && (
+          <div className="flex flex-col items-center py-6 gap-2">
+            <CheckCircle2 className="w-12 h-12" style={{ color: '#10B981' }} />
+            <p className="text-sm font-bold" style={{ color: T.text }}>{docLabel} עודכן בהצלחה!</p>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 import { getTheme } from '@/lib/designTokens';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
@@ -114,7 +339,12 @@ function AddToCalendarButton({ dateField, vehicle, T }) {
 }
 
 // ── Status Card (clean, white-based with colored accent) ─────────────────────
-function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMode, subtitle }) {
+const GOV_RENEWAL_URLS = {
+  car: 'https://www.gov.il/he/service/car_licence_renewal',
+  vessel: 'https://www.gov.il/he/service/renewing_vessel_license',
+};
+
+function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMode, subtitle, onRenewed }) {
   const isMissing = !vehicle[dateField];
 
   const STATUS_ACCENT = {
@@ -139,12 +369,44 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
       )}
 
       {isMissing ? (
-        <p className="text-sm font-medium" style={{ color: '#9CA3AF' }}>לא הוזן</p>
+        <Link to={`${createPageUrl('EditVehicle')}?id=${vehicle.id}`}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all active:scale-[0.97]"
+          style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#EA580C' }} />
+          <span className="text-xs font-bold" style={{ color: '#EA580C' }}>לא הוזן - לחץ להוספה</span>
+        </Link>
       ) : (
         <>
           <StatusBadge status={status.status} label={status.label} />
           <AddToCalendarButton dateField={dateField} vehicle={vehicle} T={T} />
         </>
+      )}
+      {/* Renewal actions */}
+      {(dateField === 'test_due_date' || dateField === 'insurance_due_date') && (
+        <div className="space-y-1.5 mt-1.5">
+          {/* Gov.il link — test only */}
+          {dateField === 'test_due_date' && (
+            <a href={vesselMode ? GOV_RENEWAL_URLS.vessel : GOV_RENEWAL_URLS.car}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97]"
+              style={{ background: vesselMode ? '#E0F7FA' : '#EEF2FF', color: vesselMode ? '#00796B' : '#4338CA', border: `1px solid ${vesselMode ? '#B2EBF2' : '#C7D2FE'}` }}>
+              <ExternalLink className="w-3 h-3" />
+              {vesselMode ? 'חידוש כושר שייט באתר הממשלה' : 'חידוש רישיון באתר הממשלה'}
+            </a>
+          )}
+          {/* Upload renewed document */}
+          {onRenewed && (
+            <button onClick={() => onRenewed(dateField)}
+              className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97]"
+              style={{ background: '#E8F5E9', color: '#2E7D32', border: '1px solid #A5D6A7' }}>
+              <Upload className="w-3 h-3" />
+              {dateField === 'test_due_date'
+                ? (vesselMode ? 'חידשתי כושר שייט - העלה מסמך לעדכון' : 'חידשתי רישיון - העלה מסמך לעדכון')
+                : (vesselMode ? 'חידשתי ביטוח ימי - העלה מסמך לעדכון' : 'חידשתי ביטוח - העלה מסמך לעדכון')
+              }
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -185,11 +447,22 @@ function VesselInspectionChecklist({ vehicle, T }) {
   const extSt   = getDateStatus(vehicle.fire_extinguisher_expiry_date);
   const raftSt  = getDateStatus(vehicle.life_raft_expiry_date);
 
+  // Build extinguisher entries — support multiple
+  const extinguishers = vehicle.fire_extinguishers
+    ? vehicle.fire_extinguishers.filter(e => e.date)
+    : vehicle.fire_extinguisher_expiry_date
+      ? [{ date: vehicle.fire_extinguisher_expiry_date }]
+      : [];
+  const extEntries = extinguishers.map((e, i) => ({
+    label: extinguishers.length > 1 ? `מטף ${i + 1} בתוקף` : 'מטף כיבוי בתוקף',
+    st: getDateStatus(e.date), has: true, key: `ext_${i}`,
+  }));
+
   const tracked = [
     { label: 'רישיון כושר שייט בתוקף',      st: testSt, has: !!vehicle.test_due_date, key: 'test' },
     { label: 'ביטוח צד ג׳ תוספת 14 בתוקף', st: insSt,  has: !!vehicle.insurance_due_date, key: 'ins' },
     { label: 'פירוטכניקה בתוקף',             st: pyroSt, has: !!vehicle.pyrotechnics_expiry_date, key: 'pyro' },
-    { label: 'מטף כיבוי בתוקף',              st: extSt,  has: !!vehicle.fire_extinguisher_expiry_date, key: 'ext' },
+    ...extEntries,
     { label: 'אסדת הצלה בתוקף',              st: raftSt, has: !!vehicle.life_raft_expiry_date, key: 'raft' },
   ];
 
@@ -277,24 +550,8 @@ export default function VehicleInfoSection({ vehicle }) {
   const insuranceStatus = getDateStatus(vehicle.insurance_due_date);
   const vesselMode = isVessel(vehicle.vehicle_type, vehicle.nickname);
   const offroadMode = isOffroad(vehicle.vehicle_type);
-  const [editingMarina, setEditingMarina] = useState(false);
-  const [marinaValue, setMarinaValue] = useState(vehicle.marina || '');
-  const [marinaType, setMarinaType] = useState(vehicle.marina_abroad ? 'abroad' : 'israel');
-  const [savingMarina, setSavingMarina] = useState(false);
-
-  const saveMarina = async () => {
-    setSavingMarina(true);
-    try {
-      const { supabase } = await import('@/lib/supabase');
-      await supabase.from('vehicles').update({
-        marina: marinaValue,
-        marina_abroad: marinaType === 'abroad',
-      }).eq('id', vehicle.id);
-      vehicle.marina = marinaValue;
-      vehicle.marina_abroad = marinaType === 'abroad';
-      setEditingMarina(false);
-    } catch {} finally { setSavingMarina(false); }
-  };
+  const [renewalDialog, setRenewalDialog] = useState({ open: false, dateField: null });
+  const [specOpen, setSpecOpen] = useState(false);
   const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
   const pyroStatus     = vesselMode ? getDateStatus(vehicle.pyrotechnics_expiry_date) : null;
   const extStatus      = vesselMode ? getDateStatus(vehicle.fire_extinguisher_expiry_date) : null;
@@ -304,11 +561,11 @@ export default function VehicleInfoSection({ vehicle }) {
     <div className="space-y-4" dir="rtl">
 
       {/* ── Vintage badge ── */}
-      {vehicle.is_vintage && !vesselMode && (
+      {!vesselMode && (vehicle.is_vintage || (vehicle.year && new Date().getFullYear() - Number(vehicle.year) >= 20) || vehicle.vehicle_type === 'רכב אספנות') && (
         <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
           style={{ background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', border: '1.5px solid #DDD6FE' }}>
           <span className="text-lg">🏛️</span>
-          <span className="text-sm font-bold" style={{ color: '#7C3AED' }}>רכב אספנות — טסט כל חצי שנה</span>
+          <span className="text-sm font-bold" style={{ color: '#7C3AED' }}>כלי רכב אספנות — טסט כל חצי שנה</span>
         </div>
       )}
 
@@ -325,6 +582,7 @@ export default function VehicleInfoSection({ vehicle }) {
           vehicle={vehicle}
           T={T}
           vesselMode={vesselMode}
+          onRenewed={(df) => setRenewalDialog({ open: true, dateField: df })}
         />
         <StatusCard
           icon={Shield}
@@ -335,125 +593,91 @@ export default function VehicleInfoSection({ vehicle }) {
           vehicle={vehicle}
           T={T}
           vesselMode={vesselMode}
+          onRenewed={(df) => setRenewalDialog({ open: true, dateField: df })}
         />
       </div>
 
-      {/* ── Technical details from gov API ── */}
-      {(vehicle.engine_model || vehicle.front_tire || vehicle.rear_tire || vehicle.color || vehicle.ownership) && (
-        <div className="rounded-2xl p-4 space-y-2" style={{ background: '#fff', border: `1.5px solid ${T.border}` }}>
-          <div className="flex items-center gap-1.5 mb-2">
-            <Cog className="w-4 h-4" style={{ color: T.primary }} />
-            <span className="text-sm font-bold" style={{ color: T.text }}>פרטים טכניים</span>
+      {/* ── Technical Spec — grouped ── */}
+      {(() => {
+        const groups = [
+          { title: 'פרטי רישום', items: [
+            vehicle.vehicle_class && { label: 'סיווג', value: vehicle.vehicle_class },
+            vehicle.country_of_origin && { label: 'ארץ ייצור', value: vehicle.country_of_origin },
+            vehicle.body_type && { label: 'סוג מרכב', value: vehicle.body_type },
+            vehicle.color && { label: 'צבע', value: vehicle.color },
+            vehicle.trim_level && { label: 'רמת גימור', value: vehicle.trim_level },
+            vehicle.ownership && { label: 'בעלות', value: vehicle.ownership },
+            vehicle.first_registration_date && { label: 'עלייה לכביש', value: formatDateHe(vehicle.first_registration_date) },
+          ].filter(Boolean) },
+          { title: 'מנוע וביצועים', items: [
+            vehicle.horsepower && { label: 'כוח', value: vehicle.horsepower },
+            vehicle.engine_cc && { label: 'נפח', value: vehicle.engine_cc },
+            vehicle.engine_model && { label: 'דגם מנוע', value: vehicle.engine_model, ltr: true },
+            vehicle.fuel_type && { label: 'דלק', value: vehicle.fuel_type },
+            vehicle.transmission && { label: 'תיבת הילוכים', value: vehicle.transmission },
+            vehicle.drivetrain && { label: 'כונן', value: vehicle.drivetrain },
+            vehicle.total_weight && { label: 'משקל כולל', value: vehicle.total_weight },
+            vehicle.tow_capacity && { label: 'כושר גרירה', value: vehicle.tow_capacity },
+          ].filter(Boolean) },
+          { title: 'בטיחות ונוחות', items: [
+            vehicle.doors && { label: 'דלתות', value: vehicle.doors },
+            vehicle.seats && { label: 'מושבים', value: vehicle.seats },
+            vehicle.airbags && { label: 'כריות אוויר', value: vehicle.airbags },
+          ].filter(Boolean) },
+          { title: 'סביבה ופליטות', items: [
+            vehicle.co2 && { label: 'פליטת CO₂', value: vehicle.co2 },
+            vehicle.green_index && { label: 'מדד ירוק', value: vehicle.green_index },
+            vehicle.pollution_group && { label: 'קבוצת זיהום', value: vehicle.pollution_group },
+          ].filter(Boolean) },
+          { title: 'זיהוי', items: [
+            vehicle.front_tire && { label: 'צמיגים', value: vehicle.front_tire === vehicle.rear_tire ? vehicle.front_tire : `קדמי ${vehicle.front_tire} · אחורי ${vehicle.rear_tire}`, ltr: true },
+            vehicle.vin && { label: 'מספר שלדה (VIN)', value: vehicle.vin, ltr: true },
+            vehicle.model_code && { label: 'קוד דגם', value: vehicle.model_code, ltr: true },
+          ].filter(Boolean) },
+        ].filter(g => g.items.length > 0);
+
+        if (groups.length === 0) return null;
+
+        return (
+          <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }} dir="rtl">
+            <button type="button" onClick={() => setSpecOpen(!specOpen)}
+              className="w-full flex items-center justify-between px-4 py-3"
+              style={{ background: T.light }}>
+              <div className="flex items-center gap-2">
+                <Cog className="w-4 h-4" style={{ color: T.primary }} />
+                <span className="text-sm font-black" style={{ color: T.text }}>מפרט טכני</span>
+              </div>
+              {specOpen ? <ChevronUp className="w-4 h-4" style={{ color: T.primary }} /> : <ChevronDown className="w-4 h-4" style={{ color: T.primary }} />}
+            </button>
+            {specOpen && (
+              <div className="divide-y" style={{ borderColor: `${T.border}40` }}>
+                {groups.map((group, gi) => (
+                  <div key={gi}>
+                    {/* Group header — subtle divider */}
+                    <div className="px-4 pt-3 pb-1">
+                      <span className="text-[10px] font-bold tracking-wide uppercase" style={{ color: T.primary }}>{group.title}</span>
+                    </div>
+                    {/* Items — clean rows */}
+                    {group.items.map((item, ii) => (
+                      <div key={ii} className="flex items-center justify-between px-4 py-2"
+                        style={{ borderBottom: ii < group.items.length - 1 ? `1px solid ${T.border}15` : 'none' }}>
+                        <span className="text-[13px]" style={{ color: '#6B7280' }}>{item.label}</span>
+                        <span className="text-[13px] font-semibold" style={{ color: '#111827' }} dir={item.ltr ? 'ltr' : 'rtl'}>{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-            {vehicle.engine_model && (
-              <div className="flex items-center justify-between col-span-2" dir="rtl">
-                <span className="text-xs font-medium" style={{ color: T.muted }}>מנוע</span>
-                <span className="text-xs font-bold" style={{ color: T.text }}>{vehicle.engine_model}</span>
-              </div>
-            )}
-            {vehicle.color && (
-              <div className="flex items-center justify-between" dir="rtl">
-                <span className="text-xs font-medium" style={{ color: T.muted }}>צבע</span>
-                <span className="text-xs font-bold" style={{ color: T.text }}>{vehicle.color}</span>
-              </div>
-            )}
-            {vehicle.ownership && (
-              <div className="flex items-center justify-between" dir="rtl">
-                <span className="text-xs font-medium" style={{ color: T.muted }}>בעלות</span>
-                <span className="text-xs font-bold" style={{ color: T.text }}>{vehicle.ownership}</span>
-              </div>
-            )}
-            {vehicle.front_tire && (
-              <div className="flex items-center justify-between" dir="rtl">
-                <span className="text-xs font-medium" style={{ color: T.muted }}>צמיג קדמי</span>
-                <span className="text-xs font-bold" style={{ color: T.text }} dir="ltr">{vehicle.front_tire}</span>
-              </div>
-            )}
-            {vehicle.rear_tire && (
-              <div className="flex items-center justify-between" dir="rtl">
-                <span className="text-xs font-medium" style={{ color: T.muted }}>צמיג אחורי</span>
-                <span className="text-xs font-bold" style={{ color: T.text }} dir="ltr">{vehicle.rear_tire}</span>
-              </div>
-            )}
-            {vehicle.first_registration_date && (
-              <div className="flex items-center justify-between col-span-2" dir="rtl">
-                <span className="text-xs font-medium" style={{ color: T.muted }}>עלייה לכביש</span>
-                <span className="text-xs font-bold" style={{ color: T.text }}>{formatDateHe(vehicle.first_registration_date)}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Vessel-specific sections ── */}
       {vesselMode && (
         <>
-          {/* Marina */}
-          <div className="rounded-2xl p-4" style={{ background: '#fff', border: `1.5px solid ${T.border}` }} dir="rtl">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5">
-                <Anchor className="w-4 h-4" style={{ color: T.primary }} />
-                <span className="text-sm font-bold" style={{ color: T.text }}>מרינת עגינה</span>
-              </div>
-              {!editingMarina && (
-                <button onClick={() => setEditingMarina(true)}
-                  className="text-xs font-bold flex items-center gap-1" style={{ color: T.primary }}>
-                  <Edit className="w-3 h-3" /> {vehicle.marina ? 'שנה' : 'הוסף'}
-                </button>
-              )}
-            </div>
-            {editingMarina ? (
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => { setMarinaType('israel'); setMarinaValue(''); }}
-                    className="flex-1 py-1.5 rounded-lg text-xs font-bold text-center transition-all"
-                    style={{ background: marinaType === 'israel' ? T.primary : '#F3F4F6', color: marinaType === 'israel' ? '#fff' : '#6B7280' }}>
-                    🇮🇱 ישראל
-                  </button>
-                  <button type="button" onClick={() => { setMarinaType('abroad'); setMarinaValue(''); }}
-                    className="flex-1 py-1.5 rounded-lg text-xs font-bold text-center transition-all"
-                    style={{ background: marinaType === 'abroad' ? T.primary : '#F3F4F6', color: marinaType === 'abroad' ? '#fff' : '#6B7280' }}>
-                    🌍 חו"ל
-                  </button>
-                </div>
-                {marinaType === 'israel' ? (
-                  <Select value={marinaValue} onValueChange={setMarinaValue}>
-                    <SelectTrigger className="h-10 text-sm"><SelectValue placeholder="בחר מרינה..." /></SelectTrigger>
-                    <SelectContent dir="rtl">
-                      {ISRAEL_MARINAS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input value={marinaValue} onChange={e => setMarinaValue(e.target.value)} placeholder="שם המרינה בחו״ל..." />
-                )}
-                <div className="flex gap-2">
-                  <button onClick={saveMarina} disabled={!marinaValue || savingMarina}
-                    className="flex-1 py-2 rounded-lg text-xs font-bold text-white disabled:opacity-50 transition-all"
-                    style={{ background: T.primary }}>
-                    {savingMarina ? 'שומר...' : 'שמור'}
-                  </button>
-                  <button onClick={() => setEditingMarina(false)}
-                    className="px-3 py-2 rounded-lg text-xs font-bold" style={{ color: '#9CA3AF' }}>
-                    ביטול
-                  </button>
-                </div>
-              </div>
-            ) : (
-              vehicle.marina ? (
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4" style={{ color: T.primary }} />
-                  <span className="text-sm font-bold" style={{ color: T.text }}>{vehicle.marina}</span>
-                  {vehicle.marina_abroad && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: T.light, color: T.primary }}>חו"ל</span>}
-                </div>
-              ) : (
-                <p className="text-xs" style={{ color: T.muted }}>לא הוגדרה מרינת עגינה</p>
-              )
-            )}
-          </div>
-
-          {/* Flag + engine info */}
-          {(vehicle.flag_country || vehicle.engine_manufacturer) && (
+          {/* Flag + engine + marina info */}
+          {(vehicle.flag_country || vehicle.engine_manufacturer || vehicle.marina) && (
             <div className="rounded-2xl p-4 space-y-2" style={{ background: '#fff', border: `1.5px solid ${T.border}` }}>
               {vehicle.flag_country && (() => {
                 const country = COUNTRIES.find(c => c.code === vehicle.flag_country);
@@ -470,10 +694,19 @@ export default function VehicleInfoSection({ vehicle }) {
                   <span className="text-sm font-bold" style={{ color: T.text }}>{vehicle.engine_manufacturer}</span>
                 </div>
               )}
+              {vehicle.marina && (
+                <div className="flex items-center justify-between" dir="rtl">
+                  <span className="text-sm font-medium" style={{ color: T.muted }}>מרינת עגינה</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold" style={{ color: T.text }}>{vehicle.marina}</span>
+                    {vehicle.marina_abroad && <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: T.light, color: T.primary }}>חו"ל</span>}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {/* Safety equipment */}
-          {(vehicle.pyrotechnics_expiry_date || vehicle.fire_extinguisher_expiry_date || vehicle.life_raft_expiry_date) && (
+          {(vehicle.pyrotechnics_expiry_date || vehicle.fire_extinguisher_expiry_date || vehicle.fire_extinguishers?.length || vehicle.life_raft_expiry_date) && (
             <div className="rounded-2xl p-4" style={{ background: T.light, border: `1.5px solid ${T.border}` }}>
               <div className="flex items-center gap-1.5 mb-3">
                 <span className="text-sm">⚓</span>
@@ -486,12 +719,25 @@ export default function VehicleInfoSection({ vehicle }) {
                     <StatusBadge status={pyroStatus.status} label={pyroStatus.label} />
                   </div>
                 )}
-                {vehicle.fire_extinguisher_expiry_date && (
-                  <div className="rounded-xl p-3 space-y-2" style={{ background: T.card, border: `1px solid ${T.border}` }}>
-                    <span className="text-xs font-medium flex items-center gap-1" style={{ color: T.muted }}>🧯 מטף כיבוי</span>
-                    <StatusBadge status={extStatus.status} label={extStatus.label} />
-                  </div>
-                )}
+                {/* מטפי כיבוי — support multiple */}
+                {(() => {
+                  const extinguishers = vehicle.fire_extinguishers
+                    ? vehicle.fire_extinguishers.filter(e => e.date)
+                    : vehicle.fire_extinguisher_expiry_date
+                      ? [{ date: vehicle.fire_extinguisher_expiry_date }]
+                      : [];
+                  return extinguishers.map((ext, i) => {
+                    const st = getDateStatus(ext.date);
+                    return (
+                      <div key={i} className="rounded-xl p-3 space-y-2" style={{ background: T.card, border: `1px solid ${T.border}` }}>
+                        <span className="text-xs font-medium flex items-center gap-1" style={{ color: T.muted }}>
+                          🧯 {extinguishers.length > 1 ? `מטף ${i + 1}` : 'מטף כיבוי'}
+                        </span>
+                        <StatusBadge status={st.status} label={st.label} />
+                      </div>
+                    );
+                  });
+                })()}
                 {vehicle.life_raft_expiry_date && (
                   <div className="rounded-xl p-3 space-y-2" style={{ background: T.card, border: `1px solid ${T.border}` }}>
                     <span className="text-xs font-medium flex items-center gap-1" style={{ color: T.muted }}>🛟 אסדת הצלה</span>
@@ -549,6 +795,16 @@ export default function VehicleInfoSection({ vehicle }) {
           )}
         </>
       )}
+
+      {/* Renewal dialog */}
+      <RenewalDialog
+        open={renewalDialog.open}
+        onClose={() => setRenewalDialog({ open: false, dateField: null })}
+        dateField={renewalDialog.dateField}
+        vehicle={vehicle}
+        vesselMode={vesselMode}
+        T={T}
+      />
     </div>
   );
 }

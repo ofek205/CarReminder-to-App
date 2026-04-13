@@ -16,12 +16,17 @@ import { useAuth } from "../components/shared/GuestContext";
 
 function calcAge(birthDate) {
   if (!birthDate) return null;
+  // Ensure we parse date-only string correctly (avoid timezone issues)
+  const dateStr = String(birthDate).split('T')[0];
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return null;
+  const bd = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  if (isNaN(bd.getTime())) return null;
   const today = new Date();
-  const bd = new Date(birthDate);
   let age = today.getFullYear() - bd.getFullYear();
   const m = today.getMonth() - bd.getMonth();
   if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
-  return age;
+  return age >= 0 && age < 150 ? age : null;
 }
 
 function daysUntil(dateStr) {
@@ -150,8 +155,24 @@ function AuthUserProfile() {
       setFullName(normalized.full_name || '');
       const members = await db.account_members.filter({ user_id: u.id, status: 'פעיל' });
       if (members.length > 0) setAccountId(members[0].account_id);
-      // TODO: migrate UserProfile table to Supabase
-      // For now, profile fields are empty until migration
+      // Load profile from Supabase
+      try {
+        const profiles = await db.user_profiles.filter({ user_id: u.id });
+        if (profiles.length > 0) {
+          const p = profiles[0];
+          setProfileId(p.id);
+          setProfile(p);
+          setForm({
+            phone: p.phone || '',
+            birth_date: p.birth_date || '',
+            driver_license_number: p.driver_license_number || '',
+            license_expiration_date: p.license_expiration_date || '',
+            license_image_url: p.license_image_url || '',
+          });
+        }
+      } catch (err) {
+        console.error('Profile load error:', err);
+      }
       setLoading(false);
     }
     init();
@@ -175,10 +196,19 @@ function AuthUserProfile() {
     };
     setForm(newForm);
 
+    // Save scan results to Supabase
     const data = { ...newForm, user_id: user.id };
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
-    // TODO: migrate UserProfile + Document tables to Supabase
-    // For now, scan data updates local state only
+    try {
+      if (profileId) {
+        await db.user_profiles.update(profileId, data);
+      } else {
+        const created = await db.user_profiles.create(data);
+        setProfileId(created.id);
+      }
+    } catch (err) {
+      console.error('Profile scan save error:', err);
+    }
     toast.success('פרטי רישיון הנהיגה עודכנו בהצלחה');
   };
 
@@ -209,8 +239,29 @@ function AuthUserProfile() {
         detail: { full_name: updated?.full_name || fullName.trim() }
       }));
 
-      // TODO: migrate UserProfile table to Supabase
+      // Save profile fields to Supabase
+      const profileData = {
+        user_id: user.id,
+        phone: form.phone?.replace(/[-\s]/g, '') || null,
+        birth_date: form.birth_date || null,
+        driver_license_number: form.driver_license_number?.replace(/[-\s]/g, '') || null,
+        license_expiration_date: form.license_expiration_date || null,
+        license_image_url: form.license_image_url || null,
+      };
+      try {
+        if (profileId) {
+          await db.user_profiles.update(profileId, profileData);
+        } else {
+          const created = await db.user_profiles.create(profileData);
+          setProfileId(created.id);
+        }
+      } catch (err) {
+        console.error('Profile save error:', err);
+        // Don't fail — auth name was already saved
+      }
       toast.success('הפרופיל נשמר בהצלחה');
+      // Notify bell to refresh (remove profile-incomplete notification)
+      window.dispatchEvent(new Event('profileSaved'));
     } catch {
       toast.error('שגיאה בשמירת הפרופיל');
     } finally {

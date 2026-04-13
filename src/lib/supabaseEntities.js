@@ -18,14 +18,47 @@ function validateFilterKeys(conditions) {
   }
 }
 
+/**
+ * Sanitize a string value: strip ALL HTML tags, event handlers, entities, and control characters.
+ * Prevents XSS via <script>, <img onerror=>, HTML entities, fullwidth Unicode, etc.
+ */
+function sanitizeString(value) {
+  if (typeof value !== 'string') return value;
+  let s = value;
+  // 1. Decode HTML entities (&#60; → <, &#x3c; → <, &lt; → <)
+  s = s.replace(/&#x([0-9a-f]+);?/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  s = s.replace(/&#(\d+);?/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+  s = s.replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&amp;/gi, '&')
+       .replace(/&quot;/gi, '"').replace(/&apos;/gi, "'");
+  // 2. Normalize fullwidth Unicode chars (＜ → <, ＞ → >)
+  s = s.replace(/[\uFF1C\uFE64]/g, '<').replace(/[\uFF1E\uFE65]/g, '>');
+  // 3. Strip ALL HTML tags (after entity decode)
+  s = s.replace(/<[^>]*>/g, '');
+  // 4. Strip event handlers that might survive (even without tags)
+  s = s.replace(/on\w+\s*=/gi, '');
+  // 5. Strip javascript: protocol (with whitespace/tab tricks)
+  s = s.replace(/j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '');
+  // 6. Strip control characters
+  s = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  return s.trim();
+}
+
 function sanitizeRow(row) {
   if (!row || typeof row !== 'object') throw new Error('Invalid row data');
   const clean = {};
   for (const [key, value] of Object.entries(row)) {
     if (!VALID_KEY.test(key)) continue; // skip invalid keys
-    // Strip any <script> tags from string values
     if (typeof value === 'string') {
-      clean[key] = value.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+      clean[key] = sanitizeString(value);
+    } else if (Array.isArray(value)) {
+      // Sanitize arrays (e.g., fire_extinguishers JSON)
+      clean[key] = value.map(item =>
+        typeof item === 'string' ? sanitizeString(item)
+        : (item && typeof item === 'object') ? Object.fromEntries(
+            Object.entries(item).map(([k, v]) => [k, sanitizeString(v)])
+          )
+        : item
+      );
     } else {
       clean[key] = value;
     }
@@ -89,4 +122,5 @@ export const db = {
   notification_log:   makeEntity('notification_log'),
   analytics:          makeEntity('anonymous_analytics'),
   cork_notes:         makeEntity('cork_notes'),
+  user_profiles:      makeEntity('user_profiles'),
 };

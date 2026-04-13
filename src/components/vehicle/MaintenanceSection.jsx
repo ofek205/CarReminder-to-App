@@ -58,40 +58,38 @@ export default function MaintenanceSection({ vehicle }) {
     enabled: !isGuest && !!vehicle.id,
   });
 
-  // AI receipt scanner
+  // AI receipt scanner — uses proxy to avoid exposing API key
   const scanReceipt = async (base64) => {
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-    if (!apiKey) return;
     setAiScanning(true);
     try {
+      const { aiRequest } = await import('@/lib/aiProxy');
       const mediaType = base64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
       const imageData = base64.split(',')[1];
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 300,
-          messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
-            { type: 'text', text: 'סרוק את הקבלה/חשבונית הזו וחלץ: 1) שם המוסך/עסק 2) סכום לתשלום 3) תאריך 4) תיאור קצר של העבודה. החזר JSON בלבד: {"garage":"","cost":"","date":"YYYY-MM-DD","description":""}. אם לא ניתן לזהות שדה — השאר ריק.' }
-          ]}],
-        }),
+      const json = await aiRequest({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
+          { type: 'text', text: 'סרוק את הקבלה/חשבונית הזו וחלץ: 1) שם המוסך/עסק 2) סכום לתשלום 3) תאריך 4) תיאור קצר של העבודה. החזר JSON בלבד: {"garage":"","cost":"","date":"YYYY-MM-DD","description":""}. אם לא ניתן לזהות שדה — השאר ריק.' }
+        ]}],
       });
-      const json = await res.json();
       const text = json?.content?.[0]?.text || '';
       const match = text.match(/\{[\s\S]*\}/);
       if (match) {
         const parsed = JSON.parse(match[0]);
+        // Sanitize parsed values
+        const safeStr = (v) => typeof v === 'string' ? v.replace(/<[^>]*>/g, '').trim().slice(0, 100) : '';
         setForm(f => ({
           ...f,
-          garage_name: parsed.garage || f.garage_name,
-          cost: parsed.cost || f.cost,
-          date: parsed.date || f.date,
-          title: parsed.description || f.title,
+          garage_name: safeStr(parsed.garage) || f.garage_name,
+          cost: safeStr(parsed.cost) || f.cost,
+          date: (/^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : '') || f.date,
+          title: safeStr(parsed.description) || f.title,
         }));
       }
-    } catch {} finally { setAiScanning(false); }
+    } catch (err) {
+      console.error('Receipt scan error:', err);
+    } finally { setAiScanning(false); }
   };
 
   const handleReceiptUpload = (e) => {
@@ -148,7 +146,10 @@ export default function MaintenanceSection({ vehicle }) {
       const { supabase } = await import('@/lib/supabase');
       await supabase.from('maintenance_logs').delete().eq('id', id);
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
-    } catch {}
+    } catch (err) {
+      console.error('Delete maintenance error:', err);
+      alert('שגיאה במחיקת טיפול');
+    }
   };
 
   return (
