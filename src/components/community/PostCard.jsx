@@ -29,6 +29,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   const [expanded, setExpanded] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showEmojis, setShowEmojis] = useState(false);
+  const [showFullImage, setShowFullImage] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { user, isGuest } = useAuth();
   const queryClient = useQueryClient();
@@ -167,10 +168,26 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         )}
       </div>
 
-      {/* Image */}
+      {/* Image — click to expand */}
       {post.image_url && (
-        <div className="w-full">
-          <img src={post.image_url} alt="" className="w-full object-cover" style={{ maxHeight: '400px' }} />
+        <div className="w-full relative cursor-pointer" onClick={() => setShowFullImage(true)}>
+          <img src={post.image_url} alt="" className="w-full object-cover" style={{ maxHeight: '250px' }} />
+          <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg text-[10px] font-bold"
+            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff' }}>
+            לחץ להגדלה
+          </div>
+        </div>
+      )}
+
+      {/* Full image lightbox */}
+      {showFullImage && post.image_url && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90"
+          onClick={() => setShowFullImage(false)}>
+          <button onClick={() => setShowFullImage(false)}
+            className="absolute top-4 left-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center z-10">
+            <span className="text-white text-xl">✕</span>
+          </button>
+          <img src={post.image_url} alt="" className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg" />
         </div>
       )}
 
