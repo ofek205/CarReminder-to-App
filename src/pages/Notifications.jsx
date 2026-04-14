@@ -395,7 +395,8 @@ function AuthNotifications() {
   }, [vehicles, settings]);
 
   // Read state - synced with localStorage (same as bell)
-  const [readIds, setReadIds] = useState(() => {
+  // Re-read on every render to stay in sync with bell's markRead/markUnread
+  const getReadIds = () => {
     try {
       const stored = JSON.parse(localStorage.getItem('read_notif_ids') || '[]');
       const timedReads = JSON.parse(localStorage.getItem('read_notif_timed') || '{}');
@@ -405,7 +406,16 @@ function AuthNotifications() {
         .map(([id]) => id);
       return new Set([...stored, ...validTimedIds]);
     } catch { return new Set(); }
-  });
+  };
+  const [readIds, setReadIds] = useState(getReadIds);
+  // Re-sync when page gains focus (user may have marked in bell then navigated here)
+  useEffect(() => {
+    const sync = () => setReadIds(getReadIds());
+    window.addEventListener('focus', sync);
+    // Also sync on storage event (cross-tab)
+    window.addEventListener('storage', sync);
+    return () => { window.removeEventListener('focus', sync); window.removeEventListener('storage', sync); };
+  }, []);
 
   const markAsRead = (id) => {
     setReadIds(prev => {
