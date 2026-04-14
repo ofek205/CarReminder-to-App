@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { MessageCircle, ChevronDown, ChevronUp, Car, Ship, Trash2, Bookmark } from 'lucide-react';
+import { MessageCircle, ChevronDown, ChevronUp, Car, Ship, Trash2, Bookmark, BookmarkCheck, Heart, Share2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { useAuth } from '../shared/GuestContext';
 import { db } from '@/lib/supabaseEntities';
+import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import CommentSection from './CommentSection';
 
@@ -18,20 +19,86 @@ function Avatar({ name, size = 'w-10 h-10 text-sm' }) {
   const color = colors[(name || '').length % colors.length];
   return (
     <div className={`${size} rounded-full flex items-center justify-center font-bold text-white shrink-0`}
-      style={{ background: color }}>
-      {letters}
-    </div>
+      style={{ background: color }}>{letters}</div>
   );
 }
 
-export default function PostCard({ post, T, canComment, commentCount, vehicle, onCommentAdded }) {
+const EMOJIS = ['👍', '❤️', '🔥', '👀'];
+
+export default function PostCard({ post, T, canComment, commentCount, vehicle, onCommentAdded, interactions }) {
   const [expanded, setExpanded] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [showEmojis, setShowEmojis] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const queryClient = useQueryClient();
   const isLong = post.body?.length > 200;
   const isOwner = user?.id === post.user_id;
+  const isDemo = post._isDemo;
+  const canInteract = !isGuest && !isDemo && user;
+
+  // Interactions data (passed from parent)
+  const liked = interactions?.liked || false;
+  const likeCount = interactions?.likeCount || 0;
+  const saved = interactions?.saved || false;
+  const myReaction = interactions?.myReaction || null;
+  const reactionCounts = interactions?.reactionCounts || {};
+
+  const handleLike = async () => {
+    if (!canInteract) return;
+    try {
+      if (liked) {
+        const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).single();
+        if (data) await supabase.from('community_likes').delete().eq('id', data.id);
+      } else {
+        await supabase.from('community_likes').insert({ user_id: user.id, post_id: post.id });
+      }
+      queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
+    } catch (e) { console.error('Like error:', e); }
+  };
+
+  const handleReaction = async (emoji) => {
+    if (!canInteract) return;
+    setShowEmojis(false);
+    try {
+      if (myReaction === emoji) {
+        // Remove reaction
+        const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).single();
+        if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
+      } else if (myReaction) {
+        // Update reaction
+        await supabase.from('community_reactions').update({ emoji }).eq('user_id', user.id).eq('post_id', post.id);
+      } else {
+        // New reaction
+        await supabase.from('community_reactions').insert({ user_id: user.id, post_id: post.id, emoji });
+      }
+      queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
+    } catch (e) { console.error('Reaction error:', e); }
+  };
+
+  const handleSave = async () => {
+    if (!canInteract) return;
+    try {
+      if (saved) {
+        const { data } = await supabase.from('community_saved').select('id').eq('user_id', user.id).eq('post_id', post.id).single();
+        if (data) await supabase.from('community_saved').delete().eq('id', data.id);
+      } else {
+        await supabase.from('community_saved').insert({ user_id: user.id, post_id: post.id });
+      }
+      queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
+    } catch (e) { console.error('Save error:', e); }
+  };
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/Community?post=${post.id}`;
+    const text = post.body?.slice(0, 100) + '...';
+    if (navigator.share) {
+      try { await navigator.share({ title: 'CarReminder — קהילה', text, url }); } catch {}
+    } else {
+      await navigator.clipboard.writeText(url);
+      alert('הקישור הועתק!');
+    }
+  };
 
   const handleDelete = async () => {
     if (!confirm('למחוק את השאלה?')) return;
@@ -43,10 +110,12 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     setDeleting(false);
   };
 
+  const totalReactions = Object.values(reactionCounts).reduce((a, b) => a + b, 0);
+
   return (
     <div dir="rtl" style={{ background: '#fff', borderBottom: '8px solid #F5F5F5' }}>
 
-      {/* Header row: avatar + name + category + time */}
+      {/* Header */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-2">
         <Avatar name={post.author_name} />
         <div className="flex-1 min-w-0">
@@ -63,18 +132,15 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
           </div>
           <p className="text-[11px]" style={{ color: '#9CA3AF' }}>{timeAgo(post.created_at)}</p>
         </div>
-        {/* Actions */}
-        <div className="flex items-center gap-1">
-          {isOwner && (
-            <button onClick={handleDelete} disabled={deleting}
-              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-50 transition-all">
-              <Trash2 className="w-3.5 h-3.5" style={{ color: '#DC2626' }} />
-            </button>
-          )}
-        </div>
+        {isOwner && (
+          <button onClick={handleDelete} disabled={deleting}
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-50 transition-all">
+            <Trash2 className="w-3.5 h-3.5" style={{ color: '#DC2626' }} />
+          </button>
+        )}
       </div>
 
-      {/* Body text */}
+      {/* Body */}
       <div className="px-4 pb-2">
         <p className={`text-[14px] leading-relaxed ${!expanded && isLong ? 'line-clamp-4' : ''}`} style={{ color: '#374151' }}>
           {post.body}
@@ -82,12 +148,12 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         {isLong && (
           <button onClick={() => setExpanded(!expanded)}
             className="text-[13px] font-bold mt-1" style={{ color: T.primary }}>
-            {expanded ? 'הצג פחות' : 'קראי עוד'}
+            {expanded ? 'הצג פחות' : 'קראו עוד'}
           </button>
         )}
       </div>
 
-      {/* Image — full width like Forti */}
+      {/* Image */}
       {post.image_url && (
         <div className="w-full">
           <img src={post.image_url} alt="" className="w-full object-cover" style={{ maxHeight: '400px' }} />
@@ -105,8 +171,17 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         </div>
       )}
 
+      {/* Reaction summary row */}
+      {(likeCount > 0 || totalReactions > 0) && (
+        <div className="flex items-center gap-2 px-4 py-1.5 text-[11px]" style={{ color: '#9CA3AF' }}>
+          {likeCount > 0 && <span>❤️ {likeCount}</span>}
+          {EMOJIS.map(e => reactionCounts[e] ? <span key={e}>{e} {reactionCounts[e]}</span> : null)}
+          <span className="mr-auto">{commentCount > 0 ? `${commentCount} תגובות` : ''}</span>
+        </div>
+      )}
+
       {/* AI thinking */}
-      {commentCount === 0 && (
+      {commentCount === 0 && !isDemo && (
         <div className="flex items-center gap-2 px-4 py-2">
           <span className="text-sm animate-pulse">🔧</span>
           <span className="text-[11px] font-medium" style={{ color: '#92400E' }}>
@@ -115,19 +190,65 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         </div>
       )}
 
-      {/* Footer actions — Forti style */}
-      <div className="flex items-center px-4 py-2" style={{ borderTop: '1px solid #F3F4F6' }}>
-        <button onClick={() => setShowComments(!showComments)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium transition-all active:scale-[0.97]"
-          style={{ color: commentCount > 0 ? T.primary : '#9CA3AF' }}>
-          <MessageCircle className="w-4 h-4" />
-          {commentCount || 0}
+      {/* ── Action bar ── */}
+      <div className="flex items-center px-2 py-1" style={{ borderTop: '1px solid #F3F4F6' }}>
+        {/* Like */}
+        <button onClick={handleLike}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[12px] font-medium transition-all active:scale-[0.95]"
+          style={{ color: liked ? '#DC2626' : '#6B7280' }}>
+          <Heart className="w-4 h-4" fill={liked ? '#DC2626' : 'none'} />
+          {likeCount > 0 && <span>{likeCount}</span>}
         </button>
-        <div className="flex-1" />
-        <Bookmark className="w-4 h-4" style={{ color: '#D1D5DB' }} />
+
+        {/* Emoji reaction */}
+        <div className="flex-1 relative">
+          <button onClick={() => canInteract && setShowEmojis(!showEmojis)}
+            className="w-full flex items-center justify-center gap-1 py-2.5 rounded-lg text-[12px] font-medium transition-all active:scale-[0.95]"
+            style={{ color: myReaction ? '#D97706' : '#6B7280' }}>
+            <span className="text-base">{myReaction || '😊'}</span>
+          </button>
+          {showEmojis && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowEmojis(false)} />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-40 flex gap-1 px-2 py-1.5 rounded-full bg-white shadow-xl border"
+                style={{ borderColor: '#E5E7EB' }}>
+                {EMOJIS.map(e => (
+                  <button key={e} onClick={() => handleReaction(e)}
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all hover:scale-110 ${myReaction === e ? 'bg-amber-100' : ''}`}>
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Comment */}
+        <button onClick={() => setShowComments(!showComments)}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[12px] font-medium transition-all active:scale-[0.95]"
+          style={{ color: showComments ? T.primary : '#6B7280' }}>
+          <MessageCircle className="w-4 h-4" />
+          {commentCount > 0 && <span>{commentCount}</span>}
+        </button>
+
+        {/* Share */}
+        <button onClick={handleShare}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[12px] font-medium transition-all active:scale-[0.95]"
+          style={{ color: '#6B7280' }}>
+          <Share2 className="w-4 h-4" />
+        </button>
+
+        {/* Save */}
+        <button onClick={handleSave}
+          className="flex items-center justify-center w-10 py-2.5 rounded-lg transition-all active:scale-[0.95]">
+          {saved
+            ? <BookmarkCheck className="w-4 h-4" style={{ color: T.primary }} />
+            : <Bookmark className="w-4 h-4" style={{ color: '#D1D5DB' }} />
+          }
+        </button>
       </div>
 
-      {/* Comments expandable */}
+      {/* Comments */}
       {showComments && (
         <CommentSection postId={post.id} postOwnerId={post.user_id} canComment={canComment} T={T} onCommentAdded={onCommentAdded} />
       )}

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
-import { Send, Wrench, Loader2 } from 'lucide-react';
+import { Send, Wrench, Loader2, Heart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -98,6 +98,26 @@ export default function CommentSection({ postId, postOwnerId, canComment, T, onC
                 </div>
                 <p className="text-[13px] leading-relaxed" style={{ color: '#4B5563' }}>{c.body}</p>
               </div>
+              {/* Comment like */}
+              {canComment && !c.is_ai && (
+                <button className="shrink-0 self-start mt-1 p-1 rounded hover:bg-red-50 transition-all"
+                  onClick={async () => {
+                    try {
+                      const { data: { user: u } } = await supabase.auth.getUser();
+                      if (!u) return;
+                      const { data: existing } = await supabase.from('community_comment_likes')
+                        .select('id').eq('user_id', u.id).eq('comment_id', c.id).maybeSingle();
+                      if (existing) {
+                        await supabase.from('community_comment_likes').delete().eq('id', existing.id);
+                      } else {
+                        await supabase.from('community_comment_likes').insert({ user_id: u.id, comment_id: c.id });
+                      }
+                      queryClient.invalidateQueries({ queryKey: ['community_comments', postId] });
+                    } catch {}
+                  }}>
+                  <Heart className="w-3 h-3" style={{ color: '#D1D5DB' }} />
+                </button>
+              )}
             </div>
           ))}
         </div>

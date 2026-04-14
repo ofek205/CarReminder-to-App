@@ -90,6 +90,42 @@ export default function Community() {
     return counts;
   }, [realCommentCounts]);
 
+  // Fetch interactions (likes, reactions, saved) for all visible posts
+  const allPostIds = posts.map(p => p.id).filter(p => p && !p.startsWith('demo_'));
+  const { data: interactionsData = {} } = useQuery({
+    queryKey: ['community_interactions', domain, user?.id, allPostIds.length],
+    queryFn: async () => {
+      if (!user || allPostIds.length === 0) return {};
+      try {
+        const [likesRes, reactionsRes, savedRes] = await Promise.all([
+          supabase.from('community_likes').select('post_id, user_id').in('post_id', allPostIds),
+          supabase.from('community_reactions').select('post_id, user_id, emoji').in('post_id', allPostIds),
+          supabase.from('community_saved').select('post_id').eq('user_id', user.id).in('post_id', allPostIds),
+        ]);
+        const result = {};
+        allPostIds.forEach(pid => { result[pid] = { likeCount: 0, liked: false, reactionCounts: {}, myReaction: null, saved: false }; });
+        (likesRes.data || []).forEach(l => {
+          if (result[l.post_id]) {
+            result[l.post_id].likeCount++;
+            if (l.user_id === user.id) result[l.post_id].liked = true;
+          }
+        });
+        (reactionsRes.data || []).forEach(r => {
+          if (result[r.post_id]) {
+            result[r.post_id].reactionCounts[r.emoji] = (result[r.post_id].reactionCounts[r.emoji] || 0) + 1;
+            if (r.user_id === user.id) result[r.post_id].myReaction = r.emoji;
+          }
+        });
+        (savedRes.data || []).forEach(s => {
+          if (result[s.post_id]) result[s.post_id].saved = true;
+        });
+        return result;
+      } catch { return {}; }
+    },
+    enabled: !!user && allPostIds.length > 0,
+    staleTime: 15 * 1000,
+  });
+
   const domainVehicles = useMemo(() =>
     userVehicles.filter(v => domain === 'vessel' ? isVessel(v.vehicle_type, v.nickname) : !isVessel(v.vehicle_type, v.nickname)),
   [userVehicles, domain]);
@@ -192,6 +228,7 @@ export default function Community() {
             <PostCard key={post.id} post={post} T={T} canComment={canInteract}
               commentCount={commentCounts[post.id] || 0}
               vehicle={post.linked_vehicle_id ? vehicleMap[post.linked_vehicle_id] : null}
+              interactions={interactionsData[post.id] || {}}
               onCommentAdded={() => queryClient.invalidateQueries({ queryKey: ['community_comment_counts', domain] })}
             />
           ))

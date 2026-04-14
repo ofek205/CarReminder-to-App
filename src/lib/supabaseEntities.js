@@ -127,4 +127,8 @@ export const db = {
   community_posts:    makeEntity('community_posts'),
   community_comments: makeEntity('community_comments'),
   community_notifications: makeEntity('community_notifications'),
+  community_likes:    makeEntity('community_likes'),
+  community_reactions: makeEntity('community_reactions'),
+  community_saved:    makeEntity('community_saved'),
+  community_comment_likes: makeEntity('community_comment_likes'),
 };
