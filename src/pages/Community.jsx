@@ -105,7 +105,7 @@ export default function Community() {
         return result;
       } catch { return {}; }
     },
-    enabled: !!user && allPostIds.length > 0,
+    enabled: !!user && postIds.length > 0,
     staleTime: 15 * 1000,
   });
 
