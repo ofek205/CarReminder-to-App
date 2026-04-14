@@ -114,9 +114,20 @@ export default function Community() {
   [userVehicles, domain]);
 
   const filteredPosts = useMemo(() => {
-    if (!search.trim()) return posts;
-    const q = search.trim().toLowerCase();
-    return posts.filter(p => p.body?.toLowerCase().includes(q) || p.author_name?.toLowerCase().includes(q));
+    // Filter out blocked users + reported posts
+    let blockedUsers = [];
+    let reportedPosts = [];
+    try { blockedUsers = JSON.parse(localStorage.getItem('blocked_users') || '[]'); } catch {}
+    try { reportedPosts = JSON.parse(localStorage.getItem('reported_posts') || '[]'); } catch {}
+    const blockedSet = new Set(blockedUsers);
+    const reportedSet = new Set(reportedPosts);
+
+    let result = posts.filter(p => !blockedSet.has(p.user_id) && !reportedSet.has(p.id));
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter(p => p.body?.toLowerCase().includes(q) || p.author_name?.toLowerCase().includes(q));
+    }
+    return result;
   }, [posts, search]);
 
   const vehicleMap = useMemo(() => {

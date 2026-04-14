@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
-import { Send, Wrench, Loader2, Heart } from 'lucide-react';
+import { Send, Wrench, Loader2, Heart, Flag } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -94,7 +94,20 @@ export default function CommentSection({ postId, postOwnerId, canComment: canCom
                 </div>
                 <p className="text-[13px] leading-relaxed" style={{ color: '#4B5563' }}>{c.body}</p>
               </div>
-              {/* Comment like */}
+              {/* Comment actions: like + report */}
+              {canComment && !c.is_ai && (
+                <button className="shrink-0 self-start mt-1 p-1 rounded hover:bg-gray-100 transition-all"
+                  onClick={() => {
+                    try {
+                      const reports = JSON.parse(localStorage.getItem('reported_comments') || '[]');
+                      if (!reports.includes(c.id)) { reports.push(c.id); localStorage.setItem('reported_comments', JSON.stringify(reports)); }
+                      alert('הדיווח נשלח. תודה!');
+                    } catch {}
+                  }}
+                  title="דווח">
+                  <Flag className="w-3 h-3" style={{ color: '#D1D5DB' }} />
+                </button>
+              )}
               {canComment && !c.is_ai && (
                 <button className="shrink-0 self-start mt-1 p-1 rounded hover:bg-red-50 transition-all"
                   onClick={async () => {

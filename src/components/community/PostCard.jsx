@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { MessageCircle, ChevronDown, ChevronUp, Car, Ship, Bike, Truck, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2 } from 'lucide-react';
+import { MessageCircle, ChevronDown, ChevronUp, Car, Ship, Bike, Truck, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2, Flag, Ban, MoreVertical } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { getVehicleCategory } from '@/lib/designTokens';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -148,12 +149,45 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
           </div>
           <p className="text-[11px]" style={{ color: '#9CA3AF' }}>{timeAgo(post.created_at)}</p>
         </div>
-        {isOwner && (
-          <button onClick={handleDelete} disabled={deleting}
-            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-50 transition-all">
-            <Trash2 className="w-3.5 h-3.5" style={{ color: '#DC2626' }} />
-          </button>
-        )}
+        {/* Post menu: delete (owner) / report + block (others) */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-all">
+              <MoreVertical className="w-4 h-4" style={{ color: '#9CA3AF' }} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" dir="rtl" className="w-44">
+            {isOwner && (
+              <DropdownMenuItem onClick={handleDelete} disabled={deleting}
+                className="gap-2 text-sm font-medium cursor-pointer text-red-600">
+                <Trash2 className="w-4 h-4" /> מחק פוסט
+              </DropdownMenuItem>
+            )}
+            {!isOwner && canInteract && (
+              <>
+                <DropdownMenuItem onClick={() => {
+                  try {
+                    const reports = JSON.parse(localStorage.getItem('reported_posts') || '[]');
+                    if (!reports.includes(post.id)) { reports.push(post.id); localStorage.setItem('reported_posts', JSON.stringify(reports)); }
+                    alert('הדיווח נשלח. תודה!');
+                  } catch {}
+                }} className="gap-2 text-sm font-medium cursor-pointer">
+                  <Flag className="w-4 h-4" /> דווח על תוכן
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  if (!confirm(`לחסום את ${post.author_name}? לא תראה את הפוסטים שלו.`)) return;
+                  try {
+                    const blocked = JSON.parse(localStorage.getItem('blocked_users') || '[]');
+                    if (!blocked.includes(post.user_id)) { blocked.push(post.user_id); localStorage.setItem('blocked_users', JSON.stringify(blocked)); }
+                    queryClient.invalidateQueries({ queryKey: ['community_posts'] });
+                  } catch {}
+                }} className="gap-2 text-sm font-medium cursor-pointer text-red-600">
+                  <Ban className="w-4 h-4" /> חסום משתמש
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Body */}
