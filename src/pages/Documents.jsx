@@ -107,14 +107,21 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
     if (!ALLOWED_EXTENSIONS.includes(ext)) { toast.error('סיומת קובץ לא מותרת'); e.target.value = ''; return; }
     const mimeToExtMap = { 'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'], 'application/pdf': ['.pdf'] };
     if (!(mimeToExtMap[file.type] || []).includes(ext)) { toast.error('סוג הקובץ אינו תואם לסיומת'); e.target.value = ''; return; }
-    if (isGuest) { setFileName(file.name); return; }
+
     setUploading(true);
     try {
-      // TODO: migrate file upload to Supabase Storage
-      // const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      // setForm(f => ({ ...f, file_url }));
+      // Read file as base64 — works for both guest (localStorage) and auth (until Supabase Storage is set up)
+      const reader = new FileReader();
+      const base64 = await new Promise((resolve, reject) => {
+        reader.onload = (ev) => resolve(ev.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
       setFileName(file.name);
-      toast.info('העלאת קבצים תתאפשר בקרוב (בהעברה ל-Supabase)');
+      setForm(f => ({ ...f, file_url: base64 }));
+    } catch (err) {
+      console.error('File read error:', err);
+      toast.error('שגיאה בקריאת הקובץ');
     } finally {
       setUploading(false);
     }

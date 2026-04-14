@@ -459,7 +459,7 @@ export default function Vehicles() {
     queryFn: () => db.vehicles.filter({ account_id: accountId }),
     enabled: !!accountId,
     refetchOnMount: 'always',
-    staleTime: 0,
+    staleTime: 2 * 60 * 1000, // 2 minutes cache
   });
 
   if (authLoading) return <LoadingSpinner />;

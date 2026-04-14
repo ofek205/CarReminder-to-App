@@ -12,9 +12,19 @@ const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
+const SuspenseFallback = () => (
+  <div dir="rtl" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', fontFamily: 'system-ui' }}>
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ width: 40, height: 40, border: '3px solid #D8E5D9', borderTopColor: '#2D5233', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+      <p style={{ color: '#6B7280', fontSize: 14 }}>טוען...</p>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  </div>
+);
+
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}>{children}</Layout>
-  : <>{children}</>;
+  <Layout currentPageName={currentPageName}><React.Suspense fallback={<SuspenseFallback />}>{children}</React.Suspense></Layout>
+  : <React.Suspense fallback={<SuspenseFallback />}>{children}</React.Suspense>;
 
 // ── Error Boundary — catches unhandled errors (e.g. Base44 SDK crashes) ────
 class AppErrorBoundary extends React.Component {

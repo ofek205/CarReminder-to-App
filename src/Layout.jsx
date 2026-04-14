@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Bell, Settings, Users, User, FileText, Menu, X, LogOut, Wrench, Star, UserCircle, CheckCircle, AlertTriangle, XCircle, Phone, Mail, CreditCard, UserPlus, ShieldCheck, MapPin, Gauge } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Bell, Settings, Users, User, FileText, Menu, X, LogOut, Wrench, Star, UserCircle, CheckCircle, AlertTriangle, XCircle, Phone, Mail, CreditCard, UserPlus, ShieldCheck, MapPin, Gauge, MessageSquare } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -20,16 +20,22 @@ import { AccessibilityProvider } from "@/components/shared/AccessibilityContext"
 import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
 
+// Bottom nav paths (duplicated in mobile sidebar — hide from sidebar on mobile)
+const BOTTOM_NAV_PATHS = new Set(['Dashboard', 'Documents', 'FindGarage', 'Accidents']);
+
 const navItems = [
-  // ── ראשי ──
+  // ── ניווט ──
   { name: 'Dashboard',             label: 'דף הבית שלי',     icon: LayoutDashboard, guestAllowed: true },
   { name: 'Vehicles',              label: 'רכבים',            icon: Car,             guestAllowed: true },
   { name: 'Vehicles?category=vessel', label: 'כלי שייט',      icon: Ship,            guestAllowed: true, vesselOnly: true },
   // ── ניהול ──
   { divider: true, title: 'ניהול' },
-  { name: 'MaintenanceTemplates',  label: 'טיפולים ותיקונים', icon: Settings,        guestAllowed: true },
+  { name: 'MaintenanceTemplates',  label: 'טיפולים ותיקונים', icon: Wrench,          guestAllowed: true },
   { name: 'Documents',             label: 'מסמכים',           icon: FileText,        guestAllowed: true },
   { name: 'Accidents',             label: 'תאונות',           icon: AlertTriangle,   guestAllowed: true },
+  // ── קהילה ──
+  { divider: true, title: 'קהילה' },
+  { name: 'Community',             label: 'קהילה וייעוץ',    icon: Users,           guestAllowed: true },
   // ── כלים ──
   { divider: true, title: 'כלים' },
   { name: 'FindGarage',            label: 'מצא מוסך',        icon: MapPin,          guestAllowed: true },
@@ -128,17 +134,28 @@ function UserPopover() {
   );
 }
 
-function NavContent({ currentPath, onItemClick, hasVessel }) {
+function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   const { isAuthenticated, isGuest, user } = useAuth();
   const navigate = useNavigate();
   const isAdmin = user?.role === 'admin' || user?.email === 'ofek205@gmail.com';
+  // On mobile, hide items that are already in the bottom nav
   const visibleItems = navItems.filter(item =>
     item.divider || (
       (isAuthenticated || item.guestAllowed) &&
       (!item.adminOnly || isAdmin) &&
-      (!item.vesselOnly || hasVessel)
+      (!item.vesselOnly || hasVessel) &&
+      (!isMobile || !BOTTOM_NAV_PATHS.has(item.name))
     )
-  );
+  // Remove dividers that have no items after them (orphan dividers)
+  ).filter((item, i, arr) => {
+    if (!item.divider) return true;
+    // Keep divider only if there's a non-divider item after it before the next divider
+    for (let j = i + 1; j < arr.length; j++) {
+      if (arr[j].divider) return false;
+      return true;
+    }
+    return false;
+  });
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -298,45 +315,41 @@ function NotificationBell() {
       try {
         const { db } = await import('@/lib/supabaseEntities');
 
-        // Check profile completion first (independent of account membership)
-        let profileComplete = false;
+        // Parallelize 3 independent queries: profile, members, settings
+        const [profilesResult, membersResult, settingsResult] = await Promise.all([
+          db.user_profiles.filter({ user_id: user.id }).catch(() => []),
+          db.account_members.filter({ user_id: user.id, status: 'פעיל' }).catch(() => []),
+          db.reminder_settings.filter({ user_id: user.id }).catch(() => []),
+        ]);
+
+        // Build profile notifications
         const profileNotifs = [];
-        try {
-          const profiles = await db.user_profiles.filter({ user_id: user.id });
-          const profile = profiles.length > 0 ? profiles[0] : null;
-
-          // 1. Profile incomplete
-          if (!profile || !profile.phone) {
+        const profile = profilesResult.length > 0 ? profilesResult[0] : null;
+        if (!profile || !profile.phone) {
+          profileNotifs.push({
+            id: 'profile-incomplete',
+            vehicleId: null,
+            type: 'profile',
+            label: 'השלם פרטים אישיים',
+            name: 'הוסף טלפון ותאריך לידה באזור האישי',
+            days: -999,
+            isExpired: false,
+          });
+        }
+        if (profile?.license_expiration_date) {
+          const licDays = Math.ceil((new Date(profile.license_expiration_date) - new Date()) / 86400000);
+          if (licDays <= 30) {
             profileNotifs.push({
-              id: 'profile-incomplete',
+              id: 'license-expiry',
               vehicleId: null,
-              type: 'profile',
-              label: 'השלם פרטים אישיים',
-              name: 'הוסף טלפון ותאריך לידה באזור האישי',
-              days: -999,
-              isExpired: false,
+              type: 'license',
+              label: licDays < 0 ? 'רישיון נהיגה פג תוקף!' : `רישיון נהיגה בעוד ${licDays} ימים`,
+              name: 'עדכן באזור האישי',
+              days: licDays,
+              isExpired: licDays < 0,
             });
-          } else {
-            profileComplete = true;
           }
-
-          // 2. Driver's license expiration
-          if (profile?.license_expiration_date) {
-            const now = new Date();
-            const licDays = Math.ceil((new Date(profile.license_expiration_date) - now) / 86400000);
-            if (licDays <= 30) {
-              profileNotifs.push({
-                id: 'license-expiry',
-                vehicleId: null,
-                type: 'license',
-                label: licDays < 0 ? 'רישיון נהיגה פג תוקף!' : `רישיון נהיגה בעוד ${licDays} ימים`,
-                name: 'עדכן באזור האישי',
-                days: licDays,
-                isExpired: licDays < 0,
-              });
-            }
-          }
-        } catch {}
+        }
 
         // Set profile-level notifications immediately
         setNotifications(prev => {
@@ -344,18 +357,15 @@ function NotificationBell() {
           return [...profileNotifs, ...withoutProfile];
         });
 
-        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-        if (members.length === 0) return;
-        const vehicles = await db.vehicles.filter({ account_id: members[0].account_id });
+        if (membersResult.length === 0) return;
+        const vehicles = await db.vehicles.filter({ account_id: membersResult[0].account_id });
 
-        // Load user's reminder threshold (default 14 days)
-        let threshold = 14;
-        try {
-          const settings = await db.reminder_settings.filter({ user_id: user.id });
-          if (settings.length > 0 && settings[0].remind_test_days_before) {
-            threshold = settings[0].remind_test_days_before;
-          }
-        } catch {}
+        // Reminder threshold (default 14)
+        const threshold = (settingsResult.length > 0 && settingsResult[0].remind_test_days_before) || 14;
+
+        // Cache localStorage parse ONCE before vehicle loop (instead of per-vehicle)
+        let mileageDates = {};
+        try { mileageDates = JSON.parse(localStorage.getItem('carreminder_mileage_dates') || '{}'); } catch {}
 
         const items = [];
         const now = new Date();
@@ -482,7 +492,7 @@ function NotificationBell() {
           }
 
           // 8. עדכון ק"מ / שעות מנוע — לא עודכן חצי שנה
-          const localMileageDate = (() => { try { return JSON.parse(localStorage.getItem('carreminder_mileage_dates') || '{}')[v.id]; } catch { return null; } })();
+          const localMileageDate = mileageDates[v.id] || null;
           const mileageDate = localMileageDate || v.km_update_date || v.engine_hours_update_date;
           if (mileageDate) {
             const mileageDays = Math.floor((now - new Date(mileageDate)) / 86400000);
@@ -543,9 +553,33 @@ function NotificationBell() {
           return a.days - b.days;
         });
 
+        // Fetch community notifications (someone replied to your post)
+        try {
+          const { data: communityNotifs } = await supabase
+            .from('community_notifications')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('is_read', false)
+            .order('created_at', { ascending: false })
+            .limit(10);
+          (communityNotifs || []).forEach(cn => {
+            items.push({
+              id: `community-${cn.id}`,
+              vehicleId: null,
+              type: 'community',
+              label: `${cn.commenter_name} הגיב/ה על השאלה שלך`,
+              name: 'לחץ לצפייה',
+              days: 500,
+              isExpired: false,
+              navTarget: 'Community',
+              _communityNotifId: cn.id,
+            });
+          });
+        } catch {}
+
         setNotifications(prev => {
-          const profileNotif = prev.find(n => n.id === 'profile-incomplete');
-          return profileNotif ? [profileNotif, ...items] : items;
+          const profileNotifs = prev.filter(n => n.id === 'profile-incomplete' || n.id === 'license-expiry');
+          return [...profileNotifs, ...items];
         });
       } catch {}
     })();
@@ -663,6 +697,13 @@ function NotificationBell() {
                             localStorage.setItem(key, '1');
                             navigate(createPageUrl('Vehicles'));
                           }
+                          else if (n.type === 'community') {
+                            // Mark community notification as read in DB
+                            if (n._communityNotifId) {
+                              supabase.from('community_notifications').update({ is_read: true }).eq('id', n._communityNotifId).then(() => {});
+                            }
+                            navigate(createPageUrl('Community'));
+                          }
                           else if (n.vehicleId) navigate(`${createPageUrl('VehicleDetail')}?id=${n.vehicleId}`);
                           else navigate(createPageUrl('Dashboard'));
                         }}
@@ -671,6 +712,7 @@ function NotificationBell() {
                           style={{
                             background: n.type === 'profile' ? '#EEF2FF'
                               : n.type === 'license' ? (n.isExpired ? '#FEF2F2' : '#FFF8E1')
+                              : n.type === 'community' ? '#F5F3FF'
                               : n.type === 'seasonal' ? '#F0F9FF'
                               : n.isExpired ? '#FEF2F2'
                               : n.type === 'safety' ? '#FFF7ED'
@@ -683,6 +725,8 @@ function NotificationBell() {
                             ? <User className="w-4 h-4" style={{ color: '#4338CA' }} />
                             : n.type === 'license'
                               ? <FileText className="w-4 h-4" style={{ color: n.isExpired ? '#DC2626' : '#D97706' }} />
+                            : n.type === 'community'
+                              ? <MessageSquare className="w-4 h-4" style={{ color: '#7C3AED' }} />
                             : n.type === 'seasonal'
                               ? <span className="text-sm">{n.id === 'winter-prep' ? '❄️' : '⛵'}</span>
                             : n.isExpired
@@ -848,7 +892,7 @@ function LayoutInner({ children }) {
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="p-0 w-72">
-              <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} hasVessel={hasVessel} />
+              <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} hasVessel={hasVessel} isMobile />
             </SheetContent>
           </Sheet>
           {isAuthenticated ? (

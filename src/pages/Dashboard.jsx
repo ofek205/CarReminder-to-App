@@ -522,7 +522,7 @@ export default function Dashboard() {
     queryKey: ['vehicles', accountId],
     queryFn: () => db.vehicles.filter({ account_id: accountId }),
     enabled: !!accountId,
-    staleTime: 0,
+    staleTime: 2 * 60 * 1000, // 2 minutes cache
     refetchOnWindowFocus: true,
   });
 

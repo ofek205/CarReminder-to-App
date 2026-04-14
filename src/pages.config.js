@@ -1,80 +1,39 @@
 /**
  * pages.config.js - Page routing configuration
- * 
- * This file is AUTO-GENERATED. Do not add imports or modify PAGES manually.
- * Pages are auto-registered when you create files in the ./pages/ folder.
- * 
- * THE ONLY EDITABLE VALUE: mainPage
- * This controls which page is the landing page (shown when users visit the app).
- * 
- * Example file structure:
- * 
- *   import HomePage from './pages/HomePage';
- *   import Dashboard from './pages/Dashboard';
- *   import Settings from './pages/Settings';
- *   
- *   export const PAGES = {
- *       "HomePage": HomePage,
- *       "Dashboard": Dashboard,
- *       "Settings": Settings,
- *   }
- *   
- *   export const pagesConfig = {
- *       mainPage: "HomePage",
- *       Pages: PAGES,
- *   };
- * 
- * Example with Layout (wraps all pages):
- *
- *   import Home from './pages/Home';
- *   import Settings from './pages/Settings';
- *   import __Layout from './Layout.jsx';
- *
- *   export const PAGES = {
- *       "Home": Home,
- *       "Settings": Settings,
- *   }
- *
- *   export const pagesConfig = {
- *       mainPage: "Home",
- *       Pages: PAGES,
- *       Layout: __Layout,
- *   };
- *
- * To change the main page from HomePage to Dashboard, use find_replace:
- *   Old: mainPage: "HomePage",
- *   New: mainPage: "Dashboard",
- *
- * The mainPage value must match a key in the PAGES object exactly.
+ * Heavy pages are lazy-loaded to reduce initial bundle size.
  */
-import Accidents from './pages/Accidents';
-import AccountSettings from './pages/AccountSettings';
-import AddAccident from './pages/AddAccident';
-import AuthPage from './pages/AuthPage';
-import AddVehicle from './pages/AddVehicle';
-import AdminReviews from './pages/AdminReviews';
-import AdminDashboard from './pages/AdminDashboard';
+import React from 'react';
 import Dashboard from './pages/Dashboard';
-import DemoVehicleDetail from './pages/DemoVehicleDetail';
-import Documents from './pages/Documents';
-import EditVehicle from './pages/EditVehicle';
-import FindGarage from './pages/FindGarage';
-import JoinInvite from './pages/JoinInvite';
-import MaintenanceTemplates from './pages/MaintenanceTemplates';
-import Notifications from './pages/Notifications';
-import ReminderSettingsPage from './pages/ReminderSettingsPage';
-import RepairTypes from './pages/RepairTypes';
-import UserProfile from './pages/UserProfile';
+import AuthPage from './pages/AuthPage';
 import VehicleDetail from './pages/VehicleDetail';
 import Vehicles from './pages/Vehicles';
 import __Layout from './Layout.jsx';
 
+// Lazy-loaded pages — loaded on demand when navigated to
+const Community = React.lazy(() => import('./pages/Community'));
+const AddVehicle = React.lazy(() => import('./pages/AddVehicle'));
+const EditVehicle = React.lazy(() => import('./pages/EditVehicle'));
+const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
+const FindGarage = React.lazy(() => import('./pages/FindGarage'));
+const Documents = React.lazy(() => import('./pages/Documents'));
+const Accidents = React.lazy(() => import('./pages/Accidents'));
+const AddAccident = React.lazy(() => import('./pages/AddAccident'));
+const AccountSettings = React.lazy(() => import('./pages/AccountSettings'));
+const AdminReviews = React.lazy(() => import('./pages/AdminReviews'));
+const DemoVehicleDetail = React.lazy(() => import('./pages/DemoVehicleDetail'));
+const JoinInvite = React.lazy(() => import('./pages/JoinInvite'));
+const MaintenanceTemplates = React.lazy(() => import('./pages/MaintenanceTemplates'));
+const Notifications = React.lazy(() => import('./pages/Notifications'));
+const ReminderSettingsPage = React.lazy(() => import('./pages/ReminderSettingsPage'));
+const RepairTypes = React.lazy(() => import('./pages/RepairTypes'));
+const UserProfile = React.lazy(() => import('./pages/UserProfile'));
 
 export const PAGES = {
     "Accidents": Accidents,
     "AccountSettings": AccountSettings,
     "AddAccident": AddAccident,
     "Auth": AuthPage,
+    "Community": Community,
     "AddVehicle": AddVehicle,
     "AdminReviews": AdminReviews,
     "AdminDashboard": AdminDashboard,

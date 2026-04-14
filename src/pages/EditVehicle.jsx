@@ -188,6 +188,9 @@ export default function EditVehicle() {
     e.preventDefault();
     setSaving(true);
 
+    // Compute vesselMode locally (same as render-level computation)
+    const vesselMode = isVesselType(form.vehicle_type, form.nickname);
+
     // Only send columns that exist in Supabase
     const DB_COLUMNS = ['vehicle_type','manufacturer','model','year',
       'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
@@ -205,7 +208,15 @@ export default function EditVehicle() {
     const data = {};
     DB_COLUMNS.forEach(k => { if (form[k] !== undefined && form[k] !== null) data[k] = form[k]; });
     // Type conversions
-    if (form.year) data.year = Number(form.year);
+    if (form.year) {
+      const yearNum = Number(form.year);
+      if (isNaN(yearNum) || yearNum < 1900 || yearNum > new Date().getFullYear() + 2) {
+        toast.error('שנת ייצור לא תקינה');
+        setSaving(false);
+        return;
+      }
+      data.year = yearNum;
+    }
     if (form.current_km) data.current_km = Number(form.current_km);
     if (form.current_engine_hours) data.current_engine_hours = Number(form.current_engine_hours);
     if (form.km_since_tire_change) data.km_since_tire_change = Number(form.km_since_tire_change);
@@ -237,8 +248,6 @@ export default function EditVehicle() {
       navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true });
     } catch (firstErr) {
       console.error('Vehicle update error (full):', firstErr);
-      // DEBUG: show raw error temporarily
-      alert('DEBUG ERROR: ' + JSON.stringify(firstErr?.message || firstErr));
       // Retry: save core fields first, then spec fields one by one
       try {
         const CORE = ['vehicle_type','manufacturer','model','year','nickname','license_plate',
@@ -252,17 +261,23 @@ export default function EditVehicle() {
         const coreData = {};
         CORE.forEach(k => { if (data[k] !== undefined) coreData[k] = data[k]; });
         await db.vehicles.update(vehicleId, coreData);
-        // Now try spec fields one by one (some columns may not exist yet)
+        // Try spec fields one by one (columns may not exist yet) — collect failures
         const specKeys = Object.keys(data).filter(k => !CORE.includes(k));
+        const failedFields = [];
         for (const k of specKeys) {
-          try { await db.vehicles.update(vehicleId, { [k]: data[k] }); } catch {}
+          try { await db.vehicles.update(vehicleId, { [k]: data[k] }); }
+          catch (e) { failedFields.push(k); console.warn(`Spec field "${k}" save failed:`, e?.message); }
         }
-        toast.success(vesselMode ? 'פרטי כלי השייט עודכנו בהצלחה' : 'פרטי הרכב עודכנו בהצלחה');
+        if (failedFields.length > 0 && failedFields.length < specKeys.length) {
+          // Some spec fields failed but core saved — partial success
+          toast.warning('הפרטים העיקריים נשמרו, אך חלק מהמפרט הטכני לא נשמר');
+        } else {
+          toast.success(vesselMode ? 'פרטי כלי השייט עודכנו בהצלחה' : 'פרטי הרכב עודכנו בהצלחה');
+        }
         navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true });
       } catch (retryErr) {
-        alert('DEBUG RETRY ERROR: ' + JSON.stringify(retryErr?.message || retryErr));
         console.error('Vehicle update error (retry):', retryErr);
-        alert('שגיאה בעדכון הרכב. נסה שוב.');
+        toast.error('שגיאה בעדכון הרכב. נסה שוב.');
         setSaving(false);
       }
     }

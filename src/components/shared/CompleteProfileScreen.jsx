@@ -86,10 +86,11 @@ export default function CompleteProfileScreen({ user, onDone }) {
               type="tel"
               inputMode="tel"
               value={phone}
-              onChange={e => setPhone(e.target.value)}
+              onChange={e => setPhone(e.target.value.replace(/[^0-9\-+\s]/g, ''))}
               placeholder="050-1234567"
               dir="ltr"
               className="text-center text-base"
+              maxLength={15}
             />
             <p className="text-[10px] mt-1" style={{ color: '#9CA3AF' }}>
               לקבלת תזכורות לטסט וביטוח

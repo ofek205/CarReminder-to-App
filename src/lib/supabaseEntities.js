@@ -123,4 +123,8 @@ export const db = {
   analytics:          makeEntity('anonymous_analytics'),
   cork_notes:         makeEntity('cork_notes'),
   user_profiles:      makeEntity('user_profiles'),
+  documents:          makeEntity('documents'),
+  community_posts:    makeEntity('community_posts'),
+  community_comments: makeEntity('community_comments'),
+  community_notifications: makeEntity('community_notifications'),
 };

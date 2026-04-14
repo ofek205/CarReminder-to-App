@@ -337,7 +337,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
     },
     enabled: !!vehicleId && accountIds.length > 0,
     refetchOnMount: 'always', // Always fetch fresh data when navigating to this page
-    staleTime: 0,
+    staleTime: 2 * 60 * 1000, // 2 minutes cache
   });
 
   const vehicle = vehicles[0];
@@ -369,8 +369,14 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         const update = {};
         allFields.forEach(f => { if (govData[f] && !vehicle[f]) update[f] = govData[f]; });
         if (Object.keys(update).length > 0) {
-          for (const [key, val] of Object.entries(update)) {
-            try { await db.vehicles.update(vehicle.id, { [key]: val }); } catch {}
+          // Try batch update first (1 call), fallback to per-field if columns missing
+          try {
+            await db.vehicles.update(vehicle.id, update);
+          } catch {
+            // Some columns may not exist — retry per field
+            for (const [key, val] of Object.entries(update)) {
+              try { await db.vehicles.update(vehicle.id, { [key]: val }); } catch {}
+            }
           }
           queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
         }

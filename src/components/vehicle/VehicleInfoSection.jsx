@@ -113,8 +113,23 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
       };
       if (isGuest) {
         addGuestDocument(doc);
+      } else {
+        // Auth: try to save document to Supabase (if documents table exists)
+        try {
+          // Get user's account_id for the document
+          const { supabase } = await import('@/lib/supabase');
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
+            if (members.length > 0) {
+              await db.documents.create({ ...doc, account_id: members[0].account_id });
+            }
+          }
+        } catch (err) {
+          // Silently fail — vehicle date update is the main action
+          console.warn('Document save skipped:', err?.message);
+        }
       }
-      // Auth: document save is TODO until Supabase table ready
 
       // 2. Update vehicle date
       const update = { [dateField]: aiResult.expiry_date };

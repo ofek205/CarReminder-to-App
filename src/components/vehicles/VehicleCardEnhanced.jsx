@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
@@ -149,28 +149,35 @@ function QuickMileageInput({ vehicle, T, isKm, onClose }) {
   );
 }
 
-export default function VehicleCardEnhanced({ vehicle }) {
+function VehicleCardEnhanced({ vehicle }) {
   const navigate = useNavigate();
   const { isGuest } = useAuth();
-  const category = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
-  const VehicleIcon = ICON_MAP[category] || Car;
-  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
-  const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
 
-  const testStatus = getDateStatus(vehicle.test_due_date);
-  const insStatus = getDateStatus(vehicle.insurance_due_date);
+  // Memoize derived values — only recompute when vehicle changes
+  const { category, VehicleIcon, T, labels, isKm, isHours, testStatus, insStatus } = useMemo(() => {
+    const cat = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
+    return {
+      category: cat,
+      VehicleIcon: ICON_MAP[cat] || Car,
+      T: getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer),
+      labels: getVehicleLabels(vehicle.vehicle_type, vehicle.nickname),
+      isKm: usesKm(vehicle.vehicle_type, vehicle.nickname),
+      isHours: usesHours(vehicle.vehicle_type, vehicle.nickname),
+      testStatus: getDateStatus(vehicle.test_due_date),
+      insStatus: getDateStatus(vehicle.insurance_due_date),
+    };
+  }, [vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer, vehicle.test_due_date, vehicle.insurance_due_date]);
 
-  const isKm = usesKm(vehicle.vehicle_type, vehicle.nickname);
-  const isHours = usesHours(vehicle.vehicle_type, vehicle.nickname);
-  // Show quick update only if: authenticated, not demo, uses km/hours,
-  // AND last update was more than 30 days ago (or never updated)
-  // Uses localStorage as primary source (DB column may not exist)
-  const localUpdateDate = getMileageUpdateDate(vehicle.id);
-  const dbUpdateDate = isKm ? vehicle.km_update_date : vehicle.engine_hours_update_date;
-  const lastUpdateStr = localUpdateDate || dbUpdateDate || null;
-  const lastUpdate = lastUpdateStr ? new Date(lastUpdateStr) : null;
-  const daysSinceUpdate = lastUpdate ? Math.floor((Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24)) : Infinity;
-  const showQuickUpdate = !isGuest && !vehicle._isDemo && (isKm || isHours) && daysSinceUpdate > 30;
+  // Memoize localStorage read — runs once per vehicle.id, not every render
+  const showQuickUpdate = useMemo(() => {
+    if (isGuest || vehicle._isDemo || (!isKm && !isHours)) return false;
+    const localUpdateDate = getMileageUpdateDate(vehicle.id);
+    const dbUpdateDate = isKm ? vehicle.km_update_date : vehicle.engine_hours_update_date;
+    const lastUpdateStr = localUpdateDate || dbUpdateDate || null;
+    const lastUpdate = lastUpdateStr ? new Date(lastUpdateStr) : null;
+    const daysSinceUpdate = lastUpdate ? Math.floor((Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24)) : Infinity;
+    return daysSinceUpdate > 30;
+  }, [isGuest, vehicle._isDemo, vehicle.id, isKm, isHours, vehicle.km_update_date, vehicle.engine_hours_update_date]);
 
   const [updateOpen, setUpdateOpen] = useState(false);
 
@@ -323,3 +330,19 @@ export default function VehicleCardEnhanced({ vehicle }) {
     </div>
   );
 }
+
+// Memoize — only re-render if vehicle changes
+export default React.memo(VehicleCardEnhanced, (prev, next) => {
+  // Cheap shallow compare on key vehicle fields that affect rendering
+  const a = prev.vehicle, b = next.vehicle;
+  return a.id === b.id &&
+    a.nickname === b.nickname &&
+    a.manufacturer === b.manufacturer &&
+    a.model === b.model &&
+    a.test_due_date === b.test_due_date &&
+    a.insurance_due_date === b.insurance_due_date &&
+    a.current_km === b.current_km &&
+    a.current_engine_hours === b.current_engine_hours &&
+    a.vehicle_photo === b.vehicle_photo &&
+    a.license_plate === b.license_plate;
+});
