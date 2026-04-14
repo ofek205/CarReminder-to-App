@@ -11,6 +11,9 @@ import __Layout from './Layout.jsx';
 
 // Lazy-loaded pages — loaded on demand when navigated to
 const Community = React.lazy(() => import('./pages/Community'));
+const DeleteAccount = React.lazy(() => import('./pages/DeleteAccount'));
+const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy'));
+const TermsOfService = React.lazy(() => import('./pages/TermsOfService'));
 const AddVehicle = React.lazy(() => import('./pages/AddVehicle'));
 const EditVehicle = React.lazy(() => import('./pages/EditVehicle'));
 const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
@@ -34,6 +37,9 @@ export const PAGES = {
     "AddAccident": AddAccident,
     "Auth": AuthPage,
     "Community": Community,
+    "DeleteAccount": DeleteAccount,
+    "PrivacyPolicy": PrivacyPolicy,
+    "TermsOfService": TermsOfService,
     "AddVehicle": AddVehicle,
     "AdminReviews": AdminReviews,
     "AdminDashboard": AdminDashboard,
