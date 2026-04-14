@@ -849,6 +849,7 @@ function LayoutInner({ children }) {
   // Pages that don't require authentication (legal/compliance pages for app stores)
   const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
   const isPublicRoute = PUBLIC_PAGES.includes(location.pathname);
+  const isAuthRoute = location.pathname === '/Auth' || location.pathname === '/';
 
   // Unauthenticated non-guest users → redirect to Auth (except public pages)
   useEffect(() => {
