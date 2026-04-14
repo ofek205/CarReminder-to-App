@@ -56,7 +56,7 @@ function getNextMaintenanceInfo(vehicle, maintenanceLogs, allTemplates) {
 }
 
 export default function VehicleStatusCard({ vehicle }) {
-  // Maintenance data disabled — not yet migrated from Base44
+  // Maintenance data disabled - not yet migrated from Base44
   const { data: maintenanceLogs = [] } = useQuery({
     queryKey: ['maintenance-logs-dash', vehicle.id],
     queryFn: async () => {

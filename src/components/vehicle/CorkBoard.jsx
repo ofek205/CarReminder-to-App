@@ -356,7 +356,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
   // ── CRUD ──
   const handleSave = async (noteData) => {
     // DB columns: vehicle_id, title, content, color, due_date, is_done, rotation
-    // category + priority don't exist in DB yet — stored in guest/localStorage only
+    // category + priority don't exist in DB yet - stored in guest/localStorage only
     const dbFields = {
       title: noteData.title, content: noteData.content,
       color: noteData.color, due_date: noteData.due_date, is_done: noteData.is_done,
@@ -433,7 +433,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
         )}
       </div>
 
-      {/* Cork board surface — open notes */}
+      {/* Cork board surface - open notes */}
       <div ref={boardRef} className="relative p-4" dir="rtl"
         style={{
           minHeight: openNotes.length === 0 && doneNotes.length === 0 ? '200px' : '120px',
@@ -459,7 +459,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
           <ThemeIcon className="w-14 h-14 text-white" />
         </div>
 
-        {/* Notes grid — open only */}
+        {/* Notes grid - open only */}
         {openNotes.length === 0 && doneNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 gap-3 relative z-10">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
@@ -509,7 +509,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
         )}
       </div>
 
-      {/* Done notes — collapsed section */}
+      {/* Done notes - collapsed section */}
       {doneNotes.length > 0 && (
         <>
           <button onClick={() => setShowDone(o => !o)}

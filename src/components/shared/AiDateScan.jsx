@@ -36,7 +36,7 @@ export default function AiDateScan({ onDateExtracted, label = 'סרוק תוקף
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
-            { type: 'text', text: 'סרוק את התמונה הזו וחלץ את תאריך התוקף / תאריך הפקיעה של הציוד. חפש תאריך על המדבקה, התעודה או האריזה. החזר JSON בלבד: {"date":"YYYY-MM-DD"}. אם לא ניתן לזהות תאריך — החזר {"date":""}.' },
+            { type: 'text', text: 'סרוק את התמונה הזו וחלץ את תאריך התוקף / תאריך הפקיעה של הציוד. חפש תאריך על המדבקה, התעודה או האריזה. החזר JSON בלבד: {"date":"YYYY-MM-DD"}. אם לא ניתן לזהות תאריך - החזר {"date":""}.' },
           ],
         }],
       });

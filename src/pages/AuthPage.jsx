@@ -223,7 +223,7 @@ export default function AuthPage() {
         <div className="absolute inset-0"
           style={{ background: `linear-gradient(160deg, ${C.greenDark} 0%, #3B6D43 45%, ${C.green} 100%)` }} />
 
-        {/* Car image — very subtle texture */}
+        {/* Car image - very subtle texture */}
         <img src="/hero-car.jpg" alt=""
           className="absolute inset-0 w-full h-full object-cover"
           style={{ opacity: 0.45, mixBlendMode: 'normal' }}
@@ -277,7 +277,7 @@ export default function AuthPage() {
 
             {/* CTA buttons */}
             <div className="space-y-3">
-              {/* Primary — Email login */}
+              {/* Primary - Email login */}
               <button onClick={() => setShowForm(true)}
                 className="w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
                 style={{
@@ -326,7 +326,7 @@ export default function AuthPage() {
           /* ── Form view ────────────────────────────────────────── */
           <div className="w-full" style={{ marginTop: '4px' }}>
 
-            {/* Back button — clear and accessible */}
+            {/* Back button - clear and accessible */}
             <button onClick={() => { setShowForm(false); setError(''); setSuccess(''); }}
               className="flex items-center gap-1.5 mb-5 py-2 px-1 rounded-lg transition-colors"
               style={{ color: C.green }}>

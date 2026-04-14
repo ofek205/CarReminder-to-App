@@ -76,7 +76,7 @@ export default function JoinInvite() {
         return;
       }
 
-      // Validate role — only allow safe roles, never 'בעלים' via invite
+      // Validate role - only allow safe roles, never 'בעלים' via invite
       const ALLOWED_INVITE_ROLES = ['מנהל', 'שותף'];
       const safeRole = ALLOWED_INVITE_ROLES.includes(invite.role_to_assign) ? invite.role_to_assign : 'שותף';
 
@@ -112,7 +112,7 @@ export default function JoinInvite() {
   }
 
   const goToAuth = () => {
-    // Redirect to auth with return URL — sanitize token to prevent injection
+    // Redirect to auth with return URL - sanitize token to prevent injection
     const safeToken = encodeURIComponent(String(token).replace(/[^a-zA-Z0-9_-]/g, ''));
     const returnUrl = `/JoinInvite?token=${safeToken}`;
     window.location.href = `/Auth?redirect=${encodeURIComponent(returnUrl)}`;
@@ -166,7 +166,7 @@ export default function JoinInvite() {
             {roleInfo && (
               <div className="rounded-2xl p-4 inline-block" style={{ background: roleInfo.bg }}>
                 <p className="text-sm font-bold" style={{ color: roleInfo.color }}>
-                  הצטרפת כ{roleInfo.label} — {roleInfo.description}
+                  הצטרפת כ{roleInfo.label} - {roleInfo.description}
                 </p>
               </div>
             )}

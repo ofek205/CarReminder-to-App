@@ -24,7 +24,7 @@ const ISRAEL_MARINAS = [
 ];
 import MileageUpdateWidget from "./MileageUpdateWidget";
 
-// ── Renewal Dialog — scan document + update dates ──────────────────────────
+// ── Renewal Dialog - scan document + update dates ──────────────────────────
 function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
   const fileRef = useRef(null);
   const [step, setStep] = useState('upload'); // upload | scanning | confirm | done
@@ -66,7 +66,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
             { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
             { type: 'text', text: `סרוק מסמך זה וחלץ את הפרטים. החזר JSON בלבד:
 {"document_type":"סוג (רישיון רכב/כושר שייט/ביטוח חובה/ביטוח מקיף/ביטוח צד ג/ביטוח ימי חובה/ביטוח ימי מקיף)", "title":"שם החברה או הגוף המנפיק", "issue_date":"YYYY-MM-DD", "expiry_date":"YYYY-MM-DD"}.
-אם לא ניתן לזהות שדה — השאר ריק.` },
+אם לא ניתן לזהות שדה - השאר ריק.` },
           ],
         }],
       });
@@ -126,7 +126,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
             }
           }
         } catch (err) {
-          // Silently fail — vehicle date update is the main action
+          // Silently fail - vehicle date update is the main action
           console.warn('Document save skipped:', err?.message);
         }
       }
@@ -158,7 +158,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         {step === 'upload' && (
           <div className="space-y-3 pt-1">
             <p className="text-sm" style={{ color: '#6B7280' }}>
-              אם חידשת {docLabel} — העלה את המסמך כדי שנעדכן את הפרטים אוטומטית
+              אם חידשת {docLabel} - העלה את המסמך כדי שנעדכן את הפרטים אוטומטית
             </p>
             {error && (
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-red-50 border border-red-200">
@@ -399,7 +399,7 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
       {/* Renewal actions */}
       {(dateField === 'test_due_date' || dateField === 'insurance_due_date') && (
         <div className="space-y-1.5 mt-1.5">
-          {/* Gov.il link — test only */}
+          {/* Gov.il link - test only */}
           {dateField === 'test_due_date' && (
             <a href={vesselMode ? GOV_RENEWAL_URLS.vessel : GOV_RENEWAL_URLS.car}
               target="_blank" rel="noopener noreferrer"
@@ -462,7 +462,7 @@ function VesselInspectionChecklist({ vehicle, T }) {
   const extSt   = getDateStatus(vehicle.fire_extinguisher_expiry_date);
   const raftSt  = getDateStatus(vehicle.life_raft_expiry_date);
 
-  // Build extinguisher entries — support multiple
+  // Build extinguisher entries - support multiple
   const extinguishers = vehicle.fire_extinguishers
     ? vehicle.fire_extinguishers.filter(e => e.date)
     : vehicle.fire_extinguisher_expiry_date
@@ -534,10 +534,10 @@ function VesselInspectionChecklist({ vehicle, T }) {
               📌 נדרש גם להביא לבדיקה:
             </p>
             <ul className="space-y-1.5 text-xs" style={{ color: T.muted }}>
-              {['תעודת רישום — לכלי שייט שאורכם מעל 7 מטר',
-                'בדיקת מערכות — מנוע, הגה, ציוד ניווט',
-                '3 צילומי השייט — מדופן שמאל · מדופן ימין · ירכתיים',
-                'רישיון השייט — לאחר תשלום ואישור בנק הדואר (ללא נספח עליון)']
+              {['תעודת רישום - לכלי שייט שאורכם מעל 7 מטר',
+                'בדיקת מערכות - מנוע, הגה, ציוד ניווט',
+                '3 צילומי השייט - מדופן שמאל · מדופן ימין · ירכתיים',
+                'רישיון השייט - לאחר תשלום ואישור בנק הדואר (ללא נספח עליון)']
                 .map((text, i) => (
                 <li key={i} className="flex items-start gap-1.5">
                   <span className="mt-0.5 shrink-0" style={{ color: T.primary }}>•</span>
@@ -549,7 +549,7 @@ function VesselInspectionChecklist({ vehicle, T }) {
 
           <div className="space-y-1.5 text-[11px] pt-3" style={{ color: T.muted, borderTop: `1px solid ${T.border}` }}>
             <p>⚠️ <span className="font-semibold">מומלץ לבצע לפני פקיעת הרישיון הקודם</span></p>
-            <p>💡 כלי שייט <span className="font-semibold">פרטיים ומסחריים</span> — תדירות שנתית.</p>
+            <p>💡 כלי שייט <span className="font-semibold">פרטיים ומסחריים</span> - תדירות שנתית.</p>
             <p>🔁 בדיקה חוזרת כרוכה בתשלום אגרה נוספת.</p>
           </div>
         </div>
@@ -580,7 +580,7 @@ export default function VehicleInfoSection({ vehicle }) {
         <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
           style={{ background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', border: '1.5px solid #DDD6FE' }}>
           <span className="text-lg">🏛️</span>
-          <span className="text-sm font-bold" style={{ color: '#7C3AED' }}>כלי רכב אספנות — טסט כל חצי שנה</span>
+          <span className="text-sm font-bold" style={{ color: '#7C3AED' }}>כלי רכב אספנות - טסט כל חצי שנה</span>
         </div>
       )}
 
@@ -612,7 +612,7 @@ export default function VehicleInfoSection({ vehicle }) {
         />
       </div>
 
-      {/* ── Technical Spec — grouped ── */}
+      {/* ── Technical Spec - grouped ── */}
       {(() => {
         const groups = [
           { title: 'פרטי רישום', items: [
@@ -668,11 +668,11 @@ export default function VehicleInfoSection({ vehicle }) {
               <div className="divide-y" style={{ borderColor: `${T.border}40` }}>
                 {groups.map((group, gi) => (
                   <div key={gi}>
-                    {/* Group header — subtle divider */}
+                    {/* Group header - subtle divider */}
                     <div className="px-4 pt-3 pb-1">
                       <span className="text-[10px] font-bold tracking-wide uppercase" style={{ color: T.primary }}>{group.title}</span>
                     </div>
-                    {/* Items — clean rows */}
+                    {/* Items - clean rows */}
                     {group.items.map((item, ii) => (
                       <div key={ii} className="flex items-center justify-between px-4 py-2"
                         style={{ borderBottom: ii < group.items.length - 1 ? `1px solid ${T.border}15` : 'none' }}>
@@ -734,7 +734,7 @@ export default function VehicleInfoSection({ vehicle }) {
                     <StatusBadge status={pyroStatus.status} label={pyroStatus.label} />
                   </div>
                 )}
-                {/* מטפי כיבוי — support multiple */}
+                {/* מטפי כיבוי - support multiple */}
                 {(() => {
                   const extinguishers = vehicle.fire_extinguishers
                     ? vehicle.fire_extinguishers.filter(e => e.date)

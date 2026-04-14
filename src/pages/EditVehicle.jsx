@@ -42,7 +42,7 @@ export default function EditVehicle() {
   const [shipyardQuestion, setShipyardQuestion] = useState(null);
 
   // Security: only treat as a guest vehicle if the current user IS actually a guest.
-  // An authenticated user crafting a URL with ?id=guest_xxx must NOT get guest-mode access —
+  // An authenticated user crafting a URL with ?id=guest_xxx must NOT get guest-mode access -
   // they would find no vehicle in their authenticated account data, and the form stays empty.
   const isGuestVehicle = isGuest && (vehicleId?.startsWith('guest_') || vehicleId?.startsWith('demo_'));
 
@@ -261,7 +261,7 @@ export default function EditVehicle() {
         const coreData = {};
         CORE.forEach(k => { if (data[k] !== undefined) coreData[k] = data[k]; });
         await db.vehicles.update(vehicleId, coreData);
-        // Try spec fields one by one (columns may not exist yet) — collect failures
+        // Try spec fields one by one (columns may not exist yet) - collect failures
         const specKeys = Object.keys(data).filter(k => !CORE.includes(k));
         const failedFields = [];
         for (const k of specKeys) {
@@ -269,7 +269,7 @@ export default function EditVehicle() {
           catch (e) { failedFields.push(k); console.warn(`Spec field "${k}" save failed:`, e?.message); }
         }
         if (failedFields.length > 0 && failedFields.length < specKeys.length) {
-          // Some spec fields failed but core saved — partial success
+          // Some spec fields failed but core saved - partial success
           toast.warning('הפרטים העיקריים נשמרו, אך חלק מהמפרט הטכני לא נשמר');
         } else {
           toast.success(vesselMode ? 'פרטי כלי השייט עודכנו בהצלחה' : 'פרטי הרכב עודכנו בהצלחה');
@@ -290,7 +290,7 @@ export default function EditVehicle() {
       <div dir="rtl" className="flex flex-col items-center justify-center py-20 text-center">
         <div className="rounded-2xl p-6 max-w-sm" style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }}>
           <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה לערוך רכב</p>
-          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר — תצוגה בלבד</p>
+          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר - תצוגה בלבד</p>
           <button onClick={() => navigate(-1)} className="px-6 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563EB' }}>חזרה</button>
         </div>
       </div>
@@ -352,13 +352,13 @@ export default function EditVehicle() {
               placeholder={vesselMode ? 'למשל: היאכטה שלי' : 'למשל: הקורולה של אבא'} />
           </div>
 
-          {/* מספר רישוי — full width */}
+          {/* מספר רישוי - full width */}
           <div>
             <Label>{vesselMode ? 'מספר זיהוי כלי שייט *' : 'מספר רישוי *'}</Label>
             <Input value={form.license_plate} onChange={e => handleChange('license_plate', e.target.value)} required dir="ltr" placeholder={vesselMode ? 'IL-12345' : '00-000-00'} />
           </div>
 
-          {/* יצרן + דגם — 2 columns */}
+          {/* יצרן + דגם - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>יצרן</Label>
@@ -370,7 +370,7 @@ export default function EditVehicle() {
             </div>
           </div>
 
-          {/* שנה + דלק/יצרן מנוע — 2 columns */}
+          {/* שנה + דלק/יצרן מנוע - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>שנת ייצור</Label>
@@ -412,7 +412,7 @@ export default function EditVehicle() {
             </div>
           </div>
 
-          {/* טסט + ביטוח — 2 columns */}
+          {/* טסט + ביטוח - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>{vesselMode ? 'כושר שייט' : 'תאריך טסט'}</Label>
@@ -424,7 +424,7 @@ export default function EditVehicle() {
             </div>
           </div>
 
-          {/* ק"מ/שעות + חברת ביטוח — 2 columns */}
+          {/* ק"מ/שעות + חברת ביטוח - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>{vesselMode ? 'שעות מנוע' : 'קילומטראז׳'}</Label>
@@ -451,7 +451,7 @@ export default function EditVehicle() {
             </div>
           </div>
 
-          {/* דגל + מרינה — vessels only */}
+          {/* דגל + מרינה - vessels only */}
           {vesselMode && (
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -486,7 +486,7 @@ export default function EditVehicle() {
             </div>
           )}
 
-          {/* Safety equipment — vessels only */}
+          {/* Safety equipment - vessels only */}
           {vesselMode && (
             <div className="border border-cyan-200 bg-cyan-50 rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-2 mb-1">
@@ -554,7 +554,7 @@ export default function EditVehicle() {
             </div>
           )}
 
-          {/* Shipyard — vessels / Tires — cars */}
+          {/* Shipyard - vessels / Tires - cars */}
           {vesselMode ? (
             <div className="border border-cyan-200 rounded-xl p-4 space-y-3 bg-cyan-50">
               <p className="font-medium text-cyan-800">🚢 האם כלי השייט היה במספנה לאחרונה?</p>

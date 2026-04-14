@@ -57,10 +57,10 @@ export default function PopupQueue({ items = [] }) {
       <DialogContent
         dir="rtl"
         className="max-w-md p-0 overflow-hidden gap-0"
-        /* hide the default shadcn close button — we render our own */
+        /* hide the default shadcn close button - we render our own */
         onPointerDownOutside={e => e.preventDefault()}
       >
-        {/* ── X button — always top-right ── */}
+        {/* ── X button - always top-right ── */}
         <button
           onClick={advance}
           aria-label="סגור"

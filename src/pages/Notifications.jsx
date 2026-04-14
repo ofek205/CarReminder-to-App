@@ -246,7 +246,7 @@ function remindersToNotifs(reminders) {
   return reminders.map(r => ({
     id: r.id,
     notification_type: r.typeName || REMINDER_TYPE_FALLBACK[r.type] || 'טיפול',
-    message: `${r.typeName || r.type} — ${r.name}`,
+    message: `${r.typeName || r.type} - ${r.name}`,
     due_date: r.dueDate,
     days_left: r.daysLeft,
     is_overdue: r.daysLeft !== null && r.daysLeft < 0,
@@ -310,7 +310,7 @@ function AuthNotifications() {
     calcReminders({ vehicles, documents: [], settings: settings || undefined })
   );
 
-  // Read state — synced with localStorage (same as bell)
+  // Read state - synced with localStorage (same as bell)
   const [readIds, setReadIds] = useState(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('read_notif_ids') || '[]');

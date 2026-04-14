@@ -11,7 +11,7 @@ import PostCard from '../components/community/PostCard';
 import PostCreateDialog from '../components/community/PostCreateDialog';
 import { Input } from '@/components/ui/input';
 import { Search, Plus, Ship, Car, MessageSquare, PenLine } from 'lucide-react';
-// Demo posts removed — real seed data in Supabase
+// Demo posts removed - real seed data in Supabase
 
 const marine = { primary: '#0C7B93', light: '#E0F7FA', border: '#B2EBF2', text: '#0A3D4D', muted: '#6B9EA8' };
 

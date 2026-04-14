@@ -96,7 +96,7 @@ function AccidentRow({ accident, vehicleName, vehicle }) {
             <div className="absolute bottom-3 right-3 left-3 z-10">
               <h3 className="font-black text-white text-base leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
                 {vehicleName || labels.vehicleFallback}
-                {accident.other_driver_name && ` — ${accident.other_driver_name}`}
+                {accident.other_driver_name && ` - ${accident.other_driver_name}`}
               </h3>
             </div>
           </div>
@@ -110,7 +110,7 @@ function AccidentRow({ accident, vehicleName, vehicle }) {
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-sm truncate" style={{ color: T.text }}>
                   {vehicleName || labels.vehicleFallback}
-                  {accident.other_driver_name && ` — ${accident.other_driver_name}`}
+                  {accident.other_driver_name && ` - ${accident.other_driver_name}`}
                 </h3>
               </div>
               <span className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shrink-0 mr-2"
@@ -308,7 +308,7 @@ export default function Accidents() {
           style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
           dir="rtl">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>תאונות לדוגמה — הוסף את כלי הרכב שלך כדי לתעד תאונות אמיתיות</span>
+          <span>תאונות לדוגמה - הוסף את כלי הרכב שלך כדי לתעד תאונות אמיתיות</span>
         </div>
       )}
 

@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 // The review entities (UserReviewSettings, Review) need to be created in Supabase first.
 
 export default function ReviewManager() {
-  // Disabled — will re-enable after Supabase migration
+  // Disabled - will re-enable after Supabase migration
   return null;
 }
 
-// Utility to track user actions — no-op during migration
+// Utility to track user actions - no-op during migration
 export async function trackUserAction(userId) {
   // Will be re-enabled after Supabase migration
 }

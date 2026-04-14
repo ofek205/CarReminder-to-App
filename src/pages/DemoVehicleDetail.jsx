@@ -327,7 +327,7 @@ export default function DemoVehicleDetail() {
         <span className="text-lg">👀</span>
         <div className="flex-1">
           <p className="text-sm font-black" style={{ color: '#92400E' }}>רכב לדוגמה</p>
-          <p className="text-xs" style={{ color: '#B45309' }}>כך ייראה ניהול הרכב שלך — הוסף את הרכב האמיתי שלך כדי להתחיל</p>
+          <p className="text-xs" style={{ color: '#B45309' }}>כך ייראה ניהול הרכב שלך - הוסף את הרכב האמיתי שלך כדי להתחיל</p>
         </div>
       </div>
 

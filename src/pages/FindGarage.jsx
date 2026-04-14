@@ -215,7 +215,7 @@ export default function FindGarage() {
     );
   }, []);
 
-  // Fetch garages — includes tyres, with retry on alternate server
+  // Fetch garages - includes tyres, with retry on alternate server
   const OVERPASS_SERVERS = [
     'https://overpass-api.de/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',

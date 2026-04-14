@@ -92,7 +92,7 @@ function QuickMileageInput({ vehicle, T, isKm, onClose }) {
       } catch {}
       // Save update date to localStorage (always works, even without DB column)
       setMileageUpdateDate(vehicle.id);
-      // Wait for data to refresh before closing — refetchType active forces immediate refetch
+      // Wait for data to refresh before closing - refetchType active forces immediate refetch
       await queryClient.refetchQueries({ queryKey: ['vehicles'] });
       await queryClient.invalidateQueries({ queryKey: ['vehicle', vehicle.id] });
       onClose();
@@ -259,7 +259,7 @@ function VehicleCardEnhanced({ vehicle }) {
               </DropdownMenu>
             </div>
 
-            {/* License plate + metric — single compact line */}
+            {/* License plate + metric - single compact line */}
             <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
               {vehicle.license_plate && (
                 <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded tracking-wider"
@@ -280,7 +280,7 @@ function VehicleCardEnhanced({ vehicle }) {
               )}
             </div>
 
-            {/* Status — compact inline */}
+            {/* Status - compact inline */}
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className="text-[10px] font-bold" style={{ color: C.muted }}>{labels.testWord}:</span>
               <StatusBadge status={testStatus.status} label={testStatus.label} />
@@ -288,7 +288,7 @@ function VehicleCardEnhanced({ vehicle }) {
               <StatusBadge status={insStatus.status} label={insStatus.label} />
             </div>
 
-            {/* Missing fields — click navigates to edit */}
+            {/* Missing fields - click navigates to edit */}
             {hasMissing && (
               <button
                 onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(`${createPageUrl('EditVehicle')}?id=${vehicle.id}`); }}
@@ -312,7 +312,7 @@ function VehicleCardEnhanced({ vehicle }) {
         </div>
       </Link>
 
-      {/* Inline update input — appears below card */}
+      {/* Inline update input - appears below card */}
       {updateOpen && (
         <QuickMileageInput vehicle={vehicle} T={T} isKm={isKm} onClose={() => setUpdateOpen(false)} />
       )}
@@ -323,7 +323,7 @@ function VehicleCardEnhanced({ vehicle }) {
   );
 }
 
-// Memoize — only re-render if vehicle changes
+// Memoize - only re-render if vehicle changes
 export default React.memo(VehicleCardEnhanced, (prev, next) => {
   // Cheap shallow compare on key vehicle fields that affect rendering
   const a = prev.vehicle, b = next.vehicle;

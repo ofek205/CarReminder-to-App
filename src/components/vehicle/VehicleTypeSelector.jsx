@@ -24,7 +24,7 @@ export const MOTO_SUBCATEGORIES = [
   { label: 'קטנוע',        dbName: 'קטנוע',         usageMetric: 'קילומטרים' },
 ];
 
-// ─── Sub-categories for "מיוחדים" (ללא כלי שטח — יש להם קטגוריה נפרדת) ──
+// ─── Sub-categories for "מיוחדים" (ללא כלי שטח - יש להם קטגוריה נפרדת) ──
 export const SPECIAL_SUBCATEGORIES = [
   { label: 'רכב אספנות',                   dbName: 'רכב אספנות',                    usageMetric: 'קילומטרים' },
   { label: 'טרקטור',                        dbName: 'טרקטור',                         usageMetric: 'שעות מנוע'  },
@@ -273,7 +273,7 @@ export default function VehicleTypeSelector({
   const handleCategorySelect = (cat) => {
     if (onSelectCategory) onSelectCategory(cat);
     if (cat.hasSubcategories) {
-      // Don't set vehicle_type yet — wait for subcategory selection
+      // Don't set vehicle_type yet - wait for subcategory selection
       onChange('', cat.dbName, cat.usageMetric);
     } else {
       const localType = findLocalType(cat);

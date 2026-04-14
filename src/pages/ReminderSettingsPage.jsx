@@ -87,7 +87,7 @@ function GuestReminderSettings() {
             </div>
             <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
             <p className="text-sm" style={{ color: '#6B7280' }}>
-              הרשמה בחינם — ותוכל לשמור הגדרות, לקבל תזכורות אמיתיות ולגשת מכל מכשיר
+              הרשמה בחינם - ותוכל לשמור הגדרות, לקבל תזכורות אמיתיות ולגשת מכל מכשיר
             </p>
             <button
               onClick={() => { window.location.href = '/Auth'; }}
@@ -199,7 +199,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest }) {
     const granted = await requestNotificationPermission();
     setDevicePermission(granted);
     if (granted) toast.success('התראות הופעלו');
-    else toast.error('ההרשאה נדחתה — ניתן להפעיל בהגדרות המכשיר');
+    else toast.error('ההרשאה נדחתה - ניתן להפעיל בהגדרות המכשיר');
   };
 
   const toggleType = (key) => {
@@ -345,7 +345,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest }) {
         <div className="mb-5">
           <h2 className="font-bold text-base text-gray-900 mb-3">ערוצי התראה נוספים</h2>
           <div className="space-y-2">
-            {/* Email — coming soon */}
+            {/* Email - coming soon */}
             <div className="rounded-2xl p-3.5 flex items-center justify-between"
               style={{ background: '#F9FAFB', border: '1.5px solid #E5E7EB', opacity: 0.6 }}>
               <div className="flex items-center gap-3">
@@ -357,7 +357,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest }) {
               </div>
               <Switch disabled checked={false} />
             </div>
-            {/* WhatsApp — coming soon */}
+            {/* WhatsApp - coming soon */}
             <div className="rounded-2xl p-3.5 flex items-center justify-between"
               style={{ background: '#F9FAFB', border: '1.5px solid #E5E7EB', opacity: 0.6 }}>
               <div className="flex items-center gap-3">

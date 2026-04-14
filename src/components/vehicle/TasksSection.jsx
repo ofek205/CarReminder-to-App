@@ -240,7 +240,7 @@ export default function TasksSection({ vehicle }) {
           </div>
         )}
 
-        {/* Done tasks — collapsed */}
+        {/* Done tasks - collapsed */}
         {doneTasks.length > 0 && (
           <>
             <button onClick={() => setShowDone(o => !o)}

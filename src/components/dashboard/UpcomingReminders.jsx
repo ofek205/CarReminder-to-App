@@ -66,7 +66,7 @@ export default function UpcomingReminders({ vehicles = [], accountId }) {
   const [expanded, setExpanded] = useState(false);
   const MAX_COLLAPSED = 3;
 
-  // Fetch documents (disabled — not yet migrated from Base44)
+  // Fetch documents (disabled - not yet migrated from Base44)
   const { data: documents = [] } = useQuery({
     queryKey: ['documents-reminders', accountId],
     queryFn: async () => {
@@ -78,7 +78,7 @@ export default function UpcomingReminders({ vehicles = [], accountId }) {
     enabled: !!accountId && !isGuest,
   });
 
-  // Fetch reminder settings (disabled — not yet migrated from Base44)
+  // Fetch reminder settings (disabled - not yet migrated from Base44)
   const { data: settingsArr = [] } = useQuery({
     queryKey: ['reminder-settings-dash'],
     queryFn: async () => {

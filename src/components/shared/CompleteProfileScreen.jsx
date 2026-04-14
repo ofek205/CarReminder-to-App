@@ -41,7 +41,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
       }
     } catch (err) {
       console.error('Profile save error:', err);
-      // Don't block — save what we can
+      // Don't block - save what we can
     }
     localStorage.setItem(COMPLETE_PROFILE_KEY, '1');
     window.dispatchEvent(new Event('profileSaved'));
@@ -68,7 +68,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
             {fullName ? `שלום ${fullName}!` : 'ברוך הבא!'}
           </h1>
           <p className="text-sm mt-1" style={{ color: '#6B7280' }}>
-            רק עוד רגע — כדי שנוכל לשלוח לך תזכורות
+            רק עוד רגע - כדי שנוכל לשלוח לך תזכורות
           </p>
         </div>
 

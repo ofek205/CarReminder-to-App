@@ -52,7 +52,7 @@ const EMPTY_FORM = {
   // Vessel safety equipment
   pyrotechnics_expiry_date: '',
   fire_extinguisher_expiry_date: '',
-  fire_extinguishers: null, // array of { date: '' } — null means use single field
+  fire_extinguishers: null, // array of { date: '' } - null means use single field
   life_raft_expiry_date: '',
   // Vessel engine
   engine_manufacturer: '',
@@ -116,7 +116,7 @@ export default function AddVehicle() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const formRef = useRef(null);
 
-  // Dynamic theme — switches to marine when כלי שייט is selected
+  // Dynamic theme - switches to marine when כלי שייט is selected
   const isVesselCategory = selectedCategory?.label === 'כלי שייט';
   const isOffroadCategory = selectedCategory?.label === 'כלי שטח';
   const isJeepOffroad = selectedSubcategory?.dbName === "ג'יפ שטח";
@@ -163,11 +163,11 @@ export default function AddVehicle() {
     const sub = selectedSubcategory;
     resetAll();
     setSelectedMethod(method);
-    // Restore — category selection must survive method switch
+    // Restore - category selection must survive method switch
     setSelectedCategory(cat);
     setSelectedSubcategory(sub);
     if (cat) setUsageMetric(sub?.usageMetric ?? cat.usageMetric);
-    // Restore vehicle_type — resetAll set it back to 'רכב'
+    // Restore vehicle_type - resetAll set it back to 'רכב'
     const correctType = sub?.dbName || cat?.dbName || 'רכב';
     setForm(prev => ({ ...prev, vehicle_type: correctType }));
     if (method === 'scan') {
@@ -318,7 +318,7 @@ export default function AddVehicle() {
   const handleSubmit = async (e) => {
     if (e?.preventDefault) e.preventDefault();
 
-    // vehicle_type is required by the backend — guard before saving
+    // vehicle_type is required by the backend - guard before saving
     if (!form.vehicle_type || form.vehicle_type.trim() === '') {
       alert('יש לבחור סוג כלי רכב לפני השמירה');
       return;
@@ -346,7 +346,7 @@ export default function AddVehicle() {
       try {
         const govData = await lookupVehicleByPlate(form.license_plate);
         if (govData) {
-          // Only fill fields that are currently empty — don't overwrite user input
+          // Only fill fields that are currently empty - don't overwrite user input
           const enrichFields = [
             'engine_model', 'model_code', 'trim_level', 'vin', 'pollution_group',
             'vehicle_class', 'safety_rating',
@@ -366,7 +366,7 @@ export default function AddVehicle() {
           if (govData.year && !form.year) form.year = govData.year;
         }
       } catch (err) {
-        // Silent fail — enrichment is optional
+        // Silent fail - enrichment is optional
         console.log('Auto-enrich skipped:', err.message);
       }
     }
@@ -375,7 +375,7 @@ export default function AddVehicle() {
       ...form,
       year: form.year ? Number(form.year) : undefined,
       current_km: form.current_km ? Number(form.current_km) : undefined,
-      // km_baseline is set once at creation — used as the counting floor for service alerts
+      // km_baseline is set once at creation - used as the counting floor for service alerts
       // when no maintenance log exists yet (prevents counting from 0 on first add).
       km_baseline: form.current_km ? Number(form.current_km) : undefined,
       current_engine_hours: form.current_engine_hours ? Number(form.current_engine_hours) : undefined,
@@ -399,13 +399,13 @@ export default function AddVehicle() {
       delete data.last_offroad_service_date;
     }
     if (data.offroad_equipment && data.offroad_equipment.length === 0) delete data.offroad_equipment;
-    // _vesselLicenseFileUrl is internal — don't persist to DB
+    // _vesselLicenseFileUrl is internal - don't persist to DB
     const vesselLicenseFileUrl = data._vesselLicenseFileUrl;
     delete data._vesselLicenseFileUrl;
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
 
     if (isGuest) {
-      // Block save — force registration
+      // Block save - force registration
       setSaving(false);
       setShowGuestSignup(true);
       return;
@@ -418,7 +418,7 @@ export default function AddVehicle() {
         return;
       }
 
-      // Only keep known DB columns — strip everything else
+      // Only keep known DB columns - strip everything else
       const DB_COLUMNS = ['account_id','vehicle_type','manufacturer','model','year',
         'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
         'current_km','current_engine_hours','vehicle_photo','fuel_type','is_vintage',
@@ -481,7 +481,7 @@ export default function AddVehicle() {
       <div dir="rtl" className="flex flex-col items-center justify-center py-20 text-center">
         <div className="rounded-2xl p-6 max-w-sm" style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }}>
           <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה להוסיף רכב</p>
-          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר — תצוגה בלבד</p>
+          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר - תצוגה בלבד</p>
           <button onClick={() => navigate(-1)} className="px-6 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563EB' }}>חזרה</button>
         </div>
       </div>
@@ -590,7 +590,7 @@ export default function AddVehicle() {
         </div>
       )}
 
-      {/* Guest signup prompt — must register to save */}
+      {/* Guest signup prompt - must register to save */}
       {showGuestSignup && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
           <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
@@ -599,7 +599,7 @@ export default function AddVehicle() {
             </div>
             <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
             <p className="text-sm" style={{ color: '#6B7280' }}>
-              הרשמה בחינם תוך שניות — ותוכל לשמור {isVesselCategory ? 'כלי שייט' : 'רכבים'}, לקבל תזכורות ולגשת מכל מכשיר
+              הרשמה בחינם תוך שניות - ותוכל לשמור {isVesselCategory ? 'כלי שייט' : 'רכבים'}, לקבל תזכורות ולגשת מכל מכשיר
             </p>
             <Button
               onClick={() => { window.location.href = '/Auth'; }}
@@ -795,7 +795,7 @@ export default function AddVehicle() {
       <h2 className="font-black text-lg mb-3 text-center" style={{ color: '#1C2E20' }}>איך תרצה להוסיף את הרכב?</h2>
       <div className="space-y-3 mb-6">
 
-        {/* 1. Plate lookup — only if category supports it */}
+        {/* 1. Plate lookup - only if category supports it */}
         {selectedCategory?.methods.includes('plate') && (
         <div
           className={`rounded-2xl border-2 bg-white p-4 transition-all duration-200 ${isSelected('plate') ? 'border-[#003DA5] shadow-md' : 'border-gray-200 hover:border-blue-300 cursor-pointer'}`}
@@ -926,7 +926,7 @@ export default function AddVehicle() {
       >
         {formVisible && (
           <>
-            {/* Step header — premium */}
+            {/* Step header - premium */}
             <div className="flex items-center justify-between mb-1" dir="rtl">
               <h2 className="font-black text-xl" style={{ color: T.text }}>פרטי הרכב</h2>
               <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: T.grad, color: '#fff' }}>
@@ -979,7 +979,7 @@ export default function AddVehicle() {
 
                 {/* ── Form fields ── */}
                 <div className="space-y-3" dir="rtl">
-                  {/* כינוי + מספר רישוי — 2 columns */}
+                  {/* כינוי + מספר רישוי - 2 columns */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>{isVesselCategory ? 'כינוי' : 'כינוי'}</Label>
@@ -1003,7 +1003,7 @@ export default function AddVehicle() {
                     </div>
                   </div>
 
-                  {/* יצרן + דגם — 2 columns */}
+                  {/* יצרן + דגם - 2 columns */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>יצרן</Label>
@@ -1044,7 +1044,7 @@ export default function AddVehicle() {
                     </div>
                   </div>
 
-                  {/* שנת ייצור + סוג דלק / יצרן מנוע — 2 columns */}
+                  {/* שנת ייצור + סוג דלק / יצרן מנוע - 2 columns */}
                   <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>שנת ייצור</Label>
@@ -1114,7 +1114,7 @@ export default function AddVehicle() {
                   </div>
                   </div>{/* end grid שנה+דלק/מנוע */}
 
-                  {/* טסט + ביטוח + ק"מ/שעות + חברת ביטוח — 2x2 grid */}
+                  {/* טסט + ביטוח + ק"מ/שעות + חברת ביטוח - 2x2 grid */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>{isVesselCategory ? 'כושר שייט' : 'תאריך טסט'}</Label>
@@ -1175,7 +1175,7 @@ export default function AddVehicle() {
                   </div>
                   </div>{/* end grid ק"מ+ביטוח */}
 
-                  {/* דגל + מרינה — vessels only */}
+                  {/* דגל + מרינה - vessels only */}
                   {isVesselCategory && (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
@@ -1217,7 +1217,7 @@ export default function AddVehicle() {
                     </div>
                   )}
 
-                  {/* Safety Equipment — vessels only */}
+                  {/* Safety Equipment - vessels only */}
                   {selectedCategory?.label === 'כלי שייט' && (
                     <div>
                       <div className="border border-cyan-200 bg-cyan-50 rounded-xl p-4 space-y-3">
@@ -1328,7 +1328,7 @@ export default function AddVehicle() {
                   </div>
                 )}
 
-                {/* Shipyard question — vessels only */}
+                {/* Shipyard question - vessels only */}
                 {selectedCategory?.label === 'כלי שייט' && (
                   <div className="border border-cyan-200 rounded-xl p-4 space-y-3 bg-cyan-50">
                     <p className="font-medium text-cyan-800">🚢 האם כלי השייט היה במספנה לאחרונה?</p>

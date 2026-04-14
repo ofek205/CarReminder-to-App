@@ -128,7 +128,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
     : { label: 'תקין', bg: '#E8F5E9', color: '#2E7D32' };
 
   function daysLabel(d) {
-    if (d === null) return '—';
+    if (d === null) return '-';
     if (d < 0) return 'פג תוקף';
     if (d === 0) return 'היום';
     if (d < 30) return `${d} ימים`;
@@ -137,7 +137,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
 
   return (
     <div className="-mx-4 -mt-4" dir="rtl">
-      {/* Hero card — matches Dashboard style */}
+      {/* Hero card - matches Dashboard style */}
       <div className="rounded-b-3xl overflow-hidden" style={{ boxShadow: `0 8px 32px ${T.primary}25` }}>
         {/* Photo / gradient */}
         <div className="relative" style={{ height: hasPhoto ? '220px' : '150px' }}>
@@ -203,12 +203,12 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
           </div>
         </div>
 
-        {/* Stats bar — like Dashboard */}
+        {/* Stats bar - like Dashboard */}
         <div className="grid grid-cols-3" style={{ background: '#fff' }}>
           {[
-            { label: isVessel ? 'שעות מנוע' : 'קילומטראז\'', value: isVessel ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '—') : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '—') },
-            { label: 'שנת ייצור', value: vehicle.year || '—' },
-            { label: isVessel ? 'כושר שייט' : 'טסט', value: testDays !== null ? daysLabel(testDays) : '—' },
+            { label: isVessel ? 'שעות מנוע' : 'קילומטראז\'', value: isVessel ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '-') : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '-') },
+            { label: 'שנת ייצור', value: vehicle.year || '-' },
+            { label: isVessel ? 'כושר שייט' : 'טסט', value: testDays !== null ? daysLabel(testDays) : '-' },
           ].map((stat, i) => (
             <div key={i} className={`py-4 px-3 text-center ${i < 2 ? 'border-l' : ''}`}
               style={{ borderColor: T.border }}>
@@ -219,7 +219,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
         </div>
       </div>
 
-      {/* Action buttons — clean, outlined */}
+      {/* Action buttons - clean, outlined */}
       <div className="px-4 mt-4 flex gap-2 mb-3">
         <Link to={createPageUrl(`EditVehicle?id=${vehicleId}`)} className="flex-1">
           <button className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
@@ -352,7 +352,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
       'transmission','body_type','country_of_origin','co2','green_index','tow_capacity'];
     const missing = specFields.filter(f => !vehicle[f]);
     if (missing.length === 0) { setEnrichDone(true); return; }
-    // Check localStorage flag — only try once per vehicle per version
+    // Check localStorage flag - only try once per vehicle per version
     // Version 2: reset after DB columns were added
     const enrichKey = `enriched_v4_${vehicle.id}`;
     if (localStorage.getItem(enrichKey)) { setEnrichDone(true); return; }
@@ -373,7 +373,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           try {
             await db.vehicles.update(vehicle.id, update);
           } catch {
-            // Some columns may not exist — retry per field
+            // Some columns may not exist - retry per field
             for (const [key, val] of Object.entries(update)) {
               try { await db.vehicles.update(vehicle.id, { [key]: val }); } catch {}
             }
@@ -399,7 +399,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
 
   if (isLoading || accountIds.length === 0) return <LoadingSpinner />;
 
-  // Vehicle loaded but doesn't belong to user's accounts — access denied
+  // Vehicle loaded but doesn't belong to user's accounts - access denied
   if (!vehicle || !vehicleIsOwned) {
     return (
       <div className="text-center py-20 text-gray-500" dir="rtl">
@@ -462,7 +462,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
       {/* ── View-only banner for חבר ── */}
       {isViewOnly(role) && (
         <div className="mx-4 mb-3 rounded-2xl px-4 py-2.5 flex items-center gap-2 text-sm font-medium" style={{ background: '#DBEAFE', color: '#1E40AF', border: '1px solid #93C5FD' }} dir="rtl">
-          הצטרפת כחבר — תצוגה בלבד
+          הצטרפת כחבר - תצוגה בלבד
         </div>
       )}
 

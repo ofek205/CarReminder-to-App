@@ -109,7 +109,7 @@ const SelectSeparator = React.forwardRef(({ className, ...props }, ref) => (
 ))
 SelectSeparator.displayName = SelectPrimitive.Separator.displayName
 
-// SelectWithClear — wraps Select + SelectTrigger to add an X clear button
+// SelectWithClear - wraps Select + SelectTrigger to add an X clear button
 // Usage: <SelectWithClear value={v} onValueChange={set} onClear={() => set('')} placeholder="בחר...">
 //          <SelectContent>...</SelectContent>
 //        </SelectWithClear>

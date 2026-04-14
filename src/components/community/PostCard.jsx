@@ -39,7 +39,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   const canInteract = !isGuest && !!user;
 
   // Interactions data (passed from parent)
-  // Unified: user can EITHER like (👍) OR pick an emoji — not both
+  // Unified: user can EITHER like (👍) OR pick an emoji - not both
   const liked = interactions?.liked || false;
   const likeCount = interactions?.likeCount || 0;
   const saved = interactions?.saved || false;
@@ -48,7 +48,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   // User's current state: 'like' if liked, emoji string if reacted, null if neither
   const myChoice = myReaction || (liked ? '👍' : null);
 
-  // Unified like/reaction: user can do ONE thing — like (👍) or emoji reaction
+  // Unified like/reaction: user can do ONE thing - like (👍) or emoji reaction
   const handleQuickLike = async () => {
     if (!canInteract) return;
     try {
@@ -78,7 +78,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         if (data) await supabase.from('community_likes').delete().eq('id', data.id);
       }
       if (myReaction === emoji) {
-        // Toggle off — remove reaction
+        // Toggle off - remove reaction
         const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
         if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
       } else if (myReaction) {
@@ -109,7 +109,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     const url = `${window.location.origin}/Community?post=${post.id}`;
     const text = post.body?.slice(0, 100) + '...';
     if (navigator.share) {
-      try { await navigator.share({ title: 'CarReminder — קהילה', text, url }); } catch {}
+      try { await navigator.share({ title: 'CarReminder - קהילה', text, url }); } catch {}
     } else {
       await navigator.clipboard.writeText(url);
       alert('הקישור הועתק!');
@@ -169,7 +169,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         )}
       </div>
 
-      {/* Image — click to expand */}
+      {/* Image - click to expand */}
       {post.image_url && (
         <div className="w-full relative cursor-pointer" onClick={() => setShowFullImage(true)}>
           <img src={post.image_url} alt="" className="w-full object-cover" style={{ maxHeight: '250px' }} />
@@ -192,7 +192,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         </div>
       )}
 
-      {/* Vehicle chip — correct icon per type */}
+      {/* Vehicle chip - correct icon per type */}
       {vehicle && (() => {
         const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
         const cat = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
@@ -229,14 +229,14 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
 
       {/* ── Action bar ── */}
       <div className="flex items-center px-2 py-1" style={{ borderTop: '1px solid #F3F4F6' }}>
-        {/* Like / Reaction — unified: tap = 👍, long-press or second tap = emoji picker */}
+        {/* Like / Reaction - unified: tap = 👍, long-press or second tap = emoji picker */}
         <div className="flex-1 relative">
           <button
             onClick={() => {
               if (!canInteract) return;
               if (showEmojis) { setShowEmojis(false); return; }
               if (myChoice) {
-                // Already reacted — toggle off
+                // Already reacted - toggle off
                 if (liked) handleQuickLike();
                 else if (myReaction) handleReaction(myReaction);
               } else {

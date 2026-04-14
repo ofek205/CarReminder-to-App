@@ -154,7 +154,7 @@ export default function AddAccident() {
     }
   };
 
-  // Photo handling (placeholder — storage not yet migrated)
+  // Photo handling (placeholder - storage not yet migrated)
   const handlePhotoCapture = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -234,7 +234,7 @@ export default function AddAccident() {
       <div dir="rtl" className="flex flex-col items-center justify-center py-20 text-center">
         <div className="rounded-2xl p-6 max-w-sm" style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }}>
           <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה לתעד תאונה</p>
-          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר — תצוגה בלבד</p>
+          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר - תצוגה בלבד</p>
           <button onClick={() => navigate(-1)} className="px-6 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563EB' }}>חזרה</button>
         </div>
       </div>
@@ -262,7 +262,7 @@ export default function AddAccident() {
         <div className="rounded-2xl p-3 mb-1 flex items-center gap-2 text-xs font-medium"
           style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}>
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>זוהי תאונה לדוגמה בלבד — הנתונים אינם אמיתיים</span>
+          <span>זוהי תאונה לדוגמה בלבד - הנתונים אינם אמיתיים</span>
         </div>
       )}
 
@@ -357,7 +357,7 @@ export default function AddAccident() {
             <span className="font-bold text-sm" style={{ color: C.text }}>פרטי הנהג השני</span>
           </div>
 
-          {/* Plate lookup — single field that also saves the plate number */}
+          {/* Plate lookup - single field that also saves the plate number */}
           <div>
             <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>מספר רכב של הנהג השני</Label>
             <div className="flex gap-2">
@@ -389,10 +389,10 @@ export default function AddAccident() {
               </p>
             )}
             {lookupStatus === 'not_found' && (
-              <p className="text-xs text-amber-600 mt-1">לא נמצא במאגר — המספר יישמר כמו שהוא</p>
+              <p className="text-xs text-amber-600 mt-1">לא נמצא במאגר - המספר יישמר כמו שהוא</p>
             )}
             {lookupStatus === 'error' && (
-              <p className="text-xs text-red-600 mt-1">שגיאה בחיפוש — המספר יישמר כמו שהוא</p>
+              <p className="text-xs text-red-600 mt-1">שגיאה בחיפוש - המספר יישמר כמו שהוא</p>
             )}
           </div>
 
@@ -420,7 +420,7 @@ export default function AddAccident() {
             </div>
           </div>
 
-          {/* Vehicle details (manufacturer, model, year — filled by lookup or manually) */}
+          {/* Vehicle details (manufacturer, model, year - filled by lookup or manually) */}
           <div className="grid grid-cols-3 gap-3">
             <div>
               <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>יצרן</Label>
@@ -525,7 +525,7 @@ export default function AddAccident() {
           <textarea
             value={form.description}
             onChange={e => handleChange('description', e.target.value)}
-            placeholder="תאר מה קרה — איך הגעת, מי פגע במי, נזקים שנגרמו..."
+            placeholder="תאר מה קרה - איך הגעת, מי פגע במי, נזקים שנגרמו..."
             className="w-full rounded-xl border p-3 text-sm min-h-[100px] resize-y"
             style={{ borderColor: C.border }}
             dir="rtl"
@@ -576,7 +576,7 @@ export default function AddAccident() {
             </div>
             <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
             <p className="text-sm" style={{ color: '#6B7280' }}>
-              הרשמה בחינם — ותוכל לתעד תאונות, לשמור תמונות ולגשת מכל מכשיר
+              הרשמה בחינם - ותוכל לתעד תאונות, לשמור תמונות ולגשת מכל מכשיר
             </p>
             <button
               onClick={() => { window.location.href = '/Auth'; }}

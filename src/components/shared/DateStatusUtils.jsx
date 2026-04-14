@@ -47,7 +47,7 @@ export function isOffroad(vehicleType) {
   return OFFROAD_TYPES.has(vehicleType);
 }
 
-/** Vessel type names — used to identify boats/yachts/watercraft. */
+/** Vessel type names - used to identify boats/yachts/watercraft. */
 const VESSEL_TYPES = new Set([
   'כלי שייט', 'מפרשית', 'סירה מנועית', 'אופנוע ים', 'סירת גומי',
 ]);

@@ -388,7 +388,7 @@ function VehiclesContent({ vehicles, isLoading }) {
             </div>
           )}
 
-          {/* Category Tabs — hide on vessel page (only one category) */}
+          {/* Category Tabs - hide on vessel page (only one category) */}
           {!isVesselPage && Object.values(categoryCounts).filter(c => c > 0).length > 2 && (
             <CategoryTabs activeTab={activeCategoryTab} onTab={setActiveCategoryTab} categoryCounts={categoryCounts} />
           )}

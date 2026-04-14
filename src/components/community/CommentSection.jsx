@@ -6,7 +6,7 @@ import { Send, Wrench, Loader2, Heart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
-// All posts are real — no demo data
+// All posts are real - no demo data
 
 function timeAgo(date) {
   try { return formatDistanceToNow(new Date(date), { addSuffix: false, locale: he }); }

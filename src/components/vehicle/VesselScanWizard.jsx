@@ -101,7 +101,7 @@ const VESSEL_SCHEMA = {
  * Props:
  *   open         boolean
  *   onClose      () => void
- *   onExtracted  (vesselFields: object) => void   — called with parsed data
+ *   onExtracted  (vesselFields: object) => void   - called with parsed data
  *   accountId    string
  *   userId       string
  */
@@ -344,7 +344,7 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
               </div>
             )}
 
-            {/* Extracted fields — editable */}
+            {/* Extracted fields - editable */}
             {nonEmpty.length > 0 && (
               <div className="border border-gray-200 rounded-xl overflow-hidden">
                 {nonEmpty.map(([key, value]) => (
@@ -388,7 +388,7 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
 
             {/* Helper text */}
             <p className="text-[11px] text-gray-400 text-center">
-              הנתונים ימולאו בטופס — ניתן לערוך הכל לפני השמירה
+              הנתונים ימולאו בטופס - ניתן לערוך הכל לפני השמירה
             </p>
 
             <div className="flex flex-col gap-2 pt-1 border-t">

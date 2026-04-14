@@ -38,7 +38,7 @@ export default function AdminReviews() {
   const [currentUser, setCurrentUser]   = useState(null);
   const [showReviewPopup, setShowReviewPopup] = useState(false);
 
-  // Guests skip the auth.me() call — they are never admin and have no currentUser
+  // Guests skip the auth.me() call - they are never admin and have no currentUser
   useEffect(() => {
     if (isGuest) {
       setIsAdmin(false);
@@ -83,7 +83,7 @@ export default function AdminReviews() {
 
   const avgRating = reviews.length
     ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1)
-    : "—";
+    : "-";
 
   return (
     <div dir="rtl">
@@ -176,7 +176,7 @@ export default function AdminReviews() {
                 <div className="text-xs text-gray-400 shrink-0">
                   {review.created_date
                     ? format(new Date(review.created_date), "dd/MM/yyyy")
-                    : "—"}
+                    : "-"}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">

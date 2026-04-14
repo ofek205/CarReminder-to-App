@@ -110,7 +110,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
 
     setUploading(true);
     try {
-      // Read file as base64 — works for both guest (localStorage) and auth (until Supabase Storage is set up)
+      // Read file as base64 - works for both guest (localStorage) and auth (until Supabase Storage is set up)
       const reader = new FileReader();
       const base64 = await new Promise((resolve, reject) => {
         reader.onload = (ev) => resolve(ev.target.result);
@@ -147,7 +147,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
             { type: 'text', text: `סרוק מסמך זה וחלץ פרטים. סוגי מסמכים אפשריים: ${docTypes.join(' / ')}.
 החזר JSON בלבד: {"document_type":"סוג", "title":"כותרת/שם מנפיק", "issue_date":"YYYY-MM-DD", "expiry_date":"YYYY-MM-DD"}.
-אם לא ניתן לזהות שדה — השאר ריק.` },
+אם לא ניתן לזהות שדה - השאר ריק.` },
           ],
         }],
       });
@@ -164,7 +164,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
           expiry_date: validDate(raw.expiry_date),
         });
       } else {
-        toast.error('לא הצלחתי לקרוא את המסמך — מלא ידנית');
+        toast.error('לא הצלחתי לקרוא את המסמך - מלא ידנית');
       }
     } catch (err) {
       console.error('Document AI scan error:', err);
@@ -241,7 +241,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
                 )}
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFile} />
               </label>
-              {/* Camera capture — separate button below the drop zone */}
+              {/* Camera capture - separate button below the drop zone */}
               {!uploading && (
                 <label className={`${buttonVariants({ variant: "outline" })} mt-2 w-full cursor-pointer gap-2 justify-center border-[#2D5233] text-[#2D5233] hover:bg-[#FDF6F0]`}>
                   <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
@@ -542,7 +542,7 @@ function GroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
 
               return (
                 <div className="space-y-2 pr-1">
-                  {/* Latest document — always visible */}
+                  {/* Latest document - always visible */}
                   {latest && (
                     <DocCard
                       key={latest.id}
@@ -553,7 +553,7 @@ function GroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
                       openingId={openingId}
                     />
                   )}
-                  {/* Older documents — collapsed by default */}
+                  {/* Older documents - collapsed by default */}
                   {older.length > 0 && (
                     <>
                       <button type="button" onClick={() => setShowOlder(!showOlder)}
@@ -604,7 +604,7 @@ function GuestDocuments({ vehicleIdParam }) {
       if (!formData.title && formData.expiry_date) {
         formData.title = `${formData.document_type} - ${new Date(formData.expiry_date).toLocaleDateString('he-IL')}`;
       }
-      // Check for existing document of same type for this vehicle — mark old as superseded
+      // Check for existing document of same type for this vehicle - mark old as superseded
       const existingDocs = guestDocuments.filter(d => d.vehicle_id === vid && d.document_type === formData.document_type);
       if (existingDocs.length > 0 && formData.expiry_date) {
         // Mark all older docs as not latest
@@ -637,7 +637,7 @@ function GuestDocuments({ vehicleIdParam }) {
         }
       />
 
-      {/* Guest banner — single combined banner */}
+      {/* Guest banner - single combined banner */}
       <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
         style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
         <span className="text-lg">{docs.some(d => d._isDemo) ? '👀' : '🔒'}</span>
@@ -689,7 +689,7 @@ function GuestDocuments({ vehicleIdParam }) {
             </div>
             <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
             <p className="text-sm" style={{ color: '#6B7280' }}>
-              הרשמה בחינם תוך שניות — ותוכל לשמור מסמכים, לקבל תזכורות ולגשת מכל מכשיר
+              הרשמה בחינם תוך שניות - ותוכל לשמור מסמכים, לקבל תזכורות ולגשת מכל מכשיר
             </p>
             <Button
               onClick={() => { window.location.href = '/Auth'; }}
@@ -748,7 +748,7 @@ function AuthDocuments({ vehicleIdParam }) {
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ['documents', accountId, vehicleIdParam],
     queryFn: async () => {
-      // TODO: Document entity not yet in Supabase — returning empty array
+      // TODO: Document entity not yet in Supabase - returning empty array
       return [];
     },
     enabled: !!accountId,
@@ -764,7 +764,7 @@ function AuthDocuments({ vehicleIdParam }) {
     setSaving(true);
     const data = { ...form, account_id: accountId, uploaded_by_user_id: userId };
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
-    // TODO: Document entity not yet in Supabase — create is a no-op for now
+    // TODO: Document entity not yet in Supabase - create is a no-op for now
     // await db.documents.create(data);
     toast.info('שמירת מסמכים תתאפשר בקרוב (בהעברה ל-Supabase)');
     if (userId) await trackUserAction(userId);
@@ -780,7 +780,7 @@ function AuthDocuments({ vehicleIdParam }) {
       // If the document already has a stored file_url, validate and open it directly
       if (doc.file_url) {
         const opened = openFileUrlSafely(doc.file_url);
-        if (!opened) toast.error('לא ניתן לפתוח את הקובץ — כתובת לא מאובטחת');
+        if (!opened) toast.error('לא ניתן לפתוח את הקובץ - כתובת לא מאובטחת');
         return;
       }
       // TODO: migrate signed URL generation to Supabase Edge Function
@@ -789,7 +789,7 @@ function AuthDocuments({ vehicleIdParam }) {
       const url = null;
       if (url) {
         const opened = openFileUrlSafely(url);
-        if (!opened) toast.error('לא ניתן לפתוח את הקובץ — כתובת לא מאובטחת');
+        if (!opened) toast.error('לא ניתן לפתוח את הקובץ - כתובת לא מאובטחת');
       }
     } finally {
       setOpeningDocId(null);
@@ -797,7 +797,7 @@ function AuthDocuments({ vehicleIdParam }) {
   };
 
   const handleDelete = async (id) => {
-    // TODO: Document entity not yet in Supabase — delete is a no-op for now
+    // TODO: Document entity not yet in Supabase - delete is a no-op for now
     // await db.documents.delete(id);
     queryClient.invalidateQueries({ queryKey: ['documents'] });
     toast.success('הפריט נמחק בהצלחה');

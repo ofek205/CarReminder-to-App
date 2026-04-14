@@ -32,7 +32,7 @@ const FILTERS = [
 
 const TODAY = new Date();
 
-// Neutral BI palette — intentionally different from main app branding
+// Neutral BI palette - intentionally different from main app branding
 const C = {
   blue:   '#3B82F6',
   green:  '#10B981',
@@ -279,14 +279,14 @@ export default function AdminDashboard() {
     checkAdmin();
   }, []);
 
-  // Step 2: fetch data (admin only) — using Supabase entities
+  // Step 2: fetch data (admin only) - using Supabase entities
   useEffect(() => {
     if (isAdmin !== true) return;
     setLoading(true);
     Promise.all([
       db.accounts.list().catch(() => []),
       db.vehicles.list().catch(() => []),
-      // MaintenanceLog, RepairLog, Review, Document not yet in Supabase — return empty
+      // MaintenanceLog, RepairLog, Review, Document not yet in Supabase - return empty
       Promise.resolve([]),  // maintLogs placeholder
       Promise.resolve([]),  // repairLogs placeholder
       Promise.resolve([]),  // reviews placeholder
@@ -539,7 +539,7 @@ export default function AdminDashboard() {
         {fetchError && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            שגיאה בטעינת נתונים — אנא רענן את הדף.
+            שגיאה בטעינת נתונים - אנא רענן את הדף.
           </div>
         )}
 
@@ -549,7 +549,7 @@ export default function AdminDashboard() {
           <>
 
             {/* ══════════════════════════════════════════════════════
-                SECTION 1 — KPI CARDS
+                SECTION 1 - KPI CARDS
             ══════════════════════════════════════════════════════ */}
             <section>
               <SectionLabel>מדדי ביצוע מרכזיים · {fLabel}</SectionLabel>
@@ -585,7 +585,7 @@ export default function AdminDashboard() {
                 <MetricCard
                   icon={Star}
                   label="דירוג ממוצע"
-                  value={avgRating ? `${avgRating} ★` : '—'}
+                  value={avgRating ? `${avgRating} ★` : '-'}
                   sub={`${reviews.length} ביקורות`}
                   color={C.amber}
                 />
@@ -601,13 +601,13 @@ export default function AdminDashboard() {
             </section>
 
             {/* ══════════════════════════════════════════════════════
-                SECTION 2 — FUNNEL
+                SECTION 2 - FUNNEL
             ══════════════════════════════════════════════════════ */}
             <section>
               <SectionLabel>משפך הפעלה · {fLabel}</SectionLabel>
               <ChartCard>
                 <p className="text-[11px] text-gray-400 mb-5 leading-relaxed">
-                  קצב ההמרה בין שלבי שימוש מרכזיים — מהרשמה ועד שימוש חוזר.
+                  קצב ההמרה בין שלבי שימוש מרכזיים - מהרשמה ועד שימוש חוזר.
                   כל שלב מציג כמה משתמשים הגיעו אליו מתוך הטווח הנבחר.
                 </p>
                 <div className="space-y-4">
@@ -632,7 +632,7 @@ export default function AdminDashboard() {
             </section>
 
             {/* ══════════════════════════════════════════════════════
-                SECTION 3 — TIME SERIES
+                SECTION 3 - TIME SERIES
             ══════════════════════════════════════════════════════ */}
             {showSeries && (
               <section>
@@ -679,7 +679,7 @@ export default function AdminDashboard() {
             )}
 
             {/* ══════════════════════════════════════════════════════
-                SECTION 4 + 5 — BEHAVIOR & TRAFFIC SOURCE
+                SECTION 4 + 5 - BEHAVIOR & TRAFFIC SOURCE
             ══════════════════════════════════════════════════════ */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
 
@@ -742,7 +742,7 @@ export default function AdminDashboard() {
                         <div key={s.src} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
                           <span className="text-sm">{s.icon}</span>
                           <span className="text-xs text-gray-600 flex-1">{s.src}</span>
-                          <span className="text-xs font-bold text-gray-300">—</span>
+                          <span className="text-xs font-bold text-gray-300">-</span>
                         </div>
                       ))}
                     </div>
@@ -755,7 +755,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* ══════════════════════════════════════════════════════
-                SECTION 6 — RETENTION
+                SECTION 6 - RETENTION
             ══════════════════════════════════════════════════════ */}
             <section>
               <SectionLabel>שימור משתמשים (כל הזמנים)</SectionLabel>
@@ -770,7 +770,7 @@ export default function AdminDashboard() {
             </section>
 
             {/* ══════════════════════════════════════════════════════
-                SECTION 7 — TOP USERS TABLE
+                SECTION 7 - TOP USERS TABLE
             ══════════════════════════════════════════════════════ */}
             <section>
               <SectionLabel>משתמשים מובילים לפי רכבים</SectionLabel>
@@ -815,7 +815,7 @@ export default function AdminDashboard() {
                               <td className="px-5 py-3 text-xs text-gray-400 hidden sm:table-cell">
                                 {user.created_date
                                   ? format(parseISO(user.created_date), 'dd/MM/yyyy')
-                                  : '—'}
+                                  : '-'}
                               </td>
                               <td className="px-5 py-3 text-center">
                                 <span
@@ -839,7 +839,7 @@ export default function AdminDashboard() {
             </section>
 
             {/* ══════════════════════════════════════════════════════
-                ALERTS — collapsible
+                ALERTS - collapsible
             ══════════════════════════════════════════════════════ */}
             {totalAlerts > 0 && (
               <section>
@@ -864,9 +864,9 @@ export default function AdminDashboard() {
                     <div className="px-5 pb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                       {[
                         { label: 'טסט פג תוקף',              count: expiredTest.length, color: C.red    },
-                        { label: 'טסט — עד 30 יום',           count: soonTest.length,   color: C.amber  },
+                        { label: 'טסט - עד 30 יום',           count: soonTest.length,   color: C.amber  },
                         { label: 'ביטוח פג תוקף',             count: expiredIns.length, color: C.red    },
-                        { label: 'ביטוח — עד 30 יום',         count: soonIns.length,    color: C.amber  },
+                        { label: 'ביטוח - עד 30 יום',         count: soonIns.length,    color: C.amber  },
                         { label: '🔴 פירוטכניקה פגה',         count: expiredPyro.length,color: C.red    },
                         { label: '🧯 מטף כיבוי פג',           count: expiredExt.length, color: C.red    },
                         { label: '🛟 אסדת הצלה פגה',          count: expiredRaft.length,color: C.red    },
@@ -887,7 +887,7 @@ export default function AdminDashboard() {
             )}
 
             {/* ══════════════════════════════════════════════════════
-                SECTION — ANONYMOUS ANALYTICS
+                SECTION - ANONYMOUS ANALYTICS
             ══════════════════════════════════════════════════════ */}
             <section>
               <SectionLabel>אנליטיקס אנונימי (כל הזמנים)</SectionLabel>
@@ -921,7 +921,7 @@ export default function AdminDashboard() {
                   color={C.amber}
                 />
               </div>
-              <ChartCard title="כניסות אורחים — 7 ימים אחרונים">
+              <ChartCard title="כניסות אורחים - 7 ימים אחרונים">
                 {analyticsRecent.every(d => d['אורחים'] === 0)
                   ? <EmptyChart text="אין נתוני אורחים עדיין" />
                   : (

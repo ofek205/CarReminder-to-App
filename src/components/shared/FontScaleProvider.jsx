@@ -30,7 +30,7 @@ export function FontScaleProvider({ children }) {
 
   const loadFromUser = async () => {
     try {
-      // Use localStorage only — no server dependency
+      // Use localStorage only - no server dependency
       if (!localStorage.getItem('font_scale')) {
         const deviceDefault = getDeviceDefault();
         applyFontScale(deviceDefault);

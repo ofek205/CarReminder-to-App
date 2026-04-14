@@ -27,7 +27,7 @@ export default function MaintenanceSection({ vehicle }) {
   const [aiScanning, setAiScanning] = useState(false);
   const [garageDropdownOpen, setGarageDropdownOpen] = useState(false);
 
-  // Saved garages — persisted per user in localStorage
+  // Saved garages - persisted per user in localStorage
   const GARAGES_KEY = 'saved_garages';
   const getSavedGarages = () => {
     try { return JSON.parse(localStorage.getItem(GARAGES_KEY) || '[]'); } catch { return []; }
@@ -58,7 +58,7 @@ export default function MaintenanceSection({ vehicle }) {
     enabled: !isGuest && !!vehicle.id,
   });
 
-  // AI receipt scanner — uses proxy to avoid exposing API key
+  // AI receipt scanner - uses proxy to avoid exposing API key
   const scanReceipt = async (base64) => {
     setAiScanning(true);
     try {
@@ -70,7 +70,7 @@ export default function MaintenanceSection({ vehicle }) {
         max_tokens: 300,
         messages: [{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
-          { type: 'text', text: 'סרוק את הקבלה/חשבונית הזו וחלץ: 1) שם המוסך/עסק 2) סכום לתשלום 3) תאריך 4) תיאור קצר של העבודה. החזר JSON בלבד: {"garage":"","cost":"","date":"YYYY-MM-DD","description":""}. אם לא ניתן לזהות שדה — השאר ריק.' }
+          { type: 'text', text: 'סרוק את הקבלה/חשבונית הזו וחלץ: 1) שם המוסך/עסק 2) סכום לתשלום 3) תאריך 4) תיאור קצר של העבודה. החזר JSON בלבד: {"garage":"","cost":"","date":"YYYY-MM-DD","description":""}. אם לא ניתן לזהות שדה - השאר ריק.' }
         ]}],
       });
       const text = json?.content?.[0]?.text || '';
@@ -245,7 +245,7 @@ export default function MaintenanceSection({ vehicle }) {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2">
-            {/* Service type selector — only for טיפול */}
+            {/* Service type selector - only for טיפול */}
             {dialogType === 'טיפול' && (
               <div>
                 <Label className="mb-2 block">סוג הטיפול</Label>

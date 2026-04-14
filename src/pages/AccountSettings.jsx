@@ -102,7 +102,7 @@ function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChang
         </div>
       </div>
 
-      {/* Role change — only shown for non-owner members, only by owner */}
+      {/* Role change - only shown for non-owner members, only by owner */}
       {canChangeRole && member.role !== 'בעלים' && (
         <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: '1px solid #F3F4F6' }}>
           <span className="text-xs font-bold text-gray-500 shrink-0">שנה תפקיד:</span>
@@ -143,14 +143,14 @@ function GuestAccountSettings() {
         </div>
         <h2 className="font-black text-xl text-gray-900">שתף את הרכבים שלך</h2>
         <p className="text-base text-gray-500 leading-relaxed">
-          הזמן אנשים לצפות ולנהל את הרכבים שלך — בני משפחה, שותפים, או עובדים.
+          הזמן אנשים לצפות ולנהל את הרכבים שלך - בני משפחה, שותפים, או עובדים.
           הירשם כדי להתחיל.
         </p>
         <div className="grid grid-cols-3 gap-3 pt-2">
           {Object.entries(ROLE_INFO).map(([key, info]) => (
             <div key={key} className="rounded-2xl p-3 text-center" style={{ background: info.bg }}>
               <p className="font-bold text-sm" style={{ color: info.color }}>{info.label}</p>
-              <p className="text-xs mt-1" style={{ color: info.color, opacity: 0.7 }}>{info.description.split('—')[0]}</p>
+              <p className="text-xs mt-1" style={{ color: info.color, opacity: 0.7 }}>{info.description.split('-')[0]}</p>
             </div>
           ))}
         </div>
@@ -360,7 +360,7 @@ function AuthAccountSettings() {
                 <Icon className="w-5 h-5 mx-auto mb-1.5" style={{ color: info.color }} />
                 <p className="font-bold text-sm" style={{ color: info.color }}>{info.label}</p>
                 <p className="text-xs mt-1 leading-tight" style={{ color: info.color, opacity: 0.75 }}>
-                  {info.description.split('—').pop()?.trim()}
+                  {info.description.split('-').pop()?.trim()}
                 </p>
               </div>
             );
@@ -422,7 +422,7 @@ function AuthAccountSettings() {
           style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }} dir="rtl">
           <Eye className="w-5 h-5 text-blue-600 shrink-0" />
           <p className="text-sm font-bold text-blue-800">
-            הצטרפת כשותף — תצוגה בלבד. לא ניתן לערוך או למחוק.
+            הצטרפת כשותף - תצוגה בלבד. לא ניתן לערוך או למחוק.
           </p>
         </div>
       )}
@@ -439,8 +439,8 @@ function AuthAccountSettings() {
               <label className="block text-sm font-bold text-gray-700 mb-2">בחר רמת הרשאה</label>
               <div className="space-y-2.5">
                 {[
-                  { value: 'מנהל', icon: Shield, title: 'מנהל — עריכה מלאה', desc: 'הוספה, עריכה ומחיקה של רכבים, טיפולים ומסמכים. לא יכול לנהל משתמשים.' },
-                  { value: 'שותף', icon: Eye, title: 'שותף — צפייה בלבד', desc: 'יכול לראות את הרכבים והנתונים, אבל לא לערוך או למחוק.' },
+                  { value: 'מנהל', icon: Shield, title: 'מנהל - עריכה מלאה', desc: 'הוספה, עריכה ומחיקה של רכבים, טיפולים ומסמכים. לא יכול לנהל משתמשים.' },
+                  { value: 'שותף', icon: Eye, title: 'שותף - צפייה בלבד', desc: 'יכול לראות את הרכבים והנתונים, אבל לא לערוך או למחוק.' },
                 ].map(opt => {
                   const active = inviteRole === opt.value;
                   const info = ROLE_INFO[opt.value];
@@ -514,7 +514,7 @@ function AuthAccountSettings() {
                   </button>
                 </div>
 
-                {/* Vehicle checkboxes — shown only when "specific" is selected */}
+                {/* Vehicle checkboxes - shown only when "specific" is selected */}
                 {!shareAll && (
                   <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto rounded-2xl p-2"
                     style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
@@ -581,7 +581,7 @@ function AuthAccountSettings() {
 
                 {/* Share buttons */}
                 <div className="grid grid-cols-1 gap-2.5">
-                  {/* WhatsApp — primary */}
+                  {/* WhatsApp - primary */}
                   <Button onClick={shareWhatsApp}
                     className="w-full h-12 rounded-2xl font-bold text-base gap-2.5"
                     style={{ background: '#25D366', color: 'white' }}>
@@ -596,7 +596,7 @@ function AuthAccountSettings() {
                     {linkCopied ? 'הועתק!' : 'העתק קישור'}
                   </Button>
 
-                  {/* Native share — always show on mobile */}
+                  {/* Native share - always show on mobile */}
                   <Button onClick={shareNative} variant="outline"
                     className="w-full h-12 rounded-2xl font-bold text-base gap-2 border-2">
                     <Share2 className="h-5 w-5" />

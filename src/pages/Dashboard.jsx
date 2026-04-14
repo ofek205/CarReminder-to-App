@@ -124,7 +124,7 @@ function UrgentBanner({ reminders, vehicles }) {
   );
 }
 
-// ── Hero Vehicle Card (premium design — photo background) ──────────────────
+// ── Hero Vehicle Card (premium design - photo background) ──────────────────
 function VehicleCard({ vehicle, isDemo }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
@@ -207,9 +207,9 @@ function VehicleCard({ vehicle, isDemo }) {
         {/* Stats bar */}
         <div className="grid grid-cols-3" style={{ background: T.card }} dir="rtl">
           {[
-            { label: isVessel ? 'שעות מנוע' : 'קילומטראז\'', value: isVessel ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '—') : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '—') },
-            { label: 'שנת יצור', value: vehicle.year || '—' },
-            { label: isVessel ? 'כושר שייט' : 'טיפול הבא', value: testDays !== null ? daysLabel(testDays) : '—' },
+            { label: isVessel ? 'שעות מנוע' : 'קילומטראז\'', value: isVessel ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '-') : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '-') },
+            { label: 'שנת יצור', value: vehicle.year || '-' },
+            { label: isVessel ? 'כושר שייט' : 'טיפול הבא', value: testDays !== null ? daysLabel(testDays) : '-' },
           ].map((stat, i) => (
             <div key={i} className={`py-4 px-3 text-center ${i < 2 ? 'border-l' : ''}`}
               style={{ borderColor: T.border }}>
@@ -423,7 +423,7 @@ function VehicleRow({ vehicle }) {
   );
 }
 
-// BottomNav moved to Layout — shared across all pages
+// BottomNav moved to Layout - shared across all pages
 
 // ── Main Dashboard ──────────────────────────────────────────────────────────
 import useNotificationScheduler from '@/hooks/useNotificationScheduler';
@@ -475,10 +475,10 @@ export default function Dashboard() {
               localStorage.setItem('profile_completed', '1');
             }
           } catch {
-            setShowCompleteProfile(true); // Table may not exist yet — show screen anyway
+            setShowCompleteProfile(true); // Table may not exist yet - show screen anyway
           }
         } else {
-          // Profile was completed before — check if phone is still missing (for banner)
+          // Profile was completed before - check if phone is still missing (for banner)
           try {
             const profiles = await db.user_profiles.filter({ user_id: user.id });
             if (profiles.length === 0 || !profiles[0].phone) {
@@ -530,7 +530,7 @@ export default function Dashboard() {
 
   // ── GUEST MODE ─────────────────────────────────────────────────────────────
   if (isGuest) {
-    // Seed demo data on first visit (synchronous — no useEffect needed)
+    // Seed demo data on first visit (synchronous - no useEffect needed)
     if (guestVehicles.length === 0 && !isDemoDismissed) {
       const stored = localStorage.getItem('fleet_guest_vehicles');
       if (!stored || stored === '[]') {
@@ -581,7 +581,7 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          {/* Demo banner — prominent */}
+          {/* Demo banner - prominent */}
           {isShowingDemo && (
             <div className="rounded-2xl p-4 mb-4 relative overflow-hidden"
               style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
@@ -592,7 +592,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-black" style={{ color: '#92400E' }}>אלו רכבים לדוגמה בלבד</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>כך ייראה המסך שלך — הוסף את הרכב האמיתי שלך</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>כך ייראה המסך שלך - הוסף את הרכב האמיתי שלך</p>
                 </div>
               </div>
             </div>
@@ -669,7 +669,7 @@ export default function Dashboard() {
     <div className="-mx-4 -mt-4 pb-4" style={{ background: C.bg, minHeight: '100dvh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <div className="px-4 pt-6">
 
-        {/* Urgent banner — only if something is urgent */}
+        {/* Urgent banner - only if something is urgent */}
         <UrgentBanner reminders={allReminders} vehicles={vehicles} />
 
         {/* Header with vehicle count */}

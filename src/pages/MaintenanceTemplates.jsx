@@ -105,7 +105,7 @@ function AuthMaintenanceTemplates() {
   const { data: globalTpl = [], isLoading: loadingGlobal } = useQuery({
     queryKey: ['templates-global'],
     queryFn: async () => {
-      // TODO: MaintenanceTemplate entity not yet in Supabase — returning empty array
+      // TODO: MaintenanceTemplate entity not yet in Supabase - returning empty array
       return [];
     },
     enabled: !!userId,
@@ -114,7 +114,7 @@ function AuthMaintenanceTemplates() {
   const { data: userTpl = [], isLoading: loadingUser } = useQuery({
     queryKey: ['templates-user', userId],
     queryFn: async () => {
-      // TODO: MaintenanceTemplate entity not yet in Supabase — returning empty array
+      // TODO: MaintenanceTemplate entity not yet in Supabase - returning empty array
       return [];
     },
     enabled: !!userId,
@@ -126,7 +126,7 @@ function AuthMaintenanceTemplates() {
   const { data: repairTypes = [], isLoading: loadingRepairTypes } = useQuery({
     queryKey: ['repair-types', userId],
     queryFn: async () => {
-      // TODO: RepairType entity not yet in Supabase — returning empty array
+      // TODO: RepairType entity not yet in Supabase - returning empty array
       return [];
     },
     enabled: !!userId,
@@ -182,7 +182,7 @@ function AuthMaintenanceTemplates() {
         is_active: true,
       };
       
-      // TODO: RepairType entity not yet in Supabase — CRUD is a no-op for now
+      // TODO: RepairType entity not yet in Supabase - CRUD is a no-op for now
       // if (editingTemplate) {
       //   await db.repair_types.update(editingTemplate.id, repairData);
       // } else {
@@ -204,7 +204,7 @@ function AuthMaintenanceTemplates() {
       };
       Object.keys(data).forEach(k => { if (data[k] === undefined) delete data[k]; });
 
-      // TODO: MaintenanceTemplate entity not yet in Supabase — CRUD is a no-op for now
+      // TODO: MaintenanceTemplate entity not yet in Supabase - CRUD is a no-op for now
       // if (editingTemplate) {
       //   await db.maintenance_templates.update(editingTemplate.id, data);
       // } else {
@@ -227,7 +227,7 @@ function AuthMaintenanceTemplates() {
     if (!deleteTarget) return;
     const { type, item } = deleteTarget;
     setDeleteTarget(null);
-    // TODO: RepairLog, RepairType, MaintenanceLog, MaintenanceTemplate not yet in Supabase — delete is a no-op
+    // TODO: RepairLog, RepairType, MaintenanceLog, MaintenanceTemplate not yet in Supabase - delete is a no-op
     if (type === 'repair') {
       // const logs = await db.repair_logs.filter({ repair_type_id: item.id });
       // if (logs.length > 0) {
@@ -463,7 +463,7 @@ function AuthMaintenanceTemplates() {
                           variant="outline"
                           className="gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50 shrink-0 mr-2"
                           onClick={async () => {
-                            // TODO: MaintenanceTemplate entity not yet in Supabase — clone is a no-op
+                            // TODO: MaintenanceTemplate entity not yet in Supabase - clone is a no-op
                             // await db.maintenance_templates.create({
                             //   name: template.name,
                             //   recurrence_enabled: template.recurrence_enabled,

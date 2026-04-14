@@ -215,12 +215,12 @@ function AuthUserProfile() {
   const handleSave = async () => {
     const phoneVal = form.phone?.replace(/[-\s]/g, '');
     if (phoneVal && !/^0[0-9]{9}$/.test(phoneVal)) {
-      toast.error('מספר טלפון לא תקין — יש להזין 10 ספרות (לדוגמה: 050-1234567)');
+      toast.error('מספר טלפון לא תקין - יש להזין 10 ספרות (לדוגמה: 050-1234567)');
       return;
     }
     const licenseVal = form.driver_license_number?.replace(/[-\s]/g, '');
     if (licenseVal && !/^\d{7,8}$/.test(licenseVal)) {
-      toast.error('מספר רישיון נהיגה לא תקין — יש להזין 7-8 ספרות');
+      toast.error('מספר רישיון נהיגה לא תקין - יש להזין 7-8 ספרות');
       return;
     }
 
@@ -257,7 +257,7 @@ function AuthUserProfile() {
         }
       } catch (err) {
         console.error('Profile save error:', err);
-        // Don't fail — auth name was already saved
+        // Don't fail - auth name was already saved
       }
       toast.success('הפרופיל נשמר בהצלחה');
       // Notify bell to refresh (remove profile-incomplete notification)
@@ -301,7 +301,7 @@ function AuthUserProfile() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Full name — key field */}
+            {/* Full name - key field */}
             <div className="sm:col-span-2">
               <div className="flex items-center gap-2 mb-1">
                 <Label className="mb-0">שם מלא</Label>
@@ -322,7 +322,7 @@ function AuthUserProfile() {
               <Input value={user.email || ''} readOnly dir="ltr" className="bg-gray-50 text-gray-500" />
             </div>
 
-            {/* Phone — key field */}
+            {/* Phone - key field */}
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Label className="mb-0">מספר טלפון</Label>
@@ -339,7 +339,7 @@ function AuthUserProfile() {
               />
             </div>
 
-            {/* Birth date — key field */}
+            {/* Birth date - key field */}
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Label className="mb-0">תאריך לידה</Label>
