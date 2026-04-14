@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { MessageCircle, ChevronDown, ChevronUp, Car, Ship, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2 } from 'lucide-react';
+import { MessageCircle, ChevronDown, ChevronUp, Car, Ship, Bike, Truck, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2 } from 'lucide-react';
+import { getVehicleCategory } from '@/lib/designTokens';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { useAuth } from '../shared/GuestContext';
@@ -191,16 +192,21 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         </div>
       )}
 
-      {/* Vehicle chip */}
-      {vehicle && (
-        <div className="px-4 py-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold"
-            style={{ background: T.light || '#F3F4F6', color: T.primary, border: `1px solid ${T.border}` }}>
-            {post.domain === 'vessel' ? <Ship className="w-3 h-3" /> : <Car className="w-3 h-3" />}
-            {[vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' · ')}
+      {/* Vehicle chip — correct icon per type */}
+      {vehicle && (() => {
+        const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
+        const cat = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
+        const VIcon = ICON_MAP[cat] || Car;
+        return (
+          <div className="px-4 py-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold"
+              style={{ background: T.light || '#F3F4F6', color: T.primary, border: `1px solid ${T.border}` }}>
+              <VIcon className="w-3 h-3" />
+              {[vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' · ')}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Reaction summary row */}
       {(likeCount > 0 || totalReactions > 0 || commentCount > 0) && (
