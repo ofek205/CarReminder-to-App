@@ -38,15 +38,20 @@ const LayoutWrapper = ({ children, currentPageName }) => {
 
 // ── Error Boundary — catches unhandled errors (e.g. Base44 SDK crashes) ────
 class AppErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { hasError: false }; }
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(err) { console.error('AppErrorBoundary caught:', err); }
+  constructor(props) { super(props); this.state = { hasError: false, errorMsg: '' }; }
+  static getDerivedStateFromError(err) { return { hasError: true, errorMsg: err?.message || String(err) }; }
+  componentDidCatch(err, info) { console.error('AppErrorBoundary caught:', err, info?.componentStack); }
   render() {
     if (this.state.hasError) {
       return (
         <div dir="rtl" style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui' }}>
           <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>משהו השתבש 😕</h2>
-          <p style={{ color: '#666', marginBottom: 20 }}>נסה לרענן את הדף</p>
+          <p style={{ color: '#666', marginBottom: 8 }}>נסה לרענן את הדף</p>
+          {this.state.errorMsg && (
+            <p style={{ color: '#DC2626', fontSize: 11, marginBottom: 16, direction: 'ltr', maxWidth: 300, margin: '0 auto 16px', wordBreak: 'break-all' }}>
+              {this.state.errorMsg}
+            </p>
+          )}
           <button onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
             style={{ padding: '10px 28px', borderRadius: 12, background: '#2D5233', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer' }}>
             רענן

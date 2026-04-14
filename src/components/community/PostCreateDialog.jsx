@@ -37,7 +37,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
       const post = await db.community_posts.create({
         user_id: user.id, author_name: authorName, domain,
-        body: body.trim(), image_url: imageUrl || null, linked_vehicle_id: linkedVehicleId || null,
+        body: body.trim(), image_url: imageUrl || null, linked_vehicle_id: (linkedVehicleId && linkedVehicleId !== 'none') ? linkedVehicleId : null,
       });
 
       queryClient.invalidateQueries({ queryKey: ['community_posts', domain] });
@@ -48,7 +48,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
       generateAiResponse(post, linkedVehicleId ? vehicles.find(v => v.id === linkedVehicleId) : null);
     } catch (err) {
       console.error('Post create error:', err);
-      alert('שגיאה ביצירת הפוסט');
+      alert('שגיאה ביצירת הפוסט: ' + (err?.message || JSON.stringify(err)));
     } finally {
       setSaving(false);
     }
@@ -143,7 +143,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                 <SelectValue placeholder={`קשר ל${domain === 'vessel' ? 'כלי שייט' : 'רכב'} (אופציונלי)`} />
               </SelectTrigger>
               <SelectContent dir="rtl">
-                <SelectItem value="">ללא</SelectItem>
+                <SelectItem value="none">ללא</SelectItem>
                 {vehicles.map(v => (
                   <SelectItem key={v.id} value={v.id}>
                     {v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ')} {v.year ? `(${v.year})` : ''}
