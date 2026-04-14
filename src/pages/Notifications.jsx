@@ -305,10 +305,91 @@ function AuthNotifications() {
   const licenseDays = licenseExpDate ? Math.ceil((new Date(licenseExpDate) - new Date()) / 86400000) : null;
   const licenseAlert = licenseDays !== null && licenseDays <= 30;
 
-  // Calculate notifications from vehicle data
-  const notifications = remindersToNotifs(
-    calcReminders({ vehicles, documents: [], settings: settings || undefined })
-  );
+  // Build notifications with SAME logic as the bell (NotificationBell in Layout.jsx)
+  const notifications = useMemo(() => {
+    if (!vehicles.length) return [];
+    const items = [];
+    const now = new Date();
+    const threshold = (settings?.remind_test_days_before) || 14;
+    const VESSEL_TYPES = ['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי'];
+    const isVesselV = (v) => VESSEL_TYPES.includes(v.vehicle_type);
+    const daysTo = (d) => d ? Math.ceil((new Date(d) - now) / 86400000) : null;
+    const add = (id, type, label, name, days) => {
+      items.push({ id, notification_type: type, message: label, due_date: null, days_left: days, is_overdue: days < 0, name });
+    };
+
+    // Mileage dates from localStorage
+    let mileageDates = {};
+    try { mileageDates = JSON.parse(localStorage.getItem('carreminder_mileage_dates') || '{}'); } catch {}
+
+    vehicles.forEach(v => {
+      const name = v.nickname || v.manufacturer || 'רכב';
+      const isVessel = isVesselV(v);
+      const testWord = isVessel ? 'כושר שייט' : 'טסט';
+      const vehicleAge = v.year ? now.getFullYear() - Number(v.year) : 0;
+
+      // Test/כושר שייט
+      const testDays = daysTo(v.test_due_date);
+      if (testDays !== null && testDays <= threshold) {
+        add(`test-${v.id}`, testWord, testDays < 0 ? `${testWord} פג תוקף!` : `${testWord} בעוד ${testDays} ימים`, name, testDays);
+      }
+      // Insurance
+      const insDays = daysTo(v.insurance_due_date);
+      if (insDays !== null && insDays <= threshold) {
+        add(`ins-${v.id}`, 'ביטוח', insDays < 0 ? 'ביטוח פג תוקף!' : `ביטוח בעוד ${insDays} ימים`, name, insDays);
+      }
+      // Vessel safety equipment
+      if (isVessel) {
+        const pyroDays = daysTo(v.pyrotechnics_expiry_date);
+        if (pyroDays !== null && pyroDays <= threshold) add(`pyro-${v.id}`, 'פירוטכניקה', pyroDays < 0 ? 'פירוטכניקה פג תוקף!' : `פירוטכניקה בעוד ${pyroDays} ימים`, name, pyroDays);
+        const extDays = daysTo(v.fire_extinguisher_expiry_date);
+        if (extDays !== null && extDays <= threshold) add(`ext-${v.id}`, 'מטף כיבוי', extDays < 0 ? 'מטף כיבוי פג תוקף!' : `מטף כיבוי בעוד ${extDays} ימים`, name, extDays);
+        const raftDays = daysTo(v.life_raft_expiry_date);
+        if (raftDays !== null && raftDays <= threshold) add(`raft-${v.id}`, 'אסדת הצלה', raftDays < 0 ? 'אסדת הצלה פג תוקף!' : `אסדת הצלה בעוד ${raftDays} ימים`, name, raftDays);
+      }
+      // Tires (100K km / 3 years)
+      if (!isVessel && v.current_km && v.last_tire_change_date) {
+        const tireDaysAgo = Math.floor((now - new Date(v.last_tire_change_date)) / 86400000);
+        if (tireDaysAgo / 365 >= 2.75 || (v.km_since_tire_change && v.current_km - Number(v.km_since_tire_change) >= 90000)) {
+          add(`tires-${v.id}`, 'צמיגים', 'הגיע זמן לבדוק צמיגים', name, 30);
+        }
+      }
+      // Service (15K km)
+      if (!isVessel && v.current_km && v.km_baseline) {
+        const kmSince = v.current_km - v.km_baseline;
+        if (kmSince >= 13500) add(`service-${v.id}`, 'טיפול', `טיפול תקופתי (${Math.round(kmSince / 1000)}K ק"מ)`, name, kmSince >= 15000 ? 0 : 30);
+      }
+      // Brakes (15+ years)
+      if (!isVessel && vehicleAge >= 15 && v.test_due_date) {
+        const td = daysTo(v.test_due_date);
+        if (td !== null && td <= 60 && td > 0) add(`brakes-${v.id}`, 'בלמים', `רכב ותיק (${vehicleAge} שנים) - נדרש אישור בלמים`, name, td);
+      }
+      // Mileage update (6 months)
+      const mileageDate = mileageDates[v.id] || v.km_update_date || v.engine_hours_update_date;
+      if (mileageDate) {
+        const mDays = Math.floor((now - new Date(mileageDate)) / 86400000);
+        if (mDays > 180) add(`mileage-${v.id}`, 'עדכון', !isVessel ? `עדכן קילומטראז' (${mDays} ימים)` : `עדכן שעות מנוע (${mDays} ימים)`, name, 999);
+      } else if (v.current_km || v.current_engine_hours) {
+        add(`mileage-${v.id}`, 'עדכון', !isVessel ? 'עדכן קילומטראז\'' : 'עדכן שעות מנוע', name, 999);
+      }
+      // Shipyard (3 years)
+      if (isVessel && v.last_shipyard_date) {
+        const sDays = Math.floor((now - new Date(v.last_shipyard_date)) / 86400000);
+        if (sDays / 365 >= 2.75) add(`shipyard-${v.id}`, 'מספנה', sDays / 365 >= 3 ? 'הגיע זמן לביקור מספנה!' : 'ביקור מספנה מתקרב', name, sDays / 365 >= 3 ? 0 : 30);
+      }
+    });
+
+    // Filter dismissed
+    let dismissedIds = [];
+    try { dismissedIds = JSON.parse(localStorage.getItem('dismissed_notif_ids') || '[]'); } catch {}
+    const dismissedSet = new Set(dismissedIds);
+
+    return items.filter(n => !dismissedSet.has(n.id)).sort((a, b) => {
+      if (a.is_overdue && !b.is_overdue) return -1;
+      if (!a.is_overdue && b.is_overdue) return 1;
+      return (a.days_left ?? 999) - (b.days_left ?? 999);
+    });
+  }, [vehicles, settings]);
 
   // Read state - synced with localStorage (same as bell)
   const [readIds, setReadIds] = useState(() => {
