@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageCircle, ChevronDown, ChevronUp, Car, Ship, Trash2, Bookmark, BookmarkCheck, Heart, Share2 } from 'lucide-react';
+import { MessageCircle, ChevronDown, ChevronUp, Car, Ship, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { useAuth } from '../shared/GuestContext';
@@ -37,19 +37,29 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   const canInteract = !isGuest && !!user;
 
   // Interactions data (passed from parent)
+  // Unified: user can EITHER like (👍) OR pick an emoji — not both
   const liked = interactions?.liked || false;
   const likeCount = interactions?.likeCount || 0;
   const saved = interactions?.saved || false;
   const myReaction = interactions?.myReaction || null;
   const reactionCounts = interactions?.reactionCounts || {};
+  // User's current state: 'like' if liked, emoji string if reacted, null if neither
+  const myChoice = myReaction || (liked ? '👍' : null);
 
-  const handleLike = async () => {
+  // Unified like/reaction: user can do ONE thing — like (👍) or emoji reaction
+  const handleQuickLike = async () => {
     if (!canInteract) return;
     try {
       if (liked) {
-        const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).single();
+        // Remove like
+        const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
         if (data) await supabase.from('community_likes').delete().eq('id', data.id);
       } else {
+        // Add like + remove emoji if exists
+        if (myReaction) {
+          const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
+          if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
+        }
         await supabase.from('community_likes').insert({ user_id: user.id, post_id: post.id });
       }
       queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
@@ -60,15 +70,20 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     if (!canInteract) return;
     setShowEmojis(false);
     try {
+      // Remove like first if exists
+      if (liked) {
+        const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
+        if (data) await supabase.from('community_likes').delete().eq('id', data.id);
+      }
       if (myReaction === emoji) {
-        // Remove reaction
-        const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).single();
+        // Toggle off — remove reaction
+        const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
         if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
       } else if (myReaction) {
-        // Update reaction
+        // Switch emoji
         await supabase.from('community_reactions').update({ emoji }).eq('user_id', user.id).eq('post_id', post.id);
       } else {
-        // New reaction
+        // New emoji reaction
         await supabase.from('community_reactions').insert({ user_id: user.id, post_id: post.id, emoji });
       }
       queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
@@ -171,10 +186,10 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
       )}
 
       {/* Reaction summary row */}
-      {(likeCount > 0 || totalReactions > 0) && (
+      {(likeCount > 0 || totalReactions > 0 || commentCount > 0) && (
         <div className="flex items-center gap-2 px-4 py-1.5 text-[11px]" style={{ color: '#9CA3AF' }}>
-          {likeCount > 0 && <span>❤️ {likeCount}</span>}
-          {EMOJIS.map(e => reactionCounts[e] ? <span key={e}>{e} {reactionCounts[e]}</span> : null)}
+          {likeCount > 0 && <span>👍 {likeCount}</span>}
+          {EMOJIS.filter(e => e !== '👍').map(e => reactionCounts[e] ? <span key={e}>{e} {reactionCounts[e]}</span> : null)}
           <span className="mr-auto">{commentCount > 0 ? `${commentCount} תגובות` : ''}</span>
         </div>
       )}
@@ -191,29 +206,38 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
 
       {/* ── Action bar ── */}
       <div className="flex items-center px-2 py-1" style={{ borderTop: '1px solid #F3F4F6' }}>
-        {/* Like */}
-        <button onClick={handleLike}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[12px] font-medium transition-all active:scale-[0.95]"
-          style={{ color: liked ? '#DC2626' : '#6B7280' }}>
-          <Heart className="w-4 h-4" fill={liked ? '#DC2626' : 'none'} />
-          {likeCount > 0 && <span>{likeCount}</span>}
-        </button>
-
-        {/* Emoji reaction */}
+        {/* Like / Reaction — unified: tap = 👍, long-press or second tap = emoji picker */}
         <div className="flex-1 relative">
-          <button onClick={() => canInteract && setShowEmojis(!showEmojis)}
-            className="w-full flex items-center justify-center gap-1 py-2.5 rounded-lg text-[12px] font-medium transition-all active:scale-[0.95]"
-            style={{ color: myReaction ? '#D97706' : '#6B7280' }}>
-            <span className="text-base">{myReaction || '😊'}</span>
+          <button
+            onClick={() => {
+              if (!canInteract) return;
+              if (showEmojis) { setShowEmojis(false); return; }
+              if (myChoice) {
+                // Already reacted — toggle off
+                if (liked) handleQuickLike();
+                else if (myReaction) handleReaction(myReaction);
+              } else {
+                handleQuickLike();
+              }
+            }}
+            onContextMenu={(e) => { e.preventDefault(); if (canInteract) setShowEmojis(!showEmojis); }}
+            onDoubleClick={() => { if (canInteract) setShowEmojis(!showEmojis); }}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[12px] font-medium transition-all active:scale-[0.95]"
+            style={{ color: myChoice ? '#2563EB' : '#6B7280' }}>
+            {myReaction
+              ? <span className="text-base">{myReaction}</span>
+              : <ThumbsUp className="w-4 h-4" fill={liked ? '#2563EB' : 'none'} />
+            }
+            {(likeCount + totalReactions) > 0 && <span>{likeCount + totalReactions}</span>}
           </button>
           {showEmojis && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setShowEmojis(false)} />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-40 flex gap-1 px-2 py-1.5 rounded-full bg-white shadow-xl border"
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-40 flex gap-1.5 px-3 py-2 rounded-full bg-white shadow-xl border"
                 style={{ borderColor: '#E5E7EB' }}>
                 {EMOJIS.map(e => (
                   <button key={e} onClick={() => handleReaction(e)}
-                    className={`w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all hover:scale-110 ${myReaction === e ? 'bg-amber-100' : ''}`}>
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-xl transition-all hover:scale-125 ${myReaction === e ? 'bg-blue-100 scale-110' : ''}`}>
                     {e}
                   </button>
                 ))}
