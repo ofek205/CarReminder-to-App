@@ -875,14 +875,19 @@ function LayoutInner({ children }) {
     setMileageCheckDone(true);
   }, [isAuthenticated]);
 
-  // Guest guard: if guest hasn't confirmed entry via Auth screen, redirect there
+  // Guest guard: if guest hasn't confirmed entry via Auth screen, redirect there (skip public pages)
   useEffect(() => {
-    if (isGuest && !isAuthRoute && !sessionStorage.getItem('guest_confirmed')) {
+    if (isGuest && !isAuthRoute && !isPublicRoute && !sessionStorage.getItem('guest_confirmed')) {
       navigate(createPageUrl('Auth'), { replace: true });
     }
-  }, [isGuest, isAuthRoute, navigate]);
+  }, [isGuest, isAuthRoute, isPublicRoute, navigate]);
 
-  // Auth page renders standalone - no chrome
+  // Auth page + public legal pages render standalone - no chrome, no auth required
+  const STANDALONE_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
+  if (STANDALONE_PAGES.includes(location.pathname) && !isAuthenticated && !isGuest) {
+    return <>{children}</>;
+  }
+  // Auth page for guests too
   if (isAuthRoute && !isAuthenticated) {
     return <>{children}</>;
   }
