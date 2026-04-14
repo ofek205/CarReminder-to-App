@@ -190,6 +190,13 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         </div>
       )}
 
+      {/* Demo post notice */}
+      {isDemo && (
+        <div className="px-4 py-1.5 text-center text-[10px] font-medium" style={{ background: '#FEF3C7', color: '#92400E' }}>
+          פוסט לדוגמה — פרסם שאלה משלך כדי לקבל תגובות ולייקים
+        </div>
+      )}
+
       {/* ── Action bar ── */}
       <div className="flex items-center px-2 py-1" style={{ borderTop: '1px solid #F3F4F6' }}>
         {/* Like */}

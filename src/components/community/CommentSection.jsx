@@ -13,7 +13,9 @@ function timeAgo(date) {
   catch { return ''; }
 }
 
-export default function CommentSection({ postId, postOwnerId, canComment, T, onCommentAdded }) {
+export default function CommentSection({ postId, postOwnerId, canComment: canCommentProp, T, onCommentAdded }) {
+  const isDemo = postId?.startsWith('demo_');
+  const canComment = canCommentProp && !isDemo;
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const queryClient = useQueryClient();
@@ -121,6 +123,13 @@ export default function CommentSection({ postId, postOwnerId, canComment, T, onC
             </div>
           ))}
         </div>
+      )}
+
+      {/* Demo notice */}
+      {isDemo && !canComment && canCommentProp && (
+        <p className="text-[10px] text-center py-2" style={{ color: '#92400E', background: '#FEF3C7' }}>
+          פרסם שאלה משלך כדי לקבל תגובות
+        </p>
       )}
 
       {/* Add comment */}
