@@ -152,23 +152,15 @@ function QuickMileageInput({ vehicle, T, isKm, onClose }) {
 function VehicleCardEnhanced({ vehicle }) {
   const navigate = useNavigate();
   const { isGuest } = useAuth();
+  const category = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
+  const VehicleIcon = ICON_MAP[category] || Car;
+  const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
+  const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
+  const testStatus = getDateStatus(vehicle.test_due_date);
+  const insStatus = getDateStatus(vehicle.insurance_due_date);
+  const isKm = usesKm(vehicle.vehicle_type, vehicle.nickname);
+  const isHours = usesHours(vehicle.vehicle_type, vehicle.nickname);
 
-  // Memoize derived values — only recompute when vehicle changes
-  const { category, VehicleIcon, T, labels, isKm, isHours, testStatus, insStatus } = useMemo(() => {
-    const cat = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
-    return {
-      category: cat,
-      VehicleIcon: ICON_MAP[cat] || Car,
-      T: getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer),
-      labels: getVehicleLabels(vehicle.vehicle_type, vehicle.nickname),
-      isKm: usesKm(vehicle.vehicle_type, vehicle.nickname),
-      isHours: usesHours(vehicle.vehicle_type, vehicle.nickname),
-      testStatus: getDateStatus(vehicle.test_due_date),
-      insStatus: getDateStatus(vehicle.insurance_due_date),
-    };
-  }, [vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer, vehicle.test_due_date, vehicle.insurance_due_date]);
-
-  // Memoize localStorage read — runs once per vehicle.id, not every render
   const showQuickUpdate = useMemo(() => {
     if (isGuest || vehicle._isDemo || (!isKm && !isHours)) return false;
     const localUpdateDate = getMileageUpdateDate(vehicle.id);

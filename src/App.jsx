@@ -22,9 +22,19 @@ const SuspenseFallback = () => (
   </div>
 );
 
-const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}><React.Suspense fallback={<SuspenseFallback />}>{children}</React.Suspense></Layout>
-  : <React.Suspense fallback={<SuspenseFallback />}>{children}</React.Suspense>;
+const LayoutWrapper = ({ children, currentPageName }) => {
+  return Layout ? (
+    <Layout currentPageName={currentPageName}>
+      <React.Suspense fallback={<SuspenseFallback />}>
+        {children}
+      </React.Suspense>
+    </Layout>
+  ) : (
+    <React.Suspense fallback={<SuspenseFallback />}>
+      {children}
+    </React.Suspense>
+  );
+};
 
 // ── Error Boundary — catches unhandled errors (e.g. Base44 SDK crashes) ────
 class AppErrorBoundary extends React.Component {

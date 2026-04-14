@@ -555,14 +555,14 @@ function NotificationBell() {
 
         // Fetch community notifications (someone replied to your post)
         try {
-          const { data: communityNotifs } = await supabase
+          const { data: communityNotifs, error: cnError } = await supabase
             .from('community_notifications')
             .select('*')
             .eq('user_id', user.id)
             .eq('is_read', false)
             .order('created_at', { ascending: false })
             .limit(10);
-          (communityNotifs || []).forEach(cn => {
+          if (!cnError && communityNotifs) communityNotifs.forEach(cn => {
             items.push({
               id: `community-${cn.id}`,
               vehicleId: null,
