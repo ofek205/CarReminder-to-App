@@ -39,7 +39,6 @@ const navItems = [
   // ── כלים ──
   { divider: true, title: 'כלים' },
   { name: 'FindGarage',            label: 'מצא מוסך',        icon: MapPin,          guestAllowed: true },
-  { name: 'Notifications',         label: 'התראות',           icon: Bell,            guestAllowed: true },
   { name: 'ReminderSettingsPage',  label: 'הגדרות תזכורות',  icon: Settings,        guestAllowed: true },
   // ── חשבון ──
   { divider: true, title: 'חשבון' },
