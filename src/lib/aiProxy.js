@@ -1,63 +1,85 @@
 /**
- * AI Proxy — sends requests through a server-side proxy instead of exposing API keys.
+ * AI Proxy - supports Gemini (free, primary) and Claude (fallback).
  *
- * In development: Uses Vite proxy (/api/ai) → forwards to Anthropic with key on server side.
- * In production: Uses Supabase Edge Function (/functions/v1/ai-proxy).
- * Fallback: Direct call with client-side key (for backwards compatibility during migration).
+ * Priority:
+ * 1. Supabase Edge Function (if deployed)
+ * 2. Google Gemini API (free, VITE_GEMINI_API_KEY)
+ * 3. Anthropic Claude API (paid, VITE_ANTHROPIC_API_KEY, dev only)
  */
 
-const ANTHROPIC_DIRECT = 'https://api.anthropic.com/v1/messages';
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
 /**
- * Send an AI request safely without exposing the API key in the browser.
- * @param {object} body - The full request body for Claude API (model, max_tokens, messages)
- * @returns {Promise<object>} - The parsed JSON response
+ * Convert Claude-format request to Gemini format and call Gemini API.
+ * @param {object} body - Claude-format body (model, max_tokens, system, messages)
+ * @returns {object} - Claude-format response { content: [{ text }] }
  */
-export async function aiRequest(body) {
-  // Try 1: Supabase Edge Function (production)
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  if (supabaseUrl) {
-    try {
-      const { supabase } = await import('./supabase');
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+async function callGemini(body) {
+  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!geminiKey) return null;
 
-      const res = await fetch(`${supabaseUrl}/functions/v1/ai-proxy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(body),
-      });
+  // Convert Claude messages to Gemini format
+  const parts = [];
 
-      if (res.ok) {
-        return await res.json();
+  // System prompt goes as first user message context
+  if (body.system) {
+    parts.push({ text: body.system + '\n\n' });
+  }
+
+  // Convert messages
+  for (const msg of (body.messages || [])) {
+    if (typeof msg.content === 'string') {
+      parts.push({ text: msg.content });
+    } else if (Array.isArray(msg.content)) {
+      for (const part of msg.content) {
+        if (part.type === 'text') {
+          parts.push({ text: part.text });
+        } else if (part.type === 'image' && part.source?.type === 'base64') {
+          parts.push({
+            inline_data: {
+              mime_type: part.source.media_type,
+              data: part.source.data,
+            },
+          });
+        }
       }
-      // If edge function doesn't exist yet (404), fall through to fallback
-      if (res.status !== 404) {
-        throw new Error(`AI proxy error: ${res.status}`);
-      }
-    } catch (err) {
-      if (err.message?.includes('AI proxy error')) throw err;
-      // Edge function not deployed yet — fall through to fallback
     }
   }
 
-  // In production: no fallback — AI features require Edge Function
-  if (import.meta.env.PROD) {
-    throw new Error('שירות AI לא זמין כרגע. נסה שוב מאוחר יותר.');
+  const res = await fetch(`${GEMINI_URL}?key=${geminiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: {
+        maxOutputTokens: body.max_tokens || 400,
+        temperature: 0.7,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    console.error('Gemini API error:', res.status, errText);
+    return null; // Fall through to next provider
   }
 
-  // Dev-only fallback: direct call with client-side key (NEVER in production builds)
+  const json = await res.json();
+  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  // Return in Claude-compatible format
+  return { content: [{ type: 'text', text }] };
+}
+
+/**
+ * Call Claude API directly (dev fallback).
+ */
+async function callClaude(body) {
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error('AI service not configured — set VITE_ANTHROPIC_API_KEY in .env');
-  }
+  if (!apiKey) return null;
 
-  console.warn('[AI Proxy] Using direct API call — dev only. Deploy Edge Function for production.');
-
-  const res = await fetch(ANTHROPIC_DIRECT, {
+  const res = await fetch(ANTHROPIC_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -68,9 +90,55 @@ export async function aiRequest(body) {
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) {
-    throw new Error(`AI request failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Claude API error: ${res.status}`);
+  return await res.json();
+}
+
+/**
+ * Send an AI request - tries Gemini first (free), then Claude.
+ * @param {object} body - Claude-format request body
+ * @returns {Promise<object>} - Response with { content: [{ text }] }
+ */
+export async function aiRequest(body) {
+  // Try 1: Supabase Edge Function
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (supabaseUrl) {
+    try {
+      const { supabase } = await import('./supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch(`${supabaseUrl}/functions/v1/ai-proxy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) return await res.json();
+      if (res.status !== 404) throw new Error(`AI proxy error: ${res.status}`);
+    } catch (err) {
+      if (err.message?.includes('AI proxy error')) throw err;
+    }
   }
 
-  return await res.json();
+  // Try 2: Google Gemini (free)
+  try {
+    const geminiResult = await callGemini(body);
+    if (geminiResult) return geminiResult;
+  } catch (err) {
+    console.warn('Gemini failed, trying fallback:', err.message);
+  }
+
+  // Try 3: Claude (dev fallback)
+  if (!import.meta.env.PROD) {
+    try {
+      const claudeResult = await callClaude(body);
+      if (claudeResult) return claudeResult;
+    } catch (err) {
+      console.warn('Claude fallback failed:', err.message);
+    }
+  }
+
+  throw new Error('שירות AI לא זמין - בדוק מפתח API בהגדרות');
 }
