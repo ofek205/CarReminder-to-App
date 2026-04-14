@@ -56,19 +56,52 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
   const generateAiResponse = async (post, vehicle) => {
     try {
-      let context = `שאלה מפורום ${domain === 'vessel' ? 'כלי שייט' : 'רכבים'}:\n"${post.body}"`;
+      // Build rich vehicle context
+      let vehicleContext = '';
       if (vehicle) {
-        const vInfo = [vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' ');
-        context += `\nכלי רכב: ${vInfo}`;
-        if (vehicle.engine_model) context += ` | מנוע: ${vehicle.engine_model}`;
-        if (vehicle.current_km) context += ` | ${Number(vehicle.current_km).toLocaleString()} ק"מ`;
+        const details = [];
+        if (vehicle.manufacturer) details.push(`יצרן: ${vehicle.manufacturer}`);
+        if (vehicle.model) details.push(`דגם: ${vehicle.model}`);
+        if (vehicle.year) details.push(`שנה: ${vehicle.year}`);
+        if (vehicle.engine_model) details.push(`מנוע: ${vehicle.engine_model}`);
+        if (vehicle.engine_cc) details.push(`נפח: ${vehicle.engine_cc}`);
+        if (vehicle.horsepower) details.push(`כוח: ${vehicle.horsepower}`);
+        if (vehicle.fuel_type) details.push(`דלק: ${vehicle.fuel_type}`);
+        if (vehicle.transmission) details.push(`גיר: ${vehicle.transmission}`);
+        if (vehicle.current_km) details.push(`ק"מ: ${Number(vehicle.current_km).toLocaleString()}`);
+        if (vehicle.current_engine_hours) details.push(`שעות מנוע: ${Number(vehicle.current_engine_hours).toLocaleString()}`);
+        if (vehicle.drivetrain) details.push(`כונן: ${vehicle.drivetrain}`);
+        if (vehicle.trim_level) details.push(`גימור: ${vehicle.trim_level}`);
+        if (vehicle.front_tire) details.push(`צמיגים: ${vehicle.front_tire}`);
+        if (vehicle.vehicle_type) details.push(`סוג: ${vehicle.vehicle_type}`);
+        vehicleContext = `\n\nפרטי הרכב של השואל:\n${details.join('\n')}`;
       }
+
+      const systemPrompt = domain === 'vessel'
+        ? `אתה יוסי, טכנאי כלי שייט מומחה עם 25 שנות ניסיון בישראל. אתה מכיר לעומק את כל סוגי הסירות, המנועים הימיים (Yanmar, Mercury, Volvo Penta), מערכות חשמל ימיות, ואת כל המרינות בישראל.
+
+כללים:
+- ענה בעברית בלבד
+- אם ניתנו פרטי כלי שייט - התייחס אליהם ספציפית (דגם, מנוע, גודל)
+- תן עצה מעשית ובטיחותית עם הערכת עלות ישראלית
+- אל תמציא עובדות - אם אתה לא בטוח, אמור "מומלץ לבדוק עם טכנאי"
+- אורך תגובה: 3-6 משפטים מרוכזים`
+        : `אתה יוסי המוסכניק, מכונאי רכב ותיק עם 25 שנות ניסיון בישראל. אתה מכיר לעומק את כל דגמי הרכב הנפוצים בישראל, בעיות ידועות לפי דגם ושנה, ומחירי תיקון ישראליים.
+
+כללים:
+- ענה בעברית בלבד
+- אם ניתנו פרטי רכב - התייחס לדגם הספציפי ולבעיות הידועות שלו
+- ציין טווח מחירים ישראלי ריאלי לתיקון (₪)
+- הבדל בין דחוף (בטיחותי) לבין משהו שיכול לחכות
+- אל תמציא עובדות - אם אתה לא בטוח, אמור "צריך לבדוק במוסך"
+- אורך תגובה: 3-6 משפטים מרוכזים`;
+
+      const userMessage = `שאלה מהקהילה:\n"${post.body}"${vehicleContext}`;
+
       const json = await aiRequest({
-        model: 'claude-sonnet-4-20250514', max_tokens: 400,
-        system: domain === 'vessel'
-          ? 'אתה יוסי, מומחה כלי שייט ותיק עם 25 שנות ניסיון בישראל. ענה בעברית, בקצרה ובצורה מעשית. תן עצה ובטיחותית.'
-          : 'אתה יוסי המוסכניק, מכונאי רכב ותיק עם 25 שנות ניסיון בישראל. ענה בעברית, בקצרה ובצורה מעשית. תן עצה שתעזור לפתור את הבעיה.',
-        messages: [{ role: 'user', content: context }],
+        model: 'llama-3.3-70b-versatile', max_tokens: 500,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMessage }],
       });
       const aiText = json?.content?.[0]?.text || '';
       if (aiText) {
