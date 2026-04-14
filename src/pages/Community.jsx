@@ -11,7 +11,7 @@ import PostCard from '../components/community/PostCard';
 import PostCreateDialog from '../components/community/PostCreateDialog';
 import { Input } from '@/components/ui/input';
 import { Search, Plus, Ship, Car, MessageSquare, PenLine } from 'lucide-react';
-import { DEMO_POSTS_VEHICLE, DEMO_POSTS_VESSEL, DEMO_COMMENTS } from '../components/community/demoPosts';
+// Demo posts removed — real seed data in Supabase
 
 const marine = { primary: '#0C7B93', light: '#E0F7FA', border: '#B2EBF2', text: '#0A3D4D', muted: '#6B9EA8' };
 
@@ -45,9 +45,7 @@ export default function Community() {
     })();
   }, [isGuest, isAuthenticated, user]);
 
-  const demoPosts = domain === 'vessel' ? DEMO_POSTS_VESSEL : DEMO_POSTS_VEHICLE;
-
-  const { data: realPosts = [], isLoading } = useQuery({
+  const { data: posts = [], isLoading } = useQuery({
     queryKey: ['community_posts', domain],
     queryFn: async () => {
       try {
@@ -55,55 +53,40 @@ export default function Community() {
           .order('created_at', { ascending: false }).limit(50);
         if (error) throw error;
         return data || [];
-      } catch {
-        return []; // Table may not exist yet — show demo posts only
-      }
+      } catch { return []; }
     },
     staleTime: 30 * 1000,
   });
 
-  // Merge: real posts first, then demo posts
-  const posts = [...realPosts, ...demoPosts];
-
-  const realPostIds = realPosts.map(p => p.id).filter(Boolean);
-  const { data: realCommentCounts = {} } = useQuery({
-    queryKey: ['community_comment_counts', domain, [...realPostIds].sort().join(',')],
+  const postIds = posts.map(p => p.id).filter(Boolean);
+  const { data: commentCounts = {} } = useQuery({
+    queryKey: ['community_comment_counts', domain, [...postIds].sort().join(',')],
     queryFn: async () => {
-      if (realPostIds.length === 0) return {};
+      if (postIds.length === 0) return {};
       try {
-        const { data } = await supabase.from('community_comments').select('post_id').in('post_id', realPostIds);
+        const { data } = await supabase.from('community_comments').select('post_id').in('post_id', postIds);
         const counts = {};
         (data || []).forEach(c => { counts[c.post_id] = (counts[c.post_id] || 0) + 1; });
         return counts;
       } catch { return {}; }
     },
-    enabled: realPostIds.length > 0,
+    enabled: postIds.length > 0,
     staleTime: 30 * 1000,
   });
 
-  // Merge demo comment counts
-  const commentCounts = useMemo(() => {
-    const counts = { ...realCommentCounts };
-    Object.entries(DEMO_COMMENTS).forEach(([postId, comments]) => {
-      counts[postId] = (counts[postId] || 0) + comments.length;
-    });
-    return counts;
-  }, [realCommentCounts]);
-
   // Fetch interactions (likes, reactions, saved) for all visible posts
-  const allPostIds = posts.map(p => p.id).filter(p => p && !p.startsWith('demo_'));
   const { data: interactionsData = {} } = useQuery({
-    queryKey: ['community_interactions', domain, user?.id, allPostIds.length],
+    queryKey: ['community_interactions', domain, user?.id, postIds.length],
     queryFn: async () => {
-      if (!user || allPostIds.length === 0) return {};
+      if (!user || postIds.length === 0) return {};
       try {
         const [likesRes, reactionsRes, savedRes] = await Promise.all([
-          supabase.from('community_likes').select('post_id, user_id').in('post_id', allPostIds),
-          supabase.from('community_reactions').select('post_id, user_id, emoji').in('post_id', allPostIds),
-          supabase.from('community_saved').select('post_id').eq('user_id', user.id).in('post_id', allPostIds),
+          supabase.from('community_likes').select('post_id, user_id').in('post_id', postIds),
+          supabase.from('community_reactions').select('post_id, user_id, emoji').in('post_id', postIds),
+          supabase.from('community_saved').select('post_id').eq('user_id', user.id).in('post_id', postIds),
         ]);
         const result = {};
-        allPostIds.forEach(pid => { result[pid] = { likeCount: 0, liked: false, reactionCounts: {}, myReaction: null, saved: false }; });
+        postIds.forEach(pid => { result[pid] = { likeCount: 0, liked: false, reactionCounts: {}, myReaction: null, saved: false }; });
         (likesRes.data || []).forEach(l => {
           if (result[l.post_id]) {
             result[l.post_id].likeCount++;

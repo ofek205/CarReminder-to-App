@@ -6,7 +6,7 @@ import { Send, Wrench, Loader2, Heart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { DEMO_COMMENTS } from './demoPosts';
+// All posts are real — no demo data
 
 function timeAgo(date) {
   try { return formatDistanceToNow(new Date(date), { addSuffix: false, locale: he }); }
@@ -14,14 +14,12 @@ function timeAgo(date) {
 }
 
 export default function CommentSection({ postId, postOwnerId, canComment: canCommentProp, T, onCommentAdded }) {
-  const isDemo = postId?.startsWith('demo_');
-  const canComment = canCommentProp && !isDemo;
+  const canComment = canCommentProp;
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const queryClient = useQueryClient();
-  const demoComments = DEMO_COMMENTS[postId] || [];
 
-  const { data: realComments = [], isLoading } = useQuery({
+  const { data: comments = [], isLoading } = useQuery({
     queryKey: ['community_comments', postId],
     queryFn: async () => {
       try {
@@ -31,11 +29,9 @@ export default function CommentSection({ postId, postOwnerId, canComment: canCom
         return data || [];
       } catch { return []; }
     },
-    enabled: !!postId && !isDemo,
+    enabled: !!postId,
     staleTime: 30 * 1000,
   });
-
-  const comments = isDemo ? demoComments : realComments;
 
   const handleSend = async () => {
     if (!text.trim() || sending) return;
@@ -121,13 +117,6 @@ export default function CommentSection({ postId, postOwnerId, canComment: canCom
             </div>
           ))}
         </div>
-      )}
-
-      {/* Demo notice */}
-      {isDemo && !canComment && canCommentProp && (
-        <p className="text-[10px] text-center py-2" style={{ color: '#92400E', background: '#FEF3C7' }}>
-          פרסם שאלה משלך כדי לקבל תגובות
-        </p>
       )}
 
       {/* Add comment */}

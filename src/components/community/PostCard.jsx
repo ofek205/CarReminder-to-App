@@ -34,8 +34,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   const queryClient = useQueryClient();
   const isLong = post.body?.length > 200;
   const isOwner = user?.id === post.user_id;
-  const isDemo = post._isDemo;
-  const canInteract = !isGuest && !isDemo && user;
+  const canInteract = !isGuest && !!user;
 
   // Interactions data (passed from parent)
   const liked = interactions?.liked || false;
@@ -181,19 +180,12 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
       )}
 
       {/* AI thinking */}
-      {commentCount === 0 && !isDemo && (
+      {commentCount === 0 && (
         <div className="flex items-center gap-2 px-4 py-2">
           <span className="text-sm animate-pulse">🔧</span>
           <span className="text-[11px] font-medium" style={{ color: '#92400E' }}>
             {post.domain === 'vessel' ? 'יוסי מומחה כלי שייט חושב...' : 'יוסי המוסכניק חושב...'}
           </span>
-        </div>
-      )}
-
-      {/* Demo post notice */}
-      {isDemo && (
-        <div className="px-4 py-1.5 text-center text-[10px] font-medium" style={{ background: '#FEF3C7', color: '#92400E' }}>
-          פוסט לדוגמה — פרסם שאלה משלך כדי לקבל תגובות ולייקים
         </div>
       )}
 
