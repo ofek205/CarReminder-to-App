@@ -846,14 +846,16 @@ function LayoutInner({ children }) {
     }
   }, [isGuest, isAuthenticated, user, guestVehicles]);
 
-  const isAuthRoute = location.pathname === '/Auth' || location.pathname === '/';
+  // Pages that don't require authentication (legal/compliance pages for app stores)
+  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
+  const isPublicRoute = PUBLIC_PAGES.includes(location.pathname);
 
-  // Unauthenticated non-guest users → redirect to Auth
+  // Unauthenticated non-guest users → redirect to Auth (except public pages)
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isGuest && !isAuthRoute) {
+    if (!isLoading && !isAuthenticated && !isGuest && !isPublicRoute) {
       navigate(createPageUrl('Auth'), { replace: true });
     }
-  }, [isLoading, isAuthenticated, isGuest, isAuthRoute, navigate]);
+  }, [isLoading, isAuthenticated, isGuest, isPublicRoute, navigate]);
 
   // Authenticated popup — show once per browser session.
   useEffect(() => {
