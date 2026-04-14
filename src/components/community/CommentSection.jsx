@@ -19,8 +19,6 @@ export default function CommentSection({ postId, postOwnerId, canComment: canCom
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const queryClient = useQueryClient();
-
-  const isDemo = postId?.startsWith('demo_');
   const demoComments = DEMO_COMMENTS[postId] || [];
 
   const { data: realComments = [], isLoading } = useQuery({
