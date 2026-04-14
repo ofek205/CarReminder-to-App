@@ -240,37 +240,57 @@ function DraggableA11yButton({ onClick }) {
   const offset = useRef({ x: 0, y: 0 });
   const moved = useRef(false);
 
-  const onMouseDown = (e) => {
+  const clamp = (x, y) => ({
+    x: Math.max(0, Math.min(window.innerWidth - 40, x)),
+    y: Math.max(0, Math.min(window.innerHeight - 120, y)),
+  });
+
+  const startDrag = (clientX, clientY) => {
     dragging.current = true;
     moved.current = false;
-    offset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
-    e.preventDefault();
+    offset.current = { x: clientX - pos.x, y: clientY - pos.y };
   };
 
+  const moveDrag = (clientX, clientY) => {
+    if (!dragging.current) return;
+    moved.current = true;
+    setPos(clamp(clientX - offset.current.x, clientY - offset.current.y));
+  };
+
+  const endDrag = () => { dragging.current = false; };
+
   useEffect(() => {
-    const onMouseMove = (e) => {
+    // Mouse events (desktop)
+    const onMouseMove = (e) => moveDrag(e.clientX, e.clientY);
+    const onMouseUp = endDrag;
+    // Touch events (mobile)
+    const onTouchMove = (e) => {
       if (!dragging.current) return;
-      moved.current = true;
-      setPos({
-        x: Math.max(0, Math.min(window.innerWidth - 40, e.clientX - offset.current.x)),
-        y: Math.max(0, Math.min(window.innerHeight - 120, e.clientY - offset.current.y)),
-      });
+      e.preventDefault();
+      const t = e.touches[0];
+      moveDrag(t.clientX, t.clientY);
     };
-    const onMouseUp = () => { dragging.current = false; };
+    const onTouchEnd = endDrag;
+
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
     };
   }, []);
 
   return (
     <button
-      onMouseDown={onMouseDown}
-      onClick={(e) => { if (!moved.current) onClick(); }}
+      onMouseDown={(e) => { e.preventDefault(); startDrag(e.clientX, e.clientY); }}
+      onTouchStart={(e) => { const t = e.touches[0]; startDrag(t.clientX, t.clientY); }}
+      onClick={() => { if (!moved.current) onClick(); }}
       aria-label="פתח הגדרות נגישות"
-      style={{ left: pos.x, top: pos.y, position: 'fixed', cursor: dragging.current ? 'grabbing' : 'grab' }}
+      style={{ left: pos.x, top: pos.y, position: 'fixed', cursor: 'grab', touchAction: 'none' }}
       className="z-50 text-3xl leading-none select-none focus-visible:outline-none"
     >
       ♿
