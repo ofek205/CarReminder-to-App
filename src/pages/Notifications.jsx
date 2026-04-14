@@ -14,15 +14,18 @@ import { markNotificationRead } from "@/lib/notificationChannels";
 import { C } from '@/lib/designTokens';
 
 const TYPE_CONFIG = {
-  'טסט':        { icon: Calendar,  bg: '#E3F2FD', color: '#1565C0', border: '#90CAF9' },
+  'טסט':        { icon: Calendar,  bg: '#FFF8E1', color: '#D97706', border: '#FDE68A' },
   'כושר שייט':  { icon: Calendar,  bg: '#E0F7FA', color: '#0C7B93', border: '#B2EBF2' },
-  'ביטוח':      { icon: Shield,    bg: '#F3E5F5', color: '#7B1FA2', border: '#CE93D8' },
+  'ביטוח':      { icon: Shield,    bg: '#FFF8E1', color: '#D97706', border: '#FDE68A' },
   'ביטוח ימי':  { icon: Shield,    bg: '#E0F7FA', color: '#0C7B93', border: '#B2EBF2' },
-  'טיפול':      { icon: Wrench,    bg: '#FFF8E1', color: '#F57F17', border: '#FFD54F' },
-  'מסמך':       { icon: FileText,  bg: C.light,   color: C.primary, border: C.border },
-  'פירוטכניקה': { icon: AlertTriangle, bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
-  'מטף כיבוי':  { icon: AlertTriangle, bg: '#FEF3C7', color: '#D97706', border: '#FDE68A' },
-  'אסדת הצלה':  { icon: AlertTriangle, bg: '#E0F7FA', color: '#0C7B93', border: '#B2EBF2' },
+  'טיפול':      { icon: Wrench,    bg: '#FFF8E1', color: '#D97706', border: '#FDE68A' },
+  'צמיגים':     { icon: Wrench,    bg: '#FFF8E1', color: '#D97706', border: '#FDE68A' },
+  'בלמים':      { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
+  'עדכון':      { icon: Clock,     bg: '#F0FDF4', color: '#16A34A', border: '#BBF7D0' },
+  'מספנה':      { icon: Wrench,    bg: '#E0F7FA', color: '#0C7B93', border: '#B2EBF2' },
+  'פירוטכניקה': { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
+  'מטף כיבוי':  { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
+  'אסדת הצלה':  { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
 };
 
 // ── Notification Card ────────────────────────────────────────────────────────
