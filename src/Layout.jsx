@@ -577,9 +577,15 @@ function NotificationBell() {
           });
         } catch {}
 
+        // Filter out dismissed notifications
+        let dismissedIds = [];
+        try { dismissedIds = JSON.parse(localStorage.getItem('dismissed_notif_ids') || '[]'); } catch {}
+        const dismissedSet = new Set(dismissedIds);
+
         setNotifications(prev => {
           const profileNotifs = prev.filter(n => n.id === 'profile-incomplete' || n.id === 'license-expiry');
-          return [...profileNotifs, ...items];
+          const filtered = [...profileNotifs, ...items].filter(n => !dismissedSet.has(n.id));
+          return filtered;
         });
       } catch {}
     })();
@@ -622,6 +628,18 @@ function NotificationBell() {
       }
       return next;
     });
+  };
+
+  const dismissNotification = (id) => {
+    // Remove from visible list + save to localStorage so it doesn't come back
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    try {
+      const dismissed = JSON.parse(localStorage.getItem('dismissed_notif_ids') || '[]');
+      if (!dismissed.includes(id)) {
+        dismissed.push(id);
+        localStorage.setItem('dismissed_notif_ids', JSON.stringify(dismissed));
+      }
+    } catch {}
   };
 
   const markAllRead = () => {
@@ -748,17 +766,25 @@ function NotificationBell() {
                           <p className="text-[10px] truncate" style={{ color: '#9CA3AF' }}>{n.name}</p>
                         </div>
                       </button>
-                      {/* Read/unread toggle */}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); isRead ? markUnread(n.id) : markRead(n.id); }}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 hover:bg-gray-100 transition-all"
-                        title={isRead ? 'סמן כלא נקרא' : 'סמן כנקרא'}>
-                        <div className="w-2.5 h-2.5 rounded-full border-2 transition-all"
-                          style={{
-                            background: isRead ? 'transparent' : '#DC2626',
-                            borderColor: isRead ? '#D1D5DB' : '#DC2626',
-                          }} />
-                      </button>
+                      {/* Read/unread + dismiss */}
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); isRead ? markUnread(n.id) : markRead(n.id); }}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-all"
+                          title={isRead ? 'סמן כלא נקרא' : 'סמן כנקרא'}>
+                          <div className="w-2.5 h-2.5 rounded-full border-2 transition-all"
+                            style={{
+                              background: isRead ? 'transparent' : '#DC2626',
+                              borderColor: isRead ? '#D1D5DB' : '#DC2626',
+                            }} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 transition-all"
+                          title="הסר התראה">
+                          <X className="w-3 h-3" style={{ color: '#D1D5DB' }} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })
