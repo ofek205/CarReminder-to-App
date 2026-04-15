@@ -143,50 +143,63 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) { reset(); onClose(); } }}>
-      <DialogContent className="max-w-md mx-4 p-0 overflow-hidden rounded-3xl" dir="rtl" style={{ background: '#fff' }}>
+      <DialogContent className="max-w-md mx-4 p-0 overflow-hidden rounded-3xl" dir="rtl" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
         <VisuallyHidden.Root>
           <DialogTitle>נושא חדש</DialogTitle>
           <DialogDescription>פרסם שאלה או נושא חדש בקהילה</DialogDescription>
         </VisuallyHidden.Root>
 
-        {/* ── Top bar: X | title | avatar ── */}
-        <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #F3F4F6' }}>
-          <button onClick={() => { reset(); onClose(); }}
-            className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-[0.95]"
-            style={{ background: '#F3F4F6' }}>
-            <X className="w-4 h-4" style={{ color: '#6B7280' }} />
-          </button>
+        {/* ── Hero gradient header ── */}
+        <div className="relative overflow-hidden px-4 pt-4 pb-6"
+          style={{ background: T.grad || T.primary }}>
+          {/* Decorative circles */}
+          <div className="absolute -top-12 -left-12 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
+          <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full" style={{ background: 'rgba(255,191,0,0.15)' }} />
 
-          <h2 className="text-base font-black" style={{ color: '#1F2937' }}>נושא חדש</h2>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-3">
+              <button onClick={() => { reset(); onClose(); }}
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-[0.92] hover:bg-white/30"
+                style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)' }}>
+                <X className="w-4 h-4 text-white" />
+              </button>
 
-          <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: isAnonymous ? '#E5E7EB' : T.primary }}>
-            {isAnonymous
-              ? <User className="w-4 h-4" style={{ color: '#6B7280' }} />
-              : <DomainIcon className="w-4 h-4 text-white" />
-            }
+              <div className="flex items-center gap-2">
+                <DomainIcon className="w-4 h-4 text-white opacity-90" />
+                <h2 className="text-lg font-black text-white">
+                  {domain === 'vessel' ? 'נושא חדש - כלי שייט' : 'נושא חדש - רכבים'}
+                </h2>
+              </div>
+
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all"
+                style={{
+                  background: isAnonymous ? 'rgba(255,255,255,0.2)' : '#FFBF00',
+                  boxShadow: isAnonymous ? 'none' : '0 2px 12px rgba(255,191,0,0.4)',
+                }}>
+                {isAnonymous
+                  ? <User className="w-4 h-4 text-white" />
+                  : <DomainIcon className="w-4 h-4" style={{ color: T.primary }} />
+                }
+              </div>
+            </div>
+
+            <p className="text-xs font-medium text-center" style={{ color: 'rgba(255,255,255,0.85)' }}>
+              שתף שאלה או חוויה - הקהילה ויוסי יענו תוך שניות 🚀
+            </p>
           </div>
         </div>
 
         {/* ── Content ── */}
-        <div className="px-4 py-4 space-y-3">
+        <div className="px-4 py-4 space-y-3 -mt-3 relative z-20">
 
-          {/* Domain indicator pill */}
-          <div className="flex justify-center">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold"
-              style={{ background: T.light || '#F3F4F6', color: T.primary }}>
-              <DomainIcon className="w-3 h-3" />
-              {domain === 'vessel' ? 'פורום כלי שייט' : 'פורום רכבים'}
-            </div>
-          </div>
 
           {/* Vehicle picker — at the TOP, like in AI Assistant */}
           {vehicles && vehicles.length > 0 && (
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
               <PopoverTrigger asChild>
                 <button type="button"
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-2xl transition-all active:scale-[0.99]"
-                  style={{ background: '#FAFAFA', border: '1px solid #E5E7EB' }}>
+                  className="w-full flex items-center justify-between px-3 py-3 rounded-2xl transition-all active:scale-[0.99] hover:shadow-md"
+                  style={{ background: '#fff', border: `1.5px solid ${selectedVehicle ? T.primary + '40' : '#E5E7EB'}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
                   <div className="flex items-center gap-2 min-w-0">
                     {selectedVehicle ? (() => {
                       const { theme } = getVehicleVisual(selectedVehicle);
@@ -267,29 +280,56 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             </Popover>
           )}
 
-          {/* Textarea */}
-          <div>
+          {/* Textarea — prominent, with focus glow */}
+          <div className="relative">
             <Textarea value={body} onChange={e => setBody(e.target.value)}
-              placeholder="תוכן הנושא" rows={4} maxLength={2000}
-              className="text-[14px] resize-none rounded-2xl p-3 focus-visible:ring-0 focus-visible:ring-offset-0"
-              style={{ background: '#FAFAFA', border: '1px solid #E5E7EB', minHeight: 120 }} />
-            <div className="flex items-center justify-between mt-1 px-1">
+              placeholder={selectedVehicle ? `מה השאלה על ${selectedVehicle.nickname || selectedVehicle.manufacturer || 'הרכב'}?` : 'מה השאלה שלך?'}
+              rows={4} maxLength={2000}
+              className="text-[14px] resize-none rounded-2xl p-4 focus-visible:ring-2 focus-visible:ring-offset-0 transition-all"
+              style={{
+                background: '#fff',
+                border: `1.5px solid ${body.trim().length > 0 ? T.primary + '60' : '#E5E7EB'}`,
+                minHeight: 130,
+                boxShadow: body.trim().length > 0 ? `0 0 0 4px ${T.primary}10, 0 1px 4px rgba(0,0,0,0.04)` : '0 1px 4px rgba(0,0,0,0.04)',
+              }} />
+            <div className="flex items-center justify-between mt-1.5 px-1">
               {body.length > 0 && body.length < 10 && (
-                <span className="text-[10px]" style={{ color: '#DC2626' }}>מינימום 10 תווים</span>
+                <span className="text-[10px] font-bold flex items-center gap-1" style={{ color: '#DC2626' }}>
+                  ⚠️ מינימום 10 תווים ({10 - body.length} נוספים)
+                </span>
               )}
-              <span className="text-[10px] mr-auto" style={{ color: body.length > 1800 ? '#DC2626' : '#D1D5DB' }}>
+              {body.length === 0 && (
+                <span className="text-[10px] font-medium" style={{ color: '#9CA3AF' }}>✏️ ספר על הבעיה / השאלה / החוויה</span>
+              )}
+              <span className="text-[10px] font-bold mr-auto"
+                style={{ color: body.length > 1800 ? '#DC2626' : body.length >= 10 ? T.primary : '#D1D5DB' }}>
                 {body.length}/2000
               </span>
             </div>
           </div>
 
-          {/* Anonymous toggle */}
-          <div className="rounded-2xl p-3 flex items-center justify-between"
-            style={{ background: '#FAFAFA', border: '1px solid #E5E7EB' }}>
+          {/* Anonymous toggle — vibrant card */}
+          <div className="rounded-2xl p-3 flex items-center justify-between transition-all"
+            style={{
+              background: isAnonymous ? '#FFFBEB' : '#fff',
+              border: `1.5px solid ${isAnonymous ? '#FDE68A' : '#E5E7EB'}`,
+              boxShadow: isAnonymous ? '0 2px 8px rgba(217,119,6,0.15)' : '0 1px 4px rgba(0,0,0,0.04)',
+            }}>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold" style={{ color: '#1F2937' }}>נושא אנונימי</span>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+                style={{ background: isAnonymous ? '#FDE68A' : '#F3F4F6' }}>
+                <User className="w-3.5 h-3.5" style={{ color: isAnonymous ? '#92400E' : '#9CA3AF' }} />
+              </div>
+              <div>
+                <p className="text-sm font-bold" style={{ color: isAnonymous ? '#92400E' : '#1F2937' }}>
+                  {isAnonymous ? '👤 פוסט אנונימי' : 'נושא אנונימי'}
+                </p>
+                {isAnonymous && (
+                  <p className="text-[10px] font-medium" style={{ color: '#B45309' }}>השם שלך לא יוצג</p>
+                )}
+              </div>
               <button onClick={() => setShowAnonHelp(s => !s)}
-                className="w-5 h-5 rounded-full flex items-center justify-center transition-all"
+                className="w-5 h-5 rounded-full flex items-center justify-center transition-all hover:bg-gray-200"
                 style={{ background: '#E5E7EB' }}>
                 <HelpCircle className="w-3 h-3" style={{ color: '#9CA3AF' }} />
               </button>
@@ -297,9 +337,12 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
             {/* Toggle switch */}
             <button onClick={() => setIsAnonymous(a => !a)}
-              className="relative w-11 h-6 rounded-full transition-all"
-              style={{ background: isAnonymous ? T.primary : '#D1D5DB' }}>
-              <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-all"
+              className="relative w-12 h-7 rounded-full transition-all shrink-0"
+              style={{
+                background: isAnonymous ? '#D97706' : '#D1D5DB',
+                boxShadow: isAnonymous ? 'inset 0 2px 4px rgba(0,0,0,0.15)' : 'inset 0 1px 2px rgba(0,0,0,0.1)',
+              }}>
+              <div className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-all"
                 style={{ [isAnonymous ? 'left' : 'right']: '2px' }} />
             </button>
           </div>
@@ -311,29 +354,41 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             </div>
           )}
 
-          {/* Image upload card */}
+          {/* Image upload card — vibrant gradient when empty */}
           {imageUrl ? (
-            <div className="relative rounded-2xl overflow-hidden">
-              <img src={imageUrl} alt="" className="w-full object-cover" style={{ maxHeight: '200px' }} />
-              <button onClick={() => setImageUrl('')}
-                className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
-                <X className="w-4 h-4 text-white" />
-              </button>
+            <div className="relative rounded-2xl overflow-hidden" style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}>
+              <img src={imageUrl} alt="" className="w-full object-cover" style={{ maxHeight: '220px' }} />
+              <div className="absolute top-2 left-2 right-2 flex items-center justify-between">
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold text-white"
+                  style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}>
+                  ✓ תמונה נטענה
+                </span>
+                <button onClick={() => setImageUrl('')}
+                  className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
             </div>
           ) : (
-            <label className="rounded-2xl p-3 flex items-center justify-between cursor-pointer transition-all active:scale-[0.99]"
-              style={{ background: '#FAFAFA', border: '1px solid #E5E7EB' }}>
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: T.light || '#EEF2FF' }}>
-                  <ImageIcon className="w-4 h-4" style={{ color: T.primary }} />
+            <label className="rounded-2xl p-3 flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] hover:shadow-md"
+              style={{
+                background: `linear-gradient(135deg, ${T.light || '#F3F4F6'}, #fff)`,
+                border: `1.5px dashed ${T.primary}40`,
+              }}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: T.primary, boxShadow: `0 4px 12px ${T.primary}40` }}>
+                  <ImageIcon className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-sm font-bold" style={{ color: '#1F2937' }}>הוספת תמונה</span>
+                <div>
+                  <p className="text-sm font-bold" style={{ color: '#1F2937' }}>הוספת תמונה</p>
+                  <p className="text-[10px] font-medium" style={{ color: T.primary }}>📸 גלריה או מצלמה</p>
+                </div>
               </div>
-              <div className="flex gap-1.5">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: '#F3F4F6' }}>
-                  <Camera className="w-4 h-4" style={{ color: '#6B7280' }} />
+              <div className="flex items-center gap-1.5">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:bg-white"
+                  style={{ background: 'rgba(255,255,255,0.7)' }}>
+                  <Camera className="w-4 h-4" style={{ color: T.primary }} />
                 </div>
               </div>
               <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={handleImage} />
@@ -342,17 +397,29 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
         </div>
 
-        {/* ── Bottom submit button ── */}
-        <div className="px-4 pb-4 pt-1">
+        {/* ── Bottom submit button — bold gradient with shimmer ── */}
+        <div className="px-4 pb-4 pt-2">
           <button onClick={handleSubmit} disabled={!isValid || saving}
-            className="w-full py-3.5 rounded-2xl font-bold text-base transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-40"
+            className="w-full py-4 rounded-2xl font-black text-base transition-all active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"
             style={{
               background: isValid ? (T.grad || T.primary) : '#E5E7EB',
               color: isValid ? '#fff' : '#9CA3AF',
-              boxShadow: isValid ? `0 4px 16px ${T.primary}30` : 'none',
+              boxShadow: isValid ? `0 8px 24px ${T.primary}50, 0 2px 4px ${T.primary}30` : 'none',
             }}>
-            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'פרסום'}
+            {saving ? (
+              <><Loader2 className="w-5 h-5 animate-spin" /> מפרסם...</>
+            ) : (
+              <>
+                {isValid && <Sparkles className="w-4 h-4" />}
+                {isValid ? 'פרסם נושא' : `כתוב לפחות 10 תווים${body.length > 0 ? ` (חסרים ${10 - body.length})` : ''}`}
+              </>
+            )}
           </button>
+          {isValid && (
+            <p className="text-center text-[10px] mt-2 font-medium" style={{ color: '#9CA3AF' }}>
+              🤖 יוסי המוסכניק יענה תוך כמה שניות
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>
