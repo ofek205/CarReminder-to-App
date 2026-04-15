@@ -197,7 +197,7 @@ export default function AiAssistant() {
     return '\n\n' + lines.join('\n');
   }, [selectedVehicle, maintenanceLogs]);
 
-  const send = async (text) => {
+  const send = async (text, isRetry = false) => {
     setError(null);
     const raw = (text !== undefined ? text : input);
     const clean = sanitize(raw);
@@ -214,17 +214,20 @@ export default function AiAssistant() {
     }
     if (sending) return;
 
-    // Rate limit
+    // Rate limit (skip for retries)
     const now = Date.now();
-    if (now - lastSendRef.current < MIN_INTERVAL_MS) {
+    if (!isRetry && now - lastSendRef.current < MIN_INTERVAL_MS) {
       setError('רגע, לאט-לאט... חכה שנייה לפני שאלה חדשה');
       return;
     }
     lastSendRef.current = now;
 
-    setInput('');
+    if (!isRetry) setInput('');
     const userMsg = { role: 'user', content: clean, ts: now, vehicleId: selectedVehicleId };
-    setMessages(prev => [...prev, userMsg]);
+    // On retry: don't re-add the user message (it's already there)
+    if (!isRetry) {
+      setMessages(prev => [...prev, userMsg]);
+    }
     setSending(true);
 
     try {
@@ -264,10 +267,20 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
       }]);
     } catch (err) {
       console.error('AI chat error:', err);
-      // Add error message with retry option
+      const errMsg = err?.message || '';
+      let userMsg = 'אופס - תקלת תקשורת. נסה שוב.';
+      if (errMsg.includes('Invalid Groq API key') || errMsg.includes('401') || errMsg.includes('403')) {
+        userMsg = 'מפתח ה-AI לא תקין. צור קשר עם המנהל.';
+      } else if (errMsg.includes('429') || errMsg.includes('rate')) {
+        userMsg = 'יותר מדי בקשות. חכה רגע ונסה שוב.';
+      } else if (errMsg.includes('שירות AI לא זמין')) {
+        userMsg = errMsg;
+      } else if (errMsg) {
+        userMsg = `שגיאה: ${errMsg.slice(0, 80)}`;
+      }
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'אופס - תקלת תקשורת עם השרת. נסה שוב.',
+        content: userMsg,
         ts: Date.now(),
         error: true,
         retryText: clean,
@@ -279,9 +292,9 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
   };
 
   const retryLast = (text) => {
-    // Remove the last error message and resend
+    // Remove the last error message and resend (without re-adding user message)
     setMessages(prev => prev.filter((m, i) => !(i === prev.length - 1 && m.error)));
-    setTimeout(() => send(text), 100);
+    setTimeout(() => send(text, true), 100);
   };
 
   const copyToClipboard = async (text) => {
