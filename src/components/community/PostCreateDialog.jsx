@@ -350,7 +350,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
           {showAnonHelp && (
             <div className="rounded-xl p-3 text-[11px] leading-relaxed"
               style={{ background: '#FFFBEB', border: '1px solid #FEF3C7', color: '#92400E' }}>
-              בפרסום אנונימי, השם שלך לא יוצג. במקום זה תופיע התווית "אנונימי #מספר" ייחודי שמבדיל בינך לבין אנונימיים אחרים בפוסט.
+              בפרסום אנונימי, השם שלך לא יוצג.
             </div>
           )}
 
