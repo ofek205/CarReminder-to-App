@@ -1,38 +1,9 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Car, Wrench, Bell, Star, Smartphone, Search, MessageSquare, Sparkles } from "lucide-react";
-import usePWAInstall from "./usePWAInstall";
-import IOSInstallModal from "./IOSInstallModal";
-import { isNative } from "@/lib/capacitor";
+import { Car, Wrench, Bell, Star, Search, MessageSquare, Sparkles } from "lucide-react";
 
 export default function WelcomePopup({ open, onClose, isReturningUser = false, userName = '' }) {
-  // In native app, PWA install is irrelevant
-  const { canInstall: _canInstall, install } = usePWAInstall();
-  const canInstall = isNative ? false : _canInstall;
-  const [showIOSModal, setShowIOSModal] = useState(false);
-  const [installSnoozed, setInstallSnoozed] = useState(false);
-
-  useEffect(() => {
-    try {
-      const snoozed = localStorage.getItem('install_cta_snoozed_until');
-      if (snoozed && new Date(snoozed) > new Date()) setInstallSnoozed(true);
-    } catch (e) {}
-  }, [open]);
-
-  const handleInstall = async () => {
-    const installed = await install();
-    if (!installed) setShowIOSModal(true);
-  };
-
-  const handleSnoozeInstall = () => {
-    setInstallSnoozed(true);
-    try {
-      const until = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      localStorage.setItem('install_cta_snoozed_until', until);
-    } catch (e) {}
-  };
-
   const handleClose = () => {
     onClose();
   };
@@ -144,25 +115,6 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
             </>
             }
 
-          {!installSnoozed &&
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-              <div className="flex items-start gap-2">
-                <Smartphone className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-green-800">התקן כאפליקציה במסך הבית</p>
-                  <p className="text-xs text-green-700 mt-0.5">פותח מהר יותר ונראה כמו אפליקציה אמיתית</p>
-                  <div className="flex items-center gap-3 mt-2">
-                    <Button size="sm" onClick={handleInstall} className="bg-green-600 hover:bg-green-700 text-white text-xs h-7 px-3">
-                      📲 התקן עכשיו
-                    </Button>
-                    <button onClick={handleSnoozeInstall} className="text-xs text-green-600 underline">
-                      לא עכשיו
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            }
         </div>
 
         <Button
@@ -175,8 +127,6 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
         <p className="text-center text-xs text-gray-400 mt-2">פותח על ידי אופק אדלשטיין</p>
       </DialogContent>
     </Dialog>
-
-    <IOSInstallModal open={showIOSModal} onClose={() => setShowIOSModal(false)} />
     </>);
 
 }
