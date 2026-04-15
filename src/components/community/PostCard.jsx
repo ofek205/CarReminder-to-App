@@ -301,7 +301,11 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
             {EMOJIS.filter(e => e !== '👍').map(e => reactionCounts[e] ? <span key={e} className="flex items-center gap-0.5">{e} {reactionCounts[e]}</span> : null)}
           </div>
           {commentCount > 0 && (
-            <span className="mr-auto text-[11px] font-medium" style={{ color: '#9CA3AF' }}>{commentCount === 1 ? 'תגובה אחת' : `${commentCount} תגובות`}</span>
+            <button onClick={() => setShowComments(s => !s)}
+              className="mr-auto text-[11px] font-medium hover:underline transition-all"
+              style={{ color: showComments ? T.primary : '#9CA3AF' }}>
+              {commentCount === 1 ? 'תגובה אחת' : `${commentCount} תגובות`}
+            </button>
           )}
         </div>
       )}
