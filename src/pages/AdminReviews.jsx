@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,31 +38,41 @@ export default function AdminReviews() {
   const [currentUser, setCurrentUser]   = useState(null);
   const [showReviewPopup, setShowReviewPopup] = useState(false);
 
-  // Guests skip the auth.me() call - they are never admin and have no currentUser
+  // Guests skip the auth check - they are never admin and have no currentUser
   useEffect(() => {
     if (isGuest) {
       setIsAdmin(false);
       setCurrentUser(null);
       return;
     }
-    base44.auth.me()
-      .then((user) => {
-        setCurrentUser(user || null);
-        setIsAdmin(user?.role === "admin");
-      })
-      .catch(() => { setIsAdmin(false); setCurrentUser(null); });
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setIsAdmin(false); setCurrentUser(null); return; }
+        const profile = { id: user.id, email: user.email, full_name: user.user_metadata?.full_name };
+        setCurrentUser(profile);
+        // Admin check (hardcoded admin email or role)
+        setIsAdmin(user.email === 'ofek205@gmail.com' || user.user_metadata?.role === 'admin');
+      } catch { setIsAdmin(false); setCurrentUser(null); }
+    })();
   }, [isGuest]);
 
-  // Load reviews for everyone (guests and authenticated users)
+  // Load reviews from Supabase (graceful fallback if table doesn't exist)
   const { data: reviews = [], isLoading, refetch } = useQuery({
     queryKey: ["reviews-public"],
-    queryFn: () => base44.entities.Review.list(),
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase.from('reviews').select('*').order('created_at', { ascending: false });
+        if (error) return [];
+        return data || [];
+      } catch { return []; }
+    },
     enabled: isAdmin !== null,
   });
 
   if (isAdmin === null || isLoading) return <LoadingSpinner />;
 
-  const filtered = reviews
+  const filtered = (Array.isArray(reviews) ? reviews : [])
     .filter((r) => {
       if (ratingFilter !== "all" && r.rating !== parseInt(ratingFilter)) return false;
       if (searchText) {
@@ -76,8 +86,8 @@ export default function AdminReviews() {
       return true;
     })
     .sort((a, b) => {
-      const da = new Date(a.created_date || 0);
-      const db = new Date(b.created_date || 0);
+      const da = new Date(a.created_at || 0);
+      const db = new Date(b.created_at || 0);
       return sortOrder === "desc" ? db - da : da - db;
     });
 
@@ -174,8 +184,8 @@ export default function AdminReviews() {
             <Card key={review.id} className="p-4 border border-gray-100">
               <div className="flex items-start justify-between gap-4">
                 <div className="text-xs text-gray-400 shrink-0">
-                  {review.created_date
-                    ? format(new Date(review.created_date), "dd/MM/yyyy")
+                  {review.created_at
+                    ? format(new Date(review.created_at), "dd/MM/yyyy")
                     : "-"}
                 </div>
                 <div className="flex-1 min-w-0">
