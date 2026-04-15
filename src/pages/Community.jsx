@@ -261,7 +261,7 @@ export default function Community() {
       <button onClick={handleFab}
         className="fixed z-40 flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm text-white transition-all active:scale-[0.95]"
         style={{ background: T.grad || T.primary, bottom: '72px', left: '50%', transform: 'translateX(-50%)', boxShadow: `0 4px 20px ${T.primary}50` }}>
-        <PenLine className="w-4 h-4" /> נושא חדש
+        <PenLine className="w-4 h-4" /> פוסט חדש
       </button>
 
       <PostCreateDialog open={showCreate} onClose={() => setShowCreate(false)} domain={domain} vehicles={domainVehicles} T={T} />

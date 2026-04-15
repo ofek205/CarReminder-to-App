@@ -145,8 +145,8 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
     <Dialog open={open} onOpenChange={v => { if (!v) { reset(); onClose(); } }}>
       <DialogContent className="max-w-md mx-4 p-0 overflow-hidden rounded-3xl" dir="rtl" style={{ background: '#fff', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
         <VisuallyHidden.Root>
-          <DialogTitle>נושא חדש</DialogTitle>
-          <DialogDescription>פרסם שאלה או נושא חדש בקהילה</DialogDescription>
+          <DialogTitle>פוסט חדש</DialogTitle>
+          <DialogDescription>פרסם פוסט חדש בקהילה</DialogDescription>
         </VisuallyHidden.Root>
 
         {/* ── Hero gradient header ── */}
@@ -167,7 +167,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
               <div className="flex items-center gap-2">
                 <DomainIcon className="w-4 h-4 text-white opacity-90" />
                 <h2 className="text-lg font-black text-white">
-                  {domain === 'vessel' ? 'נושא חדש - כלי שייט' : 'נושא חדש - רכבים'}
+                  {domain === 'vessel' ? 'פוסט חדש - כלי שייט' : 'פוסט חדש - רכבים'}
                 </h2>
               </div>
 
@@ -283,7 +283,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
           {/* Textarea — prominent, with focus glow */}
           <div className="relative">
             <Textarea value={body} onChange={e => setBody(e.target.value)}
-              placeholder={selectedVehicle ? `מה השאלה על ${selectedVehicle.nickname || selectedVehicle.manufacturer || 'הרכב'}?` : 'מה השאלה שלך?'}
+              placeholder={selectedVehicle ? `על מה תרצה לפרסם בקשר ל-${selectedVehicle.nickname || selectedVehicle.manufacturer || 'הרכב'}?` : 'מה תרצה לפרסם?'}
               rows={4} maxLength={2000}
               className="text-[14px] resize-none rounded-2xl p-4 focus-visible:ring-2 focus-visible:ring-offset-0 transition-all"
               style={{
@@ -322,7 +322,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
               </div>
               <div>
                 <p className="text-sm font-bold" style={{ color: isAnonymous ? '#92400E' : '#1F2937' }}>
-                  {isAnonymous ? '👤 פוסט אנונימי' : 'נושא אנונימי'}
+                  {isAnonymous ? '👤 פוסט אנונימי' : 'פוסט אנונימי'}
                 </p>
                 {isAnonymous && (
                   <p className="text-[10px] font-medium" style={{ color: '#B45309' }}>השם שלך לא יוצג</p>
@@ -411,7 +411,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             ) : (
               <>
                 {isValid && <Sparkles className="w-4 h-4" />}
-                {isValid ? 'פרסם נושא' : `כתוב לפחות 10 תווים${body.length > 0 ? ` (חסרים ${10 - body.length})` : ''}`}
+                {isValid ? 'פרסם פוסט' : `כתוב לפחות 10 תווים${body.length > 0 ? ` (חסרים ${10 - body.length})` : ''}`}
               </>
             )}
           </button>
