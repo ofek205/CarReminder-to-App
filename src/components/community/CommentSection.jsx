@@ -2,21 +2,30 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
-import { Send, Wrench, Loader2, Heart, Flag } from 'lucide-react';
+import { Send, Wrench, Loader2, Heart, Flag, UserX } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
-// All posts are real - no demo data
 
 function timeAgo(date) {
   try { return formatDistanceToNow(new Date(date), { addSuffix: false, locale: he }); }
   catch { return ''; }
 }
 
+const AVATAR_GRADIENTS = [
+  'linear-gradient(135deg, #2D5233, #4A8C5C)',
+  'linear-gradient(135deg, #0C7B93, #14B8C8)',
+  'linear-gradient(135deg, #7C3AED, #A78BFA)',
+  'linear-gradient(135deg, #D97706, #FBBF24)',
+  'linear-gradient(135deg, #DC2626, #F87171)',
+  'linear-gradient(135deg, #0369A1, #38BDF8)',
+];
+
 export default function CommentSection({ postId, postOwnerId, canComment: canCommentProp, T, onCommentAdded }) {
   const canComment = canCommentProp;
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [anonymous, setAnonymous] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: comments = [], isLoading } = useQuery({
@@ -39,9 +48,24 @@ export default function CommentSection({ postId, postOwnerId, canComment: canCom
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const authorName = user.user_metadata?.full_name || user.email || 'משתמש';
+      const realName = user.user_metadata?.full_name || user.email || 'משתמש';
+
+      let authorName = realName;
+      let anonymousNumber = null;
+
+      if (anonymous) {
+        const { data: numData } = await supabase.rpc('get_anonymous_number', {
+          p_post_id: postId,
+          p_user_id: user.id,
+        });
+        anonymousNumber = numData || 1;
+        authorName = `אנונימי #${anonymousNumber}`;
+      }
+
       await db.community_comments.create({
         post_id: postId, user_id: user.id, author_name: authorName, body: text.trim(), is_ai: false,
+        is_anonymous: anonymous,
+        anonymous_number: anonymousNumber,
       });
       if (postOwnerId && postOwnerId !== user.id) {
         try {
@@ -59,91 +83,104 @@ export default function CommentSection({ postId, postOwnerId, canComment: canCom
   };
 
   return (
-    <div style={{ background: '#FAFAFA', borderTop: '1px solid #F3F4F6' }}>
+    <div className="mx-3 mb-3 rounded-xl overflow-hidden" style={{ background: '#F9FAFB', border: '1px solid #F3F4F6' }}>
       {isLoading ? (
-        <div className="py-4 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto" style={{ color: '#9CA3AF' }} /></div>
+        <div className="py-6 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto" style={{ color: '#9CA3AF' }} /></div>
       ) : comments.length === 0 ? (
-        <p className="text-xs text-center py-4" style={{ color: '#9CA3AF' }}>אין תגובות עדיין</p>
+        <p className="text-xs text-center py-5" style={{ color: '#B0B8C1' }}>אין תגובות עדיין</p>
       ) : (
-        <div>
-          {comments.map(c => (
-            <div key={c.id} className="flex gap-2.5 px-4 py-3" style={{ borderBottom: '1px solid #F0F0F0' }}>
-              {/* Avatar / AI badge */}
+        <div className="divide-y" style={{ borderColor: '#F0F0F0' }}>
+          {comments.map(c => {
+            const grad = AVATAR_GRADIENTS[(c.author_name || '').length % AVATAR_GRADIENTS.length];
+            return (
+            <div key={c.id} className="px-3 py-3">
               {c.is_ai ? (
-                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: '#FEF3C7', border: '2px solid #FDE68A' }}>
-                  <Wrench className="w-3.5 h-3.5" style={{ color: '#D97706' }} />
+                /* AI Comment - special card */
+                <div className="rounded-xl p-3" style={{ background: '#FFFBEB', borderRight: '3px solid #FBBF24' }}>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: '#FEF3C7' }}>
+                      <Wrench className="w-3 h-3" style={{ color: '#D97706' }} />
+                    </div>
+                    <span className="text-[12px] font-bold" style={{ color: '#92400E' }}>{c.author_name}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold"
+                      style={{ background: '#FDE68A', color: '#92400E' }}>AI</span>
+                    <span className="text-[10px] mr-auto" style={{ color: '#D1B896' }}>{timeAgo(c.created_at)}</span>
+                  </div>
+                  <p className="text-[13px] leading-relaxed" style={{ color: '#78350F' }}>{c.body}</p>
                 </div>
               ) : (
-                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold text-white"
-                  style={{ background: '#6B7280' }}>
-                  {(c.author_name || '?')[0]}
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className={`text-[12px] font-bold ${c.is_ai ? '' : ''}`}
-                    style={{ color: c.is_ai ? '#92400E' : '#374151' }}>
-                    {c.author_name}
-                  </span>
-                  {c.is_ai && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold"
-                      style={{ background: '#FEF3C7', color: '#92400E' }}>AI</span>
+                /* User Comment */
+                <div className="flex gap-2.5">
+                  {c.is_anonymous ? (
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold"
+                      style={{ background: '#E5E7EB', color: '#6B7280' }}>
+                      {c.anonymous_number ? `#${c.anonymous_number}` : '?'}
+                    </div>
+                  ) : (
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold text-white"
+                      style={{ background: grad }}>
+                      {(c.author_name || '?')[0]}
+                    </div>
                   )}
-                  <span className="text-[10px] mr-auto" style={{ color: '#D1D5DB' }}>{timeAgo(c.created_at)}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[12px] font-bold" style={{ color: c.is_anonymous ? '#6B7280' : '#374151' }}>
+                        {c.is_anonymous ? `אנונימי${c.anonymous_number ? ` #${c.anonymous_number}` : ''}` : c.author_name}
+                      </span>
+                      <span className="text-[10px] mr-auto" style={{ color: '#C4C4C4' }}>{timeAgo(c.created_at)}</span>
+                      {canComment && (
+                        <button className="p-1 rounded-full hover:bg-gray-100 transition-all"
+                          onClick={() => {
+                            try {
+                              const reports = JSON.parse(localStorage.getItem('reported_comments') || '[]');
+                              if (!reports.includes(c.id)) { reports.push(c.id); localStorage.setItem('reported_comments', JSON.stringify(reports)); }
+                              alert('הדיווח נשלח. תודה!');
+                            } catch {}
+                          }}>
+                          <Flag className="w-2.5 h-2.5" style={{ color: '#D1D5DB' }} />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[13px] leading-relaxed" style={{ color: '#4B5563' }}>{c.body}</p>
+                  </div>
                 </div>
-                <p className="text-[13px] leading-relaxed" style={{ color: '#4B5563' }}>{c.body}</p>
-              </div>
-              {/* Comment actions: like + report */}
-              {canComment && !c.is_ai && (
-                <button className="shrink-0 self-start mt-1 p-1 rounded hover:bg-gray-100 transition-all"
-                  onClick={() => {
-                    try {
-                      const reports = JSON.parse(localStorage.getItem('reported_comments') || '[]');
-                      if (!reports.includes(c.id)) { reports.push(c.id); localStorage.setItem('reported_comments', JSON.stringify(reports)); }
-                      alert('הדיווח נשלח. תודה!');
-                    } catch {}
-                  }}
-                  title="דווח">
-                  <Flag className="w-3 h-3" style={{ color: '#D1D5DB' }} />
-                </button>
-              )}
-              {canComment && !c.is_ai && (
-                <button className="shrink-0 self-start mt-1 p-1 rounded hover:bg-red-50 transition-all"
-                  onClick={async () => {
-                    try {
-                      const { data: { user: u } } = await supabase.auth.getUser();
-                      if (!u) return;
-                      const { data: existing } = await supabase.from('community_comment_likes')
-                        .select('id').eq('user_id', u.id).eq('comment_id', c.id).maybeSingle();
-                      if (existing) {
-                        await supabase.from('community_comment_likes').delete().eq('id', existing.id);
-                      } else {
-                        await supabase.from('community_comment_likes').insert({ user_id: u.id, comment_id: c.id });
-                      }
-                      queryClient.invalidateQueries({ queryKey: ['community_comments', postId] });
-                    } catch {}
-                  }}>
-                  <Heart className="w-3 h-3" style={{ color: '#D1D5DB' }} />
-                </button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Add comment */}
+      {/* Add comment input */}
       {canComment && (
-        <div className="flex items-center gap-2 px-4 py-3" style={{ background: '#fff', borderTop: '1px solid #F0F0F0' }}>
-          <Input value={text} onChange={e => setText(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder="כתוב תגובה..." className="text-[13px] flex-1 h-9 rounded-full px-4"
-            style={{ background: '#F3F4F6', border: 'none' }} />
-          <button onClick={handleSend} disabled={!text.trim() || sending}
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
-            style={{ background: T.primary, color: '#fff' }}>
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </button>
+        <div style={{ background: '#fff', borderTop: '1px solid #F0F0F0' }}>
+          <div className="flex items-center gap-2 px-3 py-2.5">
+            <button onClick={() => setAnonymous(a => !a)}
+              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all"
+              style={{
+                background: anonymous ? T.primary : '#F3F4F6',
+                color: anonymous ? '#fff' : '#9CA3AF',
+              }}
+              title={anonymous ? 'תגובה אנונימית פעילה' : 'כתוב אנונימית'}>
+              <UserX className="w-3.5 h-3.5" />
+            </button>
+            <Input value={text} onChange={e => setText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              placeholder={anonymous ? 'תגובה אנונימית...' : 'כתוב תגובה...'}
+              className="text-[13px] flex-1 h-9 rounded-full px-4"
+              style={{ background: '#F3F4F6', border: '1px solid #E5E7EB' }} />
+            <button onClick={handleSend} disabled={!text.trim() || sending}
+              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
+              style={{ background: T.primary, color: '#fff' }}>
+              {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 send-fly" style={{ transform: 'scaleX(-1)' }} />}
+            </button>
+          </div>
+          {anonymous && (
+            <div className="px-3 pb-2 text-[10px]" style={{ color: '#92400E' }}>
+              ✓ תגובה זו תפורסם כ"אנונימי #מספר" - השם שלך לא יוצג
+            </div>
+          )}
         </div>
       )}
     </div>

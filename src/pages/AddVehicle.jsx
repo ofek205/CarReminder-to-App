@@ -196,11 +196,32 @@ export default function AddVehicle() {
     const file = e.target.files[0];
     if (!file) return;
     const validation = validateUploadFile(file, 'photo', 5);
-    if (!validation.ok) { alert(validation.error); e.target.value = ''; return; }
-    setPhotoPreview(URL.createObjectURL(file));
-    // TODO: migrate file upload to Supabase Storage
-    toast.info('העלאת תמונות תתאפשר בקרוב');
-    // handleChange('vehicle_photo', file_url);
+    if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
+    try {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(1, 800 / img.width);
+          const w = img.width * scale, h = img.height * scale;
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          const base64 = canvas.toDataURL('image/jpeg', 0.75);
+          setPhotoPreview(base64);
+          handleChange('vehicle_photo', base64);
+          toast.success('התמונה נטענה');
+        };
+        img.onerror = () => toast.error('שגיאה בטעינת התמונה');
+        img.src = ev.target.result;
+      };
+      reader.onerror = () => toast.error('שגיאה בקריאת הקובץ');
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Photo load error:', err);
+      toast.error('שגיאה בטעינת התמונה');
+    }
+    e.target.value = '';
   };
 
   const handleVehicleTypeChange = (typeId, typeName, metric) => {
@@ -620,18 +641,25 @@ export default function AddVehicle() {
       )}
 
       {/* ─── Premium Header ─── */}
-      <div className="flex items-center justify-between mb-2" dir="rtl">
-        <div className="flex items-center gap-3">
-          <Link to={createPageUrl('Dashboard')}>
-            <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: T.light }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.primary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+      <div className="rounded-3xl p-4 mb-4 relative overflow-hidden" dir="rtl"
+        style={{ background: T.grad || C.grad, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
+        <div className="absolute -top-10 -left-10 w-36 h-36 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Link to={createPageUrl('Dashboard')}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              </div>
+            </Link>
+            <div>
+              <h1 className="text-lg font-black text-white">הוספת כלי רכב</h1>
+              <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>בחר סוג ומלא פרטים</p>
             </div>
-          </Link>
-          <h1 className="font-black text-xl" style={{ color: T.text }}>סוג רכב</h1>
+          </div>
+          <span className="text-[10px] font-bold px-3 py-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+            שלב 1 מתוך 3
+          </span>
         </div>
-        <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: T.grad, color: '#fff' }}>
-          שלב 1 מתוך 3
-        </span>
       </div>
       {/* Progress bar */}
       <div className="w-full h-1.5 rounded-full mb-6" style={{ background: '#E8E0D4' }}>

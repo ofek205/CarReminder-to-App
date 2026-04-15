@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
-import { User, ScanLine, CheckCircle, AlertTriangle, XCircle, Loader2, Save, UserPlus, Phone, Calendar, Star } from "lucide-react";
+import { User, ScanLine, CheckCircle, AlertTriangle, XCircle, Loader2, Save, UserPlus, Phone, Calendar, Star, Trash2 } from "lucide-react";
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import DriverLicenseScanDialog from "../components/profile/DriverLicenseScanDialog";
@@ -413,6 +415,16 @@ function AuthUserProfile() {
         <Button onClick={handleSave} disabled={saving} className="w-full h-12 text-base shadow-md font-bold" style={{ background: saving ? '#9CA3AF' : '#3E6B45', color: 'white' }}>
           {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Save className="h-4 w-4 ml-2" />שמור פרופיל</>}
         </Button>
+
+        {/* Delete account link */}
+        <div className="mt-8 pt-6" style={{ borderTop: '1px solid #F3F4F6' }}>
+          <Link to={createPageUrl('DeleteAccount')}
+            className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all active:scale-[0.98]"
+            style={{ color: '#9CA3AF' }}>
+            <Trash2 className="w-4 h-4" />
+            מחיקת חשבון ונתונים
+          </Link>
+        </div>
       </div>
     </div>
   );

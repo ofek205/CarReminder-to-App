@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { Car, Ship, Bike, Truck, ChevronLeft, Gauge, Clock, Calendar, Shield, MoreVertical, Edit, FileText, AlertCircle, RefreshCw, Check, X } from 'lucide-react';
 import { getTheme, getVehicleCategory, C } from '@/lib/designTokens';
+import VehicleIcon from '../shared/VehicleIcon';
 import { getDateStatus, usesKm, usesHours, getVehicleLabels } from '../shared/DateStatusUtils';
 import StatusBadge from '../shared/StatusBadge';
 import { db } from '@/lib/supabaseEntities';
@@ -153,7 +154,6 @@ function VehicleCardEnhanced({ vehicle }) {
   const navigate = useNavigate();
   const { isGuest } = useAuth();
   const category = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
-  const VehicleIcon = ICON_MAP[category] || Car;
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
   const testStatus = getDateStatus(vehicle.test_due_date);
@@ -215,7 +215,7 @@ function VehicleCardEnhanced({ vehicle }) {
               <img src={vehicle.vehicle_photo} alt={name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
-                <VehicleIcon className="w-8 h-8" style={{ color: T.accent, opacity: 0.5 }} />
+                <VehicleIcon vehicle={vehicle} className="w-8 h-8" style={{ color: T.accent, opacity: 0.5 }} />
               </div>
             )}
           </div>

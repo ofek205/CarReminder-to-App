@@ -4,7 +4,7 @@ import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User } from "lucide-react";
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { formatDateHe, getVehicleLabels } from "../components/shared/DateStatusUtils";
@@ -28,15 +28,33 @@ const TYPE_CONFIG = {
   'אסדת הצלה':  { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
 };
 
+// Map notification id prefix to EditVehicle field
+const NOTIF_TO_FIELD = {
+  test: 'test_due_date', ins: 'insurance_due_date',
+  pyro: 'pyrotechnics_expiry_date', ext: 'fire_extinguisher_expiry_date', raft: 'life_raft_expiry_date',
+  mileage: 'current_km',
+};
+
+function getNotifEditUrl(notif) {
+  if (!notif.vehicleId) return null;
+  const prefix = (notif.id || '').split('-')[0];
+  const field = NOTIF_TO_FIELD[prefix];
+  if (field) return `${createPageUrl('EditVehicle')}?id=${notif.vehicleId}&field=${field}`;
+  // For maintenance/brakes/tires/service/shipyard → go to VehicleDetail
+  return `${createPageUrl('VehicleDetail')}?id=${notif.vehicleId}`;
+}
+
 // ── Notification Card ────────────────────────────────────────────────────────
 function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
+  const navigate = useNavigate();
   const tc = TYPE_CONFIG[notif.notification_type] || { icon: Bell, bg: '#F5F5F5', color: '#757575', border: '#E0E0E0' };
   const Icon = tc.icon;
   const isOverdue = notif.is_overdue;
+  const editUrl = getNotifEditUrl(notif);
 
   return (
     <div
-      className={`rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all`}
+      className={`rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all ${editUrl ? 'cursor-pointer active:scale-[0.99]' : ''}`}
       style={{
         background: isOverdue ? '#FEF2F2' : isRead ? '#FAFAFA' : '#fff',
         border: `1.5px solid ${isOverdue ? '#FECACA' : isRead ? '#E5E7EB' : C.border}`,
@@ -44,6 +62,7 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
         opacity: isRead ? 0.65 : 1,
       }}
       dir="rtl"
+      onClick={() => { if (editUrl) { if (onMarkRead) onMarkRead(notif.id); navigate(editUrl); } }}
     >
       {/* Icon */}
       <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
@@ -58,9 +77,11 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
           {notif.message}
         </p>
         <div className="flex items-center gap-2 mt-1">
-          <span className="text-xs font-medium" style={{ color: isOverdue ? '#DC2626' : C.muted }}>
-            {formatDateHe(notif.due_date)}
-          </span>
+          {(notif.due_date || notif.name) && (
+            <span className="text-xs font-medium" style={{ color: isOverdue ? '#DC2626' : C.muted }}>
+              {notif.due_date ? formatDateHe(notif.due_date) : (notif.name || '')}
+            </span>
+          )}
           {isOverdue && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FEE2E2', color: '#DC2626' }}>
               פג תוקף
@@ -317,8 +338,8 @@ function AuthNotifications() {
     const VESSEL_TYPES = ['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי'];
     const isVesselV = (v) => VESSEL_TYPES.includes(v.vehicle_type);
     const daysTo = (d) => d ? Math.ceil((new Date(d) - now) / 86400000) : null;
-    const add = (id, type, label, name, days) => {
-      items.push({ id, notification_type: type, message: label, due_date: null, days_left: days, is_overdue: days < 0, name });
+    const add = (id, type, label, name, days, vehicleId) => {
+      items.push({ id, notification_type: type, message: label, due_date: null, days_left: days, is_overdue: days < 0, name, vehicleId });
     };
 
     // Mileage dates from localStorage
@@ -334,51 +355,51 @@ function AuthNotifications() {
       // Test/כושר שייט
       const testDays = daysTo(v.test_due_date);
       if (testDays !== null && testDays <= threshold) {
-        add(`test-${v.id}`, testWord, testDays < 0 ? `${testWord} פג תוקף!` : `${testWord} בעוד ${testDays} ימים`, name, testDays);
+        add(`test-${v.id}`, testWord, testDays < 0 ? `${testWord} פג תוקף!` : `${testWord} בעוד ${testDays} ימים`, name, testDays, v.id);
       }
       // Insurance
       const insDays = daysTo(v.insurance_due_date);
       if (insDays !== null && insDays <= threshold) {
-        add(`ins-${v.id}`, 'ביטוח', insDays < 0 ? 'ביטוח פג תוקף!' : `ביטוח בעוד ${insDays} ימים`, name, insDays);
+        add(`ins-${v.id}`, 'ביטוח', insDays < 0 ? 'ביטוח פג תוקף!' : `ביטוח בעוד ${insDays} ימים`, name, insDays, v.id);
       }
       // Vessel safety equipment
       if (isVessel) {
         const pyroDays = daysTo(v.pyrotechnics_expiry_date);
-        if (pyroDays !== null && pyroDays <= threshold) add(`pyro-${v.id}`, 'פירוטכניקה', pyroDays < 0 ? 'פירוטכניקה פג תוקף!' : `פירוטכניקה בעוד ${pyroDays} ימים`, name, pyroDays);
+        if (pyroDays !== null && pyroDays <= threshold) add(`pyro-${v.id}`, 'פירוטכניקה', pyroDays < 0 ? 'פירוטכניקה פג תוקף!' : `פירוטכניקה בעוד ${pyroDays} ימים`, name, pyroDays, v.id);
         const extDays = daysTo(v.fire_extinguisher_expiry_date);
-        if (extDays !== null && extDays <= threshold) add(`ext-${v.id}`, 'מטף כיבוי', extDays < 0 ? 'מטף כיבוי פג תוקף!' : `מטף כיבוי בעוד ${extDays} ימים`, name, extDays);
+        if (extDays !== null && extDays <= threshold) add(`ext-${v.id}`, 'מטף כיבוי', extDays < 0 ? 'מטף כיבוי פג תוקף!' : `מטף כיבוי בעוד ${extDays} ימים`, name, extDays, v.id);
         const raftDays = daysTo(v.life_raft_expiry_date);
-        if (raftDays !== null && raftDays <= threshold) add(`raft-${v.id}`, 'אסדת הצלה', raftDays < 0 ? 'אסדת הצלה פג תוקף!' : `אסדת הצלה בעוד ${raftDays} ימים`, name, raftDays);
+        if (raftDays !== null && raftDays <= threshold) add(`raft-${v.id}`, 'אסדת הצלה', raftDays < 0 ? 'אסדת הצלה פג תוקף!' : `אסדת הצלה בעוד ${raftDays} ימים`, name, raftDays, v.id);
       }
       // Tires (100K km / 3 years)
       if (!isVessel && v.current_km && v.last_tire_change_date) {
         const tireDaysAgo = Math.floor((now - new Date(v.last_tire_change_date)) / 86400000);
         if (tireDaysAgo / 365 >= 2.75 || (v.km_since_tire_change && v.current_km - Number(v.km_since_tire_change) >= 90000)) {
-          add(`tires-${v.id}`, 'צמיגים', 'הגיע זמן לבדוק צמיגים', name, 30);
+          add(`tires-${v.id}`, 'צמיגים', 'הגיע זמן לבדוק צמיגים', name, 30, v.id);
         }
       }
       // Service (15K km)
       if (!isVessel && v.current_km && v.km_baseline) {
         const kmSince = v.current_km - v.km_baseline;
-        if (kmSince >= 13500) add(`service-${v.id}`, 'טיפול', `טיפול תקופתי (${Math.round(kmSince / 1000)}K ק"מ)`, name, kmSince >= 15000 ? 0 : 30);
+        if (kmSince >= 13500) add(`service-${v.id}`, 'טיפול', `טיפול תקופתי (${Math.round(kmSince / 1000)}K ק"מ)`, name, kmSince >= 15000 ? 0 : 30, v.id);
       }
       // Brakes (15+ years)
       if (!isVessel && vehicleAge >= 15 && v.test_due_date) {
         const td = daysTo(v.test_due_date);
-        if (td !== null && td <= 60 && td > 0) add(`brakes-${v.id}`, 'בלמים', `רכב ותיק (${vehicleAge} שנים) - נדרש אישור בלמים`, name, td);
+        if (td !== null && td <= 60 && td > 0) add(`brakes-${v.id}`, 'בלמים', `רכב ותיק (${vehicleAge} שנים) - נדרש אישור בלמים`, name, td, v.id);
       }
       // Mileage update (6 months)
       const mileageDate = mileageDates[v.id] || v.km_update_date || v.engine_hours_update_date;
       if (mileageDate) {
         const mDays = Math.floor((now - new Date(mileageDate)) / 86400000);
-        if (mDays > 180) add(`mileage-${v.id}`, 'עדכון', !isVessel ? `עדכן קילומטראז' (${mDays} ימים)` : `עדכן שעות מנוע (${mDays} ימים)`, name, 999);
+        if (mDays > 180) add(`mileage-${v.id}`, 'עדכון', !isVessel ? `עדכן קילומטראז' (${mDays} ימים)` : `עדכן שעות מנוע (${mDays} ימים)`, name, 999, v.id);
       } else if (v.current_km || v.current_engine_hours) {
-        add(`mileage-${v.id}`, 'עדכון', !isVessel ? 'עדכן קילומטראז\'' : 'עדכן שעות מנוע', name, 999);
+        add(`mileage-${v.id}`, 'עדכון', !isVessel ? 'עדכן קילומטראז\'' : 'עדכן שעות מנוע', name, 999, v.id);
       }
       // Shipyard (3 years)
       if (isVessel && v.last_shipyard_date) {
         const sDays = Math.floor((now - new Date(v.last_shipyard_date)) / 86400000);
-        if (sDays / 365 >= 2.75) add(`shipyard-${v.id}`, 'מספנה', sDays / 365 >= 3 ? 'הגיע זמן לביקור מספנה!' : 'ביקור מספנה מתקרב', name, sDays / 365 >= 3 ? 0 : 30);
+        if (sDays / 365 >= 2.75) add(`shipyard-${v.id}`, 'מספנה', sDays / 365 >= 3 ? 'הגיע זמן לביקור מספנה!' : 'ביקור מספנה מתקרב', name, sDays / 365 >= 3 ? 0 : 30, v.id);
       }
     });
 

@@ -258,7 +258,13 @@ export default function FindGarage() {
         marineQuery ? fetchFromServers(marineQuery) : Promise.resolve(null),
       ]);
 
-      if (!carData) throw new Error('All Overpass servers failed');
+      if (!carData) {
+        // Servers temporarily unavailable - show empty results gracefully
+        console.warn('Overpass API temporarily unavailable');
+        setGarages([]);
+        setFetching(false);
+        return;
+      }
 
       // Process car results
       const carResults = (carData.elements || []).map((el) => {
@@ -340,7 +346,7 @@ export default function FindGarage() {
   // ── Loading ──
   if (loading) {
     return (
-      <div className="-mx-4 -mt-4 min-h-[85vh] flex flex-col items-center justify-center gap-5 relative overflow-hidden" dir="rtl">
+      <div className="-mx-4 -mt-4 min-h-[85vh] flex flex-col items-center justify-center gap-5 relative overflow-hidden pb-24" dir="rtl">
         <div className="absolute inset-0" style={{ background: C.grad }} />
         <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
         <div className="relative z-10 flex flex-col items-center gap-4">
@@ -358,7 +364,7 @@ export default function FindGarage() {
   // ── Error / city search ──
   if (locError && !userLocation) {
     return (
-      <div className="-mx-4 -mt-4 min-h-[85vh] relative overflow-hidden" dir="rtl">
+      <div className="-mx-4 -mt-4 min-h-[85vh] relative overflow-hidden overflow-x-hidden pb-24" dir="rtl">
         {/* Premium gradient background */}
         <div className="absolute inset-0" style={{ background: C.grad }} />
         <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
@@ -431,7 +437,7 @@ export default function FindGarage() {
 
   // ── Main view ──
   return (
-    <div className="-mx-4 lg:-mx-8 -mt-4 lg:-mt-8" dir="rtl">
+    <div className="-mx-4 lg:-mx-8 -mt-4 lg:-mt-8 overflow-x-hidden" dir="rtl">
       {/* Hero header */}
       <div className="px-5 pt-5 pb-4 relative overflow-hidden" style={{ background: C.grad }}>
         <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
@@ -559,7 +565,7 @@ export default function FindGarage() {
       {/* Map */}
       <div className="px-4">
         <div className="max-w-5xl mx-auto">
-          <div className="rounded-2xl overflow-hidden shadow-lg border" style={{ borderColor: C.border, height: '50vh', minHeight: '300px' }}>
+          <div className="rounded-2xl overflow-hidden shadow-lg border" style={{ borderColor: C.border, height: '40vh', minHeight: '250px', maxHeight: '400px', position: 'relative', zIndex: 1 }}>
             {userLocation && (
               <MapContainer center={[userLocation.lat, userLocation.lng]} zoom={14} scrollWheelZoom={true}
                 style={{ height: '100%', width: '100%' }} ref={mapRef}>
@@ -642,7 +648,7 @@ export default function FindGarage() {
       </div>
 
       {/* Garage cards */}
-      <div className="px-4 mt-3 pb-8">
+      <div className="px-4 mt-3 pb-28">
         <div className="max-w-5xl mx-auto space-y-3">
           {!fetching && displayGarages.length === 0 && (
             <div className="text-center py-12 rounded-2xl border" style={{ background: C.light, borderColor: C.border }}>
@@ -703,7 +709,7 @@ export default function FindGarage() {
                     )}
 
                     {/* Action buttons */}
-                    <div className="flex gap-2 mt-3 flex-wrap">
+                    <div className="flex gap-1.5 mt-3 flex-wrap">
                       <button onClick={e => { e.stopPropagation(); openGoogleNav(g.lat, g.lon); }}
                         className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-bold text-white transition-all active:scale-[0.95]"
                         style={{ background: 'linear-gradient(135deg, #4285F4, #3367D6)', boxShadow: '0 3px 12px rgba(66,133,244,0.35)' }}>

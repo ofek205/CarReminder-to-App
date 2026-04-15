@@ -131,4 +131,5 @@ export const db = {
   community_reactions: makeEntity('community_reactions'),
   community_saved:    makeEntity('community_saved'),
   community_comment_likes: makeEntity('community_comment_likes'),
+  maintenance_logs:   makeEntity('maintenance_logs'),
 };

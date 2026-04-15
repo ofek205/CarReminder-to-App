@@ -113,13 +113,14 @@ body.keyboard-visible {
   padding-bottom: 0 !important;
 }
 
-/* Leaflet map — keep below modals/sheets/overlays */
+/* Leaflet map — keep below modals/sheets/overlays/BottomNav */
 .leaflet-container {
   z-index: 0 !important;
 }
 .leaflet-pane,
 .leaflet-top,
-.leaflet-bottom {
+.leaflet-bottom,
+.leaflet-control {
   z-index: 0 !important;
 }
 .leaflet-pane .leaflet-popup-pane {
@@ -127,6 +128,60 @@ body.keyboard-visible {
 }
 .leaflet-pane .leaflet-tooltip-pane {
   z-index: 2 !important;
+}
+.leaflet-top .leaflet-control {
+  z-index: 1 !important;
+}
+
+/* Card entrance animation — staggered fade-in + slide-up */
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card-animate {
+  animation: card-enter 0.35s ease-out both;
+}
+
+/* Like button pop animation */
+@keyframes like-pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+.like-pop {
+  animation: like-pop 0.3s ease-out;
+}
+
+/* Save bookmark bounce */
+@keyframes bookmark-bounce {
+  0%   { transform: scale(1) translateY(0); }
+  40%  { transform: scale(1.2) translateY(-3px); }
+  100% { transform: scale(1) translateY(0); }
+}
+.bookmark-bounce {
+  animation: bookmark-bounce 0.35s ease-out;
+}
+
+/* Send button fly */
+@keyframes send-fly {
+  0%   { transform: scale(1) scaleX(-1); }
+  50%  { transform: scale(0.8) scaleX(-1) translateX(-4px); }
+  100% { transform: scale(1) scaleX(-1); }
+}
+.send-fly {
+  animation: send-fly 0.3s ease-out;
+}
+
+/* Field highlight animation — used when navigating to a missing field */
+@keyframes field-flash {
+  0%   { box-shadow: none; background: transparent; }
+  15%  { box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.45); background: rgba(255, 247, 237, 0.6); }
+  50%  { box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.45); background: rgba(255, 247, 237, 0.6); }
+  100% { box-shadow: none; background: transparent; }
+}
+.field-highlight {
+  animation: field-flash 2s ease-in-out;
+  border-radius: 12px;
 }
 
 /* Range slider thumb */

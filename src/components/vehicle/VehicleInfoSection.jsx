@@ -384,7 +384,7 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
       )}
 
       {isMissing ? (
-        <Link to={`${createPageUrl('EditVehicle')}?id=${vehicle.id}`}
+        <Link to={`${createPageUrl('EditVehicle')}?id=${vehicle.id}&field=${dateField}`}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all active:scale-[0.97]"
           style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
           <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#EA580C' }} />
@@ -453,6 +453,15 @@ function statusLabel(status, label, fieldMissing) {
   return <span className={`text-xs font-medium ${color}`}>{label}</span>;
 }
 
+// Map checklist keys to EditVehicle field names
+const CHECKLIST_FIELD_MAP = {
+  test: 'test_due_date',
+  ins: 'insurance_due_date',
+  pyro: 'pyrotechnics_expiry_date',
+  ext: 'fire_extinguisher_expiry_date',
+  raft: 'life_raft_expiry_date',
+};
+
 function VesselInspectionChecklist({ vehicle, T }) {
   const [open, setOpen] = useState(false);
 
@@ -470,15 +479,15 @@ function VesselInspectionChecklist({ vehicle, T }) {
       : [];
   const extEntries = extinguishers.map((e, i) => ({
     label: extinguishers.length > 1 ? `מטף ${i + 1} בתוקף` : 'מטף כיבוי בתוקף',
-    st: getDateStatus(e.date), has: true, key: `ext_${i}`,
+    st: getDateStatus(e.date), has: true, key: `ext_${i}`, fieldKey: 'ext',
   }));
 
   const tracked = [
-    { label: 'רישיון כושר שייט בתוקף',      st: testSt, has: !!vehicle.test_due_date, key: 'test' },
-    { label: 'ביטוח צד ג׳ תוספת 14 בתוקף', st: insSt,  has: !!vehicle.insurance_due_date, key: 'ins' },
-    { label: 'פירוטכניקה בתוקף',             st: pyroSt, has: !!vehicle.pyrotechnics_expiry_date, key: 'pyro' },
+    { label: 'רישיון כושר שייט בתוקף',      st: testSt, has: !!vehicle.test_due_date, key: 'test', fieldKey: 'test' },
+    { label: 'ביטוח צד ג׳ תוספת 14 בתוקף', st: insSt,  has: !!vehicle.insurance_due_date, key: 'ins', fieldKey: 'ins' },
+    { label: 'פירוטכניקה בתוקף',             st: pyroSt, has: !!vehicle.pyrotechnics_expiry_date, key: 'pyro', fieldKey: 'pyro' },
     ...extEntries,
-    { label: 'אסדת הצלה בתוקף',              st: raftSt, has: !!vehicle.life_raft_expiry_date, key: 'raft' },
+    { label: 'אסדת הצלה בתוקף',              st: raftSt, has: !!vehicle.life_raft_expiry_date, key: 'raft', fieldKey: 'raft' },
   ];
 
   const readyCount  = tracked.filter(i => i.has && i.st.status === 'ok').length;
@@ -515,18 +524,29 @@ function VesselInspectionChecklist({ vehicle, T }) {
       {open && (
         <div className="px-4 pb-4 space-y-4">
           <div className="space-y-2">
-            {tracked.map(item => (
-              <div key={item.key} className="flex items-center justify-between rounded-xl px-3 py-2.5"
-                style={{ background: '#FFFFFF', border: `1px solid ${T.border}` }}>
+            {tracked.map(item => {
+              const fieldName = CHECKLIST_FIELD_MAP[item.fieldKey];
+              const isMissing = !item.has;
+              const Wrapper = isMissing ? Link : 'div';
+              const wrapperProps = isMissing
+                ? { to: `${createPageUrl('EditVehicle')}?id=${vehicle.id}&field=${fieldName}` }
+                : {};
+              return (
+              <Wrapper key={item.key} {...wrapperProps}
+                className="flex items-center justify-between rounded-xl px-3 py-2.5 transition-all"
+                style={{ background: isMissing ? '#FFF7ED' : '#FFFFFF', border: `1px solid ${isMissing ? '#FFEDD5' : T.border}`, display: 'flex' }}>
                 <div className="flex items-center gap-2 min-w-0">
                   {statusIcon(item.has ? item.st.status : 'neutral')}
                   <span className="text-xs font-medium truncate" style={{ color: T.text }}>{item.label}</span>
                 </div>
                 <div className="shrink-0 mr-2">
-                  {statusLabel(item.st.status, item.st.label, !item.has)}
+                  {isMissing
+                    ? <span className="text-xs font-bold" style={{ color: '#EA580C' }}>לחץ להוספה</span>
+                    : statusLabel(item.st.status, item.st.label, false)}
                 </div>
-              </div>
-            ))}
+              </Wrapper>
+              );
+            })}
           </div>
 
           <div className="rounded-xl p-3" style={{ background: '#FFFFFF', border: `1.5px dashed ${T.border}` }}>

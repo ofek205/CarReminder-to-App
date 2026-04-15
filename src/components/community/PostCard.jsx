@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageCircle, ChevronDown, ChevronUp, Car, Ship, Bike, Truck, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2, Flag, Ban, MoreVertical } from 'lucide-react';
+import { MessageCircle, Car, Ship, Bike, Truck, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2, Flag, Ban, MoreHorizontal, Wrench } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { getVehicleCategory } from '@/lib/designTokens';
 import { formatDistanceToNow } from 'date-fns';
@@ -15,13 +15,29 @@ function timeAgo(date) {
   catch { return ''; }
 }
 
-function Avatar({ name, size = 'w-10 h-10 text-sm' }) {
+const AVATAR_GRADIENTS = [
+  'linear-gradient(135deg, #2D5233, #4A8C5C)',
+  'linear-gradient(135deg, #0C7B93, #14B8C8)',
+  'linear-gradient(135deg, #7C3AED, #A78BFA)',
+  'linear-gradient(135deg, #D97706, #FBBF24)',
+  'linear-gradient(135deg, #DC2626, #F87171)',
+  'linear-gradient(135deg, #0369A1, #38BDF8)',
+];
+
+function Avatar({ name, size = 40, isAnonymous = false, anonymousNumber = null }) {
+  if (isAnonymous) {
+    return (
+      <div className="rounded-full flex items-center justify-center font-bold shrink-0"
+        style={{ width: size, height: size, background: '#E5E7EB', color: '#6B7280', fontSize: size * 0.3 }}>
+        {anonymousNumber ? `#${anonymousNumber}` : '?'}
+      </div>
+    );
+  }
   const letters = (name || '??').split(' ').map(w => w[0]).join('').slice(0, 2);
-  const colors = ['#2D5233', '#0C7B93', '#7C3AED', '#D97706', '#DC2626', '#0369A1'];
-  const color = colors[(name || '').length % colors.length];
+  const grad = AVATAR_GRADIENTS[(name || '').length % AVATAR_GRADIENTS.length];
   return (
-    <div className={`${size} rounded-full flex items-center justify-center font-bold text-white shrink-0`}
-      style={{ background: color }}>{letters}</div>
+    <div className="rounded-full flex items-center justify-center font-bold text-white shrink-0"
+      style={{ width: size, height: size, background: grad, fontSize: size * 0.35 }}>{letters}</div>
   );
 }
 
@@ -39,26 +55,20 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   const isOwner = user?.id === post.user_id;
   const canInteract = !isGuest && !!user;
 
-  // Interactions data (passed from parent)
-  // Unified: user can EITHER like (👍) OR pick an emoji - not both
   const liked = interactions?.liked || false;
   const likeCount = interactions?.likeCount || 0;
   const saved = interactions?.saved || false;
   const myReaction = interactions?.myReaction || null;
   const reactionCounts = interactions?.reactionCounts || {};
-  // User's current state: 'like' if liked, emoji string if reacted, null if neither
   const myChoice = myReaction || (liked ? '👍' : null);
 
-  // Unified like/reaction: user can do ONE thing - like (👍) or emoji reaction
   const handleQuickLike = async () => {
     if (!canInteract) return;
     try {
       if (liked) {
-        // Remove like
         const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
         if (data) await supabase.from('community_likes').delete().eq('id', data.id);
       } else {
-        // Add like + remove emoji if exists
         if (myReaction) {
           const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
           if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
@@ -73,20 +83,16 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     if (!canInteract) return;
     setShowEmojis(false);
     try {
-      // Remove like first if exists
       if (liked) {
         const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
         if (data) await supabase.from('community_likes').delete().eq('id', data.id);
       }
       if (myReaction === emoji) {
-        // Toggle off - remove reaction
         const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
         if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
       } else if (myReaction) {
-        // Switch emoji
         await supabase.from('community_reactions').update({ emoji }).eq('user_id', user.id).eq('post_id', post.id);
       } else {
-        // New emoji reaction
         await supabase.from('community_reactions').insert({ user_id: user.id, post_id: post.id, emoji });
       }
       queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
@@ -129,31 +135,38 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
 
   const totalReactions = Object.values(reactionCounts).reduce((a, b) => a + b, 0);
 
+  // Vehicle icon
+  const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
+  const vCat = vehicle ? getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer) : null;
+  const VIcon = vCat ? (ICON_MAP[vCat] || Car) : null;
+
   return (
-    <div dir="rtl" style={{ background: '#fff', borderBottom: '8px solid #F5F5F5' }}>
+    <div dir="rtl" className="rounded-2xl overflow-hidden"
+      style={{ background: '#fff', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
 
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-        <Avatar name={post.author_name} />
+      <div className="flex items-start gap-3 px-4 pt-4 pb-2">
+        <Avatar name={post.author_name} size={40} isAnonymous={post.is_anonymous} anonymousNumber={post.anonymous_number} />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] font-bold" style={{ color: '#1F2937' }}>{post.author_name}</span>
-            {vehicle && (
-              <>
-                <span className="text-[11px]" style={{ color: '#D1D5DB' }}>›</span>
-                <span className="text-[11px] font-medium" style={{ color: T.primary }}>
-                  {vehicle.nickname || vehicle.manufacturer}
-                </span>
-              </>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm font-bold" style={{ color: '#1F2937' }}>
+              {post.is_anonymous ? `אנונימי${post.anonymous_number ? ` #${post.anonymous_number}` : ''}` : post.author_name}
+            </span>
+            {!post.is_anonymous && vehicle && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{ background: T.light || '#F3F4F6', color: T.primary }}>
+                {VIcon && <VIcon className="w-2.5 h-2.5" />}
+                {vehicle.nickname || vehicle.manufacturer}
+              </span>
             )}
           </div>
-          <p className="text-[11px]" style={{ color: '#9CA3AF' }}>{timeAgo(post.created_at)}</p>
+          <p className="text-[11px] mt-0.5" style={{ color: '#9CA3AF' }}>{timeAgo(post.created_at)}</p>
         </div>
-        {/* Post menu: delete (owner) / report + block (others) */}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-all">
-              <MoreVertical className="w-4 h-4" style={{ color: '#9CA3AF' }} />
+            <button className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-all shrink-0 mt-0.5">
+              <MoreHorizontal className="w-4 h-4" style={{ color: '#9CA3AF' }} />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" dir="rtl" className="w-44">
@@ -191,26 +204,24 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
       </div>
 
       {/* Body */}
-      <div className="px-4 pb-2">
-        <p className={`text-[14px] leading-relaxed ${!expanded && isLong ? 'line-clamp-4' : ''}`} style={{ color: '#374151' }}>
+      <div className="px-4 pb-3">
+        <p className={`text-sm leading-relaxed ${!expanded && isLong ? 'line-clamp-4' : ''}`} style={{ color: '#374151' }}>
           {post.body}
         </p>
         {isLong && (
           <button onClick={() => setExpanded(!expanded)}
-            className="text-[13px] font-bold mt-1" style={{ color: T.primary }}>
-            {expanded ? 'הצג פחות' : 'קראו עוד'}
+            className="text-xs font-bold mt-1" style={{ color: T.primary }}>
+            {expanded ? 'הצג פחות' : 'קראו עוד...'}
           </button>
         )}
       </div>
 
-      {/* Image - click to expand */}
+      {/* Image */}
       {post.image_url && (
-        <div className="w-full relative cursor-pointer" onClick={() => setShowFullImage(true)}>
-          <img src={post.image_url} alt="" className="w-full object-cover" style={{ maxHeight: '250px' }} />
-          <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg text-[10px] font-bold"
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff' }}>
-            לחץ להגדלה
-          </div>
+        <div className="mx-4 mb-3 rounded-xl overflow-hidden relative cursor-pointer"
+          style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+          onClick={() => setShowFullImage(true)}>
+          <img src={post.image_url} alt="" className="w-full object-cover" style={{ maxHeight: '350px' }} />
         </div>
       )}
 
@@ -222,55 +233,43 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
             className="absolute top-4 left-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center z-10">
             <span className="text-white text-xl">✕</span>
           </button>
-          <img src={post.image_url} alt="" className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg" />
+          <img src={post.image_url} alt="" className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl" />
         </div>
       )}
 
-      {/* Vehicle chip - correct icon per type */}
-      {vehicle && (() => {
-        const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
-        const cat = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
-        const VIcon = ICON_MAP[cat] || Car;
-        return (
-          <div className="px-4 py-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold"
-              style={{ background: T.light || '#F3F4F6', color: T.primary, border: `1px solid ${T.border}` }}>
-              <VIcon className="w-3 h-3" />
-              {[vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' · ')}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Reaction summary row */}
+      {/* Reaction summary */}
       {(likeCount > 0 || totalReactions > 0 || commentCount > 0) && (
-        <div className="flex items-center gap-2 px-4 py-1.5 text-[11px]" style={{ color: '#9CA3AF' }}>
-          {likeCount > 0 && <span>👍 {likeCount}</span>}
-          {EMOJIS.filter(e => e !== '👍').map(e => reactionCounts[e] ? <span key={e}>{e} {reactionCounts[e]}</span> : null)}
-          <span className="mr-auto">{commentCount > 0 ? `${commentCount} תגובות` : ''}</span>
+        <div className="flex items-center gap-3 px-4 py-2 mx-4 rounded-lg mb-1" style={{ background: '#FAFAFA' }}>
+          <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: '#6B7280' }}>
+            {likeCount > 0 && <span className="flex items-center gap-0.5">👍 {likeCount}</span>}
+            {EMOJIS.filter(e => e !== '👍').map(e => reactionCounts[e] ? <span key={e} className="flex items-center gap-0.5">{e} {reactionCounts[e]}</span> : null)}
+          </div>
+          {commentCount > 0 && (
+            <span className="mr-auto text-[11px] font-medium" style={{ color: '#9CA3AF' }}>{commentCount === 1 ? 'תגובה אחת' : `${commentCount} תגובות`}</span>
+          )}
         </div>
       )}
 
-      {/* AI thinking */}
-      {commentCount === 0 && (
-        <div className="flex items-center gap-2 px-4 py-2">
-          <span className="text-sm animate-pulse">🔧</span>
+      {/* AI thinking - only for recent posts (< 5 min) with no comments yet */}
+      {commentCount === 0 && post.created_at && (Date.now() - new Date(post.created_at).getTime()) < 5 * 60 * 1000 && (
+        <div className="flex items-center gap-2 mx-4 mb-2 px-3 py-2 rounded-xl"
+          style={{ background: '#FFFBEB', border: '1px solid #FEF3C7' }}>
+          <Wrench className="w-3.5 h-3.5 animate-pulse" style={{ color: '#D97706' }} />
           <span className="text-[11px] font-medium" style={{ color: '#92400E' }}>
             {post.domain === 'vessel' ? 'יוסי מומחה כלי שייט חושב...' : 'יוסי המוסכניק חושב...'}
           </span>
         </div>
       )}
 
-      {/* ── Action bar ── */}
-      <div className="flex items-center px-2 py-1" style={{ borderTop: '1px solid #F3F4F6' }}>
-        {/* Like / Reaction - unified: tap = 👍, long-press or second tap = emoji picker */}
+      {/* Action bar */}
+      <div className="flex items-center px-2 py-1.5 mx-2 mb-2 rounded-xl" style={{ background: '#FAFAFA' }}>
+        {/* Like */}
         <div className="flex-1 relative">
           <button
             onClick={() => {
               if (!canInteract) return;
               if (showEmojis) { setShowEmojis(false); return; }
               if (myChoice) {
-                // Already reacted - toggle off
                 if (liked) handleQuickLike();
                 else if (myReaction) handleReaction(myReaction);
               } else {
@@ -279,22 +278,22 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
             }}
             onContextMenu={(e) => { e.preventDefault(); if (canInteract) setShowEmojis(!showEmojis); }}
             onDoubleClick={() => { if (canInteract) setShowEmojis(!showEmojis); }}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[12px] font-medium transition-all active:scale-[0.95]"
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all active:scale-[0.95]"
             style={{ color: myChoice ? '#2563EB' : '#6B7280' }}>
             {myReaction
-              ? <span className="text-base">{myReaction}</span>
-              : <ThumbsUp className="w-4 h-4" fill={liked ? '#2563EB' : 'none'} />
+              ? <span className={`text-base leading-none ${myChoice ? 'like-pop' : ''}`}>{myReaction}</span>
+              : <ThumbsUp className={`w-4 h-4 ${liked ? 'like-pop' : ''}`} fill={liked ? '#2563EB' : 'none'} />
             }
-            {(likeCount + totalReactions) > 0 && <span>{likeCount + totalReactions}</span>}
+            <span>{myChoice ? 'אהבתי' : 'לייק'}</span>
           </button>
           {showEmojis && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setShowEmojis(false)} />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-40 flex gap-1.5 px-3 py-2 rounded-full bg-white shadow-xl border"
-                style={{ borderColor: '#E5E7EB' }}>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-40 flex gap-1 px-2 py-1.5 rounded-2xl bg-white"
+                style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #E5E7EB' }}>
                 {EMOJIS.map(e => (
                   <button key={e} onClick={() => handleReaction(e)}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center text-xl transition-all hover:scale-125 ${myReaction === e ? 'bg-blue-100 scale-110' : ''}`}>
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all hover:scale-125 ${myReaction === e ? 'bg-blue-100 scale-110' : ''}`}>
                     {e}
                   </button>
                 ))}
@@ -305,25 +304,26 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
 
         {/* Comment */}
         <button onClick={() => setShowComments(!showComments)}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[12px] font-medium transition-all active:scale-[0.95]"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all active:scale-[0.95]"
           style={{ color: showComments ? T.primary : '#6B7280' }}>
           <MessageCircle className="w-4 h-4" />
-          {commentCount > 0 && <span>{commentCount}</span>}
+          <span>תגובה</span>
         </button>
 
         {/* Share */}
         <button onClick={handleShare}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[12px] font-medium transition-all active:scale-[0.95]"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all active:scale-[0.95]"
           style={{ color: '#6B7280' }}>
           <Share2 className="w-4 h-4" />
+          <span>שיתוף</span>
         </button>
 
         {/* Save */}
         <button onClick={handleSave}
-          className="flex items-center justify-center w-10 py-2.5 rounded-lg transition-all active:scale-[0.95]">
+          className="w-10 flex items-center justify-center py-2 rounded-xl transition-all active:scale-[0.95]">
           {saved
-            ? <BookmarkCheck className="w-4 h-4" style={{ color: T.primary }} />
-            : <Bookmark className="w-4 h-4" style={{ color: '#D1D5DB' }} />
+            ? <BookmarkCheck className="w-4 h-4 bookmark-bounce" style={{ color: T.primary }} />
+            : <Bookmark className="w-4 h-4" style={{ color: '#C4C4C4' }} />
           }
         </button>
       </div>

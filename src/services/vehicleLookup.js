@@ -56,12 +56,24 @@ function mapRecord(r) {
   if (r.shnat_yitzur)  fields.year          = safeYear(r.shnat_yitzur);
   if (r.sug_delek_nm)  fields.fuel_type     = safeStr(r.sug_delek_nm, 40);
 
-  // tokef_dt = תאריך תוקף רישיון הרכב. הטסט הבא הוא שנה אחרי.
+  // tokef_dt = תאריך תוקף רישיון הרכב = תאריך הטסט הבא
   if (r.tokef_dt) {
-    const d = new Date(r.tokef_dt);
-    if (!isNaN(d.getTime())) {
-      d.setFullYear(d.getFullYear() + 1);
-      fields.test_due_date = d.toISOString().split('T')[0];
+    const d = safeDate(r.tokef_dt);
+    if (d) fields.test_due_date = d;
+  }
+
+  // Fallback: if no tokef_dt (new cars) — use first_registration + 4 years
+  // (Israeli law: first test at 4 years old, then annually)
+  if (!fields.test_due_date && r.moed_aliya_lakvish) {
+    const raw = String(r.moed_aliya_lakvish);
+    // Format can be "YYYY-MM" or "YYYY-MM-DD"
+    const match = raw.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
+    if (match) {
+      const [, yr, mo, dy] = match;
+      const d = new Date(Number(yr) + 4, Number(mo) - 1, Number(dy || 1));
+      if (!isNaN(d.getTime())) {
+        fields.test_due_date = d.toISOString().split('T')[0];
+      }
     }
   }
 

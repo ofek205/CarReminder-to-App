@@ -86,6 +86,9 @@ function checkVesselFull(vehicleType, nickname, manufacturer) {
  */
 export function getTheme(vehicleType, nickname, manufacturer) {
   if (checkVesselFull(vehicleType, nickname, manufacturer)) return marine;
+  // Off-road gets the brown/earthy theme
+  // (check has to come BEFORE motorcycle/truck keyword matching)
+  if (vehicleType && OFFROAD_EXACT.has(vehicleType)) return offroad;
   return C;
 }
 
@@ -112,12 +115,59 @@ export function isOffroadType(vehicleType) {
   return OFFROAD_EXACT.has(vehicleType);
 }
 
+// ── Off-road / earthy theme (rich chocolate brown) ──────────────────────────
+export const offroad = {
+  bg:        '#FFFFFF',
+  primary:   '#5D4037',     // rich chocolate brown (Material Brown 700)
+  accent:    '#795548',     // medium brown
+  light:     '#EFEBE9',     // very light beige
+  grad:      'linear-gradient(135deg, #4E342E 0%, #6D4C41 100%)',
+  yellow:    '#FBBF24',
+  yellowSoft:'#EFEBE9',
+  card:      '#FFFFFF',
+  muted:     '#8D6E63',
+  border:    '#D7CCC8',
+  text:      '#3E2723',
+};
+
+/**
+ * Get visual identity (icon key + theme) for a vehicle.
+ * Returns { iconKey: string, theme: object }
+ * iconKey can be: 'ship', 'bike-road', 'truck', 'car',
+ *                 'atv', 'jeep-off', 'dirt-bike', 'buggy', 'dune-buggy', 'mountain'
+ */
+export function getVehicleVisual(vehicle) {
+  if (!vehicle) return { iconKey: 'car', theme: C };
+  const vt = vehicle.vehicle_type;
+  const nick = vehicle.nickname;
+  const mfr = vehicle.manufacturer;
+
+  // Vessel
+  if (checkVesselFull(vt, nick, mfr)) return { iconKey: 'ship', theme: marine };
+
+  // Off-road specifics
+  if (vt === 'אופנוע שטח') return { iconKey: 'dirt-bike', theme: offroad };
+  if (vt === 'טרקטורון') return { iconKey: 'atv', theme: offroad };
+  if (vt === "ג'יפ שטח") return { iconKey: 'jeep-off', theme: offroad };
+  if (vt === 'RZR' || vt === 'מיול') return { iconKey: 'buggy', theme: offroad };
+  if (vt === 'באגי חולות') return { iconKey: 'dune-buggy', theme: offroad };
+  if (OFFROAD_EXACT.has(vt)) return { iconKey: 'mountain', theme: offroad };
+
+  // Other categories by keyword
+  const cat = getVehicleCategory(vt, nick, mfr);
+  if (cat === 'motorcycle') return { iconKey: 'bike-road', theme: C };
+  if (cat === 'truck') return { iconKey: 'truck', theme: C };
+  return { iconKey: 'car', theme: C };
+}
+
 export function getVehicleCategory(vehicleType, nickname, manufacturer) {
   const combined = `${vehicleType || ''} ${nickname || ''} ${manufacturer || ''}`.toLowerCase();
   if (checkVesselFull(vehicleType, nickname, manufacturer)) return 'vessel';
+  // Off-road check FIRST — so "טרקטורון" isn't matched as "טרקטור" (tractor/truck)
+  if (OFFROAD_EXACT.has(vehicleType)) return 'offroad';
   if (MOTO_KEYWORDS.some(kw => combined.includes(kw))) return 'motorcycle';
   if (MOTO_MANUFACTURERS.some(m => combined.includes(m))) return 'motorcycle';
   if (TRUCK_KEYWORDS.some(kw => combined.includes(kw))) return 'truck';
   if (TRUCK_MANUFACTURERS.some(m => combined.includes(m))) return 'truck';
-  return 'car'; // off-road uses the same green theme as cars
+  return 'car';
 }

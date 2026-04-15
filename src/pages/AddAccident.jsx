@@ -247,15 +247,19 @@ export default function AddAccident() {
   return (
     <div dir="rtl">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link to={createPageUrl('Accidents')}>
-          <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: C.light }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.primary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-          </div>
-        </Link>
-        <h1 className="font-black text-xl" style={{ color: C.text }}>
-          {isDemo ? 'תאונה לדוגמה' : isEdit ? 'עריכת תאונה' : 'תיעוד תאונה חדשה'}
-        </h1>
+      <div className="rounded-3xl p-4 mb-5 relative overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, #991B1B 0%, #DC2626 100%)', boxShadow: '0 4px 20px rgba(220,38,38,0.25)' }}>
+        <div className="absolute -top-10 -left-10 w-36 h-36 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="relative z-10 flex items-center gap-2.5">
+          <Link to={createPageUrl('Accidents')}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </div>
+          </Link>
+          <h1 className="text-lg font-black text-white">
+            {isDemo ? 'תאונה לדוגמה' : isEdit ? 'עריכת תאונה' : 'תיעוד תאונה חדשה'}
+          </h1>
+        </div>
       </div>
 
       {isDemo && (

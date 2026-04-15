@@ -5,21 +5,21 @@ import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '../components/shared/GuestContext';
 import { C } from '@/lib/designTokens';
 import { isVessel } from '../components/shared/DateStatusUtils';
-import LoadingSpinner from '../components/shared/LoadingSpinner';
+import { ListSkeleton } from '../components/shared/Skeletons';
 import SignUpPromptDialog from '../components/shared/SignUpPromptDialog';
 import PostCard from '../components/community/PostCard';
 import PostCreateDialog from '../components/community/PostCreateDialog';
 import { Input } from '@/components/ui/input';
-import { Search, Plus, Ship, Car, MessageSquare, PenLine } from 'lucide-react';
-// Demo posts removed - real seed data in Supabase
+import { Search, Plus, Ship, Car, MessageSquare, PenLine, Users, X } from 'lucide-react';
 
-const marine = { primary: '#0C7B93', light: '#E0F7FA', border: '#B2EBF2', text: '#0A3D4D', muted: '#6B9EA8' };
+const marine = { primary: '#0C7B93', light: '#E0F7FA', border: '#B2EBF2', text: '#0A3D4D', muted: '#6B9EA8', grad: 'linear-gradient(135deg, #065A6E 0%, #0C7B93 100%)' };
 
 export default function Community() {
   const { isGuest, isAuthenticated, user, guestVehicles } = useAuth();
   const queryClient = useQueryClient();
   const [domain, setDomain] = useState('vehicle');
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [hasVessel, setHasVessel] = useState(false);
@@ -74,7 +74,6 @@ export default function Community() {
     staleTime: 30 * 1000,
   });
 
-  // Fetch interactions (likes, reactions, saved) for all visible posts
   const { data: interactionsData = {} } = useQuery({
     queryKey: ['community_interactions', domain, user?.id, postIds.length],
     queryFn: async () => {
@@ -114,14 +113,12 @@ export default function Community() {
   [userVehicles, domain]);
 
   const filteredPosts = useMemo(() => {
-    // Filter out blocked users + reported posts
     let blockedUsers = [];
     let reportedPosts = [];
     try { blockedUsers = JSON.parse(localStorage.getItem('blocked_users') || '[]'); } catch {}
     try { reportedPosts = JSON.parse(localStorage.getItem('reported_posts') || '[]'); } catch {}
     const blockedSet = new Set(blockedUsers);
     const reportedSet = new Set(reportedPosts);
-
     let result = posts.filter(p => !blockedSet.has(p.user_id) && !reportedSet.has(p.id));
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -142,97 +139,128 @@ export default function Community() {
   };
 
   const tabs = [
-    { key: 'vehicle', label: 'פורום רכבים', icon: Car, color: C.primary },
-    ...(hasVessel ? [{ key: 'vessel', label: 'פורום כלי שייט', icon: Ship, color: marine.primary }] : []),
+    { key: 'vehicle', label: 'רכבים', icon: Car, color: C.primary },
+    ...(hasVessel ? [{ key: 'vessel', label: 'כלי שייט', icon: Ship, color: marine.primary }] : []),
   ];
 
   return (
-    <div dir="rtl" className="-mx-4 -mt-4" style={{ background: '#F5F5F5', minHeight: '100dvh' }}>
+    <div dir="rtl" className="-mx-4 -mt-4" style={{ background: '#F3F4F6', minHeight: '100dvh' }}>
 
-      {/* ── Sticky Header ── */}
-      <div className="sticky top-0 z-30" style={{ background: '#fff', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        {/* Top bar */}
-        <div className="flex items-center gap-3 px-4 py-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: T.primary }}>
-            <MessageSquare className="w-5 h-5 text-white" />
+      {/* ── Hero Header ── */}
+      <div className="sticky top-0 z-30 relative overflow-hidden" style={{ background: T.grad || C.grad }}>
+        <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }} />
+        <div className="relative z-10 px-4 pt-4 pb-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+                <Users className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-lg font-black text-white">קהילה וייעוץ</h1>
+                <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                  {posts.length > 0 ? `${posts.length} שאלות` : 'שאלו את הקהילה'}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setSearchOpen(o => !o)}
+              className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+              <Search className="w-4 h-4 text-white" />
+            </button>
           </div>
-          <h1 className="text-lg font-black flex-1" style={{ color: '#1F2937' }}>קהילה</h1>
-          <Search className="w-5 h-5" style={{ color: '#9CA3AF' }} />
+
+          {/* Quick post bar */}
+          <button onClick={handleFab}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-2xl transition-all active:scale-[0.99]"
+            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)' }}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: 'rgba(255,255,255,0.25)' }}>
+              <PenLine className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>מה השאלה שלך?</span>
+          </button>
         </div>
 
-        {/* Quick post bar */}
-        <button onClick={handleFab}
-          className="mx-4 mb-3 flex items-center gap-3 w-[calc(100%-32px)] px-4 py-3 rounded-full transition-all active:scale-[0.99]"
-          style={{ background: '#F3F4F6', border: '1.5px solid #E5E7EB' }}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: T.primary }}>
-            <PenLine className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-sm" style={{ color: '#9CA3AF' }}>שאלו את הקהילה...</span>
-        </button>
-
         {/* Tabs */}
-        <div className="flex px-4 gap-0" style={{ borderBottom: '1px solid #E5E7EB' }}>
+        <div className="flex px-4 gap-2 pb-3">
           {tabs.map(tab => {
             const active = domain === tab.key;
             return (
               <button key={tab.key} onClick={() => { setDomain(tab.key); setSearch(''); }}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold transition-all relative"
-                style={{ color: active ? tab.color : '#9CA3AF' }}>
-                <tab.icon className="w-4 h-4" />
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all"
+                style={{
+                  background: active ? '#fff' : 'rgba(255,255,255,0.15)',
+                  color: active ? tab.color : 'rgba(255,255,255,0.8)',
+                  boxShadow: active ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+                }}>
+                <tab.icon className="w-3.5 h-3.5" />
                 {tab.label}
-                {active && (
-                  <div className="absolute bottom-0 left-2 right-2 h-[3px] rounded-full" style={{ background: tab.color }} />
-                )}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* ── Search (conditional) ── */}
-      {search !== '' && (
-        <div className="px-4 pt-3">
+      {/* ── Search bar (slide down) ── */}
+      {searchOpen && (
+        <div className="px-4 py-2 bg-white border-b" style={{ borderColor: '#E5E7EB' }}>
           <div className="relative">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#9CA3AF' }} />
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="חפש שאלה..."
-              className="pr-10 text-sm h-10 rounded-xl" style={{ background: '#fff' }} />
+              className="pr-10 text-sm h-9 rounded-xl bg-gray-50" autoFocus />
+            <button onClick={() => { setSearchOpen(false); setSearch(''); }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
+              style={{ background: '#F3F4F6' }}>
+              <X className="w-3 h-3 text-gray-400" />
+            </button>
           </div>
         </div>
       )}
 
       {/* ── Feed ── */}
-      <div className="pt-2 pb-24">
-        {isLoading ? <LoadingSpinner /> : filteredPosts.length === 0 ? (
-          <div className="text-center py-16 px-4">
-            <div className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center" style={{ background: T.light || '#F3F4F6' }}>
-              <MessageSquare className="w-8 h-8" style={{ color: T.primary, opacity: 0.4 }} />
+      <div className="px-3 pt-3 pb-28">
+        {isLoading ? <ListSkeleton count={4} variant="post" /> : filteredPosts.length === 0 ? (
+          <div className="text-center py-20 px-6 card-animate">
+            <div className="relative w-24 h-24 mx-auto mb-5">
+              <div className="absolute inset-0 rounded-full" style={{ background: T.light || '#F3F4F6' }} />
+              <div className="absolute inset-0 rounded-full flex items-center justify-center">
+                <MessageSquare className="w-11 h-11" style={{ color: T.primary, opacity: 0.25 }} />
+              </div>
+              <div className="absolute -top-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ background: '#FFBF00', boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }}>
+                <PenLine className="w-4 h-4 text-white" />
+              </div>
             </div>
-            <h3 className="text-base font-black mb-1" style={{ color: '#374151' }}>אין עדיין שאלות</h3>
-            <p className="text-sm mb-4" style={{ color: '#9CA3AF' }}>
-              היה הראשון לשאול ב{domain === 'vessel' ? 'פורום כלי השייט' : 'פורום הרכבים'}!
+            <h3 className="text-lg font-black mb-2" style={{ color: '#1F2937' }}>הקהילה מחכה לך!</h3>
+            <p className="text-sm mb-6 leading-relaxed max-w-[250px] mx-auto" style={{ color: '#9CA3AF' }}>
+              שאל שאלה על הרכב שלך וקבל תשובות מהקהילה ומיוסי המוסכניק
             </p>
             <button onClick={handleFab}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold text-white transition-all active:scale-[0.97]"
-              style={{ background: T.primary }}>
-              <PenLine className="w-4 h-4" /> פרסם שאלה
+              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97]"
+              style={{ background: T.grad || T.primary, boxShadow: `0 6px 24px ${T.primary}40` }}>
+              <PenLine className="w-4 h-4" /> פרסם שאלה ראשונה
             </button>
           </div>
         ) : (
-          filteredPosts.map(post => (
-            <PostCard key={post.id} post={post} T={T} canComment={canInteract}
-              commentCount={commentCounts[post.id] || 0}
-              vehicle={post.linked_vehicle_id ? vehicleMap[post.linked_vehicle_id] : null}
-              interactions={interactionsData[post.id] || {}}
-              onCommentAdded={() => queryClient.invalidateQueries({ queryKey: ['community_comment_counts', domain] })}
-            />
-          ))
+          <div className="space-y-3">
+            {filteredPosts.map((post, i) => (
+              <div key={post.id} className="card-animate" style={{ animationDelay: `${Math.min(i * 60, 300)}ms` }}>
+              <PostCard post={post} T={T} canComment={canInteract}
+                commentCount={commentCounts[post.id] || 0}
+                vehicle={post.linked_vehicle_id ? vehicleMap[post.linked_vehicle_id] : null}
+                interactions={interactionsData[post.id] || {}}
+                onCommentAdded={() => queryClient.invalidateQueries({ queryKey: ['community_comment_counts', domain] })}
+              />
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
       {/* ── Floating Action Button ── */}
       <button onClick={handleFab}
-        className="fixed z-40 flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm text-white shadow-lg transition-all active:scale-[0.95]"
-        style={{ background: T.primary, bottom: '100px', left: '50%', transform: 'translateX(-50%)', boxShadow: `0 4px 20px ${T.primary}40` }}>
+        className="fixed z-40 flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm text-white transition-all active:scale-[0.95]"
+        style={{ background: T.grad || T.primary, bottom: '72px', left: '50%', transform: 'translateX(-50%)', boxShadow: `0 4px 20px ${T.primary}50` }}>
         <PenLine className="w-4 h-4" /> נושא חדש
       </button>
 

@@ -8,6 +8,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import PageHeader from '../components/shared/PageHeader';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
+import { ListSkeleton } from '../components/shared/Skeletons';
 import { SafeComponent } from '../components/shared/SafeComponent';
 import GuestVehicleCard from '../components/dashboard/GuestVehicleCard';
 import VehicleCardEnhanced from '../components/vehicles/VehicleCardEnhanced';
@@ -32,7 +33,14 @@ function getWorstStatus(vehicle) {
   return 'ok';
 }
 
+// "אופנוע שטח" belongs to BOTH motorcycle and offroad categories
+const DUAL_CATEGORY_TYPES = {
+  'אופנוע שטח': ['motorcycle', 'offroad'],
+};
+
 function getCategory(vehicle) {
+  // Check for dual-category types first — primary category is the first one
+  if (DUAL_CATEGORY_TYPES[vehicle.vehicle_type]) return DUAL_CATEGORY_TYPES[vehicle.vehicle_type][0];
   if (isOffroad(vehicle.vehicle_type)) return 'offroad';
   if (isVessel(vehicle.vehicle_type, vehicle.nickname)) return 'vessel';
   const cat = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
@@ -47,11 +55,18 @@ function getCategory(vehicle) {
   return 'car';
 }
 
+function matchesCategory(vehicle, categoryTab) {
+  const dualCats = DUAL_CATEGORY_TYPES[vehicle.vehicle_type];
+  if (dualCats) return dualCats.includes(categoryTab);
+  return getCategory(vehicle) === categoryTab;
+}
+
 // ── Category Tabs Config ────────────────────────────────────────────────────
 const CATEGORY_TABS = [
   { key: 'all',        label: 'הכל',       icon: null,     color: C.primary },
   { key: 'car',        label: 'רכבים',     icon: Car,      color: C.primary },
   { key: 'motorcycle', label: 'אופנועים',  icon: Bike,     color: C.primary },
+  { key: 'truck',      label: 'משאיות',    icon: Truck,    color: C.primary },
   { key: 'vessel',     label: 'כלי שייט',  icon: Ship,     color: '#0C7B93' },
   { key: 'offroad',    label: 'כלי שטח',   icon: Mountain, color: C.primary },
   { key: 'special',    label: 'מיוחדים',   icon: Star,     color: C.warn },
@@ -278,8 +293,16 @@ function VehiclesContent({ vehicles, isLoading }) {
   }, [vehicleMeta, filteredByPage.length]);
 
   const categoryCounts = useMemo(() => {
-    const c = { all: filteredByPage.length, car: 0, motorcycle: 0, vessel: 0, offroad: 0, special: 0 };
-    vehicleMeta.forEach(m => { if (c[m.category] !== undefined) c[m.category]++; else c.car++; });
+    const c = { all: filteredByPage.length, car: 0, motorcycle: 0, truck: 0, vessel: 0, offroad: 0, special: 0 };
+    vehicleMeta.forEach(m => {
+      // Dual-category types count in all their categories
+      const dualCats = DUAL_CATEGORY_TYPES[m.vehicle.vehicle_type];
+      if (dualCats) {
+        dualCats.forEach(cat => { if (c[cat] !== undefined) c[cat]++; });
+      } else {
+        if (c[m.category] !== undefined) c[m.category]++; else c.car++;
+      }
+    });
     return c;
   }, [vehicleMeta, filteredByPage.length]);
 
@@ -287,9 +310,9 @@ function VehiclesContent({ vehicles, isLoading }) {
   const filteredVehicles = useMemo(() => {
     let result = [...vehicleMeta];
 
-    // Category filter
+    // Category filter (dual-category types like "אופנוע שטח" appear in multiple tabs)
     if (activeCategoryTab !== 'all') {
-      result = result.filter(m => m.category === activeCategoryTab);
+      result = result.filter(m => matchesCategory(m.vehicle, activeCategoryTab));
     }
 
     // Search
@@ -333,8 +356,8 @@ function VehiclesContent({ vehicles, isLoading }) {
   if (isLoading) {
     return (
       <div dir="rtl">
-        <PageHeader title={isVesselPage ? 'כלי שייט' : 'רכבים'} subtitle="טוען..." />
-        <div>{[1,2,3].map(i => <SkeletonCard key={i} />)}</div>
+        <PageHeader title={isVesselPage ? 'כלי שייט' : 'רכבים'} subtitle="טוען..." gradient={T.grad} />
+        <ListSkeleton count={4} variant="vehicle" />
       </div>
     );
   }
@@ -345,10 +368,11 @@ function VehiclesContent({ vehicles, isLoading }) {
       <PageHeader
         title={isVesselPage ? 'כלי שייט' : 'רכבים'}
         subtitle={`${filteredByPage.length} ${isVesselPage ? 'כלי שייט' : 'כלי רכב'}`}
+        gradient={T.grad}
         actions={
           <Link to={createPageUrl('AddVehicle')}>
             <button className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-              style={{ background: isVesselPage ? T.primary : C.yellow, color: isVesselPage ? '#fff' : C.greenDark, boxShadow: `0 4px 12px ${T.primary}40` }}>
+              style={{ background: isVesselPage ? '#fff' : C.yellow, color: isVesselPage ? T.primary : C.greenDark, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
               {isVesselPage ? 'כלי שייט חדש' : 'רכב חדש'}
               <Plus className="h-4 w-4" />
             </button>

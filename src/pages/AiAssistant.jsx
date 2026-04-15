@@ -1,0 +1,601 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { db } from '@/lib/supabaseEntities';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '../components/shared/GuestContext';
+import { aiRequest } from '@/lib/aiProxy';
+import { C, getVehicleVisual } from '@/lib/designTokens';
+import VehicleIcon from '../components/shared/VehicleIcon';
+import { isVessel, getDateStatus } from '../components/shared/DateStatusUtils';
+import { Send, Wrench, Loader2, Sparkles, Trash2, Car, Ship, AlertTriangle, Check, ChevronDown, X, Copy, RotateCcw, Info } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { toast } from 'sonner';
+
+const STORAGE_KEY = 'yossi_chat_history';
+const MIN_LEN = 2;
+const MAX_LEN = 800;
+const MIN_INTERVAL_MS = 1500; // rate limit between sends
+
+const SUGGESTED_PROMPTS_GENERAL = [
+  'מה חשוב לבדוק לפני קניית רכב יד שניה?',
+  'מה המחיר הממוצע להחלפת בלמים?',
+  'איך מטפלים בנורית check engine?',
+  'מתי להחליף שמן מנוע?',
+  'איך מכינים רכב לטסט?',
+  'מהן בעיות נפוצות ברכבי 2018-2020?',
+];
+
+const SUGGESTED_PROMPTS_VEHICLE = [
+  'מה הטיפולים הקרובים שצריך לעשות?',
+  'איזה בעיות נפוצות יש לדגם הזה?',
+  'מתי כדאי להחליף צמיגים?',
+  'מה המחיר המוערך לטיפול הבא?',
+  'יש לי רעש מוזר - מה זה יכול להיות?',
+];
+
+// Sanitize message text — strip HTML, control chars
+function sanitize(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/<[^>]*>/g, '')
+    .replace(/javascript\s*:/gi, '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+    .trim();
+}
+
+function timeFmt(ts) {
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  } catch { return ''; }
+}
+
+export default function AiAssistant() {
+  const { user, isAuthenticated } = useAuth();
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [vehicles, setVehicles] = useState([]);
+  const [hasVessel, setHasVessel] = useState(false);
+  const [selectedVehicleId, setSelectedVehicleId] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [maintenanceLogs, setMaintenanceLogs] = useState([]); // logs for selected vehicle
+  const [error, setError] = useState(null);
+  const lastSendRef = useRef(0);
+  const scrollRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Load chat history
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) setMessages(JSON.parse(stored));
+    } catch {}
+  }, []);
+
+  // Save chat history (last 50 only)
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-50)));
+    } catch {}
+  }, [messages]);
+
+  // Load user vehicles
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    (async () => {
+      try {
+        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
+        if (members.length === 0) return;
+        const vs = await db.vehicles.filter({ account_id: members[0].account_id });
+        setVehicles(vs || []);
+        setHasVessel((vs || []).some(v => isVessel(v.vehicle_type, v.nickname)));
+      } catch {}
+    })();
+  }, [isAuthenticated, user]);
+
+  // Load maintenance logs for selected vehicle
+  useEffect(() => {
+    if (!selectedVehicleId) { setMaintenanceLogs([]); return; }
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('maintenance_logs')
+          .select('*')
+          .eq('vehicle_id', selectedVehicleId)
+          .order('date', { ascending: false })
+          .limit(10);
+        setMaintenanceLogs(data || []);
+      } catch { setMaintenanceLogs([]); }
+    })();
+  }, [selectedVehicleId]);
+
+  // Auto-scroll on new message
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, sending]);
+
+  const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
+
+  const buildVehicleContext = useCallback(() => {
+    if (!selectedVehicle) return '';
+    const v = selectedVehicle;
+    const lines = [];
+
+    // Identity
+    const vName = v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'הרכב';
+    lines.push(`### רכב הנדון: ${vName}`);
+
+    // Specs
+    const specs = [];
+    if (v.manufacturer) specs.push(`יצרן: ${v.manufacturer}`);
+    if (v.model) specs.push(`דגם: ${v.model}`);
+    if (v.year) specs.push(`שנה: ${v.year}`);
+    if (v.trim_level) specs.push(`גימור: ${v.trim_level}`);
+    if (v.engine_model) specs.push(`מנוע: ${v.engine_model}`);
+    if (v.engine_cc) specs.push(`נפח מנוע: ${v.engine_cc} סמ"ק`);
+    if (v.horsepower) specs.push(`כוח סוס: ${v.horsepower}`);
+    if (v.fuel_type) specs.push(`דלק: ${v.fuel_type}`);
+    if (v.transmission) specs.push(`גיר: ${v.transmission}`);
+    if (v.drivetrain) specs.push(`כונן: ${v.drivetrain}`);
+    if (v.body_type) specs.push(`סוג מרכב: ${v.body_type}`);
+    if (specs.length) lines.push('**מפרט טכני:** ' + specs.join(' | '));
+
+    // Mileage / hours - critical context
+    const usage = [];
+    if (v.current_km) usage.push(`קילומטראז' נוכחי: ${Number(v.current_km).toLocaleString()} ק"מ`);
+    if (v.current_engine_hours) usage.push(`שעות מנוע: ${Number(v.current_engine_hours).toLocaleString()}`);
+    if (v.first_registration_date) usage.push(`עלייה לכביש: ${v.first_registration_date}`);
+    if (usage.length) lines.push('**שימוש:** ' + usage.join(' | '));
+
+    // Tires
+    if (v.front_tire || v.rear_tire) {
+      lines.push(`**צמיגים:** ${[v.front_tire, v.rear_tire].filter(Boolean).join(' / ')}`);
+      if (v.last_tire_change_date) lines.push(`החלפת צמיגים אחרונה: ${v.last_tire_change_date}`);
+    }
+
+    // Status (test, insurance)
+    const status = [];
+    if (v.test_due_date) {
+      const st = getDateStatus(v.test_due_date);
+      status.push(`טסט: ${v.test_due_date} (${st?.label || 'תקין'})`);
+    }
+    if (v.insurance_due_date) {
+      const st = getDateStatus(v.insurance_due_date);
+      status.push(`ביטוח: ${v.insurance_due_date} (${st?.label || 'תקין'})`);
+    }
+    if (status.length) lines.push('**מצב רישוי:** ' + status.join(' | '));
+
+    // Recent maintenance — KEY for AI to avoid suggesting things already done
+    if (maintenanceLogs.length) {
+      lines.push('\n### היסטוריית טיפולים אחרונים (אל תמליץ על מה שכבר בוצע לאחרונה!):');
+      maintenanceLogs.slice(0, 8).forEach(log => {
+        const parts = [];
+        if (log.date) parts.push(log.date);
+        if (log.type) parts.push(log.type);
+        if (log.title) parts.push(log.title);
+        if (log.km_at_service) parts.push(`ב-${Number(log.km_at_service).toLocaleString()} ק"מ`);
+        if (log.cost) parts.push(`(${Number(log.cost).toLocaleString()} ש"ח)`);
+        if (log.garage_name) parts.push(`@ ${log.garage_name}`);
+        lines.push(`- ${parts.join(' · ')}${log.notes ? ` // ${log.notes.slice(0, 80)}` : ''}`);
+      });
+    } else {
+      lines.push('\n*אין היסטוריית טיפולים מתועדת*');
+    }
+
+    return '\n\n' + lines.join('\n');
+  }, [selectedVehicle, maintenanceLogs]);
+
+  const send = async (text) => {
+    setError(null);
+    const raw = (text !== undefined ? text : input);
+    const clean = sanitize(raw);
+
+    // Validations
+    if (!clean) return;
+    if (clean.length < MIN_LEN) {
+      setError('הודעה קצרה מדי');
+      return;
+    }
+    if (clean.length > MAX_LEN) {
+      setError(`הודעה ארוכה מדי (מקסימום ${MAX_LEN} תווים)`);
+      return;
+    }
+    if (sending) return;
+
+    // Rate limit
+    const now = Date.now();
+    if (now - lastSendRef.current < MIN_INTERVAL_MS) {
+      setError('רגע, לאט-לאט... חכה שנייה לפני שאלה חדשה');
+      return;
+    }
+    lastSendRef.current = now;
+
+    setInput('');
+    const userMsg = { role: 'user', content: clean, ts: now, vehicleId: selectedVehicleId };
+    setMessages(prev => [...prev, userMsg]);
+    setSending(true);
+
+    try {
+      const vehicleContext = buildVehicleContext();
+      const systemPrompt = `אתה יוסי המוסכניק, מכונאי רכב ותיק עם 25 שנות ניסיון בישראל. אתה מכיר לעומק את כל דגמי הרכב הנפוצים בישראל, בעיות ידועות לפי דגם ושנה, מחירי תיקון ישראליים${hasVessel ? ', וגם כלי שייט (מנועי Yanmar, Mercury, Volvo Penta) ומרינות בישראל' : ''}.
+
+כללי תשובה:
+- ענה בעברית בלבד, בטון ידידותי וברור
+- ${selectedVehicle ? 'התשובה צריכה להתייחס *ספציפית* לרכב שצוין למטה' : 'השאלה כללית - ענה תשובה כללית בלי להתייחס לרכב מסוים'}
+${selectedVehicle ? `- חשוב: היסטוריית הטיפולים מצורפת. **אל תמליץ** על טיפולים שכבר בוצעו לאחרונה (פחות מ-6 חודשים)` : ''}
+${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם הרכב בקילומטראז' נמוך/בינוני/גבוה` : ''}
+- ציין טווח מחירים ישראלי ריאלי לתיקון בשקלים (₪)
+- הבדל בין דחוף (בטיחותי) לבין משהו שיכול לחכות
+- אל תמציא עובדות - אם אינך בטוח, אמור "מומלץ לבדוק במוסך"
+- בסוף כל תשובה רגישה (אבחון/המלצת תיקון/הערכת מחיר) הוסף שורה: "התשובה לצורך התרשמות בלבד - מומלץ להתייעץ עם מוסך מוסמך"
+- אורך: 2-5 משפטים, ברורה ופרקטית${vehicleContext}`;
+
+      // Conversation history (last 6 messages, excluding errors/retries)
+      const recentMessages = [...messages.filter(m => !m.error).slice(-6), userMsg].map(m => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      const json = await aiRequest({
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 700,
+        system: systemPrompt,
+        messages: recentMessages,
+      });
+
+      const aiText = json?.content?.[0]?.text || 'מצטער, לא הצלחתי לענות. נסה שוב.';
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: sanitize(aiText).slice(0, 2500),
+        ts: Date.now(),
+        vehicleId: selectedVehicleId,
+      }]);
+    } catch (err) {
+      console.error('AI chat error:', err);
+      // Add error message with retry option
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'אופס - תקלת תקשורת עם השרת. נסה שוב.',
+        ts: Date.now(),
+        error: true,
+        retryText: clean,
+      }]);
+    } finally {
+      setSending(false);
+      inputRef.current?.focus();
+    }
+  };
+
+  const retryLast = (text) => {
+    // Remove the last error message and resend
+    setMessages(prev => prev.filter((m, i) => !(i === prev.length - 1 && m.error)));
+    setTimeout(() => send(text), 100);
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('הועתק ללוח');
+    } catch { toast.error('שגיאה בהעתקה'); }
+  };
+
+  const clearChat = () => {
+    if (!confirm('למחוק את כל היסטוריית השיחה?')) return;
+    setMessages([]);
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    toast.success('היסטוריה נמחקה');
+  };
+
+  const charsLeft = MAX_LEN - input.length;
+  const isInputValid = input.trim().length >= MIN_LEN && input.length <= MAX_LEN;
+  const suggestedPrompts = selectedVehicle ? SUGGESTED_PROMPTS_VEHICLE : SUGGESTED_PROMPTS_GENERAL;
+
+  return (
+    <div dir="rtl" className="-mx-4 -mt-4 flex flex-col" style={{ background: '#F9FAFB', minHeight: '100dvh' }}>
+
+      {/* Hero header */}
+      <div className="sticky top-0 z-30 relative overflow-hidden" style={{ background: C.grad }}>
+        <div className="absolute -top-10 -left-10 w-36 h-36 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="relative z-10 flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center"
+              style={{ background: 'rgba(255,255,255,0.2)' }}>
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-base font-black text-white">התייעצות עם מומחה AI</h1>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.8)' }}>יוסי זמין · עונה תוך שניות</p>
+              </div>
+            </div>
+          </div>
+          {messages.length > 0 && (
+            <button onClick={clearChat}
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-[0.95]"
+              style={{ background: 'rgba(255,255,255,0.15)' }}>
+              <Trash2 className="w-4 h-4 text-white/80" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Vehicle picker + Disclaimer */}
+      <div className="px-3 pt-3 pb-1 space-y-2 sticky z-20" style={{ background: '#F9FAFB', top: 64 }}>
+        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+          <PopoverTrigger asChild>
+            <button className="w-full flex items-center justify-between px-3 py-2.5 rounded-2xl transition-all active:scale-[0.99]"
+              style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
+              <div className="flex items-center gap-2 min-w-0">
+                {selectedVehicle ? (
+                  <>
+                    {(() => {
+                      const { theme } = getVehicleVisual(selectedVehicle);
+                      return (
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: theme.light }}>
+                          <VehicleIcon vehicle={selectedVehicle} className="w-3.5 h-3.5" style={{ color: theme.primary }} />
+                        </div>
+                      );
+                    })()}
+                    <div className="text-right min-w-0">
+                      <p className="text-[11px] font-bold truncate" style={{ color: '#1F2937' }}>
+                        {selectedVehicle.nickname || `${selectedVehicle.manufacturer || ''} ${selectedVehicle.model || ''}`.trim()}
+                      </p>
+                      <p className="text-[9px]" style={{ color: '#9CA3AF' }}>
+                        {selectedVehicle.year ? `${selectedVehicle.year} · ` : ''}
+                        {selectedVehicle.current_km ? `${Number(selectedVehicle.current_km).toLocaleString()} ק"מ · ` : ''}
+                        {maintenanceLogs.length > 0 ? `${maintenanceLogs.length} טיפולים מתועדים` : 'אין היסטוריה'}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#F3F4F6' }}>
+                      <Sparkles className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[11px] font-bold" style={{ color: '#1F2937' }}>שאלה כללית</p>
+                      <p className="text-[9px]" style={{ color: '#9CA3AF' }}>לחץ לבחירת רכב ספציפי</p>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {selectedVehicle && (
+                  <button onClick={(e) => { e.stopPropagation(); setSelectedVehicleId(null); }}
+                    className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: '#F3F4F6' }}>
+                    <X className="w-3 h-3" style={{ color: '#9CA3AF' }} />
+                  </button>
+                )}
+                <ChevronDown className="w-4 h-4" style={{ color: '#9CA3AF' }} />
+              </div>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-[calc(100vw-24px)] max-w-sm p-2 rounded-2xl" dir="rtl">
+            <div className="space-y-1 max-h-72 overflow-y-auto">
+              <button onClick={() => { setSelectedVehicleId(null); setPickerOpen(false); }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-right transition-all hover:bg-gray-50">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#F3F4F6' }}>
+                  <Sparkles className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
+                </div>
+                <div className="flex-1 text-right">
+                  <p className="text-[12px] font-bold" style={{ color: '#1F2937' }}>שאלה כללית</p>
+                  <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לרכב מסוים</p>
+                </div>
+                {!selectedVehicle && <Check className="w-4 h-4" style={{ color: C.primary }} />}
+              </button>
+              {vehicles.length > 0 && <div className="my-1 h-px bg-gray-100" />}
+              {vehicles.map(v => {
+                const { theme } = getVehicleVisual(v);
+                const sel = selectedVehicleId === v.id;
+                return (
+                  <button key={v.id} onClick={() => { setSelectedVehicleId(v.id); setPickerOpen(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-right transition-all hover:bg-gray-50">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: theme.light }}>
+                      <VehicleIcon vehicle={v} className="w-3.5 h-3.5" style={{ color: theme.primary }} />
+                    </div>
+                    <div className="flex-1 text-right min-w-0">
+                      <p className="text-[12px] font-bold truncate" style={{ color: '#1F2937' }}>
+                        {v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim()}
+                      </p>
+                      <p className="text-[10px]" style={{ color: '#9CA3AF' }}>
+                        {[v.manufacturer, v.year].filter(Boolean).join(' · ')}
+                        {v.current_km ? ` · ${Number(v.current_km).toLocaleString()} ק"מ` : ''}
+                        {v.current_engine_hours && !v.current_km ? ` · ${v.current_engine_hours} שעות` : ''}
+                      </p>
+                    </div>
+                    {sel && <Check className="w-4 h-4" style={{ color: theme.primary }} />}
+                  </button>
+                );
+              })}
+              {vehicles.length === 0 && (
+                <p className="text-[11px] text-center py-3" style={{ color: '#9CA3AF' }}>אין רכבים שמורים</p>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Smart context indicator (when vehicle selected) */}
+        {selectedVehicle && maintenanceLogs.length > 0 && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
+            style={{ background: '#EEF2FF', border: '1px solid #C7D2FE' }}>
+            <Info className="w-3 h-3 shrink-0" style={{ color: '#4338CA' }} />
+            <p className="text-[10px] leading-tight" style={{ color: '#4338CA' }}>
+              יוסי יודע על {maintenanceLogs.length} טיפולים אחרונים ולא יציע מה שכבר בוצע
+            </p>
+          </div>
+        )}
+
+        {/* Disclaimer */}
+        <div className="flex items-start gap-2 px-3 py-2 rounded-2xl"
+          style={{ background: '#FFFBEB', border: '1px solid #FEF3C7' }}>
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: '#D97706' }} />
+          <p className="text-[10px] leading-relaxed" style={{ color: '#92400E' }}>
+            התשובות לצורך התרשמות בלבד. AI עלול לטעות - תמיד מומלץ להתייעץ עם מוסך מוסמך לפני ביצוע תיקון או רכישה.
+          </p>
+        </div>
+      </div>
+
+      {/* Messages area */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 pb-32 space-y-3">
+        {messages.length === 0 ? (
+          <div className="card-animate">
+            <div className="text-center py-6">
+              <div className="w-20 h-20 rounded-3xl mx-auto mb-3 flex items-center justify-center"
+                style={{ background: '#FFFBEB', border: '2px solid #FEF3C7' }}>
+                <Wrench className="w-10 h-10" style={{ color: '#D97706' }} />
+              </div>
+              <h3 className="text-base font-black mb-1" style={{ color: '#1F2937' }}>שלום! אני יוסי 👋</h3>
+              <p className="text-sm leading-relaxed max-w-[280px] mx-auto" style={{ color: '#6B7280' }}>
+                {hasVessel ? 'מכונאי רכב וטכנאי כלי שייט. ' : 'מכונאי רכב ותיק. '}
+                שאל אותי כל שאלה על הרכב שלך - מבעיות מנוע, דרך טיפולים ועד מחירי תיקון.
+              </p>
+            </div>
+
+            {vehicles.length > 0 && !selectedVehicle && (
+              <div className="rounded-2xl p-3 mb-3 mx-1 text-center" style={{ background: '#EEF2FF', border: '1px solid #C7D2FE' }}>
+                <p className="text-[11px] font-medium" style={{ color: '#3730A3' }}>
+                  💡 רוצה תשובה ספציפית לרכב שלך? בחר רכב מהרשימה למעלה
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2 mt-4 px-1">
+              <p className="text-[11px] font-bold mb-2" style={{ color: '#9CA3AF' }}>
+                {selectedVehicle ? 'הצעות לשאלה על הרכב:' : 'הצעות לשאלה כללית:'}
+              </p>
+              {suggestedPrompts.map((p, i) => (
+                <button key={i} onClick={() => send(p)}
+                  className="w-full text-right p-3 rounded-2xl text-[13px] font-medium transition-all active:scale-[0.98] card-animate"
+                  style={{
+                    background: '#fff', border: '1px solid #E5E7EB', color: '#374151',
+                    animationDelay: `${100 + i * 60}ms`,
+                  }}>
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          messages.map((msg, i) => {
+            const isAssistant = msg.role === 'assistant';
+            const showVehicleBadge = msg.vehicleId && msg.vehicleId !== messages[i - 1]?.vehicleId;
+            const vehicleForMsg = msg.vehicleId ? vehicles.find(v => v.id === msg.vehicleId) : null;
+            return (
+              <React.Fragment key={msg.ts || i}>
+                {showVehicleBadge && vehicleForMsg && (() => {
+                  const { theme: themeMsg } = getVehicleVisual(vehicleForMsg);
+                  return (
+                    <div className="flex justify-center my-2">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-bold"
+                        style={{ background: themeMsg.light, color: themeMsg.primary }}>
+                        <VehicleIcon vehicle={vehicleForMsg} className="w-2.5 h-2.5" />
+                        שואל על: {vehicleForMsg.nickname || vehicleForMsg.manufacturer}
+                      </span>
+                    </div>
+                  );
+                })()}
+                <div className={`flex gap-2 card-animate group ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  {isAssistant && (
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: '#FFFBEB', border: '1.5px solid #FEF3C7' }}>
+                      <Wrench className="w-3.5 h-3.5" style={{ color: '#D97706' }} />
+                    </div>
+                  )}
+                  <div className="max-w-[78%] flex flex-col gap-1">
+                    <div className="rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed"
+                      style={{
+                        background: msg.role === 'user' ? C.primary : '#fff',
+                        color: msg.role === 'user' ? '#fff' : (msg.error ? '#DC2626' : '#1F2937'),
+                        border: msg.role === 'user' ? 'none' : '1px solid #E5E7EB',
+                        borderRadius: msg.role === 'user' ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                      }}>
+                      {msg.content}
+                    </div>
+                    {/* Action row below message */}
+                    <div className={`flex items-center gap-2 text-[9px] px-2 ${msg.role === 'user' ? 'justify-start flex-row-reverse' : 'justify-start'}`}
+                      style={{ color: '#9CA3AF' }}>
+                      {msg.ts && <span>{timeFmt(msg.ts)}</span>}
+                      {isAssistant && !msg.error && (
+                        <button onClick={() => copyToClipboard(msg.content)}
+                          className="flex items-center gap-0.5 p-1 rounded hover:bg-gray-100 transition-all opacity-60 group-hover:opacity-100"
+                          title="העתק">
+                          <Copy className="w-2.5 h-2.5" />
+                        </button>
+                      )}
+                      {isAssistant && msg.error && msg.retryText && (
+                        <button onClick={() => retryLast(msg.retryText)}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-full font-bold transition-all"
+                          style={{ background: '#FEE2E2', color: '#DC2626' }}>
+                          <RotateCcw className="w-2.5 h-2.5" />
+                          נסה שוב
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </React.Fragment>
+            );
+          })
+        )}
+
+        {sending && (
+          <div className="flex gap-2 card-animate">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: '#FFFBEB', border: '1.5px solid #FEF3C7' }}>
+              <Wrench className="w-3.5 h-3.5 animate-pulse" style={{ color: '#D97706' }} />
+            </div>
+            <div className="rounded-2xl px-4 py-3 flex items-center gap-1.5"
+              style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: '20px 20px 20px 4px' }}>
+              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#D97706', animationDelay: '0ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#D97706', animationDelay: '150ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#D97706', animationDelay: '300ms' }} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input area */}
+      <div className="fixed left-0 right-0 z-40" style={{ bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))', background: '#fff', borderTop: '1px solid #E5E7EB' }}>
+        {error && (
+          <div className="px-3 py-1.5 text-[11px] font-medium text-center" style={{ background: '#FEF2F2', color: '#DC2626' }}>
+            {error}
+          </div>
+        )}
+        <div className="flex items-center gap-2 px-3 py-2 max-w-md mx-auto">
+          <Input
+            ref={inputRef}
+            value={input}
+            onChange={e => { setInput(e.target.value.slice(0, MAX_LEN)); setError(null); }}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder={selectedVehicle
+              ? `שאל את יוסי על ${selectedVehicle.nickname || selectedVehicle.manufacturer}...`
+              : 'שאל את יוסי...'}
+            disabled={sending}
+            maxLength={MAX_LEN}
+            className="flex-1 h-10 rounded-full px-4 text-[13px]"
+            style={{ background: '#F3F4F6', border: '1px solid #E5E7EB' }} />
+          <button onClick={() => send()} disabled={!isInputValid || sending}
+            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all disabled:opacity-30 active:scale-[0.95]"
+            style={{ background: C.primary, color: '#fff', boxShadow: `0 2px 8px ${C.primary}40` }}>
+            {sending
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Send className="w-4 h-4 send-fly" style={{ transform: 'scaleX(-1)' }} />
+            }
+          </button>
+        </div>
+        {input.length > MAX_LEN * 0.7 && (
+          <div className="px-3 pb-1 text-[9px] text-left" style={{ color: charsLeft < 50 ? '#DC2626' : '#9CA3AF' }}>
+            {charsLeft} תווים נותרו
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

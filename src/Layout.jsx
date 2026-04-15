@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Bell, Settings, Users, User, FileText, Menu, X, LogOut, Wrench, Star, UserCircle, CheckCircle, AlertTriangle, XCircle, Phone, Mail, CreditCard, UserPlus, ShieldCheck, MapPin, Gauge, MessageSquare } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Bell, Settings, Users, User, FileText, Menu, X, LogOut, Wrench, Star, UserCircle, CheckCircle, AlertTriangle, XCircle, Phone, Mail, CreditCard, UserPlus, ShieldCheck, MapPin, Gauge, MessageSquare, Sparkles } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -21,7 +21,7 @@ import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
 
 // Bottom nav paths (duplicated in mobile sidebar — hide from sidebar on mobile)
-const BOTTOM_NAV_PATHS = new Set(['Dashboard', 'Documents', 'FindGarage', 'Accidents']);
+const BOTTOM_NAV_PATHS = new Set(['Dashboard', 'Documents', 'FindGarage', 'Accidents', 'AiAssistant']);
 
 const navItems = [
   // ── ניווט ──
@@ -36,6 +36,7 @@ const navItems = [
   // ── קהילה ──
   { divider: true, title: 'קהילה' },
   { name: 'Community',             label: 'קהילה וייעוץ',    icon: Users,           guestAllowed: true },
+  { name: 'AiAssistant',           label: 'התייעצות עם מומחה AI', icon: Sparkles,    guestAllowed: true },
   // ── כלים ──
   { divider: true, title: 'כלים' },
   { name: 'FindGarage',            label: 'מצא מוסך',        icon: MapPin,          guestAllowed: true },
@@ -45,7 +46,6 @@ const navItems = [
   { name: 'UserProfile',           label: 'אזור אישי',       icon: UserCircle,      guestAllowed: true },
   { name: 'AccountSettings',       label: 'שיתוף חשבון',      icon: Users,           guestAllowed: true },
   { name: 'AdminReviews',          label: 'חוות דעת',         icon: Star,            guestAllowed: true },
-  { name: 'DeleteAccount',          label: 'מחיקת חשבון',      icon: AlertTriangle,   guestAllowed: false },
   { name: 'AdminDashboard',        label: 'לוח ניהול',        icon: ShieldCheck,     guestAllowed: false, adminOnly: true },
 ];
 
@@ -66,18 +66,18 @@ function isBirthdayToday(birthDate) {
 function GuestBanner() {
   const navigate = useNavigate();
   return (
-    <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between gap-2" dir="rtl">
-      <p className="text-sm font-semibold text-amber-800 leading-tight">מצב אורח - הנתונים נשמרים זמנית במכשיר בלבד</p>
-      <div className="flex items-center gap-2 shrink-0">
+    <div className="bg-amber-50 border-b border-amber-200 px-3 py-1.5 flex items-center justify-between gap-2" dir="rtl">
+      <p className="text-xs font-semibold text-amber-800 leading-tight">מצב אורח - נתונים זמניים</p>
+      <div className="flex items-center gap-1.5 shrink-0">
         <Link
           to={createPageUrl('Auth')}
-          className="text-sm font-bold text-amber-700 underline underline-offset-2 hover:text-amber-900 transition-colors py-2 px-2 touch-manipulation"
+          className="text-xs font-bold text-amber-700 underline underline-offset-2 hover:text-amber-900 transition-colors py-1 px-1.5 touch-manipulation"
         >
           יש לי חשבון
         </Link>
-        <Button onClick={() => navigate(createPageUrl('Auth'))} className="bg-[#2D5233] hover:bg-[#1E3D24] text-white text-sm font-bold h-11 px-4 gap-1.5 touch-manipulation">
-          <UserPlus className="h-4 w-4" />
-          הירשם בחינם
+        <Button onClick={() => navigate(createPageUrl('Auth'))} className="bg-[#2D5233] hover:bg-[#1E3D24] text-white text-xs font-bold h-8 px-3 gap-1 touch-manipulation">
+          <UserPlus className="h-3.5 w-3.5" />
+          הירשם
         </Button>
       </div>
     </div>
@@ -99,10 +99,10 @@ function UserPopover() {
           title="פתח אזור אישי"
           className="flex items-center gap-3 cursor-pointer group rounded-xl px-1 py-1 transition-all duration-200 hover:bg-[#E8F2EA]"
         >
-          <img src={logo} alt="CarReminder" className="w-10 h-10 rounded-xl object-cover shadow-sm transition-transform duration-200 group-hover:scale-105" />
+          <img src={logo} alt="CarReminder" className="w-8 h-8 rounded-lg object-cover shadow-sm transition-transform duration-200 group-hover:scale-105" />
           <div>
-            <h1 className="text-gray-900 mx-4 text-lg font-bold leading-tight group-hover:text-[#2D5233] transition-colors duration-200">ניהול כלי תחבורה</h1>
-            <p className="text-slate-500 mx-4 my-1 text-xs">פתח אזור אישי</p>
+            <h1 className="text-gray-900 mx-2 text-sm font-bold leading-tight group-hover:text-[#2D5233] transition-colors duration-200">ניהול כלי תחבורה</h1>
+            <p className="text-slate-500 mx-2 text-[10px]">פתח אזור אישי</p>
           </div>
         </div>
       </PopoverTrigger>
@@ -163,23 +163,38 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-5 border-b border-gray-100">
-        {isAuthenticated ? <UserPopover /> : (
-          <div className="flex items-center gap-3 px-1 py-1">
-            <img src={logo} alt="CarReminder" className="w-10 h-10 rounded-xl object-cover shadow-sm" />
+      {/* Header */}
+      <div className="p-4 pt-12 border-b border-gray-100 shrink-0">
+        {isAuthenticated ? (
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#E8F2EA] flex items-center justify-center shrink-0">
+              <User className="h-5 w-5 text-[#2D5233]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-gray-900 truncate">{user?.full_name || 'ניהול כלי תחבורה'}</p>
+              <p className="text-[10px] text-gray-400 truncate">{user?.email || ''}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+              <User className="h-5 w-5 text-gray-400" />
+            </div>
             <div>
-              <h1 className="text-gray-900 mx-4 text-lg font-bold leading-tight">ניהול כלי תחבורה</h1>
-              <p className="text-slate-500 mx-4 my-1 text-xs">מצב אורח</p>
+              <h1 className="text-sm font-bold text-gray-900">מצב אורח</h1>
+              <p className="text-[10px] text-gray-400">הירשם כדי לשמור נתונים</p>
             </div>
           </div>
         )}
       </div>
-      <nav className="flex-1 p-3 space-y-0.5" dir="rtl">
+
+      {/* Navigation - scrollable */}
+      <nav className={`flex-1 overflow-y-auto p-2 space-y-0.5 ${isMobile ? 'pb-4' : ''}`} dir="rtl">
         {visibleItems.map((item, i) => {
           if (item.divider) {
             return (
-              <div key={`div-${i}`} className="pt-3 pb-1.5 px-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#9CA3AF' }}>{item.title}</p>
+              <div key={`div-${i}`} className="pt-3 pb-1 px-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#B0B8C1' }}>{item.title}</p>
               </div>
             );
           }
@@ -187,10 +202,8 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
           const currentSearch = window.location.search || '';
           let isActive;
           if (item.vesselOnly) {
-            // "כלי שייט" is active only when on /Vehicles?category=vessel
             isActive = currentPath.includes('/Vehicles') && currentSearch.includes('category=vessel');
           } else if (item.name === 'Vehicles') {
-            // "רכבים" is active on /Vehicles WITHOUT ?category=vessel
             isActive = currentPath.includes('/Vehicles') && !currentSearch.includes('category=vessel');
           } else {
             isActive = currentPath.includes(createPageUrl(item.name));
@@ -200,32 +213,32 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
               key={item.name}
               to={itemUrl}
               onClick={onItemClick}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-150
                 ${isActive ?
-              'bg-[#E8F2EA] text-[#2D5233] border border-[#D8E5D9]' :
-              'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`
+              'bg-[#E8F2EA] text-[#2D5233]' :
+              'text-gray-600 active:bg-gray-50'}`
               }>
-              <item.icon className={`h-5 w-5 ${isActive ? 'text-[#2D5233]' : 'text-gray-400'}`} />
+              <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-[#2D5233]' : 'text-gray-400'}`} />
               {item.label}
             </Link>
           );
         })}
       </nav>
-      <div className="p-3 border-t border-gray-100 space-y-1" dir="rtl">
-        <div className="px-4 py-2">
-          <FontScaleControls />
-        </div>
+
+      {/* Footer */}
+      <div className={`p-3 border-t border-gray-100 space-y-1.5 shrink-0 ${isMobile ? 'pb-20' : ''}`} dir="rtl">
         {isAuthenticated ? (
           <button
-            onClick={handleLogout} className="bg-slate-300 text-slate-950 px-4 py-2.5 text-sm font-medium rounded-xl flex items-center gap-3 hover:bg-gray-50 hover:text-gray-900 w-full transition-all">
-            <LogOut className="text-slate-950 lucide lucide-log-out h-5 w-5" />
+            onClick={handleLogout}
+            className="px-3 py-2 text-[13px] font-medium rounded-xl flex items-center gap-3 text-gray-500 hover:bg-gray-50 w-full transition-all">
+            <LogOut className="h-4 w-4 text-gray-400" />
             התנתקות
           </button>
         ) : (
           <button
             onClick={() => navigate(createPageUrl('Auth'))}
-            className="bg-[#2D5233] text-white px-4 py-2.5 text-sm font-medium rounded-xl flex items-center gap-3 hover:bg-[#1E3D24] w-full transition-all">
-            <UserPlus className="h-5 w-5" />
+            className="bg-[#2D5233] text-white px-3 py-2 text-[13px] font-medium rounded-xl flex items-center gap-3 hover:bg-[#1E3D24] w-full transition-all">
+            <UserPlus className="h-4 w-4" />
             הירשם / התחבר
           </button>
         )}
@@ -730,19 +743,37 @@ function NotificationBell() {
                           setPopupOpen(false);
                           if (n.type === 'profile' || n.type === 'license') navigate(createPageUrl('UserProfile'));
                           else if (n.type === 'seasonal') {
-                            // Dismiss seasonal for this year
                             const key = n.id === 'winter-prep' ? `winter_dismissed_${new Date().getFullYear()}` : `sailing_dismissed_${new Date().getFullYear()}`;
                             localStorage.setItem(key, '1');
                             navigate(createPageUrl('Vehicles'));
                           }
                           else if (n.type === 'community') {
-                            // Mark community notification as read in DB
                             if (n._communityNotifId) {
                               supabase.from('community_notifications').update({ is_read: true }).eq('id', n._communityNotifId).then(() => {});
                             }
                             navigate(createPageUrl('Community'));
                           }
-                          else if (n.vehicleId) navigate(`${createPageUrl('VehicleDetail')}?id=${n.vehicleId}`);
+                          else if (n.vehicleId) {
+                            // Map notification type to EditVehicle field for direct navigation
+                            const NOTIF_FIELD_MAP = {
+                              test: 'test_due_date', insurance: 'insurance_due_date',
+                              mileage: 'current_km',
+                            };
+                            // Safety notifications: derive field from notification id prefix
+                            const SAFETY_FIELD_MAP = {
+                              pyro: 'pyrotechnics_expiry_date', ext: 'fire_extinguisher_expiry_date', raft: 'life_raft_expiry_date',
+                            };
+                            let field = NOTIF_FIELD_MAP[n.type];
+                            if (n.type === 'safety') {
+                              const prefix = (n.id || '').split('-')[0];
+                              field = SAFETY_FIELD_MAP[prefix];
+                            }
+                            if (field) {
+                              navigate(`${createPageUrl('EditVehicle')}?id=${n.vehicleId}&field=${field}`);
+                            } else {
+                              navigate(`${createPageUrl('VehicleDetail')}?id=${n.vehicleId}`);
+                            }
+                          }
                           else navigate(createPageUrl('Dashboard'));
                         }}
                         className="flex items-center gap-3 flex-1 min-w-0 text-right">
@@ -840,6 +871,11 @@ function LayoutInner({ children }) {
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles } = useAuth();
   const [hasVessel, setHasVessel] = useState(false);
 
+  // Auto-close mobile sheet on route change (so BottomNav navigation works while sheet is open)
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname, location.search]);
+
   // Detect if user has vessels
   const VESSEL_TYPES = ['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי','יאכטה מנועית'];
   const VESSEL_MFRS = ['beneteau','jeanneau','sea-doo','yamaha marine','zodiac','highfield','brig','sea ray','boston whaler'];
@@ -849,6 +885,7 @@ function LayoutInner({ children }) {
     return VESSEL_MFRS.some(m => mfr.includes(m));
   };
 
+  // Re-check vessels on navigation (catches add/edit vehicle)
   useEffect(() => {
     if (isGuest) {
       setHasVessel((guestVehicles || []).some(isVesselVehicle));
@@ -864,7 +901,7 @@ function LayoutInner({ children }) {
         } catch {}
       })();
     }
-  }, [isGuest, isAuthenticated, user, guestVehicles]);
+  }, [isGuest, isAuthenticated, user, guestVehicles, location.pathname]);
 
   // Pages that don't require authentication (legal/compliance pages for app stores)
   const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
@@ -935,41 +972,41 @@ function LayoutInner({ children }) {
         <NavContent currentPath={location.pathname} hasVessel={hasVessel} />
       </aside>
 
+      {/* Mobile hamburger — always above Sheet overlay */}
+      <Button variant="ghost" size="icon"
+        onClick={() => setOpen(o => !o)}
+        className="lg:hidden fixed bg-slate-300 text-slate-950 shrink-0 rounded-xl inline-flex items-center justify-center h-9 w-9"
+        style={{ zIndex: 10001, top: 'calc(env(safe-area-inset-top, 0px) + 6px)', right: 12 }}>
+        <Menu className="h-5 w-5" />
+      </Button>
+
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed inset-x-0 top-0 z-50" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', background: '#fff' }}>
+      <div className="lg:hidden fixed inset-x-0 top-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', background: '#fff', zIndex: 9998 }}>
         {isGuest && <GuestBanner />}
-        <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-2">
+        <div className="bg-white border-b border-gray-100 px-3 py-1.5 flex items-center gap-2">
+          {/* Spacer for hamburger */}
+          <div className="w-9 h-9 shrink-0" />
           <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="bg-slate-300 text-slate-950 shrink-0 text-sm font-medium opacity-100 rounded-2xl inline-flex items-center justify-center gap-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground h-11 w-11">
-                <Menu className="h-6 w-6" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="p-0 w-72">
+            <SheetContent side="right" className="p-0 w-60 !top-0 !bottom-0 flex flex-col">
               <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} hasVessel={hasVessel} isMobile />
             </SheetContent>
           </Sheet>
-          {isAuthenticated ? (
-            <>
-              <UserPopover />
-              <div className="flex-1" />
-              <NotificationBell />
-            </>
-          ) : (
-            <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
-              <img src={logo} alt="CarReminder" className="h-11 rounded-xl object-contain shadow-sm" />
-            </Link>
-          )}
+          <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
+            <img src={logo} alt="CarReminder" className="h-8 w-8 rounded-lg object-cover shadow-sm" />
+            <span className="text-sm font-bold text-gray-900">CarReminder</span>
+          </Link>
+          <div className="flex-1" />
+          {isAuthenticated && <NotificationBell />}
         </div>
       </div>
 
       {/* Main content */}
-      <main className={`flex-1 lg:mr-64 ${isGuest ? 'pt-32 lg:pt-10' : 'pt-24 lg:pt-0'} pb-0`}>
+      <main className={`flex-1 lg:mr-64 ${isGuest ? 'pt-24 lg:pt-10' : 'pt-14 lg:pt-0'} pb-0`}>
         <div className="max-w-5xl mx-auto p-4 lg:p-8">
           {children}
         </div>
         {/* Spacer so content never hides behind fixed BottomNav on mobile */}
-        <div className="h-24 lg:h-0 shrink-0" aria-hidden="true" />
+        <div className="h-16 lg:h-0 shrink-0" aria-hidden="true" />
       </main>
 
       {/* Bottom navigation — mobile only */}

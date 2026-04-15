@@ -18,10 +18,11 @@ export const BOAT_SUBCATEGORIES = [
   { label: 'סירת גומי',   dbName: 'סירת גומי',    usageMetric: 'שעות מנוע' },
 ];
 
-// ─── Sub-categories for "אופנועים" (כביש בלבד) ─────────────────────────────
+// ─── Sub-categories for "אופנועים" (כולל אופנוע שטח) ────────────────────────
 export const MOTO_SUBCATEGORIES = [
   { label: 'אופנוע כביש',  dbName: 'אופנוע כביש',  usageMetric: 'קילומטרים' },
   { label: 'קטנוע',        dbName: 'קטנוע',         usageMetric: 'קילומטרים' },
+  { label: 'אופנוע שטח',  dbName: 'אופנוע שטח',   usageMetric: 'קילומטרים' },
 ];
 
 // ─── Sub-categories for "מיוחדים" (ללא כלי שטח - יש להם קטגוריה נפרדת) ──

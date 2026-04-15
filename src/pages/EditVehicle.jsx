@@ -9,7 +9,8 @@ import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine } from "lucide-react";
+import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine, RefreshCw } from "lucide-react";
+import { lookupVehicleByPlate } from "../services/vehicleLookup";
 import { Link } from 'react-router-dom';
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
@@ -20,7 +21,7 @@ import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { trackUserAction } from "../components/shared/ReviewManager";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
-import { getTheme, isVesselType } from '@/lib/designTokens';
+import { C, getTheme, isVesselType } from '@/lib/designTokens';
 import useAccountRole from '@/hooks/useAccountRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
@@ -29,11 +30,13 @@ import AiDateScan from '../components/shared/AiDateScan';
 export default function EditVehicle() {
   const urlParams = new URLSearchParams(window.location.search);
   const vehicleId = urlParams.get('id');
+  const highlightField = urlParams.get('field');
   const navigate = useNavigate();
   const { isGuest, guestVehicles, updateGuestVehicle } = useAuth();
   const { role, isGuest: isGuestRole } = useAccountRole();
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [form, setForm] = useState(null);
   const [accountId, setAccountId] = useState(null);
@@ -155,6 +158,61 @@ export default function EditVehicle() {
     load();
   }, [vehicleId, isGuestVehicle]);
 
+  // Scroll to & highlight the target field when navigated with ?field=xxx
+  useEffect(() => {
+    if (!highlightField || !form || loading) return;
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-field="${highlightField}"]`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('field-highlight');
+      setTimeout(() => el.classList.remove('field-highlight'), 2500);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [highlightField, form, loading]);
+
+  // Sync vehicle data from gov.il API - fills missing fields without overwriting existing data
+  const handleSyncFromGov = async () => {
+    if (!form.license_plate) {
+      toast.error('יש להזין מספר רישוי תחילה');
+      return;
+    }
+    setSyncing(true);
+    try {
+      const govData = await lookupVehicleByPlate(form.license_plate);
+      if (!govData) {
+        toast.error('לא נמצאו נתונים ב-gov.il עבור רכב זה');
+        return;
+      }
+      const fields = ['manufacturer', 'model', 'year', 'fuel_type', 'test_due_date',
+        'engine_model', 'model_code', 'trim_level', 'vin', 'pollution_group',
+        'vehicle_class', 'safety_rating', 'horsepower', 'engine_cc', 'drivetrain',
+        'total_weight', 'doors', 'seats', 'airbags', 'transmission', 'body_type',
+        'country_of_origin', 'co2', 'green_index', 'tow_capacity',
+        'front_tire', 'rear_tire', 'color', 'first_registration_date', 'ownership',
+        'last_test_date'];
+      const updates = {};
+      let filledCount = 0;
+      fields.forEach(f => {
+        if (govData[f] && !form[f]) {
+          updates[f] = govData[f];
+          filledCount++;
+        }
+      });
+      if (filledCount === 0) {
+        toast.info('כל הפרטים הזמינים כבר מולאו');
+        return;
+      }
+      setForm(prev => ({ ...prev, ...updates }));
+      toast.success(`עודכנו ${filledCount} פרטים מ-gov.il`);
+    } catch (err) {
+      console.error('Sync error:', err);
+      toast.error('שגיאה בסנכרון מ-gov.il');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleChange = (field, value) => {
     setForm(prev => {
       const next = { ...prev, [field]: value };
@@ -178,10 +236,41 @@ export default function EditVehicle() {
     const file = e.target.files[0];
     if (!file) return;
     const validation = validateUploadFile(file, 'photo', 5);
-    if (!validation.ok) { alert(validation.error); e.target.value = ''; return; }
-    setPhotoPreview(URL.createObjectURL(file));
-    // TODO: migrate file upload to Supabase Storage
-    toast.info('העלאת תמונות תתאפשר בקרוב');
+    if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
+    try {
+      const base64 = await compressImageToBase64(file, 800, 0.75);
+      setPhotoPreview(base64);
+      handleChange('vehicle_photo', base64);
+      toast.success('התמונה נטענה');
+    } catch (err) {
+      console.error('Photo load error:', err);
+      toast.error('שגיאה בטעינת התמונה');
+    }
+    e.target.value = '';
+  };
+
+  // Compress image to base64 under a reasonable size for DB storage
+  const compressImageToBase64 = (file, maxWidth = 800, quality = 0.75) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(1, maxWidth / img.width);
+          const w = img.width * scale;
+          const h = img.height * scale;
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject;
+        img.src = ev.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -277,7 +366,14 @@ export default function EditVehicle() {
         navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true });
       } catch (retryErr) {
         console.error('Vehicle update error (retry):', retryErr);
-        toast.error('שגיאה בעדכון הרכב. נסה שוב.');
+        const msg = retryErr?.message || retryErr?.error_description || '';
+        if (msg.includes('too large') || msg.includes('payload')) {
+          toast.error('התמונה גדולה מדי. נסה תמונה קטנה יותר.');
+        } else if (msg.includes('permission') || msg.includes('policy')) {
+          toast.error('אין לך הרשאה לעדכן רכב זה');
+        } else {
+          toast.error(`שגיאה בעדכון: ${msg.slice(0, 80) || 'נסה שוב בעוד רגע'}`);
+        }
         setSaving(false);
       }
     }
@@ -307,16 +403,31 @@ export default function EditVehicle() {
   return (
     <div dir="rtl">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-3">
+      <div className="rounded-3xl p-4 mb-4 relative overflow-hidden"
+        style={{ background: T.grad || C.grad, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
+        <div className="absolute -top-10 -left-10 w-36 h-36 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="relative z-10 flex items-center gap-2.5">
           <button onClick={() => navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true })}>
-            <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: T.light }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.primary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </div>
           </button>
-          <h1 className="font-black text-xl" style={{ color: T.text }}>{vesselMode ? 'עריכת כלי שייט' : 'עריכת רכב'}</h1>
+          <div>
+            <h1 className="text-lg font-black text-white">{vesselMode ? 'עריכת כלי שייט' : 'עריכת רכב'}</h1>
+            <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>{form.nickname || [form.manufacturer, form.model].filter(Boolean).join(' ') || ''}</p>
+          </div>
         </div>
       </div>
+
+      {/* ── Sync from gov.il button (cars only) ── */}
+      {!vesselMode && form.license_plate && (
+        <button onClick={handleSyncFromGov} disabled={syncing}
+          className="w-full mb-4 flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-50"
+          style={{ background: T.light || '#F3F4F6', color: T.primary, border: `1.5px solid ${T.border || '#E5E7EB'}` }}>
+          {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          {syncing ? 'מסנכרן מ-gov.il...' : 'סנכרן פרטים מ-gov.il'}
+        </button>
+      )}
 
       {/* ── Photo + Form ── */}
 
@@ -346,25 +457,25 @@ export default function EditVehicle() {
         <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* כינוי */}
-          <div>
+          <div data-field="nickname" className="rounded-xl p-1 -m-1 transition-all">
             <Label>{vesselMode ? 'כינוי כלי השייט' : 'כינוי לרכב'}</Label>
             <Input value={form.nickname} onChange={e => handleChange('nickname', e.target.value)}
               placeholder={vesselMode ? 'למשל: היאכטה שלי' : 'למשל: הקורולה של אבא'} />
           </div>
 
           {/* מספר רישוי - full width */}
-          <div>
+          <div data-field="license_plate" className="rounded-xl p-1 -m-1 transition-all">
             <Label>{vesselMode ? 'מספר זיהוי כלי שייט *' : 'מספר רישוי *'}</Label>
             <Input value={form.license_plate} onChange={e => handleChange('license_plate', e.target.value)} required dir="ltr" placeholder={vesselMode ? 'IL-12345' : '00-000-00'} />
           </div>
 
           {/* יצרן + דגם - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div data-field="manufacturer" className="rounded-xl p-1 -m-1 transition-all">
               <Label>יצרן</Label>
               <ManufacturerSelector value={form.manufacturer_id} onChange={handleManufacturerChange} accountId={accountId} />
             </div>
-            <div>
+            <div data-field="model" className="rounded-xl p-1 -m-1 transition-all">
               <Label>דגם</Label>
               <Input value={form.model} onChange={e => handleChange('model', e.target.value)} />
             </div>
@@ -372,7 +483,7 @@ export default function EditVehicle() {
 
           {/* שנה + דלק/יצרן מנוע - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div data-field="year" className="rounded-xl p-1 -m-1 transition-all">
               <Label>שנת ייצור</Label>
               <Select value={form.year ? String(form.year) : ''} onValueChange={v => handleChange('year', v)}>
                 <SelectTrigger><SelectValue placeholder="בחר שנה" /></SelectTrigger>
@@ -414,11 +525,11 @@ export default function EditVehicle() {
 
           {/* טסט + ביטוח - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div data-field="test_due_date" className="rounded-xl p-1 -m-1 transition-all">
               <Label>{vesselMode ? 'כושר שייט' : 'תאריך טסט'}</Label>
               <DateInput value={form.test_due_date} onChange={e => handleChange('test_due_date', e.target.value)} />
             </div>
-            <div>
+            <div data-field="insurance_due_date" className="rounded-xl p-1 -m-1 transition-all">
               <Label>{vesselMode ? 'תוקף ביטוח ימי' : 'חידוש ביטוח'}</Label>
               <DateInput value={form.insurance_due_date} onChange={e => handleChange('insurance_due_date', e.target.value)} />
             </div>
@@ -426,7 +537,7 @@ export default function EditVehicle() {
 
           {/* ק"מ/שעות + חברת ביטוח - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div data-field={vesselMode ? 'current_engine_hours' : 'current_km'} className="rounded-xl p-1 -m-1 transition-all">
               <Label>{vesselMode ? 'שעות מנוע' : 'קילומטראז׳'}</Label>
               <Input type="number" dir="ltr" placeholder="0"
                 value={vesselMode ? form.current_engine_hours : form.current_km}
@@ -495,12 +606,12 @@ export default function EditVehicle() {
                 <span className="text-xs text-cyan-600 font-normal">(אופציונלי)</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
+                <div data-field="pyrotechnics_expiry_date" className="rounded-xl p-1 -m-1 transition-all">
                   <Label className="text-cyan-900 text-xs font-semibold">🔴 תוקף ציוד פירוטכניקה</Label>
                   <DateInput value={form.pyrotechnics_expiry_date} onChange={e => handleChange('pyrotechnics_expiry_date', e.target.value)} className="mt-1 bg-white border-cyan-200" />
                   <AiDateScan onDateExtracted={d => handleChange('pyrotechnics_expiry_date', d)} label="📷 סרוק תוקף" />
                 </div>
-                <div className="col-span-1 sm:col-span-2">
+                <div data-field="fire_extinguisher_expiry_date" className="col-span-1 sm:col-span-2 rounded-xl p-1 -m-1 transition-all">
                   <Label className="text-cyan-900 text-xs font-semibold">🧯 מטפי כיבוי</Label>
                   {(form.fire_extinguishers || [{ date: form.fire_extinguisher_expiry_date || '' }]).map((ext, i) => (
                     <div key={i} className="flex items-center gap-2 mt-1.5">
@@ -542,7 +653,7 @@ export default function EditVehicle() {
                     }} label="📷 סרוק תוקף מטף" />
                   </div>
                 </div>
-                <div>
+                <div data-field="life_raft_expiry_date" className="rounded-xl p-1 -m-1 transition-all">
                   <Label className="text-cyan-900 text-xs font-semibold">🛟 תוקף אסדת הצלה</Label>
                   <DateInput value={form.life_raft_expiry_date} onChange={e => handleChange('life_raft_expiry_date', e.target.value)} className="mt-1 bg-white border-cyan-200" />
                   <div className="flex items-center justify-between">
