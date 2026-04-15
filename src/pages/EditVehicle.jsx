@@ -16,7 +16,7 @@ import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { normalizePlate, usesKm, usesHours, isVintageVehicle, isVessel, isOffroad, getVehicleLabels } from "../components/shared/DateStatusUtils";
 import { getCatalogForVehicleType } from "../components/shared/MaintenanceCatalog";
-import VehicleTypeSelector, { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES } from "../components/vehicle/VehicleTypeSelector";
+import VehicleTypeSelector, { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { trackUserAction } from "../components/shared/ReviewManager";
 import { toast } from "sonner";
@@ -473,7 +473,13 @@ export default function EditVehicle() {
           <div className="grid grid-cols-2 gap-3">
             <div data-field="manufacturer" className="rounded-xl p-1 -m-1 transition-all">
               <Label>יצרן</Label>
-              <ManufacturerSelector value={form.manufacturer_id} onChange={handleManufacturerChange} accountId={accountId} />
+              <ManufacturerSelector
+                value={form.manufacturer_id}
+                selectedName={form.manufacturer}
+                onChange={handleManufacturerChange}
+                accountId={accountId}
+                quickManufacturers={MANUFACTURERS_BY_SUBCATEGORY[form.vehicle_type] || null}
+              />
             </div>
             <div data-field="model" className="rounded-xl p-1 -m-1 transition-all">
               <Label>דגם</Label>
