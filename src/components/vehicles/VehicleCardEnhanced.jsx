@@ -174,10 +174,18 @@ function VehicleCardEnhanced({ vehicle }) {
   const [updateOpen, setUpdateOpen] = useState(false);
 
   // Missing fields detection
+  const isVesselV = isVessel(vehicle.vehicle_type, vehicle.nickname);
   const missingFields = [];
   if (!vehicle.test_due_date) missingFields.push(labels.testWord);
   if (!vehicle.insurance_due_date) missingFields.push(labels.insuranceWord || 'ביטוח');
   if (!vehicle.license_plate) missingFields.push('מספר רישוי');
+  if (!vehicle.manufacturer) missingFields.push('יצרן');
+  if (!vehicle.model) missingFields.push('דגם');
+  if (!vehicle.year) missingFields.push('שנה');
+  if (!vehicle.fuel_type && !isVesselV) missingFields.push('סוג דלק');
+  if (isKm && !vehicle.current_km) missingFields.push('קילומטראז\'');
+  if (isHours && !vehicle.current_engine_hours) missingFields.push('שעות מנוע');
+  if (!vehicle.insurance_company) missingFields.push('חברת ביטוח');
   if (!vehicle.vehicle_photo) missingFields.push('תמונה');
   const hasMissing = missingFields.length > 0 && !vehicle._isDemo;
 

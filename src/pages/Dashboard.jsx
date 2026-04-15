@@ -334,6 +334,13 @@ function VehicleRow({ vehicle }) {
   if (!vehicle.test_due_date) missingFields.push(isVessel ? 'כושר שייט' : 'טסט');
   if (!vehicle.insurance_due_date) missingFields.push(isVessel ? 'ביטוח ימי' : 'ביטוח');
   if (!vehicle.license_plate) missingFields.push('מספר רישוי');
+  if (!vehicle.manufacturer) missingFields.push('יצרן');
+  if (!vehicle.model) missingFields.push('דגם');
+  if (!vehicle.year) missingFields.push('שנה');
+  if (!vehicle.fuel_type && !isVessel) missingFields.push('סוג דלק');
+  if (!isVessel && !vehicle.current_km) missingFields.push('קילומטראז\'');
+  if (isVessel && !vehicle.current_engine_hours) missingFields.push('שעות מנוע');
+  if (!vehicle.insurance_company) missingFields.push('חברת ביטוח');
   if (!vehicle.vehicle_photo) missingFields.push('תמונה');
   const hasMissing = missingFields.length > 0 && !vehicle._isDemo;
 
