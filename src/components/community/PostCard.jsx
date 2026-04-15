@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageCircle, Car, Ship, Bike, Truck, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2, Flag, Ban, MoreHorizontal, Wrench } from 'lucide-react';
+import { MessageCircle, Car, Ship, Bike, Truck, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2, Flag, Ban, MoreHorizontal, Wrench, Pencil, X as XIcon, Check as CheckIcon } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { getVehicleCategory } from '@/lib/designTokens';
 import { formatDistanceToNow } from 'date-fns';
@@ -49,6 +49,9 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   const [showEmojis, setShowEmojis] = useState(false);
   const [showFullImage, setShowFullImage] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(post.body || '');
+  const [savingEdit, setSavingEdit] = useState(false);
   const { user, isGuest } = useAuth();
   const queryClient = useQueryClient();
   const isLong = post.body?.length > 200;
@@ -133,6 +136,25 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     setDeleting(false);
   };
 
+  const handleSaveEdit = async () => {
+    const trimmed = editText.trim();
+    if (trimmed.length < 10) { alert('יש לכתוב לפחות 10 תווים'); return; }
+    if (trimmed === post.body) { setEditing(false); return; }
+    setSavingEdit(true);
+    try {
+      await supabase.from('community_posts').update({ body: trimmed }).eq('id', post.id);
+      queryClient.invalidateQueries({ queryKey: ['community_posts', post.domain] });
+      setEditing(false);
+    } catch (err) {
+      alert('שגיאה בעדכון: ' + (err?.message || 'נסה שוב'));
+    } finally { setSavingEdit(false); }
+  };
+
+  const cancelEdit = () => {
+    setEditText(post.body || '');
+    setEditing(false);
+  };
+
   const totalReactions = Object.values(reactionCounts).reduce((a, b) => a + b, 0);
 
   // Vehicle icon
@@ -171,10 +193,16 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" dir="rtl" className="w-44">
             {isOwner && (
-              <DropdownMenuItem onClick={handleDelete} disabled={deleting}
-                className="gap-2 text-sm font-medium cursor-pointer text-red-600">
-                <Trash2 className="w-4 h-4" /> מחק פוסט
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem onClick={() => { setEditText(post.body || ''); setEditing(true); }}
+                  className="gap-2 text-sm font-medium cursor-pointer">
+                  <Pencil className="w-4 h-4" /> ערוך פוסט
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDelete} disabled={deleting}
+                  className="gap-2 text-sm font-medium cursor-pointer text-red-600">
+                  <Trash2 className="w-4 h-4" /> מחק פוסט
+                </DropdownMenuItem>
+              </>
             )}
             {!isOwner && canInteract && (
               <>
@@ -205,14 +233,42 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
 
       {/* Body */}
       <div className="px-4 pb-3">
-        <p className={`text-sm leading-relaxed ${!expanded && isLong ? 'line-clamp-4' : ''}`} style={{ color: '#374151' }}>
-          {post.body}
-        </p>
-        {isLong && (
-          <button onClick={() => setExpanded(!expanded)}
-            className="text-xs font-bold mt-1" style={{ color: T.primary }}>
-            {expanded ? 'הצג פחות' : 'קראו עוד...'}
-          </button>
+        {editing ? (
+          <div className="space-y-2">
+            <textarea value={editText} onChange={e => setEditText(e.target.value.slice(0, 2000))}
+              rows={4} maxLength={2000}
+              className="w-full text-sm leading-relaxed rounded-xl p-3 outline-none focus:ring-2"
+              style={{ background: '#FAFAFA', border: '1px solid #E5E7EB', color: '#374151' }} />
+            <div className="flex items-center gap-2">
+              <button onClick={handleSaveEdit} disabled={savingEdit || editText.trim().length < 10}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all active:scale-[0.97] disabled:opacity-50"
+                style={{ background: T.primary }}>
+                <CheckIcon className="w-3 h-3" />
+                {savingEdit ? 'שומר...' : 'שמור'}
+              </button>
+              <button onClick={cancelEdit} disabled={savingEdit}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-[0.97]"
+                style={{ background: '#F3F4F6', color: '#6B7280' }}>
+                <XIcon className="w-3 h-3" />
+                ביטול
+              </button>
+              <span className="text-[10px] mr-auto" style={{ color: editText.length > 1800 ? '#DC2626' : '#9CA3AF' }}>
+                {editText.length}/2000
+              </span>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className={`text-sm leading-relaxed ${!expanded && isLong ? 'line-clamp-4' : ''}`} style={{ color: '#374151' }}>
+              {post.body}
+            </p>
+            {isLong && (
+              <button onClick={() => setExpanded(!expanded)}
+                className="text-xs font-bold mt-1" style={{ color: T.primary }}>
+                {expanded ? 'הצג פחות' : 'קראו עוד...'}
+              </button>
+            )}
+          </>
         )}
       </div>
 

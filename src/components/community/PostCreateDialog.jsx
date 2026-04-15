@@ -42,12 +42,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
       let anonymousNumber = null;
 
       if (isAnonymous) {
-        // Get the next anonymous number for this user
-        const { data: anonNum } = await supabase.rpc('get_anonymous_number', {
-          p_post_id: '00000000-0000-0000-0000-000000000000', // dummy - we'll use the post's own number
-          p_user_id: user.id,
-        }).catch(() => ({ data: null }));
-        // Poster is always #1 in their own thread
+        // Poster is always anonymous #1 in their own thread
         anonymousNumber = 1;
         authorName = `אנונימי #${anonymousNumber}`;
       }

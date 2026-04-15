@@ -54,11 +54,15 @@ export default function CommentSection({ postId, postOwnerId, canComment: canCom
       let anonymousNumber = null;
 
       if (anonymous) {
-        const { data: numData } = await supabase.rpc('get_anonymous_number', {
-          p_post_id: postId,
-          p_user_id: user.id,
-        });
-        anonymousNumber = numData || 1;
+        try {
+          const { data: numData } = await supabase.rpc('get_anonymous_number', {
+            p_post_id: postId,
+            p_user_id: user.id,
+          });
+          anonymousNumber = numData || 2;
+        } catch {
+          anonymousNumber = 2; // Fallback if RPC fails
+        }
         authorName = `אנונימי #${anonymousNumber}`;
       }
 
