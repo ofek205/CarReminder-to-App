@@ -3,11 +3,14 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, X, Loader2, Image as ImageIcon, User, HelpCircle, Car, Ship } from 'lucide-react';
+import { Camera, X, Loader2, Image as ImageIcon, User, HelpCircle, Car, Ship, ChevronDown, Check, Sparkles } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
+import { getVehicleVisual } from '@/lib/designTokens';
+import VehicleIcon from '../shared/VehicleIcon';
 
 export default function PostCreateDialog({ open, onClose, domain, vehicles, T }) {
   const [body, setBody] = useState('');
@@ -16,6 +19,9 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [showAnonHelp, setShowAnonHelp] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const selectedVehicle = vehicles?.find(v => v.id === linkedVehicleId);
   const queryClient = useQueryClient();
 
   const reset = () => { setBody(''); setImageUrl(''); setLinkedVehicleId(''); setIsAnonymous(false); };
@@ -174,6 +180,93 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             </div>
           </div>
 
+          {/* Vehicle picker — at the TOP, like in AI Assistant */}
+          {vehicles && vehicles.length > 0 && (
+            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              <PopoverTrigger asChild>
+                <button type="button"
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-2xl transition-all active:scale-[0.99]"
+                  style={{ background: '#FAFAFA', border: '1px solid #E5E7EB' }}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {selectedVehicle ? (() => {
+                      const { theme } = getVehicleVisual(selectedVehicle);
+                      return (
+                        <>
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: theme.light }}>
+                            <VehicleIcon vehicle={selectedVehicle} className="w-3.5 h-3.5" style={{ color: theme.primary }} />
+                          </div>
+                          <div className="text-right min-w-0">
+                            <p className="text-[11px] font-bold truncate" style={{ color: '#1F2937' }}>
+                              {selectedVehicle.nickname || `${selectedVehicle.manufacturer || ''} ${selectedVehicle.model || ''}`.trim()}
+                            </p>
+                            <p className="text-[9px]" style={{ color: '#9CA3AF' }}>שואל על הרכב הזה</p>
+                          </div>
+                        </>
+                      );
+                    })() : (
+                      <>
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#F3F4F6' }}>
+                          <Sparkles className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[11px] font-bold" style={{ color: '#1F2937' }}>שאלה כללית</p>
+                          <p className="text-[9px]" style={{ color: '#9CA3AF' }}>או בחר רכב ספציפי</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {selectedVehicle && (
+                      <span onClick={(e) => { e.stopPropagation(); setLinkedVehicleId(''); }}
+                        className="w-6 h-6 rounded-full flex items-center justify-center cursor-pointer" style={{ background: '#F3F4F6' }}>
+                        <X className="w-3 h-3" style={{ color: '#9CA3AF' }} />
+                      </span>
+                    )}
+                    <ChevronDown className="w-4 h-4" style={{ color: '#9CA3AF' }} />
+                  </div>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-[calc(100vw-48px)] max-w-sm p-2 rounded-2xl" dir="rtl">
+                <div className="space-y-1 max-h-72 overflow-y-auto">
+                  <button onClick={() => { setLinkedVehicleId(''); setPickerOpen(false); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-right transition-all hover:bg-gray-50">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#F3F4F6' }}>
+                      <Sparkles className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
+                    </div>
+                    <div className="flex-1 text-right">
+                      <p className="text-[12px] font-bold" style={{ color: '#1F2937' }}>שאלה כללית</p>
+                      <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לרכב מסוים</p>
+                    </div>
+                    {!selectedVehicle && <Check className="w-4 h-4" style={{ color: T.primary }} />}
+                  </button>
+                  {vehicles.length > 0 && <div className="my-1 h-px bg-gray-100" />}
+                  {vehicles.map(v => {
+                    const { theme } = getVehicleVisual(v);
+                    const sel = linkedVehicleId === v.id;
+                    return (
+                      <button key={v.id} onClick={() => { setLinkedVehicleId(v.id); setPickerOpen(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-right transition-all hover:bg-gray-50">
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: theme.light }}>
+                          <VehicleIcon vehicle={v} className="w-3.5 h-3.5" style={{ color: theme.primary }} />
+                        </div>
+                        <div className="flex-1 text-right min-w-0">
+                          <p className="text-[12px] font-bold truncate" style={{ color: '#1F2937' }}>
+                            {v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim()}
+                          </p>
+                          <p className="text-[10px]" style={{ color: '#9CA3AF' }}>
+                            {[v.manufacturer, v.year].filter(Boolean).join(' · ')}
+                            {v.current_km ? ` · ${Number(v.current_km).toLocaleString()} ק"מ` : ''}
+                          </p>
+                        </div>
+                        {sel && <Check className="w-4 h-4" style={{ color: theme.primary }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+
           {/* Textarea */}
           <div>
             <Textarea value={body} onChange={e => setBody(e.target.value)}
@@ -247,33 +340,6 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             </label>
           )}
 
-          {/* Vehicle link card */}
-          {vehicles && vehicles.length > 0 && (
-            <div className="rounded-2xl p-3" style={{ background: '#FAFAFA', border: '1px solid #E5E7EB' }}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: T.light || '#F3F4F6' }}>
-                  <DomainIcon className="w-3.5 h-3.5" style={{ color: T.primary }} />
-                </div>
-                <span className="text-sm font-bold" style={{ color: '#1F2937' }}>
-                  קשר ל{domain === 'vessel' ? 'כלי שייט' : 'רכב'} (אופציונלי)
-                </span>
-              </div>
-              <Select value={linkedVehicleId} onValueChange={setLinkedVehicleId}>
-                <SelectTrigger className="h-10 text-[13px] rounded-xl" style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
-                  <SelectValue placeholder="בחירה..." />
-                </SelectTrigger>
-                <SelectContent dir="rtl">
-                  <SelectItem value="none">ללא</SelectItem>
-                  {vehicles.map(v => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ')} {v.year ? `(${v.year})` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
 
         {/* ── Bottom submit button ── */}
