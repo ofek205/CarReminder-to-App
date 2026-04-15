@@ -89,6 +89,12 @@ function UserPopover() {
   const [open, setOpen] = useState(false);
 
   const handleLogout = async () => {
+    // Clear personal data from localStorage on logout (privacy)
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('yossi_chat_history') || k === 'read_notif_ids' || k === 'read_notif_timed' || k === 'dismissed_notif_ids')
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
     await supabase.auth.signOut();
   };
 
@@ -158,6 +164,12 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   });
 
   const handleLogout = async () => {
+    // Clear personal data from localStorage on logout (privacy)
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('yossi_chat_history') || k === 'read_notif_ids' || k === 'read_notif_timed' || k === 'dismissed_notif_ids')
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
     await supabase.auth.signOut();
   };
 

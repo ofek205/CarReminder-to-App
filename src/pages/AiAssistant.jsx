@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 
-const STORAGE_KEY = 'yossi_chat_history';
+const STORAGE_KEY_PREFIX = 'yossi_chat_history_';
+const getStorageKey = (userId) => `${STORAGE_KEY_PREFIX}${userId || 'guest'}`;
 const MIN_LEN = 2;
 const MAX_LEN = 800;
 const MIN_INTERVAL_MS = 1500; // rate limit between sends
@@ -66,20 +67,27 @@ export default function AiAssistant() {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Load chat history
+  // Load chat history per-user (privacy: each user sees only their own chat)
   useEffect(() => {
+    // CLEAR previous messages when user changes (security)
+    setMessages([]);
+    if (!user?.id) return;
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(getStorageKey(user.id));
       if (stored) setMessages(JSON.parse(stored));
     } catch {}
-  }, []);
 
-  // Save chat history (last 50 only)
+    // CLEANUP: remove old shared key from previous version (one-time migration)
+    try { localStorage.removeItem('yossi_chat_history'); } catch {}
+  }, [user?.id]);
+
+  // Save chat history (last 50 only) - per user
   useEffect(() => {
+    if (!user?.id) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-50)));
+      localStorage.setItem(getStorageKey(user.id), JSON.stringify(messages.slice(-50)));
     } catch {}
-  }, [messages]);
+  }, [messages, user?.id]);
 
   // Load user vehicles
   useEffect(() => {
@@ -286,7 +294,9 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
   const clearChat = () => {
     if (!confirm('למחוק את כל היסטוריית השיחה?')) return;
     setMessages([]);
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    if (user?.id) {
+      try { localStorage.removeItem(getStorageKey(user.id)); } catch {}
+    }
     toast.success('היסטוריה נמחקה');
   };
 
