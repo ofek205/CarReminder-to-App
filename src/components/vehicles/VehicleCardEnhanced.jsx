@@ -5,7 +5,7 @@ import { createPageUrl } from '@/utils';
 import { Car, Ship, Bike, Truck, ChevronLeft, Gauge, Clock, Calendar, Shield, MoreVertical, Edit, FileText, AlertCircle, RefreshCw, Check, X } from 'lucide-react';
 import { getTheme, getVehicleCategory, C } from '@/lib/designTokens';
 import VehicleIcon from '../shared/VehicleIcon';
-import { getDateStatus, usesKm, usesHours, getVehicleLabels } from '../shared/DateStatusUtils';
+import { getDateStatus, usesKm, usesHours, getVehicleLabels, isVessel } from '../shared/DateStatusUtils';
 import StatusBadge from '../shared/StatusBadge';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '../shared/GuestContext';
