@@ -104,7 +104,7 @@ async function callGroq(body) {
       'Authorization': `Bearer ${groqKey}`,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: body.model && body.model.includes('llama') ? body.model : 'llama-3.3-70b-versatile',
       messages,
       max_tokens: body.max_tokens || 400,
       temperature: 0.7,
@@ -114,6 +114,10 @@ async function callGroq(body) {
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
     console.error('Groq API error:', res.status, errText);
+    // For 401/403 (auth) - throw so user sees clear error; for others fall through
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('Invalid Groq API key');
+    }
     return null;
   }
 
@@ -152,7 +156,23 @@ async function callClaude(body) {
  * @returns {Promise<object>} - Response with { content: [{ text }] }
  */
 export async function aiRequest(body) {
-  // Try 1: Supabase Edge Function
+  // Primary: Groq (free, fast, our chosen provider)
+  try {
+    const groqResult = await callGroq(body);
+    if (groqResult) return groqResult;
+  } catch (err) {
+    console.warn('Groq failed, trying Gemini:', err.message);
+  }
+
+  // Backup 1: Google Gemini (supports images for OCR)
+  try {
+    const geminiResult = await callGemini(body);
+    if (geminiResult) return geminiResult;
+  } catch (err) {
+    console.warn('Gemini failed:', err.message);
+  }
+
+  // Backup 2: Supabase Edge Function (if deployed)
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   if (supabaseUrl) {
     try {
@@ -168,29 +188,12 @@ export async function aiRequest(body) {
         body: JSON.stringify(body),
       });
       if (res.ok) return await res.json();
-      if (res.status !== 404) throw new Error(`AI proxy error: ${res.status}`);
     } catch (err) {
-      if (err.message?.includes('AI proxy error')) throw err;
+      console.warn('Supabase Edge function failed:', err.message);
     }
   }
 
-  // Try 2: Groq (free, fast, text-only)
-  try {
-    const groqResult = await callGroq(body);
-    if (groqResult) return groqResult;
-  } catch (err) {
-    console.warn('Groq failed, trying Gemini:', err.message);
-  }
-
-  // Try 3: Google Gemini (free, supports images)
-  try {
-    const geminiResult = await callGemini(body);
-    if (geminiResult) return geminiResult;
-  } catch (err) {
-    console.warn('Gemini failed, trying Claude:', err.message);
-  }
-
-  // Try 4: Claude (dev fallback)
+  // Last resort: Claude (dev only)
   if (!import.meta.env.PROD) {
     try {
       const claudeResult = await callClaude(body);
