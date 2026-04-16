@@ -874,6 +874,7 @@ function LayoutInner({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const menuBtnRef = useRef(false);
   const [a11yOpen, setA11yOpen] = useState(false);
   const [welcomeState, setWelcomeState] = useState(null);
   const [guestPopupClosed, setGuestPopupClosed] = useState(
@@ -989,16 +990,32 @@ function LayoutInner({ children }) {
       <div className="lg:hidden fixed inset-x-0 top-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', zIndex: 9998 }}>
         {isGuest && <GuestBanner />}
         <div className="bg-white border-b border-gray-100 px-3 py-2 flex items-center gap-2.5" dir="rtl">
-          <button onClick={() => { if (open) setOpen(false); else setOpen(true); }}
-            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90 relative"
-            style={{ background: open ? '#E5E7EB' : '#F3F4F6', zIndex: 10001 }}>
-            <Menu className="h-4.5 w-4.5 text-gray-600" />
-          </button>
-          <Sheet open={open} onOpenChange={(v) => { if (!v) setOpen(false); }}>
-            <SheetContent side="right" className="p-0 w-60 !top-0 !bottom-0 flex flex-col">
-              <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} hasVessel={hasVessel} isMobile />
-            </SheetContent>
-          </Sheet>
+          {(() => {
+            // Ref prevents race condition: overlay close + button toggle fighting
+            const btnClicked = menuBtnRef;
+            return (
+              <>
+                <button
+                  onClick={() => {
+                    btnClicked.current = true;
+                    setOpen(o => !o);
+                    setTimeout(() => { btnClicked.current = false; }, 150);
+                  }}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"
+                  style={{ background: open ? '#E5E7EB' : '#F3F4F6', position: 'relative', zIndex: 10001 }}>
+                  <Menu className="h-4.5 w-4.5 text-gray-600" />
+                </button>
+                <Sheet open={open} onOpenChange={(v) => {
+                  if (btnClicked.current) return; // ignore overlay close when hamburger was clicked
+                  setOpen(v);
+                }}>
+                  <SheetContent side="right" className="p-0 w-60 !top-0 !bottom-0 flex flex-col">
+                    <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} hasVessel={hasVessel} isMobile />
+                  </SheetContent>
+                </Sheet>
+              </>
+            );
+          })()}
           <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
             <img src={logo} alt="CarReminder" className="h-8 w-8 rounded-lg object-cover shadow-sm" />
             <span className="text-sm font-bold text-gray-900">CarReminder</span>
