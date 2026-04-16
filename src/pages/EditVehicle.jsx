@@ -506,11 +506,21 @@ export default function EditVehicle() {
 
           {/* ק"מ/שעות + חברת ביטוח - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
-            <div data-field={vesselMode ? 'current_engine_hours' : 'current_km'} className="rounded-xl p-1 -m-1 transition-all">
-              <Label>{vesselMode ? 'שעות מנוע' : 'קילומטראז׳'}</Label>
+            <div data-field={vesselMode || usageMetric === 'שעות מנוע' ? 'current_engine_hours' : 'current_km'} className="rounded-xl p-1 -m-1 transition-all">
+              <div className="flex items-center justify-between mb-1">
+                <Label className="mb-0">{vesselMode || usageMetric === 'שעות מנוע' ? 'שעות מנוע' : 'קילומטראז׳'}</Label>
+                {offroadMode && (
+                  <button type="button"
+                    onClick={() => setUsageMetric(m => m === 'קילומטרים' ? 'שעות מנוע' : 'קילומטרים')}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full transition-all active:scale-95"
+                    style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0' }}>
+                    {usageMetric === 'קילומטרים' ? 'עבור לשעות מנוע' : 'עבור לק"מ'}
+                  </button>
+                )}
+              </div>
               <Input type="number" dir="ltr" placeholder="0"
-                value={vesselMode ? form.current_engine_hours : form.current_km}
-                onChange={e => handleChange(vesselMode ? 'current_engine_hours' : 'current_km', e.target.value)} />
+                value={vesselMode || usageMetric === 'שעות מנוע' ? form.current_engine_hours : form.current_km}
+                onChange={e => handleChange(vesselMode || usageMetric === 'שעות מנוע' ? 'current_engine_hours' : 'current_km', e.target.value)} />
             </div>
             <div>
               <Label>{vesselMode ? 'חברת ביטוח ימי' : 'חברת ביטוח'}</Label>

@@ -354,6 +354,7 @@ export default function AddVehicle() {
     // vehicle_type is required by the backend
     if (!validate(form, {
       vehicle_type: { custom: [v => v && v.trim() !== '', 'יש לבחור סוג כלי רכב'] },
+      license_plate: { required: 'יש להזין מספר רישוי' },
     })) return;
 
     // Check for duplicate license plate
@@ -1063,16 +1064,18 @@ export default function AddVehicle() {
                         placeholder={isVesselCategory ? 'היאכטה שלי' : 'הקורולה שלי'}
                       />
                     </div>
-                    <div>
-                      <Label>{isVesselCategory ? 'מספר זיהוי' : 'מספר רישוי'}</Label>
+                    <div data-field="license_plate">
+                      <Label>{isVesselCategory ? 'מספר זיהוי' : 'מספר רישוי'} <span className="text-red-400">*</span></Label>
                       <Input
                         value={form.license_plate}
-                        onChange={e => handleChange('license_plate', e.target.value)}
+                        onChange={e => { handleChange('license_plate', e.target.value); clearError('license_plate'); }}
                         onClear={() => handleChange('license_plate', '')}
                         dir="ltr" placeholder={isVesselCategory ? 'IL-12345' : '00-000-00'}
+                        error={!!errors.license_plate}
                         className={autofillCls('license_plate', autofillFields)}
                       />
                       <AutofillHint name="license_plate" autofillFields={autofillFields} />
+                      <FieldError message={errors.license_plate} />
                     </div>
                   </div>
 
@@ -1209,7 +1212,17 @@ export default function AddVehicle() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>{usageMetric === 'שעות מנוע' ? 'שעות מנוע' : 'קילומטראז׳'}</Label>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="mb-0">{usageMetric === 'שעות מנוע' ? 'שעות מנוע' : 'קילומטראז׳'}</Label>
+                        {isOffroadCategory && (
+                          <button type="button"
+                            onClick={() => setUsageMetric(m => m === 'קילומטרים' ? 'שעות מנוע' : 'קילומטרים')}
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full transition-all active:scale-95"
+                            style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0' }}>
+                            {usageMetric === 'קילומטרים' ? 'עבור לשעות מנוע' : 'עבור לק"מ'}
+                          </button>
+                        )}
+                      </div>
                       {usageMetric === 'שעות מנוע' ? (
                         <Input type="number" value={form.current_engine_hours} onChange={e => handleChange('current_engine_hours', e.target.value)} placeholder="0" dir="ltr" />
                       ) : (
