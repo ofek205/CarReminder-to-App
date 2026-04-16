@@ -989,12 +989,12 @@ function LayoutInner({ children }) {
       <div className="lg:hidden fixed inset-x-0 top-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', zIndex: 9998 }}>
         {isGuest && <GuestBanner />}
         <div className="bg-white border-b border-gray-100 px-3 py-2 flex items-center gap-2.5" dir="rtl">
-          <button onClick={() => setOpen(o => !o)}
+          <button onClick={() => { if (open) setOpen(false); else setOpen(true); }}
             className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90 relative"
             style={{ background: open ? '#E5E7EB' : '#F3F4F6', zIndex: 10001 }}>
             <Menu className="h-4.5 w-4.5 text-gray-600" />
           </button>
-          <Sheet open={open} onOpenChange={setOpen}>
+          <Sheet open={open} onOpenChange={(v) => { if (!v) setOpen(false); }}>
             <SheetContent side="right" className="p-0 w-60 !top-0 !bottom-0 flex flex-col">
               <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} hasVessel={hasVessel} isMobile />
             </SheetContent>
