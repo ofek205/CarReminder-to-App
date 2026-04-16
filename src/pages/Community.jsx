@@ -147,9 +147,11 @@ export default function Community() {
     <div dir="rtl" className="-mx-4 -mt-4" style={{ background: '#F3F4F6', minHeight: '100dvh' }}>
 
       {/* ── Hero Header ── */}
-      <div className="sticky top-0 z-30 relative overflow-hidden" style={{ background: T.grad || C.grad }}>
-        <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-        <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }} />
+      <div className="sticky top-0 z-30 relative" style={{ background: T.grad || C.grad }}>
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+          <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }} />
+        </div>
         <div className="relative z-10 px-4 pt-4 pb-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2.5">
@@ -182,16 +184,18 @@ export default function Community() {
         </div>
 
         {/* Tabs */}
+        {tabs.length > 1 && (
         <div className="flex px-4 gap-2 pb-3">
           {tabs.map(tab => {
             const active = domain === tab.key;
             return (
               <button key={tab.key} onClick={() => { setDomain(tab.key); setSearch(''); }}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all"
+                className="flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-bold transition-all active:scale-[0.95]"
                 style={{
-                  background: active ? '#fff' : 'rgba(255,255,255,0.15)',
-                  color: active ? tab.color : 'rgba(255,255,255,0.8)',
-                  boxShadow: active ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+                  background: active ? '#fff' : 'rgba(255,255,255,0.2)',
+                  color: active ? tab.color : '#fff',
+                  boxShadow: active ? '0 2px 10px rgba(0,0,0,0.12)' : 'none',
+                  border: active ? 'none' : '1px solid rgba(255,255,255,0.25)',
                 }}>
                 <tab.icon className="w-3.5 h-3.5" />
                 {tab.label}
@@ -199,6 +203,7 @@ export default function Community() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* ── Search bar (slide down) ── */}
