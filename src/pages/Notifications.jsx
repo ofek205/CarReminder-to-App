@@ -322,7 +322,20 @@ function AuthNotifications() {
     },
     enabled: !!user?.id,
   });
-  const profileIncomplete = !profileData || !profileData.phone;
+  const PROFILE_REMIND_KEY = 'profile_remind_dismissed_at';
+  const [profileDismissed, setProfileDismissed] = useState(() => {
+    try {
+      const ts = localStorage.getItem(PROFILE_REMIND_KEY);
+      if (!ts) return false;
+      const daysSince = (Date.now() - Number(ts)) / 86400000;
+      return daysSince < 30; // show again after 30 days
+    } catch { return false; }
+  });
+  const profileIncomplete = (!profileData || !profileData.phone) && !profileDismissed;
+  const dismissProfileReminder = () => {
+    localStorage.setItem(PROFILE_REMIND_KEY, String(Date.now()));
+    setProfileDismissed(true);
+  };
 
   // Check license expiration
   const licenseExpDate = profileData?.license_expiration_date;
@@ -485,21 +498,27 @@ function AuthNotifications() {
         </div>
       </div>
 
-      {/* Profile incomplete notification */}
+      {/* Profile incomplete notification - shows once per month */}
       {profileIncomplete && (
-        <Link to={createPageUrl('UserProfile')}
-          className="rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all active:scale-[0.99]"
+        <div className="rounded-2xl p-4 mb-2.5 flex items-center gap-3"
           style={{ background: '#EEF2FF', border: '1.5px solid #C7D2FE', boxShadow: '0 2px 10px rgba(67,56,202,0.08)' }}
           dir="rtl">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: '#4338CA', boxShadow: '0 3px 10px rgba(67,56,202,0.3)' }}>
-            <User className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold" style={{ color: '#312E81' }}>השלם פרטים אישיים</p>
-            <p className="text-xs mt-0.5" style={{ color: '#6366F1' }}>הוסף טלפון ותאריך לידה באזור האישי</p>
-          </div>
-        </Link>
+          <Link to={createPageUrl('UserProfile')} className="flex items-center gap-3 flex-1 min-w-0 transition-all active:scale-[0.99]">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: '#4338CA', boxShadow: '0 3px 10px rgba(67,56,202,0.3)' }}>
+              <User className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold" style={{ color: '#312E81' }}>השלם פרטים אישיים</p>
+              <p className="text-xs mt-0.5" style={{ color: '#6366F1' }}>הוסף טלפון ותאריך לידה באזור האישי</p>
+            </div>
+          </Link>
+          <button onClick={dismissProfileReminder}
+            className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all active:scale-90"
+            style={{ background: '#C7D2FE' }}>
+            <span className="text-xs font-bold" style={{ color: '#4338CA' }}>✕</span>
+          </button>
+        </div>
       )}
 
       {/* License expiration alert */}

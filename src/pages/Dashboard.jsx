@@ -125,7 +125,7 @@ function UrgentBanner({ reminders, vehicles }) {
 }
 
 // ── Hero Vehicle Card (premium design - photo background) ──────────────────
-function VehicleCard({ vehicle, isDemo }) {
+function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
@@ -176,12 +176,15 @@ function VehicleCard({ vehicle, isDemo }) {
             </span>
           </div>
 
-          {/* Demo badge */}
-          {isDemo && (
+          {/* Demo / Guest badge */}
+          {(isDemo || isGuestVehicle) && (
             <div className="absolute top-4 left-4 z-10">
               <span className="text-xs font-black px-3 py-1.5 rounded-full backdrop-blur-md flex items-center gap-1"
-                style={{ background: '#FFBF00', color: '#92400E', boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }}>
-                👀 לדוגמה
+                style={isDemo
+                  ? { background: '#FFBF00', color: '#92400E', boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }
+                  : { background: 'rgba(255,255,255,0.9)', color: '#2D5233', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }
+                }>
+                {isDemo ? '👀 לדוגמה' : '💾 שמור זמנית'}
               </span>
             </div>
           )}
@@ -605,21 +608,10 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Demo vehicles → show ALL as cards. Real vehicles → compact rows + summary */}
-          {isShowingDemo ? (
-            <>
-              {vehiclesToShow.map(v => (
-                <VehicleCard key={v.id} vehicle={v} isDemo={true} />
-              ))}
-            </>
-          ) : (
-            <>
-              <StatusSummary vehicles={vehiclesToShow} />
-              {vehiclesToShow.map(v => (
-                <VehicleRow key={v.id} vehicle={v} />
-              ))}
-            </>
-          )}
+          {/* Vehicles list - each card gets its own demo/guest status */}
+          {vehiclesToShow.map(v => (
+            <VehicleCard key={v.id} vehicle={v} isDemo={!!v._isDemo} isGuestVehicle={!v._isDemo && v.id?.startsWith('guest_')} />
+          ))}
 
           {/* Add vehicle button */}
           <Link to={createPageUrl('AddVehicle')}>
