@@ -111,10 +111,12 @@ sql.push('  claimed_by_user_id UUID DEFAULT NULL,');
 sql.push('  claimed_at TIMESTAMPTZ DEFAULT NULL');
 sql.push(');');
 sql.push('');
-sql.push('-- Allow authenticated users to read their own email mapping');
+sql.push('-- Allow authenticated users to read/update their own email mapping');
 sql.push('ALTER TABLE migration_email_map ENABLE ROW LEVEL SECURITY;');
-sql.push("CREATE POLICY IF NOT EXISTS migration_email_read ON migration_email_map FOR SELECT TO authenticated USING (email = (SELECT email FROM auth.users WHERE id = auth.uid()));");
-sql.push("CREATE POLICY IF NOT EXISTS migration_email_update ON migration_email_map FOR UPDATE TO authenticated USING (email = (SELECT email FROM auth.users WHERE id = auth.uid()));");
+sql.push("DROP POLICY IF EXISTS migration_email_read ON migration_email_map;");
+sql.push("CREATE POLICY migration_email_read ON migration_email_map FOR SELECT TO authenticated USING (email = (SELECT email FROM auth.users WHERE id = auth.uid()));");
+sql.push("DROP POLICY IF EXISTS migration_email_update ON migration_email_map;");
+sql.push("CREATE POLICY migration_email_update ON migration_email_map FOR UPDATE TO authenticated USING (email = (SELECT email FROM auth.users WHERE id = auth.uid()));");
 sql.push('');
 
 // ── 2. Insert accounts, vehicles, logs, documents ──

@@ -286,11 +286,10 @@ export default function AdminDashboard() {
     Promise.all([
       db.accounts.list().catch(() => []),
       db.vehicles.list().catch(() => []),
-      // MaintenanceLog, RepairLog, Review, Document not yet in Supabase - return empty
-      Promise.resolve([]),  // maintLogs placeholder
-      Promise.resolve([]),  // repairLogs placeholder
+      db.maintenance_logs.list().catch(() => []),
+      Promise.resolve([]),  // repairLogs merged into maintenance_logs
       Promise.resolve([]),  // reviews placeholder
-      Promise.resolve([]),  // documents placeholder
+      db.documents.list().catch(() => []),
     ]).then(([accs, vehs, maint, repairs, revs, docs]) => {
       setFetchError(false);
       setAccounts(accs   || []);
