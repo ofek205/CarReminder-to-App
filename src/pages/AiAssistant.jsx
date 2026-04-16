@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 
-const STORAGE_KEY_PREFIX = 'yossi_chat_history_';
+const STORAGE_KEY_PREFIX = 'yossi_chat_';
+const CHAT_EXPIRY_DAYS = 30;
 const getStorageKey = (userId) => `${STORAGE_KEY_PREFIX}${userId || 'guest'}`;
 const MIN_LEN = 2;
 const MAX_LEN = 800;
@@ -67,25 +68,34 @@ export default function AiAssistant() {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Load chat history per-user (privacy: each user sees only their own chat)
+  // Load chat history — works for both guests and authenticated users
   useEffect(() => {
-    // CLEAR previous messages when user changes (security)
     setMessages([]);
-    if (!user?.id) return;
+    const key = getStorageKey(user?.id);
     try {
-      const stored = localStorage.getItem(getStorageKey(user.id));
-      if (stored) setMessages(JSON.parse(stored));
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const data = parsed?.messages || parsed; // support old format (array) + new format ({messages, savedAt})
+        const savedAt = parsed?.savedAt || Date.now();
+        // Expire after 30 days
+        if (Date.now() - savedAt > CHAT_EXPIRY_DAYS * 24 * 60 * 60 * 1000) {
+          localStorage.removeItem(key);
+        } else if (Array.isArray(data) && data.length > 0) {
+          setMessages(data);
+        }
+      }
     } catch {}
-
-    // CLEANUP: remove old shared key from previous version (one-time migration)
+    // Cleanup old key
     try { localStorage.removeItem('yossi_chat_history'); } catch {}
   }, [user?.id]);
 
-  // Save chat history (last 50 only) - per user
+  // Save chat history (last 50 messages) — auto-save with timestamp
   useEffect(() => {
-    if (!user?.id) return;
+    if (messages.length === 0) return;
+    const key = getStorageKey(user?.id);
     try {
-      localStorage.setItem(getStorageKey(user.id), JSON.stringify(messages.slice(-50)));
+      localStorage.setItem(key, JSON.stringify({ messages: messages.slice(-50), savedAt: Date.now() }));
     } catch {}
   }, [messages, user?.id]);
 
