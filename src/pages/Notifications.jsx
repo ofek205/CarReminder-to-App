@@ -11,7 +11,7 @@ import { formatDateHe, getVehicleLabels } from "../components/shared/DateStatusU
 import { useAuth } from "../components/shared/GuestContext";
 import { calcReminders } from "../components/shared/ReminderEngine";
 import { markNotificationRead } from "@/lib/notificationChannels";
-import { C } from '@/lib/designTokens';
+import { C, getVehicleCategory } from '@/lib/designTokens';
 
 const TYPE_CONFIG = {
   'טסט':        { icon: Calendar,  bg: '#FFF8E1', color: '#D97706', border: '#FDE68A' },
@@ -362,18 +362,24 @@ function AuthNotifications() {
     vehicles.forEach(v => {
       const name = v.nickname || v.manufacturer || 'רכב';
       const isVessel = isVesselV(v);
-      const testWord = isVessel ? 'כושר שייט' : 'טסט';
+      const vCat = getVehicleCategory(v.vehicle_type, v.nickname, v.manufacturer);
+      const testWord = isVessel ? 'כושר שייט' : 'טסט שנתי';
+      const vehicleTypeWord = vCat === 'vessel' ? 'כלי שייט' : vCat === 'motorcycle' ? 'אופנוע' : vCat === 'truck' ? 'משאית' : vCat === 'offroad' ? (v.vehicle_type || 'כלי שטח') : 'רכב';
+      const insWord = isVessel ? 'ביטוח ימי' : 'ביטוח';
       const vehicleAge = v.year ? now.getFullYear() - Number(v.year) : 0;
 
       // Test/כושר שייט
       const testDays = daysTo(v.test_due_date);
       if (testDays !== null && testDays <= threshold) {
-        add(`test-${v.id}`, testWord, testDays < 0 ? `${testWord} פג תוקף!` : `${testWord} בעוד ${testDays} ימים`, name, testDays, v.id);
+        const testLabel = isVessel
+          ? (testDays < 0 ? 'כושר שייט פג תוקף!' : `כושר שייט בעוד ${testDays} ימים`)
+          : (testDays < 0 ? `טסט ה${vehicleTypeWord} פג תוקף!` : `טסט ה${vehicleTypeWord} בעוד ${testDays} ימים`);
+        add(`test-${v.id}`, testWord, testLabel, name, testDays, v.id);
       }
       // Insurance
       const insDays = daysTo(v.insurance_due_date);
       if (insDays !== null && insDays <= threshold) {
-        add(`ins-${v.id}`, 'ביטוח', insDays < 0 ? 'ביטוח פג תוקף!' : `ביטוח בעוד ${insDays} ימים`, name, insDays, v.id);
+        add(`ins-${v.id}`, insWord, insDays < 0 ? `${insWord} פג תוקף!` : `${insWord} בעוד ${insDays} ימים`, name, insDays, v.id);
       }
       // Vessel safety equipment
       if (isVessel) {
@@ -399,7 +405,7 @@ function AuthNotifications() {
       // Brakes (15+ years)
       if (!isVessel && vehicleAge >= 15 && v.test_due_date) {
         const td = daysTo(v.test_due_date);
-        if (td !== null && td <= 60 && td > 0) add(`brakes-${v.id}`, 'בלמים', `רכב ותיק (${vehicleAge} שנים) - נדרש אישור בלמים`, name, td, v.id);
+        if (td !== null && td <= 60 && td > 0) add(`brakes-${v.id}`, 'בלמים', `${vehicleTypeWord} ותיק (${vehicleAge} שנים), נדרש אישור בלמים`, name, td, v.id);
       }
       // Mileage update (6 months)
       const mileageDate = mileageDates[v.id] || v.km_update_date || v.engine_hours_update_date;

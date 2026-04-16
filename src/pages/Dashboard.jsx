@@ -600,10 +600,16 @@ export default function Dashboard() {
     const isShowingDemo = vehiclesToShow.some(v => v._isDemo);
 
     // Build reminders from vehicle dates
-    const reminders = vehiclesToShow.flatMap(v => [
-      v.test_due_date      && { id: `${v.id}_test`,  vehicle_id: v.id, title: 'טסט שנתי',    date: v.test_due_date,      type: 'test',        subtitle: v.nickname || v.manufacturer },
-      v.insurance_due_date && { id: `${v.id}_ins`,   vehicle_id: v.id, title: 'חידוש ביטוח', date: v.insurance_due_date, type: 'insurance',   subtitle: v.insurance_company || '' },
-    ].filter(Boolean));
+    const reminders = vehiclesToShow.flatMap(v => {
+      const vc = getVehicleCategory(v.vehicle_type, v.nickname, v.manufacturer);
+      const isV = isVesselType(v.vehicle_type, v.nickname);
+      const vtw = isV ? 'כושר שייט' : vc === 'motorcycle' ? 'טסט אופנוע' : vc === 'truck' ? 'טסט משאית' : vc === 'offroad' ? `טסט ${v.vehicle_type || 'כלי שטח'}` : 'טסט שנתי';
+      const iw = isV ? 'ביטוח ימי' : 'חידוש ביטוח';
+      return [
+        v.test_due_date      && { id: `${v.id}_test`, vehicle_id: v.id, title: vtw, date: v.test_due_date, type: 'test', subtitle: v.nickname || v.manufacturer },
+        v.insurance_due_date && { id: `${v.id}_ins`,  vehicle_id: v.id, title: iw,  date: v.insurance_due_date, type: 'insurance', subtitle: v.insurance_company || '' },
+      ].filter(Boolean);
+    });
 
     const upcomingReminders = reminders
       .filter(r => daysUntil(r.date) !== null)
@@ -700,10 +706,16 @@ export default function Dashboard() {
 
   const displayedVehicles = filteredVehicles !== null ? filteredVehicles : vehicles;
 
-  const allReminders = vehicles.flatMap(v => [
-    v.test_due_date      && { id: `${v.id}_test`, vehicle_id: v.id, title: 'טסט שנתי',    date: v.test_due_date,      type: 'test',      subtitle: v.nickname || v.manufacturer },
-    v.insurance_due_date && { id: `${v.id}_ins`,  vehicle_id: v.id, title: 'חידוש ביטוח', date: v.insurance_due_date, type: 'insurance', subtitle: v.insurance_company || '' },
-  ].filter(Boolean)).sort((a, b) => daysUntil(a.date) - daysUntil(b.date));
+  const allReminders = vehicles.flatMap(v => {
+    const vc = getVehicleCategory(v.vehicle_type, v.nickname, v.manufacturer);
+    const isV = isVesselType(v.vehicle_type, v.nickname);
+    const vtw = isV ? 'כושר שייט' : vc === 'motorcycle' ? 'טסט אופנוע' : vc === 'truck' ? 'טסט משאית' : vc === 'offroad' ? `טסט ${v.vehicle_type || 'כלי שטח'}` : 'טסט שנתי';
+    const iw = isV ? 'ביטוח ימי' : 'חידוש ביטוח';
+    return [
+      v.test_due_date      && { id: `${v.id}_test`, vehicle_id: v.id, title: vtw, date: v.test_due_date,      type: 'test',      subtitle: v.nickname || v.manufacturer },
+      v.insurance_due_date && { id: `${v.id}_ins`,  vehicle_id: v.id, title: iw,  date: v.insurance_due_date, type: 'insurance', subtitle: v.insurance_company || '' },
+    ].filter(Boolean);
+  }).sort((a, b) => daysUntil(a.date) - daysUntil(b.date));
 
   return (
     <div className="-mx-4 -mt-4 pb-4" style={{ background: C.bg, minHeight: '100dvh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
