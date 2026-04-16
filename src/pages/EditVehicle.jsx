@@ -149,7 +149,7 @@ export default function EditVehicle() {
       setLoading(false);
       } catch (err) {
         console.error('EditVehicle load error:', err);
-        alert('שגיאה בטעינת פרטי הרכב');
+        toast.error('שגיאה בטעינת פרטי הרכב');
         setLoading(false);
       }
     }

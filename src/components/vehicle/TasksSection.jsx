@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -145,7 +146,7 @@ export default function TasksSection({ vehicle }) {
   };
 
   const handleSave = async () => {
-    if (!form.title.trim()) { alert('יש להזין כותרת'); return; }
+    if (!form.title.trim()) { toast.error('יש להזין כותרת'); return; }
     // cork_notes table only has: vehicle_id, title, content, color, due_date, is_done, rotation
     // category and priority are kept in-memory / guest mode only (not DB columns yet)
     const dbTask = {
@@ -168,7 +169,7 @@ export default function TasksSection({ vehicle }) {
         const { supabase } = await import('@/lib/supabase');
         await supabase.from('cork_notes').insert(dbTask);
         queryClient.invalidateQueries({ queryKey: ['tasks-v2', vehicle.id] });
-      } catch (err) { alert('שגיאה: ' + (err?.message || 'נסה שוב')); return; }
+      } catch (err) { toast.error('שגיאה: ' + (err?.message || 'נסה שוב')); return; }
     }
     setDialogOpen(false);
   };

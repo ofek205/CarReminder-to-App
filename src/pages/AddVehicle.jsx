@@ -366,7 +366,7 @@ export default function AddVehicle() {
       );
       if (duplicate) {
         setDuplicateVehicle(duplicate);
-        alert('רכב עם מספר רישוי זה כבר קיים במערכת');
+        toast.error('רכב עם מספר רישוי זה כבר קיים במערכת');
         return;
       }
     }
@@ -451,7 +451,7 @@ export default function AddVehicle() {
 
     try {
       if (!accountId) {
-        alert('שגיאה: חשבון לא נמצא. נסה להתנתק ולהתחבר מחדש.');
+        toast.error('שגיאה: חשבון לא נמצא. נסה להתנתק ולהתחבר מחדש.');
         setSaving(false);
         return;
       }

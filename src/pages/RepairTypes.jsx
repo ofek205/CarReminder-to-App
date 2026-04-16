@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
+import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,7 @@ export default function RepairTypes() {
 
   const handleSave = async () => {
     if (!form.name.trim()) {
-      alert('יש להזין שם סוג תיקון');
+      toast.error('יש להזין שם סוג תיקון');
       return;
     }
 

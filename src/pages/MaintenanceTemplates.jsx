@@ -168,7 +168,7 @@ function AuthMaintenanceTemplates() {
 
   const handleSave = async () => {
     if (!form.name.trim()) {
-      alert(`יש להזין שם ${dialogType === 'repair' ? 'תיקון' : 'טיפול'}`);
+      toast.error(`יש להזין שם ${dialogType === 'repair' ? 'תיקון' : 'טיפול'}`);
       return;
     }
     

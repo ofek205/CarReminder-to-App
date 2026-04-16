@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { validateUploadFile } from '@/lib/securityUtils';

@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Camera, Loader2 } from 'lucide-react';
 import { aiRequest } from '@/lib/aiProxy';
+import { toast } from 'sonner';
 
 /**
  * Small camera button that scans a photo/certificate and extracts an expiry date using AI.
@@ -51,17 +52,17 @@ export default function AiDateScan({ onDateExtracted, label = 'סרוק תוקף
           if (!isNaN(d.getTime()) && d.getFullYear() >= 2020 && d.getFullYear() <= 2040) {
             onDateExtracted(parsed.date);
           } else {
-            alert('התאריך שזוהה לא תקין. נסה תמונה ברורה יותר.');
+            toast.error('התאריך שזוהה לא תקין, נסה תמונה ברורה יותר');
           }
         } else {
-          alert('לא הצלחתי לזהות תאריך בתמונה. נסה תמונה ברורה יותר.');
+          toast.error('לא הצלחתי לזהות תאריך בתמונה, נסה תמונה ברורה יותר');
         }
       } else {
-        alert('לא הצלחתי לעבד את התמונה. נסה שוב.');
+        toast.error('לא הצלחתי לעבד את התמונה, נסה שוב');
       }
     } catch (err) {
       console.error('AI date scan error:', err);
-      alert('שגיאה בסריקה: ' + (err?.message || 'נסה שוב'));
+      toast.error('שגיאה בסריקה, נסה שוב');
     } finally {
       setScanning(false);
     }

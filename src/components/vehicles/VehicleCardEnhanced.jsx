@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -75,9 +76,9 @@ function QuickMileageInput({ vehicle, T, isKm, onClose }) {
     e?.preventDefault();
     e?.stopPropagation();
     const num = Number(value);
-    if (!value || isNaN(num) || num < 0) { alert('יש להזין מספר תקין'); return; }
+    if (!value || isNaN(num) || num < 0) { toast.error('יש להזין מספר תקין'); return; }
     if (currentValue && num < currentValue) {
-      alert(`הערך החדש (${num.toLocaleString()}) נמוך מהערך הנוכחי (${currentValue.toLocaleString()})`);
+      toast.error(`הערך החדש (${num.toLocaleString()}) נמוך מהערך הנוכחי (${currentValue.toLocaleString()})`);
       return;
     }
     setSaving(true);
@@ -98,7 +99,7 @@ function QuickMileageInput({ vehicle, T, isKm, onClose }) {
       await queryClient.invalidateQueries({ queryKey: ['vehicle', vehicle.id] });
       onClose();
     } catch (err) {
-      alert('שגיאה בשמירה. נסה שוב.');
+      toast.error('שגיאה בשמירה. נסה שוב.');
     } finally {
       setSaving(false);
     }

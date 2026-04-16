@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
@@ -113,7 +114,7 @@ export default function MaintenanceSection({ vehicle }) {
   };
 
   const handleSave = async () => {
-    if (!form.title.trim()) { alert('יש להזין כותרת'); return; }
+    if (!form.title.trim()) { toast.error('יש להזין כותרת'); return; }
     setSaving(true);
     try {
       const { supabase } = await import('@/lib/supabase');
@@ -135,7 +136,7 @@ export default function MaintenanceSection({ vehicle }) {
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
       setDialogOpen(false);
     } catch (err) {
-      alert('שגיאה בשמירה: ' + (err?.message || 'נסה שוב'));
+      toast.error('שגיאה בשמירה: ' + (err?.message || 'נסה שוב'));
     } finally {
       setSaving(false);
     }
@@ -148,7 +149,7 @@ export default function MaintenanceSection({ vehicle }) {
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
     } catch (err) {
       console.error('Delete maintenance error:', err);
-      alert('שגיאה במחיקת טיפול');
+      toast.error('שגיאה במחיקת טיפול');
     }
   };
 

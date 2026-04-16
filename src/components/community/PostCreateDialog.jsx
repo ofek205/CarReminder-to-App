@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import useFormDraft from '@/hooks/useFormDraft';
 import FieldError from '../shared/FieldError';
+import { toast } from 'sonner';
 
 // Hebrew stop words to filter from search keywords
 const STOP_WORDS = new Set(['של', 'את', 'על', 'עם', 'זה', 'אני', 'הוא', 'היא', 'לא', 'כן', 'יש', 'אין', 'מה', 'איך', 'למה', 'כי', 'אם', 'או', 'גם', 'רק', 'עוד', 'כל', 'הם', 'אבל', 'שלי', 'שלך', 'אחרי', 'לפני', 'בין', 'תוך', 'כמו', 'מאוד', 'הרבה', 'קצת']);
@@ -74,8 +75,8 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
   const handleImage = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) { alert('תמונה גדולה מ-3MB'); return; }
-    if (!['image/jpeg', 'image/png'].includes(file.type)) { alert('ניתן להעלות רק JPG/PNG'); return; }
+    if (file.size > 3 * 1024 * 1024) { toast.error('תמונה גדולה מ-3MB'); return; }
+    if (!['image/jpeg', 'image/png'].includes(file.type)) { toast.error('ניתן להעלות רק JPG/PNG'); return; }
     const reader = new FileReader();
     reader.onload = (ev) => setImageUrl(ev.target.result);
     reader.readAsDataURL(file);
@@ -114,7 +115,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
       generateAiResponse(post, linkedVehicleId ? vehicles.find(v => v.id === linkedVehicleId) : null);
     } catch (err) {
       console.error('Post create error:', err);
-      alert('שגיאה ביצירת הפוסט: ' + (err?.message || JSON.stringify(err)));
+      toast.error('שגיאה ביצירת הפוסט');
     } finally {
       setSaving(false);
     }

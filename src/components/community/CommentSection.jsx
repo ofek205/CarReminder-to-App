@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { Send, Wrench, Loader2, Heart, Flag, UserX } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -139,7 +140,7 @@ export default function CommentSection({ postId, postOwnerId, canComment: canCom
                             try {
                               const reports = JSON.parse(localStorage.getItem('reported_comments') || '[]');
                               if (!reports.includes(c.id)) { reports.push(c.id); localStorage.setItem('reported_comments', JSON.stringify(reports)); }
-                              alert('הדיווח נשלח. תודה!');
+                              toast.success('הדיווח נשלח. תודה!');
                             } catch {}
                           }}>
                           <Flag className="w-2.5 h-2.5" style={{ color: '#D1D5DB' }} />

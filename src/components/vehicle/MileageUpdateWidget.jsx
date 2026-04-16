@@ -62,7 +62,7 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
       setValue('');
       onUpdated?.({ ...coreUpdate, ...dateUpdate });
     } catch (err) {
-      alert('שגיאה בשמירה. נסה שוב.');
+      toast.error('שגיאה בשמירה. נסה שוב.');
     } finally {
       setSaving(false);
     }

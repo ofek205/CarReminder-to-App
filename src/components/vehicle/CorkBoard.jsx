@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { db } from '@/lib/supabaseEntities';
@@ -167,7 +168,7 @@ function NoteDialog({ open, onClose, note, onSave, onDelete, categories, T }) {
   }, [open, note]);
 
   const handleSave = async () => {
-    if (!title.trim()) { alert('הכנס כותרת לפתק'); return; }
+    if (!title.trim()) { toast.error('הכנס כותרת לפתק'); return; }
     setSaving(true);
     try {
       await onSave({
@@ -385,7 +386,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
         }
         queryClient.invalidateQueries({ queryKey: ['cork-notes', vehicle.id] });
       } catch (e) {
-        alert('שגיאה בשמירת הפתק');
+        toast.error('שגיאה בשמירת הפתק');
         console.error(e);
       }
     }
@@ -399,7 +400,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
         await db.cork_notes.delete(noteId);
         queryClient.invalidateQueries({ queryKey: ['cork-notes', vehicle.id] });
       } catch {
-        alert('שגיאה במחיקה');
+        toast.error('שגיאה במחיקה');
       }
     }
   };

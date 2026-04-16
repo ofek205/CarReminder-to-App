@@ -8,6 +8,7 @@ import { useAuth } from '../shared/GuestContext';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import CommentSection from './CommentSection';
 
 function timeAgo(date) {
@@ -135,7 +136,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
       try { await navigator.share({ title: 'CarReminder - קהילה', text, url }); } catch {}
     } else {
       await navigator.clipboard.writeText(url);
-      alert('הקישור הועתק!');
+      toast.success('הקישור הועתק!');
     }
   };
 
@@ -145,13 +146,13 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     try {
       await db.community_posts.delete(post.id);
       queryClient.invalidateQueries({ queryKey: ['community_posts', post.domain] });
-    } catch { alert('שגיאה במחיקה'); }
+    } catch { toast.error('שגיאה במחיקה'); }
     setDeleting(false);
   };
 
   const handleSaveEdit = async () => {
     const trimmed = editText.trim();
-    if (trimmed.length < 10) { alert('יש לכתוב לפחות 10 תווים'); return; }
+    if (trimmed.length < 10) { toast.error('יש לכתוב לפחות 10 תווים'); return; }
     if (trimmed === post.body) { setEditing(false); return; }
     setSavingEdit(true);
     try {
@@ -159,7 +160,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
       queryClient.invalidateQueries({ queryKey: ['community_posts', post.domain] });
       setEditing(false);
     } catch (err) {
-      alert('שגיאה בעדכון: ' + (err?.message || 'נסה שוב'));
+      toast.error('שגיאה בעדכון, נסה שוב');
     } finally { setSavingEdit(false); }
   };
 
@@ -224,7 +225,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
                     try {
                       const reports = JSON.parse(localStorage.getItem('reported_posts') || '[]');
                       if (!reports.includes(post.id)) { reports.push(post.id); localStorage.setItem('reported_posts', JSON.stringify(reports)); }
-                      alert('הדיווח נשלח. תודה!');
+                      toast.success('הדיווח נשלח. תודה!');
                     } catch {}
                   }} className="gap-2 text-sm font-medium cursor-pointer">
                     <Flag className="w-4 h-4" /> דווח על תוכן
