@@ -364,7 +364,7 @@ function VehiclesContent({ vehicles, isLoading }) {
 
   // ── Render ──────────────────────────────────────────────────────────────
   return (
-    <div dir="rtl">
+    <div dir="rtl" style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
       <PageHeader
         title={isVesselPage ? 'כלי שייט' : 'רכבים'}
         subtitle={`${filteredByPage.length} ${isVesselPage ? 'כלי שייט' : 'כלי רכב'}`}

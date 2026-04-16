@@ -290,7 +290,7 @@ function VehicleCardEnhanced({ vehicle }) {
             </div>
 
             {/* Status - compact inline */}
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <div className="flex items-center gap-2 mt-2 flex-wrap overflow-hidden">
               <span className="text-[10px] font-bold" style={{ color: C.muted }}>{labels.testWord}:</span>
               <StatusBadge status={testStatus.status} label={testStatus.label} />
               <span className="text-[10px] font-bold" style={{ color: C.muted }}>{labels.insuranceWord || 'ביטוח'}:</span>
@@ -301,10 +301,10 @@ function VehicleCardEnhanced({ vehicle }) {
             {hasMissing && (
               <button
                 onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(`${createPageUrl('EditVehicle')}?id=${vehicle.id}`); }}
-                className="flex items-center gap-1.5 mt-2 px-2 py-1.5 rounded-lg w-full text-right transition-all active:scale-[0.98]"
+                className="flex items-center gap-1.5 mt-2 px-2 py-1.5 rounded-lg w-full text-right transition-all active:scale-[0.98] overflow-hidden"
                 style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
                 <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} />
-                <span className="text-[10px] font-bold flex-1" style={{ color: '#EA580C' }}>
+                <span className="text-[10px] font-bold flex-1 truncate" style={{ color: '#EA580C' }}>
                   פרטים חסרים: {missingFields.join(', ')}
                 </span>
                 <Edit className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} />
