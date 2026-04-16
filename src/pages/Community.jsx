@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
@@ -10,7 +10,7 @@ import SignUpPromptDialog from '../components/shared/SignUpPromptDialog';
 import PostCard from '../components/community/PostCard';
 import PostCreateDialog from '../components/community/PostCreateDialog';
 import { Input } from '@/components/ui/input';
-import { Search, Plus, Ship, Car, MessageSquare, PenLine, Users, X } from 'lucide-react';
+import { Search, Plus, Ship, Car, MessageSquare, PenLine, Users, X, Loader2 } from 'lucide-react';
 
 const marine = { primary: '#0C7B93', light: '#E0F7FA', border: '#B2EBF2', text: '#0A3D4D', muted: '#6B9EA8', grad: 'linear-gradient(135deg, #065A6E 0%, #0C7B93 100%)' };
 
@@ -19,11 +19,15 @@ export default function Community() {
   const queryClient = useQueryClient();
   const [domain, setDomain] = useState('vehicle');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [searchResultPostIds, setSearchResultPostIds] = useState(null); // null = no search active
   const [showCreate, setShowCreate] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [hasVessel, setHasVessel] = useState(false);
   const [userVehicles, setUserVehicles] = useState([]);
+  const searchInputRef = useRef(null);
 
   const T = domain === 'vessel' ? marine : C;
   const canInteract = isAuthenticated && !isGuest;
@@ -44,6 +48,38 @@ export default function Community() {
       } catch {}
     })();
   }, [isGuest, isAuthenticated, user]);
+
+  // Debounce search input
+  useEffect(() => {
+    if (!search.trim()) { setDebouncedSearch(''); setSearchResultPostIds(null); return; }
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Server-side search: posts + comments
+  useEffect(() => {
+    if (!debouncedSearch) { setSearchResultPostIds(null); return; }
+    let cancelled = false;
+    (async () => {
+      setSearching(true);
+      try {
+        const q = `%${debouncedSearch}%`;
+        // Search in posts body + author_name
+        const [postsRes, commentsRes] = await Promise.all([
+          supabase.from('community_posts').select('id').eq('domain', domain)
+            .or(`body.ilike.${q},author_name.ilike.${q}`).limit(100),
+          supabase.from('community_comments').select('post_id').ilike('body', q).limit(100),
+        ]);
+        if (cancelled) return;
+        const postIdSet = new Set();
+        (postsRes.data || []).forEach(p => postIdSet.add(p.id));
+        (commentsRes.data || []).forEach(c => postIdSet.add(c.post_id));
+        setSearchResultPostIds(postIdSet);
+      } catch { if (!cancelled) setSearchResultPostIds(new Set()); }
+      finally { if (!cancelled) setSearching(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [debouncedSearch, domain]);
 
   const { data: posts = [], isLoading } = useQuery({
     queryKey: ['community_posts', domain],
@@ -120,12 +156,12 @@ export default function Community() {
     const blockedSet = new Set(blockedUsers);
     const reportedSet = new Set(reportedPosts);
     let result = posts.filter(p => !blockedSet.has(p.user_id) && !reportedSet.has(p.id));
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      result = result.filter(p => p.body?.toLowerCase().includes(q) || p.author_name?.toLowerCase().includes(q));
+    // Apply server-side search filter
+    if (searchResultPostIds !== null) {
+      result = result.filter(p => searchResultPostIds.has(p.id));
     }
     return result;
-  }, [posts, search]);
+  }, [posts, searchResultPostIds]);
 
   const vehicleMap = useMemo(() => {
     const map = {};
@@ -165,10 +201,25 @@ export default function Community() {
                 </p>
               </div>
             </div>
-            <button onClick={() => setSearchOpen(o => !o)}
-              className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
-              <Search className="w-4 h-4 text-white" />
-            </button>
+          </div>
+
+          {/* Search bar — always visible */}
+          <div className="relative mb-2.5">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'rgba(255,255,255,0.5)' }} />
+            {searching && <Loader2 className="absolute left-10 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin" style={{ color: 'rgba(255,255,255,0.5)' }} />}
+            <input ref={searchInputRef} value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="חפש בפוסטים ובתגובות..."
+              dir="rtl"
+              className="w-full h-10 pr-10 pl-10 rounded-xl text-sm font-medium outline-none placeholder:text-white/40"
+              style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }} />
+            {search && (
+              <button onClick={() => { setSearch(''); searchInputRef.current?.focus(); }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(255,255,255,0.25)' }}>
+                <X className="w-3 h-3 text-white" />
+              </button>
+            )}
           </div>
 
           {/* Quick post bar */}
@@ -206,46 +257,65 @@ export default function Community() {
         )}
       </div>
 
-      {/* ── Search bar (slide down) ── */}
-      {searchOpen && (
-        <div className="px-4 py-2 bg-white border-b" style={{ borderColor: '#E5E7EB' }}>
-          <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#9CA3AF' }} />
-            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="חפש שאלה..."
-              className="pr-10 text-sm h-9 rounded-xl bg-gray-50" autoFocus />
-            <button onClick={() => { setSearchOpen(false); setSearch(''); }}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
-              style={{ background: '#F3F4F6' }}>
-              <X className="w-3 h-3 text-gray-400" />
-            </button>
-          </div>
+      {/* ── Search result count ── */}
+      {debouncedSearch && !searching && (
+        <div className="px-4 py-2 flex items-center justify-between" style={{ background: '#fff', borderBottom: '1px solid #E5E7EB' }}>
+          <p className="text-xs font-bold" style={{ color: filteredPosts.length > 0 ? T.primary : '#9CA3AF' }}>
+            {filteredPosts.length > 0
+              ? `נמצאו ${filteredPosts.length} תוצאות עבור "${debouncedSearch}"`
+              : `לא נמצאו תוצאות עבור "${debouncedSearch}"`
+            }
+          </p>
+          <button onClick={() => setSearch('')} className="text-[10px] font-bold underline" style={{ color: '#9CA3AF' }}>
+            נקה חיפוש
+          </button>
         </div>
       )}
 
       {/* ── Feed ── */}
       <div className="px-3 pt-3 pb-28">
         {isLoading ? <ListSkeleton count={4} variant="post" /> : filteredPosts.length === 0 ? (
-          <div className="text-center py-20 px-6 card-animate">
-            <div className="relative w-24 h-24 mx-auto mb-5">
-              <div className="absolute inset-0 rounded-full" style={{ background: T.light || '#F3F4F6' }} />
-              <div className="absolute inset-0 rounded-full flex items-center justify-center">
-                <MessageSquare className="w-11 h-11" style={{ color: T.primary, opacity: 0.25 }} />
+          debouncedSearch ? (
+            /* No search results — suggest posting */
+            <div className="text-center py-16 px-6 card-animate">
+              <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+                style={{ background: T.light || '#F3F4F6' }}>
+                <Search className="w-8 h-8" style={{ color: T.primary, opacity: 0.3 }} />
               </div>
-              <div className="absolute -top-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ background: '#FFBF00', boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }}>
-                <PenLine className="w-4 h-4 text-white" />
-              </div>
+              <h3 className="text-base font-black mb-2" style={{ color: '#1F2937' }}>לא מצאנו תוצאות</h3>
+              <p className="text-sm mb-5 leading-relaxed max-w-[250px] mx-auto" style={{ color: '#9CA3AF' }}>
+                נראה שעוד לא שאלו על זה. אולי תהיה הראשון?
+              </p>
+              <button onClick={handleFab}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97]"
+                style={{ background: T.grad || T.primary, boxShadow: `0 6px 24px ${T.primary}40` }}>
+                <PenLine className="w-4 h-4" /> שאל את הקהילה
+              </button>
             </div>
-            <h3 className="text-lg font-black mb-2" style={{ color: '#1F2937' }}>הקהילה מחכה לך!</h3>
-            <p className="text-sm mb-6 leading-relaxed max-w-[250px] mx-auto" style={{ color: '#9CA3AF' }}>
-              שאל שאלה על הרכב שלך וקבל תשובות מהקהילה ומיוסי המוסכניק
-            </p>
-            <button onClick={handleFab}
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97]"
-              style={{ background: T.grad || T.primary, boxShadow: `0 6px 24px ${T.primary}40` }}>
-              <PenLine className="w-4 h-4" /> פרסם שאלה ראשונה
-            </button>
-          </div>
+          ) : (
+            /* Empty feed — no posts at all */
+            <div className="text-center py-20 px-6 card-animate">
+              <div className="relative w-24 h-24 mx-auto mb-5">
+                <div className="absolute inset-0 rounded-full" style={{ background: T.light || '#F3F4F6' }} />
+                <div className="absolute inset-0 rounded-full flex items-center justify-center">
+                  <MessageSquare className="w-11 h-11" style={{ color: T.primary, opacity: 0.25 }} />
+                </div>
+                <div className="absolute -top-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ background: '#FFBF00', boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }}>
+                  <PenLine className="w-4 h-4 text-white" />
+                </div>
+              </div>
+              <h3 className="text-lg font-black mb-2" style={{ color: '#1F2937' }}>הקהילה מחכה לך!</h3>
+              <p className="text-sm mb-6 leading-relaxed max-w-[250px] mx-auto" style={{ color: '#9CA3AF' }}>
+                שאל שאלה על הרכב שלך וקבל תשובות מהקהילה ומיוסי המוסכניק
+              </p>
+              <button onClick={handleFab}
+                className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97]"
+                style={{ background: T.grad || T.primary, boxShadow: `0 6px 24px ${T.primary}40` }}>
+                <PenLine className="w-4 h-4" /> פרסם שאלה ראשונה
+              </button>
+            </div>
+          )
         ) : (
           <div className="space-y-3">
             {filteredPosts.map((post, i) => (
@@ -255,6 +325,7 @@ export default function Community() {
                 vehicle={post.linked_vehicle_id ? vehicleMap[post.linked_vehicle_id] : null}
                 interactions={interactionsData[post.id] || {}}
                 onCommentAdded={() => queryClient.invalidateQueries({ queryKey: ['community_comment_counts', domain] })}
+                searchQuery={debouncedSearch}
               />
               </div>
             ))}

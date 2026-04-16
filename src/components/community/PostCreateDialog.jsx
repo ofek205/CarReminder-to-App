@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, X, Loader2, Image as ImageIcon, User, HelpCircle, Car, Ship, ChevronDown, Check, Sparkles } from 'lucide-react';
+import { Camera, X, Loader2, Image as ImageIcon, User, HelpCircle, Car, Ship, ChevronDown, Check, Sparkles, MessageSquare, ArrowLeft } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
@@ -11,6 +11,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
 import { getVehicleVisual } from '@/lib/designTokens';
 import VehicleIcon from '../shared/VehicleIcon';
+import { useNavigate } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
+
+// Hebrew stop words to filter from search keywords
+const STOP_WORDS = new Set(['של', 'את', 'על', 'עם', 'זה', 'אני', 'הוא', 'היא', 'לא', 'כן', 'יש', 'אין', 'מה', 'איך', 'למה', 'כי', 'אם', 'או', 'גם', 'רק', 'עוד', 'כל', 'הם', 'אבל', 'שלי', 'שלך', 'אחרי', 'לפני', 'בין', 'תוך', 'כמו', 'מאוד', 'הרבה', 'קצת']);
 
 export default function PostCreateDialog({ open, onClose, domain, vehicles, T }) {
   const [body, setBody] = useState('');
@@ -20,11 +25,36 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
   const [showAnonHelp, setShowAnonHelp] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [similarPosts, setSimilarPosts] = useState([]);
+  const [searchingSimilar, setSearchingSimilar] = useState(false);
+  const [similarDismissed, setSimilarDismissed] = useState(false);
 
   const selectedVehicle = vehicles?.find(v => v.id === linkedVehicleId);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
-  const reset = () => { setBody(''); setImageUrl(''); setLinkedVehicleId(''); setIsAnonymous(false); };
+  // Search for similar posts as user types
+  useEffect(() => {
+    if (similarDismissed || !body || body.trim().length < 12) { setSimilarPosts([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        setSearchingSimilar(true);
+        // Extract meaningful keywords (> 2 chars, not stop words)
+        const words = body.trim().split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
+        if (words.length === 0) { setSimilarPosts([]); return; }
+        // Use top 3 keywords
+        const keywords = words.slice(0, 3);
+        const orFilter = keywords.map(k => `body.ilike.%${k}%`).join(',');
+        const { data } = await supabase.from('community_posts').select('id, body, author_name, created_at, is_anonymous, anonymous_number')
+          .eq('domain', domain).or(orFilter).order('created_at', { ascending: false }).limit(3);
+        setSimilarPosts(data || []);
+      } catch { setSimilarPosts([]); }
+      finally { setSearchingSimilar(false); }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [body, domain, similarDismissed]);
+
+  const reset = () => { setBody(''); setImageUrl(''); setLinkedVehicleId(''); setIsAnonymous(false); setSimilarPosts([]); setSimilarDismissed(false); };
 
   const handleImage = (e) => {
     const file = e.target.files?.[0];
@@ -307,6 +337,46 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
               </span>
             </div>
           </div>
+
+          {/* Similar posts — shown while typing */}
+          {similarPosts.length > 0 && !similarDismissed && (
+            <div className="rounded-2xl p-3 space-y-2 transition-all"
+              style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A' }}>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold flex items-center gap-1.5" style={{ color: '#92400E' }}>
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  נמצאו שאלות דומות
+                </p>
+                <button onClick={() => setSimilarDismissed(true)}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                  style={{ background: '#FEF3C7', color: '#B45309' }}>
+                  פרסם בכל זאת
+                </button>
+              </div>
+              {similarPosts.map(sp => (
+                <button key={sp.id}
+                  onClick={() => { onClose(); reset(); navigate(createPageUrl('Community') + `?post=${sp.id}`); }}
+                  className="w-full text-right rounded-xl p-2.5 flex items-start gap-2 transition-all active:scale-[0.98]"
+                  style={{ background: '#fff', border: '1px solid #FDE68A' }}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold truncate" style={{ color: '#1F2937' }}>
+                      {sp.is_anonymous ? `אנונימי${sp.anonymous_number ? ` #${sp.anonymous_number}` : ''}` : sp.author_name}
+                    </p>
+                    <p className="text-[11px] leading-relaxed mt-0.5 line-clamp-2" style={{ color: '#6B7280' }}>
+                      {sp.body?.slice(0, 120)}
+                    </p>
+                  </div>
+                  <ArrowLeft className="w-4 h-4 shrink-0 mt-1" style={{ color: '#D97706' }} />
+                </button>
+              ))}
+            </div>
+          )}
+          {searchingSimilar && body.trim().length >= 12 && (
+            <div className="flex items-center gap-2 px-2">
+              <Loader2 className="w-3 h-3 animate-spin" style={{ color: '#D97706' }} />
+              <span className="text-[10px] font-medium" style={{ color: '#D97706' }}>מחפש שאלות דומות...</span>
+            </div>
+          )}
 
           {/* Anonymous toggle — vibrant card */}
           <div className="rounded-2xl p-3 flex items-center justify-between transition-all"

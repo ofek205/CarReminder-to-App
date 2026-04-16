@@ -43,7 +43,20 @@ function Avatar({ name, size = 40, isAnonymous = false, anonymousNumber = null }
 
 const EMOJIS = ['👍', '❤️', '🔥', '👀'];
 
-export default function PostCard({ post, T, canComment, commentCount, vehicle, onCommentAdded, interactions }) {
+function HighlightText({ text, query }) {
+  if (!query || !text) return text;
+  try {
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+    return parts.map((part, i) =>
+      part.toLowerCase() === query.toLowerCase()
+        ? <mark key={i} className="rounded-sm px-0.5" style={{ background: '#FEF08A', color: '#92400E' }}>{part}</mark>
+        : part
+    );
+  } catch { return text; }
+}
+
+export default function PostCard({ post, T, canComment, commentCount, vehicle, onCommentAdded, interactions, searchQuery }) {
   const [expanded, setExpanded] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showEmojis, setShowEmojis] = useState(false);
@@ -262,7 +275,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         ) : (
           <>
             <p className={`text-sm leading-relaxed ${!expanded && isLong ? 'line-clamp-4' : ''}`} style={{ color: '#374151' }}>
-              {post.body}
+              {searchQuery ? <HighlightText text={post.body} query={searchQuery} /> : post.body}
             </p>
             {isLong && (
               <button onClick={() => setExpanded(!expanded)}
