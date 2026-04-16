@@ -18,6 +18,9 @@ import { isViewOnly } from '@/lib/permissions';
 import { C } from '@/lib/designTokens';
 import ImageViewer from '../components/shared/ImageViewer';
 import useFormDraft from '@/hooks/useFormDraft';
+import useFormValidation from '@/hooks/useFormValidation';
+import FieldError from '../components/shared/FieldError';
+import SystemErrorBanner from '../components/shared/SystemErrorBanner';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 
@@ -84,8 +87,10 @@ export default function AddAccident() {
     key: isEdit ? `edit_accident_${editId}` : 'add_accident',
     data: form, setData: setForm,
     defaultData: EMPTY_FORM, userId: user?.id,
-    enabled: !isEdit, // only draft for new accidents
+    enabled: !isEdit,
   });
+  const { errors, validate, clearError } = useFormValidation();
+  const [systemError, setSystemError] = useState(null);
 
   // Load account for authenticated users
   useEffect(() => {
@@ -194,8 +199,11 @@ export default function AddAccident() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.vehicle_id) { toast.error('יש לבחור רכב'); return; }
-    if (!form.date) { toast.error('יש להזין תאריך'); return; }
+    setSystemError(null);
+    if (!validate(form, {
+      vehicle_id: { required: 'יש לבחור רכב' },
+      date: { required: 'יש להזין תאריך' },
+    })) return;
 
     setSaving(true);
     try {
@@ -230,7 +238,7 @@ export default function AddAccident() {
       navigate(createPageUrl('Accidents'));
     } catch (err) {
       console.error('Error saving accident:', err);
-      toast.error('שגיאה בשמירה');
+      setSystemError('אירעה שגיאה בשמירת הדיווח');
     } finally {
       setSaving(false);
     }
@@ -293,16 +301,20 @@ export default function AddAccident() {
         </div>
       )}
 
+      {systemError && (
+        <SystemErrorBanner message={systemError} onRetry={() => { setSystemError(null); handleSubmit({ preventDefault: () => {} }); }} />
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-5">
 
         {/* ── Vehicle selector ── */}
-        <div className="rounded-2xl p-4" style={{ background: '#F5F1EB', border: `1px solid ${C.border}` }}>
+        <div data-field="vehicle_id" className="rounded-2xl p-4" style={{ background: '#F5F1EB', border: `1px solid ${errors.vehicle_id ? '#FCA5A5' : C.border}` }}>
           <Label className="font-bold text-sm mb-2 block" style={{ color: C.text }}>
             <Car className="w-4 h-4 inline ml-1" />
-            באיזה רכב מדובר?
+            באיזה רכב מדובר? <span className="text-red-400">*</span>
           </Label>
-          <Select value={form.vehicle_id} onValueChange={v => handleChange('vehicle_id', v)}>
-            <SelectTrigger className="rounded-xl">
+          <Select value={form.vehicle_id} onValueChange={v => { handleChange('vehicle_id', v); clearError('vehicle_id'); }}>
+            <SelectTrigger className={`rounded-xl ${errors.vehicle_id ? 'border-red-400' : ''}`}>
               <SelectValue placeholder="בחר רכב" />
             </SelectTrigger>
             <SelectContent>
@@ -314,18 +326,20 @@ export default function AddAccident() {
               ))}
             </SelectContent>
           </Select>
+          <FieldError message={errors.vehicle_id} />
         </div>
 
         {/* ── Date & location ── */}
-        <div className="rounded-2xl p-4 space-y-3" style={{ background: '#F5F1EB', border: `1px solid ${C.border}` }}>
+        <div className="rounded-2xl p-4 space-y-3" style={{ background: '#F5F1EB', border: `1px solid ${errors.date ? '#FCA5A5' : C.border}` }}>
           <div className="flex items-center gap-2 mb-1">
             <Calendar className="w-4 h-4" style={{ color: C.primary }} />
             <span className="font-bold text-sm" style={{ color: C.text }}>מתי ואיפה</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>תאריך התאונה *</Label>
-              <DateInput value={form.date} onChange={v => handleChange('date', v)} className="rounded-xl" />
+            <div data-field="date">
+              <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>תאריך התאונה <span className="text-red-400">*</span></Label>
+              <DateInput value={form.date} onChange={v => { handleChange('date', v); clearError('date'); }} className={`rounded-xl ${errors.date ? 'border-red-400' : ''}`} />
+              <FieldError message={errors.date} />
             </div>
             <div>
               <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>מיקום</Label>

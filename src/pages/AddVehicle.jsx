@@ -29,6 +29,9 @@ import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
 import AiDateScan from '../components/shared/AiDateScan';
 import useFormDraft from '@/hooks/useFormDraft';
+import useFormValidation from '@/hooks/useFormValidation';
+import FieldError from '../components/shared/FieldError';
+import SystemErrorBanner from '../components/shared/SystemErrorBanner';
 
 const EMPTY_FORM = {
   vehicle_type_id: '',
@@ -121,6 +124,8 @@ export default function AddVehicle() {
     key: 'add_vehicle', data: form, setData: setForm,
     defaultData: EMPTY_FORM, userId: user?.id,
   });
+  const { errors, validate, clearError } = useFormValidation();
+  const [systemError, setSystemError] = useState(null);
 
   // Dynamic theme - switches to marine when כלי שייט is selected
   const isVesselCategory = selectedCategory?.label === 'כלי שייט';
@@ -345,11 +350,11 @@ export default function AddVehicle() {
   const handleSubmit = async (e) => {
     if (e?.preventDefault) e.preventDefault();
 
-    // vehicle_type is required by the backend - guard before saving
-    if (!form.vehicle_type || form.vehicle_type.trim() === '') {
-      alert('יש לבחור סוג כלי רכב לפני השמירה');
-      return;
-    }
+    setSystemError(null);
+    // vehicle_type is required by the backend
+    if (!validate(form, {
+      vehicle_type: { custom: [v => v && v.trim() !== '', 'יש לבחור סוג כלי רכב'] },
+    })) return;
 
     // Check for duplicate license plate
     if (form.license_plate) {
@@ -483,8 +488,7 @@ export default function AddVehicle() {
       setShowSuccess(true);
     } catch (err) {
       console.error('Vehicle save error:', err);
-      const msg = err?.message || JSON.stringify(err) || 'שגיאה לא ידועה';
-      alert('שגיאה בשמירת הרכב:\n' + msg);
+      setSystemError('אירעה שגיאה בשמירת הרכב');
       setSaving(false);
     }
   };

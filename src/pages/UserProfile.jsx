@@ -15,6 +15,9 @@ import LoadingSpinner from "../components/shared/LoadingSpinner";
 import DriverLicenseScanDialog from "../components/profile/DriverLicenseScanDialog";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
+import useFormValidation from '@/hooks/useFormValidation';
+import FieldError from '../components/shared/FieldError';
+import SystemErrorBanner from '../components/shared/SystemErrorBanner';
 
 function calcAge(birthDate) {
   if (!birthDate) return null;
@@ -147,6 +150,8 @@ function AuthUserProfile() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [accountId, setAccountId] = useState(null);
+  const { errors, validate, clearError } = useFormValidation();
+  const [systemError, setSystemError] = useState(null);
 
   useEffect(() => {
     async function init() {
@@ -215,16 +220,11 @@ function AuthUserProfile() {
   };
 
   const handleSave = async () => {
-    const phoneVal = form.phone?.replace(/[-\s]/g, '');
-    if (phoneVal && !/^0[0-9]{9}$/.test(phoneVal)) {
-      toast.error('מספר טלפון לא תקין - יש להזין 10 ספרות (לדוגמה: 050-1234567)');
-      return;
-    }
-    const licenseVal = form.driver_license_number?.replace(/[-\s]/g, '');
-    if (licenseVal && !/^\d{7,8}$/.test(licenseVal)) {
-      toast.error('מספר רישיון נהיגה לא תקין - יש להזין 7-8 ספרות');
-      return;
-    }
+    setSystemError(null);
+    if (!validate(form, {
+      phone: { pattern: [/^0\d{9}$/, 'מספר טלפון לא תקין (לדוגמה: 0501234567)'] },
+      driver_license_number: { pattern: [/^\d{7,8}$/, 'מספר רישיון לא תקין (7-8 ספרות)'] },
+    })) return;
 
     setSaving(true);
     try {
@@ -265,7 +265,7 @@ function AuthUserProfile() {
       // Notify bell to refresh (remove profile-incomplete notification)
       window.dispatchEvent(new Event('profileSaved'));
     } catch {
-      toast.error('שגיאה בשמירת הפרופיל');
+      setSystemError('אירעה שגיאה בשמירת הפרופיל');
     } finally {
       setSaving(false);
     }
@@ -295,6 +295,8 @@ function AuthUserProfile() {
 
         {/* Personal Info */}
         <Card className="p-6 border border-gray-100 shadow-sm rounded-2xl">
+          {systemError && <SystemErrorBanner message={systemError} onRetry={() => { setSystemError(null); handleSave(); }} />}
+
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-xl bg-[#FCF9F4] flex items-center justify-center">
               <User className="h-5 w-5 text-[#3E6B45]" />
@@ -334,11 +336,13 @@ function AuthUserProfile() {
               </div>
               <Input
                 value={form.phone}
-                onChange={e => handleChange('phone', e.target.value)}
+                onChange={e => { handleChange('phone', e.target.value); clearError('phone'); }}
                 placeholder="05X-XXXXXXX"
                 dir="ltr"
-                className={!form.phone?.trim() ? 'border-amber-300 focus:border-amber-500 bg-amber-50/30' : ''}
+                error={!!errors.phone}
+                className={!form.phone?.trim() && !errors.phone ? 'border-amber-300 focus:border-amber-500 bg-amber-50/30' : ''}
               />
+              <FieldError message={errors.phone} />
             </div>
 
             {/* Birth date - key field */}
@@ -396,7 +400,8 @@ function AuthUserProfile() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>מספר רישיון נהיגה</Label>
-              <Input value={form.driver_license_number} onChange={e => handleChange('driver_license_number', e.target.value)} placeholder="מספר רישיון" dir="ltr" />
+              <Input value={form.driver_license_number} onChange={e => { handleChange('driver_license_number', e.target.value); clearError('driver_license_number'); }} placeholder="מספר רישיון" dir="ltr" error={!!errors.driver_license_number} />
+              <FieldError message={errors.driver_license_number} />
             </div>
             <div>
               <Label>תוקף רישיון</Label>

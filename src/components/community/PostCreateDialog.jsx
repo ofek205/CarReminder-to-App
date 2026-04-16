@@ -14,6 +14,7 @@ import VehicleIcon from '../shared/VehicleIcon';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import useFormDraft from '@/hooks/useFormDraft';
+import FieldError from '../shared/FieldError';
 
 // Hebrew stop words to filter from search keywords
 const STOP_WORDS = new Set(['של', 'את', 'על', 'עם', 'זה', 'אני', 'הוא', 'היא', 'לא', 'כן', 'יש', 'אין', 'מה', 'איך', 'למה', 'כי', 'אם', 'או', 'גם', 'רק', 'עוד', 'כל', 'הם', 'אבל', 'שלי', 'שלך', 'אחרי', 'לפני', 'בין', 'תוך', 'כמו', 'מאוד', 'הרבה', 'קצת']);
@@ -31,6 +32,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
   const [similarPosts, setSimilarPosts] = useState([]);
   const [searchingSimilar, setSearchingSimilar] = useState(false);
   const [similarDismissed, setSimilarDismissed] = useState(false);
+  const [bodyError, setBodyError] = useState('');
 
   // Draft for post body
   const postDraftData = { body, linkedVehicleId, isAnonymous };
@@ -67,7 +69,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
     return () => clearTimeout(timer);
   }, [body, domain, similarDismissed]);
 
-  const reset = () => { setBody(''); setImageUrl(''); setLinkedVehicleId(''); setIsAnonymous(false); setSimilarPosts([]); setSimilarDismissed(false); };
+  const reset = () => { setBody(''); setImageUrl(''); setLinkedVehicleId(''); setIsAnonymous(false); setSimilarPosts([]); setSimilarDismissed(false); setBodyError(''); };
 
   const handleImage = (e) => {
     const file = e.target.files?.[0];
@@ -80,7 +82,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
   };
 
   const handleSubmit = async () => {
-    if (!body.trim() || body.trim().length < 10) { alert('יש לכתוב לפחות 10 תווים'); return; }
+    if (!body.trim() || body.trim().length < 10) { setBodyError('יש לכתוב לפחות 10 תווים'); return; }
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -326,13 +328,13 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
           {/* Textarea — prominent, with focus glow */}
           <div className="relative">
-            <Textarea value={body} onChange={e => setBody(e.target.value)}
+            <Textarea value={body} onChange={e => { setBody(e.target.value); if (bodyError) setBodyError(''); }}
               placeholder={selectedVehicle ? `על מה תרצה לפרסם בקשר ל-${selectedVehicle.nickname || selectedVehicle.manufacturer || 'הרכב'}?` : 'מה תרצה לפרסם?'}
               rows={4} maxLength={2000}
               className="text-[14px] resize-none rounded-2xl p-4 focus-visible:ring-2 focus-visible:ring-offset-0 transition-all"
               style={{
                 background: '#fff',
-                border: `1.5px solid ${body.trim().length > 0 ? T.primary + '60' : '#E5E7EB'}`,
+                border: `1.5px solid ${bodyError ? '#FCA5A5' : body.trim().length > 0 ? T.primary + '60' : '#E5E7EB'}`,
                 minHeight: 130,
                 boxShadow: body.trim().length > 0 ? `0 0 0 4px ${T.primary}10, 0 1px 4px rgba(0,0,0,0.04)` : '0 1px 4px rgba(0,0,0,0.04)',
               }} />
@@ -350,6 +352,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                 {body.length}/2000
               </span>
             </div>
+            <FieldError message={bodyError} />
           </div>
 
           {/* Similar posts — shown while typing */}
