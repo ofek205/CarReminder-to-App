@@ -186,6 +186,7 @@ export default function FindGarage() {
   const [nameQuery, setNameQuery] = useState('');
   const [hasVessel, setHasVessel] = useState(false);
   const mapRef = useRef(null);
+  const retryRef = useRef(false);
 
   // Detect if user has a vessel in their fleet
   useEffect(() => {
@@ -277,9 +278,12 @@ export default function FindGarage() {
       ]);
 
       if (!carData) {
-        // Servers temporarily unavailable - show empty results gracefully
         console.warn('Overpass API temporarily unavailable');
-        setGarages([]);
+        // Retry once after 3 seconds
+        if (!retryRef.current) {
+          retryRef.current = true;
+          setTimeout(() => { retryRef.current = false; fetchGarages(); }, 3000);
+        }
         setFetching(false);
         return;
       }
@@ -612,10 +616,14 @@ export default function FindGarage() {
       <div className="px-3 mt-2 pb-28">
         <div className="space-y-2.5">
           {!fetching && displayGarages.length === 0 && (
-            <div className="text-center py-12 rounded-2xl border" style={{ background: C.light, borderColor: C.border }}>
-              <Search className="w-10 h-10 mx-auto mb-3" style={{ color: C.muted }} />
-              <p className="font-medium" style={{ color: C.text }}>לא נמצאו תוצאות</p>
-              <p className="text-sm mt-1" style={{ color: C.muted }}>נסה להגדיל רדיוס או לשנות סינון</p>
+            <div className="text-center py-10 px-4 rounded-2xl border" style={{ background: C.light, borderColor: C.border }}>
+              <div className="w-14 h-14 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: '#fff' }}>
+                <Search className="w-7 h-7" style={{ color: C.muted }} />
+              </div>
+              <p className="font-bold text-sm" style={{ color: C.text }}>לא נמצאו תוצאות באזור</p>
+              <p className="text-xs mt-1.5 leading-relaxed" style={{ color: C.muted }}>
+                נסה להגדיל את רדיוס החיפוש, לשנות סינון, או לחפש עיר אחרת
+              </p>
             </div>
           )}
 

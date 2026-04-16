@@ -66,19 +66,19 @@ function isBirthdayToday(birthDate) {
 function GuestBanner() {
   const navigate = useNavigate();
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5" dir="rtl"
+    <div className="flex items-center gap-2 px-3 py-1" dir="rtl"
       style={{ background: 'linear-gradient(135deg, #2D5233, #3A6B42)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
       <p className="text-[10px] font-medium text-white/70 flex-1 truncate">מצב אורח</p>
       <Link
         to={createPageUrl('Auth')}
-        className="text-[10px] font-bold text-white/80 underline underline-offset-2 hover:text-white transition-colors py-0.5 px-1 touch-manipulation shrink-0"
+        className="text-[11px] font-bold text-white/80 underline underline-offset-2 hover:text-white transition-colors py-2 px-2 touch-manipulation shrink-0"
       >
         יש לי חשבון
       </Link>
       <Button onClick={() => navigate(createPageUrl('Auth'))}
-        className="text-[10px] font-bold h-6 px-2.5 gap-1 rounded-full touch-manipulation shrink-0"
+        className="text-[11px] font-bold h-8 px-3 gap-1 rounded-full touch-manipulation shrink-0"
         style={{ background: '#FFBF00', color: '#2D5233' }}>
-        <UserPlus className="h-3 w-3" />
+        <UserPlus className="h-3.5 w-3.5" />
         הירשם
       </Button>
     </div>
