@@ -63,25 +63,25 @@ export default function AccessibilityPanel({ open, onOpenChange }) {
                   ? `+${settings.fontSize} רמות`
                   : `${settings.fontSize} רמות`}
               </p>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <Button
                   size="icon"
                   variant="outline"
-                  className="h-8 w-8 shrink-0"
-                  disabled={settings.fontSize <= FONT_MIN}
-                  onClick={() => update('fontSize', settings.fontSize - 1)}
-                  aria-label="הקטן גופן"
+                  className="h-9 w-9 shrink-0 rounded-xl"
+                  disabled={settings.fontSize >= FONT_MAX}
+                  onClick={() => update('fontSize', settings.fontSize + 1)}
+                  aria-label="הגדל גופן"
                 >
-                  <Minus className="h-3.5 w-3.5" />
+                  <Plus className="h-3.5 w-3.5" />
                 </Button>
-                <div className="flex-1 flex justify-center gap-1">
+                <div className="flex-1 flex justify-center gap-1.5 overflow-hidden">
                   {[FONT_MIN, -1, 0, 1, 2, FONT_MAX].map(v => (
                     <button
                       key={v}
                       onClick={() => update('fontSize', v)}
-                      className={`w-5 h-5 rounded-full text-xs transition-colors ${
+                      className={`w-5 h-5 rounded-full text-[10px] transition-colors shrink-0 ${
                         settings.fontSize === v
-                          ? 'bg-[#2D5233] text-white'
+                          ? 'bg-[#2D5233] text-white scale-110'
                           : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                       }`}
                       aria-label={`גודל גופן ${v}`}
@@ -93,12 +93,12 @@ export default function AccessibilityPanel({ open, onOpenChange }) {
                 <Button
                   size="icon"
                   variant="outline"
-                  className="h-8 w-8 shrink-0"
-                  disabled={settings.fontSize >= FONT_MAX}
-                  onClick={() => update('fontSize', settings.fontSize + 1)}
-                  aria-label="הגדל גופן"
+                  className="h-9 w-9 shrink-0 rounded-xl"
+                  disabled={settings.fontSize <= FONT_MIN}
+                  onClick={() => update('fontSize', settings.fontSize - 1)}
+                  aria-label="הקטן גופן"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Minus className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
