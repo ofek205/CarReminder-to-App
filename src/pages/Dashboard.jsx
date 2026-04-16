@@ -462,16 +462,52 @@ export default function Dashboard() {
         if (members.length > 0) {
           finalAccountId = members[0].account_id;
         } else {
-          // Create account + membership for new user
-          const account = await db.accounts.create({
-            name: `החשבון של ${user.full_name || 'המשתמש'}`,
-            owner_user_id: user.id,
-          });
-          await db.account_members.create({
-            account_id: account.id, user_id: user.id, role: 'בעלים',
-            status: 'פעיל',
-          });
-          finalAccountId = account.id;
+          // Check if this user has a migrated account from Base44
+          let migratedAccount = null;
+          try {
+            const email = user.email?.toLowerCase().trim();
+            if (email) {
+              const { data: mapRows } = await supabase.from('migration_email_map')
+                .select('*').eq('email', email).is('claimed_by_user_id', null).limit(1);
+              if (mapRows?.length > 0) migratedAccount = mapRows[0];
+            }
+          } catch {} // Table may not exist yet
+
+          if (migratedAccount) {
+            // Link user to existing migrated account
+            await db.account_members.create({
+              account_id: migratedAccount.account_id, user_id: user.id, role: 'בעלים', status: 'פעיל',
+            });
+            finalAccountId = migratedAccount.account_id;
+            // Mark migration as claimed
+            try {
+              await supabase.from('migration_email_map').update({
+                claimed_by_user_id: user.id, claimed_at: new Date().toISOString(),
+              }).eq('email', migratedAccount.email);
+            } catch {}
+            // Pre-fill profile from migration data if available
+            try {
+              if (migratedAccount.phone || migratedAccount.birth_date || migratedAccount.driver_license_number) {
+                const profileData = { user_id: user.id };
+                if (migratedAccount.phone) profileData.phone = migratedAccount.phone;
+                if (migratedAccount.birth_date) profileData.birth_date = migratedAccount.birth_date;
+                if (migratedAccount.driver_license_number) profileData.driver_license_number = migratedAccount.driver_license_number;
+                if (migratedAccount.license_expiration_date) profileData.license_expiration_date = migratedAccount.license_expiration_date;
+                const existing = await db.user_profiles.filter({ user_id: user.id });
+                if (existing.length === 0) await db.user_profiles.create(profileData);
+              }
+            } catch {}
+          } else {
+            // No migration — create fresh account
+            const account = await db.accounts.create({
+              name: `החשבון של ${user.full_name || 'המשתמש'}`,
+              owner_user_id: user.id,
+            });
+            await db.account_members.create({
+              account_id: account.id, user_id: user.id, role: 'בעלים', status: 'פעיל',
+            });
+            finalAccountId = account.id;
+          }
         }
         setAccountId(finalAccountId);
 
