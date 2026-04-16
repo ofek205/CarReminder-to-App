@@ -17,6 +17,7 @@ import useAccountRole from '@/hooks/useAccountRole';
 import { isViewOnly } from '@/lib/permissions';
 import { C } from '@/lib/designTokens';
 import ImageViewer from '../components/shared/ImageViewer';
+import useFormDraft from '@/hooks/useFormDraft';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 
@@ -78,6 +79,13 @@ export default function AddAccident() {
   const [loading, setLoading] = useState(isEdit);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+
+  const draft = useFormDraft({
+    key: isEdit ? `edit_accident_${editId}` : 'add_accident',
+    data: form, setData: setForm,
+    defaultData: EMPTY_FORM, userId: user?.id,
+    enabled: !isEdit, // only draft for new accidents
+  });
 
   // Load account for authenticated users
   useEffect(() => {
@@ -217,6 +225,7 @@ export default function AddAccident() {
         queryClient.invalidateQueries({ queryKey: ['accidents'] });
       }
 
+      draft.clearDraft();
       toast.success(isEdit ? 'התאונה עודכנה בהצלחה' : 'התאונה נשמרה בהצלחה');
       navigate(createPageUrl('Accidents'));
     } catch (err) {
@@ -267,6 +276,20 @@ export default function AddAccident() {
           style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}>
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>זוהי תאונה לדוגמה בלבד - הנתונים אינם אמיתיים</span>
+        </div>
+      )}
+
+      {/* Draft resume prompt */}
+      {draft.showResume && (
+        <div className="rounded-2xl p-3.5 mb-4 flex items-center justify-between"
+          style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A' }} dir="rtl">
+          <p className="text-xs font-bold" style={{ color: '#92400E' }}>רוצה להמשיך מאיפה שהפסקת?</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={draft.resumeDraft}
+              className="text-[11px] font-bold px-3 py-1.5 rounded-xl" style={{ background: C.primary, color: '#fff' }}>המשך טיוטה</button>
+            <button type="button" onClick={draft.discardDraft}
+              className="text-[11px] font-bold px-3 py-1.5 rounded-xl" style={{ background: '#F3F4F6', color: '#6B7280' }}>התחל מחדש</button>
+          </div>
         </div>
       )}
 

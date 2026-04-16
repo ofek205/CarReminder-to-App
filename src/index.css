@@ -184,6 +184,17 @@ body.keyboard-visible {
   border-radius: 12px;
 }
 
+/* Draft saved indicator */
+@keyframes draft-saved {
+  0%   { opacity: 0; transform: translateY(2px); }
+  15%  { opacity: 1; transform: translateY(0); }
+  75%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-2px); }
+}
+.draft-saved {
+  animation: draft-saved 1.4s ease-in-out forwards;
+}
+
 /* Range slider thumb */
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;

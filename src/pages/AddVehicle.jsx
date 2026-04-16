@@ -28,6 +28,7 @@ import useAccountRole from '@/hooks/useAccountRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
 import AiDateScan from '../components/shared/AiDateScan';
+import useFormDraft from '@/hooks/useFormDraft';
 
 const EMPTY_FORM = {
   vehicle_type_id: '',
@@ -115,6 +116,11 @@ export default function AddVehicle() {
   const [autofillFields, setAutofillFields] = useState(new Set());
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const formRef = useRef(null);
+
+  const draft = useFormDraft({
+    key: 'add_vehicle', data: form, setData: setForm,
+    defaultData: EMPTY_FORM, userId: user?.id,
+  });
 
   // Dynamic theme - switches to marine when כלי שייט is selected
   const isVesselCategory = selectedCategory?.label === 'כלי שייט';
@@ -472,6 +478,7 @@ export default function AddVehicle() {
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
 
       try { if (user) await trackUserAction(user.id); } catch {}
+      draft.clearDraft();
       setSaving(false);
       setShowSuccess(true);
     } catch (err) {
@@ -972,9 +979,33 @@ export default function AddVehicle() {
       >
         {formVisible && (
           <>
+            {/* Draft resume prompt */}
+            {draft.showResume && (
+              <div className="rounded-2xl p-3.5 mb-4 flex items-center justify-between"
+                style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', boxShadow: '0 2px 8px rgba(217,119,6,0.08)' }} dir="rtl">
+                <p className="text-xs font-bold" style={{ color: '#92400E' }}>רוצה להמשיך מאיפה שהפסקת?</p>
+                <div className="flex gap-2">
+                  <button onClick={draft.resumeDraft}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all active:scale-95"
+                    style={{ background: T.primary, color: '#fff' }}>המשך טיוטה</button>
+                  <button onClick={draft.discardDraft}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all active:scale-95"
+                    style={{ background: '#F3F4F6', color: '#6B7280' }}>התחל מחדש</button>
+                </div>
+              </div>
+            )}
+
             {/* Step header - premium */}
             <div className="flex items-center justify-between mb-4" dir="rtl">
-              <h2 className="font-black text-xl" style={{ color: T.text }}>פרטי הרכב</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-black text-xl" style={{ color: T.text }}>פרטי הרכב</h2>
+                {draft.showSaved && (
+                  <span className="text-[10px] font-bold flex items-center gap-1 draft-saved"
+                    style={{ color: '#059669' }}>
+                    <Check className="w-3 h-3" /> נשמר
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => { resetAll(); setSelectedMethod(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}

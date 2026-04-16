@@ -13,9 +13,12 @@ import { getVehicleVisual } from '@/lib/designTokens';
 import VehicleIcon from '../shared/VehicleIcon';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import useFormDraft from '@/hooks/useFormDraft';
 
 // Hebrew stop words to filter from search keywords
 const STOP_WORDS = new Set(['של', 'את', 'על', 'עם', 'זה', 'אני', 'הוא', 'היא', 'לא', 'כן', 'יש', 'אין', 'מה', 'איך', 'למה', 'כי', 'אם', 'או', 'גם', 'רק', 'עוד', 'כל', 'הם', 'אבל', 'שלי', 'שלך', 'אחרי', 'לפני', 'בין', 'תוך', 'כמו', 'מאוד', 'הרבה', 'קצת']);
+
+const POST_DRAFT_DEFAULT = { body: '', linkedVehicleId: '', isAnonymous: false };
 
 export default function PostCreateDialog({ open, onClose, domain, vehicles, T }) {
   const [body, setBody] = useState('');
@@ -28,6 +31,16 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
   const [similarPosts, setSimilarPosts] = useState([]);
   const [searchingSimilar, setSearchingSimilar] = useState(false);
   const [similarDismissed, setSimilarDismissed] = useState(false);
+
+  // Draft for post body
+  const postDraftData = { body, linkedVehicleId, isAnonymous };
+  const draft = useFormDraft({
+    key: `post_create_${domain}`,
+    data: postDraftData,
+    setData: (d) => { if (d.body !== undefined) setBody(d.body); if (d.linkedVehicleId !== undefined) setLinkedVehicleId(d.linkedVehicleId); if (d.isAnonymous !== undefined) setIsAnonymous(d.isAnonymous); },
+    defaultData: POST_DRAFT_DEFAULT,
+    enabled: open,
+  });
 
   const selectedVehicle = vehicles?.find(v => v.id === linkedVehicleId);
   const queryClient = useQueryClient();
@@ -92,6 +105,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
       });
 
       queryClient.invalidateQueries({ queryKey: ['community_posts', domain] });
+      draft.clearDraft();
       reset();
       onClose();
 
