@@ -78,13 +78,18 @@ function UrgentBanner({ reminders, vehicles }) {
     bannerShadow: `${T.primary}40`,
   };
 
+  // Build vehicle type name for the banner (e.g. "הטרקטורון", "האופנוע", "הרכב")
+  const vType = urgentVehicle?.vehicle_type || '';
+  const vCat = getVehicleCategory(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
+  const vehicleTypeLabel = vCat === 'vessel' ? '' : vCat === 'motorcycle' ? 'האופנוע' : vCat === 'truck' ? 'המשאית' : vCat === 'offroad' ? ('ה' + (vType || 'כלי שטח')) : 'הרכב';
+
   const typeLabel = isExpired ? ({
     insurance: isUrgentVessel ? 'ביטוח ימי פג תוקף' : 'הביטוח פג תוקף',
-    test:      isUrgentVessel ? 'כושר שייט פג תוקף' : 'הטסט פג תוקף',
+    test:      isUrgentVessel ? 'כושר שייט פג תוקף' : `טסט ${vehicleTypeLabel} פג תוקף`,
     maintenance: 'טיפול תקופתי באיחור',
   }[urgent.type] || urgent.title) : ({
     insurance: isUrgentVessel ? 'חידוש ביטוח ימי מתקרב' : 'חידוש ביטוח מתקרב',
-    test:      isUrgentVessel ? 'כושר שייט מתקרב' : 'טסט הרכב מתקרב',
+    test:      isUrgentVessel ? 'כושר שייט מתקרב' : `טסט ${vehicleTypeLabel} מתקרב`,
     maintenance: 'טיפול תקופתי מתקרב',
   }[urgent.type] || urgent.title);
 
