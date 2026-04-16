@@ -64,147 +64,258 @@ export function getDocEmoji(documentType) {
 
 /**
  * calcReminders({ vehicles, documents, settings })
- *
- * Returns an array of reminder items sorted by daysLeft ascending (most urgent first).
- * Only includes items within the configured reminder window.
- *
- * Each item:
- * {
- *   id: string,           unique key
- *   type: 'test' | 'insurance' | 'document',
- *   emoji: string,
- *   typeName: string,     Hebrew label
- *   name: string,         vehicle name or document title
- *   dueDate: string,      ISO date
- *   daysLeft: number,
- *   status: 'danger' | 'warn' | 'upcoming',
- *   linkTo: string,       page URL fragment
- * }
+ * Legacy wrapper — calls calcAllReminders for backward compat.
  */
-
 export function calcReminders({ vehicles = [], documents = [], settings = {} }) {
-  const testDays   = settings.remind_test_days_before      ?? 14;
-  const insDays    = settings.remind_insurance_days_before ?? 14;
-  const docDays    = settings.remind_document_days_before  ?? 14;
-  const safetyDays = settings.remind_safety_days_before    ?? docDays; // fallback to doc window
+  return calcAllReminders({ vehicles, documents, settings });
+}
+
+/**
+ * calcAllReminders — UNIFIED notification engine.
+ * Used by: NotificationBell, Notifications page, device notifications.
+ *
+ * Computes ALL 13 notification types:
+ * 1. Test/כושר שייט (with vintage vehicle logic)
+ * 2. Insurance
+ * 3. Vessel safety (pyro, extinguisher, life raft)
+ * 4. Tires (100K km / 3 years)
+ * 5. Periodic service (15K km)
+ * 6. Shipyard (vessels, 3 years)
+ * 7. Brakes (15+ year old vehicles)
+ * 8. Mileage update (180+ days)
+ * 9. Winter prep (November)
+ * 10. Sailing season (April)
+ * 11. Documents
+ *
+ * Each item: { id, type, emoji, typeName, name, dueDate, daysLeft, status, linkTo, vehicleId }
+ */
+export function calcAllReminders({ vehicles = [], documents = [], settings = {} }) {
+  const threshold  = settings.remind_test_days_before ?? 60;
+  const insDays    = settings.remind_insurance_days_before ?? 60;
+  const docDays    = settings.remind_document_days_before ?? 14;
+  const safetyDays = settings.remind_safety_days_before ?? docDays;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
 
   const items = [];
+  let mileageDates = {};
+  try { mileageDates = JSON.parse(localStorage.getItem('carreminder_mileage_dates') || '{}'); } catch {}
 
-  // ── Vehicles ──
   vehicles.forEach(v => {
     const vLabels = getVehicleLabels(v.vehicle_type, v.nickname);
     const vName = v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || vLabels.vehicleFallback;
+    const isV = isVessel(v.vehicle_type, v.nickname);
+    const vehicleAge = v.year ? now.getFullYear() - Number(v.year) : 0;
+    const isVintage = !isV && (v.is_vintage || vehicleAge >= 20);
 
+    // 1. Test / כושר שייט (with vintage logic)
     if (v.test_due_date) {
-      const dl = daysUntil(v.test_due_date);
-      if (dl !== null && dl <= testDays) {
+      let nextTestDate = new Date(v.test_due_date);
+      if (isVintage && nextTestDate > now) {
+        const halfTest = new Date(nextTestDate);
+        halfTest.setMonth(halfTest.getMonth() - 6);
+        if (halfTest > now) nextTestDate = halfTest;
+      }
+      const dl = Math.ceil((nextTestDate - now) / 86400000);
+      const vintageTag = isVintage ? ' (אספנות)' : '';
+      if (dl <= threshold) {
         items.push({
-          id: `test-${v.id}`,
-          type: 'test',
-          emoji: '📋',
+          id: `test-${v.id}`, type: 'test', emoji: '📋',
           typeName: vLabels.testWord,
-          name: vName,
-          dueDate: v.test_due_date,
-          daysLeft: dl,
+          name: vName, vehicleId: v.id,
+          dueDate: v.test_due_date, daysLeft: dl,
           status: urgencyFromDays(dl),
+          label: dl < 0 ? `${vLabels.testWord} פג תוקף!${vintageTag}` : `${vLabels.testWord} בעוד ${dl} ימים${vintageTag}`,
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }
     }
 
+    // 2. Insurance
     if (v.insurance_due_date) {
       const dl = daysUntil(v.insurance_due_date);
       if (dl !== null && dl <= insDays) {
+        const iw = vLabels.insuranceWord || 'ביטוח';
         items.push({
-          id: `ins-${v.id}`,
-          type: 'insurance',
-          emoji: '🛡️',
-          typeName: vLabels.insuranceWord || 'ביטוח',
-          name: vName,
-          dueDate: v.insurance_due_date,
-          daysLeft: dl,
+          id: `ins-${v.id}`, type: 'insurance', emoji: '🛡️',
+          typeName: iw,
+          name: vName, vehicleId: v.id,
+          dueDate: v.insurance_due_date, daysLeft: dl,
           status: urgencyFromDays(dl),
+          label: dl < 0 ? `${iw} פג תוקף!` : `${iw} בעוד ${dl} ימים`,
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }
     }
 
-    // ── Vessel safety equipment ──
-    if (isVessel(v.vehicle_type, v.nickname)) {
-      if (v.pyrotechnics_expiry_date) {
-        const dl = daysUntil(v.pyrotechnics_expiry_date);
+    // 3. Vessel safety equipment
+    if (isV) {
+      const safetyItems = [
+        { key: 'pyro', field: 'pyrotechnics_expiry_date', emoji: '🔴', word: 'פירוטכניקה' },
+        { key: 'ext', field: 'fire_extinguisher_expiry_date', emoji: '🧯', word: 'מטף כיבוי' },
+        { key: 'raft', field: 'life_raft_expiry_date', emoji: '🛟', word: 'אסדת הצלה' },
+      ];
+      safetyItems.forEach(({ key, field, emoji, word }) => {
+        if (!v[field]) return;
+        const dl = daysUntil(v[field]);
         if (dl !== null && dl <= safetyDays) {
           items.push({
-            id: `pyro-${v.id}`,
-            type: 'safety',
-            emoji: '🔴',
-            typeName: 'פירוטכניקה',
-            name: vName,
-            dueDate: v.pyrotechnics_expiry_date,
-            daysLeft: dl,
+            id: `${key}-${v.id}`, type: 'safety', emoji,
+            typeName: word, name: vName, vehicleId: v.id,
+            dueDate: v[field], daysLeft: dl,
             status: urgencyFromDays(dl),
+            label: dl < 0 ? `${word} פג תוקף!` : `${word} בעוד ${dl} ימים`,
             linkTo: `VehicleDetail?id=${v.id}`,
           });
         }
-      }
+      });
+    }
 
-      if (v.fire_extinguisher_expiry_date) {
-        const dl = daysUntil(v.fire_extinguisher_expiry_date);
-        if (dl !== null && dl <= safetyDays) {
-          items.push({
-            id: `extinguisher-${v.id}`,
-            type: 'safety',
-            emoji: '🧯',
-            typeName: 'מטף כיבוי',
-            name: vName,
-            dueDate: v.fire_extinguisher_expiry_date,
-            daysLeft: dl,
-            status: urgencyFromDays(dl),
-            linkTo: `VehicleDetail?id=${v.id}`,
-          });
-        }
+    // 4. Tires (100K km / 3 years)
+    if (!isV && v.current_km && v.last_tire_change_date) {
+      const tireDaysAgo = Math.floor((now - new Date(v.last_tire_change_date)) / 86400000);
+      const tireYears = tireDaysAgo / 365;
+      const kmSinceTire = v.km_since_tire_change ? (v.current_km - Number(v.km_since_tire_change)) : 0;
+      if (kmSinceTire >= 90000 || tireYears >= 2.75) {
+        const urgent = kmSinceTire >= 100000 || tireYears >= 3;
+        items.push({
+          id: `tires-${v.id}`, type: 'maintenance', emoji: '🔧',
+          typeName: 'צמיגים', name: vName, vehicleId: v.id,
+          dueDate: null, daysLeft: urgent ? 0 : 30,
+          status: urgent ? 'danger' : 'warn',
+          label: urgent ? 'הגיע זמן להחליף צמיגים!' : 'החלפת צמיגים מתקרבת',
+          linkTo: `VehicleDetail?id=${v.id}`,
+        });
       }
+    }
 
-      if (v.life_raft_expiry_date) {
-        const dl = daysUntil(v.life_raft_expiry_date);
-        if (dl !== null && dl <= safetyDays) {
-          items.push({
-            id: `liferaft-${v.id}`,
-            type: 'safety',
-            emoji: '🛟',
-            typeName: 'אסדת הצלה',
-            name: vName,
-            dueDate: v.life_raft_expiry_date,
-            daysLeft: dl,
-            status: urgencyFromDays(dl),
-            linkTo: `VehicleDetail?id=${v.id}`,
-          });
-        }
+    // 5. Periodic service (15K km)
+    if (!isV && v.current_km) {
+      const lastServiceKm = v.km_baseline || 0;
+      const kmSince = v.current_km - lastServiceKm;
+      if (kmSince >= 13500) {
+        const urgent = kmSince >= 15000;
+        items.push({
+          id: `service-${v.id}`, type: 'maintenance', emoji: '⚙️',
+          typeName: 'טיפול', name: vName, vehicleId: v.id,
+          dueDate: null, daysLeft: urgent ? 0 : 30,
+          status: urgent ? 'danger' : 'warn',
+          label: urgent ? `טיפול תקופתי נדרש (${Math.round(kmSince / 1000)}K ק"מ)` : `טיפול מתקרב (${Math.round(kmSince / 1000)}K ק"מ)`,
+          linkTo: `VehicleDetail?id=${v.id}`,
+        });
       }
+    }
+
+    // 6. Shipyard (vessels, 3 years)
+    if (isV && v.last_shipyard_date) {
+      const shipDays = Math.floor((now - new Date(v.last_shipyard_date)) / 86400000);
+      const shipYears = shipDays / 365;
+      if (shipYears >= 2.75) {
+        const urgent = shipYears >= 3;
+        items.push({
+          id: `shipyard-${v.id}`, type: 'maintenance', emoji: '🚢',
+          typeName: 'מספנה', name: vName, vehicleId: v.id,
+          dueDate: null, daysLeft: urgent ? 0 : 30,
+          status: urgent ? 'danger' : 'warn',
+          label: urgent ? 'הגיע זמן לביקור מספנה!' : 'ביקור מספנה מתקרב',
+          linkTo: `VehicleDetail?id=${v.id}`,
+        });
+      }
+    }
+
+    // 7. Brakes (15+ year vehicles)
+    if (!isV && vehicleAge >= 15 && v.test_due_date) {
+      const td = daysUntil(v.test_due_date);
+      if (td !== null && td <= 60 && td > 0) {
+        items.push({
+          id: `brakes-${v.id}`, type: 'safety', emoji: '🛑',
+          typeName: 'בלמים', name: vName, vehicleId: v.id,
+          dueDate: v.test_due_date, daysLeft: td,
+          status: 'warn',
+          label: `${vLabels.vehicleWord || 'רכב'} ותיק (${vehicleAge} שנים), נדרש אישור בלמים`,
+          linkTo: `VehicleDetail?id=${v.id}`,
+        });
+      }
+    }
+
+    // 8. Mileage update (180+ days)
+    const mDate = mileageDates[v.id] || v.km_update_date || v.engine_hours_update_date;
+    if (mDate) {
+      const mDays = Math.floor((now - new Date(mDate)) / 86400000);
+      if (mDays > 180) {
+        items.push({
+          id: `mileage-${v.id}`, type: 'mileage', emoji: '📊',
+          typeName: 'עדכון', name: vName, vehicleId: v.id,
+          dueDate: null, daysLeft: 999,
+          status: 'upcoming',
+          label: !isV ? `עדכן קילומטראז' (${mDays} ימים)` : `עדכן שעות מנוע (${mDays} ימים)`,
+          linkTo: `VehicleDetail?id=${v.id}`,
+        });
+      }
+    } else if (v.current_km || v.current_engine_hours) {
+      items.push({
+        id: `mileage-${v.id}`, type: 'mileage', emoji: '📊',
+        typeName: 'עדכון', name: vName, vehicleId: v.id,
+        dueDate: null, daysLeft: 999,
+        status: 'upcoming',
+        label: !isV ? 'עדכן קילומטראז\'' : 'עדכן שעות מנוע',
+        linkTo: `VehicleDetail?id=${v.id}`,
+      });
     }
   });
 
-  // ── Documents ──
-  documents.forEach(doc => {
+  // 9. Winter prep (November)
+  const month = now.getMonth();
+  const hasLand = vehicles.some(v => !isVessel(v.vehicle_type, v.nickname));
+  const hasBoat = vehicles.some(v => isVessel(v.vehicle_type, v.nickname));
+  if (month === 10 && hasLand && !localStorage.getItem(`winter_dismissed_${now.getFullYear()}`)) {
+    items.push({
+      id: 'winter-prep', type: 'seasonal', emoji: '❄️',
+      typeName: 'עונתי', name: 'בדוק: סוללה, מגבים, צמיגים, מים, אורות',
+      vehicleId: null, dueDate: null, daysLeft: 500,
+      status: 'upcoming',
+      label: 'הכן את הרכב לחורף',
+      linkTo: 'Dashboard',
+    });
+  }
+
+  // 10. Sailing season (April)
+  if (month === 3 && hasBoat && !localStorage.getItem(`sailing_dismissed_${now.getFullYear()}`)) {
+    items.push({
+      id: 'sailing-season', type: 'seasonal', emoji: '⛵',
+      typeName: 'עונתי', name: 'בדוק: ציוד בטיחות, מנוע, תחתית, מפרשים',
+      vehicleId: null, dueDate: null, daysLeft: 500,
+      status: 'upcoming',
+      label: 'עונת ההפלגה מתחילה!',
+      linkTo: 'Dashboard',
+    });
+  }
+
+  // 11. Documents
+  (documents || []).forEach(doc => {
     if (!doc.expiry_date) return;
     const dl = daysUntil(doc.expiry_date);
     if (dl !== null && dl <= docDays) {
       items.push({
-        id: `doc-${doc.id}`,
-        type: 'document',
+        id: `doc-${doc.id}`, type: 'document',
         emoji: getDocEmoji(doc.document_type),
         typeName: doc.document_type || 'מסמך',
         name: doc.title || doc.document_type || 'מסמך',
-        dueDate: doc.expiry_date,
-        daysLeft: dl,
+        vehicleId: doc.vehicle_id || null,
+        dueDate: doc.expiry_date, daysLeft: dl,
         status: urgencyFromDays(dl),
+        label: dl < 0 ? `${doc.document_type || 'מסמך'} פג תוקף!` : `${doc.document_type || 'מסמך'} בעוד ${dl} ימים`,
         linkTo: doc.vehicle_id ? `Documents?vehicle_id=${doc.vehicle_id}` : 'Documents',
       });
     }
   });
 
-  // Sort: most urgent (lowest daysLeft) first
-  items.sort((a, b) => a.daysLeft - b.daysLeft);
+  // Sort: expired first, then by days ascending
+  items.sort((a, b) => {
+    if (a.daysLeft < 0 && b.daysLeft >= 0) return -1;
+    if (a.daysLeft >= 0 && b.daysLeft < 0) return 1;
+    return a.daysLeft - b.daysLeft;
+  });
 
   return items;
 }

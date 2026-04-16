@@ -9,9 +9,9 @@ import { createPageUrl } from '@/utils';
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { formatDateHe, getVehicleLabels } from "../components/shared/DateStatusUtils";
 import { useAuth } from "../components/shared/GuestContext";
-import { calcReminders } from "../components/shared/ReminderEngine";
+import { calcAllReminders } from "../components/shared/ReminderEngine";
 import { markNotificationRead } from "@/lib/notificationChannels";
-import { C, getVehicleCategory } from '@/lib/designTokens';
+import { C } from '@/lib/designTokens';
 
 const TYPE_CONFIG = {
   'טסט':        { icon: Calendar,  bg: '#FFF8E1', color: '#D97706', border: '#FDE68A' },
@@ -342,96 +342,28 @@ function AuthNotifications() {
   const licenseDays = licenseExpDate ? Math.ceil((new Date(licenseExpDate) - new Date()) / 86400000) : null;
   const licenseAlert = licenseDays !== null && licenseDays <= 30;
 
-  // Build notifications with SAME logic as the bell (NotificationBell in Layout.jsx)
+  // Build notifications using UNIFIED engine (same as bell)
   const notifications = useMemo(() => {
     if (!vehicles.length) return [];
-    const items = [];
-    const now = new Date();
-    const threshold = (settings?.remind_test_days_before) || 14;
-    const VESSEL_TYPES = ['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי'];
-    const isVesselV = (v) => VESSEL_TYPES.includes(v.vehicle_type);
-    const daysTo = (d) => d ? Math.ceil((new Date(d) - now) / 86400000) : null;
-    const add = (id, type, label, name, days, vehicleId) => {
-      items.push({ id, notification_type: type, message: label, due_date: null, days_left: days, is_overdue: days < 0, name, vehicleId });
-    };
-
-    // Mileage dates from localStorage
-    let mileageDates = {};
-    try { mileageDates = JSON.parse(localStorage.getItem('carreminder_mileage_dates') || '{}'); } catch {}
-
-    vehicles.forEach(v => {
-      const name = v.nickname || v.manufacturer || 'רכב';
-      const isVessel = isVesselV(v);
-      const vCat = getVehicleCategory(v.vehicle_type, v.nickname, v.manufacturer);
-      const testWord = isVessel ? 'כושר שייט' : 'טסט שנתי';
-      const vehicleTypeWord = vCat === 'vessel' ? 'כלי שייט' : vCat === 'motorcycle' ? 'אופנוע' : vCat === 'truck' ? 'משאית' : vCat === 'offroad' ? (v.vehicle_type || 'כלי שטח') : 'רכב';
-      const insWord = isVessel ? 'ביטוח ימי' : 'ביטוח';
-      const vehicleAge = v.year ? now.getFullYear() - Number(v.year) : 0;
-
-      // Test/כושר שייט
-      const testDays = daysTo(v.test_due_date);
-      if (testDays !== null && testDays <= threshold) {
-        const testLabel = isVessel
-          ? (testDays < 0 ? 'כושר שייט פג תוקף!' : `כושר שייט בעוד ${testDays} ימים`)
-          : (testDays < 0 ? `טסט ה${vehicleTypeWord} פג תוקף!` : `טסט ה${vehicleTypeWord} בעוד ${testDays} ימים`);
-        add(`test-${v.id}`, testWord, testLabel, name, testDays, v.id);
-      }
-      // Insurance
-      const insDays = daysTo(v.insurance_due_date);
-      if (insDays !== null && insDays <= threshold) {
-        add(`ins-${v.id}`, insWord, insDays < 0 ? `${insWord} פג תוקף!` : `${insWord} בעוד ${insDays} ימים`, name, insDays, v.id);
-      }
-      // Vessel safety equipment
-      if (isVessel) {
-        const pyroDays = daysTo(v.pyrotechnics_expiry_date);
-        if (pyroDays !== null && pyroDays <= threshold) add(`pyro-${v.id}`, 'פירוטכניקה', pyroDays < 0 ? 'פירוטכניקה פג תוקף!' : `פירוטכניקה בעוד ${pyroDays} ימים`, name, pyroDays, v.id);
-        const extDays = daysTo(v.fire_extinguisher_expiry_date);
-        if (extDays !== null && extDays <= threshold) add(`ext-${v.id}`, 'מטף כיבוי', extDays < 0 ? 'מטף כיבוי פג תוקף!' : `מטף כיבוי בעוד ${extDays} ימים`, name, extDays, v.id);
-        const raftDays = daysTo(v.life_raft_expiry_date);
-        if (raftDays !== null && raftDays <= threshold) add(`raft-${v.id}`, 'אסדת הצלה', raftDays < 0 ? 'אסדת הצלה פג תוקף!' : `אסדת הצלה בעוד ${raftDays} ימים`, name, raftDays, v.id);
-      }
-      // Tires (100K km / 3 years)
-      if (!isVessel && v.current_km && v.last_tire_change_date) {
-        const tireDaysAgo = Math.floor((now - new Date(v.last_tire_change_date)) / 86400000);
-        if (tireDaysAgo / 365 >= 2.75 || (v.km_since_tire_change && v.current_km - Number(v.km_since_tire_change) >= 90000)) {
-          add(`tires-${v.id}`, 'צמיגים', 'הגיע זמן לבדוק צמיגים', name, 30, v.id);
-        }
-      }
-      // Service (15K km)
-      if (!isVessel && v.current_km && v.km_baseline) {
-        const kmSince = v.current_km - v.km_baseline;
-        if (kmSince >= 13500) add(`service-${v.id}`, 'טיפול', `טיפול תקופתי (${Math.round(kmSince / 1000)}K ק"מ)`, name, kmSince >= 15000 ? 0 : 30, v.id);
-      }
-      // Brakes (15+ years)
-      if (!isVessel && vehicleAge >= 15 && v.test_due_date) {
-        const td = daysTo(v.test_due_date);
-        if (td !== null && td <= 60 && td > 0) add(`brakes-${v.id}`, 'בלמים', `${vehicleTypeWord} ותיק (${vehicleAge} שנים), נדרש אישור בלמים`, name, td, v.id);
-      }
-      // Mileage update (6 months)
-      const mileageDate = mileageDates[v.id] || v.km_update_date || v.engine_hours_update_date;
-      if (mileageDate) {
-        const mDays = Math.floor((now - new Date(mileageDate)) / 86400000);
-        if (mDays > 180) add(`mileage-${v.id}`, 'עדכון', !isVessel ? `עדכן קילומטראז' (${mDays} ימים)` : `עדכן שעות מנוע (${mDays} ימים)`, name, 999, v.id);
-      } else if (v.current_km || v.current_engine_hours) {
-        add(`mileage-${v.id}`, 'עדכון', !isVessel ? 'עדכן קילומטראז\'' : 'עדכן שעות מנוע', name, 999, v.id);
-      }
-      // Shipyard (3 years)
-      if (isVessel && v.last_shipyard_date) {
-        const sDays = Math.floor((now - new Date(v.last_shipyard_date)) / 86400000);
-        if (sDays / 365 >= 2.75) add(`shipyard-${v.id}`, 'מספנה', sDays / 365 >= 3 ? 'הגיע זמן לביקור מספנה!' : 'ביקור מספנה מתקרב', name, sDays / 365 >= 3 ? 0 : 30, v.id);
-      }
-    });
-
-    // Filter dismissed
+    const rawItems = calcAllReminders({ vehicles, documents: [], settings: settings || {} });
+    // Map to page format + filter dismissed
     let dismissedIds = [];
     try { dismissedIds = JSON.parse(localStorage.getItem('dismissed_notif_ids') || '[]'); } catch {}
     const dismissedSet = new Set(dismissedIds);
-
-    return items.filter(n => !dismissedSet.has(n.id)).sort((a, b) => {
-      if (a.is_overdue && !b.is_overdue) return -1;
-      if (!a.is_overdue && b.is_overdue) return 1;
-      return (a.days_left ?? 999) - (b.days_left ?? 999);
-    });
+    return rawItems
+      .filter(n => !dismissedSet.has(n.id))
+      .map(n => ({
+        id: n.id,
+        notification_type: n.typeName,
+        message: n.label,
+        due_date: n.dueDate,
+        days_left: n.daysLeft,
+        is_overdue: n.daysLeft < 0,
+        name: n.name,
+        vehicleId: n.vehicleId,
+        emoji: n.emoji,
+        linkTo: n.linkTo,
+      }));
   }, [vehicles, settings]);
 
   // Read state - synced with localStorage (same as bell)
