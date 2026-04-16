@@ -90,7 +90,7 @@ export default function AuthPage() {
   const { isAuthenticated, isLoading } = useAuth();
 
   const [showForm, setShowForm] = useState(false);
-  const [mode, setMode] = useState('login');
+  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'reset'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -171,6 +171,20 @@ export default function AuthPage() {
     setSuccess('');
     setLoading(true);
     try {
+      if (mode === 'reset') {
+        if (!email.trim()) { setError('יש להזין כתובת אימייל'); setLoading(false); return; }
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin + '/Auth?mode=update-password',
+        });
+        if (error) {
+          setError(error.message);
+        } else {
+          setSuccess('נשלח אימייל לאיפוס סיסמה. בדוק את תיבת הדואר שלך.');
+          setTimeout(() => setMode('login'), 3000);
+        }
+        setLoading(false);
+        return;
+      }
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) setError(error.message.includes('Invalid login credentials') ? 'אימייל או סיסמה שגויים' : error.message);
@@ -340,7 +354,7 @@ export default function AuthPage() {
 
               {/* Mode toggle */}
               <div className="flex rounded-2xl overflow-hidden mb-6" style={{ background: '#F1F5F1' }}>
-                {['login', 'signup'].map(m => (
+                {(mode === 'reset' ? ['reset'] : ['login', 'signup']).map(m => (
                   <button key={m}
                     onClick={() => { setMode(m); setError(''); setSuccess(''); }}
                     className="flex-1 py-3 text-sm font-bold transition-all duration-200 rounded-2xl"
@@ -349,7 +363,7 @@ export default function AuthPage() {
                       color: mode === m ? 'white' : C.muted,
                       boxShadow: mode === m ? '0 2px 8px rgba(45,82,51,0.2)' : 'none',
                     }}>
-                    {m === 'login' ? 'כניסה' : 'הרשמה'}
+                    {m === 'login' ? 'כניסה' : m === 'signup' ? 'הרשמה' : 'איפוס סיסמה'}
                   </button>
                 ))}
               </div>
@@ -380,17 +394,33 @@ export default function AuthPage() {
                   autoComplete="email"
                 />
 
-                <AuthInput
-                  icon={Lock}
-                  label="סיסמה"
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder={mode === 'signup' ? 'לפחות 6 תווים' : 'הזן סיסמה'}
-                  dir="ltr"
-                  required
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                />
+                {mode !== 'reset' && (
+                  <AuthInput
+                    icon={Lock}
+                    label="סיסמה"
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder={mode === 'signup' ? 'לפחות 6 תווים' : 'הזן סיסמה'}
+                    dir="ltr"
+                    required
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  />
+                )}
+
+                {mode === 'login' && (
+                  <button type="button" onClick={() => { setMode('reset'); setError(''); setSuccess(''); }}
+                    className="text-xs font-bold transition-colors block mr-1"
+                    style={{ color: C.green }}>
+                    שכחתי סיסמה
+                  </button>
+                )}
+
+                {mode === 'reset' && (
+                  <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
+                    הזן את כתובת האימייל שלך ונשלח לך קישור לאיפוס הסיסמה
+                  </p>
+                )}
 
                 {/* Error message */}
                 {error && (
@@ -424,8 +454,16 @@ export default function AuthPage() {
                       <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       <span>רגע...</span>
                     </span>
-                  ) : mode === 'login' ? 'כניסה' : 'הרשמה'}
+                  ) : mode === 'login' ? 'כניסה' : mode === 'signup' ? 'הרשמה' : 'שלח קישור איפוס'}
                 </button>
+
+                {mode === 'reset' && (
+                  <button type="button" onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
+                    className="w-full text-center py-3 text-sm font-bold transition-colors mt-2"
+                    style={{ color: C.green }}>
+                    חזרה להתחברות
+                  </button>
+                )}
               </form>
 
               {/* Separator + Google in form */}
