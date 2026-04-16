@@ -748,8 +748,11 @@ function AuthDocuments({ vehicleIdParam }) {
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ['documents', accountId, vehicleIdParam],
     queryFn: async () => {
-      // TODO: Document entity not yet in Supabase - returning empty array
-      return [];
+      try {
+        const filter = { account_id: accountId };
+        if (vehicleIdParam) filter.vehicle_id = vehicleIdParam;
+        return await db.documents.filter(filter);
+      } catch { return []; }
     },
     enabled: !!accountId,
   });
@@ -762,16 +765,20 @@ function AuthDocuments({ vehicleIdParam }) {
 
   const handleSave = async (form) => {
     setSaving(true);
-    const data = { ...form, account_id: accountId, uploaded_by_user_id: userId };
-    Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
-    // TODO: Document entity not yet in Supabase - create is a no-op for now
-    // await db.documents.create(data);
-    toast.info('שמירת מסמכים תתאפשר בקרוב (בהעברה ל-Supabase)');
-    if (userId) await trackUserAction(userId);
-    queryClient.invalidateQueries({ queryKey: ['documents'] });
-    setShowAdd(false);
-    setSaving(false);
-    toast.success('מסמך נוסף בהצלחה');
+    try {
+      const data = { ...form, account_id: accountId, uploaded_by_user_id: userId };
+      Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
+      await db.documents.create(data);
+      if (userId) await trackUserAction(userId);
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      setShowAdd(false);
+      toast.success('מסמך נוסף בהצלחה');
+    } catch (err) {
+      console.error('Document save error:', err);
+      toast.error('שגיאה בשמירת המסמך');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleOpenDocument = async (doc) => {
@@ -797,10 +804,14 @@ function AuthDocuments({ vehicleIdParam }) {
   };
 
   const handleDelete = async (id) => {
-    // TODO: Document entity not yet in Supabase - delete is a no-op for now
-    // await db.documents.delete(id);
-    queryClient.invalidateQueries({ queryKey: ['documents'] });
-    toast.success('הפריט נמחק בהצלחה');
+    try {
+      await db.documents.delete(id);
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      toast.success('הפריט נמחק בהצלחה');
+    } catch (err) {
+      console.error('Document delete error:', err);
+      toast.error('שגיאה במחיקת המסמך');
+    }
   };
 
   if (!accountId || isLoading) return <LoadingSpinner />;
