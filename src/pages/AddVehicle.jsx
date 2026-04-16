@@ -426,9 +426,14 @@ export default function AddVehicle() {
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
 
     if (isGuest) {
-      // Block save - force registration
+      // Save vehicle locally first, then prompt registration
+      const saved = addGuestVehicle(data);
       setSaving(false);
-      setShowGuestSignup(true);
+      if (saved) {
+        setShowGuestSignup(true);
+      } else {
+        toast.error('שגיאה בשמירה הזמנית');
+      }
       return;
     }
 
@@ -502,7 +507,7 @@ export default function AddVehicle() {
       <div dir="rtl" className="flex flex-col items-center justify-center py-20 text-center">
         <div className="rounded-2xl p-6 max-w-sm" style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }}>
           <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה להוסיף רכב</p>
-          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר - תצוגה בלבד</p>
+          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר, תצוגה בלבד</p>
           <button onClick={() => navigate(-1)} className="px-6 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563EB' }}>חזרה</button>
         </div>
       </div>
@@ -579,14 +584,14 @@ export default function AddVehicle() {
 
       {/* Success Modal */}
       {showSuccess && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
-          <div className="bg-white rounded-2xl p-8 max-w-sm w-full text-center space-y-4 shadow-2xl">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: T.light }}>
-              <PartyPopper className="h-8 w-8" style={{ color: T.primary }} />
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center space-y-4 shadow-2xl">
+            <div className="w-18 h-18 rounded-2xl flex items-center justify-center mx-auto"
+              style={{ background: T.grad || T.primary, width: 72, height: 72, boxShadow: `0 8px 32px ${T.primary}40` }}>
+              <PartyPopper className="h-9 w-9 text-white" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">
-              {isVesselCategory ? 'כלי השייט נוסף בהצלחה! ⛵' : 'הרכב נוסף בהצלחה! 🎉'}
+            <h2 className="text-xl font-black text-gray-900">
+              {isVesselCategory ? 'כלי השייט נוסף בהצלחה!' : 'הרכב נוסף בהצלחה!'}
             </h2>
             <p className="text-gray-500 text-sm leading-relaxed">
               {form?.nickname || [form?.manufacturer, form?.model].filter(Boolean).join(' ') || (isVesselCategory ? 'כלי השייט' : 'הרכב')} נוסף למערכת ועכשיו אפשר לעקוב אחרי {isVesselCategory ? 'כושר שייט, ביטוח ימי וטיפולים' : 'טיפולים, טסטים וביטוחים'}
@@ -611,59 +616,72 @@ export default function AddVehicle() {
         </div>
       )}
 
-      {/* Guest signup prompt - must register to save */}
+      {/* Guest signup prompt - vehicle saved temporarily */}
       {showGuestSignup && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" dir="rtl">
           <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
-            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: '#FFF8E1' }}>
-              <span className="text-2xl">🔒</span>
+            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center"
+              style={{ background: T.grad || C.grad, boxShadow: `0 6px 20px ${T.primary}30` }}>
+              <CheckCircle2 className="w-7 h-7 text-white" />
             </div>
-            <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
-            <p className="text-sm" style={{ color: '#6B7280' }}>
-              הרשמה בחינם תוך שניות - ותוכל לשמור {isVesselCategory ? 'כלי שייט' : 'רכבים'}, לקבל תזכורות ולגשת מכל מכשיר
+            <h2 className="text-lg font-black text-gray-900">{isVesselCategory ? 'כלי השייט נשמר!' : 'הרכב נשמר!'}</h2>
+            <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
+              הפרטים נשמרו זמנית במכשיר שלך.
+              <br />
+              <strong style={{ color: '#374151' }}>הירשם בחינם</strong> כדי שיישמרו לצמיתות, תקבל תזכורות ותוכל לגשת מכל מכשיר.
             </p>
             <Button
               onClick={() => { window.location.href = '/Auth'; }}
               className="w-full h-12 text-white rounded-2xl font-bold text-sm"
-              style={{ background: C.yellow, color: C.greenDark }}
+              style={{ background: T.grad || C.grad, color: '#fff', boxShadow: `0 4px 16px ${T.primary}35` }}
             >
-              הירשם בחינם
+              הירשם בחינם ושמור לצמיתות
             </Button>
             <button
-              onClick={() => setShowGuestSignup(false)}
+              onClick={() => { setShowGuestSignup(false); navigate(createPageUrl('Dashboard')); }}
               className="w-full text-xs py-1 font-medium"
-              style={{ color: '#D1D5DB' }}
+              style={{ color: '#9CA3AF' }}
             >
-              חזרה
+              אמשיך כאורח בינתיים
             </button>
           </div>
         </div>
       )}
 
-      {/* ─── Premium Header ─── */}
-      <div className="rounded-3xl p-4 mb-4 relative overflow-hidden" dir="rtl"
-        style={{ background: T.grad || C.grad, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
-        <div className="absolute -top-10 -left-10 w-36 h-36 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+      {/* ─── Premium Hero Header ─── */}
+      <div className="rounded-3xl p-4 pb-5 mb-5 relative overflow-hidden" dir="rtl"
+        style={{ background: T.grad || C.grad, boxShadow: `0 8px 32px ${T.primary}30` }}>
+        <div className="absolute -top-12 -left-12 w-44 h-44 rounded-full" style={{ background: 'rgba(255,255,255,0.07)' }} />
+        <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full" style={{ background: 'rgba(255,191,0,0.15)' }} />
+        <div className="absolute top-8 right-1/3 w-2 h-2 rounded-full bg-white/25 animate-pulse" />
+        <div className="absolute top-14 right-1/4 w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(255,191,0,0.5)' }} />
         <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             <Link to={createPageUrl('Dashboard')}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-95"
+                style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
               </div>
             </Link>
             <div>
               <h1 className="text-lg font-black text-white">הוספת כלי רכב</h1>
-              <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>בחר סוג ומלא פרטים</p>
+              <p className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>בחר סוג ומלא פרטים</p>
             </div>
           </div>
-          <span className="text-[10px] font-bold px-3 py-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
-            שלב 1 מתוך 3
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+            style={{ background: '#FFBF00', boxShadow: '0 4px 16px rgba(255,191,0,0.45)' }}>
+            <Plus className="w-5 h-5" style={{ color: T.primary }} />
+          </div>
+        </div>
+        {/* Progress bar inside header */}
+        <div className="relative z-10 mt-4 flex items-center gap-2">
+          <div className="flex-1 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }}>
+            <div className="h-full rounded-full transition-all duration-500" style={{ width: !categoryReady ? '33%' : formVisible ? '100%' : '66%', background: '#FFBF00', boxShadow: '0 0 8px rgba(255,191,0,0.5)' }} />
+          </div>
+          <span className="text-[10px] font-bold shrink-0" style={{ color: 'rgba(255,255,255,0.7)' }}>
+            {!categoryReady ? '1/3' : formVisible ? '3/3' : '2/3'}
           </span>
         </div>
-      </div>
-      {/* Progress bar */}
-      <div className="w-full h-1.5 rounded-full mb-6" style={{ background: '#E8E0D4' }}>
-        <div className="h-full rounded-full transition-all duration-500" style={{ width: !categoryReady ? '33%' : formVisible ? '100%' : '66%', background: T.yellow }} />
       </div>
 
       {/* ─── Step 1: Vehicle type ─── */}
@@ -820,7 +838,7 @@ export default function AddVehicle() {
 
       {/* ─── Step 2: Method selection ─── */}
       <div className={`transition-all duration-300 ${categoryReady ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-      <h2 className="font-black text-lg mb-3 text-center" style={{ color: '#1C2E20' }}>איך תרצה להוסיף את הרכב?</h2>
+      <h2 className="font-black text-lg mb-4 text-center" style={{ color: '#1C2E20' }}>איך תרצה להוסיף?</h2>
       <div className="space-y-3 mb-6">
 
         {/* 1. Plate lookup - only if category supports it */}
@@ -882,13 +900,13 @@ export default function AddVehicle() {
               {lookupStatus === 'found' && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-green-700">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  הפרטים מולאו אוטומטית - תוכל לערוך לפני השמירה
+                  הפרטים מולאו אוטומטית, ניתן לערוך לפני השמירה
                 </div>
               )}
               {lookupStatus === 'not_found' && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-amber-700">
                   <AlertCircle className="h-4 w-4 shrink-0" />
-                  לא נמצאו נתונים לרכב הזה - ניתן למלא ידנית
+                  לא נמצאו נתונים לרכב הזה, ניתן למלא ידנית
                 </div>
               )}
               {lookupStatus === 'error' && (
@@ -955,34 +973,26 @@ export default function AddVehicle() {
         {formVisible && (
           <>
             {/* Step header - premium */}
-            <div className="flex items-center justify-between mb-1" dir="rtl">
-              <h2 className="font-black text-xl" style={{ color: T.text }}>פרטי הרכב</h2>
-              <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: T.grad, color: '#fff' }}>
-                שלב 2 מתוך 3
-              </span>
-            </div>
-            {/* Progress bar */}
-            <div className="w-full h-1.5 rounded-full mb-5" style={{ background: '#E8E0D4' }}>
-              <div className="h-full rounded-full" style={{ width: '66%', background: T.yellow }} />
-            </div>
             <div className="flex items-center justify-between mb-4" dir="rtl">
-              <p className="text-sm font-medium" style={{ color: '#7A8A7C' }}>
-                {selectedMethod === 'plate' && 'מילוי לפי מספר רכב'}
-                {selectedMethod === 'scan' && 'מילוי לפי סריקה'}
-                {selectedMethod === 'manual' && 'הוספה ידנית'}
-                {autofillFields.size > 0 && <span className="mr-2" style={{ color: '#3A7D44' }}>· {autofillFields.size} שדות מולאו</span>}
-              </p>
+              <h2 className="font-black text-xl" style={{ color: T.text }}>פרטי הרכב</h2>
               <button
                 type="button"
                 onClick={() => { resetAll(); setSelectedMethod(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="text-xs flex items-center gap-1 font-bold" style={{ color: '#7A8A7C' }}
+                className="text-xs flex items-center gap-1.5 font-bold px-3 py-1.5 rounded-full transition-all active:scale-95"
+                style={{ background: '#F3F4F6', color: '#6B7280' }}
               >
                 <X className="h-3 w-3" />
                 שנה שיטה
               </button>
             </div>
+            {autofillFields.size > 0 && (
+              <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0' }}>
+                <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: '#059669' }} />
+                <span className="text-xs font-bold" style={{ color: '#065F46' }}>{autofillFields.size} שדות מולאו אוטומטית</span>
+              </div>
+            )}
 
-            <div className="p-4 sm:p-6 rounded-3xl" style={{ background: '#F5F1EB', border: '1px solid #E8E0D4' }}>
+            <div className="p-4 sm:p-6 rounded-3xl" style={{ background: '#FAFAF8', border: '1.5px solid #E8E0D4', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
               <form onSubmit={handleSubmit} className="space-y-5">
                 {/* Photo */}
                 <div className="flex justify-center">
@@ -1096,7 +1106,7 @@ export default function AddVehicle() {
                     {form.is_vintage && !isVessel(form.vehicle_type) && (
                       <p className="text-xs text-purple-600 mt-1 flex items-center gap-1">
                         <CheckCircle2 className="h-3 w-3 shrink-0" />
-                        רכב אספנות - זוהה אוטומטית (טסט כל חצי שנה)
+                        רכב אספנות, זוהה אוטומטית (טסט כל חצי שנה)
                       </p>
                     )}
                   </div>
@@ -1462,14 +1472,15 @@ export default function AddVehicle() {
                   type="button"
                   onClick={handleSubmit}
                   disabled={saving || (!form?.vehicle_type_id && !form?.vehicle_type)}
-                  className="w-full h-14 rounded-2xl font-bold text-base transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full h-14 rounded-2xl font-black text-base transition-all duration-200 active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
                   style={{
-                    background: isVesselCategory ? T.primary : T.yellow,
-                    color: isVesselCategory ? '#fff' : T.primary,
-                    boxShadow: `0 4px 16px ${T.primary}40`
+                    background: T.grad || T.primary,
+                    color: '#fff',
+                    boxShadow: `0 6px 24px ${T.primary}35`
                   }}
                 >
-                  {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : isVesselCategory ? 'שמור כלי שייט' : 'שמור רכב'}
+                  {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                  {saving ? 'שומר...' : isVesselCategory ? 'שמור כלי שייט' : 'שמור רכב'}
                 </button>
               </form>
             </div>

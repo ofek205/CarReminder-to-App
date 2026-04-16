@@ -202,18 +202,36 @@ export default function FindGarage() {
     }
   }, [isGuest, guestVehicles, isAuthenticated, user]);
 
-  // Get user location
+  // Get user location — fallback to Tel Aviv if GPS fails
+  const [usingGps, setUsingGps] = useState(false);
+
   useEffect(() => {
-    if (!navigator.geolocation) { setLocError('הדפדפן לא תומך באיתור מיקום'); setLoading(false); return; }
+    if (!navigator.geolocation) {
+      // No geolocation support — default to Tel Aviv
+      setUserLocation({ lat: 32.0853, lng: 34.7818 });
+      setLoading(false);
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
-      (pos) => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLoading(false); },
-      (err) => {
-        setLocError(err.code === 1 ? 'גישה למיקום נדחתה.' : 'לא ניתן לזהות מיקום.');
+      (pos) => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setUsingGps(true); setLoading(false); },
+      () => {
+        // GPS failed — default to Tel Aviv instead of showing error
+        setUserLocation({ lat: 32.0853, lng: 34.7818 });
         setLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   }, []);
+
+  const retryGps = () => {
+    if (!navigator.geolocation) return;
+    setLocError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setUsingGps(true); },
+      () => { setLocError('לא הצלחנו לזהות מיקום'); setTimeout(() => setLocError(null), 3000); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   // Fetch garages - includes tyres, with retry on alternate server
   const OVERPASS_SERVERS = [
@@ -361,79 +379,7 @@ export default function FindGarage() {
     );
   }
 
-  // ── Error / city search ──
-  if (locError && !userLocation) {
-    return (
-      <div className="-mx-4 -mt-4 min-h-[85vh] relative overflow-hidden overflow-x-hidden pb-24" dir="rtl">
-        {/* Premium gradient background */}
-        <div className="absolute inset-0" style={{ background: C.grad }} />
-        <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-        <div className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full" style={{ background: `${C.yellow}15` }} />
-        <div className="absolute top-1/3 left-10 w-24 h-24 rounded-full" style={{ background: 'rgba(255,255,255,0.04)' }} />
-
-        <div className="relative z-10 flex flex-col items-center gap-6 px-6 pt-12 pb-8">
-          {/* Icon */}
-          <div className="w-20 h-20 rounded-3xl flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.15)', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
-            <Wrench className="w-10 h-10 text-white" />
-          </div>
-
-          <div className="text-center">
-            <h1 className="text-2xl font-black text-white mb-2">מצא מוסך קרוב</h1>
-            <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
-              מוסכים, פנצ'ריות, מכונאים וחנויות חלפים
-            </p>
-          </div>
-
-          {/* Search card */}
-          <div className="w-full max-w-sm rounded-3xl p-5" style={{ background: '#fff', boxShadow: '0 8px 40px rgba(0,0,0,0.15)' }}>
-            <p className="text-sm font-bold mb-3 text-center" style={{ color: C.text }}>חפש לפי עיר או כתובת</p>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
-                <input value={cityQuery} onChange={e => setCityQuery(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') searchByCity(cityQuery); }}
-                  placeholder="הזן עיר או כתובת..." dir="rtl"
-                  className="w-full h-12 pr-10 pl-4 rounded-2xl text-sm font-medium outline-none"
-                  style={{ background: C.light, border: `1.5px solid ${C.border}`, color: C.text }} />
-              </div>
-              <button onClick={() => searchByCity(cityQuery)} disabled={searchingCity || !cityQuery.trim()}
-                className="h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 disabled:opacity-50 transition-all active:scale-[0.95]"
-                style={{ background: C.yellow, color: C.greenDark, boxShadow: '0 4px 12px rgba(255,191,0,0.4)' }}>
-                {searchingCity ? <Loader2 className="w-5 h-5 animate-spin" /> : <Navigation className="w-5 h-5" />}
-              </button>
-            </div>
-
-            <div className="mt-4">
-              <p className="text-[11px] font-bold mb-2" style={{ color: C.muted }}>ערים מובילות:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {QUICK_CITIES.map(city => (
-                  <button key={city.name}
-                    onClick={() => { setLocError(null); setUserLocation({ lat: city.lat, lng: city.lng }); }}
-                    className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-[0.95]"
-                    style={{ background: C.light, color: C.primary, border: `1px solid ${C.border}` }}>
-                    <MapPin className="w-3 h-3 inline ml-1" style={{ opacity: 0.6 }} />
-                    {city.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* GPS retry */}
-          <button onClick={() => { setLoading(true); setLocError(null); navigator.geolocation.getCurrentPosition(
-            (pos) => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLoading(false); },
-            () => { setLocError('גישה חסומה.'); setLoading(false); },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }); }}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.97]"
-            style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.2)' }}>
-            <Navigation className="w-4 h-4" />
-            זהה מיקום אוטומטית
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Error screen removed — we always fallback to Tel Aviv, so main view always shows
 
   // ── Main view ──
   return (
@@ -455,8 +401,14 @@ export default function FindGarage() {
             </div>
           </div>
 
-          {/* City search */}
-          <div className="flex gap-2 mb-3">
+          {/* Location: GPS + City search */}
+          <div className="flex gap-2 mb-2">
+            <button onClick={retryGps}
+              className="h-10 flex items-center gap-1.5 px-3 rounded-xl text-xs font-bold shrink-0 transition-all active:scale-[0.95]"
+              style={{ background: usingGps ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.12)', color: '#fff', border: `1.5px solid ${usingGps ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.15)'}` }}>
+              <Navigation className="w-3.5 h-3.5" />
+              {usingGps ? 'מיקום פעיל' : 'המיקום שלי'}
+            </button>
             <div className="relative flex-1">
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
               <input
@@ -465,16 +417,30 @@ export default function FindGarage() {
                 onKeyDown={e => { if (e.key === 'Enter') searchByCity(cityQuery); }}
                 placeholder="חפש עיר או כתובת..."
                 dir="rtl"
-                className="w-full h-10 pr-9 pl-3 rounded-xl text-sm font-medium outline-none"
+                className="w-full h-10 pr-9 pl-3 rounded-xl text-sm font-medium outline-none placeholder:text-white/40"
                 style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
               />
             </div>
             <button onClick={() => searchByCity(cityQuery)} disabled={searchingCity || !cityQuery.trim()}
               className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 disabled:opacity-50 transition-all active:scale-[0.95]"
               style={{ background: C.yellow, color: C.greenDark }}>
-              {searchingCity ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+              {searchingCity ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             </button>
           </div>
+          {/* Quick city chips */}
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-2 -mx-1 px-1">
+            {QUICK_CITIES.map(city => (
+              <button key={city.name}
+                onClick={() => { setCityQuery(''); setUsingGps(false); setUserLocation({ lat: city.lat, lng: city.lng }); }}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-bold shrink-0 transition-all active:scale-[0.95]"
+                style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                {city.name}
+              </button>
+            ))}
+          </div>
+          {locError && (
+            <p className="text-[10px] font-medium text-amber-300 mb-1">{locError}</p>
+          )}
 
           {/* Radius slider + Sort */}
           <div className="flex items-center justify-between gap-3">

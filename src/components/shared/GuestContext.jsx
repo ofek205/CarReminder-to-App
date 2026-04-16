@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/supabaseEntities';
+import { toast } from 'sonner';
+import { isVessel } from './DateStatusUtils';
 
 const GuestContext = createContext(null);
 const STORAGE_KEY          = 'fleet_guest_vehicles';
@@ -75,6 +78,90 @@ export function GuestProvider({ children }) {
     try { return localStorage.getItem(DEMO_DISMISSED_KEY) === 'true'; } catch { return false; }
   });
 
+  const migrationRunRef = useRef(false);
+
+  // Migrate guest vehicles to authenticated account after signup/login
+  const migrateGuestDataIfNeeded = async (authenticatedUser) => {
+    if (migrationRunRef.current) return; // prevent double-run
+    try {
+      const storedVehicles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      // Only migrate real guest vehicles (not demo_xxx)
+      const toMigrate = storedVehicles.filter(v => v.id?.startsWith('guest_'));
+      if (toMigrate.length === 0) return;
+
+      migrationRunRef.current = true;
+
+      // Get account_id for the authenticated user
+      const members = await db.account_members.filter({ user_id: authenticatedUser.id, status: 'פעיל' });
+      if (members.length === 0) {
+        // New user might not have account_members yet — retry after short delay
+        setTimeout(() => {
+          migrationRunRef.current = false;
+          migrateGuestDataIfNeeded(authenticatedUser);
+        }, 3000);
+        return;
+      }
+      const accountId = members[0].account_id;
+
+      // DB columns whitelist
+      const DB_COLUMNS = ['vehicle_type','manufacturer','model','year',
+        'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
+        'current_km','current_engine_hours','vehicle_photo','fuel_type','is_vintage',
+        'last_tire_change_date','km_since_tire_change',
+        'flag_country','marina','marina_abroad','engine_manufacturer',
+        'pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
+        'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
+        'front_tire','rear_tire','engine_model','color','last_test_date','first_registration_date','ownership',
+        'model_code','trim_level','vin','pollution_group','vehicle_class','safety_rating',
+        'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
+        'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
+        'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
+
+      let migrated = 0;
+      for (const guestVehicle of toMigrate) {
+        const cleanData = { account_id: accountId };
+        DB_COLUMNS.forEach(k => {
+          if (guestVehicle[k] !== undefined && guestVehicle[k] !== null && guestVehicle[k] !== '') {
+            cleanData[k] = guestVehicle[k];
+          }
+        });
+        // Type conversions
+        if (cleanData.year) cleanData.year = Number(cleanData.year);
+        if (cleanData.current_km) {
+          cleanData.current_km = Number(cleanData.current_km);
+          cleanData.km_baseline = cleanData.current_km;
+        }
+        if (cleanData.current_engine_hours) {
+          cleanData.current_engine_hours = Number(cleanData.current_engine_hours);
+          cleanData.engine_hours_baseline = cleanData.current_engine_hours;
+        }
+
+        try {
+          await db.vehicles.create(cleanData);
+          migrated++;
+        } catch (err) {
+          console.warn('Guest vehicle migration failed for one vehicle:', err?.message);
+        }
+      }
+
+      if (migrated > 0) {
+        // Clear guest data after successful migration
+        localStorage.removeItem(STORAGE_KEY);
+        setGuestVehicles([]);
+        toast.success(
+          migrated === 1
+            ? 'הרכב שהוספת הועבר בהצלחה לחשבון שלך!'
+            : `${migrated} כלי רכב הועברו בהצלחה לחשבון שלך!`
+        );
+      }
+    } catch (err) {
+      console.error('Guest data migration error:', err);
+      // Don't block the user — they can still use the app
+    } finally {
+      migrationRunRef.current = false;
+    }
+  };
+
   useEffect(() => {
     // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -89,8 +176,11 @@ export function GuestProvider({ children }) {
     // Listen for auth state changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        setUser(normalizeUser(session.user));
+        const newUser = normalizeUser(session.user);
+        setUser(newUser);
         setAuthState('authenticated');
+        // Migrate guest data after login/signup
+        migrateGuestDataIfNeeded(newUser);
       } else {
         setUser(null);
         setAuthState('guest');
@@ -132,7 +222,14 @@ export function GuestProvider({ children }) {
     );
     const vehicle = { ...cleanData, id: `guest_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
     setGuestVehicles(prev => {
-      const updated = [...prev, vehicle];
+      // Remove matching demo: vessel demo for vessel, car demo for car
+      const addingVessel = isVessel(vehicleData.vehicle_type, vehicleData.nickname);
+      const filtered = prev.filter(v => {
+        if (!v._isDemo && !v.id?.startsWith('demo_')) return true; // keep real vehicles
+        const demoIsVessel = isVessel(v.vehicle_type, v.nickname);
+        return addingVessel ? !demoIsVessel : demoIsVessel; // remove only the matching demo
+      });
+      const updated = [...filtered, vehicle];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });

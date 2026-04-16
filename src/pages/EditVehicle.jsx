@@ -386,7 +386,7 @@ export default function EditVehicle() {
       <div dir="rtl" className="flex flex-col items-center justify-center py-20 text-center">
         <div className="rounded-2xl p-6 max-w-sm" style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }}>
           <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה לערוך רכב</p>
-          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר - תצוגה בלבד</p>
+          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר, תצוגה בלבד</p>
           <button onClick={() => navigate(-1)} className="px-6 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563EB' }}>חזרה</button>
         </div>
       </div>
@@ -402,19 +402,28 @@ export default function EditVehicle() {
 
   return (
     <div dir="rtl">
-      {/* ── Header ── */}
-      <div className="rounded-3xl p-4 mb-4 relative overflow-hidden"
-        style={{ background: T.grad || C.grad, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
-        <div className="absolute -top-10 -left-10 w-36 h-36 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-        <div className="relative z-10 flex items-center gap-2.5">
-          <button onClick={() => navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true })}>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-            </div>
+      {/* ── Hero Header ── */}
+      <div className="rounded-3xl p-4 pb-5 mb-5 relative overflow-hidden"
+        style={{ background: T.grad || C.grad, boxShadow: `0 8px 32px ${T.primary}30` }}>
+        <div className="absolute -top-12 -left-12 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.07)' }} />
+        <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full" style={{ background: 'rgba(255,191,0,0.15)' }} />
+        <div className="absolute top-8 right-1/3 w-2 h-2 rounded-full bg-white/25 animate-pulse" />
+        <div className="absolute top-14 right-1/4 w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(255,191,0,0.5)' }} />
+        <div className="relative z-10 flex items-center gap-3">
+          <button onClick={() => navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true })}
+            className="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-95"
+            style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-lg font-black text-white">{vesselMode ? 'עריכת כלי שייט' : 'עריכת רכב'}</h1>
-            <p className="text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>{form.nickname || [form.manufacturer, form.model].filter(Boolean).join(' ') || ''}</p>
+            <p className="text-[11px] font-medium truncate" style={{ color: 'rgba(255,255,255,0.65)' }}>
+              {form.nickname || [form.manufacturer, form.model].filter(Boolean).join(' ') || 'עדכון פרטים'}
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+            style={{ background: '#FFBF00', boxShadow: '0 4px 16px rgba(255,191,0,0.45)' }}>
+            <PenLine className="w-5 h-5" style={{ color: T.primary }} />
           </div>
         </div>
       </div>
@@ -422,38 +431,44 @@ export default function EditVehicle() {
       {/* ── Sync from gov.il button (cars only) ── */}
       {!vesselMode && form.license_plate && (
         <button onClick={handleSyncFromGov} disabled={syncing}
-          className="w-full mb-4 flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-50"
-          style={{ background: T.light || '#F3F4F6', color: T.primary, border: `1.5px solid ${T.border || '#E5E7EB'}` }}>
+          className="w-full mb-5 flex items-center justify-center gap-2.5 py-3 rounded-2xl text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50"
+          style={{ background: `linear-gradient(135deg, ${T.primary}12, ${T.primary}08)`, color: T.primary, border: `1.5px solid ${T.border || '#E5E7EB'}`, boxShadow: `0 2px 12px ${T.primary}10` }}>
           {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           {syncing ? 'מסנכרן מ-gov.il...' : 'סנכרן פרטים מ-gov.il'}
         </button>
       )}
 
-      {/* ── Photo + Form ── */}
-
       {/* ── Photo ── */}
-      <div className="flex justify-center mb-5">
-        <div className="relative">
-          <label className="cursor-pointer">
+      <div className="flex justify-center mb-6">
+        <div className="relative group">
+          <label className="cursor-pointer block">
             <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
             {photoPreview ? (
-              <img src={photoPreview} alt="" className="w-24 h-24 rounded-2xl object-cover border-2 border-dashed" style={{ borderColor: T.border }} />
+              <div className="relative">
+                <img src={photoPreview} alt="" className="w-28 h-28 rounded-2xl object-cover"
+                  style={{ border: `2.5px solid ${T.primary}30`, boxShadow: `0 4px 20px ${T.primary}15` }} />
+                <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-all" />
+              </div>
             ) : (
-              <div className="w-24 h-24 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-colors" style={{ borderColor: T.border, color: T.muted }}>
-                <Camera className="h-5 w-5 mb-1" />
-                <span className="text-xs">גלריה</span>
+              <div className="w-28 h-28 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5 transition-all"
+                style={{ borderColor: T.border, background: `${T.primary}06` }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: T.primary }}>
+                  <Camera className="h-5 w-5 text-white" />
+                </div>
+                <span className="text-[11px] font-bold" style={{ color: T.primary }}>צרף תמונה</span>
               </div>
             )}
           </label>
-          <label className="absolute -bottom-2 -left-2 cursor-pointer text-white rounded-full p-2 shadow-md transition-colors" style={{ background: T.primary }} aria-label="צלם תמונה">
+          <label className="absolute -bottom-2 -left-2 cursor-pointer text-white rounded-full p-2.5 shadow-lg transition-all active:scale-90"
+            style={{ background: '#FFBF00', boxShadow: '0 3px 12px rgba(255,191,0,0.4)' }} aria-label="צלם תמונה">
             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
-            <Camera className="h-3.5 w-3.5" />
+            <Camera className="h-3.5 w-3.5" style={{ color: T.primary }} />
           </label>
         </div>
       </div>
 
       {/* ── Form ── */}
-      <div className="p-4 sm:p-6 rounded-3xl" style={{ background: '#F5F1EB', border: `1px solid ${T.border}` }}>
+      <div className="p-4 sm:p-6 rounded-3xl" style={{ background: '#FAFAF8', border: `1.5px solid ${T.border || '#E8E0D4'}`, boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
         <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* כינוי */}
@@ -772,9 +787,10 @@ export default function EditVehicle() {
           )}
 
           <button type="submit" disabled={saving}
-            className="w-full h-14 rounded-2xl font-bold text-base transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
-            style={{ background: T.primary, color: '#fff', boxShadow: `0 4px 16px ${T.primary}40` }}>
-            {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : offroadMode ? 'עדכן כלי שטח' : vesselMode ? 'עדכן כלי שייט' : 'עדכן רכב'}
+            className="w-full h-14 rounded-2xl font-black text-base transition-all active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
+            style={{ background: T.grad || T.primary, color: '#fff', boxShadow: `0 6px 24px ${T.primary}35` }}>
+            {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+            {saving ? 'שומר...' : offroadMode ? 'עדכן כלי שטח' : vesselMode ? 'עדכן כלי שייט' : 'שמור שינויים'}
           </button>
         </form>
       </div>

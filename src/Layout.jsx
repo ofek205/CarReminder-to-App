@@ -66,20 +66,21 @@ function isBirthdayToday(birthDate) {
 function GuestBanner() {
   const navigate = useNavigate();
   return (
-    <div className="bg-amber-50 border-b border-amber-200 px-3 py-1.5 flex items-center justify-between gap-2" dir="rtl">
-      <p className="text-xs font-semibold text-amber-800 leading-tight">מצב אורח - נתונים זמניים</p>
-      <div className="flex items-center gap-1.5 shrink-0">
-        <Link
-          to={createPageUrl('Auth')}
-          className="text-xs font-bold text-amber-700 underline underline-offset-2 hover:text-amber-900 transition-colors py-1 px-1.5 touch-manipulation"
-        >
-          יש לי חשבון
-        </Link>
-        <Button onClick={() => navigate(createPageUrl('Auth'))} className="bg-[#2D5233] hover:bg-[#1E3D24] text-white text-xs font-bold h-8 px-3 gap-1 touch-manipulation">
-          <UserPlus className="h-3.5 w-3.5" />
-          הירשם
-        </Button>
-      </div>
+    <div className="flex items-center gap-2 px-3 py-1.5" dir="rtl"
+      style={{ background: 'linear-gradient(135deg, #2D5233, #3A6B42)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+      <p className="text-[10px] font-medium text-white/70 flex-1 truncate">מצב אורח</p>
+      <Link
+        to={createPageUrl('Auth')}
+        className="text-[10px] font-bold text-white/80 underline underline-offset-2 hover:text-white transition-colors py-0.5 px-1 touch-manipulation shrink-0"
+      >
+        יש לי חשבון
+      </Link>
+      <Button onClick={() => navigate(createPageUrl('Auth'))}
+        className="text-[10px] font-bold h-6 px-2.5 gap-1 rounded-full touch-manipulation shrink-0"
+        style={{ background: '#FFBF00', color: '#2D5233' }}>
+        <UserPlus className="h-3 w-3" />
+        הירשם
+      </Button>
     </div>
   );
 }
@@ -984,20 +985,15 @@ function LayoutInner({ children }) {
         <NavContent currentPath={location.pathname} hasVessel={hasVessel} />
       </aside>
 
-      {/* Mobile hamburger — always above Sheet overlay */}
-      <Button variant="ghost" size="icon"
-        onClick={() => setOpen(o => !o)}
-        className="lg:hidden fixed bg-slate-300 text-slate-950 shrink-0 rounded-xl inline-flex items-center justify-center h-9 w-9"
-        style={{ zIndex: 10001, top: 'calc(env(safe-area-inset-top, 0px) + 6px)', right: 12 }}>
-        <Menu className="h-5 w-5" />
-      </Button>
-
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed inset-x-0 top-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', background: '#fff', zIndex: 9998 }}>
+      <div className="lg:hidden fixed inset-x-0 top-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', zIndex: 9998 }}>
         {isGuest && <GuestBanner />}
-        <div className="bg-white border-b border-gray-100 px-3 py-1.5 flex items-center gap-2">
-          {/* Spacer for hamburger */}
-          <div className="w-9 h-9 shrink-0" />
+        <div className="bg-white border-b border-gray-100 px-3 py-2 flex items-center gap-2.5" dir="rtl">
+          <button onClick={() => setOpen(o => !o)}
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90 relative"
+            style={{ background: open ? '#E5E7EB' : '#F3F4F6', zIndex: 10001 }}>
+            <Menu className="h-4.5 w-4.5 text-gray-600" />
+          </button>
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetContent side="right" className="p-0 w-60 !top-0 !bottom-0 flex flex-col">
               <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} hasVessel={hasVessel} isMobile />
