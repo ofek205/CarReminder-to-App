@@ -1,4 +1,4 @@
-package com.carreminders.app;
+package com.carreminder.app;
 
 import com.getcapacitor.BridgeActivity;
 
