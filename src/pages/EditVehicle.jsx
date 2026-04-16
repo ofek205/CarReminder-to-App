@@ -9,8 +9,7 @@ import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine, RefreshCw } from "lucide-react";
-import { lookupVehicleByPlate } from "../services/vehicleLookup";
+import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine } from "lucide-react";
 import { Link } from 'react-router-dom';
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
@@ -36,7 +35,6 @@ export default function EditVehicle() {
   const { role, isGuest: isGuestRole } = useAccountRole();
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [form, setForm] = useState(null);
   const [accountId, setAccountId] = useState(null);
@@ -170,48 +168,6 @@ export default function EditVehicle() {
     }, 400);
     return () => clearTimeout(timer);
   }, [highlightField, form, loading]);
-
-  // Sync vehicle data from gov.il API - fills missing fields without overwriting existing data
-  const handleSyncFromGov = async () => {
-    if (!form.license_plate) {
-      toast.error('יש להזין מספר רישוי תחילה');
-      return;
-    }
-    setSyncing(true);
-    try {
-      const govData = await lookupVehicleByPlate(form.license_plate);
-      if (!govData) {
-        toast.error('לא נמצאו נתונים ב-gov.il עבור רכב זה');
-        return;
-      }
-      const fields = ['manufacturer', 'model', 'year', 'fuel_type', 'test_due_date',
-        'engine_model', 'model_code', 'trim_level', 'vin', 'pollution_group',
-        'vehicle_class', 'safety_rating', 'horsepower', 'engine_cc', 'drivetrain',
-        'total_weight', 'doors', 'seats', 'airbags', 'transmission', 'body_type',
-        'country_of_origin', 'co2', 'green_index', 'tow_capacity',
-        'front_tire', 'rear_tire', 'color', 'first_registration_date', 'ownership',
-        'last_test_date'];
-      const updates = {};
-      let filledCount = 0;
-      fields.forEach(f => {
-        if (govData[f] && !form[f]) {
-          updates[f] = govData[f];
-          filledCount++;
-        }
-      });
-      if (filledCount === 0) {
-        toast.info('כל הפרטים הזמינים כבר מולאו');
-        return;
-      }
-      setForm(prev => ({ ...prev, ...updates }));
-      toast.success(`עודכנו ${filledCount} פרטים מ-gov.il`);
-    } catch (err) {
-      console.error('Sync error:', err);
-      toast.error('שגיאה בסנכרון מ-gov.il');
-    } finally {
-      setSyncing(false);
-    }
-  };
 
   const handleChange = (field, value) => {
     setForm(prev => {
@@ -428,15 +384,7 @@ export default function EditVehicle() {
         </div>
       </div>
 
-      {/* ── Sync from gov.il button (cars only) ── */}
-      {!vesselMode && form.license_plate && (
-        <button onClick={handleSyncFromGov} disabled={syncing}
-          className="w-full mb-5 flex items-center justify-center gap-2.5 py-3 rounded-2xl text-sm font-bold transition-all active:scale-[0.97] disabled:opacity-50"
-          style={{ background: `linear-gradient(135deg, ${T.primary}12, ${T.primary}08)`, color: T.primary, border: `1.5px solid ${T.border || '#E5E7EB'}`, boxShadow: `0 2px 12px ${T.primary}10` }}>
-          {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          {syncing ? 'מסנכרן מ-gov.il...' : 'סנכרן פרטים מ-gov.il'}
-        </button>
-      )}
+      {/* Sync button removed — data is fetched once on AddVehicle */}
 
       {/* ── Photo ── */}
       <div className="flex justify-center mb-6">

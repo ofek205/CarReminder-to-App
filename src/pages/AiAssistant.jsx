@@ -327,7 +327,9 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
 
   const charsLeft = MAX_LEN - input.length;
   const isInputValid = input.trim().length >= MIN_LEN && input.length <= MAX_LEN;
-  const suggestedPrompts = selectedVehicle ? SUGGESTED_PROMPTS_VEHICLE : SUGGESTED_PROMPTS_GENERAL;
+  const allSuggestedPrompts = selectedVehicle ? SUGGESTED_PROMPTS_VEHICLE : SUGGESTED_PROMPTS_GENERAL;
+  const [showAllPrompts, setShowAllPrompts] = useState(false);
+  const suggestedPrompts = showAllPrompts ? allSuggestedPrompts : allSuggestedPrompts.slice(0, 3);
 
   return (
     <div dir="rtl" className="-mx-4 -mt-4 flex flex-col" style={{ background: '#F9FAFB', minHeight: '100dvh' }}>
@@ -574,6 +576,13 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
                   </div>
                 </button>
               ))}
+              {!showAllPrompts && allSuggestedPrompts.length > 3 && (
+                <button onClick={() => setShowAllPrompts(true)}
+                  className="w-full text-center py-2.5 rounded-2xl text-xs font-bold transition-all active:scale-[0.97]"
+                  style={{ color: C.primary, background: C.light, border: `1px solid ${C.border}` }}>
+                  עוד הצעות ({allSuggestedPrompts.length - 3})
+                </button>
+              )}
             </div>
           </div>
         ) : (
