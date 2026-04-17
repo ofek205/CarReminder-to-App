@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
-import { isNative, initStatusBar, initKeyboard, initBackButton, hideSplash } from '@/lib/capacitor'
+import { isNative, initStatusBar, initKeyboard, initBackButton, hideSplash, initSessionKeepAlive } from '@/lib/capacitor'
 
 // Mark document for native-specific CSS
 if (isNative) {
@@ -13,6 +13,10 @@ if (isNative) {
 initStatusBar();
 initKeyboard();
 initBackButton();
+
+// Refresh Supabase session whenever the app/tab returns to foreground, so
+// users don't get silently logged out after leaving the app for a while.
+initSessionKeepAlive();
 
 // Initialize notification system
 import { initNotifications } from '@/lib/notificationService';

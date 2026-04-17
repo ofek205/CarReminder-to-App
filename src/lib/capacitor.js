@@ -245,6 +245,60 @@ export async function initBackButton(onBackButton) {
   }
 }
 
+// ── Session keep-alive ──────────────────────────────────────────────────────
+/**
+ * Refresh the Supabase session whenever the app returns to the foreground.
+ *
+ * Android aggressively suspends WebViews when the user leaves the app. If the
+ * JWT has expired while the app was backgrounded, the next API call will fail
+ * with a cryptic 401 unless we proactively refresh on resume.
+ *
+ * Also checks for session on web when the tab becomes visible again — covers
+ * the "left the tab open overnight" case for PWA users.
+ */
+export async function initSessionKeepAlive() {
+  try {
+    const { supabase } = await import('./supabase');
+
+    // Web: visibilitychange fires when the tab becomes active again
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible') {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            // Force a refresh if the token is within 5 min of expiry (or expired)
+            if (session) {
+              const expiresAt = (session.expires_at || 0) * 1000;
+              const fiveMin = 5 * 60 * 1000;
+              if (expiresAt - Date.now() < fiveMin) {
+                await supabase.auth.refreshSession();
+              }
+            }
+          } catch { /* network/no session — leave auto-refresh alone */ }
+        }
+      });
+    }
+
+    if (!isNative) return;
+
+    // Native: App.appStateChange fires when the user switches apps / locks screen
+    const { App } = await import('@capacitor/app');
+    App.addListener('appStateChange', async ({ isActive }) => {
+      if (!isActive) return;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Always refresh on resume — the app may have been suspended for
+          // hours. Cheap call, big UX win.
+          await supabase.auth.refreshSession();
+        }
+      } catch { /* ignore — next API call will retry */ }
+    });
+  } catch (e) {
+    console.warn('Session keep-alive init failed:', e);
+  }
+}
+
 // ── Deep links ──────────────────────────────────────────────────────────────
 /**
  * Handle incoming deep links (e.g. carreminder://vehicle/<id> or
