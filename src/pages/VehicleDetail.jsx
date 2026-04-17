@@ -301,10 +301,52 @@ export default function VehicleDetail() {
   const queryClient = useQueryClient();
   const { isGuest, user, guestVehicles } = useAuth();
 
+  // Guard: someone landed here without an id (bad link, typo, stale share).
+  // Previously we'd show a spinner forever. Now show a friendly message
+  // + CTA back to the list.
+  if (!vehicleId) {
+    return (
+      <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
+        <div className="max-w-sm w-full text-center">
+          <div className="text-7xl mb-4" role="img" aria-hidden="true">🚗</div>
+          <h1 className="text-xl font-black mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב</h1>
+          <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
+            נראה שהגעת לכאן בלי לבחור רכב. חזור לרשימה כדי לבחור אחד.
+          </p>
+          <button
+            onClick={() => navigate('/Vehicles')}
+            className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+            style={{ background: 'linear-gradient(135deg, #2D5233 0%, #4B7A53 100%)', color: '#fff' }}>
+            חזרה לרשימת הרכבים
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Guest vehicle - load from local state
-  if (isGuest || (vehicleId && (vehicleId.startsWith('guest_') || vehicleId.startsWith('demo_')))) {
+  if (isGuest || vehicleId.startsWith('guest_') || vehicleId.startsWith('demo_')) {
     const guestVehicle = guestVehicles.find(v => v.id === vehicleId);
-    if (!guestVehicle) return <LoadingSpinner />;
+    if (!guestVehicle) {
+      // Valid id format but not found in local storage — same friendly fallback
+      return (
+        <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
+          <div className="max-w-sm w-full text-center">
+            <div className="text-7xl mb-4" role="img" aria-hidden="true">🔍</div>
+            <h1 className="text-xl font-black mb-2" style={{ color: '#1C2E20' }}>הרכב לא נמצא</h1>
+            <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
+              ייתכן שהרכב נמחק או שהקישור פג תוקף.
+            </p>
+            <button
+              onClick={() => navigate('/Vehicles')}
+              className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+              style={{ background: 'linear-gradient(135deg, #2D5233 0%, #4B7A53 100%)', color: '#fff' }}>
+              חזרה לרשימת הרכבים
+            </button>
+          </div>
+        </div>
+      );
+    }
     return <GuestVehicleDetail vehicle={guestVehicle} vehicleId={vehicleId} />;
   }
 

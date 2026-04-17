@@ -322,10 +322,9 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
   };
 
   const copyToClipboard = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success('הועתק ללוח');
-    } catch { toast.error('שגיאה בהעתקה'); }
+    const { copyToClipboard: cp } = await import('@/lib/clipboard');
+    const ok = await cp(text);
+    toast[ok ? 'success' : 'error'](ok ? 'הועתק ללוח' : 'שגיאה בהעתקה');
   };
 
   const clearChat = () => {

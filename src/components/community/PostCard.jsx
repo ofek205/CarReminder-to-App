@@ -137,8 +137,9 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     if (navigator.share) {
       try { await navigator.share({ title: 'CarReminder - קהילה', text, url }); } catch {}
     } else {
-      await navigator.clipboard.writeText(url);
-      toast.success('הקישור הועתק!');
+      const { copyToClipboard } = await import('@/lib/clipboard');
+      const ok = await copyToClipboard(url);
+      toast[ok ? 'success' : 'error'](ok ? 'הקישור הועתק!' : 'לא ניתן להעתיק');
     }
   };
 

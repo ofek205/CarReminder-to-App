@@ -703,10 +703,24 @@ function NotificationBell() {
     }
   };
 
+  // Close bell popup when any other top-level popup announces itself (e.g.
+  // hamburger menu). Prevents two overlapping drawers on small screens.
+  useEffect(() => {
+    const onClosePopups = () => setPopupOpen(false);
+    window.addEventListener('cr:close-popups', onClosePopups);
+    return () => window.removeEventListener('cr:close-popups', onClosePopups);
+  }, []);
+
+  const toggleBell = () => {
+    const next = !popupOpen;
+    if (next) window.dispatchEvent(new CustomEvent('cr:close-popups'));
+    setPopupOpen(next);
+  };
+
   return (
     <div className="relative">
       <button
-        onClick={() => setPopupOpen(o => !o)}
+        onClick={toggleBell}
         className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-[0.95]"
         style={{ background: unreadCount > 0 ? '#FEF2F2' : '#F3F4F6' }}
         aria-label={unreadCount > 0 ? `התראות (${unreadCount} חדשות)` : 'התראות'}
@@ -881,6 +895,13 @@ function LayoutInner({ children }) {
   const [open, setOpen] = useState(false);
   const menuBtnRef = useRef(false);
   const [a11yOpen, setA11yOpen] = useState(false);
+
+  // Close hamburger + a11y when any other top-level popup opens
+  useEffect(() => {
+    const onClosePopups = () => { setOpen(false); setA11yOpen(false); };
+    window.addEventListener('cr:close-popups', onClosePopups);
+    return () => window.removeEventListener('cr:close-popups', onClosePopups);
+  }, []);
   const [welcomeState, setWelcomeState] = useState(null);
   const [guestPopupClosed, setGuestPopupClosed] = useState(
     () => sessionStorage.getItem('guest_popup_closed') === '1'
@@ -984,7 +1005,7 @@ function LayoutInner({ children }) {
       </SafeComponent>
       {isAuthenticated && mileageCheckDone && <SafeComponent label="ReviewManager"><ReviewManager /></SafeComponent>}
       <AccessibilityPanel open={a11yOpen} onOpenChange={setA11yOpen} />
-      <DraggableA11yButton onClick={() => setA11yOpen(true)} />
+      <DraggableA11yButton onClick={() => { window.dispatchEvent(new CustomEvent('cr:close-popups')); setA11yOpen(true); }} />
       <div className="min-h-screen bg-white flex">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-64 bg-white border-l border-gray-100 flex-col fixed right-0 top-0 bottom-0 z-30">
@@ -1003,7 +1024,9 @@ function LayoutInner({ children }) {
                 <button
                   onClick={() => {
                     btnClicked.current = true;
-                    setOpen(o => !o);
+                    const next = !open;
+                    if (next) window.dispatchEvent(new CustomEvent('cr:close-popups'));
+                    setOpen(next);
                     setTimeout(() => { btnClicked.current = false; }, 150);
                   }}
                   className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"

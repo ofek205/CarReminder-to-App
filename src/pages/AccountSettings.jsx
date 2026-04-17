@@ -252,12 +252,13 @@ function AuthAccountSettings() {
   };
 
   const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteLink);
+    const { copyToClipboard } = await import('@/lib/clipboard');
+    const ok = await copyToClipboard(inviteLink);
+    if (ok) {
       setLinkCopied(true);
       toast.success('הקישור הועתק');
       setTimeout(() => setLinkCopied(false), 3000);
-    } catch {
+    } else {
       toast.error('לא ניתן להעתיק');
     }
   };

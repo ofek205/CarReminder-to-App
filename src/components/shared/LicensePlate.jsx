@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
+import { copyToClipboard } from '@/lib/clipboard';
 
 /**
  * Israeli license plate display — yellow plate, IL flag, copy button.
@@ -10,15 +11,17 @@ export default function LicensePlate({ value, size = 'md', showCopy = true, clas
   const [copied, setCopied] = useState(false);
   if (!value) return null;
 
-  const handleCopy = (e) => {
+  const handleCopy = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    try {
-      navigator.clipboard.writeText(value);
+    const ok = await copyToClipboard(value);
+    if (ok) {
       setCopied(true);
       toast.success('המספר הועתק');
       setTimeout(() => setCopied(false), 1500);
-    } catch {}
+    } else {
+      toast.error('לא ניתן להעתיק במכשיר הזה');
+    }
   };
 
   // Size presets
