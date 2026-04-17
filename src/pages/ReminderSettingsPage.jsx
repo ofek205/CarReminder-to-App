@@ -7,8 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, Mail, Bell, Smartphone, Calendar, Shield, Wrench, FileText, Anchor, MessageCircle, HelpCircle } from "lucide-react";
+import { Loader2, Save, Mail, Bell, Smartphone, Calendar, Shield, Wrench, FileText, Anchor, MessageCircle, HelpCircle, Lock } from "lucide-react";
 import { resetOnboarding } from "../components/shared/OnboardingTour";
+import PinLock from "../components/shared/PinLock";
+import { isPinEnabled, clearPin } from "@/lib/pinLock";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
@@ -131,19 +133,31 @@ function AuthReminderSettings() {
     async function init() {
       if (!user?.id) { setLoading(false); return; }
 
+      // Pull UI-only toggles from localStorage (notify_*, device_notifications_enabled).
+      // These aren't in the DB yet — see DB_COLUMNS below + pending SQL migration.
+      let localOnly = {};
+      try { localOnly = JSON.parse(localStorage.getItem('reminder_settings_local') || '{}') || {}; } catch {}
+
       try {
         let rows = await db.reminder_settings.filter({ user_id: user.id });
         if (rows.length === 0) {
-          // Create default settings
-          const created = await db.reminder_settings.create({ user_id: user.id, ...DEFAULT_FORM });
+          // Create default settings — only with columns the DB knows about.
+          const dbDefaults = {};
+          ['remind_test_days_before','remind_insurance_days_before','remind_document_days_before',
+           'remind_maintenance_days_before','overdue_repeat_every_days','daily_job_hour',
+           'email_enabled','whatsapp_enabled'].forEach(k => {
+            if (DEFAULT_FORM[k] !== undefined) dbDefaults[k] = DEFAULT_FORM[k];
+          });
+          const created = await db.reminder_settings.create({ user_id: user.id, ...dbDefaults });
           rows = [created];
         }
         const s = rows[0];
         setSettingsId(s.id);
-        setForm({ ...DEFAULT_FORM, ...s });
+        setForm({ ...DEFAULT_FORM, ...localOnly, ...s });
       } catch (e) {
         console.warn('Failed to load reminder settings:', e);
-        // Use defaults
+        // Still apply any local-only preferences so the user's toggles don't reset
+        setForm({ ...DEFAULT_FORM, ...localOnly });
       } finally {
         setLoading(false);
       }
@@ -151,28 +165,57 @@ function AuthReminderSettings() {
     init();
   }, [user?.id]);
 
+  // Columns that actually exist in the 'reminder_settings' table today.
+  // The `notify_*` booleans and `device_notifications_enabled` are UI-level
+  // toggles that we persist locally until a DB migration adds them — that
+  // way saving doesn't 500 on an unknown column.
+  // TODO: after running supabase-add-reminder-notify-columns.sql, this list
+  // can be expanded to include the notify_* + device_notifications_enabled fields.
+  const DB_COLUMNS = [
+    'remind_test_days_before',
+    'remind_insurance_days_before',
+    'remind_document_days_before',
+    'remind_maintenance_days_before',
+    'overdue_repeat_every_days',
+    'daily_job_hour',
+    'email_enabled',
+    'whatsapp_enabled',
+  ];
+  const LOCAL_ONLY_KEY = 'reminder_settings_local';
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = {};
-      Object.keys(DEFAULT_FORM).forEach(k => {
+      const dbPayload = {};
+      DB_COLUMNS.forEach(k => {
+        if (DEFAULT_FORM[k] === undefined) return;
         if (typeof DEFAULT_FORM[k] === 'boolean') {
-          payload[k] = !!form[k];
+          dbPayload[k] = !!form[k];
         } else {
-          payload[k] = Number(form[k]) || 0;
+          dbPayload[k] = Number(form[k]) || 0;
         }
       });
 
+      // Persist UI-level toggles locally so the user's choices don't vanish
+      // on refresh even though the DB doesn't know about them yet.
+      try {
+        const localOnly = {};
+        Object.keys(DEFAULT_FORM).forEach(k => {
+          if (!DB_COLUMNS.includes(k)) localOnly[k] = form[k];
+        });
+        localStorage.setItem(LOCAL_ONLY_KEY, JSON.stringify(localOnly));
+      } catch {}
+
       if (settingsId) {
-        await db.reminder_settings.update(settingsId, payload);
+        await db.reminder_settings.update(settingsId, dbPayload);
       } else {
-        const created = await db.reminder_settings.create({ user_id: user.id, ...payload });
+        const created = await db.reminder_settings.create({ user_id: user.id, ...dbPayload });
         setSettingsId(created.id);
       }
       toast.success('ההגדרות נשמרו');
     } catch (e) {
-      toast.error('שגיאה בשמירה');
-      console.error(e);
+      toast.error('שגיאה בשמירה: ' + (e?.message?.slice(0, 80) || ''));
+      console.error('reminder_settings save error', e);
     } finally {
       setSaving(false);
     }
@@ -387,8 +430,61 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest }) {
         )}
       </Button>
 
+      {/* PIN lock */}
+      {!isGuest && <PinLockSection />}
+
       {/* Replay tour */}
       <ReplayTourButton />
+    </>
+  );
+}
+
+function PinLockSection() {
+  const [enabled, setEnabled] = useState(() => isPinEnabled());
+  const [setupOpen, setSetupOpen] = useState(false);
+
+  const handleToggle = () => {
+    if (enabled) {
+      if (!confirm('לבטל את נעילת הקוד? בפעם הבאה תיכנס ישר בלי קוד.')) return;
+      clearPin();
+      setEnabled(false);
+      toast.success('נעילת הקוד בוטלה');
+    } else {
+      setSetupOpen(true);
+    }
+  };
+
+  return (
+    <>
+      <div className="mb-3 rounded-2xl p-4" style={{ background: '#fff', border: '1.5px solid #E5E7EB' }}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: enabled ? '#E8F2EA' : '#F3F4F6' }}>
+              <Lock className="w-5 h-5" style={{ color: enabled ? '#2D5233' : '#9CA3AF' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm" style={{ color: '#1C2E20' }}>נעילת קוד</p>
+              <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
+                {enabled ? 'מופעל — קוד 4 ספרות בכניסה' : 'הזן קוד בכל פתיחה של האפליקציה'}
+              </p>
+            </div>
+          </div>
+          <Switch checked={enabled} onCheckedChange={handleToggle} aria-label="נעילת קוד" />
+        </div>
+        {enabled && (
+          <button onClick={() => setSetupOpen(true)}
+            className="w-full mt-3 py-2 text-xs font-bold rounded-lg transition-colors"
+            style={{ background: '#F9FAFB', color: '#2D5233', border: '1px solid #E5E7EB' }}>
+            החלף קוד
+          </button>
+        )}
+      </div>
+      {setupOpen && (
+        <PinLock mode="setup"
+          onSuccess={() => { setEnabled(true); setSetupOpen(false); }}
+          onCancel={() => setSetupOpen(false)} />
+      )}
     </>
   );
 }
