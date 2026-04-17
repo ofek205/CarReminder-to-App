@@ -19,6 +19,24 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Deep link: carreminder://vehicle/<id>, carreminder://document/<id>, etc. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="carreminder" />
+            </intent-filter>
+
+            <!-- App links: https://carreminder.co.il/... opens inside the app
+                 (App Links verification can be turned on later via assetlinks.json) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="carreminder.co.il" />
+                <data android:scheme="https" android:host="www.carreminder.co.il" />
+            </intent-filter>
         </activity>
 
         <provider

@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
+import { compressImage } from '@/lib/imageCompress';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
@@ -191,10 +192,18 @@ export default function EditVehicle() {
   const handlePhoto = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const validation = validateUploadFile(file, 'photo', 5);
+    const validation = validateUploadFile(file, 'photo', 10);
     if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
     try {
-      const base64 = await compressImageToBase64(file, 800, 0.75);
+      // Shared compressor — WebP when supported, JPEG fallback. Keeps the
+      // final data URL small so the row fits comfortably.
+      const small = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.75 });
+      const base64 = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = (ev) => resolve(ev.target.result);
+        r.onerror = reject;
+        r.readAsDataURL(small);
+      });
       setPhotoPreview(base64);
       handleChange('vehicle_photo', base64);
       toast.success('התמונה נטענה');
@@ -203,30 +212,6 @@ export default function EditVehicle() {
       toast.error('שגיאה בטעינת התמונה');
     }
     e.target.value = '';
-  };
-
-  // Compress image to base64 under a reasonable size for DB storage
-  const compressImageToBase64 = (file, maxWidth = 800, quality = 0.75) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const img = new Image();
-        img.onload = () => {
-          const scale = Math.min(1, maxWidth / img.width);
-          const w = img.width * scale;
-          const h = img.height * scale;
-          const canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = reject;
-        img.src = ev.target.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
   };
 
   const handleSubmit = async (e) => {

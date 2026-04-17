@@ -245,6 +245,49 @@ export async function initBackButton(onBackButton) {
   }
 }
 
+// ── Deep links ──────────────────────────────────────────────────────────────
+/**
+ * Handle incoming deep links (e.g. carreminder://vehicle/<id> or
+ * https://carreminder.co.il/VehicleDetail?id=...).
+ *
+ * Converts the incoming URL's pathname + search into a history push so the
+ * React Router sees it as a normal navigation. Used for push-notification
+ * deep-links and external links from WhatsApp/email.
+ *
+ * @param {function(path: string): void} navigate — called with '/Path?query'
+ */
+export async function initDeepLinks(navigate) {
+  if (!isNative) return;
+  try {
+    const { App } = await import('@capacitor/app');
+    // Listener fires for both "cold" (app closed) and "warm" (app open) opens.
+    App.addListener('appUrlOpen', ({ url }) => {
+      if (!url) return;
+      try {
+        const u = new URL(url);
+        // Accept only our own scheme/host to avoid hijacking
+        const ok = u.protocol === 'carreminder:'
+                || u.hostname === 'carreminder.co.il'
+                || u.hostname === 'www.carreminder.co.il';
+        if (!ok) return;
+        // carreminder://vehicle/abc → /VehicleDetail?id=abc
+        let path = u.pathname + (u.search || '');
+        if (u.protocol === 'carreminder:') {
+          const [, kind, id] = u.pathname.split('/');
+          if (kind === 'vehicle' && id) path = `/VehicleDetail?id=${encodeURIComponent(id)}`;
+          else if (kind === 'document' && id) path = `/Documents?id=${encodeURIComponent(id)}`;
+          else if (kind === 'accident' && id) path = `/Accidents?id=${encodeURIComponent(id)}`;
+          else path = u.hostname ? `/${u.hostname}${u.pathname}` : '/';
+        }
+        if (typeof navigate === 'function') navigate(path);
+        else window.location.href = path;
+      } catch { /* malformed URL — ignore */ }
+    });
+  } catch (e) {
+    console.warn('Deep links init failed:', e);
+  }
+}
+
 // ── Haptics ────────────────────────────────────────────────────────────────
 export async function hapticFeedback(type = 'light') {
   if (!isNative) return;

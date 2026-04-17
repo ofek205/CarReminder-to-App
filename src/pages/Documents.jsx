@@ -17,6 +17,7 @@ import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { ListSkeleton } from "../components/shared/Skeletons";
 import { hapticFeedback } from "@/lib/capacitor";
+import { compressImage } from "@/lib/imageCompress";
 import EmptyState from "../components/shared/EmptyState";
 import { formatDateHe, isVessel } from "../components/shared/DateStatusUtils";
 import { daysLabel, daysUntil } from "../components/shared/ReminderEngine";
@@ -112,14 +113,17 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
 
     setUploading(true);
     try {
-      // Read file as base64 - works for both guest (localStorage) and auth (until Supabase Storage is set up)
+      // Compress images before storing (PDFs pass through unchanged). A 4MB phone
+      // photo typically shrinks to ~300KB WebP — keeps base64 payloads sane.
+      const fileForUpload = file.type.startsWith('image/') ? await compressImage(file) : file;
+
       const reader = new FileReader();
       const base64 = await new Promise((resolve, reject) => {
         reader.onload = (ev) => resolve(ev.target.result);
         reader.onerror = reject;
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(fileForUpload);
       });
-      setFileName(file.name);
+      setFileName(fileForUpload.name);
       setForm(f => ({ ...f, file_url: base64 }));
     } catch (err) {
       console.error('File read error:', err);

@@ -27,6 +27,16 @@ import { reportError } from '@/lib/crashReporter';
 window.addEventListener('error', (e) => reportError('Error', e.error || e));
 window.addEventListener('unhandledrejection', (e) => reportError('Promise', e.reason));
 
+// Service Worker — offline support for web users only (Capacitor loads from
+// file:// and doesn't need/benefit from a SW).
+if (!isNative && 'serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(err => {
+      console.warn('Service Worker registration failed:', err);
+    });
+  });
+}
+
 // Keyboard handling: scroll focused input into view on mobile when keyboard opens
 if (typeof window !== 'undefined' && 'visualViewport' in window) {
   let lastFocused = null;

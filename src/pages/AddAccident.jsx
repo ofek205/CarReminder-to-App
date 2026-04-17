@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
+import { compressImage } from '@/lib/imageCompress';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
@@ -167,16 +168,21 @@ export default function AddAccident() {
     }
   };
 
-  // Photo handling (placeholder - storage not yet migrated)
-  const handlePhotoCapture = (e) => {
+  // Photo handling — compressed to WebP/JPEG before store
+  const handlePhotoCapture = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast.error('קובץ גדול מדי (מקס 5MB)'); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm(prev => ({ ...prev, photos: [...(prev.photos || []), reader.result] }));
-    };
-    reader.readAsDataURL(file);
+    if (file.size > 10 * 1024 * 1024) { toast.error('קובץ גדול מדי (מקס 10MB)'); return; }
+    try {
+      const small = await compressImage(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setForm(prev => ({ ...prev, photos: [...(prev.photos || []), reader.result] }));
+      };
+      reader.readAsDataURL(small);
+    } catch {
+      toast.error('שגיאה בטעינת התמונה');
+    }
   };
 
   const removePhoto = (index) => {
@@ -186,15 +192,20 @@ export default function AddAccident() {
     }));
   };
 
-  const handleInsurancePhoto = (e) => {
+  const handleInsurancePhoto = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast.error('קובץ גדול מדי (מקס 5MB)'); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      handleChange('other_driver_insurance_photo', reader.result);
-    };
-    reader.readAsDataURL(file);
+    if (file.size > 10 * 1024 * 1024) { toast.error('קובץ גדול מדי (מקס 10MB)'); return; }
+    try {
+      const small = await compressImage(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        handleChange('other_driver_insurance_photo', reader.result);
+      };
+      reader.readAsDataURL(small);
+    } catch {
+      toast.error('שגיאה בטעינת התמונה');
+    }
   };
 
   const handleSubmit = async (e) => {
