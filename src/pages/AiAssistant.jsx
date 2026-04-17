@@ -3,6 +3,7 @@ import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '../components/shared/GuestContext';
 import { aiRequest } from '@/lib/aiProxy';
+import { hapticFeedback } from '@/lib/capacitor';
 import { C, getVehicleVisual } from '@/lib/designTokens';
 import VehicleIcon from '../components/shared/VehicleIcon';
 import { isVessel, getDateStatus } from '../components/shared/DateStatusUtils';
@@ -214,6 +215,7 @@ export default function AiAssistant() {
 
     // Validations
     if (!clean) return;
+    hapticFeedback('light');
     if (clean.length < MIN_LEN) {
       setError('הודעה קצרה מדי');
       return;
@@ -715,10 +717,12 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
               background: isInputValid ? C.grad : C.primary,
               color: '#fff',
               boxShadow: isInputValid ? `0 4px 16px ${C.primary}50` : `0 2px 8px ${C.primary}30`,
-            }}>
+            }}
+            aria-label={sending ? 'שולח שאלה למומחה AI' : 'שלח שאלה למומחה AI'}
+            aria-busy={sending}>
             {sending
-              ? <Loader2 className="w-5 h-5 animate-spin" />
-              : <Send className="w-4 h-4 send-fly" style={{ transform: 'scaleX(-1)' }} />
+              ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+              : <Send className="w-4 h-4 send-fly" style={{ transform: 'scaleX(-1)' }} aria-hidden="true" />
             }
           </button>
         </div>

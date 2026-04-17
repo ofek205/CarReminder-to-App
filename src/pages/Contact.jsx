@@ -18,11 +18,20 @@ export default function Contact() {
   });
   const [saving, setSaving] = useState(false);
   const [sent, setSent] = useState(false);
+  const [touched, setTouched] = useState({ name: false, email: false, message: false });
+
+  const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim());
+  const errors = {
+    name: !form.name.trim() ? 'שם חובה' : '',
+    email: !form.email.trim() ? 'אימייל חובה' : !isValidEmail(form.email) ? 'אימייל לא תקין' : '',
+    message: !form.message.trim() ? 'הודעה חובה' : form.message.trim().length < 10 ? 'ההודעה קצרה מדי' : '',
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
-      toast.error('יש למלא את כל השדות');
+    setTouched({ name: true, email: true, message: true });
+    if (errors.name || errors.email || errors.message) {
+      toast.error(errors.email || errors.name || errors.message);
       return;
     }
     setSaving(true);
@@ -93,13 +102,27 @@ export default function Contact() {
       <form onSubmit={handleSubmit} className="px-4 pb-24 space-y-4">
         <div>
           <Label className="flex items-center gap-1.5 mb-1.5"><User className="w-3.5 h-3.5" /> שם מלא *</Label>
-          <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            placeholder="השם שלך" />
+          <Input value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            onBlur={() => setTouched(t => ({ ...t, name: true }))}
+            placeholder="השם שלך"
+            aria-invalid={touched.name && !!errors.name}
+            aria-describedby="contact-name-error" />
+          {touched.name && errors.name && (
+            <p id="contact-name-error" className="text-xs font-medium mt-1 flex items-center gap-1" style={{ color: '#DC2626' }}>⚠ {errors.name}</p>
+          )}
         </div>
         <div>
           <Label className="flex items-center gap-1.5 mb-1.5"><Mail className="w-3.5 h-3.5" /> אימייל *</Label>
-          <Input type="email" dir="ltr" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-            placeholder="example@email.com" />
+          <Input type="email" dir="ltr" value={form.email}
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            onBlur={() => setTouched(t => ({ ...t, email: true }))}
+            placeholder="example@email.com"
+            aria-invalid={touched.email && !!errors.email}
+            aria-describedby="contact-email-error" />
+          {touched.email && errors.email && (
+            <p id="contact-email-error" className="text-xs font-medium mt-1 flex items-center gap-1" style={{ color: '#DC2626' }}>⚠ {errors.email}</p>
+          )}
         </div>
         <div>
           <Label className="flex items-center gap-1.5 mb-1.5"><FileText className="w-3.5 h-3.5" /> נושא</Label>
@@ -108,8 +131,15 @@ export default function Contact() {
         </div>
         <div>
           <Label className="mb-1.5 block">הודעה *</Label>
-          <Textarea rows={6} value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
-            placeholder="כתוב את ההודעה שלך כאן..." className="resize-none" />
+          <Textarea rows={6} value={form.message}
+            onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
+            onBlur={() => setTouched(t => ({ ...t, message: true }))}
+            placeholder="כתוב את ההודעה שלך כאן..." className="resize-none"
+            aria-invalid={touched.message && !!errors.message}
+            aria-describedby="contact-message-error" />
+          {touched.message && errors.message && (
+            <p id="contact-message-error" className="text-xs font-medium mt-1 flex items-center gap-1" style={{ color: '#DC2626' }}>⚠ {errors.message}</p>
+          )}
         </div>
 
         <button type="submit" disabled={saving}

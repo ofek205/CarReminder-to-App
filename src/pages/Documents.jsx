@@ -15,6 +15,8 @@ import { Plus, FileText, Upload, Trash2, Eye, Download, Loader2, Sparkles, Check
 import { buttonVariants } from "@/components/ui/button";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
+import { ListSkeleton } from "../components/shared/Skeletons";
+import { hapticFeedback } from "@/lib/capacitor";
 import EmptyState from "../components/shared/EmptyState";
 import { formatDateHe, isVessel } from "../components/shared/DateStatusUtils";
 import { daysLabel, daysUntil } from "../components/shared/ReminderEngine";
@@ -778,9 +780,11 @@ function AuthDocuments({ vehicleIdParam }) {
       await queryClient.invalidateQueries({ queryKey: ['documents'] });
       await queryClient.refetchQueries({ queryKey: ['documents', accountId, vehicleIdParam] });
       setShowAdd(false);
+      hapticFeedback('medium');
       toast.success('מסמך נוסף בהצלחה');
     } catch (err) {
       console.error('Document save error:', err);
+      hapticFeedback('heavy');
       toast.error('שגיאה בשמירת המסמך: ' + (err?.message || ''));
     } finally {
       setSaving(false);
@@ -820,7 +824,16 @@ function AuthDocuments({ vehicleIdParam }) {
     }
   };
 
-  if (!accountId || isLoading) return <LoadingSpinner />;
+  if (!accountId || isLoading) {
+    return (
+      <div dir="rtl">
+        <PageHeader title="מסמכים" subtitle="טוען מסמכים..." />
+        <div className="px-3">
+          <ListSkeleton count={5} variant="document" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

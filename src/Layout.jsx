@@ -709,9 +709,11 @@ function NotificationBell() {
         onClick={() => setPopupOpen(o => !o)}
         className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-[0.95]"
         style={{ background: unreadCount > 0 ? '#FEF2F2' : '#F3F4F6' }}
-        aria-label="התראות"
+        aria-label={unreadCount > 0 ? `התראות (${unreadCount} חדשות)` : 'התראות'}
+        aria-expanded={popupOpen}
+        aria-haspopup="menu"
       >
-        <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? '#DC2626' : '#6B7280' }} />
+        <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? '#DC2626' : '#6B7280' }} aria-hidden="true" />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white"
             style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220,38,38,0.4)' }}>
@@ -1003,8 +1005,11 @@ function LayoutInner({ children }) {
                     setTimeout(() => { btnClicked.current = false; }, 150);
                   }}
                   className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"
-                  style={{ background: open ? '#E5E7EB' : '#F3F4F6', position: 'relative', zIndex: 10001 }}>
-                  <Menu className="h-4.5 w-4.5 text-gray-600" />
+                  style={{ background: open ? '#E5E7EB' : '#F3F4F6', position: 'relative', zIndex: 10001 }}
+                  aria-label={open ? 'סגור תפריט' : 'פתח תפריט'}
+                  aria-expanded={open}
+                  aria-haspopup="menu">
+                  <Menu className="h-4.5 w-4.5 text-gray-600" aria-hidden="true" />
                 </button>
                 <Sheet open={open} onOpenChange={(v) => {
                   if (btnClicked.current) return; // ignore overlay close when hamburger was clicked

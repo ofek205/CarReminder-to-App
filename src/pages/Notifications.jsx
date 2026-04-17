@@ -7,6 +7,7 @@ import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, C
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import LoadingSpinner from "../components/shared/LoadingSpinner";
+import { ListSkeleton } from "../components/shared/Skeletons";
 import { formatDateHe, getVehicleLabels } from "../components/shared/DateStatusUtils";
 import { useAuth } from "../components/shared/GuestContext";
 import { calcAllReminders } from "../components/shared/ReminderEngine";
@@ -446,7 +447,13 @@ function AuthNotifications() {
     });
   };
 
-  if (!user?.id || isLoading) return <LoadingSpinner />;
+  if (!user?.id || isLoading) {
+    return (
+      <div dir="rtl" className="px-4 pt-4">
+        <ListSkeleton count={4} variant="notification" />
+      </div>
+    );
+  }
 
   const sorted = [...notifications].sort((a, b) => {
     if (a.is_overdue && !b.is_overdue) return -1;

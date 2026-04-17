@@ -1006,12 +1006,31 @@ function AdminUsersTab() {
     })();
   }, []);
 
+  // Pagination + search — keeps the admin view fast even on 1000+ users
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState('');
+  const PAGE_SIZE = 50;
+  const filtered = search.trim()
+    ? users.filter(u => (u.name || '').toLowerCase().includes(search.toLowerCase()) || u.id.includes(search))
+    : users;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageUsers = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  useEffect(() => { setPage(0); }, [search]);
+
   if (loading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-gray-100 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-gray-900">כל החשבונות ({users.length})</h2>
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <h2 className="font-bold text-gray-900">כל החשבונות ({filtered.length}{search && ` / ${users.length}`})</h2>
+          <input
+            type="search"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="חפש חשבון לפי שם או ID..."
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 min-w-[180px]"
+            aria-label="חיפוש חשבונות"
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -1024,7 +1043,7 @@ function AdminUsersTab() {
               </tr>
             </thead>
             <tbody>
-              {users.slice(0, 100).map(u => (
+              {pageUsers.map(u => (
                 <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="py-2 px-2 font-medium">{u.name || '-'}</td>
                   <td className="py-2 px-2 font-mono text-[10px] text-gray-400">{u.id.slice(0, 8)}...</td>
@@ -1032,9 +1051,25 @@ function AdminUsersTab() {
                   <td className="py-2 px-2 text-gray-500">{u.created_at ? format(parseISO(u.created_at), 'dd/MM/yyyy') : '-'}</td>
                 </tr>
               ))}
+              {pageUsers.length === 0 && (
+                <tr><td colSpan={4} className="py-8 text-center text-gray-400">לא נמצאו תוצאות</td></tr>
+              )}
             </tbody>
           </table>
         </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100" aria-label="ניווט דפים">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+              className="px-3 py-1.5 text-xs rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold">
+              ← הקודם
+            </button>
+            <span className="text-xs text-gray-500 font-medium">דף {page + 1} מתוך {totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+              className="px-3 py-1.5 text-xs rounded-lg bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold">
+              הבא →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

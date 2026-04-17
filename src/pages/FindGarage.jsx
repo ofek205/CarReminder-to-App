@@ -615,6 +615,25 @@ export default function FindGarage() {
       {/* Garage cards */}
       <div className="px-3 mt-2 pb-28">
         <div className="space-y-2.5">
+          {/* Initial fetch skeleton — Overpass API can take 5-10s */}
+          {fetching && displayGarages.length === 0 && (
+            <div className="space-y-2.5" aria-live="polite" aria-busy="true">
+              <div className="text-center py-4 px-4 rounded-2xl" style={{ background: '#FFF8E1', border: '1.5px solid #FDE68A' }}>
+                <Loader2 className="w-5 h-5 animate-spin mx-auto mb-1.5" style={{ color: '#D97706' }} />
+                <p className="text-xs font-bold" style={{ color: '#92400E' }}>מחפש מוסכים באזור...</p>
+                <p className="text-[10px] mt-1" style={{ color: '#B45309' }}>החיפוש הראשוני עשוי לקחת מספר שניות</p>
+              </div>
+              {[0,1,2,3].map(i => (
+                <div key={i} className="rounded-2xl p-3 flex items-center gap-3 animate-pulse" style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
+                  <div className="w-10 h-10 rounded-xl bg-gray-200" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 rounded bg-gray-200" style={{ width: '60%' }} />
+                    <div className="h-2.5 rounded bg-gray-100" style={{ width: '40%' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {!fetching && displayGarages.length === 0 && (
             <div className="text-center py-10 px-4 rounded-2xl border" style={{ background: C.light, borderColor: C.border }}>
               <div className="w-14 h-14 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: '#fff' }}>

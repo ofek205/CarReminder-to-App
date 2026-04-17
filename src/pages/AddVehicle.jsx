@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
+import { hapticFeedback } from '@/lib/capacitor';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
@@ -351,10 +352,18 @@ export default function AddVehicle() {
     if (e?.preventDefault) e.preventDefault();
 
     setSystemError(null);
+    // Plate format validation — Israeli plates are 5-8 digits (possibly with dashes),
+    // vessels use an IL- prefix with 3-7 chars after. Allow letters for vessel-only.
+    const plateFormat = isVesselCategory
+      ? (v) => !v || /^[A-Z0-9\-]{3,15}$/i.test((v || '').trim())
+      : (v) => !v || /^[\d\-\s]{5,12}$/.test((v || '').trim());
     // vehicle_type is required by the backend
     if (!validate(form, {
       vehicle_type: { custom: [v => v && v.trim() !== '', 'יש לבחור סוג כלי רכב'] },
-      license_plate: { required: 'יש להזין מספר רישוי' },
+      license_plate: {
+        required: 'יש להזין מספר רישוי',
+        custom: [plateFormat, isVesselCategory ? 'מספר זיהוי לא תקין (אותיות/ספרות בלבד)' : 'מספר רישוי לא תקין (5-8 ספרות)'],
+      },
     })) return;
 
     // Check for duplicate license plate
@@ -442,8 +451,10 @@ export default function AddVehicle() {
       const saved = addGuestVehicle(data);
       setSaving(false);
       if (saved) {
+        hapticFeedback('medium');
         setShowGuestSignup(true);
       } else {
+        hapticFeedback('heavy');
         toast.error('שגיאה בשמירה הזמנית');
       }
       return;
@@ -485,10 +496,12 @@ export default function AddVehicle() {
 
       try { if (user) await trackUserAction(user.id); } catch {}
       draft.clearDraft();
+      hapticFeedback('medium');
       setSaving(false);
       setShowSuccess(true);
     } catch (err) {
       console.error('Vehicle save error:', err);
+      hapticFeedback('heavy');
       setSystemError('אירעה שגיאה בשמירת הרכב');
       setSaving(false);
     }
