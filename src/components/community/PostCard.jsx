@@ -9,6 +9,7 @@ import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import useIsAdmin from '@/hooks/useIsAdmin';
 import CommentSection from './CommentSection';
 
 function timeAgo(date) {
@@ -71,6 +72,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   const isLong = post.body?.length > 200;
   const isOwner = user?.id === post.user_id;
   const canInteract = !isGuest && !!user;
+  const isAdmin = useIsAdmin();
 
   const liked = interactions?.liked || false;
   const likeCount = interactions?.likeCount || 0;
@@ -230,16 +232,19 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
                   }} className="gap-2 text-sm font-medium cursor-pointer">
                     <Flag className="w-4 h-4" /> דווח על תוכן
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    if (!confirm(`לחסום את ${post.author_name}? לא תראה את הפוסטים שלו.`)) return;
-                    try {
-                      const blocked = JSON.parse(localStorage.getItem('blocked_users') || '[]');
-                      if (!blocked.includes(post.user_id)) { blocked.push(post.user_id); localStorage.setItem('blocked_users', JSON.stringify(blocked)); }
-                      queryClient.invalidateQueries({ queryKey: ['community_posts'] });
-                    } catch {}
-                  }} className="gap-2 text-sm font-medium cursor-pointer text-red-600">
-                    <Ban className="w-4 h-4" /> חסום משתמש
-                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem onClick={() => {
+                      if (!confirm(`לחסום את ${post.author_name}? לא יראו את הפוסטים שלו.`)) return;
+                      try {
+                        const blocked = JSON.parse(localStorage.getItem('blocked_users') || '[]');
+                        if (!blocked.includes(post.user_id)) { blocked.push(post.user_id); localStorage.setItem('blocked_users', JSON.stringify(blocked)); }
+                        queryClient.invalidateQueries({ queryKey: ['community_posts'] });
+                        toast.success('המשתמש נחסם');
+                      } catch {}
+                    }} className="gap-2 text-sm font-medium cursor-pointer text-red-600">
+                      <Ban className="w-4 h-4" /> חסום משתמש (אדמין)
+                    </DropdownMenuItem>
+                  )}
                 </>
               )}
             </DropdownMenuContent>

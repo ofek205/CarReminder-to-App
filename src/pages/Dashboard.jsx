@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { isSafeFileUrl } from '@/lib/securityUtils';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import usePullToRefresh from '@/hooks/usePullToRefresh';
+import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
 import { Plus, Car, FileText, User, Home, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, AlertCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -452,6 +454,13 @@ export default function Dashboard() {
   const [showCompleteProfile, setShowCompleteProfile] = useState(false);
   const [profileMissing, setProfileMissing] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Pull-to-refresh
+  const { pulling, progress } = usePullToRefresh(async () => {
+    await queryClient.invalidateQueries();
+    await new Promise(r => setTimeout(r, 500));
+  });
 
   // Schedule device notifications for authenticated users
   const { unreadCount } = useNotificationScheduler(filteredVehicles || [], accountId);
@@ -719,6 +728,7 @@ export default function Dashboard() {
 
   return (
     <div className="-mx-4 -mt-4 pb-4" style={{ background: C.bg, minHeight: '100dvh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <PullToRefreshIndicator pulling={pulling} progress={progress} />
       <div className="px-4 pt-6">
 
         {/* Urgent banner - only if something is urgent */}

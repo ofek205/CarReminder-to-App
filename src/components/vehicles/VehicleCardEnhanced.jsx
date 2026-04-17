@@ -8,6 +8,7 @@ import { getTheme, getVehicleCategory, C } from '@/lib/designTokens';
 import VehicleIcon from '../shared/VehicleIcon';
 import { getDateStatus, usesKm, usesHours, getVehicleLabels, isVessel } from '../shared/DateStatusUtils';
 import StatusBadge from '../shared/StatusBadge';
+import LicensePlate from '../shared/LicensePlate';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '../shared/GuestContext';
 import {
@@ -268,11 +269,7 @@ function VehicleCardEnhanced({ vehicle }) {
             {/* License plate + metric - single compact line */}
             <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
               {vehicle.license_plate && (
-                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded tracking-wider"
-                  style={{ background: '#F0F4FF', color: '#475569', border: '1px solid #E2E8F0' }}
-                  dir="ltr">
-                  {vehicle.license_plate}
-                </span>
+                <LicensePlate value={vehicle.license_plate} size="sm" />
               )}
               {isKm && vehicle.current_km && (
                 <span className="text-[10px] font-medium" style={{ color: C.muted }}>

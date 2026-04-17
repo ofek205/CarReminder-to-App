@@ -231,10 +231,27 @@ export default function EditVehicle() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSaving(true);
 
     // Compute vesselMode locally (same as render-level computation)
     const vesselMode = isVesselType(form.vehicle_type, form.nickname);
+
+    // Check for duplicate license plate (excluding self)
+    if (form.license_plate && accountId && !isGuest) {
+      try {
+        const normalizedNew = normalizePlate(form.license_plate);
+        const allVehicles = await db.vehicles.filter({ account_id: accountId });
+        const duplicate = allVehicles.find(v =>
+          v.id !== vehicleId &&
+          (v.license_plate_normalized || normalizePlate(v.license_plate || '')) === normalizedNew
+        );
+        if (duplicate) {
+          toast.error('רכב אחר עם מספר רישוי זה כבר קיים במערכת');
+          return;
+        }
+      } catch {}
+    }
+
+    setSaving(true);
 
     // Only send columns that exist in Supabase
     const DB_COLUMNS = ['vehicle_type','manufacturer','model','year',
@@ -387,30 +404,29 @@ export default function EditVehicle() {
       {/* Sync button removed — data is fetched once on AddVehicle */}
 
       {/* ── Photo ── */}
-      <div className="flex justify-center mb-6">
-        <div className="relative group">
-          <label className="cursor-pointer block">
-            <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
-            {photoPreview ? (
-              <div className="relative">
-                <img src={photoPreview} alt="" className="w-28 h-28 rounded-2xl object-cover"
-                  style={{ border: `2.5px solid ${T.primary}30`, boxShadow: `0 4px 20px ${T.primary}15` }} />
-                <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/10 transition-all" />
-              </div>
-            ) : (
-              <div className="w-28 h-28 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5 transition-all"
-                style={{ borderColor: T.border, background: `${T.primary}06` }}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: T.primary }}>
-                  <Camera className="h-5 w-5 text-white" />
-                </div>
-                <span className="text-[11px] font-bold" style={{ color: T.primary }}>צרף תמונה</span>
-              </div>
-            )}
-          </label>
-          <label className="absolute -bottom-2 -left-2 cursor-pointer text-white rounded-full p-2.5 shadow-lg transition-all active:scale-90"
-            style={{ background: '#FFBF00', boxShadow: '0 3px 12px rgba(255,191,0,0.4)' }} aria-label="צלם תמונה">
+      <div className="flex flex-col items-center gap-2.5 mb-6">
+        {photoPreview ? (
+          <img src={photoPreview} alt="" className="w-28 h-28 rounded-2xl object-cover"
+            style={{ border: `2.5px solid ${T.primary}30`, boxShadow: `0 4px 20px ${T.primary}15` }} />
+        ) : (
+          <div className="w-28 h-28 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5"
+            style={{ borderColor: T.border, background: `${T.primary}06` }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: T.primary }}>
+              <Camera className="h-5 w-5 text-white" />
+            </div>
+            <span className="text-[11px] font-bold" style={{ color: T.primary }}>תמונת רכב</span>
+          </div>
+        )}
+        <div className="flex gap-2">
+          <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95"
+            style={{ background: T.primary, color: '#fff' }}>
             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
-            <Camera className="h-3.5 w-3.5" style={{ color: T.primary }} />
+            <Camera className="h-3.5 w-3.5" /> צלם
+          </label>
+          <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95"
+            style={{ background: '#F3F4F6', color: T.primary, border: `1px solid ${T.border}` }}>
+            <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+            📁 גלריה
           </label>
         </div>
       </div>

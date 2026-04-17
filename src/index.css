@@ -204,6 +204,24 @@ body.keyboard-visible {
   animation: field-error-in 0.2s ease-out;
 }
 
+/* Keyboard-aware viewport — ensures focused input scrolls into view */
+html, body {
+  /* Use dynamic viewport height (accounts for keyboard on mobile) */
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Auto-scroll focused input into view when keyboard opens */
+input:focus, textarea:focus, select:focus {
+  scroll-margin-top: 100px;
+  scroll-margin-bottom: 200px;
+}
+
+/* Ensure dialogs adapt to keyboard */
+[role="dialog"] {
+  max-height: 100dvh;
+}
+
 /* Range slider thumb */
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;

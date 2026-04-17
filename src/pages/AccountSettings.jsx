@@ -234,7 +234,12 @@ function AuthAccountSettings() {
         vehicle_ids: shareAll ? null : selectedVehicleIds,
       });
 
-      const link = `${window.location.origin}/JoinInvite?token=${token}`;
+      // Use public production URL for share links (works on WhatsApp, etc.)
+      const PUBLIC_DOMAIN = 'https://car-reminder-to-app.vercel.app';
+      const origin = (typeof window !== 'undefined' && window.location.origin && window.location.origin.startsWith('http') && !window.location.origin.includes('localhost'))
+        ? window.location.origin
+        : PUBLIC_DOMAIN;
+      const link = `${origin}/JoinInvite?token=${token}`;
       setInviteLink(link);
       queryClient.invalidateQueries({ queryKey: ['active-invites'] });
       toast.success('ההזמנה נוצרה בהצלחה');
@@ -259,7 +264,8 @@ function AuthAccountSettings() {
 
   const shareWhatsApp = () => {
     const roleLabel = inviteRole === 'מנהל' ? 'מנהל' : 'חבר';
-    const text = `הצטרף/י לחשבון הרכבים שלי ב-CarReminder כ${roleLabel}:\n${inviteLink}`;
+    // Put link at end, preceded by a space (not newline) — WhatsApp parses better
+    const text = `הצטרף/י לחשבון הרכבים שלי ב-CarReminder כ${roleLabel}. לחץ להצטרפות: ${inviteLink}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
