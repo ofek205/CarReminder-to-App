@@ -271,5 +271,26 @@ export async function lookupVehicleByPlate(plate) {
   delete fields._tozeret_cd;
   delete fields._degem_cd;
 
+  // Expose the detected type so callers can warn the user when the
+  // selected category doesn't match what the Ministry of Transport says.
+  // Heuristic for subclass: sug_degem === 'K' → truck (משאית), 'A' → bus, 'T' → trailer
+  let detectedType = isMoto ? 'motorcycle' : 'car';
+  if (!isMoto) {
+    const sugDegem = String(record.sug_degem || '').toUpperCase();
+    if (sugDegem === 'K') detectedType = 'truck';
+    else if (sugDegem === 'A') detectedType = 'bus';
+    else if (sugDegem === 'T') detectedType = 'trailer';
+    else if (sugDegem === 'M') detectedType = 'commercial';
+  }
+  fields._detectedType = detectedType;
+  fields._detectedTypeLabel = {
+    motorcycle: 'אופנוע / דו-גלגלי',
+    car: 'רכב פרטי',
+    commercial: 'רכב מסחרי',
+    truck: 'משאית',
+    bus: 'אוטובוס',
+    trailer: 'גרור',
+  }[detectedType] || 'רכב';
+
   return fields;
 }

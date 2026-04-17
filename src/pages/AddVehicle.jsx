@@ -121,6 +121,10 @@ export default function AddVehicle() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const formRef = useRef(null);
 
+  // Category-mismatch dialog state — opens when gov.il says the plate belongs
+  // to a different vehicle class than the one the user picked
+  const [typeMismatch, setTypeMismatch] = useState(null); // { detectedType, detectedLabel, pendingFields, pendingUpdates }
+
   const draft = useFormDraft({
     key: 'add_vehicle', data: form, setData: setForm,
     defaultData: EMPTY_FORM, userId: user?.id,
@@ -294,55 +298,137 @@ export default function AddVehicle() {
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
   };
 
+  // Map a selected category → the vehicle types the gov.il API may return
+  // that are considered "a match". Used to warn on plate/category mismatch.
+  const expectedTypesForCategory = (cat) => {
+    if (!cat) return null; // no category yet — skip check
+    switch (cat.label) {
+      case 'פרטיים ומסחריים': return ['car', 'commercial'];
+      case 'אופנועים':        return ['motorcycle'];
+      case 'משאיות':           return ['truck', 'commercial'];
+      case 'כלי שטח':         return null; // gov.il can't classify reliably — skip
+      case 'מיוחדים':          return null; // same — skip for special subcategories
+      default: return null;
+    }
+  };
+
+  // Find the VEHICLE_CATEGORIES entry that best matches a detected type
+  const categoryForDetectedType = (type) => {
+    switch (type) {
+      case 'motorcycle': return VEHICLE_CATEGORIES.find(c => c.label === 'אופנועים');
+      case 'truck':      return VEHICLE_CATEGORIES.find(c => c.label === 'משאיות');
+      case 'car':
+      case 'commercial': return VEHICLE_CATEGORIES.find(c => c.label === 'פרטיים ומסחריים');
+      default: return null;
+    }
+  };
+
+  // Build the form updates object (used both after fresh lookup and after
+  // the user confirms a mismatched category)
+  const buildUpdatesFromFields = (fields) => ({
+    license_plate: fields.license_plate || '',
+    manufacturer: fields.manufacturer || '',
+    model: fields.model || '',
+    year: fields.year || '',
+    test_due_date: fields.test_due_date || '',
+    fuel_type: fields.fuel_type || '',
+    is_vintage: isVintageVehicle(fields.year),
+    // Extra fields from gov API
+    front_tire: fields.front_tire || '',
+    rear_tire: fields.rear_tire || '',
+    engine_model: fields.engine_model || '',
+    color: fields.color || '',
+    last_test_date: fields.last_test_date || '',
+    first_registration_date: fields.first_registration_date || '',
+    ownership: fields.ownership || '',
+    // Tech spec fields
+    model_code: fields.model_code || '',
+    trim_level: fields.trim_level || '',
+    vin: fields.vin || '',
+    pollution_group: fields.pollution_group || '',
+    vehicle_class: fields.vehicle_class || '',
+    safety_rating: fields.safety_rating || '',
+    horsepower: fields.horsepower || '',
+    engine_cc: fields.engine_cc || '',
+    drivetrain: fields.drivetrain || '',
+    total_weight: fields.total_weight || '',
+    doors: fields.doors || '',
+    seats: fields.seats || '',
+    airbags: fields.airbags || '',
+    transmission: fields.transmission || '',
+    body_type: fields.body_type || '',
+    country_of_origin: fields.country_of_origin || '',
+    co2: fields.co2 || '',
+    green_index: fields.green_index || '',
+    tow_capacity: fields.tow_capacity || '',
+  });
+
+  // Apply lookup result to the form + UI state
+  const applyLookupToForm = (fields, updates) => {
+    setForm(prev => ({ ...prev, ...updates }));
+    const filled = new Set(Object.entries(updates).filter(([k, v]) => v && k !== 'is_vintage').map(([k]) => k));
+    setAutofillFields(filled);
+    setLookupStatus('found');
+    setSelectedMethod('plate');
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+  };
+
+  // User confirmed switching category → apply lookup with the correct category
+  const confirmSwitchCategory = () => {
+    if (!typeMismatch) return;
+    const newCat = categoryForDetectedType(typeMismatch.detectedType);
+    if (newCat) {
+      setSelectedCategory(newCat);
+      setSelectedSubcategory(null);
+      // Default subcategory for motorcycle = "אופנוע כביש" (most common)
+      if (typeMismatch.detectedType === 'motorcycle') {
+        setSelectedSubcategory(MOTO_SUBCATEGORIES.find(s => s.label === 'אופנוע כביש') || MOTO_SUBCATEGORIES[0]);
+      }
+    }
+    applyLookupToForm(typeMismatch.pendingFields, typeMismatch.pendingUpdates);
+    setTypeMismatch(null);
+  };
+
+  // User chose to keep the current (wrong) category → fill form anyway + warn
+  const keepCurrentCategory = () => {
+    if (!typeMismatch) return;
+    applyLookupToForm(typeMismatch.pendingFields, typeMismatch.pendingUpdates);
+    toast.warning(`שים לב: המספר שייך ל${typeMismatch.detectedLabel}, לא לקטגוריה שבחרת`);
+    setTypeMismatch(null);
+  };
+
+  // User cancelled the lookup entirely → clear loading + keep form empty
+  const cancelMismatch = () => {
+    setTypeMismatch(null);
+    setLookupStatus('idle');
+  };
+
   const handleLookup = async () => {
     if (!plateQuery.trim()) return;
     setLookupStatus('loading');
     try {
       const fields = await lookupVehicleByPlate(plateQuery.trim());
       if (!fields) { setLookupStatus('not_found'); return; }
-      const updates = {
-        license_plate: fields.license_plate || '',
-        manufacturer: fields.manufacturer || '',
-        model: fields.model || '',
-        year: fields.year || '',
-        test_due_date: fields.test_due_date || '',
-        fuel_type: fields.fuel_type || '',
-        is_vintage: isVintageVehicle(fields.year),
-        // Extra fields from gov API
-        front_tire: fields.front_tire || '',
-        rear_tire: fields.rear_tire || '',
-        engine_model: fields.engine_model || '',
-        color: fields.color || '',
-        last_test_date: fields.last_test_date || '',
-        first_registration_date: fields.first_registration_date || '',
-        ownership: fields.ownership || '',
-        // Tech spec fields
-        model_code: fields.model_code || '',
-        trim_level: fields.trim_level || '',
-        vin: fields.vin || '',
-        pollution_group: fields.pollution_group || '',
-        vehicle_class: fields.vehicle_class || '',
-        safety_rating: fields.safety_rating || '',
-        horsepower: fields.horsepower || '',
-        engine_cc: fields.engine_cc || '',
-        drivetrain: fields.drivetrain || '',
-        total_weight: fields.total_weight || '',
-        doors: fields.doors || '',
-        seats: fields.seats || '',
-        airbags: fields.airbags || '',
-        transmission: fields.transmission || '',
-        body_type: fields.body_type || '',
-        country_of_origin: fields.country_of_origin || '',
-        co2: fields.co2 || '',
-        green_index: fields.green_index || '',
-        tow_capacity: fields.tow_capacity || '',
-      };
-      setForm(prev => ({ ...prev, ...updates }));
-      const filled = new Set(Object.entries(updates).filter(([k, v]) => v && k !== 'is_vintage').map(([k]) => k));
-      setAutofillFields(filled);
-      setLookupStatus('found');
-      setSelectedMethod('plate');
-      setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+
+      // ── Category-mismatch check ─────────────────────────────────────────
+      // If the user already chose a category, verify gov.il's classification
+      // matches. If not, pause and ask the user what to do.
+      const expected = expectedTypesForCategory(selectedCategory);
+      const detected = fields._detectedType;
+      if (expected && detected && !expected.includes(detected)) {
+        setTypeMismatch({
+          detectedType: detected,
+          detectedLabel: fields._detectedTypeLabel,
+          pendingFields: fields,
+          pendingUpdates: buildUpdatesFromFields(fields),
+        });
+        setLookupStatus('idle');
+        hapticFeedback('medium');
+        return;
+      }
+
+      // No mismatch — apply fields directly
+      applyLookupToForm(fields, buildUpdatesFromFields(fields));
     } catch (_) {
       setLookupStatus('error');
     }
@@ -602,6 +688,54 @@ export default function AddVehicle() {
               >
                 ביטול
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Category-mismatch Modal — opens when gov.il says the plate belongs
+          to a different vehicle class than the one the user picked. */}
+      {typeMismatch && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" dir="rtl" role="dialog" aria-modal="true" aria-labelledby="mismatch-title">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto"
+              style={{ background: '#FFF8E1' }}>
+              <span className="text-3xl" role="img" aria-label="warning">⚠️</span>
+            </div>
+            <div className="text-center space-y-2">
+              <h2 id="mismatch-title" className="text-lg font-black text-gray-900">
+                סוג הרכב לא תואם לקטגוריה
+              </h2>
+              <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
+                המספר <span dir="ltr" className="font-mono font-bold" style={{ color: '#DC2626' }}>{typeMismatch.pendingFields.license_plate || plateQuery}</span>
+                {' '}שייך לפי משרד התחבורה ל
+                <span className="font-black" style={{ color: '#2D5233' }}>{typeMismatch.detectedLabel}</span>,
+                {' '}אבל בחרת בקטגוריה <span className="font-bold">{selectedCategory?.label}</span>.
+              </p>
+              <p className="text-xs" style={{ color: '#9CA3AF' }}>
+                כדי שהטסט, הביטוח והמפרט יהיו נכונים, מומלץ להחליף לקטגוריה הנכונה.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 pt-2">
+              <button onClick={confirmSwitchCategory}
+                className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                style={{
+                  background: 'linear-gradient(135deg, #2D5233 0%, #4B7A53 100%)',
+                  color: '#fff',
+                  boxShadow: '0 4px 16px rgba(45,82,51,0.25)',
+                }}>
+                העבר לקטגוריה: {typeMismatch.detectedLabel}
+              </button>
+              <button onClick={keepCurrentCategory}
+                className="w-full py-2.5 rounded-2xl font-bold text-xs transition-all active:scale-[0.98]"
+                style={{ background: '#fff', color: '#6B7280', border: '1.5px solid #E5E7EB' }}>
+                השאר בקטגוריה "{selectedCategory?.label}" בכל זאת
+              </button>
+              <button onClick={cancelMismatch}
+                className="w-full py-2 text-xs font-medium transition-colors"
+                style={{ color: '#DC2626' }}>
+                ביטול / בדוק את מספר הרישוי
+              </button>
             </div>
           </div>
         </div>
