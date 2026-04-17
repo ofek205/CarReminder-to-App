@@ -46,6 +46,7 @@ const navItems = [
   { name: 'UserProfile',           label: 'אזור אישי',       icon: UserCircle,      guestAllowed: true },
   { name: 'AccountSettings',       label: 'שיתוף חשבון',      icon: Users,           guestAllowed: true },
   { name: 'AdminReviews',          label: 'חוות דעת',         icon: Star,            guestAllowed: true },
+  { name: 'Contact',               label: 'צור קשר',          icon: MessageSquare,   guestAllowed: true },
   { name: 'AdminDashboard',        label: 'לוח ניהול',        icon: ShieldCheck,     guestAllowed: false, adminOnly: true },
 ];
 

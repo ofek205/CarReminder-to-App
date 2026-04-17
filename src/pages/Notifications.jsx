@@ -44,6 +44,9 @@ function getNotifEditUrl(notif) {
   return `${createPageUrl('VehicleDetail')}?id=${notif.vehicleId}`;
 }
 
+const GOV_LICENSE_URL = 'https://www.gov.il/he/service/car-license-renewal';
+const GOV_VESSEL_URL = 'https://www.gov.il/he/service/seaworthiness-certificate';
+
 // ── Notification Card ────────────────────────────────────────────────────────
 function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
   const navigate = useNavigate();
@@ -51,19 +54,21 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
   const Icon = tc.icon;
   const isOverdue = notif.is_overdue;
   const editUrl = getNotifEditUrl(notif);
+  const isTestNotif = (notif.id || '').startsWith('test-');
+  const isInsNotif = (notif.id || '').startsWith('ins-');
 
   return (
     <div
-      className={`rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all ${editUrl ? 'cursor-pointer active:scale-[0.99]' : ''}`}
+      className={`rounded-2xl p-4 mb-2.5 transition-all ${editUrl ? 'cursor-pointer active:scale-[0.99]' : ''}`}
       style={{
         background: isOverdue ? '#FEF2F2' : isRead ? '#FAFAFA' : '#fff',
         border: `1.5px solid ${isOverdue ? '#FECACA' : isRead ? '#E5E7EB' : C.border}`,
         boxShadow: isRead ? 'none' : `0 2px 10px ${C.primary}08`,
         opacity: isRead ? 0.65 : 1,
       }}
-      dir="rtl"
-      onClick={() => { if (editUrl) { if (onMarkRead) onMarkRead(notif.id); navigate(editUrl); } }}
-    >
+      dir="rtl">
+      <div className="flex items-center gap-3"
+        onClick={() => { if (editUrl) { if (onMarkRead) onMarkRead(notif.id); navigate(editUrl); } }}>
       {/* Icon */}
       <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
         style={{ background: isOverdue ? '#DC2626' : tc.bg, boxShadow: isOverdue ? '0 3px 10px rgba(220,38,38,0.2)' : 'none' }}>
@@ -114,6 +119,31 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
             נקרא
           </button>
         )
+      )}
+      </div>
+
+      {/* Action buttons for test/insurance notifications */}
+      {(isTestNotif || isInsNotif) && notif.vehicleId && (
+        <div className="flex gap-2 mt-3 pt-3 border-t" style={{ borderColor: isOverdue ? '#FECACA' : '#F3F4F6' }}
+          onClick={(e) => e.stopPropagation()}>
+          {isTestNotif && (
+            <a href={notif.notification_type === 'כושר שייט' ? GOV_VESSEL_URL : GOV_LICENSE_URL}
+              target="_blank" rel="noopener noreferrer"
+              onClick={() => onMarkRead && onMarkRead(notif.id)}
+              className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-[11px] font-bold transition-all active:scale-95"
+              style={{ background: '#EEF2FF', color: '#4338CA' }}>
+              💳 תשלום אגרה
+            </a>
+          )}
+          <button onClick={() => {
+            if (onMarkRead) onMarkRead(notif.id);
+            navigate(`${createPageUrl('EditVehicle')}?id=${notif.vehicleId}&field=${isTestNotif ? 'test_due_date' : 'insurance_due_date'}`);
+          }}
+            className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-[11px] font-bold transition-all active:scale-95"
+            style={{ background: '#E8F5E9', color: '#2E7D32' }}>
+            ✓ ביצעתי + העלה מסמך
+          </button>
+        </div>
       )}
     </div>
   );

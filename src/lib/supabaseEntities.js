@@ -124,6 +124,7 @@ export const db = {
   cork_notes:         makeEntity('cork_notes'),
   user_profiles:      makeEntity('user_profiles'),
   documents:          makeEntity('documents'),
+  contact_messages:   makeEntity('contact_messages'),
   community_posts:    makeEntity('community_posts'),
   community_comments: makeEntity('community_comments'),
   community_notifications: makeEntity('community_notifications'),

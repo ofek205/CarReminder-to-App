@@ -31,6 +31,7 @@ const ReminderSettingsPage = React.lazy(() => import('./pages/ReminderSettingsPa
 const RepairTypes = React.lazy(() => import('./pages/RepairTypes'));
 const UserProfile = React.lazy(() => import('./pages/UserProfile'));
 const AiAssistant = React.lazy(() => import('./pages/AiAssistant'));
+const Contact = React.lazy(() => import('./pages/Contact'));
 
 export const PAGES = {
     "Accidents": Accidents,
@@ -39,6 +40,7 @@ export const PAGES = {
     "AddAccident": AddAccident,
     "Auth": AuthPage,
     "Community": Community,
+    "Contact": Contact,
     "DeleteAccount": DeleteAccount,
     "PrivacyPolicy": PrivacyPolicy,
     "TermsOfService": TermsOfService,

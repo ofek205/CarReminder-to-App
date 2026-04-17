@@ -22,11 +22,12 @@ const AVATAR_GRADIENTS = [
   'linear-gradient(135deg, #0369A1, #38BDF8)',
 ];
 
-export default function CommentSection({ postId, postOwnerId, canComment: canCommentProp, T, onCommentAdded }) {
+export default function CommentSection({ postId, postOwnerId, postDomain, postBody, canComment: canCommentProp, T, onCommentAdded }) {
   const canComment = canCommentProp;
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [anonymous, setAnonymous] = useState(false);
+  const [aiThinking, setAiThinking] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: comments = [], isLoading } = useQuery({
@@ -67,8 +68,9 @@ export default function CommentSection({ postId, postOwnerId, canComment: canCom
         authorName = `אנונימי #${anonymousNumber}`;
       }
 
+      const userMessage = text.trim();
       await db.community_comments.create({
-        post_id: postId, user_id: user.id, author_name: authorName, body: text.trim(), is_ai: false,
+        post_id: postId, user_id: user.id, author_name: authorName, body: userMessage, is_ai: false,
         is_anonymous: anonymous,
         anonymous_number: anonymousNumber,
       });
@@ -80,6 +82,61 @@ export default function CommentSection({ postId, postOwnerId, canComment: canCom
       setText('');
       queryClient.invalidateQueries({ queryKey: ['community_comments', postId] });
       onCommentAdded?.();
+
+      // If this is the post owner replying, check if Yossi AI should respond (up to 3 AI replies)
+      const isPostOwner = postOwnerId === user.id;
+      if (isPostOwner && !anonymous) {
+        const aiCount = comments.filter(c => c.is_ai).length;
+        if (aiCount < 3) {
+          setAiThinking(true);
+          try {
+            const { aiRequest } = await import('@/lib/aiProxy');
+            const isVessel = postDomain === 'vessel';
+            const systemPrompt = isVessel
+              ? `אתה יוסי, טכנאי כלי שייט מומחה. זו שיחת המשך בפורום — ענה ספציפית לשאלת ההמשך של השואל בקצרה (2-4 משפטים). היה חם ואישי.`
+              : `אתה יוסי המוסכניק. זו שיחת המשך בפורום — ענה ספציפית לשאלת ההמשך של השואל בקצרה (2-4 משפטים). היה חם ואישי.`;
+            const conversationHistory = comments
+              .filter(c => c.is_ai || c.user_id === postOwnerId)
+              .slice(-4)
+              .map(c => `${c.is_ai ? 'יוסי' : 'השואל'}: ${c.body}`).join('\n');
+            const json = await aiRequest({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 400,
+              system: systemPrompt,
+              messages: [{
+                role: 'user',
+                content: `פוסט מקורי: ${postBody || ''}\n\nשיחה עד כה:\n${conversationHistory}\n\nתגובה חדשה של השואל: ${userMessage}\n\nענה בקצרה.`,
+              }],
+            });
+            const aiText = json?.content?.[0]?.text || '';
+            if (aiText) {
+              await db.community_comments.create({
+                post_id: postId,
+                user_id: null,
+                author_name: isVessel ? '⚓ יוסי מומחה כלי שייט' : '🔧 יוסי המוסכניק',
+                body: aiText.replace(/<[^>]*>/g, '').slice(0, 1000),
+                is_ai: true,
+              });
+              queryClient.invalidateQueries({ queryKey: ['community_comments', postId] });
+              onCommentAdded?.();
+              // After 3rd reply, suggest moving to private AI chat
+              if (aiCount + 1 >= 3) {
+                setTimeout(async () => {
+                  await db.community_comments.create({
+                    post_id: postId,
+                    user_id: null,
+                    author_name: isVessel ? '⚓ יוסי מומחה כלי שייט' : '🔧 יוסי המוסכניק',
+                    body: '💡 הגענו ל-3 תשובות כאן. להמשך שיחה מעמיקה יותר, אני ממליץ לעבור לצ\'אט הייעוץ הפרטי שלי — לחץ על "מומחה AI" בתפריט התחתון.',
+                    is_ai: true,
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['community_comments', postId] });
+                }, 1500);
+              }
+            }
+          } catch (err) { console.warn('AI reply error:', err?.message); }
+          setAiThinking(false);
+        }
+      }
     } catch (err) {
       console.error('Comment send error:', err);
     } finally {
@@ -154,6 +211,14 @@ export default function CommentSection({ postId, postOwnerId, canComment: canCom
             </div>
             );
           })}
+        </div>
+      )}
+
+      {/* AI thinking indicator */}
+      {aiThinking && (
+        <div className="px-3 py-2 flex items-center gap-2" style={{ background: '#FFFBEB', borderTop: '1px solid #FEF3C7' }}>
+          <Wrench className="w-3.5 h-3.5 animate-pulse" style={{ color: '#D97706' }} />
+          <span className="text-[11px] font-medium" style={{ color: '#92400E' }}>יוסי חושב על תשובה...</span>
         </div>
       )}
 

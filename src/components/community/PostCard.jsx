@@ -411,7 +411,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
 
       {/* Comments */}
       {showComments && (
-        <CommentSection postId={post.id} postOwnerId={post.user_id} canComment={canComment} T={T} onCommentAdded={onCommentAdded} />
+        <CommentSection postId={post.id} postOwnerId={post.user_id} postDomain={post.domain} postBody={post.body} canComment={canComment} T={T} onCommentAdded={onCommentAdded} />
       )}
     </div>
   );
