@@ -732,6 +732,7 @@ export default function Dashboard() {
 
   return (
     <div className="-mx-4 -mt-4 pb-4" style={{ background: C.bg, minHeight: '100dvh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {showOnboarding && <OnboardingTour onComplete={() => setShowOnboarding(false)} />}
       <PullToRefreshIndicator pulling={pulling} progress={progress} />
       <div className="px-4 pt-6">
 
