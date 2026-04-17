@@ -80,7 +80,11 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
       <div className="flex-1 min-w-0">
         <p className={`text-sm ${isRead ? 'font-medium' : 'font-bold'}`}
           style={{ color: isOverdue ? '#991B1B' : isRead ? '#6B7280' : C.text }}>
-          {notif.message}
+          {/* Strip the trailing "פג תוקף!" from the label — the chip below
+              already communicates that, and duplicating it turns the card into
+              visual noise ("טסט פג תוקף!" + chip "פג תוקף"). Keep bang for
+              non-expired upcoming labels. */}
+          {isOverdue ? (notif.message || '').replace(/\s*פג תוקף[!\s]*$/,'').trim() : notif.message}
         </p>
         <div className="flex items-center gap-2 mt-1">
           {(notif.due_date || notif.name) && (
@@ -90,12 +94,14 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
           )}
           {isOverdue && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FEE2E2', color: '#DC2626' }}>
-              פג תוקף
+              {notif.days_left !== undefined && notif.days_left < 0
+                ? `פג לפני ${Math.abs(notif.days_left)} ${Math.abs(notif.days_left) === 1 ? 'יום' : 'ימים'}`
+                : 'פג תוקף'}
             </span>
           )}
           {!isOverdue && notif.days_left !== undefined && notif.days_left <= 7 && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FEF3C7', color: '#D97706' }}>
-              בקרוב
+              {notif.days_left === 0 ? 'היום' : notif.days_left === 1 ? 'מחר' : `בעוד ${notif.days_left} ימים`}
             </span>
           )}
         </div>

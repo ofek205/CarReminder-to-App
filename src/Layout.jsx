@@ -828,6 +828,8 @@ function NotificationBell() {
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs truncate ${isRead ? 'font-medium' : 'font-bold'}`}
                             style={{ color: n.isExpired ? '#DC2626' : isRead ? '#6B7280' : '#1C2E20' }}>
+                            {/* Keep "פג תוקף" in the bell label — here there's no chip
+                                to convey the state, so the trailing signal earns its keep. */}
                             {n.label}
                           </p>
                           <p className="text-[10px] truncate" style={{ color: '#9CA3AF' }}>{n.name}</p>

@@ -347,22 +347,34 @@ function VehicleRow({ vehicle }) {
   const isOverdue = worstDays < 0;
   const isSoon    = worstDays >= 0 && worstDays <= 60;
 
+  // Title + subtitle — avoid repeating info the user can already read from
+  // the title. Two scenarios to handle:
+  //   (a) nickname exists → title=nickname, subtitle=mfr+model+year. But if
+  //       the nickname already contains a word from the manufacturer (e.g.
+  //       "ניסאן ניסאן" + manufacturer "ניסאן יפן"), drop the mfr from subtitle.
+  //   (b) no nickname → title=mfr+model, subtitle=year only (showing mfr+model
+  //       again in the subtitle would just echo the same line twice).
   const name = vehicle.nickname || [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ') || (isVessel ? 'כלי שייט' : 'רכב');
-  const subtitle = [vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' · ');
+  const titleWords = name.toLowerCase().split(/[\s·]+/).filter(Boolean);
+  const isWordInTitle = (s) => (s || '').toLowerCase().split(/\s+/).filter(Boolean).some(w => titleWords.includes(w));
+  const subtitleParts = [];
+  if (vehicle.manufacturer && !isWordInTitle(vehicle.manufacturer)) subtitleParts.push(vehicle.manufacturer);
+  if (vehicle.model && !isWordInTitle(vehicle.model)) subtitleParts.push(vehicle.model);
+  if (vehicle.year) subtitleParts.push(vehicle.year);
+  const subtitle = subtitleParts.join(' · ');
 
-  // Missing fields
+  // Missing fields — reduced list: only the fields that matter for reminders.
+  // Cosmetic gaps (photo / fuel type / insurance company) are no longer flagged
+  // here because every card lacking a photo was flaring the warning banner and
+  // turning the whole dashboard into a wall of orange. Those still appear in
+  // the Edit screen where the user actually fills them in.
   const missingFields = [];
   if (!vehicle.test_due_date) missingFields.push(isVessel ? 'כושר שייט' : 'טסט');
   if (!vehicle.insurance_due_date) missingFields.push(isVessel ? 'ביטוח ימי' : 'ביטוח');
   if (!vehicle.license_plate) missingFields.push('מספר רישוי');
   if (!vehicle.manufacturer) missingFields.push('יצרן');
-  if (!vehicle.model) missingFields.push('דגם');
-  if (!vehicle.year) missingFields.push('שנה');
-  if (!vehicle.fuel_type && !isVessel) missingFields.push('סוג דלק');
   if (!isVessel && !vehicle.current_km) missingFields.push('קילומטראז\'');
   if (isVessel && !vehicle.current_engine_hours) missingFields.push('שעות מנוע');
-  if (!vehicle.insurance_company) missingFields.push('חברת ביטוח');
-  if (!vehicle.vehicle_photo) missingFields.push('תמונה');
   const hasMissing = missingFields.length > 0 && !vehicle._isDemo;
 
   // Status badges
@@ -422,11 +434,13 @@ function VehicleRow({ vehicle }) {
             )
           )}
           {hasMissing && (
-            <div className="flex items-center gap-1.5 mt-1.5 px-2 py-1 rounded-lg"
+            <div
+              className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full"
+              title={`חסר: ${missingFields.join(', ')}`}
               style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#EA580C' }} />
+              <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} aria-hidden="true" />
               <span className="text-[10px] font-bold" style={{ color: '#EA580C' }}>
-                פרטים חסרים: {missingFields.join(', ')}
+                השלם {missingFields.length} פרטים
               </span>
             </div>
           )}

@@ -194,12 +194,18 @@ function VehicleCardEnhanced({ vehicle }) {
 
   const borderColor = worstSt === 'danger' ? '#FECACA' : worstSt === 'warn' ? '#FDE68A' : T.border;
 
-  const hasNickname = !!vehicle.nickname;
+  // Title + subtitle — show each piece of info exactly once. If the title
+  // (nickname or manufacturer+model) already contains a word from the
+  // manufacturer/model, drop it from the subtitle so we don't echo the same
+  // text on two lines. Year is always kept — it's unique.
   const name = vehicle.nickname || vehicle.manufacturer || labels.vehicleFallback;
-  // If nickname exists, show manufacturer+model+year as subtitle. If no nickname, show model+year only (manufacturer is already the name)
-  const subtitle = hasNickname
-    ? [vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' · ')
-    : [vehicle.model, vehicle.year].filter(Boolean).join(' · ');
+  const titleWords = name.toLowerCase().split(/[\s·]+/).filter(Boolean);
+  const isWordInTitle = (s) => (s || '').toLowerCase().split(/\s+/).filter(Boolean).some(w => titleWords.includes(w));
+  const subtitleParts = [];
+  if (vehicle.manufacturer && !isWordInTitle(vehicle.manufacturer)) subtitleParts.push(vehicle.manufacturer);
+  if (vehicle.model && !isWordInTitle(vehicle.model)) subtitleParts.push(vehicle.model);
+  if (vehicle.year) subtitleParts.push(vehicle.year);
+  const subtitle = subtitleParts.join(' · ');
 
   return (
     <div>
@@ -291,17 +297,21 @@ function VehicleCardEnhanced({ vehicle }) {
               <StatusBadge status={insStatus.status} label={insStatus.label} />
             </div>
 
-            {/* Missing fields - click navigates to edit */}
+            {/* Missing fields — compact chip with count. Click navigates to edit.
+                Previously this was a wide banner shown on nearly every card,
+                adding visual noise. Now it's a single compact chip with a
+                tooltip-title listing the missing fields for hover/long-press. */}
             {hasMissing && (
               <button
                 onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(`${createPageUrl('EditVehicle')}?id=${vehicle.id}`); }}
-                className="flex items-center gap-1.5 mt-2 px-2 py-1.5 rounded-lg w-full text-right transition-all active:scale-[0.98] overflow-hidden"
+                title={`חסר: ${missingFields.join(', ')}`}
+                aria-label={`השלם פרטים חסרים: ${missingFields.join(', ')}`}
+                className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full transition-all active:scale-[0.98]"
                 style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
-                <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} />
-                <span className="text-[10px] font-bold flex-1 truncate" style={{ color: '#EA580C' }}>
-                  פרטים חסרים: {missingFields.join(', ')}
+                <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} aria-hidden="true" />
+                <span className="text-[10px] font-bold" style={{ color: '#EA580C' }}>
+                  השלם {missingFields.length} פרטים
                 </span>
-                <Edit className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} />
               </button>
             )}
           </div>
