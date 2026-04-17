@@ -240,12 +240,47 @@ export default function FindGarage() {
     'https://overpass.kumi.systems/api/interpreter',
   ];
 
+  // Stale-while-revalidate cache for Overpass results.
+  //   Key: rounded lat/lng (1km grid) + radius + vessel flag
+  //   TTL: 24h — garages don't appear/disappear often; users can pull-to-refresh
+  //   Strategy: on hit, render cached results instantly + fetch in background
+  const CACHE_VERSION = 'fg_v1';
+  const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+  const cacheKey = (lat, lng, r, hasV) => {
+    // Round to ~0.01° (~1km) so minor GPS drift doesn't miss the cache
+    const la = Math.round(lat * 100) / 100;
+    const lo = Math.round(lng * 100) / 100;
+    return `${CACHE_VERSION}:${la}:${lo}:${r}:${hasV ? 1 : 0}`;
+  };
+  const readCache = (key) => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const { savedAt, data } = JSON.parse(raw);
+      if (Date.now() - savedAt > CACHE_TTL_MS) return null;
+      return data;
+    } catch { return null; }
+  };
+  const writeCache = (key, data) => {
+    try { localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), data })); } catch {}
+  };
+
   const fetchGarages = useCallback(async () => {
     if (!userLocation) return;
-    setFetching(true);
+    const { lat, lng } = userLocation;
+    const r = searchRadius;
+    const key = cacheKey(lat, lng, r, hasVessel);
+
+    // Show cached results immediately if we have them (stale-while-revalidate)
+    const cached = readCache(key);
+    if (cached) {
+      setGarages(cached);
+      // don't block on spinner for revalidation
+    } else {
+      setFetching(true);
+    }
+
     try {
-      const { lat, lng } = userLocation;
-      const r = searchRadius;
 
       // Car query
       const carQuery = `[out:json][timeout:15];(node["shop"="car_repair"](around:${r},${lat},${lng});node["craft"="mechanic"](around:${r},${lat},${lng});node["shop"="car_parts"](around:${r},${lat},${lng});node["shop"="tyres"](around:${r},${lat},${lng});node["craft"="tyre"](around:${r},${lat},${lng}););out body;`;
@@ -327,7 +362,11 @@ export default function FindGarage() {
       });
       results.sort((a, b) => a.distance - b.distance);
       setGarages(results);
-    } catch (err) { console.error('Overpass fetch error:', err); setGarages([]); }
+      writeCache(key, results);
+    } catch (err) {
+      console.error('Overpass fetch error:', err);
+      if (!cached) setGarages([]); // only wipe if we had nothing to show
+    }
     finally { setFetching(false); }
   }, [userLocation, searchRadius, hasVessel]);
 
