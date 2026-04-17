@@ -137,7 +137,9 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         updateGuestVehicle(vehicle.id, update);
       } else {
         await db.vehicles.update(vehicle.id, update);
-        await queryClient.refetchQueries({ queryKey: ['vehicle'] });
+        await queryClient.invalidateQueries({ queryKey: ['vehicle'] });
+        await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+        await queryClient.refetchQueries({ queryKey: ['vehicle', vehicle.id] });
       }
       setTimeout(() => { onClose(); reset(); }, 800);
     } catch (err) {

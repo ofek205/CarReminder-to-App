@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
-import { Wrench, Plus, Calendar, Trash2, AlertTriangle, Settings, Camera, Image, X, Sparkles, Loader2 } from 'lucide-react';
+import { Wrench, Plus, Calendar, Trash2, AlertTriangle, Settings, Camera, Image, X, Sparkles, Loader2, Edit } from 'lucide-react';
 import { getTheme } from '@/lib/designTokens';
 import { isVessel as checkVessel } from '../shared/DateStatusUtils';
 import { Anchor } from 'lucide-react';
@@ -27,6 +27,7 @@ export default function MaintenanceSection({ vehicle }) {
   const [receiptPhoto, setReceiptPhoto] = useState(null);
   const [aiScanning, setAiScanning] = useState(false);
   const [garageDropdownOpen, setGarageDropdownOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   // Saved garages - persisted per user in localStorage
   const GARAGES_KEY = 'saved_garages';
@@ -106,10 +107,32 @@ export default function MaintenanceSection({ vehicle }) {
   };
 
   const openDialog = (type) => {
+    setEditingId(null);
     setDialogType(type);
     setForm({ title: '', date: new Date().toISOString().split('T')[0], cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
     setServiceSize(vesselMode ? 'engine' : 'small');
     setReceiptPhoto(null);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (log) => {
+    setEditingId(log.id);
+    setDialogType(log.type === 'תיקון' ? 'תיקון' : 'טיפול');
+    setForm({
+      title: log.title || '',
+      date: log.date || '',
+      cost: log.cost || '',
+      notes: log.notes || '',
+      km_at_service: log.km_at_service || '',
+      garage_name: log.garage_name || '',
+      performed_by: log.performed_by || '',
+    });
+    // Determine service size from type
+    if (log.type === 'טיפול גדול') setServiceSize('big');
+    else if (log.type === 'טיפול מנוע') setServiceSize('engine');
+    else if (log.type === 'טיפול גוף') setServiceSize('hull');
+    else setServiceSize(vesselMode ? 'engine' : 'small');
+    setReceiptPhoto(log.receipt_photo || null);
     setDialogOpen(true);
   };
 
@@ -132,8 +155,13 @@ export default function MaintenanceSection({ vehicle }) {
       if (form.garage_name?.trim()) { row.garage_name = form.garage_name.trim(); saveGarage(row.garage_name); }
       if (form.performed_by?.trim()) row.performed_by = form.performed_by.trim();
       if (receiptPhoto) row.receipt_photo = receiptPhoto;
-      await supabase.from('maintenance_logs').insert(row);
+      if (editingId) {
+        await supabase.from('maintenance_logs').update(row).eq('id', editingId);
+      } else {
+        await supabase.from('maintenance_logs').insert(row);
+      }
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
+      setEditingId(null);
       setDialogOpen(false);
     } catch (err) {
       toast.error('שגיאה בשמירה: ' + (err?.message || 'נסה שוב'));
@@ -227,10 +255,16 @@ export default function MaintenanceSection({ vehicle }) {
                   </div>
                   {log.notes && <p className="text-xs mt-1 leading-relaxed" style={{ color: T.muted }}>{log.notes}</p>}
                 </div>
-                <button onClick={(e) => { e.preventDefault(); handleDelete(log.id); }}
-                  className="w-6 h-6 rounded flex items-center justify-center shrink-0 hover:bg-red-50 transition-all mt-0.5">
-                  <Trash2 className="w-3 h-3" style={{ color: '#DC2626' }} />
-                </button>
+                <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                  <button onClick={(e) => { e.preventDefault(); openEditDialog(log); }}
+                    className="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 transition-all">
+                    <Edit className="w-3 h-3" style={{ color: '#6B7280' }} />
+                  </button>
+                  <button onClick={(e) => { e.preventDefault(); handleDelete(log.id); }}
+                    className="w-6 h-6 rounded flex items-center justify-center hover:bg-red-50 transition-all">
+                    <Trash2 className="w-3 h-3" style={{ color: '#DC2626' }} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -239,10 +273,10 @@ export default function MaintenanceSection({ vehicle }) {
 
       {/* Add dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-sm" dir="rtl">
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle className="text-right">
-              {dialogType === 'תיקון' ? 'הוספת תיקון' : 'הוספת טיפול'}
+              {editingId ? (dialogType === 'תיקון' ? 'עריכת תיקון' : 'עריכת טיפול') : (dialogType === 'תיקון' ? 'הוספת תיקון' : 'הוספת טיפול')}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2">

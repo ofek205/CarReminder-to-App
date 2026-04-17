@@ -766,16 +766,22 @@ function AuthDocuments({ vehicleIdParam }) {
   const handleSave = async (form) => {
     setSaving(true);
     try {
-      const data = { ...form, account_id: accountId, uploaded_by_user_id: userId };
-      Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
-      await db.documents.create(data);
+      // Only keep known DB columns
+      const DOC_COLUMNS = ['document_type','title','issue_date','expiry_date','vehicle_id','file_url','notes'];
+      const data = { account_id: accountId };
+      DOC_COLUMNS.forEach(k => {
+        if (form[k] !== undefined && form[k] !== null && form[k] !== '') data[k] = form[k];
+      });
+      const created = await db.documents.create(data);
+      if (!created) throw new Error('yet');
       if (userId) await trackUserAction(userId);
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      await queryClient.invalidateQueries({ queryKey: ['documents'] });
+      await queryClient.refetchQueries({ queryKey: ['documents', accountId, vehicleIdParam] });
       setShowAdd(false);
       toast.success('מסמך נוסף בהצלחה');
     } catch (err) {
       console.error('Document save error:', err);
-      toast.error('שגיאה בשמירת המסמך');
+      toast.error('שגיאה בשמירת המסמך: ' + (err?.message || ''));
     } finally {
       setSaving(false);
     }

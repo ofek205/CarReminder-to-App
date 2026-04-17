@@ -407,6 +407,15 @@ function AuthNotifications() {
     });
   };
 
+  const markAllRead = () => {
+    const allIds = notifications.map(n => n.id);
+    setReadIds(prev => {
+      const next = new Set([...prev, ...allIds]);
+      localStorage.setItem('read_notif_ids', JSON.stringify([...next]));
+      return next;
+    });
+  };
+
   if (!user?.id || isLoading) return <LoadingSpinner />;
 
   const sorted = [...notifications].sort((a, b) => {
@@ -427,12 +436,19 @@ function AuthNotifications() {
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
             <Bell className="w-5 h-5 text-white" />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-xl font-black text-white">התראות</h1>
             <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
               {unread.length > 0 ? `${unread.length} חדשות` : 'אין התראות חדשות'}
             </p>
           </div>
+          {unread.length > 0 && (
+            <button onClick={markAllRead}
+              className="text-[11px] font-bold px-3 py-1.5 rounded-full transition-all active:scale-95 shrink-0"
+              style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>
+              סמן הכל כנקרא
+            </button>
+          )}
         </div>
       </div>
 

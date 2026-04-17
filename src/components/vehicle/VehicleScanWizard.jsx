@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { aiRequest } from '@/lib/aiProxy';
+import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
@@ -84,9 +85,22 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     setError('');
     setUploadedFile(file);
     setUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setFileUrl(file_url);
-    setUploading(false);
+    // Convert to base64 data URL (stored inline for AI scan)
+    try {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setFileUrl(ev.target.result);
+        setUploading(false);
+      };
+      reader.onerror = () => {
+        setError('שגיאה בקריאת הקובץ');
+        setUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setError('שגיאה בהעלאה');
+      setUploading(false);
+    }
   };
 
   const handleExtract = async () => {
@@ -95,32 +109,35 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     setExtracting(true);
     setError('');
 
-    const schema = {
-      type: 'object',
-      properties: {
-        license_plate: { type: 'string', description: 'מספר רכב / לוחית רישוי (ספרות בלבד)' },
-        test_due_date: { type: 'string', description: 'תוקף עד - תאריך תוקף הרישיון / טסט הבא בפורמט DD/MM/YYYY' },
-        owner_name: { type: 'string', description: 'שם הבעלים' },
-        first_registration_date: { type: 'string', description: 'תאריך רישום ראשוני בפורמט DD/MM/YYYY' },
-        manufacturer: { type: 'string', description: 'שם יצרן הרכב' },
-        model: { type: 'string', description: 'דגם הרכב' },
-        vehicle_type: { type: 'string', description: 'סוג כלי הרכב (רכב פרטי, אופנוע, משאית וכו\')' },
-        engine_cc: { type: 'number', description: 'נפח מנוע בסמ"ק' },
-      }
-    };
+    // Use AI proxy (Claude vision) to extract fields from the uploaded image
+    let raw = null;
+    try {
+      const mediaType = fileUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const imageData = fileUrl.split(',')[1] || '';
+      const json = await aiRequest({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 400,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
+            { type: 'text', text: `סרוק רישיון רכב וחלץ את הפרטים. החזר JSON בלבד:
+{"license_plate":"מספר רכב", "test_due_date":"DD/MM/YYYY", "owner_name":"בעלים", "first_registration_date":"DD/MM/YYYY", "manufacturer":"יצרן", "model":"דגם", "vehicle_type":"סוג", "engine_cc":0}` },
+          ],
+        }],
+      });
+      const text = json?.content?.[0]?.text || '';
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) raw = JSON.parse(match[0]);
+    } catch (err) { console.warn('Scan error:', err?.message); }
 
-    const result = await base44.integrations.Core.ExtractDataFromUploadedFile({ file_url: fileUrl, json_schema: schema });
-
-    if (result.status !== 'success' || !result.output) {
+    if (!raw) {
       setError('לא הצלחתי לקרוא את המסמך. ניתן להמשיך עם הזנה ידנית.');
       setExtracting(false);
       setEditableFields({});
-      // still proceed to completion step
       setStep('preview');
       return;
     }
-
-    const raw = result.output;
     const parsed = {
       license_plate: normalizePlate(raw.license_plate || ''),
       test_due_date: parseIsraeliDate(raw.test_due_date || ''),
@@ -227,23 +244,29 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     // Clean empty
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
 
-    const vehicle = await base44.entities.Vehicle.create(data);
+    try {
+      const vehicle = await db.vehicles.create(data);
 
-    // Save document
-    if (fileUrl) {
-      await base44.entities.Document.create({
-        account_id: accountId,
-        vehicle_id: vehicle.id,
-        document_type: 'רישיון רכב',
-        title: 'רישיון רכב (סרוק)',
-        file_url: fileUrl,
-        uploaded_by_user_id: userId,
-      });
+      // Save document
+      if (fileUrl && vehicle?.id) {
+        try {
+          await db.documents.create({
+            account_id: accountId,
+            vehicle_id: vehicle.id,
+            document_type: 'רישיון רכב',
+            title: 'רישיון רכב (סרוק)',
+            file_url: fileUrl,
+          });
+        } catch (docErr) { console.warn('Document save skipped:', docErr?.message); }
+      }
+
+      setSaving(false);
+      handleClose();
+      navigate(createPageUrl(`VehicleDetail?id=${vehicle.id}`));
+    } catch (err) {
+      setSaving(false);
+      setError('שגיאה בשמירה: ' + (err?.message || ''));
     }
-
-    setSaving(false);
-    handleClose();
-    navigate(createPageUrl(`VehicleDetail?id=${vehicle.id}`));
   };
 
   // Save update for existing vehicle
@@ -262,23 +285,29 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       }
     });
 
-    if (Object.keys(vehicleUpdate).length > 0) {
-      await base44.entities.Vehicle.update(selectedVehicleId, vehicleUpdate);
+    try {
+      if (Object.keys(vehicleUpdate).length > 0) {
+        await db.vehicles.update(selectedVehicleId, vehicleUpdate);
+      }
+      if (fileUrl) {
+        try {
+          await db.documents.create({
+            account_id: accountId,
+            vehicle_id: selectedVehicleId,
+            document_type: 'רישיון רכב',
+            title: 'רישיון רכב (סרוק)',
+            file_url: fileUrl,
+          });
+        } catch (docErr) { console.warn('Document save skipped:', docErr?.message); }
+      }
+      setSaving(false);
+      if (onUpdateVehicle) onUpdateVehicle(selectedVehicleId);
+      handleClose();
+      navigate(createPageUrl(`VehicleDetail?id=${selectedVehicleId}`));
+    } catch (err) {
+      setSaving(false);
+      setError('שגיאה בעדכון: ' + (err?.message || ''));
     }
-    if (fileUrl) {
-      await base44.entities.Document.create({
-        account_id: accountId,
-        vehicle_id: selectedVehicleId,
-        document_type: 'רישיון רכב',
-        title: 'רישיון רכב (סרוק)',
-        file_url: fileUrl,
-        uploaded_by_user_id: userId,
-      });
-    }
-    setSaving(false);
-    if (onUpdateVehicle) onUpdateVehicle(selectedVehicleId);
-    handleClose();
-    navigate(createPageUrl(`VehicleDetail?id=${selectedVehicleId}`));
   };
 
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
