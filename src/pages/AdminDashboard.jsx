@@ -250,6 +250,7 @@ function RetentionCard({ label, period, rate, count, total }) {
 export default function AdminDashboard() {
   const [isAdmin, setIsAdmin]       = useState(null);
   const [filter, setFilter]         = useState('week');
+  const [adminTab, setAdminTab]     = useState('stats'); // stats | users | messages | bugs
   const [loading, setLoading]       = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
@@ -511,28 +512,61 @@ export default function AdminDashboard() {
       <div className="bg-white border-b border-gray-100">
         <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 flex-wrap">
           <div>
-            <h1 className="text-base font-bold text-gray-900">Analytics</h1>
+            <h1 className="text-base font-bold text-gray-900">לוח ניהול</h1>
             <p className="text-xs text-gray-400 mt-0.5">{format(TODAY, 'EEEE · dd/MM/yyyy', { locale: he })}</p>
           </div>
-          {/* Global filter tabs */}
-          <div className="flex items-center gap-0.5 bg-gray-100 rounded-xl p-1">
-            {FILTERS.map(f => (
-              <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all
-                  ${filter === f.key
-                    ? 'bg-white text-gray-900 shadow-sm font-semibold'
-                    : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <button onClick={() => window.location.reload()}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all">
+              <RefreshCw className="w-3 h-3" />
+              רענן
+            </button>
+            {adminTab === 'stats' && (
+              <div className="flex items-center gap-0.5 bg-gray-100 rounded-xl p-1">
+                {FILTERS.map(f => (
+                  <button
+                    key={f.key}
+                    onClick={() => setFilter(f.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all
+                      ${filter === f.key
+                        ? 'bg-white text-gray-900 shadow-sm font-semibold'
+                        : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+        </div>
+        {/* Admin tabs */}
+        <div className="flex gap-1 px-4 sm:px-6 pb-3 overflow-x-auto">
+          {[
+            { key: 'stats', label: '📊 סטטיסטיקה' },
+            { key: 'users', label: '👥 משתמשים' },
+            { key: 'messages', label: '📬 הודעות' },
+            { key: 'bugs', label: '🐛 באגים' },
+          ].map(t => (
+            <button key={t.key} onClick={() => setAdminTab(t.key)}
+              className={`px-4 py-2 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                adminTab === t.key
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}>
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
       <div className="px-4 sm:px-6 py-6 space-y-8 max-w-[1200px] mx-auto">
+
+        {/* Non-stats tabs */}
+        {adminTab === 'users' && <AdminUsersTab />}
+        {adminTab === 'messages' && <AdminMessagesTab />}
+        {adminTab === 'bugs' && <AdminBugsTab />}
+
+        {adminTab === 'stats' && <>
 
         {/* Error banner */}
         {fetchError && (
@@ -944,6 +978,149 @@ export default function AdminDashboard() {
             </p>
 
           </>
+        )}
+        </>}
+      </div>
+    </div>
+  );
+}
+
+// ── Admin Tabs ────────────────────────────────────────────────────────────
+
+function AdminUsersTab() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    (async () => {
+      try {
+        const accounts = await db.accounts.list().catch(() => []);
+        const members = await db.account_members.list().catch(() => []);
+        // Group by account
+        const userList = accounts.map(a => {
+          const accMembers = members.filter(m => m.account_id === a.id);
+          return { ...a, members: accMembers, memberCount: accMembers.length };
+        });
+        setUsers(userList);
+      } catch {}
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-gray-100 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold text-gray-900">כל החשבונות ({users.length})</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="text-gray-500 border-b border-gray-100">
+              <tr>
+                <th className="text-right py-2 px-2">שם חשבון</th>
+                <th className="text-right py-2 px-2">ID</th>
+                <th className="text-right py-2 px-2">חברים</th>
+                <th className="text-right py-2 px-2">נוצר</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.slice(0, 100).map(u => (
+                <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="py-2 px-2 font-medium">{u.name || '-'}</td>
+                  <td className="py-2 px-2 font-mono text-[10px] text-gray-400">{u.id.slice(0, 8)}...</td>
+                  <td className="py-2 px-2">{u.memberCount}</td>
+                  <td className="py-2 px-2 text-gray-500">{u.created_at ? format(parseISO(u.created_at), 'dd/MM/yyyy') : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminMessagesTab() {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    (async () => {
+      try {
+        const msgs = await db.contact_messages.list().catch(() => []);
+        setMessages((msgs || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      } catch {}
+      setLoading(false);
+    })();
+  }, []);
+  if (loading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-gray-100 p-4">
+        <h2 className="font-bold text-gray-900 mb-3">הודעות צור קשר ({messages.length})</h2>
+        {messages.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">אין הודעות חדשות</p>
+        ) : (
+          <div className="space-y-2">
+            {messages.map(m => (
+              <div key={m.id} className="border border-gray-100 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm">{m.name}</span>
+                    <span className="text-xs text-gray-500">{m.email}</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    m.status === 'new' ? 'bg-blue-100 text-blue-700' :
+                    m.status === 'replied' ? 'bg-green-100 text-green-700' :
+                    'bg-gray-100 text-gray-500'
+                  }`}>{m.status}</span>
+                </div>
+                {m.subject && <p className="text-sm font-medium text-gray-700">{m.subject}</p>}
+                <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">{m.message}</p>
+                <p className="text-[10px] text-gray-400 mt-2">
+                  {m.created_at ? format(parseISO(m.created_at), 'dd/MM/yyyy HH:mm') : ''}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminBugsTab() {
+  // Bugs from localStorage (app-side logged) + placeholder for Sentry/crash reports
+  const [bugs, setBugs] = useState([]);
+  useEffect(() => {
+    try {
+      const logged = JSON.parse(localStorage.getItem('app_error_log') || '[]');
+      setBugs(logged.slice(-50).reverse());
+    } catch {}
+  }, []);
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-gray-100 p-4">
+        <h2 className="font-bold text-gray-900 mb-3">קראשים ובאגים ({bugs.length})</h2>
+        {bugs.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-sm text-gray-400">אין באגים רשומים כרגע</p>
+            <p className="text-[11px] text-gray-300 mt-1">באגים שנוצרו בזמן שימוש יופיעו כאן</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {bugs.map((b, i) => (
+              <div key={i} className="border border-red-100 bg-red-50/30 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-sm text-red-800">{b.type || 'Error'}</span>
+                  <span className="text-[10px] text-gray-500">
+                    {b.timestamp ? format(new Date(b.timestamp), 'dd/MM HH:mm') : ''}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-700">{b.message || JSON.stringify(b).slice(0, 150)}</p>
+                {b.url && <p className="text-[10px] text-gray-400 mt-1">{b.url}</p>}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
