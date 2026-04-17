@@ -30,8 +30,15 @@ function fmtDate(dateStr) {
 
 function daysLabel(days) {
   if (days === null) return '';
-  if (days < 0) return `פג תוקף`;
+  if (days < 0) {
+    const overdue = Math.abs(days);
+    if (overdue === 1) return 'פג לפני יום';
+    if (overdue < 30) return `פג לפני ${overdue} ימים`;
+    const months = Math.round(overdue / 30);
+    return `פג לפני ${months} ${months === 1 ? 'חודש' : 'חודשים'}`;
+  }
   if (days === 0) return 'היום';
+  if (days === 1) return 'מחר';
   if (days < 30) return `בעוד ${days} ימים`;
   const months = Math.round(days / 30);
   return `בעוד ${months} ${months === 1 ? 'חודש' : 'חודשים'}`;
@@ -86,10 +93,12 @@ function UrgentBanner({ reminders, vehicles }) {
   const vCat = getVehicleCategory(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
   const vehicleTypeLabel = vCat === 'vessel' ? '' : vCat === 'motorcycle' ? 'האופנוע' : vCat === 'truck' ? 'המשאית' : vCat === 'offroad' ? ('ה' + (vType || 'כלי שטח')) : 'הרכב';
 
+  // Headline is the *action* required — the "expired" urgency is already
+  // communicated by the red badge above, so avoid repeating "פג תוקף" here.
   const typeLabel = isExpired ? ({
-    insurance: isUrgentVessel ? 'ביטוח ימי פג תוקף' : 'הביטוח פג תוקף',
-    test:      isUrgentVessel ? 'כושר שייט פג תוקף' : `טסט ${vehicleTypeLabel} פג תוקף`,
-    maintenance: 'טיפול תקופתי באיחור',
+    insurance: isUrgentVessel ? 'חידוש ביטוח ימי נדרש' : 'חידוש ביטוח נדרש',
+    test:      isUrgentVessel ? 'חידוש כושר שייט נדרש' : `חידוש טסט ${vehicleTypeLabel} נדרש`,
+    maintenance: 'טיפול תקופתי נדרש',
   }[urgent.type] || urgent.title) : ({
     insurance: isUrgentVessel ? 'חידוש ביטוח ימי מתקרב' : 'חידוש ביטוח מתקרב',
     test:      isUrgentVessel ? 'כושר שייט מתקרב' : `טסט ${vehicleTypeLabel} מתקרב`,
