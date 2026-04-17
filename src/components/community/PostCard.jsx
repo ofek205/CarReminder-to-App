@@ -298,7 +298,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         <div className="mx-4 mb-3 rounded-xl overflow-hidden relative cursor-pointer"
           style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
           onClick={() => setShowFullImage(true)}>
-          <img src={post.image_url} alt="" className="w-full object-cover" style={{ maxHeight: '350px' }} />
+          <img src={post.image_url} alt="" loading="lazy" decoding="async" className="w-full object-cover" style={{ maxHeight: '350px' }} />
         </div>
       )}
 

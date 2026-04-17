@@ -219,7 +219,7 @@ function VehicleCardEnhanced({ vehicle }) {
           {/* Photo */}
           <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0" style={{ background: T.light }}>
             {vehicle.vehicle_photo ? (
-              <img src={vehicle.vehicle_photo} alt={name} className="w-full h-full object-cover" />
+              <img src={vehicle.vehicle_photo} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <VehicleIcon vehicle={vehicle} className="w-8 h-8" style={{ color: T.accent, opacity: 0.5 }} />

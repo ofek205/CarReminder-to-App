@@ -16,6 +16,7 @@ import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_REMINDERS, DEMO_CORK_NOTES, DEMO_VESSEL
 import { format, parseISO } from 'date-fns';
 import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import CompleteProfileScreen, { hasCompletedProfile } from '../components/shared/CompleteProfileScreen';
+import OnboardingTour, { hasCompletedOnboarding } from '../components/shared/OnboardingTour';
 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 function getVehicleIcon(vt, nn, mfr) { return ICON_MAP[getVehicleCategory(vt, nn, mfr)] || Car; }
@@ -162,6 +163,7 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
           {/* Background */}
           {hasPhoto ? (
             <img src={vehicle.vehicle_photo} alt={name}
+              loading="lazy" decoding="async"
               className="absolute inset-0 w-full h-full object-cover"
               style={{ objectPosition: '50% 55%' }} />
           ) : (
@@ -385,7 +387,7 @@ function VehicleRow({ vehicle }) {
         <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0"
           style={{ background: T.light }}>
           {vehicle.vehicle_photo ? (
-            <img src={vehicle.vehicle_photo} alt={name} className="w-full h-full object-cover" />
+            <img src={vehicle.vehicle_photo} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <VehicleIcon className="w-7 h-7" style={{ color: T.accent, opacity: 0.6 }} />
@@ -453,6 +455,7 @@ export default function Dashboard() {
   const [showSignUp, setShowSignUp] = useState(false);
   const [showCompleteProfile, setShowCompleteProfile] = useState(false);
   const [profileMissing, setProfileMissing] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => !hasCompletedOnboarding());
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -630,6 +633,7 @@ export default function Dashboard() {
 
     return (
       <div className="-mx-4 -mt-4 pb-4" style={{ background: C.bg, minHeight: '100dvh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        {showOnboarding && <OnboardingTour onComplete={() => setShowOnboarding(false)} />}
         <SignUpPromptDialog open={showSignUp} onClose={() => setShowSignUp(false)}
           reason="כדי לשמור את הרכבים שלך לצמיתות ולגשת אליהם מכל מכשיר" />
 

@@ -5,23 +5,43 @@ import { Home, MapPin, FileText, AlertTriangle, Sparkles } from 'lucide-react';
 
 // Tab order in RTL: rightmost first → leftmost last
 // AI Assistant is intentionally LAST so it sits on the visual LEFT
+// relatedPaths: pages that should also highlight this tab (e.g. VehicleDetail → Home)
 const tabs = [
-  { label: 'ראשי',         icon: Home,           path: 'Dashboard' },
+  { label: 'ראשי',         icon: Home,           path: 'Dashboard',
+    relatedPaths: ['/Vehicles', '/VehicleDetail', '/AddVehicle', '/EditVehicle', '/DemoVehicleDetail'] },
   { label: 'מסמכים',       icon: FileText,       path: 'Documents' },
   { label: 'מצא מוסך',     icon: MapPin,         path: 'FindGarage' },
-  { label: 'תאונות',       icon: AlertTriangle,  path: 'Accidents' },
+  { label: 'תאונות',       icon: AlertTriangle,  path: 'Accidents',
+    relatedPaths: ['/AddAccident'] },
   { label: 'מומחה AI',     icon: Sparkles,       path: 'AiAssistant', isAi: true },
 ];
 
 export default function BottomNav() {
   const location = useLocation();
+  const primaryPath = createPageUrl(''); // e.g., '/'
+
+  // Figure out which tab is active. An exact match on the tab's own route wins;
+  // otherwise, a related page (e.g. /VehicleDetail under "ראשי") activates it.
+  const pathname = location.pathname;
+  const activePath = (() => {
+    // Exact match first
+    for (const t of tabs) {
+      if (pathname === createPageUrl(t.path)) return t.path;
+    }
+    // Related-paths match
+    for (const t of tabs) {
+      if (t.relatedPaths?.some(rp => pathname === rp || pathname.startsWith(rp + '/'))) return t.path;
+    }
+    return null;
+  })();
 
   return (
     <div className="fixed bottom-0 left-0 right-0 lg:hidden"
-      style={{ background: '#FFFFFF', borderTop: '1px solid #E5E7EB', boxShadow: '0 -2px 12px rgba(0,0,0,0.06)', zIndex: 9999, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      style={{ background: '#FFFFFF', borderTop: '1px solid #E5E7EB', boxShadow: '0 -2px 12px rgba(0,0,0,0.06)', zIndex: 9999, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      role="navigation" aria-label="ניווט ראשי">
       <div className="flex justify-around items-center max-w-md mx-auto px-1 py-1">
         {tabs.map(tab => {
-          const active = location.pathname.includes(createPageUrl(tab.path));
+          const active = activePath === tab.path;
           // AI button: special amber accent when active
           const activeBg = tab.isAi ? '#D97706' : '#2D5233';
           const activeIconColor = tab.isAi ? '#FFFBEB' : '#FFBF00';

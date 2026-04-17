@@ -117,7 +117,7 @@ export default function VehicleStatusCard({ vehicle }) {
               </div>
             </div>
             {vehicle.vehicle_photo ?
-            <img src={vehicle.vehicle_photo} alt="" className="bg-gray-100 rounded-xl w-14 h-14 sm:w-16 sm:h-16 object-cover shrink-0" /> :
+            <img src={vehicle.vehicle_photo} alt="" loading="lazy" decoding="async" className="bg-gray-100 rounded-xl w-14 h-14 sm:w-16 sm:h-16 object-cover shrink-0" /> :
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-gray-50 flex items-center justify-center text-2xl shrink-0">
                 {icon}
               </div>

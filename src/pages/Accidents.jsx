@@ -70,7 +70,7 @@ function AccidentRow({ accident, vehicleName, vehicle }) {
         {/* Top section with photo or gradient */}
         {hasPhotos ? (
           <div className="relative h-36 overflow-hidden">
-            <img src={accident.photos[0]} alt="" className="w-full h-full object-cover" />
+            <img src={accident.photos[0]} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
             <div className="absolute inset-0" style={{
               background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)'
             }} />
