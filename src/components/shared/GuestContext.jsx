@@ -478,8 +478,59 @@ export function GuestProvider({ children }) {
   );
 }
 
+// Safe default — returned when useAuth() is called outside <GuestProvider>
+// Prevents "Cannot destructure property 'user' of 'useAuth(...)' as it is null" crashes
+const SAFE_DEFAULT_AUTH = {
+  authState: 'loading',
+  isLoading: true,
+  isAuthenticated: false,
+  isGuest: false,
+  user: null,
+  // Vehicles
+  guestVehicles: [],
+  addGuestVehicle: () => null,
+  updateGuestVehicle: () => {},
+  removeGuestVehicle: () => {},
+  clearGuestData: () => {},
+  getStoredGuestVehicles: () => [],
+  // Documents
+  guestDocuments: [],
+  addGuestDocument: () => null,
+  removeGuestDocument: () => {},
+  getStoredGuestDocuments: () => [],
+  // Accidents
+  guestAccidents: [],
+  addGuestAccident: () => null,
+  updateGuestAccident: () => {},
+  removeGuestAccident: () => {},
+  // Vessel Issues
+  guestVesselIssues: [],
+  addGuestVesselIssue: () => null,
+  updateGuestVesselIssue: () => {},
+  removeGuestVesselIssue: () => {},
+  // Cork Notes
+  guestCorkNotes: [],
+  addGuestCorkNote: () => null,
+  updateGuestCorkNote: () => {},
+  removeGuestCorkNote: () => {},
+  // Reminder settings
+  guestReminderSettings: DEFAULT_REMINDER_SETTINGS,
+  updateGuestReminderSettings: () => {},
+  getStoredGuestReminderSettings: () => DEFAULT_REMINDER_SETTINGS,
+  // Sign-up prompt
+  showSignUpPrompt: false,
+  setShowSignUpPrompt: () => {},
+  // User refresh
+  refreshUser: async () => null,
+  // Demo vehicle management
+  isDemoDismissed: false,
+  dismissDemo: () => {},
+  resetDemo: () => {},
+};
+
 export function useAuth() {
-  return useContext(GuestContext);
+  const ctx = useContext(GuestContext);
+  return ctx || SAFE_DEFAULT_AUTH;
 }
 
 // Normalize Supabase user to a consistent shape used across the app

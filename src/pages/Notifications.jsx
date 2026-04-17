@@ -199,41 +199,41 @@ function NotifSummary({ overdue, upcoming }) {
 // ── Guest Notifications ──────────────────────────────────────────────────────
 function GuestNotifications() {
   const { guestVehicles, guestReminderSettings } = useAuth();
-  const notifications = [];
   const today = new Date();
 
-  guestVehicles.forEach(v => {
-    const vLabels = getVehicleLabels(v.vehicle_type, v.nickname);
-    const name = v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || vLabels.vehicleFallback;
-    const remindTestBefore = guestReminderSettings?.remind_test_days_before ?? 14;
-    const remindInsBefore = guestReminderSettings?.remind_insurance_days_before ?? 14;
+  // Detect if any vehicles are demo — if so, widen the reminder window so users
+  // see the system working. Real guest vehicles keep the user-configured window.
+  const hasDemoOnly = guestVehicles.every(v => v._isDemo || v.id?.startsWith('demo_'));
+  const defaultBase = guestReminderSettings || {};
+  const expandedSettings = hasDemoOnly ? {
+    ...defaultBase,
+    remind_test_days_before:       365,
+    remind_insurance_days_before:  365,
+    remind_document_days_before:   180,
+    remind_maintenance_days_before: 180,
+    overdue_repeat_every_days:      3,
+  } : defaultBase;
 
-    if (v.test_due_date) {
-      const days = Math.ceil((new Date(v.test_due_date) - today) / 86400000);
-      if (days <= remindTestBefore) {
-        notifications.push({
-          id: `notif_test_${v.id}`, notification_type: vLabels.testWord, due_date: v.test_due_date,
-          is_overdue: days < 0, days_left: days,
-          message: days < 0 ? `${vLabels.testWord} של ${name} עבר את תאריך התוקף`
-            : days === 0 ? `${vLabels.testWord} של ${name} היום!`
-            : `${vLabels.testWord} ל${name} בעוד ${days} ימים`,
-        });
-      }
-    }
-    if (v.insurance_due_date) {
-      const days = Math.ceil((new Date(v.insurance_due_date) - today) / 86400000);
-      const insWord = vLabels.insuranceWord || 'ביטוח';
-      if (days <= remindInsBefore) {
-        notifications.push({
-          id: `notif_ins_${v.id}`, notification_type: insWord, due_date: v.insurance_due_date,
-          is_overdue: days < 0, days_left: days,
-          message: days < 0 ? `ה${insWord} של ${name} עבר את תאריך התוקף`
-            : days === 0 ? `ה${insWord} של ${name} מסתיים היום!`
-            : `${insWord} ל${name} בעוד ${days} ימים`,
-        });
-      }
-    }
+  // Use the UNIFIED reminder engine (same as authenticated mode + notification bell)
+  // so all 13 reminder types are covered: test, insurance, pyrotechnics, fire
+  // extinguisher, life raft, maintenance, tires, brakes, seasonal, etc.
+  const rawItems = calcAllReminders({
+    vehicles: guestVehicles || [],
+    documents: [],
+    settings: expandedSettings,
   });
+
+  const notifications = rawItems.map(r => ({
+    id: r.id,
+    notification_type: r.typeName || REMINDER_TYPE_FALLBACK[r.type] || 'טיפול',
+    message: r.label || `${r.typeName || r.type} - ${r.name || ''}`,
+    due_date: r.dueDate,
+    days_left: r.daysLeft,
+    is_overdue: r.daysLeft !== null && r.daysLeft < 0,
+    name: r.name,
+    vehicleId: r.vehicleId,
+    emoji: r.emoji,
+  }));
 
   const overdue = notifications.filter(n => n.is_overdue).length;
   const upcoming = notifications.filter(n => !n.is_overdue).length;

@@ -165,10 +165,26 @@ export default function AuthPage() {
     }
   };
 
+  // Basic email validation — before hitting Supabase
+  const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim());
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    // Client-side validation — fast feedback, no network round-trip
+    if (!isValidEmail(email)) {
+      setError('כתובת אימייל לא תקינה');
+      return;
+    }
+    if (mode !== 'reset' && password.length < 6) {
+      setError('הסיסמה חייבת להכיל לפחות 6 תווים');
+      return;
+    }
+    if (mode === 'signup' && !fullName.trim()) {
+      setError('יש להזין שם מלא');
+      return;
+    }
     setLoading(true);
     try {
       if (mode === 'reset') {
@@ -340,12 +356,17 @@ export default function AuthPage() {
           /* ── Form view ────────────────────────────────────────── */
           <div className="w-full" style={{ marginTop: '4px' }}>
 
-            {/* Back button - clear and accessible */}
-            <button onClick={() => { setShowForm(false); setError(''); setSuccess(''); }}
+            {/* Back button - context-aware: reset → login, otherwise → main view */}
+            <button onClick={() => {
+                if (mode === 'reset') { setMode('login'); setError(''); setSuccess(''); }
+                else { setShowForm(false); setError(''); setSuccess(''); }
+              }}
               className="flex items-center gap-1.5 mb-5 py-2 px-1 rounded-lg transition-colors"
               style={{ color: C.green }}>
               <ArrowRight className="w-4 h-4" />
-              <span className="text-sm font-bold">חזרה</span>
+              <span className="text-sm font-bold">
+                {mode === 'reset' ? 'חזרה להתחברות' : 'חזרה'}
+              </span>
             </button>
 
             {/* Form card */}
