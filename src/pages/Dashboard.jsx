@@ -488,8 +488,6 @@ export default function Dashboard() {
     await new Promise(r => setTimeout(r, 500));
   });
 
-  // Schedule device notifications for authenticated users
-  const { unreadCount } = useNotificationScheduler(filteredVehicles || [], accountId);
 
   // ── Authenticated init (Supabase) ────────────────────────────────────────
   useEffect(() => {
@@ -611,6 +609,11 @@ export default function Dashboard() {
     staleTime: 2 * 60 * 1000, // 2 minutes cache
     refetchOnWindowFocus: true,
   });
+
+  // Schedule device notifications for authenticated users.
+  // Pass the FULL vehicle list (not filteredVehicles) so the user's UI
+  // filter doesn't silently suppress pushes for filtered-out vehicles.
+  const { unreadCount } = useNotificationScheduler(vehicles || [], accountId);
 
   if (isLoading) return <LoadingSpinner />;
 

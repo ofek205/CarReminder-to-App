@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, Mail, Bell, Smartphone, Calendar, Shield, Wrench, FileText, Anchor, MessageCircle, HelpCircle, Lock } from "lucide-react";
+import { Loader2, Save, Mail, Bell, Smartphone, Calendar, Shield, Wrench, FileText, Anchor, MessageCircle, HelpCircle, Lock, Send } from "lucide-react";
 import { resetOnboarding } from "../components/shared/OnboardingTour";
 import PinLock from "../components/shared/PinLock";
 import { isPinEnabled, clearPin } from "@/lib/pinLock";
+import { sendTestNotification } from "@/lib/notificationService";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
@@ -433,6 +434,9 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest }) {
       {/* PIN lock */}
       {!isGuest && <PinLockSection />}
 
+      {/* Test notification — lets the user confirm push is wired end-to-end */}
+      {!isGuest && isNative && <TestNotificationButton />}
+
       {/* Replay tour */}
       <ReplayTourButton />
     </>
@@ -486,6 +490,37 @@ function PinLockSection() {
           onCancel={() => setSetupOpen(false)} />
       )}
     </>
+  );
+}
+
+function TestNotificationButton() {
+  const [sending, setSending] = useState(false);
+
+  const handleTest = async () => {
+    setSending(true);
+    try {
+      const res = await sendTestNotification();
+      if (res.ok) {
+        toast.success('נשלחה התראת בדיקה — תגיע בעוד כ-5 שניות');
+      } else if (res.reason === 'permission_denied') {
+        toast.error('אין הרשאת התראות — אפשר בהגדרות המכשיר');
+      } else {
+        toast.error('שליחה נכשלה');
+      }
+    } catch {
+      toast.error('שליחה נכשלה');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <button onClick={handleTest} disabled={sending}
+      className="w-full mb-3 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+      style={{ background: '#fff', color: '#2D5233', border: '1.5px solid #E5E7EB' }}>
+      {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+      שלח התראת בדיקה
+    </button>
   );
 }
 
