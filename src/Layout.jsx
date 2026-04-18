@@ -1064,8 +1064,10 @@ function LayoutInner({ children }) {
         <div className="max-w-5xl mx-auto p-4 lg:p-8">
           {children}
         </div>
-        {/* Spacer so content never hides behind fixed BottomNav on mobile */}
-        <div className="h-16 lg:h-0 shrink-0" aria-hidden="true" />
+        {/* Spacer so content never hides behind fixed BottomNav on mobile.
+            Increased from h-16 to h-20 to clear the new 12px gesture-area
+            floor on Android phones with gesture nav (Galaxy etc.). */}
+        <div className="h-20 lg:h-0 shrink-0" aria-hidden="true" />
       </main>
 
       {/* Bottom navigation — mobile only */}

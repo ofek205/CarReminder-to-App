@@ -37,7 +37,16 @@ export default function BottomNav() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 lg:hidden"
-      style={{ background: '#FFFFFF', borderTop: '1px solid #E5E7EB', boxShadow: '0 -2px 12px rgba(0,0,0,0.06)', zIndex: 9999, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      style={{
+        background: '#FFFFFF',
+        borderTop: '1px solid #E5E7EB',
+        boxShadow: '0 -2px 12px rgba(0,0,0,0.06)',
+        zIndex: 9999,
+        // Force at least 12px clearance — Android gesture nav often reports
+        // safe-area-inset-bottom as 0 even though the gesture pill IS there,
+        // which makes the nav clip behind it. max() guarantees a floor.
+        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)',
+      }}
       role="navigation" aria-label="ניווט ראשי">
       <div className="flex justify-around items-center max-w-md mx-auto px-1 py-1">
         {tabs.map(tab => {
