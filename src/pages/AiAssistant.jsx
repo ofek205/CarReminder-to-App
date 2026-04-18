@@ -7,6 +7,7 @@ import { hapticFeedback } from '@/lib/capacitor';
 import { C, getVehicleVisual } from '@/lib/designTokens';
 import VehicleIcon from '../components/shared/VehicleIcon';
 import { isVessel, getDateStatus } from '../components/shared/DateStatusUtils';
+import { getAiExpert } from '@/lib/aiExpert';
 import { Send, Wrench, Loader2, Sparkles, Trash2, Car, Ship, AlertTriangle, Check, ChevronDown, X, Copy, RotateCcw, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -244,7 +245,13 @@ export default function AiAssistant() {
 
     try {
       const vehicleContext = buildVehicleContext();
-      const systemPrompt = `אתה יוסי המוסכניק, מכונאי רכב ותיק עם 25 שנות ניסיון בישראל. אתה מכיר לעומק את כל דגמי הרכב הנפוצים בישראל, בעיות ידועות לפי דגם ושנה, מחירי תיקון ישראליים${hasVessel ? ', וגם כלי שייט (מנועי Yanmar, Mercury, Volvo Penta) ומרינות בישראל' : ''}.
+      // Pick the expert that matches the selected vehicle (vessel → יוסי, else → ברוך).
+      // With no vehicle selected, default to ברוך (the app is car-first).
+      const expert = getAiExpert(selectedVehicle);
+      const expertise = expert.domain === 'vessel'
+        ? 'אתה מכיר לעומק את כל סוגי הסירות, מנועים ימיים (Yanmar, Mercury, Volvo Penta, Yamaha), מערכות חשמל ימיות, ציוד בטיחות, ואת כל המרינות בישראל'
+        : 'אתה מכיר לעומק את כל דגמי הרכב הנפוצים בישראל, בעיות ידועות לפי דגם ושנה, ומחירי תיקון ישראליים';
+      const systemPrompt = `אתה ${expert.fullName}, ${expert.role}. ${expertise}.
 
 ## אופן עבודה — כמו מוסכניק אמיתי:
 כשמגיעה שאלה על **בעיה, תסמין, תקלה, רעש, נורית אזהרה, דלף, ריח, רעידה** — אל תענה מיד. תחילה שאל **2-3 שאלות ממוקדות** שיעזרו לך לאבחן בדיוק, כמו שאתה שואל לקוח שנכנס למוסך. לאחר שתקבל תשובות — תן אבחון מפורט ומדויק.
@@ -339,6 +346,9 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
   const charsLeft = MAX_LEN - input.length;
   const isInputValid = input.trim().length >= MIN_LEN && input.length <= MAX_LEN;
   const allSuggestedPrompts = selectedVehicle ? SUGGESTED_PROMPTS_VEHICLE : SUGGESTED_PROMPTS_GENERAL;
+  // The expert identity for the currently-selected vehicle (or the default ברוך
+  // for a general question). Used for every place in the UI that names the AI.
+  const expert = getAiExpert(selectedVehicle);
   const [showAllPrompts, setShowAllPrompts] = useState(false);
   const suggestedPrompts = showAllPrompts ? allSuggestedPrompts : allSuggestedPrompts.slice(0, 3);
 
@@ -369,7 +379,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
                 </span>
-                <p className="text-[10px] font-bold" style={{ color: 'rgba(255,255,255,0.9)' }}>יוסי זמין · עונה תוך שניות</p>
+                <p className="text-[10px] font-bold" style={{ color: 'rgba(255,255,255,0.9)' }}>{expert.firstName} זמין · עונה תוך שניות</p>
               </div>
             </div>
 
@@ -386,7 +396,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
           </div>
 
           <p className="text-[11px] font-medium text-center mt-2" style={{ color: 'rgba(255,255,255,0.85)' }}>
-            🔧 מכונאי AI עם 25 שנות ניסיון - שאל הכל
+            {expert.emoji} {expert.shortRole} AI עם 25 שנות ניסיון - שאל הכל
           </p>
         </div>
       </div>
@@ -496,7 +506,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
             style={{ background: '#EEF2FF', border: '1px solid #C7D2FE' }}>
             <Info className="w-3 h-3 shrink-0" style={{ color: '#4338CA' }} />
             <p className="text-[10px] leading-tight" style={{ color: '#4338CA' }}>
-              יוסי יודע על {maintenanceLogs.length} טיפולים אחרונים ולא יציע מה שכבר בוצע
+              {expert.firstName} יודע על {maintenanceLogs.length} טיפולים אחרונים ולא יציע מה שכבר בוצע
             </p>
           </div>
         )}
@@ -539,10 +549,13 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
                   <Check className="w-4 h-4 text-white" strokeWidth={3} />
                 </div>
               </div>
-              <h3 className="text-lg font-black mb-1" style={{ color: '#1F2937' }}>שלום! אני יוסי 👋</h3>
+              <h3 className="text-lg font-black mb-1" style={{ color: '#1F2937' }}>שלום! אני {expert.firstName} {expert.emoji}</h3>
               <p className="text-sm leading-relaxed max-w-[300px] mx-auto" style={{ color: '#6B7280' }}>
-                {hasVessel ? 'מכונאי רכב וטכנאי כלי שייט. ' : 'מכונאי רכב ותיק. '}
-                שאל אותי כל שאלה - מבעיות מנוע, דרך טיפולים ועד מחירי תיקון.
+                {expert.role}.{' '}
+                {expert.domain === 'vessel'
+                  ? 'שאל אותי על תחזוקה, כושר שייט, ציוד בטיחות או מנועים ימיים.'
+                  : 'שאל אותי כל שאלה - מבעיות מנוע, דרך טיפולים ועד מחירי תיקון.'}
+                {hasVessel && expert.domain === 'car' && ' (בחר כלי שייט למעלה כדי לעבור ליוסי, המומחה הימי.)'}
               </p>
             </div>
 
@@ -700,8 +713,8 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
             onChange={e => { setInput(e.target.value.slice(0, MAX_LEN)); setError(null); }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={selectedVehicle
-              ? `שאל את יוסי על ${selectedVehicle.nickname || selectedVehicle.manufacturer}...`
-              : 'שאל את יוסי על הרכב שלך...'}
+              ? `שאל את ${expert.firstName} על ${selectedVehicle.nickname || selectedVehicle.manufacturer}...`
+              : `שאל את ${expert.firstName} על הרכב שלך...`}
             disabled={sending}
             maxLength={MAX_LEN}
             className="flex-1 h-11 rounded-full px-4 text-[13px] focus-visible:ring-2 focus-visible:ring-offset-0 transition-all"

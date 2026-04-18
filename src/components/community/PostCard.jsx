@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MessageCircle, Car, Ship, Bike, Truck, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2, Flag, Ban, MoreHorizontal, Wrench, Pencil, X as XIcon, Check as CheckIcon } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { getVehicleCategory } from '@/lib/designTokens';
+import { getAiExpertForDomain } from '@/lib/aiExpert';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { useAuth } from '../shared/GuestContext';
@@ -338,7 +339,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
           style={{ background: '#FFFBEB', border: '1px solid #FEF3C7' }}>
           <Wrench className="w-3.5 h-3.5 animate-pulse" style={{ color: '#D97706' }} />
           <span className="text-[11px] font-medium" style={{ color: '#92400E' }}>
-            {post.domain === 'vessel' ? 'יוסי מומחה כלי שייט חושב...' : 'יוסי המוסכניק חושב...'}
+            {getAiExpertForDomain(post.domain).fullName} חושב...
           </span>
         </div>
       )}

@@ -16,6 +16,7 @@ import { createPageUrl } from '@/utils';
 import useFormDraft from '@/hooks/useFormDraft';
 import FieldError from '../shared/FieldError';
 import { toast } from 'sonner';
+import { getAiExpertForDomain } from '@/lib/aiExpert';
 
 // Hebrew stop words to filter from search keywords
 const STOP_WORDS = new Set(['של', 'את', 'על', 'עם', 'זה', 'אני', 'הוא', 'היא', 'לא', 'כן', 'יש', 'אין', 'מה', 'איך', 'למה', 'כי', 'אם', 'או', 'גם', 'רק', 'עוד', 'כל', 'הם', 'אבל', 'שלי', 'שלך', 'אחרי', 'לפני', 'בין', 'תוך', 'כמו', 'מאוד', 'הרבה', 'קצת']);
@@ -143,8 +144,9 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
         vehicleContext = `\n\nפרטי הרכב של השואל:\n${details.join('\n')}`;
       }
 
-      const systemPrompt = domain === 'vessel'
-        ? `אתה יוסי, טכנאי כלי שייט מומחה עם 25 שנות ניסיון בישראל. אתה מכיר לעומק את כל סוגי הסירות, המנועים הימיים (Yanmar, Mercury, Volvo Penta), מערכות חשמל ימיות, ואת כל המרינות בישראל.
+      const expert = getAiExpertForDomain(domain);
+      const systemPrompt = expert.domain === 'vessel'
+        ? `אתה ${expert.fullName}, ${expert.role}. אתה מכיר לעומק את כל סוגי הסירות, המנועים הימיים (Yanmar, Mercury, Volvo Penta), מערכות חשמל ימיות, ואת כל המרינות בישראל.
 
 כללים:
 - ענה בעברית בלבד
@@ -153,7 +155,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 - תן עצה מעשית ובטיחותית עם הערכת עלות ישראלית
 - אל תמציא עובדות - אם אתה לא בטוח, אמור "מומלץ לבדוק עם טכנאי"
 - אורך תגובה: 3-6 משפטים מרוכזים`
-        : `אתה יוסי המוסכניק, מכונאי רכב ותיק עם 25 שנות ניסיון בישראל. אתה מכיר לעומק את כל דגמי הרכב הנפוצים בישראל, בעיות ידועות לפי דגם ושנה, ומחירי תיקון ישראליים.
+        : `אתה ${expert.fullName}, ${expert.role}. אתה מכיר לעומק את כל דגמי הרכב הנפוצים בישראל, בעיות ידועות לפי דגם ושנה, ומחירי תיקון ישראליים.
 
 כללים:
 - ענה בעברית בלבד
@@ -176,7 +178,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
       if (aiText) {
         await supabase.from('community_comments').insert({
           post_id: post.id, user_id: post.user_id,
-          author_name: domain === 'vessel' ? '⚓ יוסי מומחה כלי שייט' : '🔧 יוסי המוסכניק',
+          author_name: expert.communityName,
           body: aiText.replace(/<[^>]*>/g, '').slice(0, 1000), is_ai: true,
         });
         queryClient.invalidateQueries({ queryKey: ['community_comments', post.id] });
@@ -231,7 +233,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             </div>
 
             <p className="text-xs font-medium text-center" style={{ color: 'rgba(255,255,255,0.85)' }}>
-              שתף שאלה או חוויה - הקהילה ויוסי יענו תוך שניות 🚀
+              שתף שאלה או חוויה - הקהילה ו{getAiExpertForDomain(domain).firstName} יענו תוך שניות 🚀
             </p>
           </div>
         </div>
@@ -500,11 +502,14 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
               </>
             )}
           </button>
-          {isValid && (
-            <p className="text-center text-[10px] mt-2 font-medium" style={{ color: '#9CA3AF' }}>
-              🤖 יוסי המוסכניק יענה תוך כמה שניות
-            </p>
-          )}
+          {isValid && (() => {
+            const e = getAiExpertForDomain(domain);
+            return (
+              <p className="text-center text-[10px] mt-2 font-medium" style={{ color: '#9CA3AF' }}>
+                🤖 {e.fullName} יענה תוך כמה שניות
+              </p>
+            );
+          })()}
         </div>
       </DialogContent>
     </Dialog>

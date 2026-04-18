@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { getAiExpertForDomain } from '@/lib/aiExpert';
 
 function timeAgo(date) {
   try { return formatDistanceToNow(new Date(date), { addSuffix: false, locale: he }); }
@@ -91,14 +92,13 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
           setAiThinking(true);
           try {
             const { aiRequest } = await import('@/lib/aiProxy');
-            const isVessel = postDomain === 'vessel';
-            const systemPrompt = isVessel
-              ? `אתה יוסי, טכנאי כלי שייט מומחה. זו שיחת המשך בפורום — ענה ספציפית לשאלת ההמשך של השואל בקצרה (2-4 משפטים). היה חם ואישי.`
-              : `אתה יוסי המוסכניק. זו שיחת המשך בפורום — ענה ספציפית לשאלת ההמשך של השואל בקצרה (2-4 משפטים). היה חם ואישי.`;
+            const expert = getAiExpertForDomain(postDomain);
+            const isVessel = expert.domain === 'vessel';
+            const systemPrompt = `אתה ${expert.fullName}, ${expert.role}. זו שיחת המשך בפורום — ענה ספציפית לשאלת ההמשך של השואל בקצרה (2-4 משפטים). היה חם ואישי.`;
             const conversationHistory = comments
               .filter(c => c.is_ai || c.user_id === postOwnerId)
               .slice(-4)
-              .map(c => `${c.is_ai ? 'יוסי' : 'השואל'}: ${c.body}`).join('\n');
+              .map(c => `${c.is_ai ? expert.firstName : 'השואל'}: ${c.body}`).join('\n');
             const json = await aiRequest({
               model: 'claude-sonnet-4-20250514',
               max_tokens: 400,
@@ -113,7 +113,7 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
               await db.community_comments.create({
                 post_id: postId,
                 user_id: null,
-                author_name: isVessel ? '⚓ יוסי מומחה כלי שייט' : '🔧 יוסי המוסכניק',
+                author_name: expert.communityName,
                 body: aiText.replace(/<[^>]*>/g, '').slice(0, 1000),
                 is_ai: true,
               });
@@ -125,7 +125,7 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
                   await db.community_comments.create({
                     post_id: postId,
                     user_id: null,
-                    author_name: isVessel ? '⚓ יוסי מומחה כלי שייט' : '🔧 יוסי המוסכניק',
+                    author_name: expert.communityName,
                     body: '💡 הגענו ל-3 תשובות כאן. להמשך שיחה מעמיקה יותר, אני ממליץ לעבור לצ\'אט הייעוץ הפרטי שלי — לחץ על "מומחה AI" בתפריט התחתון.',
                     is_ai: true,
                   });
@@ -218,7 +218,7 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
       {aiThinking && (
         <div className="px-3 py-2 flex items-center gap-2" style={{ background: '#FFFBEB', borderTop: '1px solid #FEF3C7' }}>
           <Wrench className="w-3.5 h-3.5 animate-pulse" style={{ color: '#D97706' }} />
-          <span className="text-[11px] font-medium" style={{ color: '#92400E' }}>יוסי חושב על תשובה...</span>
+          <span className="text-[11px] font-medium" style={{ color: '#92400E' }}>{getAiExpertForDomain(postDomain).firstName} חושב על תשובה...</span>
         </div>
       )}
 
