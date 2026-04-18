@@ -17,6 +17,7 @@ import { format, parseISO } from 'date-fns';
 import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import CompleteProfileScreen, { hasCompletedProfile } from '../components/shared/CompleteProfileScreen';
 import OnboardingTour, { hasCompletedOnboarding } from '../components/shared/OnboardingTour';
+import LicensePlate from '../components/shared/LicensePlate';
 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 function getVehicleIcon(vt, nn, mfr) { return ICON_MAP[getVehicleCategory(vt, nn, mfr)] || Car; }
@@ -212,9 +213,14 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
             <h3 className="font-black text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
               {name}
             </h3>
-            <p className="text-base mt-1 font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>
-              {[make, model, vehicle.year].filter(Boolean).join(' · ')}
-            </p>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <p className="text-base font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                {[make, model, vehicle.year].filter(Boolean).join(' · ')}
+              </p>
+              {vehicle.license_plate && !isVessel && (
+                <LicensePlate value={vehicle.license_plate} size="sm" showCopy={false} />
+              )}
+            </div>
           </div>
 
           {/* Vehicle icon for no-photo */}
@@ -420,19 +426,24 @@ function VehicleRow({ vehicle }) {
         <div className="flex-1 min-w-0">
           <h3 className="font-extrabold text-base truncate" style={{ color: T.text }}>{name}</h3>
           <p className="text-sm mt-0.5 truncate font-medium" style={{ color: T.muted }}>{subtitle}</p>
-          {isVessel ? (
-            vehicle.current_engine_hours && (
-              <p className="text-xs mt-0.5" style={{ color: T.muted }}>
-                {Number(vehicle.current_engine_hours).toLocaleString()} שעות מנוע
-              </p>
-            )
-          ) : (
-            vehicle.current_km && (
-              <p className="text-xs mt-0.5" style={{ color: T.muted }}>
-                {Number(vehicle.current_km).toLocaleString()} ק"מ
-              </p>
-            )
-          )}
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            {isVessel ? (
+              vehicle.current_engine_hours && (
+                <p className="text-xs" style={{ color: T.muted }}>
+                  {Number(vehicle.current_engine_hours).toLocaleString()} שעות מנוע
+                </p>
+              )
+            ) : (
+              vehicle.current_km && (
+                <p className="text-xs" style={{ color: T.muted }}>
+                  {Number(vehicle.current_km).toLocaleString()} ק"מ
+                </p>
+              )
+            )}
+            {vehicle.license_plate && !isVessel && (
+              <LicensePlate value={vehicle.license_plate} size="sm" showCopy={false} />
+            )}
+          </div>
           {hasMissing && (
             <div
               className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full"

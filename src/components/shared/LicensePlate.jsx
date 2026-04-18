@@ -26,10 +26,10 @@ export default function LicensePlate({ value, size = 'md', showCopy = true, clas
 
   // Size presets
   const P = size === 'sm'
-    ? { height: 22, padding: '2px 4px', textSize: 10, flagWidth: 10, flagHeight: 7, ilSize: 5 }
+    ? { height: 19, padding: '1px 3px', textSize: 9,  flagWidth: 9,  flagHeight: 6, ilSize: 4 }
     : size === 'lg'
     ? { height: 34, padding: '4px 6px', textSize: 14, flagWidth: 18, flagHeight: 12, ilSize: 8 }
-    : { height: 28, padding: '3px 5px', textSize: 12, flagWidth: 14, flagHeight: 9, ilSize: 6 };
+    : { height: 28, padding: '3px 5px', textSize: 12, flagWidth: 14, flagHeight: 9,  ilSize: 6 };
 
   return (
     <span className={`inline-flex items-center gap-1 ${className}`} dir="ltr">
