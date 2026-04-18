@@ -109,26 +109,47 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     setExtracting(true);
     setError('');
 
-    // Use AI proxy (Claude vision) to extract fields from the uploaded image
+    // Use AI proxy (vision-capable provider) to extract fields from the uploaded
+    // image or PDF. Detect MIME type from the data URL prefix so PDFs aren't
+    // mis-tagged as JPEGs (which used to cause the model to "see" garbage and
+    // hallucinate plausible-but-wrong fields).
     let raw = null;
     try {
-      const mediaType = fileUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
-      const imageData = fileUrl.split(',')[1] || '';
+      const mimeMatch = fileUrl.match(/^data:([^;]+);base64,/);
+      const mediaType = mimeMatch?.[1] || 'image/jpeg';
+      const fileData = fileUrl.split(',')[1] || '';
+      const isPdf = mediaType === 'application/pdf';
+      const sourcePart = isPdf
+        ? { type: 'document', source: { type: 'base64', media_type: mediaType, data: fileData } }
+        : { type: 'image',    source: { type: 'base64', media_type: mediaType, data: fileData } };
+
       const json = await aiRequest({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 400,
+        max_tokens: 500,
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
-            { type: 'text', text: `סרוק רישיון רכב וחלץ את הפרטים. החזר JSON בלבד:
-{"license_plate":"מספר רכב", "test_due_date":"DD/MM/YYYY", "owner_name":"בעלים", "first_registration_date":"DD/MM/YYYY", "manufacturer":"יצרן", "model":"דגם", "vehicle_type":"סוג", "engine_cc":0}` },
+            sourcePart,
+            { type: 'text', text: `אתה רואה תמונה או PDF של רישיון רכב ישראלי. חלץ את השדות המופיעים במסמך והחזר JSON בלבד.
+
+חוקים קריטיים נגד המצאה:
+- אם השדה לא מופיע במסמך — החזר "" (מחרוזת ריקה). אל תנחש.
+- אם המסמך אינו רישיון רכב, או שאינך יכול לקרוא אותו (טשטוש, חיתוך, איכות נמוכה) — החזר {"_unreadable": true}.
+- מספר רכב הוא 7-8 ספרות עם מקפים. אל תחזיר אותיות.
+- תאריכים בפורמט DD/MM/YYYY כפי שהם מודפסים במסמך הישראלי.
+
+פורמט החזרה (החזר את האובייקט בלבד, ללא טקסט נוסף):
+{"license_plate":"", "test_due_date":"", "owner_name":"", "first_registration_date":"", "manufacturer":"", "model":"", "vehicle_type":"", "engine_cc":0}` },
           ],
         }],
       });
       const text = json?.content?.[0]?.text || '';
       const match = text.match(/\{[\s\S]*\}/);
-      if (match) raw = JSON.parse(match[0]);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        if (parsed._unreadable) raw = null;
+        else raw = parsed;
+      }
     } catch (err) { console.warn('Scan error:', err?.message); }
 
     if (!raw) {

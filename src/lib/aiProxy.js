@@ -36,7 +36,9 @@ async function callGemini(body) {
       for (const part of msg.content) {
         if (part.type === 'text') {
           parts.push({ text: part.text });
-        } else if (part.type === 'image' && part.source?.type === 'base64') {
+        } else if ((part.type === 'image' || part.type === 'document') && part.source?.type === 'base64') {
+          // Gemini accepts both images and PDFs via inline_data — same shape,
+          // just different mime_type. Document type used for PDF uploads.
           parts.push({
             inline_data: {
               mime_type: part.source.media_type,
@@ -156,15 +158,26 @@ async function callClaude(body) {
  * @returns {Promise<object>} - Response with { content: [{ text }] }
  */
 export async function aiRequest(body) {
-  // Primary: Groq (free, fast, our chosen provider)
-  try {
-    const groqResult = await callGroq(body);
-    if (groqResult) return groqResult;
-  } catch (err) {
-    console.warn('Groq failed, trying Gemini:', err.message);
+  // Detect whether this request includes any images. Groq is text-only and
+  // silently strips image parts — sending an OCR prompt to it would make the
+  // model hallucinate from the prompt alone (this caused garbage results in
+  // the vehicle license scan flow). Vision requests must skip straight to
+  // Gemini (or another vision-capable provider).
+  const hasImages = (body.messages || []).some(m =>
+    Array.isArray(m.content) && m.content.some(p => p.type === 'image' || p.type === 'document')
+  );
+
+  if (!hasImages) {
+    // Text-only path: Groq is fastest + free.
+    try {
+      const groqResult = await callGroq(body);
+      if (groqResult) return groqResult;
+    } catch (err) {
+      console.warn('Groq failed, trying Gemini:', err.message);
+    }
   }
 
-  // Backup 1: Google Gemini (supports images for OCR)
+  // Vision (or text fallback): Gemini supports images natively.
   try {
     const geminiResult = await callGemini(body);
     if (geminiResult) return geminiResult;
