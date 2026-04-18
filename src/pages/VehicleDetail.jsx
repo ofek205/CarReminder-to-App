@@ -18,6 +18,7 @@ import { canEdit, canDelete, isViewOnly } from '@/lib/permissions';
 import { daysUntil } from '../components/shared/ReminderEngine';
 import { getDateStatus, formatDateHe, getVehicleLabels } from '../components/shared/DateStatusUtils';
 import StatusBadge from '../components/shared/StatusBadge';
+import LicensePlate from '../components/shared/LicensePlate';
 
 
 // ── Inline Reminders Section ─────────────────────────────────────────────────
@@ -173,33 +174,15 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
             </div>
           )}
 
-          {/* Vehicle name + license plate badge */}
+          {/* Vehicle name + subtitle + license plate */}
           <div className="absolute bottom-4 right-4 left-4 z-10">
             <h1 className="font-black text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{name}</h1>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <p className="text-base font-semibold" style={{ color: 'rgba(255,255,255,0.85)' }}>{subtitle}</p>
-              {vehicle.license_plate && (
-                <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded"
-                  dir="ltr"
-                  style={{ background: '#FFBF00', boxShadow: '0 2px 6px rgba(0,0,0,0.25)', border: '2px solid #1A3A5C' }}>
-                  {/* Israel flag badge */}
-                  <span className="flex flex-col items-center justify-center px-1 py-0.5 rounded-sm"
-                    style={{ background: '#1A3A5C' }}>
-                    <span className="text-white font-bold" style={{ fontSize: '6px', lineHeight: 1 }}>IL</span>
-                    <svg viewBox="0 0 60 40" style={{ width: '14px', height: '9px' }}>
-                      <rect width="60" height="40" fill="white"/>
-                      <rect y="4" width="60" height="5" fill="#003DA5"/>
-                      <rect y="31" width="60" height="5" fill="#003DA5"/>
-                      <polygon points="30,10 34.5,21 25.5,21" fill="none" stroke="#003DA5" strokeWidth="2"/>
-                      <polygon points="30,26 25.5,15 34.5,15" fill="none" stroke="#003DA5" strokeWidth="2"/>
-                    </svg>
-                  </span>
-                  <span className="text-xs font-black tracking-wider px-1" style={{ color: '#1a1a1a' }}>
-                    {vehicle.license_plate}
-                  </span>
-                </span>
-              )}
-            </div>
+            <p className="text-base font-semibold mt-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{subtitle}</p>
+            {vehicle.license_plate && !isVessel && (
+              <div className="mt-2">
+                <LicensePlate value={vehicle.license_plate} size="md" showCopy={false} />
+              </div>
+            )}
           </div>
         </div>
 
