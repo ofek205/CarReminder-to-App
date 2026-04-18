@@ -355,8 +355,10 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
   return (
     <div dir="rtl" className="-mx-4 -mt-4 flex flex-col" style={{ background: '#F9FAFB', minHeight: '100dvh' }}>
 
-      {/* Hero gradient header — premium */}
-      <div className="sticky top-0 z-30 relative overflow-hidden pb-6" style={{ background: C.grad }}>
+      {/* Hero gradient header — scrolls away naturally so the layout's fixed
+          top bar is the only thing pinned. Sticky here was overlapping the
+          chat under the global bar at z-9998. */}
+      <div className="relative overflow-hidden pb-6" style={{ background: C.grad }}>
         {/* Decorative circles */}
         <div className="absolute -top-12 -left-16 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
         <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full" style={{ background: 'rgba(255,191,0,0.18)' }} />
