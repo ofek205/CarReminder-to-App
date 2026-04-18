@@ -29,10 +29,10 @@ export default function LicensePlate({ value, size = 'md', showCopy = true, clas
   // "IL" text that was 4-8px and illegible anyway) and give the number
   // the room it needs to actually be readable.
   const P = size === 'sm'
-    ? { height: 20, padding: '1px 4px 1px 3px', textSize: 11, flagWidth: 10, flagHeight: 7,  borderWidth: 1.5, flagPad: '2px 2px' }
+    ? { height: 18, padding: '1px 3px 1px 2px', textSize: 10, flagWidth: 9,  flagHeight: 6,  borderWidth: 1.5, flagPad: '1px 2px' }
     : size === 'lg'
     ? { height: 32, padding: '3px 8px 3px 5px', textSize: 16, flagWidth: 16, flagHeight: 11, borderWidth: 2,   flagPad: '3px 4px' }
-    : { height: 26, padding: '2px 6px 2px 4px', textSize: 13, flagWidth: 12, flagHeight: 8,  borderWidth: 1.5, flagPad: '2px 3px' };
+    : { height: 24, padding: '2px 5px 2px 3px', textSize: 12, flagWidth: 11, flagHeight: 7,  borderWidth: 1.5, flagPad: '2px 3px' };
 
   return (
     <span className={`inline-flex items-center gap-1 ${className}`} dir="ltr">
