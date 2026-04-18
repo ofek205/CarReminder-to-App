@@ -24,29 +24,31 @@ export default function LicensePlate({ value, size = 'md', showCopy = true, clas
     }
   };
 
-  // Size presets
+  // Size presets. The plate number is the only info that matters — the IL
+  // badge is a brand signal, so we keep it compact (flag only, no stacked
+  // "IL" text that was 4-8px and illegible anyway) and give the number
+  // the room it needs to actually be readable.
   const P = size === 'sm'
-    ? { height: 19, padding: '1px 3px', textSize: 9,  flagWidth: 9,  flagHeight: 6, ilSize: 4 }
+    ? { height: 20, padding: '1px 4px 1px 3px', textSize: 11, flagWidth: 10, flagHeight: 7,  borderWidth: 1.5, flagPad: '2px 2px' }
     : size === 'lg'
-    ? { height: 34, padding: '4px 6px', textSize: 14, flagWidth: 18, flagHeight: 12, ilSize: 8 }
-    : { height: 28, padding: '3px 5px', textSize: 12, flagWidth: 14, flagHeight: 9,  ilSize: 6 };
+    ? { height: 32, padding: '3px 8px 3px 5px', textSize: 16, flagWidth: 16, flagHeight: 11, borderWidth: 2,   flagPad: '3px 4px' }
+    : { height: 26, padding: '2px 6px 2px 4px', textSize: 13, flagWidth: 12, flagHeight: 8,  borderWidth: 1.5, flagPad: '2px 3px' };
 
   return (
     <span className={`inline-flex items-center gap-1 ${className}`} dir="ltr">
       <span
-        className="inline-flex items-center gap-1 rounded shrink-0"
+        className="inline-flex items-center gap-1.5 rounded shrink-0"
         style={{
           padding: P.padding,
           background: '#FFBF00',
-          border: '2px solid #1A3A5C',
+          border: `${P.borderWidth}px solid #1A3A5C`,
           boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
           height: P.height,
         }}>
-        {/* IL flag badge */}
-        <span className="flex flex-col items-center justify-center rounded-sm"
-          style={{ background: '#1A3A5C', padding: '2px 3px' }}>
-          <span className="text-white font-bold leading-none" style={{ fontSize: P.ilSize }}>IL</span>
-          <svg viewBox="0 0 60 40" style={{ width: P.flagWidth, height: P.flagHeight, marginTop: 1 }}>
+        {/* IL flag badge — flag only; no stacked "IL" text (was illegible at small sizes) */}
+        <span className="flex items-center justify-center rounded-sm"
+          style={{ background: '#1A3A5C', padding: P.flagPad }}>
+          <svg viewBox="0 0 60 40" style={{ width: P.flagWidth, height: P.flagHeight, display: 'block' }} aria-label="דגל ישראל">
             <rect width="60" height="40" fill="white" />
             <rect y="4" width="60" height="5" fill="#003DA5" />
             <rect y="31" width="60" height="5" fill="#003DA5" />
@@ -54,7 +56,7 @@ export default function LicensePlate({ value, size = 'md', showCopy = true, clas
             <polygon points="30,26 25.5,15 34.5,15" fill="none" stroke="#003DA5" strokeWidth="2" />
           </svg>
         </span>
-        <span className="font-black tracking-wider px-1" style={{ color: '#1a1a1a', fontSize: P.textSize }}>
+        <span className="font-black leading-none" style={{ color: '#1a1a1a', fontSize: P.textSize, letterSpacing: '0.02em' }}>
           {value}
         </span>
       </span>
