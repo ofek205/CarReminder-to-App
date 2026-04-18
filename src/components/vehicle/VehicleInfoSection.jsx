@@ -398,28 +398,29 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
           <AddToCalendarButton dateField={dateField} vehicle={vehicle} T={T} />
         </>
       )}
-      {/* Renewal actions */}
+      {/* Renewal actions — 2-color palette: solid primary CTA + outline secondary.
+          Keeps the card calm: status color on the border, app primary on actions. */}
       {(dateField === 'test_due_date' || dateField === 'insurance_due_date') && (
         <div className="space-y-1.5 mt-1.5">
-          {/* Gov.il link - test only */}
+          {/* Primary CTA — gov.il external renewal (test only) */}
           {dateField === 'test_due_date' && (
             <a href={vesselMode ? GOV_RENEWAL_URLS.vessel : GOV_RENEWAL_URLS.car}
               target="_blank" rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97]"
-              style={{ background: vesselMode ? '#E0F7FA' : '#EEF2FF', color: vesselMode ? '#00796B' : '#4338CA', border: `1px solid ${vesselMode ? '#B2EBF2' : '#C7D2FE'}` }}>
+              style={{ background: T.primary, color: '#fff', border: `1px solid ${T.primary}` }}>
               <ExternalLink className="w-3 h-3" />
               {vesselMode ? 'חידוש כושר שייט באתר הממשלה' : 'חידוש רישיון באתר הממשלה'}
             </a>
           )}
-          {/* Upload renewed document */}
+          {/* Secondary — same color, outline variant */}
           {onRenewed && (
             <button onClick={() => onRenewed(dateField)}
               className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97]"
-              style={{ background: '#E8F5E9', color: '#2E7D32', border: '1px solid #A5D6A7' }}>
+              style={{ background: '#fff', color: T.primary, border: `1px solid ${T.primary}40` }}>
               <Upload className="w-3 h-3" />
               {dateField === 'test_due_date'
-                ? (vesselMode ? 'חידשתי כושר שייט - העלה מסמך לעדכון' : 'חידשתי רישיון - העלה מסמך לעדכון')
-                : (vesselMode ? 'חידשתי ביטוח ימי - העלה מסמך לעדכון' : 'חידשתי ביטוח - העלה מסמך לעדכון')
+                ? (vesselMode ? 'חידשתי כושר שייט - העלה מסמך' : 'חידשתי רישיון - העלה מסמך')
+                : (vesselMode ? 'חידשתי ביטוח ימי - העלה מסמך' : 'חידשתי ביטוח - העלה מסמך')
               }
             </button>
           )}
