@@ -156,13 +156,21 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
             </div>
           </Link>
 
-          {/* Status badge */}
-          <div className="absolute top-4 left-4 z-10">
-            <span className="text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm"
-              style={{ background: statusBadge.bg, color: statusBadge.color }}>
-              {statusBadge.label}
-            </span>
-          </div>
+          {/* License plate — top-left identity chip (if available).
+              Falls back to the status badge when the vehicle has no plate
+              (guest demo cars without a license number). */}
+          {vehicle.license_plate && !isVessel ? (
+            <div className="absolute top-4 left-4 z-20">
+              <LicensePlate value={vehicle.license_plate} size="sm" showCopy />
+            </div>
+          ) : (
+            <div className="absolute top-4 left-4 z-10">
+              <span className="text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm"
+                style={{ background: statusBadge.bg, color: statusBadge.color }}>
+                {statusBadge.label}
+              </span>
+            </div>
+          )}
 
           {/* No-photo icon */}
           {!hasPhoto && (
@@ -174,15 +182,10 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
             </div>
           )}
 
-          {/* Vehicle name + subtitle + license plate */}
+          {/* Vehicle name + subtitle */}
           <div className="absolute bottom-4 right-4 left-4 z-10">
             <h1 className="font-black text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{name}</h1>
             <p className="text-base font-semibold mt-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{subtitle}</p>
-            {vehicle.license_plate && !isVessel && (
-              <div className="mt-2">
-                <LicensePlate value={vehicle.license_plate} size="md" showCopy={false} />
-              </div>
-            )}
           </div>
         </div>
 
@@ -465,6 +468,14 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           </div>
         </Link>
 
+        {/* License plate — top-left identity chip (separated from the yellow
+            "edit" CTA at the bottom to avoid yellow-on-yellow clash) */}
+        {vehicle.license_plate && !isVessel && (
+          <div className="absolute top-4 left-4 z-20">
+            <LicensePlate value={vehicle.license_plate} size="sm" showCopy />
+          </div>
+        )}
+
         {/* No-photo vehicle icon */}
         {!hasPhoto && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -481,11 +492,6 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             {name}
           </h1>
           <p className="text-sm mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>{subtitle}</p>
-          {vehicle.license_plate && !isVessel && (
-            <div className="mt-2">
-              <LicensePlate value={vehicle.license_plate} size="md" showCopy={false} />
-            </div>
-          )}
         </div>
       </div>
 
