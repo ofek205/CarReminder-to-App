@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Bell, Settings, Users, User, FileText, Menu, X, LogOut, Wrench, Star, UserCircle, CheckCircle, AlertTriangle, XCircle, Phone, Mail, CreditCard, UserPlus, ShieldCheck, MapPin, Gauge, MessageSquare, Sparkles } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Bell, Settings, Users, User, FileText, Menu, X, LogOut, Wrench, Star, UserCircle, CheckCircle, AlertTriangle, XCircle, Phone, Mail, CreditCard, UserPlus, ShieldCheck, MapPin, Gauge, MessageSquare, Sparkles, ChevronLeft } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -180,15 +180,18 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
       {/* Header */}
       <div className="p-4 pt-12 border-b border-gray-100 shrink-0">
         {isAuthenticated ? (
-          <div className="flex items-center gap-3">
+          <Link to={createPageUrl('UserProfile')} onClick={onItemClick}
+            className="flex items-center gap-3 rounded-xl -m-2 p-2 transition-colors hover:bg-gray-50 active:bg-gray-100"
+            aria-label="אזור אישי">
             <div className="w-9 h-9 rounded-xl bg-[#E8F2EA] flex items-center justify-center shrink-0">
               <User className="h-5 w-5 text-[#2D5233]" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-gray-900 truncate">{user?.full_name || 'ניהול כלי תחבורה'}</p>
               <p className="text-[10px] text-gray-400 truncate">{user?.email || ''}</p>
             </div>
-          </div>
+            <ChevronLeft className="h-4 w-4 text-gray-400 shrink-0" aria-hidden="true" />
+          </Link>
         ) : (
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
