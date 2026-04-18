@@ -123,7 +123,7 @@ function buildPayload(reminder) {
     ? `${emoji} ${reminder.name}`
     : `${emoji} ${reminder.label || reminder.typeName || 'תזכורת'}`;
   const body = reminder.label
-    || (reminder.typeName ? `${reminder.typeName} — ${reminder.name || ''}` : 'יש תזכורת חדשה');
+    || (reminder.typeName ? `${reminder.typeName}: ${reminder.name || ''}` : 'יש תזכורת חדשה');
   return { title, body };
 }
 
@@ -195,7 +195,7 @@ export async function sendTestNotification() {
   await scheduleLocalNotification({
     id: 'test-notification',
     title: '🔔 בדיקת התראות',
-    body: 'אם אתה רואה את זה — הכל עובד! תזכורות יופיעו כך.',
+    body: 'אם אתה רואה את זה, הכל עובד! תזכורות יופיעו כך.',
     scheduleAt: new Date(Date.now() + 5 * 1000),
   });
   return { ok: true };

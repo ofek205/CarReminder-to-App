@@ -85,7 +85,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
         .gte('created_at', dayAgo)
         .limit(1);
       if (recent && recent.length > 0) {
-        setError('כבר שיתפת חוות דעת ביממה האחרונה — תודה!');
+        setError('כבר שיתפת חוות דעת ביממה האחרונה. תודה!');
         setSubmitting(false);
         return;
       }
@@ -108,7 +108,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
       handleClose('submitted');
     } catch (e) {
       const msg = e?.message?.includes('row-level security')
-        ? 'אין הרשאה לפרסם — ודא שאתה מחובר'
+        ? 'אין הרשאה לפרסם. ודא שאתה מחובר'
         : 'השליחה נכשלה, נסה שוב';
       setError(msg);
       setSubmitting(false);
@@ -142,7 +142,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
               <Input id="review-title"
                 value={title}
                 onChange={e => setTitle(e.target.value.slice(0, TITLE_MAX))}
-                placeholder="במילה אחת — מה הרושם שלך?"
+                placeholder="במילה אחת, מה הרושם שלך?"
                 maxLength={TITLE_MAX}
                 className="text-right" />
               <p className="text-[10px] text-gray-400 mt-1 text-left" dir="ltr">{title.length}/{TITLE_MAX}</p>
@@ -156,7 +156,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
               <Textarea id="review-body"
                 value={body}
                 onChange={e => setBody(e.target.value.slice(0, BODY_MAX))}
-                placeholder="ספר לנו על החוויה שלך — מה עזר, מה היה פחות מוצלח, ומה חסר"
+                placeholder="ספר לנו על החוויה שלך: מה עזר, מה היה פחות מוצלח, ומה חסר"
                 rows={5}
                 maxLength={BODY_MAX}
                 className="text-right resize-none" />

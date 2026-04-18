@@ -94,7 +94,7 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
             const { aiRequest } = await import('@/lib/aiProxy');
             const expert = getAiExpertForDomain(postDomain);
             const isVessel = expert.domain === 'vessel';
-            const systemPrompt = `אתה ${expert.fullName}, ${expert.role}. זו שיחת המשך בפורום — ענה ספציפית לשאלת ההמשך של השואל בקצרה (2-4 משפטים). היה חם ואישי.`;
+            const systemPrompt = `אתה ${expert.fullName}, ${expert.role}. זו שיחת המשך בפורום. ענה ספציפית לשאלת ההמשך של השואל בקצרה (2-4 משפטים). היה חם ואישי.`;
             const conversationHistory = comments
               .filter(c => c.is_ai || c.user_id === postOwnerId)
               .slice(-4)
@@ -126,7 +126,7 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
                     post_id: postId,
                     user_id: null,
                     author_name: expert.communityName,
-                    body: '💡 הגענו ל-3 תשובות כאן. להמשך שיחה מעמיקה יותר, אני ממליץ לעבור לצ\'אט הייעוץ הפרטי שלי — לחץ על "מומחה AI" בתפריט התחתון.',
+                    body: '💡 הגענו ל-3 תשובות כאן. להמשך שיחה מעמיקה יותר, אני ממליץ לעבור לצ\'אט הייעוץ הפרטי שלי. לחץ על "מומחה AI" בתפריט התחתון.',
                     is_ai: true,
                   });
                   queryClient.invalidateQueries({ queryKey: ['community_comments', postId] });

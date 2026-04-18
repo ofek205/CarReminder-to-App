@@ -95,7 +95,7 @@ export default function PinLock({ mode = 'unlock', onSuccess, onForgot, onCancel
           hapticFeedback('heavy');
           setShake(true);
           setTimeout(() => setShake(false), 500);
-          toast.error('הקודים לא תואמים — נסה שוב');
+          toast.error('הקודים לא תואמים, נסה שוב');
           setEntered('');
           setFirstPin('');
           setStep('first');
@@ -117,7 +117,7 @@ export default function PinLock({ mode = 'unlock', onSuccess, onForgot, onCancel
     setEntered('');
 
     if (res.reason === 'too_many_failures') {
-      toast.error('יותר מדי ניסיונות כושלים — תבקש להתחבר מחדש');
+      toast.error('יותר מדי ניסיונות כושלים. יש להתחבר מחדש');
       try { await supabase.auth.signOut(); } catch {}
       onCancel?.();
       return;
@@ -125,11 +125,11 @@ export default function PinLock({ mode = 'unlock', onSuccess, onForgot, onCancel
     if (res.reason === 'locked_out') {
       const sec = Math.ceil((res.lockoutMsRemaining || 30000) / 1000);
       setLockoutSec(sec);
-      toast.error(`יותר מדי ניסיונות — המתן ${sec} שניות`);
+      toast.error(`יותר מדי ניסיונות. המתן ${sec} שניות`);
       return;
     }
     if (res.attemptsRemaining !== undefined) {
-      toast.error(`קוד שגוי — ${res.attemptsRemaining} ניסיונות נותרו`);
+      toast.error(`קוד שגוי. ${res.attemptsRemaining} ניסיונות נותרו`);
     }
   };
 

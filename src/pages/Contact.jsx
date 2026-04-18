@@ -150,7 +150,7 @@ export default function Contact() {
         </button>
 
         <p className="text-xs text-center" style={{ color: C.muted }}>
-          נענה תוך 24-48 שעות. למקרה דחוף — ניתן לפנות ישירות ל-support@carreminder.co.il
+          נענה תוך 24-48 שעות. למקרה דחוף, ניתן לפנות ישירות ל-support@carreminder.co.il
         </p>
       </form>
     </div>

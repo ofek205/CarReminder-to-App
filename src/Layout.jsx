@@ -533,7 +533,7 @@ function NotificationBell() {
             const testDaysLeft = daysTo(v.test_due_date);
             if (testDaysLeft !== null && testDaysLeft <= 60 && testDaysLeft > 0) {
               addNotif(`brakes-${v.id}`, v.id, 'safety',
-                `רכב ותיק (${vehicleAge} שנים) — נדרש אישור בלמים לטסט`,
+                `רכב ותיק (${vehicleAge} שנים): נדרש אישור בלמים לטסט`,
                 name, testDaysLeft, 'VehicleDetail');
             }
           }

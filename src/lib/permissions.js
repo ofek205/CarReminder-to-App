@@ -43,7 +43,7 @@ export function isViewOnly(role) {
 
 /** Role display info */
 export const ROLE_INFO = {
-  'בעלים': { label: 'בעלים', description: 'שליטה מלאה — ניהול, עריכה ומחיקה', color: '#D97706', bg: '#FEF3C7', icon: 'Crown' },
-  'מנהל':  { label: 'מנהל',  description: 'הוספה ועריכה — ללא מחיקת רכבים',   color: '#2563EB', bg: '#DBEAFE', icon: 'Shield' },
-  'שותף':  { label: 'שותף',  description: 'צפייה בלבד — ללא עריכה או מחיקה',  color: '#6B7280', bg: '#F3F4F6', icon: 'User' },
+  'בעלים': { label: 'בעלים', description: 'שליטה מלאה: ניהול, עריכה ומחיקה', color: '#D97706', bg: '#FEF3C7', icon: 'Crown' },
+  'מנהל':  { label: 'מנהל',  description: 'הוספה ועריכה, ללא מחיקת רכבים',   color: '#2563EB', bg: '#DBEAFE', icon: 'Shield' },
+  'שותף':  { label: 'שותף',  description: 'צפייה בלבד, ללא עריכה או מחיקה',  color: '#6B7280', bg: '#F3F4F6', icon: 'User' },
 };

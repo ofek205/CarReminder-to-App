@@ -246,7 +246,7 @@ export const DEMO_CORK_NOTES = [
     id: 'demo_note_004',
     vehicle_id: DEMO_VEHICLE_ID,
     title: 'מספר מוסך: 03-6123456',
-    content: 'מוסך שלמה — רחוב התעשייה 12, חולון. שעות: 08:00-17:00',
+    content: 'מוסך שלמה, רחוב התעשייה 12, חולון. שעות: 08:00-17:00',
     color: 'blue',
     rotation: 2,
     is_done: false,
@@ -270,7 +270,7 @@ export const DEMO_VESSEL = {
   nickname: 'יאכטה נוני',
   license_plate: 'IL-4821',
   current_engine_hours: 620,
-  notes: 'מפרשית 38 רגל, מנוע Yanmar 30HP, עגינה במרינה הרצליה. יאכטה נוני — הסירה של המשפחה.',
+  notes: 'מפרשית 38 רגל, מנוע Yanmar 30HP, עגינה במרינה הרצליה. יאכטה נוני, הסירה של המשפחה.',
   vehicle_photo: 'https://images.pexels.com/photos/273886/pexels-photo-273886.jpeg?auto=compress&cs=tinysrgb&w=600',
   test_due_date: '2026-11-15',
   insurance_due_date: '2026-10-20',
@@ -316,7 +316,7 @@ export const DEMO_VESSEL_TREATMENTS = [
   },
   {
     id: 'demo_vt_004', vehicle_id: DEMO_VESSEL_ID, _type: 'maintenance',
-    title: 'העלאה למספנה — ניקוי תחתית', date: '2026-10-01', cost: 4500, status: 'upcoming',
+    title: 'העלאה למספנה: ניקוי תחתית', date: '2026-10-01', cost: 4500, status: 'upcoming',
     notes: 'ניקוי, צביעת אנטיפאולינג, בדיקת הגה ופרופלר',
   },
 ];
@@ -338,7 +338,7 @@ export const DEMO_VESSEL_ISSUES = [
   },
   {
     id: 'demo_vi_003', vehicle_id: DEMO_VESSEL_ID,
-    title: 'צביעת ג\'לקוט — שריטות בצד ימין',
+    title: 'צביעת ג\'לקוט: שריטות בצד ימין',
     description: 'שריטות שטחיות מעגינה. לא חמור אבל כדאי לטפל לפני החורף.',
     category: 'hull', priority: 'low', status: 'open',
     created_date: '2026-01-20T14:00:00.000Z',
@@ -349,7 +349,7 @@ export const DEMO_VESSEL_CORK_NOTES = [
   {
     id: 'demo_vnote_001', vehicle_id: DEMO_VESSEL_ID,
     title: 'להזמין מקום במרינה לקיץ',
-    content: 'מרינה הרצליה — לצלצל לרונית 09-9541234. מקדמה עד סוף אפריל.',
+    content: 'מרינה הרצליה, לצלצל לרונית 09-9541234. מקדמה עד סוף אפריל.',
     color: 'blue', rotation: -1.5, due_date: '2026-04-30', is_done: false,
     created_date: '2026-03-15T10:00:00.000Z',
   },
@@ -363,7 +363,7 @@ export const DEMO_VESSEL_CORK_NOTES = [
   {
     id: 'demo_vnote_003', vehicle_id: DEMO_VESSEL_ID,
     title: 'אנטיפאולינג חדש',
-    content: 'לקנות צבע International Micron Extra 2 — 2.5 ליטר',
+    content: 'לקנות צבע International Micron Extra 2, 2.5 ליטר',
     color: 'yellow', rotation: -2.5, due_date: '2026-09-15', is_done: false,
     created_date: '2026-02-01T12:00:00.000Z',
   },

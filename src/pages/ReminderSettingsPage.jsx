@@ -470,7 +470,7 @@ function PinLockSection() {
             <div className="flex-1 min-w-0">
               <p className="font-bold text-sm" style={{ color: '#1C2E20' }}>נעילת קוד</p>
               <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
-                {enabled ? 'מופעל — קוד 4 ספרות בכניסה' : 'הזן קוד בכל פתיחה של האפליקציה'}
+                {enabled ? 'מופעל. קוד 4 ספרות בכניסה' : 'הזן קוד בכל פתיחה של האפליקציה'}
               </p>
             </div>
           </div>
@@ -501,9 +501,9 @@ function TestNotificationButton() {
     try {
       const res = await sendTestNotification();
       if (res.ok) {
-        toast.success('נשלחה התראת בדיקה — תגיע בעוד כ-5 שניות');
+        toast.success('נשלחה התראת בדיקה. תגיע בעוד כ-5 שניות');
       } else if (res.reason === 'permission_denied') {
-        toast.error('אין הרשאת התראות — אפשר בהגדרות המכשיר');
+        toast.error('אין הרשאת התראות. אפשר בהגדרות המכשיר');
       } else {
         toast.error('שליחה נכשלה');
       }

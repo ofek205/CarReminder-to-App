@@ -103,7 +103,7 @@ function ReviewsHero({ reviews }) {
         style={{ background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)', border: '1.5px solid #BBF7D0' }}>
         <div className="text-5xl mb-2">💬</div>
         <p className="font-black text-lg" style={{ color: C.greenDark }}>היה הראשון/ה לשתף</p>
-        <p className="text-sm text-gray-600 mt-1">עדיין אין חוות דעת — הדעה שלך תעזור לאחרים</p>
+        <p className="text-sm text-gray-600 mt-1">עדיין אין חוות דעת. הדעה שלך תעזור לאחרים</p>
       </div>
     );
   }
