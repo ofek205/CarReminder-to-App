@@ -481,6 +481,11 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             {name}
           </h1>
           <p className="text-sm mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>{subtitle}</p>
+          {vehicle.license_plate && !isVessel && (
+            <div className="mt-2">
+              <LicensePlate value={vehicle.license_plate} size="md" showCopy={false} />
+            </div>
+          )}
         </div>
       </div>
 
