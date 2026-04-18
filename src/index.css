@@ -209,6 +209,14 @@ html, body {
   /* Use dynamic viewport height (accounts for keyboard on mobile) */
   min-height: 100vh;
   min-height: 100dvh;
+  /* Prevent horizontal scroll globally. Dozens of hero/card components use
+     decorative absolute-positioned circles with -right-* / -bottom-* offsets
+     that technically extend beyond the viewport; we want them visually
+     clipped, not triggering a horizontal scrollbar + half-visible content
+     at the page edge. Radix drawers / sheets use their own fixed overlays
+     at z-50+ and aren't affected. */
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 /* Auto-scroll focused input into view when keyboard opens */
