@@ -13,10 +13,23 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- System bar colors so the app's top/bottom chrome blends with them -->
+        <item name="android:statusBarColor">#2D5233</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <!-- Android 15+ (target SDK 35+) forces edge-to-edge by default, which
+             makes the WebView draw UNDER the status bar + gesture navigation.
+             Opt out so system bars are respected and the in-app top/bottom
+             chrome sits in the real viewport — like every standard Android app. -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
     </style>
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- After splash fades, hand control to the NoActionBar theme so the
+             edge-to-edge opt-out + system bar colors from there take effect. -->
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>
