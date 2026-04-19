@@ -46,10 +46,14 @@ export default function BottomNav() {
         // and hid Save buttons — users couldn't scroll past it in the Documents
         // upload form.
         zIndex: 40,
-        // Force at least 12px clearance — Android gesture nav often reports
-        // safe-area-inset-bottom as 0 even though the gesture pill IS there,
-        // which makes the nav clip behind it. max() guarantees a floor.
-        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)',
+        // Cap the system-nav inset. Bare env(safe-area-inset-bottom) on some
+        // Galaxy / Pixel builds reports ~40–50px even when the WebView already
+        // ends above the 3-button nav (windowOptOutEdgeToEdgeEnforcement=true),
+        // which left a huge empty band between our labels and the system
+        // buttons. LinkedIn/WhatsApp sit tight — so do we: min of (env, 10px)
+        // lets gesture-pill devices get their clearance but clamps accidental
+        // double-insets on devices where Android already handled it.
+        paddingBottom: 'min(max(env(safe-area-inset-bottom, 0px), 4px), 10px)',
       }}
       role="navigation" aria-label="ניווט ראשי">
       <div className="flex justify-around items-center max-w-md mx-auto px-1 py-1">
