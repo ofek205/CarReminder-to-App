@@ -930,9 +930,18 @@ export default function Dashboard() {
   // Apply search + sort on top of any active category filter.
   const baseList = filteredVehicles !== null ? filteredVehicles : vehicles;
   const q = searchQuery.trim().toLowerCase();
+  // Strip dashes/spaces so "1234567" matches a plate stored as "12-345-67".
+  const qDigits = q.replace(/\D/g, '');
   const searched = !q ? baseList : baseList.filter(v => {
-    const hay = [v.nickname, v.manufacturer, v.model, v.year, v.license_plate].filter(Boolean).join(' ').toLowerCase();
-    return hay.includes(q);
+    const hay = [v.nickname, v.manufacturer, v.model, v.year, v.license_plate]
+      .filter(Boolean).join(' ').toLowerCase();
+    if (hay.includes(q)) return true;
+    // Plate-only fallback: compare digit-by-digit so hyphenation doesn't block.
+    if (qDigits.length >= 3 && v.license_plate) {
+      const plateDigits = String(v.license_plate).replace(/\D/g, '');
+      if (plateDigits.includes(qDigits)) return true;
+    }
+    return false;
   });
   const sortVehicles = (list) => {
     const arr = [...list];
@@ -1013,7 +1022,7 @@ export default function Dashboard() {
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="חפש רכב..."
+                placeholder="חפש רכב / מספר רישוי..."
                 dir="rtl"
                 className="w-full h-10 pr-9 pl-3 rounded-xl border text-sm font-medium outline-none transition-all focus:ring-2"
                 style={{ background: '#fff', borderColor: C.border, color: C.text, '--tw-ring-color': C.primary }}
