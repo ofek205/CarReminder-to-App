@@ -179,12 +179,15 @@ export default function AuthPage() {
     e.preventDefault();
     setError('');
     setSuccess('');
+    // Dev bypass: "00/00" skips client-side email + length checks; real
+    // validation happens in the auth handler once the env creds swap in.
+    const isDevBypass = mode === 'login' && email === '00' && password === '00';
     // Client-side validation — fast feedback, no network round-trip
-    if (!isValidEmail(email)) {
+    if (!isDevBypass && !isValidEmail(email)) {
       setError('כתובת אימייל לא תקינה');
       return;
     }
-    if (mode !== 'reset' && password.length < 6) {
+    if (!isDevBypass && mode !== 'reset' && password.length < 6) {
       setError('הסיסמה חייבת להכיל לפחות 6 תווים');
       return;
     }
@@ -215,7 +218,25 @@ export default function AuthPage() {
         return;
       }
       if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        // Dev bypass: typing "00" in both fields signs in with the dev
+        // credentials from .env.local (VITE_DEV_EMAIL + VITE_DEV_PASSWORD).
+        // Falls through to a clear error if the env vars aren't set, so
+        // prod builds without them just show "אימייל או סיסמה שגויים"
+        // instead of silently leaking a default account.
+        let effectiveEmail = email;
+        let effectivePassword = password;
+        if (email === '00' && password === '00') {
+          const devEmail = import.meta.env.VITE_DEV_EMAIL;
+          const devPass = import.meta.env.VITE_DEV_PASSWORD;
+          if (!devEmail || !devPass) {
+            setError('מצב בדיקה לא מוגדר. הגדר VITE_DEV_EMAIL ו-VITE_DEV_PASSWORD ב-.env.local.');
+            setLoading(false);
+            return;
+          }
+          effectiveEmail = devEmail;
+          effectivePassword = devPass;
+        }
+        const { error } = await supabase.auth.signInWithPassword({ email: effectiveEmail, password: effectivePassword });
         if (error) setError(error.message.includes('Invalid login credentials') ? 'אימייל או סיסמה שגויים' : error.message);
         else import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_LOGIN));
       } else {
