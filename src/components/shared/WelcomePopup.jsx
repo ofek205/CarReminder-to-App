@@ -56,9 +56,9 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
             </div>
           </div>
 
-          {/* Brand label */}
-          <p className="text-center mt-3 text-[10px] font-bold uppercase relative z-10"
-            style={{ letterSpacing: '0.35em', color: 'rgba(255,255,255,0.8)' }}>
+          {/* Brand label — keep brand's camelCase "CarReminder" intact (no uppercase) */}
+          <p className="text-center mt-3 text-[11px] font-bold relative z-10"
+            style={{ letterSpacing: '0.25em', color: 'rgba(255,255,255,0.85)' }}>
             CarReminder
           </p>
 
