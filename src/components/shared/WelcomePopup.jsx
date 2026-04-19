@@ -22,7 +22,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent
         dir="rtl"
-        className="max-w-md p-0 overflow-hidden rounded-3xl border-0 shadow-2xl"
+        className="max-w-md w-[calc(100vw-32px)] max-h-[90vh] p-0 overflow-y-auto overflow-x-hidden rounded-3xl border-0 shadow-2xl"
         style={{ boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
 
         {/* Screen-reader title (visual title lives in the hero below) */}

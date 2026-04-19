@@ -808,9 +808,22 @@ export default function Dashboard() {
   return (
     <div className="-mx-4 -mt-4 pb-4" style={{ background: C.bg, minHeight: '100dvh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <PullToRefreshIndicator pulling={pulling} progress={progress} />
-      {/* First-time user tooltip tour — auto-starts 500ms after mount for
-          authenticated users who've never seen it. Self-gates via localStorage. */}
-      <FirstTimeTour enabled={isAuthenticated && !isGuest} />
+      {/* First-time user tooltip tour — narrowly targeted so we don't annoy
+          engaged users. Shown only when:
+            (a) The account was created within the last 24h, OR
+            (b) The account is >10 days old AND the user still has zero vehicles
+                (they never completed onboarding — the tour is the nudge they need).
+          The hook self-gates with localStorage so a user who skipped it once
+          never sees it again. */}
+      {(() => {
+        const createdAt = user?.created_at ? new Date(user.created_at).getTime() : 0;
+        const ageMs = createdAt ? Date.now() - createdAt : 0;
+        const dayMs = 24 * 60 * 60 * 1000;
+        const justRegistered = createdAt > 0 && ageMs < dayMs;
+        const stuckNoVehicles = createdAt > 0 && ageMs >= 10 * dayMs && (vehicles?.length || 0) === 0;
+        const shouldTour = isAuthenticated && !isGuest && (justRegistered || stuckNoVehicles);
+        return <FirstTimeTour enabled={shouldTour} />;
+      })()}
       <div className="px-4 pt-6">
 
         {/* Urgent banner - only if something is urgent */}

@@ -38,7 +38,7 @@ export default function MileageReminderPopup({ open, onClose }) {
     <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); }}>
       <DialogContent
         dir="rtl"
-        className="max-w-sm p-0 overflow-hidden rounded-3xl border-0"
+        className="max-w-sm w-[calc(100vw-32px)] max-h-[90vh] p-0 overflow-y-auto overflow-x-hidden rounded-3xl border-0"
         style={{ boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
         <VisuallyHidden.Root>
           <DialogTitle>עדכון קילומטראז׳</DialogTitle>
