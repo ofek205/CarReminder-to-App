@@ -56,30 +56,36 @@ BEGIN
   END IF;
 
   RETURN QUERY
+  -- Start from auth.users so every registered user is listed, even if they
+  -- never got an accounts row (half-finished signups, trigger miss, etc.).
+  -- For users who do have an account we pick the "primary" one — they're
+  -- role='owner' on, or the oldest they're a member of.
   SELECT
     a.id                                                         AS account_id,
     a.name                                                       AS account_name,
-    a.created_at                                                 AS account_created_at,
-    owner_m.user_id                                              AS owner_user_id,
+    COALESCE(a.created_at, u.created_at)                         AS account_created_at,
+    u.id                                                         AS owner_user_id,
     u.email::text                                                AS owner_email,
     COALESCE(u.raw_user_meta_data->>'full_name', '')::text       AS owner_name,
     COALESCE(u.raw_user_meta_data->>'role', 'user')::text        AS owner_role,
-    (SELECT COUNT(*)::integer FROM account_members m WHERE m.account_id = a.id)  AS member_count,
-    (SELECT COUNT(*)::integer FROM vehicles v WHERE v.account_id = a.id)         AS vehicle_count,
-    (SELECT COUNT(*)::integer FROM documents d WHERE d.account_id = a.id)        AS document_count,
+    CASE WHEN a.id IS NULL THEN 0
+         ELSE (SELECT COUNT(*)::integer FROM account_members m WHERE m.account_id = a.id) END,
+    CASE WHEN a.id IS NULL THEN 0
+         ELSE (SELECT COUNT(*)::integer FROM vehicles v WHERE v.account_id = a.id) END,
+    CASE WHEN a.id IS NULL THEN 0
+         ELSE (SELECT COUNT(*)::integer FROM documents d WHERE d.account_id = a.id) END,
     u.last_sign_in_at,
     u.email_confirmed_at
-  FROM accounts a
+  FROM auth.users u
   LEFT JOIN LATERAL (
-    -- Pick one "owner" per account — prefer role='owner', otherwise oldest member
-    SELECT m.user_id
+    SELECT acc.id, acc.name, acc.created_at
     FROM account_members m
-    WHERE m.account_id = a.id
+    JOIN accounts acc ON acc.id = m.account_id
+    WHERE m.user_id = u.id
     ORDER BY (m.role = 'owner') DESC NULLS LAST, m.created_at ASC
     LIMIT 1
-  ) owner_m ON TRUE
-  LEFT JOIN auth.users u ON u.id = owner_m.user_id
-  ORDER BY a.created_at DESC;
+  ) a ON TRUE
+  ORDER BY u.created_at DESC;
 END;
 $$;
 
