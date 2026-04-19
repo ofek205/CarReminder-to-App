@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Users, UserPlus, Copy, Trash2, Crown, Shield, User, Loader2, Share2, MessageCircle, Check, Link2, ChevronLeft, Eye, Car } from "lucide-react";
+import { Users, UserPlus, Copy, Trash2, Crown, Shield, User, Loader2, Share2, MessageCircle, Check, Link2, ChevronLeft, Eye, Car, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
@@ -177,6 +177,7 @@ function AuthAccountSettings({ embedded = false }) {
   const { role: myRole, accountId, isLoading: roleLoading } = useAccountRole();
   const [showInvite, setShowInvite] = useState(false);
   const [inviteRole, setInviteRole] = useState('שותף');
+  const [invitesExpanded, setInvitesExpanded] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
   const [creating, setCreating] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -418,31 +419,57 @@ function AuthAccountSettings({ embedded = false }) {
         ))}
       </div>
 
-      {/* Active invites */}
+      {/* Active invites — collapsed by default, the row count alone tells
+          the user whether they have pending invites out in the wild, and
+          tapping expands the full list. */}
       {canManage(myRole) && activeInvites.length > 0 && (
         <div className="mb-6">
-          <h2 className="font-bold text-base text-gray-900 mb-3">
-            הזמנות פעילות ({activeInvites.length})
-          </h2>
-          {activeInvites.map(invite => (
-            <div key={invite.id} className="rounded-2xl p-4 mb-2 flex items-center justify-between"
-              style={{ background: '#FEF3C7', border: '1px solid #FDE68A' }} dir="rtl">
-              <div className="flex items-center gap-3">
-                <Link2 className="w-5 h-5 text-amber-600" />
-                <div>
-                  <p className="font-bold text-sm text-amber-900">
-                    הזמנה כ{invite.role_to_assign}
-                  </p>
-                  <p className="text-xs text-amber-700">
-                    פג תוקף {new Date(invite.expires_at).toLocaleDateString('he-IL')}
-                  </p>
-                </div>
+          <button
+            type="button"
+            onClick={() => setInvitesExpanded(v => !v)}
+            aria-expanded={invitesExpanded}
+            className="w-full flex items-center justify-between rounded-2xl px-4 py-3 transition-colors"
+            style={{ background: '#FEF3C7', border: '1px solid #FDE68A' }}>
+            <div className="flex items-center gap-2.5">
+              <Link2 className="w-5 h-5 text-amber-600" />
+              <div className="text-right">
+                <p className="font-bold text-sm text-amber-900">
+                  הזמנות פעילות ({activeInvites.length})
+                </p>
+                <p className="text-[11px] text-amber-700">
+                  {invitesExpanded ? 'לחץ לכיווץ' : 'לחץ לראות פרטים'}
+                </p>
               </div>
-              <span className="text-xs font-bold text-amber-600 px-2 py-1 rounded-full bg-amber-100">
-                {invite.uses_count}/{invite.max_uses}
-              </span>
             </div>
-          ))}
+            {invitesExpanded ? (
+              <ChevronUp className="w-4 h-4 text-amber-600" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-amber-600" />
+            )}
+          </button>
+          {invitesExpanded && (
+            <div className="mt-2 space-y-2">
+              {activeInvites.map(invite => (
+                <div key={invite.id} className="rounded-2xl p-3.5 flex items-center justify-between"
+                  style={{ background: '#FEF3C7', border: '1px solid #FDE68A' }} dir="rtl">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Link2 className="w-4 h-4 text-amber-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm text-amber-900 truncate">
+                        הזמנה כ{invite.role_to_assign}
+                      </p>
+                      <p className="text-xs text-amber-700">
+                        פג תוקף {new Date(invite.expires_at).toLocaleDateString('he-IL')}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-amber-600 px-2 py-1 rounded-full bg-amber-100 shrink-0">
+                    {invite.uses_count}/{invite.max_uses}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
