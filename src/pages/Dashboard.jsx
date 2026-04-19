@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,6 +10,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { useAuth } from "../components/shared/GuestContext";
 import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
@@ -303,39 +305,171 @@ function ReminderRow({ reminder }) {
 }
 
 // ── Status Summary (authenticated multi-vehicle) ───────────────────────────
+// Each card is tappable: opens a small popover listing the vehicles in that
+// bucket with the specific reason (טסט / ביטוח + date/days), each row links
+// to /VehicleDetail?id=<id>.
 function StatusSummary({ vehicles }) {
-  let ok = 0, soon = 0, overdue = 0;
-  vehicles.forEach(v => {
-    const testD = daysUntil(v.test_due_date);
-    const insD  = daysUntil(v.insurance_due_date);
-    const worst = Math.min(
-      testD !== null ? testD : 999,
-      insD  !== null ? insD  : 999
-    );
-    if (worst < 0) overdue++;
-    else if (worst <= 60) soon++;
-    else ok++;
-  });
+  const [drill, setDrill] = useState(null); // 'ok' | 'soon' | 'overdue' | null
+
+  // Classify every vehicle into a bucket AND capture the specific reasons so
+  // the drill-down can show "טסט פג לפני 3 ימים" instead of just the plate.
+  const buckets = useMemo(() => {
+    const ok = [], soon = [], overdue = [];
+    vehicles.forEach(v => {
+      const testD = daysUntil(v.test_due_date);
+      const insD  = daysUntil(v.insurance_due_date);
+      const worst = Math.min(
+        testD !== null ? testD : 999,
+        insD  !== null ? insD  : 999
+      );
+      const isVessel = isVesselType(v.vehicle_type, v.nickname);
+      const reasons = [];
+      if (testD !== null) {
+        reasons.push({ kind: isVessel ? 'כושר שייט' : 'טסט', days: testD, date: v.test_due_date });
+      }
+      if (insD !== null) {
+        reasons.push({ kind: isVessel ? 'ביטוח ימי' : 'ביטוח', days: insD, date: v.insurance_due_date });
+      }
+      const row = { vehicle: v, reasons, worst };
+      if (worst < 0) overdue.push(row);
+      else if (worst <= 60) soon.push(row);
+      else ok.push(row);
+    });
+    // Sort each bucket — most urgent first (smallest "worst" first).
+    const byUrgency = (a, b) => a.worst - b.worst;
+    overdue.sort(byUrgency);
+    soon.sort(byUrgency);
+    ok.sort((a, b) => b.worst - a.worst); // highest days-left first for "ok"
+    return { ok, soon, overdue };
+  }, [vehicles]);
 
   const items = [
-    { label: 'תקין',   count: ok,      icon: CheckCircle,   color: '#3A7D44', bg: '#E8F5E9' },
-    { label: 'בקרוב',  count: soon,    icon: Clock,         color: '#D97706', bg: '#FEF3C7' },
-    { label: 'באיחור', count: overdue, icon: AlertTriangle, color: '#DC2626', bg: '#FEF2F2' },
+    { key: 'ok',      label: 'תקין',   count: buckets.ok.length,      icon: CheckCircle,   color: '#3A7D44', bg: '#E8F5E9' },
+    { key: 'soon',    label: 'בקרוב',  count: buckets.soon.length,    icon: Clock,         color: '#D97706', bg: '#FEF3C7' },
+    { key: 'overdue', label: 'באיחור', count: buckets.overdue.length, icon: AlertTriangle, color: '#DC2626', bg: '#FEF2F2' },
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-2.5 mb-5" dir="rtl">
-      {items.map(item => (
-        <div key={item.label} className="rounded-2xl py-3 px-2 flex flex-col items-center gap-1.5"
-          style={{ background: item.bg }}>
-          <div className="flex items-center gap-1.5">
-            <span className="font-black text-2xl" style={{ color: item.color }}>{item.count}</span>
-            <item.icon className="w-5 h-5" style={{ color: item.color }} />
-          </div>
-          <span className="text-xs font-bold" style={{ color: item.color }}>{item.label}</span>
+    <>
+      <div className="grid grid-cols-3 gap-2.5 mb-5" dir="rtl">
+        {items.map(item => {
+          const clickable = item.count > 0;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => clickable && setDrill(item.key)}
+              disabled={!clickable}
+              aria-label={`הצג רכבים במצב ${item.label}`}
+              className="rounded-2xl py-3 px-2 flex flex-col items-center gap-1.5 transition-transform active:scale-[0.97] disabled:cursor-default"
+              style={{ background: item.bg, opacity: clickable ? 1 : 0.7 }}>
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-2xl" style={{ color: item.color }}>{item.count}</span>
+                <item.icon className="w-5 h-5" style={{ color: item.color }} />
+              </div>
+              <span className="text-xs font-bold" style={{ color: item.color }}>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <StatusDrilldownDialog
+        open={drill !== null}
+        status={drill}
+        rows={drill ? buckets[drill] : []}
+        onClose={() => setDrill(null)}
+      />
+    </>
+  );
+}
+
+// Drill-down popup that lists vehicles in the tapped status bucket.
+// Each row is a link to the vehicle's detail page.
+function StatusDrilldownDialog({ open, status, rows, onClose }) {
+  const STATUS_META = {
+    ok:      { title: 'רכבים תקינים',  color: '#3A7D44', bg: '#E8F5E9', icon: CheckCircle },
+    soon:    { title: 'עומד לפוג',     color: '#D97706', bg: '#FEF3C7', icon: Clock },
+    overdue: { title: 'פג תוקף',       color: '#DC2626', bg: '#FEF2F2', icon: AlertTriangle },
+  };
+  const meta = STATUS_META[status] || STATUS_META.ok;
+  const Icon = meta.icon;
+
+  // Label a single reason as a short Hebrew status line.
+  const reasonLine = (r) => {
+    if (r.days === null || r.days === undefined) return r.kind;
+    if (r.days < 0)  return `${r.kind} פג לפני ${Math.abs(r.days)} ימים`;
+    if (r.days === 0) return `${r.kind} פג היום`;
+    if (r.days === 1) return `${r.kind} פג מחר`;
+    return `${r.kind} פג בעוד ${r.days} ימים`;
+  };
+
+  // Filter each row's reasons to the ones matching this bucket, so we don't
+  // show "ok" reasons when the user clicked "overdue".
+  const filteredReasons = (row) => {
+    return row.reasons.filter(r => {
+      if (status === 'overdue') return r.days !== null && r.days < 0;
+      if (status === 'soon')    return r.days !== null && r.days >= 0 && r.days <= 60;
+      return r.days !== null && r.days > 60;
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent
+        dir="rtl"
+        className="max-w-sm w-[calc(100vw-32px)] max-h-[80vh] p-0 overflow-y-auto overflow-x-hidden rounded-3xl border-0">
+        <VisuallyHidden.Root>
+          <DialogTitle>{meta.title}</DialogTitle>
+        </VisuallyHidden.Root>
+
+        {/* Header */}
+        <div className="px-4 py-3 flex items-center gap-2 border-b"
+          style={{ background: meta.bg, borderColor: meta.color + '20' }}>
+          <Icon className="w-4 h-4" style={{ color: meta.color }} />
+          <p className="font-black text-sm" style={{ color: meta.color }}>{meta.title}</p>
+          <span className="mr-auto text-xs font-bold" style={{ color: meta.color }}>
+            {rows.length} רכבים
+          </span>
         </div>
-      ))}
-    </div>
+
+        {/* List */}
+        <div className="divide-y divide-gray-100">
+          {rows.length === 0 && (
+            <p className="px-4 py-8 text-center text-xs text-gray-400">אין רכבים במצב זה</p>
+          )}
+          {rows.map(({ vehicle, reasons }) => {
+            const r = filteredReasons({ reasons });
+            const title = vehicle.nickname || [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ') || 'רכב';
+            return (
+              <Link
+                key={vehicle.id}
+                to={createPageUrl('VehicleDetail') + `?id=${encodeURIComponent(vehicle.id)}`}
+                onClick={onClose}
+                className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm text-gray-900 truncate">{title}</p>
+                  {vehicle.license_plate && (
+                    <p className="text-[11px] text-gray-400 font-mono mt-0.5" dir="ltr">{vehicle.license_plate}</p>
+                  )}
+                  <div className="mt-1 space-y-0.5">
+                    {r.length === 0
+                      ? <p className="text-[11px]" style={{ color: meta.color }}>ללא פרטים</p>
+                      : r.map((reason, i) => (
+                          <p key={i} className="text-[11px] flex items-center gap-1" style={{ color: meta.color }}>
+                            <span className="w-1 h-1 rounded-full" style={{ background: meta.color }} />
+                            {reasonLine(reason)}
+                          </p>
+                        ))
+                    }
+                  </div>
+                </div>
+                <ChevronLeft className="w-4 h-4 text-gray-400 shrink-0" />
+              </Link>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
