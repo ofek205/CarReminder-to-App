@@ -16,7 +16,6 @@ import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_REMINDERS, DEMO_CORK_NOTES, DEMO_VESSEL
 import { format, parseISO } from 'date-fns';
 import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import CompleteProfileScreen, { hasCompletedProfile } from '../components/shared/CompleteProfileScreen';
-import OnboardingTour, { hasCompletedOnboarding } from '../components/shared/OnboardingTour';
 import LicensePlate from '../components/shared/LicensePlate';
 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
@@ -506,7 +505,6 @@ export default function Dashboard() {
   const [showSignUp, setShowSignUp] = useState(false);
   const [showCompleteProfile, setShowCompleteProfile] = useState(false);
   const [profileMissing, setProfileMissing] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(() => !hasCompletedOnboarding());
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -687,7 +685,6 @@ export default function Dashboard() {
 
     return (
       <div className="-mx-4 -mt-4 pb-4" style={{ background: C.bg, minHeight: '100dvh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-        {showOnboarding && <OnboardingTour onComplete={() => setShowOnboarding(false)} />}
         <SignUpPromptDialog open={showSignUp} onClose={() => setShowSignUp(false)}
           reason="כדי לשמור את הרכבים שלך לצמיתות ולגשת אליהם מכל מכשיר" />
 
@@ -786,7 +783,6 @@ export default function Dashboard() {
 
   return (
     <div className="-mx-4 -mt-4 pb-4" style={{ background: C.bg, minHeight: '100dvh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      {showOnboarding && <OnboardingTour onComplete={() => setShowOnboarding(false)} />}
       <PullToRefreshIndicator pulling={pulling} progress={progress} />
       <div className="px-4 pt-6">
 

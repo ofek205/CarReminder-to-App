@@ -7,12 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, Mail, Bell, Smartphone, Calendar, Shield, Wrench, FileText, Anchor, MessageCircle, HelpCircle, Lock, Send } from "lucide-react";
-import { resetOnboarding } from "../components/shared/OnboardingTour";
+import { Loader2, Save, Mail, Bell, Smartphone, Calendar, Shield, Wrench, FileText, Anchor, MessageCircle, Lock, Send } from "lucide-react";
 import PinLock from "../components/shared/PinLock";
 import { isPinEnabled, clearPin } from "@/lib/pinLock";
 import { sendTestNotification } from "@/lib/notificationService";
-import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { toast } from "sonner";
@@ -436,9 +434,6 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest }) {
 
       {/* Test notification — lets the user confirm push is wired end-to-end */}
       {!isGuest && isNative && <TestNotificationButton />}
-
-      {/* Replay tour */}
-      <ReplayTourButton />
     </>
   );
 }
@@ -524,19 +519,3 @@ function TestNotificationButton() {
   );
 }
 
-function ReplayTourButton() {
-  const navigate = useNavigate();
-  const handleReplay = () => {
-    resetOnboarding();
-    toast.success('ההדרכה תופיע שוב במסך הראשי');
-    setTimeout(() => navigate('/Dashboard'), 600);
-  };
-  return (
-    <button onClick={handleReplay}
-      className="w-full rounded-2xl py-3 flex items-center justify-center gap-2 text-sm font-bold transition-all active:scale-[0.98] mb-8"
-      style={{ background: '#F3F4F6', color: '#374151', border: '1.5px solid #E5E7EB' }}>
-      <HelpCircle className="h-4 w-4" aria-hidden="true" />
-      הצג שוב את מסך ההדרכה
-    </button>
-  );
-}

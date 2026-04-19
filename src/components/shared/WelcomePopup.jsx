@@ -28,39 +28,29 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
           {isReturningUser ?
             <>
               <p className="text-gray-600 text-center text-sm leading-relaxed">
-                הנה מה שיש באפליקציה:
+                מה חדש באפליקציה:
               </p>
               <div className="bg-[#E8F2EA] rounded-xl p-4 space-y-3">
                 <div className="flex items-start gap-3">
-                  <span className="text-base shrink-0">🔍</span>
+                  <span className="text-base shrink-0">🔧</span>
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">חיפוש לפי מספר רכב</p>
-                    <p className="text-xs text-gray-500">הזן מספר לוחית וקבל מיד יצרן, דגם, שנה, סוג דלק ועוד.</p>
+                    <p className="text-sm font-semibold text-gray-800">מומחה AI לייעוץ אישי</p>
+                    <p className="text-xs text-gray-500">
+                      ברוך המוסכניק ויוסי מומחה הכלי שייט כבר מכירים את פרטי הרכב שלך ויענו לשאלות בצורה מדויקת — תקלות, עלויות וטיפולים.
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <span className="text-base shrink-0">🤖</span>
+                  <span className="text-base shrink-0">⚠️</span>
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">סריקת מסמכים עם AI</p>
-                    <p className="text-xs text-gray-500">העלה תמונה של מסמך - המערכת תמלא את הפרטים אוטומטית.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-base shrink-0">💬</span>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">צ׳אט AI לייעוץ</p>
-                    <p className="text-xs text-gray-500">שאל כל שאלה על הרכב וקבל תשובה מיידית וחכמה.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="text-base shrink-0">📅</span>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">הוספה אוטומטית ללוח שנה</p>
-                    <p className="text-xs text-gray-500">בלחיצה אחת להוסיף טסט או ביטוח ליומן האישי שלך.</p>
+                    <p className="text-sm font-semibold text-gray-800">ניהול תאונות</p>
+                    <p className="text-xs text-gray-500">
+                      תיעוד מסודר של תאונות — נזקים, נהג שני, צילומים וחברת ביטוח, הכל במקום אחד.
+                    </p>
                   </div>
                 </div>
               </div>
-              <p className="bg-slate-200 text-slate-800 text-xs font-medium text-center leading-relaxed">⭐ האפליקציה עדיין מתפתחת ונשמח לפידבקים ורעיונות לשיפור.</p>
+              <p className="bg-slate-200 text-slate-800 text-xs font-medium text-center leading-relaxed py-2 rounded-lg">⭐ האפליקציה מתפתחת כל הזמן — נשמח לפידבק ורעיונות.</p>
             </> :
 
             <>
