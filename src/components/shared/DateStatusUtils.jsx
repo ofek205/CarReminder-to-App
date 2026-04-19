@@ -63,17 +63,40 @@ export function isVessel(vehicleType, nickname) {
   return false;
 }
 
-export function usesKm(vehicleType, nickname) {
-  if (isVessel(vehicleType, nickname)) return false;
-  if (OFFROAD_HOURS_TYPES.has(vehicleType)) return false;
-  return vehicleType === 'רכב' || vehicleType === 'אופנוע כביש' || vehicleType === 'קטנוע'
-    || vehicleType === "ג'יפ שטח" || vehicleType === 'טרקטורון'
-    || vehicleType === 'באגי חולות' || vehicleType === 'אופנוע שטח';
+// Off-road types where the user can choose either metric (km *or* engine hours).
+// For these, we detect the active metric from the vehicle's own data — if
+// current_engine_hours is set and current_km isn't, the user picked hours.
+const OFFROAD_TOGGLE_TYPES = new Set(["ג'יפ שטח", 'טרקטורון', 'באגי חולות', 'אופנוע שטח']);
+
+// Both helpers accept EITHER (vehicleType, nickname) — original signature used
+// all over the app — OR a full vehicle object (preferred for toggle-able
+// off-road types so we can respect the user's actual unit choice).
+export function usesKm(vehicleOrType, nickname) {
+  const isObj = vehicleOrType && typeof vehicleOrType === 'object';
+  const vt = isObj ? vehicleOrType.vehicle_type : vehicleOrType;
+  const nn = isObj ? vehicleOrType.nickname : nickname;
+  if (isVessel(vt, nn)) return false;
+  if (OFFROAD_HOURS_TYPES.has(vt)) return false;
+  if (OFFROAD_TOGGLE_TYPES.has(vt)) {
+    // User picked hours (and hasn't filled km) → hide km field in
+    // maintenance/repair/everywhere. Otherwise default to km.
+    if (isObj && vehicleOrType.current_engine_hours && !vehicleOrType.current_km) return false;
+    return true;
+  }
+  return vt === 'רכב' || vt === 'אופנוע כביש' || vt === 'קטנוע';
 }
 
-export function usesHours(vehicleType, nickname) {
-  if (isVessel(vehicleType, nickname)) return true;
-  if (OFFROAD_HOURS_TYPES.has(vehicleType)) return true; // RZR, מיול
+export function usesHours(vehicleOrType, nickname) {
+  const isObj = vehicleOrType && typeof vehicleOrType === 'object';
+  const vt = isObj ? vehicleOrType.vehicle_type : vehicleOrType;
+  const nn = isObj ? vehicleOrType.nickname : nickname;
+  if (isVessel(vt, nn)) return true;
+  if (OFFROAD_HOURS_TYPES.has(vt)) return true; // RZR, מיול — always hours
+  if (OFFROAD_TOGGLE_TYPES.has(vt)) {
+    // Toggle-able off-road: show hours when the user populated hours and
+    // not km. Also show hours when BOTH are filled (respect the newer data).
+    if (isObj && vehicleOrType.current_engine_hours && !vehicleOrType.current_km) return true;
+  }
   return false;
 }
 

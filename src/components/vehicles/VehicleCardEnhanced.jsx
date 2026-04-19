@@ -160,8 +160,10 @@ function VehicleCardEnhanced({ vehicle }) {
   const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
   const testStatus = getDateStatus(vehicle.test_due_date);
   const insStatus = getDateStatus(vehicle.insurance_due_date);
-  const isKm = usesKm(vehicle.vehicle_type, vehicle.nickname);
-  const isHours = usesHours(vehicle.vehicle_type, vehicle.nickname);
+  // Pass the full vehicle so toggle-able off-road types respect the user's
+  // stored unit choice (km vs hours) instead of defaulting to km.
+  const isKm = usesKm(vehicle);
+  const isHours = usesHours(vehicle);
 
   const showQuickUpdate = useMemo(() => {
     if (isGuest || vehicle._isDemo || (!isKm && !isHours)) return false;

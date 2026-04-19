@@ -17,8 +17,8 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
   const { isGuest, updateGuestVehicle } = useAuth();
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
 
-  const isKm    = usesKm(vehicle.vehicle_type, vehicle.nickname);
-  const isHours = usesHours(vehicle.vehicle_type, vehicle.nickname);
+  const isKm    = usesKm(vehicle);
+  const isHours = usesHours(vehicle);
   if (!isKm && !isHours) return null;
 
   const currentValue = isKm ? vehicle.current_km : vehicle.current_engine_hours;

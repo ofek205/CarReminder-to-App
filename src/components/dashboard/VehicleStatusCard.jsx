@@ -102,7 +102,7 @@ export default function VehicleStatusCard({ vehicle }) {
               </h3>
               <p className="text-xs text-gray-400 mt-0.5 text-right">{vehicle.license_plate}</p>
               <div className="flex items-center gap-2 mt-1.5 justify-end flex-wrap">
-                {usesKm(vehicle.vehicle_type, vehicle.nickname) && vehicle.current_km &&
+                {usesKm(vehicle) && vehicle.current_km &&
                 <span className="text-xs text-gray-500 flex items-center gap-1">
                     <Gauge className="h-3 w-3" />
                     {vehicle.current_km.toLocaleString()} ק״מ

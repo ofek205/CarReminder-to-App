@@ -334,7 +334,7 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
                 </div>
               </div>
 
-              {usesKm(vehicle?.vehicle_type, vehicle?.nickname) && (
+              {usesKm(vehicle) && (
                 <div>
                   <Label className="text-xs text-gray-500">קילומטראז׳ בעת הביצוע</Label>
                   <Input
@@ -347,7 +347,7 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
                 </div>
               )}
 
-              {usesHours(vehicle?.vehicle_type, vehicle?.nickname) && (
+              {usesHours(vehicle) && (
                 <div>
                   <Label className="text-xs text-gray-500">שעות מנוע בעת הביצוע</Label>
                   <Input
