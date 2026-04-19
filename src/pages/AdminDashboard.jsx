@@ -6,8 +6,11 @@ import PageHeader from '../components/shared/PageHeader';
 import {
   Users, Shield, TrendingUp, Car, Wrench, FileText,
   Star, AlertTriangle, Activity, ArrowDown, ChevronDown, ChevronUp,
-  RefreshCw, BarChart2,
+  RefreshCw, BarChart2, Trash2, Download, Copy, Mail, Check, AlertCircle,
+  UserCog, ShieldCheck,
 } from 'lucide-react';
+import ConfirmDeleteDialog from '../components/shared/ConfirmDeleteDialog';
+import { toast } from 'sonner';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid,
@@ -990,73 +993,324 @@ export default function AdminDashboard() {
 function AdminUsersTab() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    (async () => {
-      try {
-        const accounts = await db.accounts.list().catch(() => []);
-        const members = await db.account_members.list().catch(() => []);
-        // Group by account
-        const userList = accounts.map(a => {
-          const accMembers = members.filter(m => m.account_id === a.id);
-          return { ...a, members: accMembers, memberCount: accMembers.length };
-        });
-        setUsers(userList);
-      } catch {}
-      setLoading(false);
-    })();
-  }, []);
+  const [rpcMissing, setRpcMissing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Pagination + search — keeps the admin view fast even on 1000+ users
+  // Load accounts via the admin RPC when it's available; gracefully fall back
+  // to client-side joins (accounts + account_members + vehicles + documents)
+  // when the RPC hasn't been deployed yet. That way the richer table still
+  // renders — just without emails and role info.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.rpc('admin_list_accounts');
+        if (cancelled) return;
+        if (error) throw error;
+        setRpcMissing(false);
+        setUsers(
+          (data || []).map(r => ({
+            id: r.account_id,
+            name: r.account_name,
+            created_at: r.account_created_at,
+            owner_user_id: r.owner_user_id,
+            email: r.owner_email,
+            owner_name: r.owner_name,
+            role: r.owner_role || 'user',
+            memberCount: r.member_count || 0,
+            vehicleCount: r.vehicle_count || 0,
+            documentCount: r.document_count || 0,
+            last_sign_in_at: r.last_sign_in_at,
+            email_confirmed_at: r.email_confirmed_at,
+          }))
+        );
+      } catch (e) {
+        if (cancelled) return;
+        // RPC not deployed yet — fall back to whatever we can see client-side.
+        setRpcMissing(true);
+        try {
+          const [accounts, members, vehicles, documents] = await Promise.all([
+            db.accounts.list().catch(() => []),
+            db.account_members.list().catch(() => []),
+            db.vehicles.list().catch(() => []),
+            db.documents.list().catch(() => []),
+          ]);
+          if (cancelled) return;
+          setUsers(
+            accounts.map(a => ({
+              id: a.id,
+              name: a.name,
+              created_at: a.created_at,
+              owner_user_id: null,
+              email: null,
+              owner_name: '',
+              role: 'user',
+              memberCount: members.filter(m => m.account_id === a.id).length,
+              vehicleCount: vehicles.filter(v => v.account_id === a.id).length,
+              documentCount: documents.filter(d => d.account_id === a.id).length,
+              last_sign_in_at: null,
+              email_confirmed_at: null,
+            }))
+          );
+        } catch {
+          setUsers([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [refreshKey]);
+
+  // ── Search + sort + pagination ─────────────────────────────────────────
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState('created');   // created | vehicles | lastLogin | name
+  const [sortDir, setSortDir] = useState('desc');
   const PAGE_SIZE = 50;
-  const filtered = search.trim()
-    ? users.filter(u => (u.name || '').toLowerCase().includes(search.toLowerCase()) || u.id.includes(search))
-    : users;
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const base = !q
+      ? users
+      : users.filter(u =>
+          (u.name || '').toLowerCase().includes(q)
+          || (u.email || '').toLowerCase().includes(q)
+          || (u.owner_name || '').toLowerCase().includes(q)
+          || u.id.toLowerCase().includes(q)
+        );
+    const arr = [...base];
+    const mul = sortDir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+      switch (sortKey) {
+        case 'vehicles':  return mul * ((a.vehicleCount || 0) - (b.vehicleCount || 0));
+        case 'lastLogin': return mul * (new Date(a.last_sign_in_at || 0) - new Date(b.last_sign_in_at || 0));
+        case 'name':      return mul * String(a.name || '').localeCompare(String(b.name || ''), 'he');
+        case 'created':
+        default:          return mul * (new Date(a.created_at || 0) - new Date(b.created_at || 0));
+      }
+    });
+    return arr;
+  }, [users, search, sortKey, sortDir]);
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageUsers = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-  useEffect(() => { setPage(0); }, [search]);
+  useEffect(() => { setPage(0); }, [search, sortKey, sortDir]);
+
+  const toggleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('desc'); }
+  };
+
+  // ── Actions ────────────────────────────────────────────────────────────
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const doDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.rpc('admin_delete_account', { p_account_id: pendingDelete.id });
+      if (error) throw error;
+      toast.success('החשבון נמחק');
+      setPendingDelete(null);
+      setRefreshKey(k => k + 1);
+    } catch (e) {
+      toast.error('שגיאה במחיקה: ' + (e?.message || 'unknown'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleAdmin = async (u) => {
+    if (!u.owner_user_id) { toast.error('אין בעלים לחשבון'); return; }
+    const nextRole = u.role === 'admin' ? 'user' : 'admin';
+    try {
+      const { error } = await supabase.rpc('admin_set_role', { p_user_id: u.owner_user_id, p_role: nextRole });
+      if (error) throw error;
+      toast.success(nextRole === 'admin' ? 'הוגדר כאדמין' : 'הוסר מנהל');
+      setRefreshKey(k => k + 1);
+    } catch (e) {
+      toast.error('שגיאה: ' + (e?.message || 'unknown'));
+    }
+  };
+
+  const copyEmail = async (email) => {
+    try { await navigator.clipboard.writeText(email); toast.success('הועתק'); } catch {}
+  };
+
+  const exportCsv = () => {
+    const header = ['שם חשבון', 'אימייל', 'תפקיד', 'רכבים', 'מסמכים', 'חברים', 'התחברות אחרונה', 'נוצר', 'אומת', 'ID'];
+    const rows = filtered.map(u => [
+      u.name || '',
+      u.email || '',
+      u.role || '',
+      u.vehicleCount,
+      u.documentCount,
+      u.memberCount,
+      u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), 'yyyy-MM-dd HH:mm') : '',
+      u.created_at ? format(parseISO(u.created_at), 'yyyy-MM-dd') : '',
+      u.email_confirmed_at ? 'כן' : 'לא',
+      u.id,
+    ]);
+    const escape = (v) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = '\uFEFF' + [header, ...rows].map(r => r.map(escape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `accounts-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── Summary stats for the quick pills above the table ──────────────────
+  const stats = useMemo(() => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    return {
+      total: users.length,
+      withVehicle: users.filter(u => u.vehicleCount > 0).length,
+      activeLast7d: users.filter(u => u.last_sign_in_at && now - new Date(u.last_sign_in_at).getTime() < 7 * day).length,
+      unverified: users.filter(u => u.email && !u.email_confirmed_at).length,
+      admins: users.filter(u => u.role === 'admin').length,
+    };
+  }, [users]);
 
   if (loading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
+
+  const SortHead = ({ label, k }) => (
+    <th className="text-right py-2 px-2 cursor-pointer select-none" onClick={() => toggleSort(k)}>
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {sortKey === k && <span className="text-gray-400">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+      </span>
+    </th>
+  );
+
   return (
     <div className="space-y-4">
+      {rpcMissing && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-800">
+            <p className="font-bold mb-1">פונקציות אדמין לא פרוסות</p>
+            <p>הטבלה מציגה מידע חלקי (ללא אימייל / התחברות אחרונה / מחיקה). הרץ את <code className="bg-amber-100 px-1.5 py-0.5 rounded">supabase-admin-functions.sql</code> ב-Supabase Dashboard → SQL Editor כדי להפעיל את כל היכולות.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Stat pills */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <StatPill label="חשבונות" value={stats.total} tone="blue" />
+        <StatPill label="עם רכב" value={stats.withVehicle} tone="green" />
+        <StatPill label="פעילים (7 ימים)" value={stats.activeLast7d} tone="emerald" />
+        <StatPill label="לא אומתו" value={stats.unverified} tone="amber" />
+        <StatPill label="אדמינים" value={stats.admins} tone="purple" />
+      </div>
+
       <div className="bg-white rounded-2xl border border-gray-100 p-4">
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
           <h2 className="font-bold text-gray-900">כל החשבונות ({filtered.length}{search && ` / ${users.length}`})</h2>
-          <input
-            type="search"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="חפש חשבון לפי שם או ID..."
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 min-w-[180px]"
-            aria-label="חיפוש חשבונות"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="search"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="שם / אימייל / ID..."
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 min-w-[200px]"
+              aria-label="חיפוש חשבונות"
+            />
+            <button onClick={exportCsv}
+              className="text-xs px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center gap-1.5 font-bold">
+              <Download className="w-3.5 h-3.5" />
+              CSV
+            </button>
+            <button onClick={() => setRefreshKey(k => k + 1)}
+              className="text-xs p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200" aria-label="רענן">
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full text-xs min-w-[720px]">
             <thead className="text-gray-500 border-b border-gray-100">
               <tr>
-                <th className="text-right py-2 px-2">שם חשבון</th>
-                <th className="text-right py-2 px-2">ID</th>
+                <SortHead label="שם חשבון" k="name" />
+                <th className="text-right py-2 px-2">אימייל</th>
+                <th className="text-right py-2 px-2">תפקיד</th>
+                <SortHead label="רכבים" k="vehicles" />
+                <th className="text-right py-2 px-2">מסמכים</th>
                 <th className="text-right py-2 px-2">חברים</th>
-                <th className="text-right py-2 px-2">נוצר</th>
+                <SortHead label="התחברות אחרונה" k="lastLogin" />
+                <SortHead label="נוצר" k="created" />
+                <th className="text-right py-2 px-2">פעולות</th>
               </tr>
             </thead>
             <tbody>
               {pageUsers.map(u => (
                 <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="py-2 px-2 font-medium">{u.name || '-'}</td>
-                  <td className="py-2 px-2 font-mono text-[10px] text-gray-400">{u.id.slice(0, 8)}...</td>
+                  <td className="py-2 px-2 font-medium max-w-[140px] truncate" title={u.name}>{u.name || '-'}</td>
+                  <td className="py-2 px-2">
+                    {u.email ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate max-w-[180px]" title={u.email}>{u.email}</span>
+                        {!u.email_confirmed_at && (
+                          <span title="אימייל לא אומת" className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">!</span>
+                        )}
+                        <button onClick={() => copyEmail(u.email)} className="text-gray-400 hover:text-gray-700" aria-label="העתק">
+                          <Copy className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="py-2 px-2">
+                    {u.role === 'admin' ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700">
+                        <ShieldCheck className="w-3 h-3" /> אדמין
+                      </span>
+                    ) : <span className="text-gray-400 text-[10px]">משתמש</span>}
+                  </td>
+                  <td className="py-2 px-2 font-bold">{u.vehicleCount}</td>
+                  <td className="py-2 px-2">{u.documentCount}</td>
                   <td className="py-2 px-2">{u.memberCount}</td>
-                  <td className="py-2 px-2 text-gray-500">{u.created_at ? format(parseISO(u.created_at), 'dd/MM/yyyy') : '-'}</td>
+                  <td className="py-2 px-2 text-gray-500">
+                    {u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), 'dd/MM/yy HH:mm') : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="py-2 px-2 text-gray-500">{u.created_at ? format(parseISO(u.created_at), 'dd/MM/yy') : '-'}</td>
+                  <td className="py-2 px-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => toggleAdmin(u)}
+                        disabled={!u.owner_user_id}
+                        title={u.role === 'admin' ? 'הסר הרשאות אדמין' : 'הפוך לאדמין'}
+                        className="p-1.5 rounded-md hover:bg-purple-50 disabled:opacity-30 disabled:cursor-not-allowed text-purple-600"
+                        aria-label="שנה תפקיד">
+                        <UserCog className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setPendingDelete(u)}
+                        title="מחק חשבון"
+                        className="p-1.5 rounded-md hover:bg-red-50 text-red-600"
+                        aria-label="מחק">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {pageUsers.length === 0 && (
-                <tr><td colSpan={4} className="py-8 text-center text-gray-400">לא נמצאו תוצאות</td></tr>
+                <tr><td colSpan={9} className="py-8 text-center text-gray-400">לא נמצאו תוצאות</td></tr>
               )}
             </tbody>
           </table>
         </div>
+
         {totalPages > 1 && (
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100" aria-label="ניווט דפים">
             <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
@@ -1071,6 +1325,33 @@ function AdminUsersTab() {
           </div>
         )}
       </div>
+
+      <ConfirmDeleteDialog
+        open={!!pendingDelete}
+        title="מחיקת חשבון"
+        description={pendingDelete
+          ? `פעולה זו תמחק את חשבון "${pendingDelete.name || 'ללא שם'}" וכל הנתונים שלו (${pendingDelete.vehicleCount} רכבים, ${pendingDelete.documentCount} מסמכים). לא ניתן לשחזר.`
+          : ''}
+        onConfirm={doDelete}
+        onCancel={() => !deleting && setPendingDelete(null)}
+      />
+    </div>
+  );
+}
+
+// Small pill used in the Users tab summary bar.
+function StatPill({ label, value, tone = 'blue' }) {
+  const bg = {
+    blue: 'bg-blue-50 text-blue-700 border-blue-100',
+    green: 'bg-green-50 text-green-700 border-green-100',
+    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    amber: 'bg-amber-50 text-amber-700 border-amber-100',
+    purple: 'bg-purple-50 text-purple-700 border-purple-100',
+  }[tone] || 'bg-gray-50 text-gray-700 border-gray-100';
+  return (
+    <div className={`rounded-xl border px-3 py-2 ${bg}`}>
+      <p className="text-[10px] font-bold opacity-80">{label}</p>
+      <p className="text-lg font-black leading-tight">{value}</p>
     </div>
   );
 }
