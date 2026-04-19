@@ -134,10 +134,10 @@ export default function UserProfilePage({ embedded = false }) {
     );
   }
 
-  return <AuthUserProfile />;
+  return <AuthUserProfile embedded={embedded} />;
 }
 
-function AuthUserProfile() {
+function AuthUserProfile({ embedded = false }) {
   const { refreshUser } = useAuth();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
