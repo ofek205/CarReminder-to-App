@@ -29,51 +29,67 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 py-1">
+        <div className="space-y-4 py-2">
           {isReturningUser ?
             <>
-              {/* Section caption with hairlines on both sides */}
-              <div className="flex items-center gap-3 py-1">
-                <span className="h-px flex-1 bg-gray-200" />
-                <span className="text-[11px] font-bold text-gray-400 tracking-wider">חדש באפליקציה</span>
-                <span className="h-px flex-1 bg-gray-200" />
-              </div>
-
-              {/* Feature 1 — AI expert (green tint) */}
-              <div className="rounded-2xl p-3.5 flex items-start gap-3"
-                style={{ background: '#F0FDF4', border: '1.5px solid #BBF7D0' }}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: '#2D5233' }}>
-                  <Wrench className="h-4.5 w-4.5 text-white" strokeWidth={2.2} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold" style={{ color: '#2D5233' }}>מומחה AI אישי</p>
-                  <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
-                    ברוך המוסכניק ויוסי מומחה כלי שייט כבר מכירים את פרטי הרכב שלך, ויענו לשאלות בצורה מדויקת על תקלות, עלויות וטיפולים.
-                  </p>
-                </div>
-              </div>
-
-              {/* Feature 2 — Accident management (amber tint) */}
-              <div className="rounded-2xl p-3.5 flex items-start gap-3"
-                style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A' }}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: '#D97706' }}>
-                  <AlertTriangle className="h-4.5 w-4.5 text-white" strokeWidth={2.2} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold" style={{ color: '#92400E' }}>ניהול תאונות</p>
-                  <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
-                    תיעוד מסודר של תאונות: נזקים, פרטי נהג שני, צילומים וחברת ביטוח, הכל במקום אחד.
-                  </p>
-                </div>
-              </div>
-
-              {/* Slim footer note — no background box, just subtle text */}
-              <p className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400 pt-1">
-                <Star className="h-3 w-3" style={{ color: '#D97706' }} />
-                האפליקציה מתפתחת כל הזמן. נשמח לפידבק ורעיונות.
+              {/* Intro caption — simple, warm */}
+              <p className="text-gray-600 text-center text-sm leading-relaxed">
+                מה חדש באפליקציה:
               </p>
+
+              {/* Unified features card — soft green→mint gradient with a subtle
+                  inner bloom. One container keeps the eye moving in a single
+                  line of sight instead of jumping between two isolated boxes. */}
+              <div className="rounded-2xl p-4 space-y-3.5 relative overflow-hidden"
+                style={{
+                  background: 'linear-gradient(135deg, #F0FDF4 0%, #E8F2EA 100%)',
+                  border: '1.5px solid #BBF7D0',
+                  boxShadow: '0 4px 16px rgba(45,82,51,0.08)',
+                }}>
+                {/* Subtle decorative bloom, bottom-left */}
+                <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full pointer-events-none"
+                  style={{ background: 'rgba(45,82,51,0.04)' }} />
+
+                {/* Feature row — AI expert */}
+                <div className="flex items-start gap-3 relative z-10">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: '#2D5233', boxShadow: '0 4px 12px rgba(45,82,51,0.25)' }}>
+                    <Wrench className="h-5 w-5 text-white" strokeWidth={2.2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold" style={{ color: '#1C3620' }}>מומחה AI אישי</p>
+                    <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
+                      ברוך המוסכניק ויוסי מומחה כלי שייט כבר מכירים את פרטי הרכב שלך, ויענו לשאלות בצורה מדויקת על תקלות, עלויות וטיפולים.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Divider between features — slim, same tone */}
+                <div className="h-px" style={{ background: 'rgba(45,82,51,0.1)' }} />
+
+                {/* Feature row — Accident management */}
+                <div className="flex items-start gap-3 relative z-10">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: '#D97706', boxShadow: '0 4px 12px rgba(217,119,6,0.25)' }}>
+                    <AlertTriangle className="h-5 w-5 text-white" strokeWidth={2.2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold" style={{ color: '#1C3620' }}>ניהול תאונות</p>
+                    <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
+                      תיעוד מסודר של תאונות: נזקים, פרטי נהג שני, צילומים וחברת ביטוח, הכל במקום אחד.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Soft feedback pill — subtle, not demanding attention */}
+              <div className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl"
+                style={{ background: '#F3F4F6', border: '1px solid #E5E7EB' }}>
+                <Star className="h-3.5 w-3.5" style={{ color: '#D97706' }} />
+                <p className="text-[11px] font-medium text-gray-600">
+                  האפליקציה מתפתחת כל הזמן. נשמח לפידבק ורעיונות.
+                </p>
+              </div>
             </> :
 
             <>
