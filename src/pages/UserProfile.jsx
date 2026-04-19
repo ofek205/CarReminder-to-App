@@ -18,6 +18,7 @@ import { useAuth } from "../components/shared/GuestContext";
 import useFormValidation from '@/hooks/useFormValidation';
 import FieldError from '../components/shared/FieldError';
 import SystemErrorBanner from '../components/shared/SystemErrorBanner';
+import PinLockCard from '../components/shared/PinLockCard';
 
 function calcAge(birthDate) {
   if (!birthDate) return null;
@@ -421,8 +422,18 @@ function AuthUserProfile({ embedded = false }) {
           {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Save className="h-4 w-4 ml-2" />שמור פרופיל</>}
         </Button>
 
+        {/* ── Security section ───────────────────────────────────────────
+            PIN lock moved here from the notifications tab — it's a security
+            setting, not a notification one. */}
+        <div className="mt-8">
+          <h3 className="text-xs font-bold uppercase tracking-wider mb-3 px-1" style={{ color: '#9CA3AF' }}>
+            אבטחה
+          </h3>
+          <PinLockCard />
+        </div>
+
         {/* Delete account link */}
-        <div className="mt-8 pt-6" style={{ borderTop: '1px solid #F3F4F6' }}>
+        <div className="mt-6 pt-6" style={{ borderTop: '1px solid #F3F4F6' }}>
           <Link to={createPageUrl('DeleteAccount')}
             className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all active:scale-[0.98]"
             style={{ color: '#9CA3AF' }}>
