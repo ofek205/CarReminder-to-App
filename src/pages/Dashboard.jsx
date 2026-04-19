@@ -417,7 +417,7 @@ function StatusDrilldownDialog({ open, status, rows, onClose }) {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
         dir="rtl"
-        className="max-w-sm w-[calc(100vw-32px)] max-h-[70vh] p-0 overflow-y-auto overflow-x-hidden rounded-3xl border-0 !z-[9999]">
+        className="max-w-sm w-[calc(100vw-32px)] max-h-[60vh] p-0 overflow-y-auto overflow-x-hidden rounded-3xl border-0">
         <VisuallyHidden.Root>
           <DialogTitle>{meta.title}</DialogTitle>
         </VisuallyHidden.Root>
