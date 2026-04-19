@@ -16,7 +16,7 @@ const tabs = [
   { label: 'מומחה AI',     icon: Sparkles,       path: 'AiAssistant', isAi: true },
 ];
 
-export default function BottomNav() {
+export default function BottomNav({ sheetOpen = false }) {
   const location = useLocation();
   const primaryPath = createPageUrl(''); // e.g., '/'
 
@@ -41,11 +41,15 @@ export default function BottomNav() {
         background: '#FFFFFF',
         borderTop: '1px solid #E5E7EB',
         boxShadow: '0 -2px 12px rgba(0,0,0,0.06)',
-        // z-40 keeps the nav above page content but below modals (z-50) and
-        // tours (z-9000). Was 9999, which covered the bottom of every dialog
-        // and hid Save buttons — users couldn't scroll past it in the Documents
-        // upload form.
-        zIndex: 40,
+        // z-index flips based on which modal is likely open:
+        //   • Default (z-40): sits BELOW the shadcn Dialog (z-50) so modal
+        //     dialogs (DocUpload, ConfirmDelete, ...) cover the nav. That's
+        //     what lets their Save buttons stay visible.
+        //   • When the hamburger Sheet is open (z-10002): we lift the nav
+        //     to z-10010 so the user can tap a tab without first closing
+        //     the menu. Layout's own useEffect on location.pathname will
+        //     then close the sheet after the tap routes away.
+        zIndex: sheetOpen ? 10010 : 40,
         // Cap the system-nav inset. Bare env(safe-area-inset-bottom) on some
         // Galaxy / Pixel builds reports ~40–50px even when the WebView already
         // ends above the 3-button nav (windowOptOutEdgeToEdgeEnforcement=true),

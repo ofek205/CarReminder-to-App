@@ -1067,7 +1067,7 @@ function LayoutInner({ children }) {
                   if (btnClicked.current) return; // ignore overlay close when hamburger was clicked
                   setOpen(v);
                 }}>
-                  <SheetContent side="right" className="p-0 w-60 !top-0 !bottom-0 flex flex-col">
+                  <SheetContent side="right" className="p-0 w-60 !top-0 flex flex-col">
                     <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} hasVessel={hasVessel} isMobile />
                   </SheetContent>
                 </Sheet>
@@ -1095,8 +1095,10 @@ function LayoutInner({ children }) {
         <div className="h-[88px] lg:h-0 shrink-0" aria-hidden="true" />
       </main>
 
-      {/* Bottom navigation — mobile only */}
-      <BottomNav />
+      {/* Bottom navigation — mobile only. `sheetOpen` lifts it above the
+          side-menu sheet so the user can tap a tab (e.g. מצא מוסך) straight
+          from an open menu instead of having to close + re-tap. */}
+      <BottomNav sheetOpen={open} />
       </div>
     </div>
   );
