@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { Card } from "@/components/ui/card";
@@ -19,22 +20,47 @@ import { isNative } from "@/lib/capacitor";
 import { requestNotificationPermission, checkNotificationPermission } from "@/lib/notificationChannels";
 import { C } from '@/lib/designTokens';
 
-// ── Notification type toggles ────────────────────────────────────────────────
-const NOTIFICATION_TYPES = [
-  { key: 'notify_test',        label: 'טסט / כושר שייט',  icon: Calendar,  emoji: '📋', description: 'תזכורת לפני פקיעת הטסט' },
-  { key: 'notify_insurance',   label: 'ביטוח',            icon: Shield,    emoji: '🛡️', description: 'תזכורת לפני פקיעת הביטוח' },
-  { key: 'notify_maintenance', label: 'טיפול תקופתי',     icon: Wrench,    emoji: '🔧', description: 'תזכורת לטיפולים שמתקרבים' },
-  { key: 'notify_document',    label: 'מסמכים',           icon: FileText,  emoji: '📄', description: 'תזכורת למסמכים שפוקעים' },
-  { key: 'notify_safety',      label: 'ציוד בטיחות (שייט)', icon: Anchor, emoji: '🛟', description: 'תזכורת לציוד בטיחות ימי' },
-];
-
-// ── Timing fields ────────────────────────────────────────────────────────────
-const TIMING_FIELDS = [
-  { key: 'remind_test_days_before',         label: 'טסט',         icon: '📋', suffix: 'ימים', max: 365 },
-  { key: 'remind_insurance_days_before',     label: 'ביטוח',       icon: '🛡️', suffix: 'ימים', max: 365 },
-  { key: 'remind_document_days_before',      label: 'מסמכים',      icon: '📄', suffix: 'ימים', max: 365 },
-  { key: 'remind_maintenance_days_before',   label: 'טיפולים',     icon: '🔧', suffix: 'ימים', max: 365 },
-  { key: 'overdue_repeat_every_days',        label: 'חזרה על איחור', icon: '🔁', suffix: 'ימים', max: 30 },
+// ── Reminder categories — merged toggle + timing ──────────────────────────
+// Each row now controls (a) whether the type fires at all, and (b) how many
+// days before the due date the push goes out. The old two-section layout
+// (toggle list + timing list) repeated the same 5 rows twice.
+const REMINDER_CATEGORIES = [
+  {
+    key:     'notify_test',
+    timing:  'remind_test_days_before',
+    label:   'טסט שנתי / כושר שייט',
+    emoji:   '📋',
+    description: 'טסט רכב, כושר שייט — לפני שהרישיון פג',
+  },
+  {
+    key:     'notify_insurance',
+    timing:  'remind_insurance_days_before',
+    label:   'ביטוח',
+    emoji:   '🛡️',
+    description: 'חובה, מקיף, צד ג׳, ביטוח ימי',
+  },
+  {
+    key:     'notify_maintenance',
+    timing:  'remind_maintenance_days_before',
+    label:   'טיפולים ותיקונים',
+    emoji:   '🔧',
+    description: 'טיפול תקופתי, שמן, צמיגים, בלמים',
+  },
+  {
+    key:     'notify_document',
+    timing:  'remind_document_days_before',
+    label:   'מסמכים',
+    emoji:   '📄',
+    description: 'רישיון רכב, רישיון נהיגה, אישורי חניה',
+  },
+  {
+    key:     'notify_safety',
+    // Safety has no dedicated "days before" in DB yet — it re-uses document.
+    timing:  'remind_document_days_before',
+    label:   'ציוד בטיחות וחירום',
+    emoji:   '🛟',
+    description: 'פירוטכניקה, מטף, אסדת הצלה, גלגל הצלה',
+  },
 ];
 
 const DEFAULT_FORM = {
@@ -54,6 +80,11 @@ const DEFAULT_FORM = {
   device_notifications_enabled: true,
   email_enabled: false,
   whatsapp_enabled: false,
+  // Quiet hours — suppress pushes outside of user's active window.
+  // Default off (00→00 meaning "no quiet hours applied").
+  quiet_hours_enabled: false,
+  quiet_hours_start:   22,
+  quiet_hours_end:      7,
 };
 
 // ── Guest version ─────────────────────────────────────────────────────────────
@@ -298,93 +329,176 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
         </div>
       )}
 
-      {/* ── Which notifications to receive ── */}
+      {/* ── Reminder categories — toggle + timing merged per row ──────── */}
       <div className="mb-5">
-        <h2 className="font-bold text-base text-gray-900 mb-3 flex items-center gap-2">
+        <h2 className="font-bold text-base text-gray-900 mb-1 flex items-center gap-2">
           <Bell className="w-4 h-4" style={{ color: C.primary }} />
-          איזה התראות לקבל?
+          מה ומתי לקבל
         </h2>
+        <p className="text-[11px] text-gray-500 mb-3">
+          הפעל או כבה כל סוג, והגדר כמה ימים מראש להזכיר.
+        </p>
         <div className="space-y-2">
-          {NOTIFICATION_TYPES.map(nt => {
-            const active = !!form[nt.key];
+          {REMINDER_CATEGORIES.map(cat => {
+            const active = !!form[cat.key];
             return (
-              <div key={nt.key}
-                className="rounded-2xl p-3.5 flex items-center justify-between transition-all"
+              <div key={cat.key}
+                className="rounded-2xl p-3.5 transition-all"
                 style={{
                   background: active ? '#F0FDF4' : '#FAFAFA',
                   border: `1.5px solid ${active ? '#BBF7D0' : '#E5E7EB'}`,
                 }}>
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">{nt.emoji}</span>
-                  <div>
-                    <p className="font-bold text-sm" style={{ color: active ? '#166534' : '#6B7280' }}>{nt.label}</p>
-                    <p className="text-xs" style={{ color: '#9CA3AF' }}>{nt.description}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <span className="text-lg leading-none mt-0.5">{cat.emoji}</span>
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm" style={{ color: active ? '#166534' : '#6B7280' }}>{cat.label}</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: '#9CA3AF' }}>{cat.description}</p>
+                    </div>
                   </div>
+                  <Switch checked={active} onCheckedChange={() => toggleType(cat.key)} />
                 </div>
-                <Switch checked={active} onCheckedChange={() => toggleType(nt.key)} />
+                {active && (
+                  <div className="mt-3 pt-3 border-t flex items-center justify-between gap-3"
+                    style={{ borderColor: '#D1FAE5' }}>
+                    <span className="text-[11px] font-bold" style={{ color: '#166534' }}>
+                      להזכיר מראש:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={365}
+                        value={form[cat.timing] ?? ''}
+                        onChange={e => setForm(f => ({ ...f, [cat.timing]: e.target.value }))}
+                        dir="ltr"
+                        className="w-14 h-9 text-center font-black text-sm rounded-lg outline-none focus:ring-2 focus:ring-[#3A7D44]/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        style={{ background: '#fff', color: '#2D5233', border: '1.5px solid #BBF7D0' }}
+                      />
+                      <span className="text-[11px] font-bold" style={{ color: '#166534' }}>ימים לפני</span>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* ── Timing: how many days before ── */}
-      <div className="mb-5">
-        <h2 className="font-bold text-base text-gray-900 mb-3 flex items-center gap-2">
-          <Calendar className="w-4 h-4" style={{ color: C.primary }} />
-          כמה ימים מראש?
-        </h2>
-        <div className="rounded-2xl overflow-hidden" style={{ border: '1.5px solid #E5E7EB' }}>
-          {TIMING_FIELDS.map((field, i) => (
-            <div key={field.key}
-              className="flex items-center justify-between gap-3 px-4 py-3.5"
-              style={{ borderTop: i > 0 ? '1px solid #F3F4F6' : 'none' }}>
-              <div className="flex items-center gap-2.5">
-                <span className="text-base">{field.icon}</span>
-                <span className="font-bold text-sm text-gray-800">{field.label}</span>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <input
-                  type="number"
-                  min={0}
-                  max={field.max}
-                  className="w-14 h-10 text-center font-black text-base rounded-xl outline-none transition-all focus:ring-2 focus:ring-[#3A7D44]/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  style={{ background: '#F0F4F1', color: '#2D5233', border: '1.5px solid #D8E5D9' }}
-                  value={form[field.key] ?? ''}
-                  onChange={e => setForm(f => ({ ...f, [field.key]: e.target.value }))}
-                  dir="ltr"
-                />
-                <span className="text-xs text-gray-500 font-bold">{field.suffix}</span>
-              </div>
-            </div>
-          ))}
+      {/* ── Overdue repeat ── */}
+      <div className="mb-5 rounded-2xl p-3.5 flex items-center justify-between gap-3"
+        style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA' }}>
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-lg">🔁</span>
+          <div>
+            <p className="font-bold text-sm" style={{ color: '#9A3412' }}>חזרה על איחור</p>
+            <p className="text-[11px]" style={{ color: '#C2410C' }}>כל כמה ימים להזכיר אם פג תוקף</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <input
+            type="number"
+            min={0}
+            max={30}
+            value={form.overdue_repeat_every_days ?? ''}
+            onChange={e => setForm(f => ({ ...f, overdue_repeat_every_days: e.target.value }))}
+            dir="ltr"
+            className="w-14 h-10 text-center font-black text-base rounded-xl outline-none focus:ring-2 focus:ring-orange-300 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            style={{ background: '#fff', color: '#9A3412', border: '1.5px solid #FED7AA' }}
+          />
+          <span className="text-xs font-bold" style={{ color: '#9A3412' }}>ימים</span>
         </div>
       </div>
 
-      {/* ── Notification time ── */}
+      {/* ── Notification time + quiet hours ── */}
       <div className="mb-5">
-        <h2 className="font-bold text-base text-gray-900 mb-3">שעת שליחת התראות</h2>
-        <div className="rounded-2xl p-4 flex items-center justify-between"
-          style={{ border: '1.5px solid #E5E7EB' }}>
-          <div className="flex items-center gap-2.5">
-            <span className="text-base">⏰</span>
-            <span className="font-bold text-sm text-gray-800">בכל בוקר בשעה</span>
+        <h2 className="font-bold text-base text-gray-900 mb-3">תזמון</h2>
+        <div className="rounded-2xl overflow-hidden" style={{ border: '1.5px solid #E5E7EB' }}>
+          {/* Daily push hour */}
+          <div className="flex items-center justify-between px-4 py-3.5">
+            <div className="flex items-center gap-2.5">
+              <span className="text-base">⏰</span>
+              <div>
+                <p className="font-bold text-sm text-gray-800">שעת שליחה יומית</p>
+                <p className="text-[11px] text-gray-400">כל ההתראות נשלחות בזמן הזה</p>
+              </div>
+            </div>
+            <Select
+              value={String(form.daily_job_hour ?? 8)}
+              onValueChange={v => setForm(f => ({ ...f, daily_job_hour: Number(v) }))}
+            >
+              <SelectTrigger className="w-24 font-bold text-center h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 24 }, (_, h) => (
+                  <SelectItem key={h} value={String(h)}>{String(h).padStart(2, '0')}:00</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <Select
-            value={String(form.daily_job_hour ?? 8)}
-            onValueChange={v => setForm(f => ({ ...f, daily_job_hour: Number(v) }))}
-          >
-            <SelectTrigger className="w-24 font-bold text-center h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 24 }, (_, h) => (
-                <SelectItem key={h} value={String(h)}>{String(h).padStart(2, '0')}:00</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+          {/* Quiet hours — suppress pushes during sleep */}
+          <div className="border-t" style={{ borderColor: '#F3F4F6' }}>
+            <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="text-base">🌙</span>
+                <div className="min-w-0">
+                  <p className="font-bold text-sm text-gray-800">שעות שקט</p>
+                  <p className="text-[11px] text-gray-400">לא יגיעו התראות בטווח הזה</p>
+                </div>
+              </div>
+              <Switch
+                checked={!!form.quiet_hours_enabled}
+                onCheckedChange={v => setForm(f => ({ ...f, quiet_hours_enabled: v }))}
+                aria-label="הפעל שעות שקט"
+              />
+            </div>
+            {form.quiet_hours_enabled && (
+              <div className="px-4 pb-3.5 flex items-center justify-between gap-3 text-xs text-gray-600">
+                <span className="font-bold">מ־</span>
+                <Select
+                  value={String(form.quiet_hours_start ?? 22)}
+                  onValueChange={v => setForm(f => ({ ...f, quiet_hours_start: Number(v) }))}>
+                  <SelectTrigger className="w-24 font-bold text-center h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <SelectItem key={h} value={String(h)}>{String(h).padStart(2, '0')}:00</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="font-bold">עד</span>
+                <Select
+                  value={String(form.quiet_hours_end ?? 7)}
+                  onValueChange={v => setForm(f => ({ ...f, quiet_hours_end: Number(v) }))}>
+                  <SelectTrigger className="w-24 font-bold text-center h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <SelectItem key={h} value={String(h)}>{String(h).padStart(2, '0')}:00</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* ── History link ── */}
+      {!isGuest && (
+        <Link to="/Notifications"
+          className="mb-5 rounded-2xl p-3.5 flex items-center justify-between transition-all hover:bg-gray-50"
+          style={{ border: '1.5px solid #E5E7EB', background: '#fff' }}>
+          <div className="flex items-center gap-3">
+            <span className="text-lg">📬</span>
+            <div>
+              <p className="font-bold text-sm text-gray-800">היסטוריית התראות</p>
+              <p className="text-[11px] text-gray-400">כל ההתראות שנשלחו ב-30 הימים האחרונים</p>
+            </div>
+          </div>
+          <span className="text-gray-300">‹</span>
+        </Link>
+      )}
 
       {/* ── Future channels ── */}
       {!isGuest && (
