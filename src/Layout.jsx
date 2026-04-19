@@ -959,13 +959,17 @@ function LayoutInner({ children }) {
   }, [isLoading, isAuthenticated, isGuest, isPublicRoute, navigate]);
 
   // Authenticated popup — show once per browser session.
+  // Returning-user detection is based on account age rather than a
+  // per-browser localStorage flag, so that logging in from a new device or
+  // after clearing storage still correctly shows "כיף שחזרת". A user is
+  // considered "first-time" only within the first hour after signup.
   useEffect(() => {
     if (!isAuthenticated || !user) return;
     if (sessionStorage.getItem(`welcome_popup_shown_${user.id}`)) return;
-    const storageKey = `welcome_seen_${user.id}`;
-    const isFirstTime = !localStorage.getItem(storageKey);
+    const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
+    const ageMs = createdAt ? Date.now() - createdAt : Infinity;
+    const isFirstTime = ageMs < 60 * 60 * 1000; // account < 1h old
     setWelcomeState({ isReturning: !isFirstTime, userName: user.full_name || '' });
-    localStorage.setItem(storageKey, '1');
     sessionStorage.setItem(`welcome_popup_shown_${user.id}`, '1');
   }, [isAuthenticated, user]);
 

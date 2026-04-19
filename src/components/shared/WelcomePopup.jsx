@@ -1,7 +1,7 @@
 import React from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Car, Wrench, Star, AlertTriangle } from "lucide-react";
+import { Car, Wrench, Star, AlertTriangle, Sparkles, ScanLine, MapPin, Bell, Database } from "lucide-react";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
 /**
@@ -116,17 +116,25 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
             <p className="text-center text-[11px] text-gray-400 mt-4">פותח על ידי אופק אדלשטיין</p>
           </div>
         ) : (
-          // ── First-time user content (kept fuller but polished) ────────
+          // ── First-time user content — mirrors GuestWelcomePopup DNA ────
           <div className="px-6 pt-5 pb-5">
             <p className="text-gray-600 text-center text-sm leading-relaxed mb-4">
               כאן תוכל לנהל ולעקוב אחרי הרכבים שלך בקלות ובנוחות.
             </p>
-            <div className="rounded-2xl p-4 space-y-3"
+            <div className="rounded-2xl p-4 space-y-3 relative overflow-hidden"
               style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #E8F2EA 100%)', border: '1.5px solid #BBF7D0' }}>
-              <MiniRow emoji="🔍" title="חיפוש לפי מספר רכב" body="הזן מספר לוחית וקבל מיד יצרן, דגם, שנה וסוג דלק." />
-              <MiniRow emoji="🔔" title="תזכורות חכמות" body="התראות לפני שטסט, ביטוח או מסמכים פגים." />
-              <MiniRow emoji="🤖" title="סריקת מסמכים עם AI" body="העלה תמונה, המערכת תמלא את הפרטים אוטומטית." />
-              <MiniRow emoji="💬" title="צ'אט AI לייעוץ" body="שאל כל שאלה על הרכב וקבל תשובה מיידית." />
+              <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full pointer-events-none"
+                style={{ background: 'rgba(45,82,51,0.04)' }} />
+              <MiniRow icon={Sparkles}  title="מומחה AI"
+                body="ברוך המוסכניק ויוסי מומחה כלי שייט עונים לשאלות, מכירים את פרטי הרכב שלך." />
+              <MiniRow icon={ScanLine}  title="סריקת מסמכים ותמונות ב-AI"
+                body="צלם רישיון, ביטוח או טסט, והפרטים ממולאים אוטומטית." />
+              <MiniRow icon={MapPin}    title="מצא מוסך"
+                body="מפת מוסכים סביבך, סינון לפי סוג שירות ורדיוס חיפוש." />
+              <MiniRow icon={Bell}      title="תזכורות והתראות חכמות"
+                body="התראות מתוזמנות לטסט, ביטוח, צמיגים וטיפולים." />
+              <MiniRow icon={Database}  title="פרטי רכב ממשרד התחבורה"
+                body="מספר רישוי אחד, והמערכת משלימה מפרט טכני מלא." />
             </div>
 
             <PremiumCta onClick={onClose} label="בואו נתחיל! 🚗" />
@@ -160,14 +168,17 @@ function FeatureRow({ icon: Icon, title, body, bg, accent, tileShadow }) {
   );
 }
 
-// ── Mini row (first-time user) ─────────────────────────────────────────
-function MiniRow({ emoji, title, body }) {
+// ── Mini row (first-time user) — matches GuestWelcomePopup layout ─────
+function MiniRow({ icon: Icon, title, body }) {
   return (
-    <div className="flex items-start gap-3">
-      <span className="text-base shrink-0">{emoji}</span>
-      <div>
-        <p className="text-sm font-semibold text-gray-800">{title}</p>
-        <p className="text-xs text-gray-500">{body}</p>
+    <div className="flex items-start gap-3 relative z-10">
+      <div className="flex items-center justify-center shrink-0"
+        style={{ width: 32, height: 32, borderRadius: 10, background: '#2D5233' }}>
+        <Icon className="w-4 h-4 text-white" strokeWidth={2.3} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold" style={{ color: '#1C3620' }}>{title}</p>
+        <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{body}</p>
       </div>
     </div>
   );
