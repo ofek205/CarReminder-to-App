@@ -27,30 +27,23 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
         <div className="space-y-4 py-2">
           {isReturningUser ?
             <>
-              <p className="text-gray-600 text-center text-sm leading-relaxed">
-                מה חדש באפליקציה:
-              </p>
-              <div className="bg-[#E8F2EA] rounded-xl p-4 space-y-3">
+              <p className="text-gray-500 text-center text-xs">חדש באפליקציה</p>
+              <div className="bg-[#E8F2EA] rounded-xl p-3 space-y-2.5">
                 <div className="flex items-start gap-3">
                   <span className="text-base shrink-0">🔧</span>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">מומחה AI לייעוץ אישי</p>
-                    <p className="text-xs text-gray-500">
-                      ברוך המוסכניק ויוסי מומחה הכלי שייט כבר מכירים את פרטי הרכב שלך ויענו לשאלות בצורה מדויקת — תקלות, עלויות וטיפולים.
-                    </p>
-                  </div>
+                  <p className="text-sm text-gray-800">
+                    <span className="font-semibold">מומחה AI אישי:</span>
+                    <span className="text-gray-500"> ברוך ויוסי מכירים את הרכב שלך.</span>
+                  </p>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-base shrink-0">⚠️</span>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">ניהול תאונות</p>
-                    <p className="text-xs text-gray-500">
-                      תיעוד מסודר של תאונות — נזקים, נהג שני, צילומים וחברת ביטוח, הכל במקום אחד.
-                    </p>
-                  </div>
+                  <p className="text-sm text-gray-800">
+                    <span className="font-semibold">ניהול תאונות:</span>
+                    <span className="text-gray-500"> נזקים, נהג שני, צילומים וביטוח במקום אחד.</span>
+                  </p>
                 </div>
               </div>
-              <p className="bg-slate-200 text-slate-800 text-xs font-medium text-center leading-relaxed py-2 rounded-lg">⭐ האפליקציה מתפתחת כל הזמן — נשמח לפידבק ורעיונות.</p>
             </> :
 
             <>
