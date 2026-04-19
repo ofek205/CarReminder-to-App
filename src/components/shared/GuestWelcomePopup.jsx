@@ -1,7 +1,7 @@
 import React from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
-import { Car, Bell, Sparkles, MapPin, Database } from "lucide-react";
+import { Car, Bell, Sparkles, MapPin, Database, ScanLine } from "lucide-react";
 
 /**
  * GuestWelcomePopup — shown every time a user enters in guest mode.
@@ -70,6 +70,8 @@ export default function GuestWelcomePopup({ open, onClose }) {
 
             <MiniRow icon={Sparkles} title="מומחה AI"
               body="ברוך המוסכניק ויוסי מומחה כלי שייט עונים לשאלות, מכירים את פרטי הרכב שלך." />
+            <MiniRow icon={ScanLine} title="סריקת מסמכים ותמונות ב-AI"
+              body="צלם רישיון, ביטוח או טסט, והפרטים ממולאים אוטומטית." />
             <MiniRow icon={MapPin} title="מצא מוסך"
               body="מפת מוסכים סביבך, סינון לפי סוג שירות ורדיוס חיפוש." />
             <MiniRow icon={Bell} title="תזכורות והתראות חכמות"
