@@ -1213,31 +1213,106 @@ function AdminUsersTab() {
         <StatPill label="אדמינים" value={stats.admins} tone="purple" />
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 p-4">
-        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-          <h2 className="font-bold text-gray-900">כל החשבונות ({filtered.length}{search && ` / ${users.length}`})</h2>
+      <div className="bg-white rounded-2xl border border-gray-100 p-3 sm:p-4">
+        {/* Toolbar — stacks on mobile, row on desktop. */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+          <h2 className="font-bold text-gray-900 text-sm sm:text-base">
+            כל החשבונות ({filtered.length}{search && ` / ${users.length}`})
+          </h2>
           <div className="flex items-center gap-2">
             <input
               type="search"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="שם / אימייל / ID..."
-              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 min-w-[200px]"
+              className="flex-1 sm:flex-none text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 sm:min-w-[200px]"
               aria-label="חיפוש חשבונות"
             />
             <button onClick={exportCsv}
-              className="text-xs px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center gap-1.5 font-bold">
+              className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 flex items-center gap-1.5 font-bold">
               <Download className="w-3.5 h-3.5" />
-              CSV
+              <span className="hidden sm:inline">CSV</span>
             </button>
             <button onClick={() => setRefreshKey(k => k + 1)}
-              className="text-xs p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200" aria-label="רענן">
+              className="shrink-0 text-xs p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200" aria-label="רענן">
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile sort control — the table's click-to-sort doesn't exist in card view. */}
+        <div className="sm:hidden mb-3">
+          <select value={`${sortKey}:${sortDir}`}
+            onChange={(e) => { const [k, d] = e.target.value.split(':'); setSortKey(k); setSortDir(d); }}
+            className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 font-bold">
+            <option value="created:desc">נוצר — חדש לישן</option>
+            <option value="created:asc">נוצר — ישן לחדש</option>
+            <option value="lastLogin:desc">התחברות אחרונה — חדש לישן</option>
+            <option value="vehicles:desc">רכבים — הרבה למעט</option>
+            <option value="vehicles:asc">רכבים — מעט להרבה</option>
+            <option value="name:asc">שם — א–ת</option>
+          </select>
+        </div>
+
+        {/* Mobile card list ── one account per card. */}
+        <div className="sm:hidden space-y-2">
+          {pageUsers.map(u => (
+            <div key={u.id} className="border border-gray-100 rounded-xl p-3 bg-white">
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-sm text-gray-900 truncate">{u.name || 'ללא שם'}</p>
+                  {u.email ? (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="text-[11px] text-gray-600 truncate">{u.email}</span>
+                      {!u.email_confirmed_at && (
+                        <span title="אימייל לא אומת" className="text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-bold shrink-0">!</span>
+                      )}
+                      <button onClick={() => copyEmail(u.email)} className="text-gray-400 shrink-0" aria-label="העתק">
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : <p className="text-[11px] text-gray-300 mt-0.5">—</p>}
+                </div>
+                {u.role === 'admin' && (
+                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 shrink-0">
+                    <ShieldCheck className="w-3 h-3" /> אדמין
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 text-[11px] text-gray-500 mb-2">
+                <span><span className="font-bold text-gray-700">{u.vehicleCount}</span> רכבים</span>
+                <span><span className="font-bold text-gray-700">{u.documentCount}</span> מסמכים</span>
+                <span><span className="font-bold text-gray-700">{u.memberCount}</span> חברים</span>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-gray-50 gap-2">
+                <div className="text-[10px] text-gray-400 min-w-0">
+                  <div className="truncate">נוצר: {u.created_at ? format(parseISO(u.created_at), 'dd/MM/yy') : '-'}</div>
+                  <div className="truncate">כניסה: {u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), 'dd/MM/yy HH:mm') : '—'}</div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => toggleAdmin(u)}
+                    disabled={!u.owner_user_id}
+                    title={u.role === 'admin' ? 'הסר אדמין' : 'הפוך לאדמין'}
+                    className="p-2 rounded-lg bg-purple-50 text-purple-600 disabled:opacity-30"
+                    aria-label="שנה תפקיד">
+                    <UserCog className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setPendingDelete(u)}
+                    className="p-2 rounded-lg bg-red-50 text-red-600"
+                    aria-label="מחק">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {pageUsers.length === 0 && (
+            <div className="py-8 text-center text-gray-400 text-xs">לא נמצאו תוצאות</div>
+          )}
+        </div>
+
+        {/* Desktop table ── hidden on mobile. */}
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-xs min-w-[720px]">
             <thead className="text-gray-500 border-b border-gray-100">
               <tr>
