@@ -23,7 +23,7 @@ function hashStringToInt(str) {
 }
 
 // ── Local Notifications (Android device) ───────────────────────────────────
-export async function scheduleLocalNotification({ id, title, body, scheduleAt }) {
+export async function scheduleLocalNotification({ id, title, body, scheduleAt, extra = {} }) {
   if (!isNative) return;
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
@@ -40,7 +40,9 @@ export async function scheduleLocalNotification({ id, title, body, scheduleAt })
         smallIcon: 'ic_notification',
         largeIcon: 'ic_notification',
         sound: 'default',
-        extra: { reminderId: String(id) },
+        // Pass through caller-supplied extras (type, vehicleId, isVessel, etc.)
+        // so the tap handler can route to the right action per reminder type.
+        extra: { reminderId: String(id), ...extra },
       }],
     });
     return numericId;

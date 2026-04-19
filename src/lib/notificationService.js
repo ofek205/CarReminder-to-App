@@ -12,6 +12,7 @@
  */
 
 import { calcReminders } from '@/components/shared/ReminderEngine';
+import { isVessel } from '@/components/shared/DateStatusUtils';
 import {
   scheduleLocalNotification,
   cancelAllLocalNotifications,
@@ -20,6 +21,14 @@ import {
   checkNotificationPermission,
 } from './notificationChannels';
 import { isNative } from './capacitor';
+
+// Deep-link targets when the user taps an "expired" notification.
+// Test / כושר שייט → send straight to the gov.il renewal flow. Other types
+// (insurance, documents, maintenance) go to the vehicle's detail page.
+const GOV_RENEWAL = {
+  car:    'https://www.gov.il/he/service/car_licence_renewal',
+  vessel: 'https://www.gov.il/he/service/renewing_vessel_license',
+};
 
 // ── Default reminder settings ──────────────────────────────────────────────
 export const DEFAULT_REMINDER_SETTINGS = {
@@ -161,6 +170,16 @@ export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER
 
     const { title, body } = buildPayload(reminder);
 
+    // Carry reminder metadata so the tap handler in initNotifications()
+    // can route the user to the right screen or external URL.
+    const vehicle = reminder.vehicleId ? vehicles.find(v => v.id === reminder.vehicleId) : null;
+    const extra = {
+      type: reminder.type,
+      vehicleId: reminder.vehicleId || null,
+      isVessel: vehicle ? !!isVessel(vehicle.vehicle_type, vehicle.nickname) : false,
+      daysLeft: reminder.daysLeft,
+    };
+
     for (let i = 0; i < times.length; i++) {
       // Suffix the id per-firing so repeats don't collide.
       const firingId = i === 0 ? String(reminder.id) : `${reminder.id}-r${i}`;
@@ -169,6 +188,7 @@ export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER
         title,
         body,
         scheduleAt: times[i],
+        extra,
       });
       scheduled++;
     }
@@ -222,10 +242,35 @@ export async function initNotifications() {
     }
   } catch {}
 
-  // Tap → open the Notifications page.
+  // Tap handler: route per reminder type.
+  //   test / כושר שייט that's EXPIRED → open the gov.il renewal site directly
+  //                                     in the in-app browser (Capacitor Browser).
+  //   anything else, if we know the vehicle → open the vehicle's detail page.
+  //   fallback → Notifications list.
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
-    LocalNotifications.addListener('localNotificationActionPerformed', () => {
+    LocalNotifications.addListener('localNotificationActionPerformed', async (evt) => {
+      const extra = evt?.notification?.extra || {};
+      const { type, vehicleId, isVessel: flaggedVessel, daysLeft } = extra;
+
+      // Test-expiry → gov.il. Send overdue OR nearly-overdue (<= 7 days) to
+      // save users the extra tap into VehicleDetail.
+      if (type === 'test' && typeof daysLeft === 'number' && daysLeft <= 7) {
+        const url = flaggedVessel ? GOV_RENEWAL.vessel : GOV_RENEWAL.car;
+        try {
+          const { Browser } = await import('@capacitor/browser');
+          await Browser.open({ url });
+        } catch {
+          window.location.href = url; // fallback to external browser
+        }
+        return;
+      }
+
+      if (vehicleId) {
+        window.location.href = `/VehicleDetail?id=${vehicleId}`;
+        return;
+      }
+
       window.location.href = '/Notifications';
     });
   } catch (e) {
