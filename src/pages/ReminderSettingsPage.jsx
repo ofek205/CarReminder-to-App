@@ -57,7 +57,7 @@ const DEFAULT_FORM = {
 };
 
 // ── Guest version ─────────────────────────────────────────────────────────────
-function GuestReminderSettings() {
+function GuestReminderSettings({ embedded = false }) {
   const { guestReminderSettings, updateGuestReminderSettings } = useAuth();
   const [form, setForm] = useState({ ...DEFAULT_FORM, ...guestReminderSettings });
   const [showGuestSignup, setShowGuestSignup] = useState(false);
@@ -79,7 +79,7 @@ function GuestReminderSettings() {
           </p>
         </div>
       </div>
-      <SettingsUI form={form} setForm={setForm} onSave={handleSave} saving={false} isGuest={true} />
+      <SettingsUI form={form} setForm={setForm} onSave={handleSave} saving={false} isGuest={true} embedded={embedded} />
 
       {/* Guest signup prompt */}
       {showGuestSignup && (
@@ -114,14 +114,14 @@ function GuestReminderSettings() {
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
-export default function ReminderSettingsPage() {
+export default function ReminderSettingsPage({ embedded = false }) {
   const { isGuest } = useAuth();
-  if (isGuest) return <GuestReminderSettings />;
-  return <AuthReminderSettings />;
+  if (isGuest) return <GuestReminderSettings embedded={embedded} />;
+  return <AuthReminderSettings embedded={embedded} />;
 }
 
 // ── Auth version ──────────────────────────────────────────────────────────────
-function AuthReminderSettings() {
+function AuthReminderSettings({ embedded = false }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -224,13 +224,13 @@ function AuthReminderSettings() {
 
   return (
     <div className="px-4 pb-20" dir="rtl">
-      <SettingsUI form={form} setForm={setForm} onSave={handleSave} saving={saving} isGuest={false} />
+      <SettingsUI form={form} setForm={setForm} onSave={handleSave} saving={saving} isGuest={false} embedded={embedded} />
     </div>
   );
 }
 
 // ── Shared Settings UI ────────────────────────────────────────────────────────
-function SettingsUI({ form, setForm, onSave, saving, isGuest }) {
+function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }) {
   const [devicePermission, setDevicePermission] = useState(null);
 
   useEffect(() => {
@@ -252,22 +252,24 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest }) {
 
   return (
     <>
-      {/* Header */}
-      <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
-        style={{ background: C.grad, boxShadow: `0 8px 32px ${C.primary}40` }}>
-        <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
-            <Bell className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="font-black text-xl text-white">הגדרות התראות</h1>
-            <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
-              בחר מה ומתי לקבל התראות
-            </p>
+      {/* Header — skip when embedded inside the Settings hub. */}
+      {!embedded && (
+        <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
+          style={{ background: C.grad, boxShadow: `0 8px 32px ${C.primary}40` }}>
+          <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+              <Bell className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="font-black text-xl text-white">הגדרות התראות</h1>
+              <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                בחר מה ומתי לקבל התראות
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── Device notifications permission ── */}
       {isNative && (

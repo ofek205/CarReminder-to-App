@@ -40,11 +40,13 @@ const navItems = [
   // ── כלים ──
   { divider: true, title: 'כלים' },
   { name: 'FindGarage',            label: 'מצא מוסך',        icon: MapPin,          guestAllowed: true },
-  { name: 'ReminderSettingsPage',  label: 'הגדרות תזכורות',  icon: Settings,        guestAllowed: true },
   // ── חשבון ──
   { divider: true, title: 'חשבון' },
-  { name: 'UserProfile',           label: 'אזור אישי',       icon: UserCircle,      guestAllowed: true },
-  { name: 'AccountSettings',       label: 'שיתוף חשבון',      icon: Users,           guestAllowed: true },
+  // Unified Settings hub replaces three separate entries (אזור אישי /
+  // שיתוף חשבון / הגדרות תזכורות). The old routes still work as
+  // deep-link targets (e.g. from push notifications), they just aren't
+  // surfaced in the menu any more.
+  { name: 'Settings',              label: 'הגדרות',           icon: Settings,        guestAllowed: true },
   { name: 'AdminReviews',          label: 'חוות דעת',         icon: Star,            guestAllowed: true },
   { name: 'Contact',               label: 'צור קשר',          icon: MessageSquare,   guestAllowed: true },
   { name: 'AdminDashboard',        label: 'לוח ניהול',        icon: ShieldCheck,     guestAllowed: false, adminOnly: true },
@@ -180,9 +182,9 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
       {/* Header */}
       <div className="p-4 pt-12 border-b border-gray-100 shrink-0">
         {isAuthenticated ? (
-          <Link to={createPageUrl('UserProfile')} onClick={onItemClick}
+          <Link to={createPageUrl('Settings') + '?tab=profile'} onClick={onItemClick}
             className="flex items-center gap-3 rounded-xl -m-2 p-2 transition-colors hover:bg-gray-50 active:bg-gray-100"
-            aria-label="אזור אישי">
+            aria-label="הגדרות ופרופיל">
             <div className="w-9 h-9 rounded-xl bg-[#E8F2EA] flex items-center justify-center shrink-0">
               <User className="h-5 w-5 text-[#2D5233]" />
             </div>

@@ -131,10 +131,10 @@ function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChang
 }
 
 // ── Guest view ─────────────────────────────────────────────────────────────
-function GuestAccountSettings() {
+function GuestAccountSettings({ embedded = false }) {
   return (
     <div className="px-4 pb-20" dir="rtl">
-      <PageHeader title="חשבון משותף" />
+      {!embedded && <PageHeader title="חשבון משותף" />}
       <div className="rounded-3xl p-8 text-center space-y-5"
         style={{ background: C.light, border: `1.5px solid ${C.border}` }}>
         <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto"
@@ -166,13 +166,13 @@ function GuestAccountSettings() {
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
-export default function AccountSettings() {
+export default function AccountSettings({ embedded = false }) {
   const { isGuest } = useAuth();
-  if (isGuest) return <GuestAccountSettings />;
-  return <AuthAccountSettings />;
+  if (isGuest) return <GuestAccountSettings embedded={embedded} />;
+  return <AuthAccountSettings embedded={embedded} />;
 }
 
-function AuthAccountSettings() {
+function AuthAccountSettings({ embedded = false }) {
   const { user } = useAuth();
   const { role: myRole, accountId, isLoading: roleLoading } = useAccountRole();
   const [showInvite, setShowInvite] = useState(false);
@@ -327,33 +327,56 @@ function AuthAccountSettings() {
 
   return (
     <div className="px-4 pb-20" dir="rtl">
-      {/* Header */}
-      <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
-        style={{ background: C.grad, boxShadow: `0 8px 32px ${C.primary}40` }}>
-        <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-        <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full" style={{ background: 'rgba(255,191,0,0.15)' }} />
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
-              <Users className="w-6 h-6 text-white" />
+      {/* Header — skip when embedded inside the Settings hub (its tab bar
+          already identifies the section). We still show the primary action
+          (הזמן משתמש חדש) below the stats row so it doesn't disappear. */}
+      {!embedded && (
+        <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
+          style={{ background: C.grad, boxShadow: `0 8px 32px ${C.primary}40` }}>
+          <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
+          <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full" style={{ background: 'rgba(255,191,0,0.15)' }} />
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="font-black text-xl text-white">החשבון שלי</h1>
+                <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                  {members.length} {members.length === 1 ? 'חבר' : 'חברים'} &bull; {myRole}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-black text-xl text-white">החשבון שלי</h1>
-              <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
-                {members.length} {members.length === 1 ? 'חבר' : 'חברים'} &bull; {myRole}
-              </p>
-            </div>
+            {canManage(myRole) && (
+              <Button onClick={() => setShowInvite(true)}
+                className="w-full h-12 rounded-2xl font-bold text-base gap-2 mt-2"
+                style={{ background: '#FFBF00', color: C.primary }}>
+                <UserPlus className="h-5 w-5" />
+                הזמן משתמש חדש
+              </Button>
+            )}
           </div>
-          {canManage(myRole) && (
-            <Button onClick={() => setShowInvite(true)}
-              className="w-full h-12 rounded-2xl font-bold text-base gap-2 mt-2"
-              style={{ background: '#FFBF00', color: C.primary }}>
-              <UserPlus className="h-5 w-5" />
-              הזמן משתמש חדש
-            </Button>
-          )}
         </div>
-      </div>
+      )}
+      {/* When embedded, surface the invite CTA as a plain pill so users
+          can still reach it from inside the tab. */}
+      {embedded && canManage(myRole) && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl px-4 py-3"
+          style={{ background: C.light, border: `1px solid ${C.border}` }}>
+          <div>
+            <p className="text-sm font-bold" style={{ color: C.text }}>
+              {members.length} {members.length === 1 ? 'חבר' : 'חברים'}
+            </p>
+            <p className="text-[11px]" style={{ color: C.muted }}>התפקיד שלך: {myRole}</p>
+          </div>
+          <Button onClick={() => setShowInvite(true)}
+            className="rounded-xl font-bold gap-2 h-10 px-4"
+            style={{ background: '#FFBF00', color: C.primary }}>
+            <UserPlus className="h-4 w-4" />
+            הזמן משתמש
+          </Button>
+        </div>
+      )}
 
       {/* Roles explanation */}
       <div className="mb-6">

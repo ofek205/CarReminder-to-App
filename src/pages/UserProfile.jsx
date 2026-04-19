@@ -113,12 +113,12 @@ function ProfileCompletionBanner({ fullName, phone, birthDate }) {
   );
 }
 
-export default function UserProfilePage() {
+export default function UserProfilePage({ embedded = false }) {
   const { isGuest } = useAuth();
   if (isGuest) {
     return (
       <div dir="rtl">
-        <PageHeader title="אזור אישי" subtitle="פרטים אישיים ורישיון נהיגה" />
+        {!embedded && <PageHeader title="אזור אישי" subtitle="פרטים אישיים ורישיון נהיגה" />}
         <Card className="p-8 border border-gray-100 shadow-sm rounded-2xl text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-[#FCF9F4] flex items-center justify-center mx-auto">
             <UserPlus className="h-8 w-8 text-[#3E6B45]" />
@@ -277,7 +277,7 @@ function AuthUserProfile() {
 
   return (
     <div dir="rtl">
-      <PageHeader title="אזור אישי" subtitle="פרטים אישיים ורישיון נהיגה" />
+      {!embedded && <PageHeader title="אזור אישי" subtitle="פרטים אישיים ורישיון נהיגה" />}
 
       <DriverLicenseScanDialog
         open={showScan}
