@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/lib/supabaseEntities';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import usePullToRefresh from '@/hooks/usePullToRefresh';
+import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
 import { Plus, Car, Ship, Bike, Truck, Star, Mountain, Search, SlidersHorizontal, X, CheckCircle, Clock, AlertTriangle, ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { C, getTheme, getVehicleCategory, isOffroadType } from '@/lib/designTokens';
 import { isVessel, isOffroad, getVehicleLabels } from '../components/shared/DateStatusUtils';
@@ -478,6 +480,7 @@ export default function Vehicles() {
     init();
   }, [isAuthenticated, user]);
 
+  const queryClient = useQueryClient();
   const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ['vehicles', accountId],
     queryFn: () => db.vehicles.filter({ account_id: accountId }),
@@ -486,12 +489,19 @@ export default function Vehicles() {
     staleTime: 2 * 60 * 1000, // 2 minutes cache
   });
 
+  // Pull-to-refresh — re-fetches the vehicles list.
+  const { pulling, progress } = usePullToRefresh(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+    await new Promise(r => setTimeout(r, 500));
+  });
+
   if (authLoading) return <LoadingSpinner />;
 
   // ── Guest mode ──────────────────────────────────────────────────────────
   if (isGuest) {
     return (
       <div dir="rtl">
+        <PullToRefreshIndicator pulling={pulling} progress={progress} />
         <SignUpPromptDialog open={showSignUp} onClose={() => setShowSignUp(false)} reason="הירשם כדי לשמור רכבים לצמיתות" />
         <VehiclesContent vehicles={guestVehicles} isLoading={false} />
       </div>
@@ -499,5 +509,10 @@ export default function Vehicles() {
   }
 
   // ── Authenticated mode ──────────────────────────────────────────────────
-  return <VehiclesContent vehicles={vehicles} isLoading={!accountId || isLoading} />;
+  return (
+    <>
+      <PullToRefreshIndicator pulling={pulling} progress={progress} />
+      <VehiclesContent vehicles={vehicles} isLoading={!accountId || isLoading} />
+    </>
+  );
 }

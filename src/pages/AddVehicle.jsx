@@ -318,6 +318,23 @@ export default function AddVehicle() {
     }
   };
 
+  // Israeli law: new private cars + motorcycles are exempt from טסט for
+  // their first 3 years after registration. When we have the first-
+  // registration date but no test date (government records for brand-new
+  // vehicles don't include a next-test date), derive it automatically.
+  const autoTestDate = (fields) => {
+    if (fields.test_due_date) return fields.test_due_date;
+    if (!fields.first_registration_date) return '';
+    const EXEMPT_TYPES = new Set(['רכב', 'אופנוע כביש', 'קטנוע']);
+    if (!EXEMPT_TYPES.has(fields.vehicle_type)) return '';
+    try {
+      const d = new Date(fields.first_registration_date);
+      if (isNaN(d.getTime())) return '';
+      d.setFullYear(d.getFullYear() + 3);
+      return d.toISOString().split('T')[0];
+    } catch { return ''; }
+  };
+
   // Build the form updates object (used both after fresh lookup and after
   // the user confirms a mismatched category)
   const buildUpdatesFromFields = (fields) => ({
@@ -325,7 +342,7 @@ export default function AddVehicle() {
     manufacturer: fields.manufacturer || '',
     model: fields.model || '',
     year: fields.year || '',
-    test_due_date: fields.test_due_date || '',
+    test_due_date: autoTestDate(fields),
     fuel_type: fields.fuel_type || '',
     is_vintage: isVintageVehicle(fields.year),
     // Extra fields from gov API
@@ -1559,8 +1576,8 @@ export default function AddVehicle() {
                           <DateInput value={form.last_tire_change_date} onChange={e => handleChange('last_tire_change_date', e.target.value)} />
                         </div>
                         <div>
-                          <Label>כמה ק"מ נסעת מאז? (אופציונלי)</Label>
-                          <Input type="number" value={form.km_since_tire_change} onChange={e => handleChange('km_since_tire_change', e.target.value)} placeholder="ק״מ" />
+                          <Label>קילומטראז׳ בעת ההחלפה (אופציונלי)</Label>
+                          <Input type="number" value={form.km_since_tire_change} onChange={e => handleChange('km_since_tire_change', e.target.value)} placeholder="מד הק״מ ביום ההחלפה" />
                         </div>
                       </div>
                     )}

@@ -57,16 +57,18 @@ function PinSvg({ color = '#DC2626' }) {
 }
 
 // ── Sticky Note ────────────────────────────────────────────────────────────
-function StickyNote({ note, T, readOnly, onEdit, constraintsRef }) {
+function StickyNote({ note, T, readOnly, onEdit, constraintsRef, tidyMode = false }) {
   const colorDef = COLORS[note.color] || COLORS.yellow;
-  const rotation = note.rotation || 0;
+  // Tidy mode cancels the playful random rotation + drag so notes sit
+  // straight in the grid, ordered by due-date priority.
+  const rotation = tidyMode ? 0 : (note.rotation || 0);
   const isOverdue = note.due_date && !note.is_done && new Date(note.due_date) < new Date();
   const priority = PRIORITY_CONFIG[note.priority] || null;
   const [isDragging, setIsDragging] = useState(false);
 
   return (
     <motion.div
-      drag={!readOnly}
+      drag={!readOnly && !tidyMode}
       dragConstraints={constraintsRef}
       dragElastic={0.1}
       dragMomentum={false}
@@ -331,6 +333,9 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
   const [showDone, setShowDone] = useState(false);
+  // Tidy mode: sort by due-date, straighten rotations, disable drag.
+  // User toggles this via the "סדר אוטומטי" button in the header.
+  const [tidyMode, setTidyMode] = useState(false);
 
   // ── Data ──
   const { data: authNotes = [] } = useQuery({
@@ -349,7 +354,23 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
     ? (guestNotesForVehicle.length > 0 ? guestNotesForVehicle : demoNotes)
     : authNotes;
 
-  const openNotes = allNotes.filter(n => !n.is_done);
+  // When tidy mode is on, sort open notes: overdue first, then nearest
+  // due-date, then high-priority items, then the rest by creation order.
+  const sortForTidy = (notes) => {
+    if (!tidyMode) return notes;
+    const priorityRank = { high: 0, medium: 1, low: 2 };
+    return [...notes].sort((a, b) => {
+      const aDate = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+      const bDate = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+      if (aDate !== bDate) return aDate - bDate;
+      const aPri = priorityRank[a.priority] ?? 99;
+      const bPri = priorityRank[b.priority] ?? 99;
+      if (aPri !== bPri) return aPri - bPri;
+      return new Date(a.created_date || 0) - new Date(b.created_date || 0);
+    });
+  };
+
+  const openNotes = sortForTidy(allNotes.filter(n => !n.is_done));
   const doneNotes = allNotes.filter(n => n.is_done);
 
   const randomRotation = () => Math.round((Math.random() - 0.5) * 6);
@@ -426,12 +447,24 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
             </span>
           )}
         </div>
-        {canAdd && (
-          <Button onClick={openAdd} size="sm" className="h-8 rounded-xl font-bold text-xs gap-1"
-            style={{ background: T.primary, color: 'white' }}>
-            <Plus className="w-3.5 h-3.5" /> חדש
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {allNotes.length > 1 && (
+            <Button onClick={() => setTidyMode(t => !t)} size="sm"
+              className="h-8 rounded-xl font-bold text-xs gap-1"
+              style={tidyMode
+                ? { background: T.primary, color: 'white' }
+                : { background: '#fff', color: T.primary, border: `1px solid ${T.border}` }}
+              title={tidyMode ? 'חזור למצב חופשי' : 'סדר לפי תאריך יעד'}>
+              {tidyMode ? '✓ מסודר' : '↕ סדר אוטומטי'}
+            </Button>
+          )}
+          {canAdd && (
+            <Button onClick={openAdd} size="sm" className="h-8 rounded-xl font-bold text-xs gap-1"
+              style={{ background: T.primary, color: 'white' }}>
+              <Plus className="w-3.5 h-3.5" /> חדש
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Cork board surface - open notes */}
@@ -488,6 +521,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
                 readOnly={readOnly}
                 onEdit={openEdit}
                 constraintsRef={boardRef}
+                tidyMode={tidyMode}
               />
             ))}
 

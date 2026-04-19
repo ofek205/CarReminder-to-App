@@ -445,15 +445,32 @@ function VehicleRow({ vehicle }) {
             )}
           </div>
           {hasMissing && (
-            <div
-              className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full"
-              title={`חסר: ${missingFields.join(', ')}`}
+            <Link
+              to={`${createPageUrl('EditVehicle')}?id=${vehicle.id}&field=${encodeURIComponent(
+                {
+                  'טסט': 'test_due_date',
+                  'כושר שייט': 'test_due_date',
+                  'ביטוח': 'insurance_due_date',
+                  'ביטוח ימי': 'insurance_due_date',
+                  'מספר רישוי': 'license_plate',
+                  'יצרן': 'manufacturer',
+                  'קילומטראז\'': 'current_km',
+                  'שעות מנוע': 'current_engine_hours',
+                }[missingFields[0]] || ''
+              )}`}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full hover:bg-orange-100 transition-colors"
+              title={`חסר: ${missingFields.join(', ')} — לחץ להשלמה`}
               style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
               <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} aria-hidden="true" />
               <span className="text-[10px] font-bold" style={{ color: '#EA580C' }}>
-                השלם {missingFields.length} פרטים
+                {/* Name the missing field(s). For 1-2 fields list them explicitly
+                    ("חסר: טסט, ביטוח"); for more, fall back to a count. */}
+                {missingFields.length <= 2
+                  ? `חסר: ${missingFields.join(', ')}`
+                  : `חסרים ${missingFields.length} פרטים: ${missingFields.slice(0, 2).join(', ')}…`}
               </span>
-            </div>
+            </Link>
           )}
         </div>
 

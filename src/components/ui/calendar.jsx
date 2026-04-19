@@ -59,11 +59,15 @@ function Calendar({
         ...classNames,
       }}
       components={{
+        // RTL arrows: previous-month button sits on the RIGHT (right-1), and
+        // its chevron should point INWARD toward the calendar (←), matching
+        // the standard Hebrew calendar convention. next-month button on the
+        // LEFT points inward the other way (→).
         IconLeft: ({ className, ...props }) => (
-          <ChevronRight className={cn("h-4 w-4", className)} {...props} />
+          <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
         ),
         IconRight: ({ className, ...props }) => (
-          <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
+          <ChevronRight className={cn("h-4 w-4", className)} {...props} />
         ),
       }}
       {...props} />)
