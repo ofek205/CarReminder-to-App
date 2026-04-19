@@ -919,6 +919,25 @@ function LayoutInner({ children }) {
     setOpen(false);
   }, [location.pathname, location.search]);
 
+  // Track page views for BI dashboard. Normalizes /VehicleDetail?id=... style
+  // routes down to just "/VehicleDetail" so we aggregate per feature, not per
+  // resource. Fires once per distinct pathname per session to avoid inflating
+  // counts when React re-renders the same page.
+  useEffect(() => {
+    const key = `pv:${location.pathname}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+    // Public static pages aren't features — skip to keep the dashboard clean.
+    const SKIP = ['/', '/Auth', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
+    if (SKIP.includes(location.pathname)) return;
+    // The analytics table aggregates per (event, date) — so encode the page
+    // into the event name to get one row per (page, day).
+    const page = location.pathname.replace(/^\//, '').split('?')[0] || 'root';
+    import('@/lib/analytics').then(({ trackEvent }) => {
+      trackEvent(`page_view:${page}`);
+    });
+  }, [location.pathname]);
+
   // Detect if user has vessels
   const VESSEL_TYPES = ['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי','יאכטה מנועית'];
   const VESSEL_MFRS = ['beneteau','jeanneau','sea-doo','yamaha marine','zodiac','highfield','brig','sea ray','boston whaler'];

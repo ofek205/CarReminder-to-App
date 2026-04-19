@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid,
+  LineChart, Line, ComposedChart, Legend,
 } from 'recharts';
 import {
   format, subDays, startOfDay, parseISO, isValid,
@@ -332,6 +333,152 @@ export default function AdminDashboard() {
     return last7;
   }, [analyticsData]);
 
+  // ── BI metrics ─────────────────────────────────────────────────────────────
+  // Everything from here powers the redesigned stats dashboard.
+
+  // Helper: sum a specific event's count over a date range.
+  const sumEvent = (event, fromDate, toDate) => {
+    return analyticsData
+      .filter(r => r.event === event)
+      .filter(r => {
+        const d = r.date;
+        return d >= fromDate && d <= toDate;
+      })
+      .reduce((s, r) => s + (r.count || 0), 0);
+  };
+
+  // 14-day trend: logins, signups, guest sessions, page views — one point per day.
+  const engagementTrend = useMemo(() => {
+    const days = 14;
+    const out = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = format(subDays(TODAY, i), 'yyyy-MM-dd');
+      const label = format(subDays(TODAY, i), 'dd/MM', { locale: he });
+      const login = analyticsData.find(r => r.event === 'auth_login' && r.date === d)?.count || 0;
+      const signup = analyticsData.find(r => r.event === 'auth_signup' && r.date === d)?.count || 0;
+      const guest = analyticsData.find(r => r.event === 'guest_session' && r.date === d)?.count || 0;
+      out.push({ name: label, date: d, 'התחברויות': login, 'הרשמות': signup, 'אורחים': guest });
+    }
+    return out;
+  }, [analyticsData]);
+
+  // Conversion: guest→signup ratio per day with a 7-day rolling mean to smooth
+  // out weekday noise. A row is only kept if the denominator is non-zero.
+  const conversionTrend = useMemo(() => {
+    const days = 30;
+    const daily = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = format(subDays(TODAY, i), 'yyyy-MM-dd');
+      const signup = analyticsData.find(r => r.event === 'auth_signup' && r.date === d)?.count || 0;
+      const guest = analyticsData.find(r => r.event === 'guest_session' && r.date === d)?.count || 0;
+      daily.push({ d, signup, guest });
+    }
+    return daily.map((p, idx) => {
+      // 7-day rolling window ending at p
+      const window = daily.slice(Math.max(0, idx - 6), idx + 1);
+      const sS = window.reduce((s, w) => s + w.signup, 0);
+      const sG = window.reduce((s, w) => s + w.guest, 0);
+      const rate = sG > 0 ? Math.round((sS / sG) * 100) : null;
+      return {
+        name: format(parseISO(p.d), 'dd/MM', { locale: he }),
+        'המרה %': rate,
+        'אורחים': p.guest,
+        'הרשמות': p.signup,
+      };
+    });
+  }, [analyticsData]);
+
+  // Feature engagement — sum of page_view:<path> events per page, all-time.
+  const featureRanking = useMemo(() => {
+    const byPage = {};
+    const PAGE_LABELS = {
+      'Dashboard': 'בית',
+      'Vehicles': 'רכבים',
+      'VehicleDetail': 'פרטי רכב',
+      'AddVehicle': 'הוספת רכב',
+      'EditVehicle': 'עריכת רכב',
+      'Documents': 'מסמכים',
+      'FindGarage': 'מצא מוסך',
+      'AiAssistant': 'מומחה AI',
+      'Accidents': 'תאונות',
+      'AddAccident': 'הוספת תאונה',
+      'Notifications': 'התראות',
+      'UserProfile': 'פרופיל',
+      'AccountSettings': 'הגדרות',
+      'Community': 'קהילה',
+      'AdminReviews': 'ביקורות',
+      'ReminderSettingsPage': 'הגדרות תזכורות',
+      'Invites': 'הזמנות',
+    };
+    analyticsData.forEach(r => {
+      if (!r.event?.startsWith('page_view:')) return;
+      const page = r.event.slice('page_view:'.length);
+      const label = PAGE_LABELS[page] || page;
+      byPage[label] = (byPage[label] || 0) + (r.count || 0);
+    });
+    return Object.entries(byPage)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [analyticsData]);
+
+  // Week-over-week deltas — powers the "insights" callouts.
+  const insights = useMemo(() => {
+    const today = format(TODAY, 'yyyy-MM-dd');
+    const d7Ago = format(subDays(TODAY, 7), 'yyyy-MM-dd');
+    const d14Ago = format(subDays(TODAY, 14), 'yyyy-MM-dd');
+    const d1Ago = format(subDays(TODAY, 1), 'yyyy-MM-dd');
+
+    // Signups this week vs previous week
+    const signup7 = sumEvent('auth_signup', d7Ago, today);
+    const signup7prev = sumEvent('auth_signup', d14Ago, d7Ago);
+    const signupDelta = signup7prev > 0
+      ? Math.round(((signup7 - signup7prev) / signup7prev) * 100)
+      : (signup7 > 0 ? 100 : 0);
+
+    // Logins this week vs previous week
+    const login7 = sumEvent('auth_login', d7Ago, today);
+    const login7prev = sumEvent('auth_login', d14Ago, d7Ago);
+    const loginDelta = login7prev > 0
+      ? Math.round(((login7 - login7prev) / login7prev) * 100)
+      : (login7 > 0 ? 100 : 0);
+
+    // Conversion rate 7-day vs previous 7-day
+    const guest7 = sumEvent('guest_session', d7Ago, today);
+    const guest7prev = sumEvent('guest_session', d14Ago, d7Ago);
+    const conv7 = guest7 > 0 ? Math.round((signup7 / guest7) * 100) : 0;
+    const conv7prev = guest7prev > 0 ? Math.round((signup7prev / guest7prev) * 100) : 0;
+    const convDelta = conv7 - conv7prev; // absolute percentage points
+
+    // Top feature in the last 7 days
+    const weeklyFeatures = {};
+    analyticsData.forEach(r => {
+      if (!r.event?.startsWith('page_view:')) return;
+      if (r.date < d7Ago || r.date > today) return;
+      const page = r.event.slice('page_view:'.length);
+      weeklyFeatures[page] = (weeklyFeatures[page] || 0) + (r.count || 0);
+    });
+    const topFeature = Object.entries(weeklyFeatures)
+      .sort((a, b) => b[1] - a[1])[0];
+
+    // Login today (proxy for DAU)
+    const loginToday = sumEvent('auth_login', today, today);
+    const loginYesterday = sumEvent('auth_login', d1Ago, d1Ago);
+
+    return {
+      signup7,
+      signupDelta,
+      login7,
+      loginDelta,
+      conv7,
+      convDelta,
+      topFeature: topFeature ? { page: topFeature[0], count: topFeature[1] } : null,
+      loginToday,
+      loginYesterday,
+      guest7,
+    };
+  }, [analyticsData]);
+
   // ── Filtered slices (all driven by the global `filter`) ────────────────────
 
   const fAcc  = useMemo(() => accounts.filter(a  => inRange(a.created_date,  filter)), [accounts,  filter]);
@@ -634,6 +781,156 @@ export default function AdminDashboard() {
                   danger={totalAlerts > 0}
                 />
               </div>
+            </section>
+
+            {/* ══════════════════════════════════════════════════════
+                BI — תובנות מרכזיות (auto-generated week-over-week)
+            ══════════════════════════════════════════════════════ */}
+            <section>
+              <SectionLabel>תובנות מרכזיות (7 ימים אחרונים)</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <InsightCard
+                  label="הרשמות חדשות השבוע"
+                  value={insights.signup7.toLocaleString()}
+                  delta={insights.signupDelta}
+                  deltaSuffix="% משבוע שעבר"
+                  tone="green"
+                />
+                <InsightCard
+                  label="התחברויות השבוע"
+                  value={insights.login7.toLocaleString()}
+                  delta={insights.loginDelta}
+                  deltaSuffix="% משבוע שעבר"
+                  tone="blue"
+                />
+                <InsightCard
+                  label="המרה אורחים → רישום"
+                  value={`${insights.conv7}%`}
+                  delta={insights.convDelta}
+                  deltaSuffix=" נק' אחוז"
+                  tone="purple"
+                  sub={`${insights.guest7.toLocaleString()} אורחים, ${insights.signup7.toLocaleString()} הרשמות`}
+                />
+                <InsightCard
+                  label="התחברויות היום"
+                  value={insights.loginToday.toLocaleString()}
+                  delta={insights.loginYesterday > 0
+                    ? Math.round(((insights.loginToday - insights.loginYesterday) / insights.loginYesterday) * 100)
+                    : null}
+                  deltaSuffix="% מאתמול"
+                  tone="amber"
+                  sub={`אתמול: ${insights.loginYesterday}`}
+                />
+              </div>
+              {insights.topFeature && (
+                <div className="mt-3 bg-gradient-to-l from-purple-50 to-blue-50 border border-purple-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+                  <span className="text-2xl">🔥</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-purple-700">הפיצ'ר הפופולרי השבוע</p>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-bold">{insights.topFeature.page}</span>
+                      {' '}עם {insights.topFeature.count} צפיות
+                    </p>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {/* ══════════════════════════════════════════════════════
+                BI — מגמת כניסות ורישומים (14 ימים)
+            ══════════════════════════════════════════════════════ */}
+            <section>
+              <SectionLabel>מגמת כניסות ורישומים · 14 ימים אחרונים</SectionLabel>
+              <ChartCard>
+                {engagementTrend.every(d => !d['התחברויות'] && !d['הרשמות'] && !d['אורחים'])
+                  ? <EmptyChart text="עדיין אין אירועי כניסה מתוצפים" />
+                  : (
+                    <ResponsiveContainer width="100%" height={240}>
+                      <LineChart data={engagementTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                        <Tooltip content={<BiTooltip />} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        <Line type="monotone" dataKey="התחברויות" stroke={C.blue} strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                        <Line type="monotone" dataKey="הרשמות" stroke={C.green} strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                        <Line type="monotone" dataKey="אורחים" stroke={C.purple} strokeWidth={2.5} strokeDasharray="4 3" dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )
+                }
+                <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
+                  כל נקודה = מספר אירועים ביום. קו מקווקו (אורחים) מאפשר להשוות מי פותח את האפליקציה בלי להירשם.
+                </p>
+              </ChartCard>
+            </section>
+
+            {/* ══════════════════════════════════════════════════════
+                BI — אחוז המרה אורחים → משתמשים (30 יום, 7-day rolling)
+            ══════════════════════════════════════════════════════ */}
+            <section>
+              <SectionLabel>אחוז המרה אורחים → רישום · 30 יום</SectionLabel>
+              <ChartCard>
+                {conversionTrend.every(d => d['המרה %'] === null)
+                  ? <EmptyChart text="אין מספיק נתונים לחישוב המרה" />
+                  : (
+                    <ResponsiveContainer width="100%" height={240}>
+                      <ComposedChart data={conversionTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                        <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                        <YAxis yAxisId="right" orientation="left" tick={{ fontSize: 11, fill: '#A855F7' }} axisLine={false} tickLine={false} unit="%" />
+                        <Tooltip content={<BiTooltip />} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        <Bar yAxisId="left" dataKey="אורחים" fill={C.slate} opacity={0.5} radius={[4, 4, 0, 0]} />
+                        <Bar yAxisId="left" dataKey="הרשמות" fill={C.green} radius={[4, 4, 0, 0]} />
+                        <Line yAxisId="right" type="monotone" dataKey="המרה %" stroke={C.purple} strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 6 }} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  )
+                }
+                <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
+                  קו המרה = ממוצע נע של 7 ימים (חלק מרעשי סופי־שבוע). עלייה עקבית = יחס המרה משתפר.
+                </p>
+              </ChartCard>
+            </section>
+
+            {/* ══════════════════════════════════════════════════════
+                BI — דירוג פיצ'רים (page view events, כל הזמנים)
+            ══════════════════════════════════════════════════════ */}
+            <section>
+              <SectionLabel>דירוג פיצ'רים — איפה המשתמשים מבלים</SectionLabel>
+              <ChartCard>
+                {featureRanking.length === 0
+                  ? <EmptyChart text="עדיין אין נתוני page_view (טרקר הופעל זה עתה)" />
+                  : (
+                    <div className="space-y-3">
+                      {featureRanking.map((f, i) => {
+                        const max = featureRanking[0].count || 1;
+                        const pct = Math.round((f.count / max) * 100);
+                        return (
+                          <div key={f.name}>
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span className="font-medium text-gray-700 flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-gray-400 w-4">#{i + 1}</span>
+                                {f.name}
+                              </span>
+                              <span className="font-bold text-gray-900 tabular-nums">{f.count.toLocaleString()}</span>
+                            </div>
+                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${pct}%`, backgroundColor: CHART_PALETTE[i % CHART_PALETTE.length] }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                }
+                <p className="text-[10px] text-gray-400 mt-4 leading-relaxed">
+                  הצפייה נספרת פעם אחת לכל משתמש בכל פתיחת אפליקציה. פיצ'ר בתחתית הרשימה = מועמד לשיפור UX או להבלטה.
+                </p>
+              </ChartCard>
             </section>
 
             {/* ══════════════════════════════════════════════════════
@@ -1410,6 +1707,43 @@ function AdminUsersTab() {
         onConfirm={doDelete}
         onCancel={() => !deleting && setPendingDelete(null)}
       />
+    </div>
+  );
+}
+
+// Headline metric card used at the top of the BI stats tab. Shows a big
+// value + a delta chip (colored green/red/gray based on direction).
+function InsightCard({ label, value, sub, delta, deltaSuffix = '%', tone = 'blue' }) {
+  const tones = {
+    blue:   { bg: 'from-blue-50 to-white',    dot: '#3B82F6' },
+    green:  { bg: 'from-emerald-50 to-white', dot: '#10B981' },
+    purple: { bg: 'from-purple-50 to-white',  dot: '#A855F7' },
+    amber:  { bg: 'from-amber-50 to-white',   dot: '#F59E0B' },
+  };
+  const t = tones[tone] || tones.blue;
+  const hasDelta = delta !== null && delta !== undefined && !Number.isNaN(delta);
+  const positive = hasDelta && delta > 0;
+  const negative = hasDelta && delta < 0;
+  const neutral = hasDelta && delta === 0;
+  const deltaBg = positive ? 'bg-emerald-50 text-emerald-700'
+                 : negative ? 'bg-red-50 text-red-700'
+                 : 'bg-gray-100 text-gray-500';
+  return (
+    <div className={`rounded-2xl border border-gray-100 p-4 bg-gradient-to-br ${t.bg} shadow-sm`}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <p className="text-[11px] font-bold text-gray-500">{label}</p>
+        <span className="w-1.5 h-1.5 rounded-full mt-1" style={{ background: t.dot }} />
+      </div>
+      <p className="text-2xl font-black text-gray-900 tracking-tight">{value}</p>
+      <div className="flex items-center justify-between gap-2 mt-2">
+        {sub && <p className="text-[10px] text-gray-400 truncate">{sub}</p>}
+        {hasDelta && (
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${deltaBg}`}>
+            {positive ? '↑ ' : negative ? '↓ ' : ''}{Math.abs(delta)}{deltaSuffix}
+            {neutral ? ' ללא שינוי' : ''}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
