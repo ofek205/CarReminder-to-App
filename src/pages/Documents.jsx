@@ -772,14 +772,27 @@ function AuthDocuments({ vehicleIdParam }) {
   const handleSave = async (form) => {
     setSaving(true);
     try {
-      // Only keep known DB columns
+      // Only keep known DB columns. The form has a `description` field that
+      // the DB stores as `notes` — map it explicitly so the user's notes
+      // aren't silently dropped during save.
       const DOC_COLUMNS = ['document_type','title','issue_date','expiry_date','vehicle_id','file_url','notes'];
       const data = { account_id: accountId };
       DOC_COLUMNS.forEach(k => {
         if (form[k] !== undefined && form[k] !== null && form[k] !== '') data[k] = form[k];
       });
+      // Map form.description → DB column `notes`
+      if (form.description && !data.notes) data.notes = form.description;
+
+      // Guard against oversized uploads. Supabase rejects >10MB JSON payloads,
+      // and base64 inflates by ~33%, so a 5MB file is ~6.7MB as base64 — fine,
+      // but anything bigger will fail silently and the user will just see
+      // "Save failed" with no hint. Check before we try.
+      if (data.file_url && typeof data.file_url === 'string' && data.file_url.length > 8 * 1024 * 1024) {
+        throw new Error('הקובץ גדול מדי. נסה קובץ קטן יותר (עד 5MB)');
+      }
+
       const created = await db.documents.create(data);
-      if (!created) throw new Error('yet');
+      if (!created) throw new Error('שמירה נכשלה');
       if (userId) await trackUserAction(userId);
       await queryClient.invalidateQueries({ queryKey: ['documents'] });
       await queryClient.refetchQueries({ queryKey: ['documents', accountId, vehicleIdParam] });
@@ -789,7 +802,8 @@ function AuthDocuments({ vehicleIdParam }) {
     } catch (err) {
       console.error('Document save error:', err);
       hapticFeedback('heavy');
-      toast.error('שגיאה בשמירת המסמך: ' + (err?.message || ''));
+      const msg = err?.message || 'שגיאה לא ידועה';
+      toast.error('שגיאה בשמירת המסמך: ' + msg);
     } finally {
       setSaving(false);
     }

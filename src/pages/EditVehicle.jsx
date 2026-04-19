@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
@@ -32,6 +33,7 @@ export default function EditVehicle() {
   const vehicleId = urlParams.get('id');
   const highlightField = urlParams.get('field');
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { isGuest, guestVehicles, updateGuestVehicle } = useAuth();
   const { role, isGuest: isGuestRole } = useAccountRole();
 
@@ -312,6 +314,13 @@ export default function EditVehicle() {
     if (!accountId) { setSaving(false); return; }
     try {
       await db.vehicles.update(vehicleId, data);
+      // Invalidate all cached reads of this vehicle + the vehicles list so the
+      // detail page + dashboard reflect the new marine insurance / engine
+      // hours / any other edited field immediately instead of showing stale
+      // cached data. Without this, users see "I saved but it didn't update".
+      await queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+      await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      await queryClient.invalidateQueries({ queryKey: ['documents'] });
       toast.success(vesselMode ? 'פרטי כלי השייט עודכנו בהצלחה' : 'פרטי הרכב עודכנו בהצלחה');
       navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true });
     } catch (firstErr) {
@@ -342,6 +351,10 @@ export default function EditVehicle() {
         } else {
           toast.success(vesselMode ? 'פרטי כלי השייט עודכנו בהצלחה' : 'פרטי הרכב עודכנו בהצלחה');
         }
+        // Same cache invalidation as the happy path above
+        await queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+        await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+        await queryClient.invalidateQueries({ queryKey: ['documents'] });
         navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true });
       } catch (retryErr) {
         console.error('Vehicle update error (retry):', retryErr);

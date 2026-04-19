@@ -431,7 +431,9 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
             </div>
           </div>
 
-          <div className="flex gap-2 pt-4">
+          {/* Action row — sticky bottom so it stays above the keyboard */}
+          <div className="sticky bottom-0 bg-white border-t border-gray-100 -mx-6 px-6 py-3 flex gap-2"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}>
             <Button type="submit" disabled={saveMutation.isPending} className="flex-1 bg-amber-600 hover:bg-amber-700">
               {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (repair ? 'עדכן' : 'שמור')}
             </Button>

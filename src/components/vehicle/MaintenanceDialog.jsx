@@ -382,7 +382,11 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
               </div>
             </div>
 
-            {/* ── Save button ── */}
+          </div>
+
+          {/* ── Save button — sticky footer so it stays above the mobile keyboard ── */}
+          <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-3"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}>
             <Button
               onClick={onSave}
               disabled={saving || !logForm.service_type}
