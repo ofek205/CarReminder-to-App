@@ -33,6 +33,7 @@ export function getVehicleTypeIcon(type) {
 }
 
 export function normalizePlate(plate) {
+  if (!plate || typeof plate !== 'string') return '';
   return plate.replace(/[^0-9]/g, '');
 }
 

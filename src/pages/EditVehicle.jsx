@@ -243,20 +243,26 @@ export default function EditVehicle() {
     // Compute vesselMode locally (same as render-level computation)
     const vesselMode = isVesselType(form.vehicle_type, form.nickname);
 
-    // Check for duplicate license plate (excluding self)
-    if (form.license_plate && accountId && !isGuest) {
+    // Check for duplicate license plate (excluding self). Skip the check if
+    // the plate is empty — also skip for vessels (letter-based IDs get
+    // stripped to nothing by normalizePlate and would falsely match any car).
+    const normalizedNew = normalizePlate(form.license_plate);
+    if (normalizedNew && accountId && !isGuest) {
       try {
-        const normalizedNew = normalizePlate(form.license_plate);
         const allVehicles = await db.vehicles.filter({ account_id: accountId });
         const duplicate = allVehicles.find(v =>
           v.id !== vehicleId &&
-          (v.license_plate_normalized || normalizePlate(v.license_plate || '')) === normalizedNew
+          normalizePlate(v.license_plate_normalized || v.license_plate || '') === normalizedNew
         );
         if (duplicate) {
-          toast.error('רכב אחר עם מספר רישוי זה כבר קיים במערכת');
+          const dupName = duplicate.nickname || duplicate.license_plate || 'רכב אחר';
+          toast.error(`מספר הרישוי כבר קיים ב"${dupName}" — אי אפשר להזין פעמיים`);
+          setSaving(false);
           return;
         }
-      } catch {}
+      } catch (dupErr) {
+        console.warn('Duplicate plate check failed:', dupErr?.message);
+      }
     }
 
     setSaving(true);

@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Camera, Loader2 } from 'lucide-react';
 import { aiRequest } from '@/lib/aiProxy';
 import { toast } from 'sonner';
+import { isNative, takePhoto } from '@/lib/capacitor';
 
 /**
  * Small camera button that scans a photo/certificate and extracts an expiry date using AI.
@@ -68,12 +69,32 @@ export default function AiDateScan({ onDateExtracted, label = 'סרוק תוקף
     }
   };
 
+  // Native (Capacitor): Camera plugin — the plain <input> picker only opens
+  // the gallery on native, so users couldn't actually take a fresh photo of
+  // an extinguisher / pyro label / certificate. Here we invoke the native
+  // camera directly.
+  const handleNativeCamera = async () => {
+    try {
+      const result = await takePhoto('CAMERA');
+      if (!result?.dataUrl) return;
+      await scanDate(result.dataUrl);
+    } catch (err) {
+      console.error('Native camera error:', err);
+      toast.error('שגיאה בפתיחת המצלמה');
+    }
+  };
+
+  const onButtonClick = () => {
+    if (isNative) handleNativeCamera();
+    else fileRef.current?.click();
+  };
+
   return (
     <>
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
       <button
         type="button"
-        onClick={() => fileRef.current?.click()}
+        onClick={onButtonClick}
         disabled={scanning}
         className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-[0.95] disabled:opacity-60 mt-1"
         style={{ background: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0' }}

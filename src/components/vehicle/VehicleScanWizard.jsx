@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Upload, Pencil, ScanLine, AlertTriangle, Check, Camera } from "lucide-react";
 import { normalizePlate } from "../shared/DateStatusUtils";
+import { isNative, takePhoto } from '@/lib/capacitor';
 
 function parseIsraeliDate(dateStr) {
   if (!dateStr) return '';
@@ -392,8 +393,28 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
                   <span className="text-[10px] text-gray-400">PDF / JPG / PNG</span>
                   <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFileSelect} />
                 </label>
-                {/* Camera capture */}
-                <label className="flex flex-col items-center gap-2 p-4 border-2 border-dashed border-[#D8E5D9] rounded-2xl cursor-pointer hover:border-[#4B7A53] transition-colors bg-white text-center">
+                {/* Camera capture — uses the Capacitor Camera plugin on native
+                    (Android WebView silently ignores capture="environment" and
+                    only opens the gallery, so we route natives to takePhoto()). */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!isNative) {
+                      document.getElementById('vsw-camera-input')?.click();
+                      return;
+                    }
+                    try {
+                      const result = await takePhoto('CAMERA');
+                      if (!result?.dataUrl) return;
+                      // Fake a change event so handleFileSelect doesn't need to change
+                      const blob = await (await fetch(result.dataUrl)).blob();
+                      const file = new File([blob], `scan-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+                      handleFileSelect({ target: { files: [file], value: '' } });
+                    } catch (err) {
+                      console.error('Native camera error:', err);
+                    }
+                  }}
+                  className="flex flex-col items-center gap-2 p-4 border-2 border-dashed border-[#D8E5D9] rounded-2xl cursor-pointer hover:border-[#4B7A53] transition-colors bg-white text-center">
                   {uploading ? (
                     <Loader2 className="h-5 w-5 animate-spin text-[#2D5233]" />
                   ) : (
@@ -401,8 +422,8 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
                   )}
                   <span className="text-xs text-gray-600 font-medium">צלם עכשיו</span>
                   <span className="text-[10px] text-gray-400">פתח מצלמה</span>
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileSelect} />
-                </label>
+                  <input id="vsw-camera-input" type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileSelect} />
+                </button>
               </div>
               {fileUrl && (
                 <p className="mt-2 text-sm text-green-700 flex items-center gap-1.5">

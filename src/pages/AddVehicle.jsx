@@ -29,6 +29,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import useAccountRole from '@/hooks/useAccountRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
+import FileOrCameraUpload from '@/components/ui/file-or-camera-upload';
 import AiDateScan from '../components/shared/AiDateScan';
 import useFormDraft from '@/hooks/useFormDraft';
 import useFormValidation from '@/hooks/useFormValidation';
@@ -446,16 +447,18 @@ export default function AddVehicle() {
       },
     })) return;
 
-    // Check for duplicate license plate
-    if (form.license_plate) {
-      const normalizedNew = normalizePlate(form.license_plate);
+    // Check for duplicate license plate. Empty normalized value = skip
+    // (vessels with letter-only IDs, or users who haven't entered a plate yet).
+    const normalizedNew = normalizePlate(form.license_plate);
+    if (normalizedNew) {
       const vehicles = isGuest ? guestVehicles : existingVehicles;
       const duplicate = vehicles.find(v =>
-        (v.license_plate_normalized || normalizePlate(v.license_plate || '')) === normalizedNew
+        normalizePlate(v.license_plate_normalized || v.license_plate || '') === normalizedNew
       );
       if (duplicate) {
         setDuplicateVehicle(duplicate);
-        toast.error('רכב עם מספר רישוי זה כבר קיים במערכת');
+        const dupName = duplicate.nickname || duplicate.license_plate || 'רכב קיים';
+        toast.error(`מספר הרישוי כבר קיים ב"${dupName}" — אי אפשר להזין פעמיים`);
         return;
       }
     }
@@ -1171,10 +1174,13 @@ export default function AddVehicle() {
 
             <div className="p-4 sm:p-6 rounded-3xl" style={{ background: '#FAFAF8', border: '1.5px solid #E8E0D4', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
               <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Photo */}
-                <div className="flex justify-center">
-                  <div className="relative">
-                    <label className="cursor-pointer">
+                {/* Photo — gallery input on the preview + native camera button below.
+                    Capacitor's WebView ignores capture="environment" on <input>, so
+                    direct camera access needs the Capacitor Camera plugin (which
+                    FileOrCameraUpload wraps). Two tap targets avoids forcing either. */}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="relative w-full">
+                    <label className="cursor-pointer block">
                       <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
                       {photoPreview ? (
                         <img src={photoPreview} alt="" className="w-full h-32 rounded-2xl object-cover border-2 border-gray-200" />
@@ -1184,12 +1190,18 @@ export default function AddVehicle() {
                           <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: T.primary }}>
                             <Camera className="h-6 w-6 text-white" />
                           </div>
-                          <span className="text-sm font-bold" style={{ color: T.primary }}>צרף תמונה</span>
-                          <span className="text-[10px]" style={{ color: T.muted }}>גלריה או מצלמה</span>
+                          <span className="text-sm font-bold" style={{ color: T.primary }}>צרף תמונה מהגלריה</span>
+                          <span className="text-[10px]" style={{ color: T.muted }}>או לחץ למטה לצילום</span>
                         </div>
                       )}
                     </label>
                   </div>
+                  <FileOrCameraUpload
+                    accept="image/*"
+                    onChange={handlePhoto}
+                    label={photoPreview ? 'החלף תמונה' : 'בחר מהגלריה'}
+                    className="w-full"
+                  />
                 </div>
 
                 {/* ── Form fields ── */}
