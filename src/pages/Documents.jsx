@@ -855,6 +855,22 @@ function AuthDocuments({ vehicleIdParam }) {
   const handleSave = async (form) => {
     setSaving(true);
     try {
+      // Re-verify that the current user is actually בעלים/מנהל on the account
+      // we're about to write into — the documents RLS policy rejects inserts
+      // from שותף (viewers) with a cryptic "row-level security policy"
+      // message. Catch it here so the user sees a clear Hebrew explanation
+      // instead of the raw Postgres error.
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) throw new Error('לא מחובר');
+      const liveMembers = await db.account_members.filter({ user_id: authUser.id, status: 'פעיל' });
+      const myMember = liveMembers.find(m => m.account_id === accountId);
+      if (!myMember) {
+        throw new Error('החשבון שלך לא משויך לקבוצה. נסה להתנתק ולהתחבר שוב.');
+      }
+      if (!['בעלים', 'מנהל'].includes(myMember.role)) {
+        throw new Error('רק בעלים או מנהל יכולים להוסיף מסמכים. פנה לבעל החשבון לעלות בהרשאה.');
+      }
+
       // Only keep known DB columns. The form has a `description` field that
       // the DB stores as `notes` — map it explicitly so the user's notes
       // aren't silently dropped during save.
