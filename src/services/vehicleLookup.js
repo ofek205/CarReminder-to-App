@@ -179,7 +179,17 @@ function mapSpecRecord(r) {
   if (r.madad_yarok)            specs.green_index      = safeNum(r.madad_yarok);
   if (r.mazgan_ind === 1 || r.mazgan_ind === '1') specs.ac = 'כן';
   if (r.abs_ind === 1 || r.abs_ind === '1') specs.abs = 'כן';
-  if (r.kosher_grira_im_blamim) specs.tow_capacity     = safeNum(r.kosher_grira_im_blamim) + ' ק"ג';
+  // Tow capacity: combine "with brakes" + "without brakes" in one string when both exist.
+  // Display pattern: "1500 / 750 ק\"ג" (עם בלמים / בלי) — matches how Israeli specs sheets show it.
+  const towBraked = safeNum(r.kosher_grira_im_blamim);
+  const towUnbraked = safeNum(r.kosher_grira_bli_blamim);
+  if (towBraked && towUnbraked) {
+    specs.tow_capacity = `${towBraked} / ${towUnbraked} ק"ג (עם/בלי בלמים)`;
+  } else if (towBraked) {
+    specs.tow_capacity = `${towBraked} ק"ג (עם בלמים)`;
+  } else if (towUnbraked) {
+    specs.tow_capacity = `${towUnbraked} ק"ג (בלי בלמים)`;
+  }
   return specs;
 }
 
