@@ -4,7 +4,7 @@ import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
-import { Plus, Car, FileText, User, Home, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, AlertCircle } from "lucide-react";
+import { Plus, Car, FileText, User, Home, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, AlertCircle, ArrowUpDown } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
@@ -503,6 +503,14 @@ export default function Dashboard() {
     getStoredGuestDocuments, getStoredGuestReminderSettings, clearGuestData, isDemoDismissed } = useAuth();
   const [accountId, setAccountId] = useState(null);
   const [filteredVehicles, setFilteredVehicles] = useState(null);
+  // Dashboard list sort. Default: newest first (most-recently added on top).
+  // Options: 'newest' | 'oldest' | 'type' | 'year'
+  const [sortBy, setSortBy] = useState(() => {
+    try { return localStorage.getItem('cr_dashboard_sort') || 'newest'; } catch { return 'newest'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('cr_dashboard_sort', sortBy); } catch {}
+  }, [sortBy]);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showCompleteProfile, setShowCompleteProfile] = useState(false);
   const [profileMissing, setProfileMissing] = useState(false);
@@ -769,7 +777,22 @@ export default function Dashboard() {
   // ── AUTHENTICATED MODE ─────────────────────────────────────────────────────
   if (!accountId || vehiclesLoading) return <LoadingSpinner />;
 
-  const displayedVehicles = filteredVehicles !== null ? filteredVehicles : vehicles;
+  // Apply user-selected sort on top of any active filter.
+  const sortVehicles = (list) => {
+    const arr = [...list];
+    if (sortBy === 'oldest') {
+      arr.sort((a, b) => new Date(a.created_at || a.created_date || 0) - new Date(b.created_at || b.created_date || 0));
+    } else if (sortBy === 'year') {
+      arr.sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0));
+    } else if (sortBy === 'type') {
+      arr.sort((a, b) => String(a.vehicle_type || '').localeCompare(String(b.vehicle_type || ''), 'he'));
+    } else {
+      // newest (default)
+      arr.sort((a, b) => new Date(b.created_at || b.created_date || 0) - new Date(a.created_at || a.created_date || 0));
+    }
+    return arr;
+  };
+  const displayedVehicles = sortVehicles(filteredVehicles !== null ? filteredVehicles : vehicles);
 
   const allReminders = vehicles.flatMap(v => {
     const vc = getVehicleCategory(v.vehicle_type, v.nickname, v.manufacturer);
@@ -798,10 +821,28 @@ export default function Dashboard() {
           <div>
             <h2 className="font-black text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
           </div>
-          <Link to={createPageUrl('Vehicles')}
-            className="flex items-center gap-1 text-sm font-bold" style={{ color: C.green }}>
-            ניהול <ChevronLeft className="w-4 h-4" />
-          </Link>
+          <div className="flex items-center gap-2">
+            {vehicles.length > 1 && (
+              <div className="relative flex items-center">
+                <ArrowUpDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: C.muted }} />
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value)}
+                  aria-label="מיון רכבים"
+                  className="appearance-none text-[12px] font-bold rounded-xl pr-7 pl-2 py-1.5 outline-none cursor-pointer"
+                  style={{ background: '#fff', border: `1px solid ${C.border}`, color: C.text }}>
+                  <option value="newest">מהחדש לישן</option>
+                  <option value="oldest">מהישן לחדש</option>
+                  <option value="type">לפי סוג</option>
+                  <option value="year">לפי שנה</option>
+                </select>
+              </div>
+            )}
+            <Link to={createPageUrl('Vehicles')}
+              className="flex items-center gap-1 text-sm font-bold" style={{ color: C.green }}>
+              ניהול <ChevronLeft className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
 
         {vehicles.length === 0 ? (

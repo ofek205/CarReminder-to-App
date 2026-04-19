@@ -3,7 +3,25 @@ import { C } from '@/lib/designTokens';
 import { isVesselType } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { db } from '@/lib/supabaseEntities';
-import { MapPin, Navigation, Wrench, Search, Loader2, AlertCircle, MapPinOff, Phone, Star, Filter, ArrowUpDown, ExternalLink, Anchor, Ship, Package, Settings } from 'lucide-react';
+import { MapPin, Navigation, Wrench, Search, Loader2, AlertCircle, MapPinOff, Phone, Star, Filter, ArrowUpDown, ExternalLink, Anchor, Ship, Package, Settings, LocateFixed } from 'lucide-react';
+import { getCurrentPosition } from '@/lib/capacitor';
+
+// Brand SVG marks — used on the directions buttons. Kept inline to avoid extra assets.
+const GoogleMapsMark = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 2C7.58 2 4 5.58 4 10c0 7 8 12 8 12s8-5 8-12c0-4.42-3.58-8-8-8z" fill="#EA4335"/>
+    <circle cx="12" cy="10" r="3" fill="#fff"/>
+  </svg>
+);
+
+const WazeMark = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 3a8 8 0 0 1 8 8c0 1.5-.3 2.4-.8 3.2-.5.8-1 1.3-1 2.3 0 .8.2 1.3.2 1.8 0 .8-.6 1.2-1.3 1.2-.8 0-1.4-.4-2-1-.6-.5-1.2-1-2.1-1H9c-1 0-1.7.5-2.3 1-.6.5-1.2 1-2 1-.7 0-1.3-.4-1.3-1.2 0-.5.2-1 .2-1.8 0-1-.5-1.5-1-2.3S2 12.5 2 11a8 8 0 0 1 8-8h2z" fill="#33CCFF"/>
+    <circle cx="9" cy="11" r="1.2" fill="#fff"/>
+    <circle cx="15" cy="11" r="1.2" fill="#fff"/>
+    <path d="M9 14.5c.8.8 2 1.2 3 1.2s2.2-.4 3-1.2" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" fill="none"/>
+  </svg>
+);
 
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -224,14 +242,20 @@ export default function FindGarage() {
     );
   }, []);
 
-  const retryGps = () => {
-    if (!navigator.geolocation) return;
+  const retryGps = async () => {
     setLocError(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setUsingGps(true); },
-      () => { setLocError('לא הצלחנו לזהות מיקום'); setTimeout(() => setLocError(null), 3000); },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+    try {
+      const pos = await getCurrentPosition();
+      setUserLocation({ lat: pos.latitude, lng: pos.longitude });
+      setUsingGps(true);
+      // Snap the map back to the new location.
+      if (mapRef.current) {
+        try { mapRef.current.setView([pos.latitude, pos.longitude], 14, { animate: true }); } catch {}
+      }
+    } catch {
+      setLocError('לא הצלחנו לזהות מיקום');
+      setTimeout(() => setLocError(null), 3000);
+    }
   };
 
   // Fetch garages - includes tyres, with retry on alternate server
@@ -603,11 +627,15 @@ export default function FindGarage() {
                         {g.address && <p className="text-xs text-gray-400 mb-2">{g.address}</p>}
                         <div className="flex gap-1.5">
                           <button onClick={() => openGoogleNav(g.lat, g.lon)}
-                            className="flex-1 text-xs text-white rounded-lg px-2 py-1.5 font-medium"
-                            style={{ background: C.primary }}>Google Maps</button>
+                            className="flex-1 flex items-center justify-center gap-1 text-xs rounded-lg px-2 py-1.5 font-bold"
+                            style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#202124' }}>
+                            <GoogleMapsMark size={13} /> Google Maps
+                          </button>
                           <button onClick={() => openWazeNav(g.lat, g.lon)}
-                            className="flex-1 text-xs text-white rounded-lg px-2 py-1.5 font-medium"
-                            style={{ background: '#33CCFF' }}>Waze</button>
+                            className="flex-1 flex items-center justify-center gap-1 text-xs rounded-lg px-2 py-1.5 font-bold"
+                            style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#0A73B8' }}>
+                            <WazeMark size={13} /> Waze
+                          </button>
                         </div>
                       </div>
                     </Popup>
@@ -615,6 +643,24 @@ export default function FindGarage() {
                   );
                 })}
               </MapContainer>
+            )}
+
+            {/* Floating "recenter to my location" button — bottom-left of map in RTL feels natural for left-hand thumbs */}
+            {userLocation && (
+              <button
+                onClick={retryGps}
+                aria-label="חזרה למיקום שלי"
+                title="חזרה למיקום שלי"
+                className="absolute bottom-3 left-3 w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95"
+                style={{
+                  background: '#fff',
+                  border: `1.5px solid ${C.border}`,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  zIndex: 400,
+                  color: C.primary,
+                }}>
+                <LocateFixed className="w-5 h-5" />
+              </button>
             )}
           </div>
         </div>
@@ -738,15 +784,15 @@ export default function FindGarage() {
                     {/* Action buttons — compact for mobile */}
                     <div className="flex gap-1 mt-2">
                       <button onClick={e => { e.stopPropagation(); openGoogleNav(g.lat, g.lon); }}
-                        className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold text-white transition-all active:scale-[0.95]"
-                        style={{ background: '#4285F4' }}>
-                        <Navigation className="w-3 h-3" />
-                        Google
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-[0.95]"
+                        style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#202124' }}>
+                        <GoogleMapsMark size={14} />
+                        Google Maps
                       </button>
                       <button onClick={e => { e.stopPropagation(); openWazeNav(g.lat, g.lon); }}
-                        className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-[11px] font-bold text-white transition-all active:scale-[0.95]"
-                        style={{ background: '#33CCFF' }}>
-                        <Navigation className="w-3 h-3" />
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-[0.95]"
+                        style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#0A73B8' }}>
+                        <WazeMark size={14} />
                         Waze
                       </button>
                       <button onClick={e => { e.stopPropagation(); openGoogleSearch(g.name, g.lat, g.lon); }}

@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, Loader2, Search, CheckCircle2, X, ChevronLeft, AlertTriangle, Phone, User, Car, MapPin, FileText, Shield, Calendar, ZoomIn } from 'lucide-react';
+import { Camera, Loader2, Search, CheckCircle2, X, ChevronLeft, AlertTriangle, Phone, User, Car, MapPin, FileText, Shield, Calendar, ZoomIn, LocateFixed } from 'lucide-react';
+import { getCurrentPosition } from '@/lib/capacitor';
 import { Link } from 'react-router-dom';
 import { lookupVehicleByPlate } from '../services/vehicleLookup';
 import { toast } from 'sonner';
@@ -92,6 +93,44 @@ export default function AddAccident() {
   });
   const { errors, validate, clearError } = useFormValidation();
   const [systemError, setSystemError] = useState(null);
+  const [fetchingLoc, setFetchingLoc] = useState(false);
+
+  // WhatsApp-style "use current location" — grab GPS, reverse-geocode to a
+  // human-readable address via Nominatim, and drop it into the location field.
+  // Falls back to raw "lat, lng" if reverse-geocoding fails so the user still
+  // gets something usable.
+  const handleUseCurrentLocation = async () => {
+    if (fetchingLoc) return;
+    setFetchingLoc(true);
+    try {
+      const pos = await getCurrentPosition();
+      const { latitude, longitude } = pos;
+      let display = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=he&zoom=17`,
+          { headers: { 'Accept-Language': 'he' } }
+        );
+        if (res.ok) {
+          const json = await res.json();
+          const a = json.address || {};
+          const parts = [
+            [a.road, a.house_number].filter(Boolean).join(' '),
+            a.suburb || a.neighbourhood,
+            a.city || a.town || a.village,
+          ].filter(Boolean);
+          if (parts.length > 0) display = parts.join(', ');
+          else if (json.display_name) display = String(json.display_name).slice(0, 120);
+        }
+      } catch { /* keep lat,lng fallback */ }
+      handleChange('location', display);
+      toast.success('מיקום נוסף');
+    } catch (e) {
+      toast.error(e?.message?.includes('denied') ? 'נדרשת הרשאת מיקום' : 'לא הצלחנו לזהות מיקום');
+    } finally {
+      setFetchingLoc(false);
+    }
+  };
 
   // Load account for authenticated users
   useEffect(() => {
@@ -354,12 +393,24 @@ export default function AddAccident() {
             </div>
             <div>
               <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>מיקום</Label>
-              <Input
-                value={form.location}
-                onChange={e => handleChange('location', e.target.value)}
-                placeholder="כתובת / צומת / כביש"
-                className="rounded-xl"
-              />
+              <div className="relative">
+                <Input
+                  value={form.location}
+                  onChange={e => handleChange('location', e.target.value)}
+                  placeholder="כתובת / צומת / כביש"
+                  className="rounded-xl pl-10"
+                />
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  disabled={fetchingLoc}
+                  aria-label="השתמש במיקום הנוכחי"
+                  title="השתמש במיקום הנוכחי"
+                  className="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-50"
+                  style={{ background: C.light, color: C.primary }}>
+                  {fetchingLoc ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
           </div>
         </div>
