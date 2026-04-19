@@ -57,6 +57,7 @@ export default function BottomNav() {
           const activeTextColor = tab.isAi ? '#92400E' : '#2D5233';
           return (
             <Link key={tab.path} to={createPageUrl(tab.path)}
+              data-tour={tab.isAi ? 'ai-tab' : undefined}
               className="flex flex-col items-center gap-0.5 py-1 px-2 min-w-0">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center transition-all relative"
                 style={{

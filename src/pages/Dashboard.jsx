@@ -17,6 +17,7 @@ import { format, parseISO } from 'date-fns';
 import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import CompleteProfileScreen, { hasCompletedProfile } from '../components/shared/CompleteProfileScreen';
 import LicensePlate from '../components/shared/LicensePlate';
+import FirstTimeTour from '../components/shared/FirstTimeTour';
 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 function getVehicleIcon(vt, nn, mfr) { return ICON_MAP[getVehicleCategory(vt, nn, mfr)] || Car; }
@@ -725,7 +726,7 @@ export default function Dashboard() {
           ))}
 
           {/* Add vehicle button */}
-          <Link to={createPageUrl('AddVehicle')}>
+          <Link to={createPageUrl('AddVehicle')} data-tour="add-vehicle">
             <button className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-6 transition-all active:scale-[0.98]"
               style={{ background: C.yellow, color: C.greenDark }}>
               הוספת רכב חדש
@@ -784,6 +785,9 @@ export default function Dashboard() {
   return (
     <div className="-mx-4 -mt-4 pb-4" style={{ background: C.bg, minHeight: '100dvh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <PullToRefreshIndicator pulling={pulling} progress={progress} />
+      {/* First-time user tooltip tour — auto-starts 500ms after mount for
+          authenticated users who've never seen it. Self-gates via localStorage. */}
+      <FirstTimeTour enabled={isAuthenticated && !isGuest} />
       <div className="px-4 pt-6">
 
         {/* Urgent banner - only if something is urgent */}
@@ -805,7 +809,7 @@ export default function Dashboard() {
             <Car className="w-16 h-16 mx-auto mb-4" style={{ color: C.muted }} />
             <p className="font-bold text-lg mb-1" style={{ color: C.text }}>אין רכבים עדיין</p>
             <p className="text-sm mb-6" style={{ color: C.muted }}>הוסף את הרכב הראשון שלך</p>
-            <Link to={createPageUrl('AddVehicle')}>
+            <Link to={createPageUrl('AddVehicle')} data-tour="add-vehicle">
               <button className="px-8 py-3 rounded-2xl font-bold"
                 style={{ background: C.yellow, color: C.greenDark }}>
                 הוסף רכב
@@ -823,7 +827,7 @@ export default function Dashboard() {
             ))}
 
             {/* Add vehicle button */}
-            <Link to={createPageUrl('AddVehicle')}>
+            <Link to={createPageUrl('AddVehicle')} data-tour="add-vehicle">
               <button className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-6 transition-all active:scale-[0.98]"
                 style={{ background: C.yellow, color: C.greenDark }}>
                 הוספת רכב חדש

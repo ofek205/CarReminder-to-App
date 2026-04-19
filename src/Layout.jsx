@@ -721,7 +721,7 @@ function NotificationBell() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" data-tour="notif-bell">
       <button
         onClick={toggleBell}
         className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-[0.95]"
@@ -1025,6 +1025,7 @@ function LayoutInner({ children }) {
             return (
               <>
                 <button
+                  data-tour="menu"
                   onClick={() => {
                     btnClicked.current = true;
                     const next = !open;
