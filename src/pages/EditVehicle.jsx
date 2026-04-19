@@ -297,6 +297,9 @@ export default function EditVehicle() {
     if (form.current_engine_hours) data.current_engine_hours = Number(form.current_engine_hours);
     if (form.km_since_tire_change) data.km_since_tire_change = Number(form.km_since_tire_change);
     if (form.insurance_company === 'אחר') data.insurance_company = form.insurance_company_other;
+    // Same pattern for fuel type: if user picked "אחר" and typed a custom
+    // value, persist the custom value rather than the placeholder "אחר".
+    if (form.fuel_type === 'אחר' && form.fuel_type_other) data.fuel_type = form.fuel_type_other;
     // Remove empty strings
     Object.keys(data).forEach(k => { if (data[k] === '') delete data[k]; });
     if (tireQuestion !== 'yes') {
@@ -523,11 +526,16 @@ export default function EditVehicle() {
                   <Select value={form.fuel_type} onValueChange={v => handleChange('fuel_type', v)}>
                     <SelectTrigger><SelectValue placeholder="בחר" /></SelectTrigger>
                     <SelectContent>
-                      {['בנזין', 'סולר', 'חשמלי', 'היברידי', 'גז'].map(f => (
+                      {['בנזין', 'סולר', 'חשמלי', 'היברידי', 'גז', 'אחר'].map(f => (
                         <SelectItem key={f} value={f}>{f}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {form.fuel_type === 'אחר' && (
+                    <Input className="mt-2" placeholder="סוג דלק / הנעה"
+                      value={form.fuel_type_other || ''}
+                      onChange={e => handleChange('fuel_type_other', e.target.value)} />
+                  )}
                 </>
               )}
             </div>

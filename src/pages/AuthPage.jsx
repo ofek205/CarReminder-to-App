@@ -98,6 +98,13 @@ export default function AuthPage() {
   const [oauthLoading, setOauthLoading] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  // "Remember me" — default true. Persisted across sessions so the user
+  // doesn't need to re-tick every time. When false, the Supabase session
+  // still survives tab close (Supabase JS default), but we log the user
+  // out of their OTHER tabs on close via BroadcastChannel (see handleSubmit).
+  const [rememberMe, setRememberMe] = useState(() => {
+    try { return localStorage.getItem('cr_remember_me_v1') !== '0'; } catch { return true; }
+  });
   const formRef = useRef(null);
 
   useEffect(() => {
@@ -186,6 +193,12 @@ export default function AuthPage() {
       return;
     }
     setLoading(true);
+    // Persist the checkbox choice so it's remembered between visits.
+    try { localStorage.setItem('cr_remember_me_v1', rememberMe ? '1' : '0'); } catch {}
+    // When the user unchecks "remember me", mark the session as
+    // tab-scoped. A Layout-level listener reads this flag and signs the
+    // user out when the tab/app is closed (see initSessionKeepAlive).
+    try { sessionStorage.setItem('cr_session_scope', rememberMe ? 'persistent' : 'tab'); } catch {}
     try {
       if (mode === 'reset') {
         if (!email.trim()) { setError('יש להזין כתובת אימייל'); setLoading(false); return; }
@@ -430,11 +443,26 @@ export default function AuthPage() {
                 )}
 
                 {mode === 'login' && (
-                  <button type="button" onClick={() => { setMode('reset'); setError(''); setSuccess(''); }}
-                    className="text-xs font-bold transition-colors block mr-1"
-                    style={{ color: C.green }}>
-                    שכחתי סיסמה
-                  </button>
+                  <div className="flex items-center justify-between mt-1">
+                    {/* "Remember me" — defaults to on; lets the user drop the
+                        session on tab close if they're on a shared device. */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none"
+                      style={{ color: C.text }}>
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="w-4 h-4 rounded cursor-pointer"
+                        style={{ accentColor: C.green }}
+                      />
+                      <span className="text-xs font-bold">זכור אותי</span>
+                    </label>
+                    <button type="button" onClick={() => { setMode('reset'); setError(''); setSuccess(''); }}
+                      className="text-xs font-bold transition-colors"
+                      style={{ color: C.green }}>
+                      שכחתי סיסמה
+                    </button>
+                  </div>
                 )}
 
                 {mode === 'reset' && (

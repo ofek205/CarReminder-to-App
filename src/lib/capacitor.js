@@ -260,6 +260,23 @@ export async function initSessionKeepAlive() {
   try {
     const { supabase } = await import('./supabase');
 
+    // "Remember me = off" signout-on-close. When the user unchecked the
+    // box on AuthPage, sessionStorage['cr_session_scope'] === 'tab'. That
+    // key dies with the tab, so on pagehide we sign the user out so the
+    // next visit (native relaunch or new tab) needs fresh credentials.
+    if (typeof window !== 'undefined') {
+      const signOutIfTabScoped = () => {
+        try {
+          if (sessionStorage.getItem('cr_session_scope') === 'tab') {
+            // Fire-and-forget; the tab is about to close.
+            supabase.auth.signOut().catch(() => {});
+          }
+        } catch {}
+      };
+      window.addEventListener('pagehide', signOutIfTabScoped);
+      window.addEventListener('beforeunload', signOutIfTabScoped);
+    }
+
     // Web: visibilitychange fires when the tab becomes active again
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', async () => {

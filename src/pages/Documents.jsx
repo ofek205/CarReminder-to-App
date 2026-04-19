@@ -486,6 +486,80 @@ function DocCard({ doc, vehicle, onOpen, onDelete, openingId }) {
   );
 }
 
+// ── Vehicle-grouped wrapper (used on "all vehicles" view) ─────────────────
+// Wraps GroupedDocList inside a per-vehicle section so the user can scan
+// "which docs belong to which vehicle" at a glance, instead of a flat
+// category list that mixes all vehicles' docs together.
+function VehicleGroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
+  const [collapsed, setCollapsed] = useState({});
+
+  // Partition docs by vehicle id. "Unassigned" docs (no vehicle_id) fall
+  // into a separate trailing section so they don't get lost.
+  const byVehicle = new Map();
+  const unassigned = [];
+  docs.forEach(d => {
+    if (d.vehicle_id) {
+      if (!byVehicle.has(d.vehicle_id)) byVehicle.set(d.vehicle_id, []);
+      byVehicle.get(d.vehicle_id).push(d);
+    } else {
+      unassigned.push(d);
+    }
+  });
+
+  // Keep vehicles in the order they appear in the props list.
+  const sections = [];
+  (vehicles || []).forEach(v => {
+    const list = byVehicle.get(v.id);
+    if (list && list.length) sections.push({ vehicle: v, docs: list });
+  });
+  if (unassigned.length) sections.push({ vehicle: null, docs: unassigned });
+
+  if (sections.length === 0) return null;
+
+  return (
+    <div className="space-y-5" dir="rtl">
+      {sections.map(({ vehicle, docs: vDocs }) => {
+        const key = vehicle?.id || '__unassigned';
+        const isCollapsed = collapsed[key];
+        const name = vehicle
+          ? (vehicle.nickname || [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ') || 'רכב')
+          : 'מסמכים ללא רכב משויך';
+        const sub = vehicle && vehicle.license_plate ? vehicle.license_plate : null;
+        return (
+          <div key={key}
+            className="rounded-2xl p-3.5"
+            style={{ background: '#FAFAFA', border: '1px solid #E5E7EB' }}>
+            <button type="button"
+              className="w-full flex items-center justify-between gap-2 mb-2"
+              onClick={() => setCollapsed(c => ({ ...c, [key]: !c[key] }))}>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-base">{vehicle ? '🚗' : '📂'}</span>
+                <div className="text-right min-w-0">
+                  <p className="text-sm font-bold truncate" style={{ color: '#1C2E20' }}>{name}</p>
+                  {sub && <p className="text-[10px]" dir="ltr" style={{ color: '#9CA3AF' }}>{sub}</p>}
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full ml-1"
+                  style={{ background: '#E8F2EA', color: '#2D5233' }}>
+                  {vDocs.length}
+                </span>
+              </div>
+              {isCollapsed
+                ? <ChevronDown className="h-4 w-4 text-gray-400" />
+                : <ChevronUp className="h-4 w-4 text-gray-400" />}
+            </button>
+            {!isCollapsed && (
+              <div className="mt-2">
+                <GroupedDocList docs={vDocs} vehicles={vehicles}
+                  onOpen={onOpen} onDelete={onDelete} openingId={openingId} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Grouped document list ─────────────────────────────────────────────────────
 function GroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
   const [collapsed, setCollapsed] = useState({});
@@ -662,8 +736,17 @@ function GuestDocuments({ vehicleIdParam }) {
 
       {docs.length === 0 ? (
         <EmptyState icon={FileText} title="אין מסמכים" description="הוסף מסמכים כמו רישיון רכב, ביטוח ועוד" />
-      ) : (
+      ) : vehicleIdParam ? (
+        // Viewing one specific vehicle — skip the per-vehicle wrapper and
+        // just show the category-grouped list.
         <GroupedDocList
+          docs={docs}
+          vehicles={guestVehicles}
+          onDelete={id => setDeleteTarget(id)}
+        />
+      ) : (
+        // "All vehicles" view — group by vehicle first, then by category.
+        <VehicleGroupedDocList
           docs={docs}
           vehicles={guestVehicles}
           onDelete={id => setDeleteTarget(id)}
@@ -879,8 +962,16 @@ function AuthDocuments({ vehicleIdParam }) {
 
       {documents.length === 0 ? (
         <EmptyState icon={FileText} title="אין מסמכים" description="העלה מסמכים כמו רישיון רכב, ביטוח ועוד" />
-      ) : (
+      ) : vehicleIdParam ? (
         <GroupedDocList
+          docs={documents}
+          vehicles={vehicles}
+          onOpen={handleOpenDocument}
+          onDelete={id => setDeleteTarget(id)}
+          openingId={openingDocId}
+        />
+      ) : (
+        <VehicleGroupedDocList
           docs={documents}
           vehicles={vehicles}
           onOpen={handleOpenDocument}
