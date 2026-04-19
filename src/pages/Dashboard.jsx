@@ -4,7 +4,8 @@ import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
-import { Plus, Car, FileText, User, Home, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, AlertCircle, ArrowUpDown } from "lucide-react";
+import { Plus, Car, FileText, User, Home, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, AlertCircle, ArrowUpDown, Search, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
@@ -503,14 +504,16 @@ export default function Dashboard() {
     getStoredGuestDocuments, getStoredGuestReminderSettings, clearGuestData, isDemoDismissed } = useAuth();
   const [accountId, setAccountId] = useState(null);
   const [filteredVehicles, setFilteredVehicles] = useState(null);
-  // Dashboard list sort. Default: newest first (most-recently added on top).
-  // Options: 'newest' | 'oldest' | 'type' | 'year'
+  // Dashboard list sort. Default: newest-added first.
+  // Options: 'newest' | 'name' | 'status' | 'year' | 'updated'
   const [sortBy, setSortBy] = useState(() => {
     try { return localStorage.getItem('cr_dashboard_sort') || 'newest'; } catch { return 'newest'; }
   });
   useEffect(() => {
     try { localStorage.setItem('cr_dashboard_sort', sortBy); } catch {}
   }, [sortBy]);
+  // Free-text search across nickname / manufacturer / model / year / plate.
+  const [searchQuery, setSearchQuery] = useState('');
   const [showSignUp, setShowSignUp] = useState(false);
   const [showCompleteProfile, setShowCompleteProfile] = useState(false);
   const [profileMissing, setProfileMissing] = useState(false);
@@ -777,22 +780,46 @@ export default function Dashboard() {
   // ── AUTHENTICATED MODE ─────────────────────────────────────────────────────
   if (!accountId || vehiclesLoading) return <LoadingSpinner />;
 
-  // Apply user-selected sort on top of any active filter.
+  // Status severity used when the user sorts by status — most urgent first.
+  // Matches the intent on /Vehicles: expired > upcoming > ok.
+  const statusRank = (v) => {
+    const dates = [v.test_due_date, v.insurance_due_date].map(daysUntil).filter(d => d !== null);
+    if (dates.length === 0) return 3;           // no dates → sort last
+    const min = Math.min(...dates);
+    if (min < 0) return 0;                      // expired
+    if (min <= 30) return 1;                    // upcoming
+    return 2;                                   // ok
+  };
+
+  // Apply search + sort on top of any active category filter.
+  const baseList = filteredVehicles !== null ? filteredVehicles : vehicles;
+  const q = searchQuery.trim().toLowerCase();
+  const searched = !q ? baseList : baseList.filter(v => {
+    const hay = [v.nickname, v.manufacturer, v.model, v.year, v.license_plate].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  });
   const sortVehicles = (list) => {
     const arr = [...list];
-    if (sortBy === 'oldest') {
-      arr.sort((a, b) => new Date(a.created_at || a.created_date || 0) - new Date(b.created_at || b.created_date || 0));
-    } else if (sortBy === 'year') {
-      arr.sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0));
-    } else if (sortBy === 'type') {
-      arr.sort((a, b) => String(a.vehicle_type || '').localeCompare(String(b.vehicle_type || ''), 'he'));
-    } else {
-      // newest (default)
-      arr.sort((a, b) => new Date(b.created_at || b.created_date || 0) - new Date(a.created_at || a.created_date || 0));
+    switch (sortBy) {
+      case 'name':
+        return arr.sort((a, b) =>
+          String(a.nickname || a.manufacturer || '').localeCompare(String(b.nickname || b.manufacturer || ''), 'he'));
+      case 'status':
+        return arr.sort((a, b) => statusRank(a) - statusRank(b));
+      case 'year':
+        return arr.sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0));
+      case 'updated':
+        return arr.sort((a, b) =>
+          new Date(b.updated_at || b.created_at || b.created_date || 0) -
+          new Date(a.updated_at || a.created_at || a.created_date || 0));
+      case 'newest':
+      default:
+        return arr.sort((a, b) =>
+          new Date(b.created_at || b.created_date || 0) -
+          new Date(a.created_at || a.created_date || 0));
     }
-    return arr;
   };
-  const displayedVehicles = sortVehicles(filteredVehicles !== null ? filteredVehicles : vehicles);
+  const displayedVehicles = sortVehicles(searched);
 
   const allReminders = vehicles.flatMap(v => {
     const vc = getVehicleCategory(v.vehicle_type, v.nickname, v.manufacturer);
@@ -830,33 +857,55 @@ export default function Dashboard() {
         <UrgentBanner reminders={allReminders} vehicles={vehicles} />
 
         {/* Header with vehicle count */}
-        <div className="flex items-center justify-between mb-4" dir="rtl">
+        <div className="flex items-center justify-between mb-3" dir="rtl">
           <div>
             <h2 className="font-black text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
           </div>
-          <div className="flex items-center gap-2">
-            {vehicles.length > 1 && (
-              <div className="relative flex items-center">
-                <ArrowUpDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: C.muted }} />
-                <select
-                  value={sortBy}
-                  onChange={e => setSortBy(e.target.value)}
-                  aria-label="מיון רכבים"
-                  className="appearance-none text-[12px] font-bold rounded-xl pr-7 pl-2 py-1.5 outline-none cursor-pointer"
-                  style={{ background: '#fff', border: `1px solid ${C.border}`, color: C.text }}>
-                  <option value="newest">מהחדש לישן</option>
-                  <option value="oldest">מהישן לחדש</option>
-                  <option value="type">לפי סוג</option>
-                  <option value="year">לפי שנה</option>
-                </select>
-              </div>
-            )}
-            <Link to={createPageUrl('Vehicles')}
-              className="flex items-center gap-1 text-sm font-bold" style={{ color: C.green }}>
-              ניהול <ChevronLeft className="w-4 h-4" />
-            </Link>
-          </div>
+          <Link to={createPageUrl('Vehicles')}
+            className="flex items-center gap-1 text-sm font-bold" style={{ color: C.green }}>
+            ניהול <ChevronLeft className="w-4 h-4" />
+          </Link>
         </div>
+
+        {/* Search + sort — visually identical to the /Vehicles page for
+            consistency. Only rendered when there are 2+ vehicles to filter. */}
+        {vehicles.length > 1 && (
+          <div className="flex items-center gap-2 mb-4" dir="rtl">
+            <div className="relative flex-1">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="חפש רכב..."
+                dir="rtl"
+                className="w-full h-10 pr-9 pl-3 rounded-xl border text-sm font-medium outline-none transition-all focus:ring-2"
+                style={{ background: '#fff', borderColor: C.border, color: C.text, '--tw-ring-color': C.primary }}
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-gray-100"
+                  aria-label="נקה חיפוש">
+                  <X className="w-3 h-3" style={{ color: C.muted }} />
+                </button>
+              )}
+            </div>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-[110px] h-10 rounded-xl text-xs font-bold shrink-0"
+                style={{ borderColor: C.border, color: C.text }}>
+                <ArrowUpDown className="w-3.5 h-3.5 shrink-0" style={{ color: C.muted }} />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent dir="rtl">
+                <SelectItem value="newest" className="text-sm">מהחדש לישן</SelectItem>
+                <SelectItem value="name" className="text-sm">שם</SelectItem>
+                <SelectItem value="status" className="text-sm">סטטוס</SelectItem>
+                <SelectItem value="year" className="text-sm">שנת ייצור</SelectItem>
+                <SelectItem value="updated" className="text-sm">עודכן לאחרונה</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {vehicles.length === 0 ? (
           <div className="text-center py-16">
