@@ -422,13 +422,15 @@ function StatusDrilldownDialog({ open, status, rows, onClose }) {
           <DialogTitle>{meta.title}</DialogTitle>
         </VisuallyHidden.Root>
 
-        {/* Header */}
-        <div className="px-4 py-3 flex items-center gap-2 border-b"
+        {/* Header — pr-14 leaves room for the absolute-positioned X button
+            (top-right in RTL, 32px × 32px + 16px gutter). */}
+        <div className="px-4 pr-14 py-3.5 flex items-center gap-2 border-b"
           style={{ background: meta.bg, borderColor: meta.color + '20' }}>
-          <Icon className="w-4 h-4" style={{ color: meta.color }} />
-          <p className="font-black text-sm" style={{ color: meta.color }}>{meta.title}</p>
-          <span className="mr-auto text-xs font-bold" style={{ color: meta.color }}>
-            {rows.length} רכבים
+          <Icon className="w-5 h-5 shrink-0" style={{ color: meta.color }} />
+          <p className="font-black text-[15px] leading-tight" style={{ color: meta.color }}>{meta.title}</p>
+          <span className="mr-auto text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0"
+            style={{ color: meta.color, background: '#fff' }}>
+            {rows.length}
           </span>
         </div>
 
