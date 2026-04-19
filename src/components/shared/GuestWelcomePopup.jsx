@@ -1,7 +1,7 @@
 import React from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
-import { Car, Search, Bell, Sparkles, MessageSquare, FileText } from "lucide-react";
+import { Car, Bell, Sparkles, MapPin, Database } from "lucide-react";
 
 /**
  * GuestWelcomePopup — shown every time a user enters in guest mode.
@@ -68,16 +68,14 @@ export default function GuestWelcomePopup({ open, onClose }) {
             <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full pointer-events-none"
               style={{ background: 'rgba(45,82,51,0.04)' }} />
 
-            <MiniRow icon={Search} title="חיפוש לפי מספר רכב"
-              body="מספר לוחית והמערכת מביאה יצרן, דגם, שנה ודלק." />
-            <MiniRow icon={Bell} title="תזכורות לפני שמאחרים"
-              body="טסט, ביטוח וטיפולים לפני פג התוקף." />
-            <MiniRow icon={Sparkles} title="סריקת מסמכים עם AI"
-              body="העלה תמונה, הפרטים ממולאים אוטומטית." />
-            <MiniRow icon={MessageSquare} title="צ'אט AI לייעוץ"
-              body="שאלה על הרכב וקבל תשובה מיידית." />
-            <MiniRow icon={FileText} title="היסטוריית טיפולים"
-              body="מעקב אחרי כל מה שנעשה ברכב לאורך זמן." />
+            <MiniRow icon={Sparkles} title="מומחה AI"
+              body="ברוך המוסכניק ויוסי מומחה כלי שייט עונים לשאלות, מכירים את פרטי הרכב שלך." />
+            <MiniRow icon={MapPin} title="מצא מוסך"
+              body="מפת מוסכים סביבך, סינון לפי סוג שירות ורדיוס חיפוש." />
+            <MiniRow icon={Bell} title="תזכורות והתראות חכמות"
+              body="התראות מתוזמנות לטסט, ביטוח, צמיגים וטיפולים." />
+            <MiniRow icon={Database} title="פרטי רכב ממשרד התחבורה"
+              body="מספר רישוי אחד, והמערכת משלימה מפרט טכני מלא." />
           </div>
 
           {/* CTAs — register primary, continue as guest secondary */}
