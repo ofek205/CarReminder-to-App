@@ -914,10 +914,11 @@ function LayoutInner({ children }) {
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles } = useAuth();
   const [hasVessel, setHasVessel] = useState(false);
 
-  // Auto-close mobile sheet on route change (so BottomNav navigation works while sheet is open)
-  useEffect(() => {
-    setOpen(false);
-  }, [location.pathname, location.search]);
+  // Side menu stays open across navigation. BottomNav is lifted above the
+  // sheet so the user can route between tabs while the drawer is visible.
+  // Explicit closers (X button, overlay click, menu item onClick) handle
+  // intentional dismissal — we don't want to slam the drawer shut every
+  // time the route changes.
 
   // Track page views for BI dashboard. Normalizes /VehicleDetail?id=... style
   // routes down to just "/VehicleDetail" so we aggregate per feature, not per
