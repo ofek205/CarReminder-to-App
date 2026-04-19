@@ -41,7 +41,11 @@ export default function BottomNav() {
         background: '#FFFFFF',
         borderTop: '1px solid #E5E7EB',
         boxShadow: '0 -2px 12px rgba(0,0,0,0.06)',
-        zIndex: 9999,
+        // z-40 keeps the nav above page content but below modals (z-50) and
+        // tours (z-9000). Was 9999, which covered the bottom of every dialog
+        // and hid Save buttons — users couldn't scroll past it in the Documents
+        // upload form.
+        zIndex: 40,
         // Force at least 12px clearance — Android gesture nav often reports
         // safe-area-inset-bottom as 0 even though the gesture pill IS there,
         // which makes the nav clip behind it. max() guarantees a floor.
