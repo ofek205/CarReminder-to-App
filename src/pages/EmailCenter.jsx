@@ -13,6 +13,7 @@ import TemplateEditorDialog from '@/components/admin/TemplateEditorDialog';
 import SendTestDialog from '@/components/admin/SendTestDialog';
 import TriggersTab from '@/components/admin/TriggersTab';
 import SendLogTab from '@/components/admin/SendLogTab';
+import StatsStrip from '@/components/admin/StatsStrip';
 
 /**
  * EmailCenter — Admin-only Email Management Center (Phase 1).
@@ -89,6 +90,7 @@ export default function EmailCenter() {
 
       <div className="max-w-5xl mx-auto px-4 py-6">
         <KillSwitchBanner />
+        <StatsStrip />
 
         <Tabs defaultValue="notifications" dir="rtl" className="w-full">
           <TabsList className="mb-4 w-full justify-start rounded-2xl bg-white border p-1 h-auto">

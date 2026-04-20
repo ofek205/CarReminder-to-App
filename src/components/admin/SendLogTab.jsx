@@ -1,12 +1,25 @@
 import React, { useState } from 'react';
-import { Loader2, CheckCircle2, XCircle, Clock, MinusCircle } from 'lucide-react';
-import { useSendLog, useEmailNotifications } from '@/hooks/useEmailAdmin';
+import { Loader2, CheckCircle2, XCircle, Clock, MinusCircle, Mail, Eye, MousePointerClick, AlertCircle, Send } from 'lucide-react';
+import { useSendLog, useEmailNotifications, useSendEvents } from '@/hooks/useEmailAdmin';
 
 const STATUS_VISUAL = {
   sent:    { icon: CheckCircle2, label: 'נשלח',  bg: '#D1FAE5', fg: '#047857' },
   queued:  { icon: Clock,        label: 'בתור',  bg: '#FEF3C7', fg: '#92400E' },
   failed:  { icon: XCircle,      label: 'נכשל',  bg: '#FEE2E2', fg: '#991B1B' },
   skipped: { icon: MinusCircle,  label: 'דולג', bg: '#F3F4F6', fg: '#6B7280' },
+};
+
+// Per-event visuals for the timeline (Phase 3: Resend webhook events).
+const EVENT_VISUAL = {
+  sent:             { icon: Send,               label: 'נשלח',       fg: '#2563EB' },
+  delivered:        { icon: CheckCircle2,       label: 'נמסר',       fg: '#047857' },
+  delivery_delayed: { icon: Clock,              label: 'עיכוב',      fg: '#D97706' },
+  opened:           { icon: Eye,                label: 'נפתח',       fg: '#0891B2' },
+  clicked:          { icon: MousePointerClick,  label: 'קליק',       fg: '#7C3AED' },
+  bounced:          { icon: AlertCircle,        label: 'הוחזר',      fg: '#DC2626' },
+  complained:       { icon: AlertCircle,        label: 'דווח כספאם', fg: '#DC2626' },
+  failed:           { icon: XCircle,            label: 'נכשל',       fg: '#DC2626' },
+  other:            { icon: Mail,               label: 'אירוע',      fg: '#6B7280' },
 };
 
 /**
@@ -80,33 +93,73 @@ export default function SendLogTab() {
                   {new Date(row.sent_at).toLocaleString('he-IL')}
                 </div>
               </button>
-              {isOpen && (
-                <div className="border-t bg-gray-50 p-3 text-xs space-y-2">
-                  {row.error && (
-                    <div className="text-red-700">
-                      <strong>שגיאה:</strong> {row.error}
-                    </div>
-                  )}
-                  {row.message_id && (
-                    <div className="font-mono" dir="ltr">
-                      <strong>Resend ID:</strong> {row.message_id}
-                    </div>
-                  )}
-                  {row.metadata && Object.keys(row.metadata).length > 0 && (
-                    <details>
-                      <summary className="cursor-pointer text-gray-600 font-semibold">Metadata</summary>
-                      <pre className="mt-2 p-2 bg-white rounded border text-[10px] overflow-auto" dir="ltr">
-                        {JSON.stringify(row.metadata, null, 2)}
-                      </pre>
-                    </details>
-                  )}
-                </div>
-              )}
+              {isOpen && <ExpandedDetail row={row} />}
             </div>
           );
         })
       )}
 
+    </div>
+  );
+}
+
+// ── Expanded row: event timeline + metadata ────────────────────────────────
+function ExpandedDetail({ row }) {
+  const { data: events = [], isLoading } = useSendEvents(row.id);
+
+  return (
+    <div className="border-t bg-gray-50 p-3 text-xs space-y-3">
+
+      {/* Event timeline */}
+      <div>
+        <div className="text-[11px] font-bold text-gray-700 mb-2">Timeline של אירועים (מ-Resend)</div>
+        {isLoading ? (
+          <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+        ) : events.length === 0 ? (
+          <div className="text-[11px] text-gray-500 italic">
+            אין אירועים עדיין. אירועים מגיעים מ-Resend Webhook — ודא/י שהוא מוגדר.
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {events.map(ev => {
+              const v = EVENT_VISUAL[ev.event_type] || EVENT_VISUAL.other;
+              const Icon = v.icon;
+              return (
+                <div key={ev.id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border">
+                  <Icon className="w-3.5 h-3.5" style={{ color: v.fg }} />
+                  <span className="font-bold" style={{ color: v.fg }}>{v.label}</span>
+                  <span className="text-gray-400">&middot;</span>
+                  <span className="text-gray-500">{new Date(ev.occurred_at).toLocaleString('he-IL')}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Error */}
+      {row.error && (
+        <div className="text-red-700">
+          <strong>שגיאה:</strong> {row.error}
+        </div>
+      )}
+
+      {/* Resend id */}
+      {row.message_id && (
+        <div className="font-mono" dir="ltr">
+          <strong>Resend ID:</strong> {row.message_id}
+        </div>
+      )}
+
+      {/* Metadata */}
+      {row.metadata && Object.keys(row.metadata).length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-gray-600 font-semibold">Metadata</summary>
+          <pre className="mt-2 p-2 bg-white rounded border text-[10px] overflow-auto" dir="ltr">
+            {JSON.stringify(row.metadata, null, 2)}
+          </pre>
+        </details>
+      )}
     </div>
   );
 }

@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Save, AlertTriangle, Eye, Code, Smartphone, Monitor } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, Eye, Code, Smartphone, Monitor, History } from 'lucide-react';
 import { useEmailTemplate, useSaveEmailTemplate } from '@/hooks/useEmailAdmin';
 import { validateTemplate, extractPlaceholders } from '@/lib/emailValidate';
 import { renderFromTemplateObject } from '@/lib/emailRender';
 import { toast } from 'sonner';
+import VersionHistoryDialog from './VersionHistoryDialog';
 
 /**
  * TemplateEditorDialog — full editor for a single notification's template.
@@ -36,6 +37,7 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
   const save = useSaveEmailTemplate();
   const [draft, setDraft] = useState(null);
   const [previewMode, setPreviewMode] = useState('desktop');
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // When template loads, copy it into local draft state so edits are buffered.
   useEffect(() => {
@@ -281,6 +283,15 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
         )}
 
         <DialogFooter className="px-6 py-3 border-t shrink-0 bg-white gap-2">
+          {existingTemplate?.id && (
+            <Button
+              variant="outline"
+              onClick={() => setHistoryOpen(true)}
+              className="rounded-xl gap-2 mr-auto">
+              <History className="w-4 h-4" />
+              היסטוריית גרסאות
+            </Button>
+          )}
           <Button variant="outline" onClick={onClose} className="rounded-xl">ביטול</Button>
           <Button
             onClick={handleSave}
@@ -291,6 +302,12 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
             שמירה
           </Button>
         </DialogFooter>
+
+        <VersionHistoryDialog
+          template={existingTemplate}
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+        />
       </DialogContent>
     </Dialog>
   );

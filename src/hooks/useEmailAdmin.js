@@ -26,6 +26,9 @@ const K = {
   settings:      ['email-admin', 'settings'],
   triggers:      ['email-admin', 'triggers'],
   sendLog:       ['email-admin', 'send-log'],
+  events:        (logId) => ['email-admin', 'events', logId],
+  stats:         (days) => ['email-admin', 'stats', days],
+  versions:      (tplId) => ['email-admin', 'versions', tplId],
 };
 
 // ── Notifications (the 7 types) ────────────────────────────────────────────
@@ -229,5 +232,98 @@ export function useSendLog({ limit = 50, notificationKey } = {}) {
       return data || [];
     },
     staleTime: 10_000,
+  });
+}
+
+// ── Events (Phase 3: Resend webhook) ──────────────────────────────────────
+
+// Timeline of events for a single send_log row (delivered → opened →
+// clicked → …). Used by the row-expanded detail in SendLogTab.
+export function useSendEvents(sendLogId) {
+  return useQuery({
+    queryKey: K.events(sendLogId),
+    enabled: !!sendLogId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('email_events')
+        .select('*')
+        .eq('send_log_id', sendLogId)
+        .order('occurred_at', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 30_000,
+  });
+}
+
+// 30-day rollup for the dashboard strip at the top of EmailCenter.
+export function useEmailStats({ days = 30 } = {}) {
+  return useQuery({
+    queryKey: K.stats(days),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('email_stats_recent', { p_days: days });
+      if (error) throw error;
+      return Array.isArray(data) ? (data[0] || null) : data;
+    },
+    staleTime: 60_000,
+  });
+}
+
+// ── Version history (Phase 3) ─────────────────────────────────────────────
+
+// List of snapshots for a template, newest first. The auto-snapshot
+// trigger in SQL writes one row per content-changing UPDATE.
+export function useTemplateVersions(templateId) {
+  return useQuery({
+    queryKey: K.versions(templateId),
+    enabled: !!templateId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('email_template_versions')
+        .select('*')
+        .eq('template_id', templateId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 10_000,
+  });
+}
+
+// Revert the current template row to the state of a historical snapshot.
+// The revert itself writes a NEW snapshot (auto-trigger on UPDATE) so
+// nothing is lost — you can always "un-revert" from history.
+export function useRevertToVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ templateId, snapshot }) => {
+      if (!snapshot) throw new Error('snapshot is required');
+      const patch = {
+        subject:     snapshot.subject,
+        preheader:   snapshot.preheader,
+        title:       snapshot.title,
+        body_html:   snapshot.body_html,
+        cta_label:   snapshot.cta_label,
+        cta_url:     snapshot.cta_url,
+        footer_note: snapshot.footer_note,
+        from_name:   snapshot.from_name,
+        from_email:  snapshot.from_email,
+        reply_to:    snapshot.reply_to,
+        variables:   snapshot.variables,
+      };
+      const { data, error } = await supabase
+        .from('email_templates')
+        .update(patch)
+        .eq('id', templateId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (row) => {
+      qc.invalidateQueries({ queryKey: K.versions(row.id) });
+      qc.invalidateQueries({ queryKey: K.template(row.notification_key) });
+    },
   });
 }
