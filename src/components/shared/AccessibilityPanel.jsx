@@ -5,7 +5,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useAccessibility } from './AccessibilityContext';
-import { RotateCcw, Minus, Plus } from 'lucide-react';
+import { RotateCcw, Minus, Plus, Check } from 'lucide-react';
+import { toast } from 'sonner';
 
 const FONT_MIN = -2;
 const FONT_MAX = 3;
@@ -38,7 +39,16 @@ function ToggleRow({ label, description, settingKey }) {
 }
 
 export default function AccessibilityPanel({ open, onOpenChange }) {
-  const { settings, update, resetAll } = useAccessibility();
+  const { settings, update, resetAll, savePreferences } = useAccessibility();
+
+  // Explicit "save and close" — settings already auto-persist on every
+  // change, but users asked for a clear commit action. The button closes
+  // the panel with a confirmation toast so the save is visible.
+  const handleSave = () => {
+    savePreferences();
+    onOpenChange?.(false);
+    toast.success('ההעדפות נשמרו');
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -158,8 +168,15 @@ export default function AccessibilityPanel({ open, onOpenChange }) {
           </div>
         </div>
 
-        {/* Reset */}
-        <div className="px-5 pb-5 pt-3 border-t border-gray-100">
+        {/* Save + Reset */}
+        <div className="px-5 pb-5 pt-3 border-t border-gray-100 space-y-2">
+          <Button
+            className="w-full gap-2 bg-[#2D5233] hover:bg-[#1E3D24] text-white font-bold"
+            onClick={handleSave}
+          >
+            <Check className="h-4 w-4" />
+            שמור העדפות
+          </Button>
           <Button
             variant="outline"
             className="w-full gap-2 text-gray-600 hover:text-gray-900"

@@ -45,8 +45,14 @@ export function FontScaleProvider({ children }) {
   };
 
   const applyFontScale = (scale) => {
+    // Previous line `document.documentElement.style.fontSize = ...` zoomed
+    // every rem-based Tailwind value (padding, gap, width). Keep only the
+    // CSS variable so legacy callers that read --font-scale still work,
+    // but do NOT touch html.fontSize. Actual text scaling is now owned by
+    // AccessibilityContext (see a11y-font-* classes) which uses the
+    // same pattern correctly — scoped to text properties only.
     document.documentElement.style.setProperty('--font-scale', scale);
-    document.documentElement.style.fontSize = `${scale * 16}px`;
+    document.documentElement.style.fontSize = '';
   };
 
   const applyScale = async (newScale) => {

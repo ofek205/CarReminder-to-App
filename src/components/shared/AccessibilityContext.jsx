@@ -1,12 +1,37 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 const A11Y_CSS = `
-/* ── Font sizes ───────────────────────────────── */
-html.a11y-font-1  { font-size: 110% !important; }
-html.a11y-font-2  { font-size: 122% !important; }
-html.a11y-font-3  { font-size: 136% !important; }
-html.a11y-font--1 { font-size: 90%  !important; }
-html.a11y-font--2 { font-size: 80%  !important; }
+/* ── Font sizes ─────────────────────────────────
+   Scales TEXT only — never the html root. The previous rule
+   (html.a11y-font-1 { font-size: 110% }) zoomed every rem unit
+   (padding, gap, width) because Tailwind is rem-based. Now the
+   scale lives in --a11y-text-scale, applied selectively to
+   text-sized elements while layout/spacing stays fixed.
+*/
+html.a11y-font--2 { --a11y-text-scale: 0.85; }
+html.a11y-font--1 { --a11y-text-scale: 0.925; }
+html.a11y-font-1  { --a11y-text-scale: 1.10; }
+html.a11y-font-2  { --a11y-text-scale: 1.22; }
+html.a11y-font-3  { --a11y-text-scale: 1.36; }
+
+/* Override Tailwind text utility classes when a scale is active. Only
+   fires when one of the a11y-font-* classes is on html, so default
+   rendering is untouched for users with the scale set to 0/default. */
+html[class*="a11y-font"] body                { font-size: calc(1rem     * var(--a11y-text-scale, 1)) !important; }
+/* Arbitrary Tailwind values — common ones used throughout the app. */
+html[class*="a11y-font"] .text-\\[10px\\]     { font-size: calc(10px     * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-\\[11px\\]     { font-size: calc(11px     * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-\\[12px\\]     { font-size: calc(12px     * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-\\[13px\\]     { font-size: calc(13px     * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-xs            { font-size: calc(0.75rem  * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-sm            { font-size: calc(0.875rem * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-base          { font-size: calc(1rem     * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-lg            { font-size: calc(1.125rem * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-xl            { font-size: calc(1.25rem  * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-2xl           { font-size: calc(1.5rem   * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-3xl           { font-size: calc(1.875rem * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-4xl           { font-size: calc(2.25rem  * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-5xl           { font-size: calc(3rem     * var(--a11y-text-scale, 1)) !important; }
 
 /* ── Readable font ────────────────────────────── */
 html.a11y-readable-font,
@@ -68,11 +93,35 @@ const defaultSettings = {
 
 const AccessibilityContext = createContext(null);
 
+// Persist across sessions so the user's choices survive a reload. If the
+// stored blob is corrupt or from an older schema, fall back to defaults.
+const STORAGE_KEY = 'cr_a11y_settings_v1';
+
+function loadPersisted() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    // Shallow-merge against defaults so new toggles introduced later still
+    // have a valid value when the persisted blob predates them.
+    return { ...defaultSettings, ...parsed };
+  } catch { return null; }
+}
+
+function persist(settings) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); } catch { /* ignore quota */ }
+}
+
 export function AccessibilityProvider({ children }) {
-  const [settings, setSettings] = useState({ ...defaultSettings });
+  // Initialise from localStorage synchronously so the first render already
+  // reflects the user's saved preferences — prevents the flash of default
+  // styling that would happen if we loaded in useEffect.
+  const [settings, setSettings] = useState(() => loadPersisted() || { ...defaultSettings });
   const styleRef = useRef(null);
 
-  // Inject CSS once on mount
+  // Inject CSS once on mount. Classes are applied synchronously from initial
+  // state so the first paint already respects the user's choice.
   useEffect(() => {
     if (!styleRef.current) {
       const style = document.createElement('style');
@@ -80,17 +129,19 @@ export function AccessibilityProvider({ children }) {
       style.textContent = A11Y_CSS;
       document.head.appendChild(style);
       styleRef.current = style;
+      applyClasses(settings);
     }
     return () => {
-      // Cleanup on unmount: remove all classes + styles
       applyClasses(defaultSettings);
       styleRef.current?.remove();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync settings → HTML classes + inline filter
+  // Sync settings → HTML classes + inline filter + localStorage.
   useEffect(() => {
     applyClasses(settings);
+    persist(settings);
   }, [settings]);
 
   const update = (key, value) => {
@@ -100,11 +151,24 @@ export function AccessibilityProvider({ children }) {
     setSettings(next);
   };
 
+  const resetAll = () => {
+    const d = { ...defaultSettings };
+    applyClasses(d);
+    setSettings(d);
+  };
+
+  // Explicit "save" is a no-op in state terms (we already auto-persist on
+  // every change) — but callers use it to show a confirmation toast and
+  // close the panel. Keeping it as a function here lets the panel stay
+  // agnostic about persistence details.
+  const savePreferences = () => { persist(settings); };
+
   return (
     <AccessibilityContext.Provider value={{
       settings,
       update,
-      resetAll: () => { const d = { ...defaultSettings }; applyClasses(d); setSettings(d); },
+      resetAll,
+      savePreferences,
     }}>
       {children}
     </AccessibilityContext.Provider>
