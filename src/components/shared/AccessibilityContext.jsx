@@ -13,6 +13,8 @@ html.a11y-font--1 { --a11y-text-scale: 0.925; }
 html.a11y-font-1  { --a11y-text-scale: 1.10; }
 html.a11y-font-2  { --a11y-text-scale: 1.22; }
 html.a11y-font-3  { --a11y-text-scale: 1.36; }
+html.a11y-font-4  { --a11y-text-scale: 1.52; }
+html.a11y-font-5  { --a11y-text-scale: 1.70; }
 
 /* Override Tailwind text utility classes when a scale is active. Only
    fires when one of the a11y-font-* classes is on html, so default
@@ -178,11 +180,15 @@ export function AccessibilityProvider({ children }) {
 function applyClasses(settings) {
   const html = document.documentElement;
 
-  // Font size
-  html.classList.remove('a11y-font--2', 'a11y-font--1', 'a11y-font-1', 'a11y-font-2', 'a11y-font-3');
+  // Font size — strip any existing a11y-font-* class first so switching
+  // between scales doesn't leave two classes active at once (CSS cascade
+  // would pick the wrong one). Range extended to -2 … +5.
+  html.classList.remove(
+    'a11y-font--2', 'a11y-font--1',
+    'a11y-font-1', 'a11y-font-2', 'a11y-font-3', 'a11y-font-4', 'a11y-font-5',
+  );
   if (settings.fontSize !== 0) {
-    const cls = settings.fontSize > 0 ? `a11y-font-${settings.fontSize}` : `a11y-font-${settings.fontSize}`;
-    html.classList.add(cls);
+    html.classList.add(`a11y-font-${settings.fontSize}`);
   }
 
   // Boolean classes

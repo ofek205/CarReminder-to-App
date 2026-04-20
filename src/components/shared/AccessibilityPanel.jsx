@@ -9,7 +9,7 @@ import { RotateCcw, Minus, Plus, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
 const FONT_MIN = -2;
-const FONT_MAX = 3;
+const FONT_MAX = 5;
 
 function SectionTitle({ children }) {
   return (
@@ -85,7 +85,7 @@ export default function AccessibilityPanel({ open, onOpenChange }) {
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
                 <div className="flex-1 flex justify-center gap-1.5 overflow-hidden">
-                  {[FONT_MIN, -1, 0, 1, 2, FONT_MAX].map(v => (
+                  {[FONT_MIN, -1, 0, 1, 2, 3, 4, FONT_MAX].map(v => (
                     <button
                       key={v}
                       onClick={() => update('fontSize', v)}
