@@ -953,6 +953,18 @@ export default function Dashboard() {
         return arr.sort((a, b) => statusRank(a) - statusRank(b));
       case 'year':
         return arr.sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0));
+      case 'type':
+        // Group by vehicle_type (subcategory), then by name within each group.
+        // Hebrew-aware locale compare so 'אופנוע' / 'כלי שייט' sort naturally.
+        return arr.sort((a, b) => {
+          const typeA = String(a.vehicle_type || 'רכב');
+          const typeB = String(b.vehicle_type || 'רכב');
+          const byType = typeA.localeCompare(typeB, 'he');
+          if (byType !== 0) return byType;
+          const nameA = String(a.nickname || a.manufacturer || '');
+          const nameB = String(b.nickname || b.manufacturer || '');
+          return nameA.localeCompare(nameB, 'he');
+        });
       case 'updated':
         return arr.sort((a, b) =>
           new Date(b.updated_at || b.created_at || b.created_date || 0) -
@@ -1044,6 +1056,7 @@ export default function Dashboard() {
               <SelectContent dir="rtl">
                 <SelectItem value="newest" className="text-sm">מהחדש לישן</SelectItem>
                 <SelectItem value="name" className="text-sm">שם</SelectItem>
+                <SelectItem value="type" className="text-sm">סוג</SelectItem>
                 <SelectItem value="status" className="text-sm">סטטוס</SelectItem>
                 <SelectItem value="year" className="text-sm">שנת ייצור</SelectItem>
                 <SelectItem value="updated" className="text-sm">עודכן לאחרונה</SelectItem>
