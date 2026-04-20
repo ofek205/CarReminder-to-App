@@ -1,7 +1,7 @@
 # Android App Links verification
 
 This folder contains `assetlinks.json`, which Android uses to verify that
-`https://carreminder.co.il/*` URLs should open directly in the CarReminder
+`https://car-reminder.app/*` URLs should open directly in the CarReminder
 app instead of the browser.
 
 ## What you need to do once, before enabling verification
@@ -22,7 +22,7 @@ app instead of the browser.
 
 4. **Deploy** (Vercel). Verify the file is served:
    ```
-   curl https://carreminder.co.il/.well-known/assetlinks.json
+   curl https://car-reminder.app/.well-known/assetlinks.json
    ```
    It must return HTTP 200 with `Content-Type: application/json` and the JSON above.
 
@@ -34,7 +34,7 @@ app instead of the browser.
    ```bash
    adb shell pm get-app-links com.carreminder.app
    ```
-   Should show `carreminder.co.il: verified`.
+   Should show `car-reminder.app: verified`.
 
 ## Why two fingerprints?
 

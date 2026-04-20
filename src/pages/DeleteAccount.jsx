@@ -144,7 +144,7 @@ export default function DeleteAccount() {
 
           <div className="text-center">
             <p className="text-[10px]" style={{ color: '#9CA3AF' }}>
-              לשאלות: carreminder.app@gmail.com
+              לשאלות: support@car-reminder.app
             </p>
           </div>
         </div>

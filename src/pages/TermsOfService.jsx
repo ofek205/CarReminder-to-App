@@ -75,7 +75,7 @@ export default function TermsOfService() {
 
         <section>
           <h2 className="text-base font-bold mb-2">8. צור קשר</h2>
-          <p>לשאלות: <strong>carreminder.app@gmail.com</strong></p>
+          <p>לשאלות: <strong>support@car-reminder.app</strong></p>
         </section>
       </div>
     </div>

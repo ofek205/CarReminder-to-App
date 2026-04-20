@@ -31,7 +31,7 @@ export default function SystemErrorBanner({ message, onRetry, onDismiss }) {
             רענן
           </button>
         )}
-        <a href="mailto:support@carreminder.co.il"
+        <a href="mailto:support@car-reminder.app"
           className="text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 transition-all active:scale-95"
           style={{ background: '#FEE2E2', color: '#991B1B' }}>
           <MessageCircle className="w-3 h-3" />

@@ -69,7 +69,7 @@ export default function PrivacyPolicy() {
 
         <section>
           <h2 className="text-base font-bold mb-2">7. צור קשר</h2>
-          <p>לשאלות בנושא פרטיות: <strong>carreminder.app@gmail.com</strong></p>
+          <p>לשאלות בנושא פרטיות: <strong>support@car-reminder.app</strong></p>
         </section>
       </div>
     </div>
