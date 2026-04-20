@@ -871,6 +871,11 @@ function AuthDocuments({ vehicleIdParam }) {
         throw new Error('רק בעלים או מנהל יכולים להוסיף מסמכים. פנה לבעל החשבון לעלות בהרשאה.');
       }
 
+      // Diagnostic log — helps narrow down RLS rejections. Stripped at build
+      // time by Vite since we don't ship to production with NODE_ENV=dev.
+      console.info('[Documents.save] authUser=%s accountId=%s role=%s status=%s',
+        authUser.id, accountId, myMember.role, myMember.status);
+
       // Only keep known DB columns. The form has a `description` field that
       // the DB stores as `notes` — map it explicitly so the user's notes
       // aren't silently dropped during save.
