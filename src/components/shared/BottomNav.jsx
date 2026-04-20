@@ -50,14 +50,20 @@ export default function BottomNav({ sheetOpen = false }) {
         //     the menu. Layout's own useEffect on location.pathname will
         //     then close the sheet after the tap routes away.
         zIndex: sheetOpen ? 10010 : 40,
-        // Cap the system-nav inset. Bare env(safe-area-inset-bottom) on some
-        // Galaxy / Pixel builds reports ~40–50px even when the WebView already
-        // ends above the 3-button nav (windowOptOutEdgeToEdgeEnforcement=true),
-        // which left a huge empty band between our labels and the system
-        // buttons. LinkedIn/WhatsApp sit tight — so do we: min of (env, 10px)
-        // lets gesture-pill devices get their clearance but clamps accidental
-        // double-insets on devices where Android already handled it.
-        paddingBottom: 'min(max(env(safe-area-inset-bottom, 0px), 4px), 10px)',
+        // System-nav inset handling, split by platform because the same
+        // `env(safe-area-inset-bottom)` value means very different things:
+        //
+        //   • Android (Capacitor WebView, windowOptOutEdgeToEdgeEnforcement=
+        //     true): the OS already reserves space for the nav bar BELOW
+        //     our WebView and paints it with android:navigationBarColor
+        //     (white, matches this bar). Any padding we add here becomes a
+        //     visible band between our labels and the system buttons — the
+        //     user's "הרווח הזה" complaint. Drop to 0 so the bar is flush.
+        //   • iOS / gesture-pill devices: env(safe-area-inset-bottom) is a
+        //     real ~34 px reserved area we DO need to clear. Keep it.
+        paddingBottom: /Android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '')
+          ? '0px'
+          : 'min(max(env(safe-area-inset-bottom, 0px), 4px), 10px)',
       }}
       role="navigation" aria-label="ניווט ראשי">
       <div className="flex justify-around items-center max-w-md mx-auto px-1 py-1">
