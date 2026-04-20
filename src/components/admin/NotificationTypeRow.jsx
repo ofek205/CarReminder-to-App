@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit3, Send, Bell, Mail, Clock, Wrench, AlertCircle, Loader2 } from 'lucide-react';
+import { Edit3, Send, Bell, Mail, Clock, Wrench, AlertCircle, Loader2, Megaphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useToggleNotification } from '@/hooks/useEmailAdmin';
@@ -22,7 +22,7 @@ const CATEGORY_VISUAL = {
  *
  * The parent (EmailCenter) handles which dialog opens on click.
  */
-export default function NotificationTypeRow({ notification, onEditTemplate, onSendTest }) {
+export default function NotificationTypeRow({ notification, onEditTemplate, onSendTest, onBroadcast }) {
   const toggle = useToggleNotification();
   const [pending, setPending] = useState(false);
 
@@ -107,6 +107,17 @@ export default function NotificationTypeRow({ notification, onEditTemplate, onSe
             <Send className="w-3.5 h-3.5" />
             בדיקה
           </Button>
+          {notification.trigger_type === 'manual' && onBroadcast && (
+            <Button
+              size="sm"
+              className="gap-1.5 rounded-xl h-9"
+              onClick={() => onBroadcast(notification)}
+              disabled={!notification.enabled}
+              style={{ background: '#2D5233', color: 'white' }}>
+              <Megaphone className="w-3.5 h-3.5" />
+              שלח לכולם
+            </Button>
+          )}
         </div>
       </div>
     </div>

@@ -14,6 +14,7 @@ import SendTestDialog from '@/components/admin/SendTestDialog';
 import TriggersTab from '@/components/admin/TriggersTab';
 import SendLogTab from '@/components/admin/SendLogTab';
 import StatsStrip from '@/components/admin/StatsStrip';
+import BroadcastDialog from '@/components/admin/BroadcastDialog';
 
 /**
  * EmailCenter — Admin-only Email Management Center (Phase 1).
@@ -42,8 +43,9 @@ export default function EmailCenter() {
   const isAdmin = useIsAdmin();
   const { data: notifications = [], isLoading } = useEmailNotifications();
 
-  const [editing, setEditing] = useState(null);   // notification row open in editor
-  const [testing, setTesting] = useState(null);   // notification row open in tester
+  const [editing, setEditing] = useState(null);       // notification row open in editor
+  const [testing, setTesting] = useState(null);       // notification row open in tester
+  const [broadcasting, setBroadcasting] = useState(null); // open in broadcast dialog
 
   const grouped = useMemo(() => {
     const byCat = {};
@@ -125,6 +127,7 @@ export default function EmailCenter() {
                       notification={n}
                       onEditTemplate={setEditing}
                       onSendTest={setTesting}
+                      onBroadcast={setBroadcasting}
                     />
                   ))}
                 </section>
@@ -159,6 +162,11 @@ export default function EmailCenter() {
         notification={testing}
         open={!!testing}
         onClose={() => setTesting(null)}
+      />
+      <BroadcastDialog
+        notification={broadcasting}
+        open={!!broadcasting}
+        onClose={() => setBroadcasting(null)}
       />
     </div>
   );

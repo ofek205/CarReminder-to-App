@@ -402,3 +402,30 @@ export function useUpdateMyEmailPreference() {
     onSuccess: () => qc.invalidateQueries({ queryKey: K.myPrefs }),
   });
 }
+
+// ── Broadcast (marketing / announcements) ──────────────────────────────────
+
+// Fire a manual broadcast to every opted-in recipient for a notification.
+// Admin-triggered only. Respects: kill switch, notification.enabled,
+// per-user preferences, one-per-day idempotency on (user, key, today).
+export function useRunBroadcast() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ notificationKey, dryRun = false }) => {
+      if (!notificationKey) throw new Error('notificationKey is required');
+      const { data, error } = await supabase.functions.invoke('dispatch-broadcast', {
+        body: { notificationKey, dryRun },
+      });
+      if (error) {
+        let detail = error.message;
+        try { const b = await error.context?.json?.(); if (b?.error) detail = b.error; } catch {}
+        throw new Error(detail);
+      }
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: K.sendLog });
+      qc.invalidateQueries({ queryKey: K.stats(30) });
+    },
+  });
+}
