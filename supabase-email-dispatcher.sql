@@ -115,19 +115,10 @@ ON CONFLICT (notification_key) DO NOTHING;
 -- all DB access goes through these SECURITY DEFINER RPCs so the function
 -- runs with service-role-level data access even when RLS is strict.
 
--- Candidates for a single trigger run. Called by the Edge Function to
--- get the list of (user, vehicle, recipient_email, reference_date) tuples
--- that should receive an email today.
---
--- Logic:
---   • target_date = today + days_before
---   • Vehicles where the relevant expiry column equals target_date
---   • User has reminder_settings.email_enabled = true
---   • No recent send_log row within the cooldown window
---   • Account owner's email is the recipient (Phase 2 starts simple;
---     Phase 3 can broadcast to all account_members)
---
--- Returns rows the Edge Function can render + send.
+-- Candidates for a single trigger run. Pure SQL (UNION ALL per notification
+-- type) instead of plpgsql with dynamic SQL — Supabase's plpgsql_check was
+-- tripping on the original variable names. The filter `p_notification_key =
+-- 'reminder_x' AND …` keeps exactly one UNION branch active per call.
 DROP FUNCTION IF EXISTS public.email_dispatch_candidates(text);
 
 CREATE FUNCTION public.email_dispatch_candidates(p_notification_key text)
@@ -140,70 +131,57 @@ RETURNS TABLE (
   reference_date   date,
   days_left        int
 )
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-STABLE
-AS $$
-DECLARE
-  v_days_before   int;
-  v_cooldown      int;
-  v_expiry_column text;
-  v_target_date   date;
-BEGIN
-  -- Trigger config must exist and be enabled.
-  SELECT days_before, cooldown_days
-    INTO v_days_before, v_cooldown
-    FROM public.email_triggers
-    WHERE notification_key = p_notification_key
-      AND enabled = true;
-
-  IF v_days_before IS NULL THEN
-    RETURN;   -- trigger disabled or missing
-  END IF;
-
-  v_target_date := current_date + v_days_before;
-
-  -- Map notification_key → vehicle expiry column.
-  v_expiry_column := CASE p_notification_key
-    WHEN 'reminder_insurance' THEN 'insurance_due_date'
-    WHEN 'reminder_test'      THEN 'test_due_date'
-    ELSE NULL
-  END;
-
-  IF v_expiry_column IS NULL THEN
-    RETURN;   -- unsupported reminder type for this phase
-  END IF;
-
-  -- Dynamic SQL so the column name stays parameterised cleanly. The
-  -- column list is a hard-coded whitelist above, so no injection risk.
-  RETURN QUERY EXECUTE format($q$
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  WITH trig AS (
+    SELECT days_before, cooldown_days
+      FROM public.email_triggers
+     WHERE notification_key = p_notification_key AND enabled = true
+  ),
+  raw AS (
     SELECT
       am.user_id,
-      u.email                                        AS recipient_email,
-      v.id                                           AS vehicle_id,
-      COALESCE(v.nickname, v.manufacturer || ' ' || COALESCE(v.model, '')) AS vehicle_name,
+      u.email                                                              AS recipient_email,
+      v.id                                                                 AS vehicle_id,
+      COALESCE(v.nickname, v.manufacturer || ' ' || COALESCE(v.model,''))  AS vehicle_name,
       v.license_plate,
-      v.%1$I                                         AS reference_date,
-      (v.%1$I - current_date)::int                   AS days_left
+      v.insurance_due_date                                                 AS reference_date,
+      (v.insurance_due_date - current_date)::int                           AS days_left
     FROM public.vehicles v
-    JOIN public.account_members am
-      ON am.account_id = v.account_id AND am.role = 'בעלים'
-    JOIN auth.users u
-      ON u.id = am.user_id
-    JOIN public.reminder_settings rs
-      ON rs.user_id = am.user_id AND rs.email_enabled = true
-    WHERE v.%1$I = $1
-      AND NOT EXISTS (
-        SELECT 1 FROM public.email_send_log esl
-         WHERE esl.user_id = am.user_id
-           AND esl.notification_key = $2
-           AND esl.reference_date = v.%1$I
-           AND esl.sent_at > now() - ($3 || ' days')::interval
-      )
-  $q$, v_expiry_column)
-  USING v_target_date, p_notification_key, v_cooldown;
-END;
+    JOIN public.account_members am ON am.account_id = v.account_id AND am.role = 'בעלים'
+    JOIN auth.users u              ON u.id = am.user_id
+    JOIN public.reminder_settings rs ON rs.user_id = am.user_id AND rs.email_enabled = true
+    CROSS JOIN trig
+    WHERE p_notification_key = 'reminder_insurance'
+      AND v.insurance_due_date = current_date + trig.days_before
+
+    UNION ALL
+
+    SELECT
+      am.user_id,
+      u.email,
+      v.id,
+      COALESCE(v.nickname, v.manufacturer || ' ' || COALESCE(v.model,'')),
+      v.license_plate,
+      v.test_due_date,
+      (v.test_due_date - current_date)::int
+    FROM public.vehicles v
+    JOIN public.account_members am ON am.account_id = v.account_id AND am.role = 'בעלים'
+    JOIN auth.users u              ON u.id = am.user_id
+    JOIN public.reminder_settings rs ON rs.user_id = am.user_id AND rs.email_enabled = true
+    CROSS JOIN trig
+    WHERE p_notification_key = 'reminder_test'
+      AND v.test_due_date = current_date + trig.days_before
+  )
+  SELECT r.*
+    FROM raw r
+    CROSS JOIN trig t
+   WHERE NOT EXISTS (
+     SELECT 1 FROM public.email_send_log esl
+      WHERE esl.user_id = r.user_id
+        AND esl.notification_key = p_notification_key
+        AND esl.reference_date  = r.reference_date
+        AND esl.sent_at > now() - (t.cooldown_days || ' days')::interval
+   );
 $$;
 
 GRANT EXECUTE ON FUNCTION public.email_dispatch_candidates(text) TO service_role, authenticated;
@@ -225,18 +203,14 @@ CREATE FUNCTION public.email_log_attempt(
   p_metadata        jsonb DEFAULT '{}'::jsonb
 )
 RETURNS boolean
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   INSERT INTO public.email_send_log
     (user_id, notification_key, recipient_email, reference_date, status, message_id, metadata)
   VALUES
-    (p_user_id, p_notification, p_recipient, p_reference_date, p_status, p_message_id, p_metadata);
-  RETURN true;
-EXCEPTION WHEN unique_violation THEN
-  RETURN false;
+    (p_user_id, p_notification, p_recipient, p_reference_date, p_status, p_message_id, p_metadata)
+  ON CONFLICT (user_id, notification_key, reference_date) DO NOTHING;
+  RETURN FOUND;
 END;
 $$;
 
