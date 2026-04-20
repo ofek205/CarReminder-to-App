@@ -9,23 +9,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>אימות כתובת המייל</title>
 </head>
 <body style="margin:0;padding:0;background:#F4F7F3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#1F2937;direction:rtl">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px">
-    הקוד תקף ל-60 דקות — אל תשתפ/י אותו עם אף אחד.
+    הקוד תקף ל-60 דקות. אל תשתפ/י אותו עם אף אחד.&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;
   </div>
 
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#F4F7F3;padding:32px 16px">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background:#FFFFFF;border-radius:24px;box-shadow:0 6px 28px rgba(17,34,22,0.06);overflow:hidden">
+        <table role="presentation" width="560" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:560px;background:#FFFFFF;border-radius:24px;box-shadow:0 6px 28px rgba(17,34,22,0.06);overflow:hidden">
 
           <!-- Header -->
           <tr>
             <td align="center" style="padding:36px 28px 8px">
-              <div style="display:inline-block;width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#2D5233,#4A8C5C);line-height:64px;text-align:center;font-size:32px">&#128663;</div>
-              <h1 style="font-size:24px;font-weight:900;color:#1C3620;margin:18px 0 6px;letter-spacing:-0.2px">
+              <img src="https://car-reminder.app/icons/icon-192x192.png" alt="CarReminder" width="72" height="72" style="display:block;width:72px;height:72px;border-radius:22px;margin:0 auto;box-shadow:0 6px 18px rgba(45,82,51,0.18)">
+              <h1 style="font-size:24px;font-weight:900;color:#1C3620;margin:18px 0 6px">
                 אימות כתובת המייל
               </h1>
               <p style="font-size:14px;color:#6B7280;margin:0">
@@ -49,7 +51,7 @@
               <!-- OTP code box -->
               <div style="background:#FAFDF6;border:2px dashed #D8E5D9;border-radius:18px;padding:22px 16px;text-align:center;margin:18px 0 24px">
                 <div style="font-size:13px;color:#6B7280;margin:0 0 8px;font-weight:600">קוד אימות</div>
-                <div style="font-size:36px;font-weight:900;letter-spacing:10px;color:#1C3620;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace">
+                <div dir="ltr" style="font-size:36px;font-weight:900;letter-spacing:10px;color:#1C3620;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace">
                   {{ .Token }}
                 </div>
               </div>
@@ -61,8 +63,8 @@
               <div style="margin:12px 0 8px">
                 <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="right" style="margin:0">
                   <tr>
-                    <td align="center" style="border-radius:14px;background:linear-gradient(135deg,#2D5233 0%,#3A6B42 100%);box-shadow:0 8px 20px rgba(45,82,51,0.25)">
-                      <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:14px 32px;color:#FFFFFF;font-size:15px;font-weight:800;text-decoration:none;border-radius:14px">
+                    <td align="center" bgcolor="#2D5233" style="border-radius:14px;background:linear-gradient(135deg,#2D5233 0%,#3A6B42 100%);padding:14px 32px;mso-padding-alt:14px 32px;box-shadow:0 8px 20px rgba(45,82,51,0.25)">
+                      <a href="{{ .ConfirmationURL }}" target="_blank" style="color:#FFFFFF;font-size:15px;font-weight:800;text-decoration:none;line-height:1.2">
                         אימות כתובת המייל &#8592;
                       </a>
                     </td>
@@ -79,7 +81,7 @@
               <hr style="border:none;border-top:1px solid #E5E7EB;margin:20px 0">
               <p style="font-size:12px;color:#9CA3AF;text-align:center;margin:0 0 12px;line-height:1.7">
                 הקוד תקף ל-60 דקות ולשימוש פעם אחת בלבד.<br>
-                אם לא נרשמת ל-CarReminder &mdash; אפשר להתעלם ממייל זה.
+                אם לא נרשמת ל-CarReminder, אפשר להתעלם ממייל זה.
               </p>
               <p style="font-size:11px;color:#9CA3AF;text-align:center;margin:0;line-height:1.7">
                 CarReminder &middot; ניהול חכם של כלי רכב<br>

@@ -31,13 +31,12 @@ export const EMAIL_BRAND = {
   textDim:    '#6B7280',
   textMute:   '#9CA3AF',
   hr:         '#E5E7EB',
-  logoFrom:   '#2D5233',
-  logoTo:     '#4A8C5C',
   year:       new Date().getFullYear(),
   appName:    'CarReminder',
   tagline:    'ניהול חכם של כלי רכב',
   supportMail:'support@car-reminder.app',
   siteUrl:    'https://car-reminder.app',
+  logoUrl:    'https://car-reminder.app/icons/icon-192x192.png',
 };
 
 // ── HTML escape ────────────────────────────────────────────────────────────
@@ -59,15 +58,18 @@ export function infoBox(html) {
   return `<div style="background:${EMAIL_BRAND.infoBg};border:1.5px solid ${EMAIL_BRAND.infoBorder};border-radius:16px;padding:18px 20px;margin:0 0 24px;color:${EMAIL_BRAND.infoText};font-size:15px;line-height:1.7">${html}</div>`;
 }
 
-// Primary CTA button. Table-based so Outlook renders it correctly.
+// Primary CTA button.
+// Built as a table so Outlook renders it; uses `bgcolor` as a solid-colour
+// fallback for clients that drop the gradient, and puts the padding on the
+// <td> (Outlook ignores padding on <a>).
 export function ctaButton(label, href) {
   const safeLabel = escapeHtml(label);
   const safeHref = escapeHtml(href);
   return `
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto">
       <tr>
-        <td align="center" style="border-radius:14px;background:${EMAIL_BRAND.gradient};box-shadow:0 8px 20px rgba(45,82,51,0.25)">
-          <a href="${safeHref}" target="_blank" style="display:inline-block;padding:16px 40px;color:#FFFFFF;font-size:16px;font-weight:800;text-decoration:none;border-radius:14px">
+        <td align="center" bgcolor="${EMAIL_BRAND.primary}" style="border-radius:14px;background:${EMAIL_BRAND.gradient};padding:16px 40px;mso-padding-alt:16px 40px;box-shadow:0 8px 20px rgba(45,82,51,0.25)">
+          <a href="${safeHref}" target="_blank" style="color:#FFFFFF;font-size:16px;font-weight:800;text-decoration:none;line-height:1.2">
             ${safeLabel}&nbsp;&#8592;
           </a>
         </td>
@@ -81,7 +83,7 @@ export function codeBox(code) {
   return `
     <div style="background:${EMAIL_BRAND.codeBg};border:2px dashed ${EMAIL_BRAND.codeBorder};border-radius:18px;padding:22px 16px;text-align:center;margin:8px 0 24px">
       <div style="font-size:13px;color:${EMAIL_BRAND.textDim};margin:0 0 8px;font-weight:600">קוד אימות</div>
-      <div style="font-size:36px;font-weight:900;letter-spacing:10px;color:${EMAIL_BRAND.codeText};font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace">
+      <div dir="ltr" style="font-size:36px;font-weight:900;letter-spacing:10px;color:${EMAIL_BRAND.codeText};font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace">
         ${safeCode}
       </div>
     </div>`;
@@ -125,25 +127,26 @@ export function buildEmailHtml({
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>${safeTitle}</title>
 </head>
 <body style="margin:0;padding:0;background:${EMAIL_BRAND.softBg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:${EMAIL_BRAND.text};direction:rtl">
-  <!-- Preheader — hidden preview text shown in inbox list -->
+  <!-- Preview text shown by Gmail/Outlook in the inbox list. The trailing
+       invisible characters pad it so body content doesn't leak in. -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px">
-    ${safePreheader}
+    ${safePreheader}&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;
   </div>
 
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:${EMAIL_BRAND.softBg};padding:32px 16px">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background:${EMAIL_BRAND.card};border-radius:24px;box-shadow:0 6px 28px rgba(17,34,22,0.06);overflow:hidden">
+        <table role="presentation" width="560" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:560px;background:${EMAIL_BRAND.card};border-radius:24px;box-shadow:0 6px 28px rgba(17,34,22,0.06);overflow:hidden">
           <!-- Header -->
           <tr>
             <td align="center" style="padding:36px 28px 8px">
-              <div style="display:inline-block;width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,${EMAIL_BRAND.logoFrom},${EMAIL_BRAND.logoTo});line-height:64px;text-align:center;font-size:32px">
-                &#128663;
-              </div>
-              <h1 style="font-size:24px;font-weight:900;color:${EMAIL_BRAND.codeText};margin:18px 0 6px;letter-spacing:-0.2px">
+              <img src="${EMAIL_BRAND.logoUrl}" alt="CarReminder" width="72" height="72" style="display:block;width:72px;height:72px;border-radius:22px;margin:0 auto;box-shadow:0 6px 18px rgba(45,82,51,0.18)">
+              <h1 style="font-size:24px;font-weight:900;color:${EMAIL_BRAND.codeText};margin:20px 0 6px">
                 ${safeTitle}
               </h1>
               <p style="font-size:14px;color:${EMAIL_BRAND.textDim};margin:0">
@@ -205,11 +208,11 @@ export function buildInviteEmail({ inviterName, roleLabel, inviteLink }) {
   `;
 
   return buildEmailHtml({
-    preheader: `${inviterName} מזמין/ה אותך — הקישור תקף 7 ימים`,
+    preheader: `${inviterName} מזמין/ה אותך. הקישור תקף 7 ימים`,
     title: 'הוזמנת ל-CarReminder',
     subtitle: 'ניהול חכם של כלי רכב',
     bodyHtml,
-    footerNote: 'הקישור תקף ל-7 ימים וניתן לשימוש פעם אחת בלבד.<br>אם לא ציפית להזמנה — אפשר להתעלם ממייל זה.',
+    footerNote: 'הקישור תקף ל-7 ימים וניתן לשימוש פעם אחת בלבד.<br>אם לא ציפית להזמנה, אפשר להתעלם ממייל זה.',
   });
 }
 
@@ -223,6 +226,6 @@ export function buildInviteText({ inviterName, roleLabel, inviteLink }) {
     'קישור להצטרפות (תקף 7 ימים):',
     inviteLink,
     '',
-    'אם לא ציפית להזמנה — אפשר להתעלם ממייל זה.',
+    'אם לא ציפית להזמנה, אפשר להתעלם ממייל זה.',
   ].join('\n');
 }
