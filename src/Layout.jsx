@@ -50,6 +50,7 @@ const navItems = [
   { name: 'AdminReviews',          label: 'חוות דעת',         icon: Star,            guestAllowed: true },
   { name: 'Contact',               label: 'צור קשר',          icon: MessageSquare,   guestAllowed: true },
   { name: 'AdminDashboard',        label: 'לוח ניהול',        icon: ShieldCheck,     guestAllowed: false, adminOnly: true },
+  { name: 'EmailCenter',           label: 'ניהול מיילים',      icon: Mail,            guestAllowed: false, adminOnly: true },
 ];
 
 

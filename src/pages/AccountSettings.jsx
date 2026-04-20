@@ -268,20 +268,37 @@ function AuthAccountSettings({ embedded = false }) {
     if (!inviteeEmail) return;
     setEmailSending(true);
     try {
-      const { sendEmail } = await import('@/lib/sendEmail');
-      const { buildInviteEmail, buildInviteText } = await import('@/lib/emailTemplates');
+      const { sendEmail, sendTemplatedEmail } = await import('@/lib/sendEmail');
       const inviterName = user?.full_name || user?.email || 'משתמש CarReminder';
       const roleLabel = inviteRole; // 'מנהל' / 'שותף'
-      const subject = `${inviterName} הזמין/ה אותך ל-CarReminder`;
-      const html = buildInviteEmail({ inviterName, roleLabel, inviteLink: link });
-      const text = buildInviteText({ inviterName, roleLabel, inviteLink: link });
 
-      await sendEmail({ to: inviteeEmail, subject, html, text });
+      // Primary path: DB-managed template (admin editable via /EmailCenter).
+      // Falls back to the in-code builder if the feature flag is off, the
+      // template row is missing, or the DB lookup errors. Keeps the invite
+      // flow working end-to-end even mid-migration.
+      try {
+        await sendTemplatedEmail('invite', {
+          to: inviteeEmail,
+          vars: { inviterName, roleLabel, inviteLink: link },
+        });
+      } catch (e) {
+        if (e.name === 'EmailsPausedError') throw e;          // bubble up
+        if (import.meta.env.DEV) console.warn('DB template path failed, falling back:', e.message);
+        const { buildInviteEmail, buildInviteText } = await import('@/lib/emailTemplates');
+        const subject = `${inviterName} הזמין/ה אותך ל-CarReminder`;
+        const html = buildInviteEmail({ inviterName, roleLabel, inviteLink: link });
+        const text = buildInviteText({ inviterName, roleLabel, inviteLink: link });
+        await sendEmail({ to: inviteeEmail, subject, html, text });
+      }
+
       setEmailSent(true);
       toast.success(`המייל נשלח ל-${inviteeEmail}`);
     } catch (e) {
       if (import.meta.env.DEV) console.error('Invite email send error:', e);
-      toast.error('שליחת המייל נכשלה — אפשר לשתף דרך WhatsApp או להעתיק את הקישור');
+      const msg = e.name === 'EmailsPausedError'
+        ? 'שליחת מיילים מושעתה על ידי אדמין'
+        : 'שליחת המייל נכשלה — אפשר לשתף דרך WhatsApp או להעתיק את הקישור';
+      toast.error(msg);
     } finally {
       setEmailSending(false);
     }

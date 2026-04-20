@@ -33,6 +33,7 @@ const UserProfile = React.lazy(() => import('./pages/UserProfile'));
 const AiAssistant = React.lazy(() => import('./pages/AiAssistant'));
 const Contact = React.lazy(() => import('./pages/Contact'));
 const Settings = React.lazy(() => import('./pages/Settings'));
+const EmailCenter = React.lazy(() => import('./pages/EmailCenter'));
 
 export const PAGES = {
     "Accidents": Accidents,
@@ -62,6 +63,7 @@ export const PAGES = {
     "VehicleDetail": VehicleDetail,
     "Vehicles": Vehicles,
     "Settings": Settings,
+    "EmailCenter": EmailCenter,
 }
 
 export const pagesConfig = {
