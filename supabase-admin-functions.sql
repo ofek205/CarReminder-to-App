@@ -82,7 +82,11 @@ BEGIN
     FROM account_members m
     JOIN accounts acc ON acc.id = m.account_id
     WHERE m.user_id = u.id
-    ORDER BY (m.role = 'owner') DESC NULLS LAST, m.created_at ASC
+    -- Role value is Hebrew in this project ('בעלים'). Left the English
+    -- 'owner' for legacy rows that may have slipped in via the Base44
+    -- migration. joined_at, NOT created_at — this table uses a different
+    -- timestamp column name than the rest.
+    ORDER BY (m.role IN ('בעלים','owner')) DESC NULLS LAST, m.joined_at ASC
     LIMIT 1
   ) a ON TRUE
   ORDER BY u.created_at DESC;
