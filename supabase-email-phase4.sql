@@ -39,13 +39,11 @@ BEGIN
     RAISE EXCEPTION 'unauthorized' USING ERRCODE = '42501';
   END IF;
 
-  UPDATE public.email_templates
+  UPDATE public.email_templates et
      SET published_at       = now(),
          published_by       = auth.uid(),
-         published_snapshot = to_jsonb(t)
-    FROM public.email_templates t
-   WHERE email_templates.id = p_template_id
-     AND t.id = p_template_id;
+         published_snapshot = to_jsonb(et.*)
+   WHERE et.id = p_template_id;
 END;
 $$;
 
@@ -74,30 +72,23 @@ RETURNS TABLE (
   reply_to          text,
   variables         jsonb
 )
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-STABLE
-AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
   SELECT
     n.key,
     n.enabled,
-    COALESCE(ps->>'subject',     t.subject)       AS subject,
-    COALESCE(ps->>'preheader',   t.preheader)     AS preheader,
-    COALESCE(ps->>'title',       t.title)         AS title,
-    COALESCE(ps->>'body_html',   t.body_html)     AS body_html,
-    COALESCE(ps->>'cta_label',   t.cta_label)     AS cta_label,
-    COALESCE(ps->>'cta_url',     t.cta_url)       AS cta_url,
-    COALESCE(ps->>'footer_note', t.footer_note)   AS footer_note,
-    COALESCE(ps->>'from_name',   t.from_name)     AS from_name,
-    COALESCE(ps->>'from_email',  t.from_email)    AS from_email,
-    COALESCE(ps->>'reply_to',    t.reply_to)      AS reply_to,
-    COALESCE(ps->'variables',    t.variables)     AS variables
+    COALESCE(t.published_snapshot->>'subject',     t.subject)     AS subject,
+    COALESCE(t.published_snapshot->>'preheader',   t.preheader)   AS preheader,
+    COALESCE(t.published_snapshot->>'title',       t.title)       AS title,
+    COALESCE(t.published_snapshot->>'body_html',   t.body_html)   AS body_html,
+    COALESCE(t.published_snapshot->>'cta_label',   t.cta_label)   AS cta_label,
+    COALESCE(t.published_snapshot->>'cta_url',     t.cta_url)     AS cta_url,
+    COALESCE(t.published_snapshot->>'footer_note', t.footer_note) AS footer_note,
+    COALESCE(t.published_snapshot->>'from_name',   t.from_name)   AS from_name,
+    COALESCE(t.published_snapshot->>'from_email',  t.from_email)  AS from_email,
+    COALESCE(t.published_snapshot->>'reply_to',    t.reply_to)    AS reply_to,
+    COALESCE(t.published_snapshot->'variables',    t.variables)   AS variables
   FROM public.email_notifications n
   JOIN public.email_templates t ON t.notification_key = n.key
-  LEFT JOIN LATERAL (
-    SELECT t.published_snapshot AS ps
-  ) s ON true
   WHERE n.key = p_key;
 $$;
 
@@ -187,10 +178,10 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
         AND esl.reference_date  = r.reference_date
         AND esl.sent_at > now() - (t.cooldown_days || ' days')::interval
    )
-   -- Audience conditions
-   AND (t.conditions->>'min_days_since_signup') IS NULL
-       OR r.user_created_at < now() - ((t.conditions->>'min_days_since_signup')::int || ' days')::interval
-  ;
+   AND (
+     (t.conditions->>'min_days_since_signup') IS NULL
+     OR r.user_created_at < now() - ((t.conditions->>'min_days_since_signup')::int || ' days')::interval
+   );
 $$;
 
 GRANT EXECUTE ON FUNCTION public.email_dispatch_candidates(text) TO service_role, authenticated;
