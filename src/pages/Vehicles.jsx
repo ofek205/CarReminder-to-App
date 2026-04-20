@@ -271,6 +271,8 @@ function VehiclesContent({ vehicles, isLoading }) {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeCategoryTab, setActiveCategoryTab] = useState('all');
   const [sortBy, setSortBy] = useState('name');
+  // null | 'overdue' | 'soon' — driven by the two clickable badges above the list.
+  const [statusFilter, setStatusFilter] = useState(null);
 
   // Debounce search
   useEffect(() => {
@@ -312,6 +314,11 @@ function VehiclesContent({ vehicles, isLoading }) {
   const filteredVehicles = useMemo(() => {
     let result = [...vehicleMeta];
 
+    // Status filter (overdue / soon) — clicked from the quick-status row.
+    if (statusFilter) {
+      result = result.filter(m => m.status === statusFilter);
+    }
+
     // Category filter (dual-category types like "אופנוע שטח" appear in multiple tabs)
     if (activeCategoryTab !== 'all') {
       result = result.filter(m => matchesCategory(m.vehicle, activeCategoryTab));
@@ -344,14 +351,15 @@ function VehiclesContent({ vehicles, isLoading }) {
     });
 
     return result.map(m => m.vehicle);
-  }, [vehicleMeta, activeCategoryTab, debouncedSearch, sortBy]);
+  }, [vehicleMeta, activeCategoryTab, debouncedSearch, sortBy, statusFilter]);
 
-  const hasActiveFilters = activeCategoryTab !== 'all' || debouncedSearch.trim();
+  const hasActiveFilters = activeCategoryTab !== 'all' || debouncedSearch.trim() || !!statusFilter;
 
   const clearAllFilters = () => {
     setSearchQuery('');
     setDebouncedSearch('');
     setActiveCategoryTab('all');
+    setStatusFilter(null);
   };
 
   // ── Loading ─────────────────────────────────────────────────────────────
@@ -398,18 +406,43 @@ function VehiclesContent({ vehicles, isLoading }) {
         <PremiumEmptyState hasFilters={false} theme={T} isVessel={isVesselPage} />
       ) : (
         <>
-          {/* Quick status line */}
+          {/* Quick status line — both badges are clickable and toggle a
+              filter on the vehicle list (same UX as the dashboard). */}
           {(statusCounts.overdue > 0 || statusCounts.soon > 0) && (
-            <div className="flex items-center gap-3 mb-3 px-1" dir="rtl">
+            <div className="flex items-center gap-2 mb-3 px-1 flex-wrap" dir="rtl">
               {statusCounts.overdue > 0 && (
-                <span className="text-xs font-bold flex items-center gap-1" style={{ color: C.error }}>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter(f => f === 'overdue' ? null : 'overdue')}
+                  className="text-xs font-bold flex items-center gap-1 rounded-full px-2.5 py-1 transition-colors"
+                  style={{
+                    color: C.error,
+                    background: statusFilter === 'overdue' ? C.errorBg : 'transparent',
+                    border: `1px solid ${statusFilter === 'overdue' ? C.error : 'transparent'}`,
+                  }}>
                   <AlertTriangle className="w-3.5 h-3.5" /> {statusCounts.overdue} באיחור
-                </span>
+                </button>
               )}
               {statusCounts.soon > 0 && (
-                <span className="text-xs font-bold flex items-center gap-1" style={{ color: C.warn }}>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter(f => f === 'soon' ? null : 'soon')}
+                  className="text-xs font-bold flex items-center gap-1 rounded-full px-2.5 py-1 transition-colors"
+                  style={{
+                    color: C.warn,
+                    background: statusFilter === 'soon' ? C.warnBg : 'transparent',
+                    border: `1px solid ${statusFilter === 'soon' ? C.warn : 'transparent'}`,
+                  }}>
                   <Clock className="w-3.5 h-3.5" /> {statusCounts.soon} בקרוב
-                </span>
+                </button>
+              )}
+              {statusFilter && (
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter(null)}
+                  className="text-[11px] text-gray-500 underline mr-auto">
+                  נקה סינון
+                </button>
               )}
             </div>
           )}
