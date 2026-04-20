@@ -269,41 +269,12 @@ function AuthAccountSettings({ embedded = false }) {
     setEmailSending(true);
     try {
       const { sendEmail } = await import('@/lib/sendEmail');
+      const { buildInviteEmail, buildInviteText } = await import('@/lib/emailTemplates');
       const inviterName = user?.full_name || user?.email || 'משתמש CarReminder';
       const roleLabel = inviteRole; // 'מנהל' / 'שותף'
       const subject = `${inviterName} הזמין/ה אותך ל-CarReminder`;
-      const html = `
-        <div dir="rtl" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#1F2937">
-          <div style="text-align:center;margin-bottom:24px">
-            <div style="display:inline-block;width:56px;height:56px;border-radius:18px;background:linear-gradient(135deg,#2D5233,#4A8C5C);line-height:56px;text-align:center;font-size:28px">🚗</div>
-            <h1 style="font-size:22px;font-weight:900;color:#1C3620;margin:16px 0 4px">הוזמנת ל-CarReminder</h1>
-            <p style="font-size:14px;color:#6B7280;margin:0">אפליקציה לניהול חכם של כלי רכב</p>
-          </div>
-
-          <div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:16px;padding:16px 18px;margin-bottom:20px">
-            <p style="font-size:14px;margin:0 0 6px;color:#166534"><strong>${escapeHtml(inviterName)}</strong> מזמין/ה אותך להצטרף לחשבון הרכבים ב-CarReminder.</p>
-            <p style="font-size:13px;margin:0;color:#166534">רמת ההרשאה שלך תהיה: <strong>${escapeHtml(roleLabel)}</strong></p>
-          </div>
-
-          <div style="text-align:center;margin:28px 0">
-            <a href="${link}" style="display:inline-block;background:linear-gradient(135deg,#2D5233,#4A8C5C);color:white;padding:14px 32px;border-radius:14px;text-decoration:none;font-weight:800;font-size:15px;box-shadow:0 8px 20px rgba(45,82,51,0.25)">
-              הצטרף לחשבון ←
-            </a>
-          </div>
-
-          <p style="font-size:12px;color:#9CA3AF;text-align:center;margin:0">או העתק את הקישור לדפדפן:</p>
-          <p style="font-size:12px;word-break:break-all;text-align:center;margin:6px 0 24px;color:#4B5563">
-            <a href="${link}" style="color:#2D5233">${link}</a>
-          </p>
-
-          <hr style="border:none;border-top:1px solid #E5E7EB;margin:24px 0">
-          <p style="font-size:11px;color:#9CA3AF;text-align:center;margin:0;line-height:1.6">
-            הקישור תקף ל-7 ימים וניתן לשימוש פעם אחת בלבד.<br>
-            אם לא ביקשת את ההזמנה — התעלם/י ממייל זה.
-          </p>
-        </div>
-      `;
-      const text = `${inviterName} מזמין/ה אותך להצטרף ל-CarReminder כ${roleLabel}.\nקישור הצטרפות (תקף 7 ימים): ${link}`;
+      const html = buildInviteEmail({ inviterName, roleLabel, inviteLink: link });
+      const text = buildInviteText({ inviterName, roleLabel, inviteLink: link });
 
       await sendEmail({ to: inviteeEmail, subject, html, text });
       setEmailSent(true);
@@ -315,12 +286,6 @@ function AuthAccountSettings({ embedded = false }) {
       setEmailSending(false);
     }
   };
-
-  // Tiny helper — the invite email embeds user-supplied names. Escaping
-  // protects against someone sticking HTML into their profile name.
-  const escapeHtml = (s) => String(s || '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
   const copyLink = async () => {
     const { copyToClipboard } = await import('@/lib/clipboard');

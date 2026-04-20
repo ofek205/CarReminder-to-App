@@ -1,0 +1,91 @@
+<!doctype html>
+<!--
+  CarReminder — Magic Link (passwordless sign-in)
+  Paste into: Supabase Dashboard → Authentication → Email Templates → Magic Link
+  Subject suggested: קישור התחברות מהיר ל-CarReminder
+  Supabase variables used: {{ .ConfirmationURL }}, {{ .Token }}
+-->
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>התחברות ל-CarReminder</title>
+</head>
+<body style="margin:0;padding:0;background:#F4F7F3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#1F2937;direction:rtl">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px">
+    לחיצה אחת ואת/ה בפנים — הקישור תקף ל-60 דקות.
+  </div>
+
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#F4F7F3;padding:32px 16px">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background:#FFFFFF;border-radius:24px;box-shadow:0 6px 28px rgba(17,34,22,0.06);overflow:hidden">
+
+          <!-- Header -->
+          <tr>
+            <td align="center" style="padding:36px 28px 8px">
+              <div style="display:inline-block;width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#2D5233,#4A8C5C);line-height:64px;text-align:center;font-size:32px">&#128663;</div>
+              <h1 style="font-size:24px;font-weight:900;color:#1C3620;margin:18px 0 6px;letter-spacing:-0.2px">
+                התחברות ל-CarReminder
+              </h1>
+              <p style="font-size:14px;color:#6B7280;margin:0">
+                לחיצה אחת ואת/ה בפנים
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:24px 28px 8px;font-size:15px;line-height:1.75;color:#1F2937;direction:rtl;text-align:right">
+
+              <p style="margin:0 0 16px">
+                ביקשת להתחבר ל-CarReminder ללא סיסמה. לחצ/י על הכפתור כדי להיכנס:
+              </p>
+
+              <!-- Primary CTA -->
+              <div style="margin:24px 0 16px">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto">
+                  <tr>
+                    <td align="center" style="border-radius:14px;background:linear-gradient(135deg,#2D5233 0%,#3A6B42 100%);box-shadow:0 8px 20px rgba(45,82,51,0.25)">
+                      <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:16px 40px;color:#FFFFFF;font-size:16px;font-weight:800;text-decoration:none;border-radius:14px">
+                        התחברות לחשבון &#8592;
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+
+              <!-- Fallback link -->
+              <p style="font-size:12px;color:#9CA3AF;text-align:center;margin:24px 0 4px">
+                או העתק/י את הקישור לדפדפן:
+              </p>
+              <p style="font-size:12px;word-break:break-all;text-align:center;margin:0 0 8px;color:#6B7280">
+                <a href="{{ .ConfirmationURL }}" style="color:#2D5233;text-decoration:underline">{{ .ConfirmationURL }}</a>
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:24px 28px 32px">
+              <hr style="border:none;border-top:1px solid #E5E7EB;margin:20px 0">
+              <p style="font-size:12px;color:#9CA3AF;text-align:center;margin:0 0 12px;line-height:1.7">
+                הקישור תקף ל-60 דקות ולשימוש פעם אחת בלבד.<br>
+                אם לא ביקשת התחברות &mdash; אפשר להתעלם ממייל זה.
+              </p>
+              <p style="font-size:11px;color:#9CA3AF;text-align:center;margin:0;line-height:1.7">
+                CarReminder &middot; ניהול חכם של כלי רכב<br>
+                <a href="mailto:support@car-reminder.app" style="color:#6B7280;text-decoration:underline">support@car-reminder.app</a>
+                &nbsp;&middot;&nbsp;
+                <a href="https://car-reminder.app" style="color:#6B7280;text-decoration:underline">car-reminder.app</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
