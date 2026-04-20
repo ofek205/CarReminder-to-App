@@ -107,6 +107,22 @@ function AuthenticatedView() {
     return Array.from(s);
   }, [vehicles]);
 
+  // Most-owned vehicle type — used as the default filter so a user with
+  // 10 cars and 1 boat lands on "רכב", not on the noisy "הכל" mix.
+  const dominantVehicleType = useMemo(() => {
+    if (!vehicles.length) return null;
+    const counts = {};
+    for (const v of vehicles) {
+      const t = v.vehicle_type || 'רכב';
+      counts[t] = (counts[t] || 0) + 1;
+    }
+    let best = null, bestCount = -1;
+    for (const [type, count] of Object.entries(counts)) {
+      if (count > bestCount) { best = type; bestCount = count; }
+    }
+    return best;
+  }, [vehicles]);
+
   const merged = useMemo(() => {
     const prefByKey = Object.fromEntries(
       prefs.filter(p => !p.is_custom && p.catalog_key).map(p => [p.catalog_key, p])
@@ -151,7 +167,22 @@ function AuthenticatedView() {
   }, [prefs, userVehicleTypes]);
 
   // ── Filters: vehicle-type Select + search input — one row, compact ──
-  const [vehicleFilter, setVehicleFilter] = useState('all');
+  // Default to the dominant vehicle type (most-owned). User can change
+  // freely; once they do, we stop auto-syncing (respect their choice).
+  const [vehicleFilter, setVehicleFilter] = useState(null);
+  const userTouchedFilterRef = React.useRef(false);
+
+  useEffect(() => {
+    if (userTouchedFilterRef.current) return;
+    if (dominantVehicleType) setVehicleFilter(dominantVehicleType);
+    else setVehicleFilter('all');
+  }, [dominantVehicleType]);
+
+  const changeVehicleFilter = (val) => {
+    userTouchedFilterRef.current = true;
+    setVehicleFilter(val);
+  };
+
   const [search, setSearch] = useState('');
   const visibleList = useMemo(() => {
     let list = merged;
@@ -221,8 +252,8 @@ function AuthenticatedView() {
                 dir="rtl"
               />
             </div>
-            {(userVehicleTypes.length > 1 || customCount > 0) && (
-              <Select value={vehicleFilter} onValueChange={setVehicleFilter}>
+            {(userVehicleTypes.length > 1 || customCount > 0) && vehicleFilter !== null && (
+              <Select value={vehicleFilter} onValueChange={changeVehicleFilter}>
                 <SelectTrigger className="w-[120px] h-10 rounded-xl text-sm shrink-0">
                   <SelectValue />
                 </SelectTrigger>
