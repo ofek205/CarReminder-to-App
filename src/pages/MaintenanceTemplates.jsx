@@ -100,6 +100,52 @@ function AuthenticatedView() {
     enabled: !!userId,
   });
 
+  // Maintenance history — used to show "בוצע לפני X" next to each row.
+  // We read ALL logs the user can see (RLS already filters by account
+  // membership) and build a name → latest-date map below.
+  const { data: logs = [] } = useQuery({
+    queryKey: ['my-maintenance-logs', userId],
+    queryFn: () => db.maintenance_logs.list(),
+    enabled: !!userId,
+  });
+
+  // Map: normalised item name → most recent performed_at across ALL logs.
+  // A log can contribute via its title AND via any name in selected_items.
+  // Normalisation = lowercase + collapse whitespace so fuzzy matches hit
+  // (e.g. "טיפול שמן" vs "טיפול  שמן מנוע").
+  const lastDoneByName = useMemo(() => {
+    const map = new Map();
+    const bump = (name, dateStr) => {
+      if (!name || !dateStr) return;
+      const key = String(name).trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!key) return;
+      const prev = map.get(key);
+      if (!prev || new Date(dateStr) > new Date(prev)) map.set(key, dateStr);
+    };
+    for (const log of logs) {
+      const date = log.performed_at || log.date || log.created_at;
+      if (log.title) bump(log.title, date);
+      const items = Array.isArray(log.selected_items) ? log.selected_items : [];
+      for (const item of items) bump(item, date);
+    }
+    return map;
+  }, [logs]);
+
+  // Best-effort lookup — tries exact match first, then substring match
+  // in either direction. Returns the date string or null.
+  const findLastDone = React.useCallback((catalogName) => {
+    if (!catalogName) return null;
+    const norm = catalogName.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (lastDoneByName.has(norm)) return lastDoneByName.get(norm);
+    let best = null;
+    for (const [key, date] of lastDoneByName) {
+      if (key.includes(norm) || norm.includes(key)) {
+        if (!best || new Date(date) > new Date(best)) best = date;
+      }
+    }
+    return best;
+  }, [lastDoneByName]);
+
   const userVehicleTypes = useMemo(() => {
     const s = new Set();
     vehicles.forEach(v => v.vehicle_type && s.add(v.vehicle_type));
@@ -296,6 +342,7 @@ function AuthenticatedView() {
                         item={item}
                         isLast={idx === items.length - 1}
                         userId={userId}
+                        lastDoneDate={findLastDone(item.name)}
                         onEdit={() => setEditing(item)}
                         onQueryInvalidate={() => qc.invalidateQueries({ queryKey: ['maint-prefs', userId] })}
                       />
@@ -372,7 +419,7 @@ function AuthenticatedView() {
 // Row components
 // ═══════════════════════════════════════════════════════════════════════════
 
-function MaintenanceRow({ item, isLast, userId, onEdit, onQueryInvalidate }) {
+function MaintenanceRow({ item, isLast, userId, lastDoneDate, onEdit, onQueryInvalidate }) {
   const [pending, setPending] = useState(false);
 
   // Toggle enabled directly without opening the sheet — most common action.
@@ -414,6 +461,13 @@ function MaintenanceRow({ item, isLast, userId, onEdit, onQueryInvalidate }) {
           {buildIntervalText(item.interval_months, item.interval_km)}
           {item.vehicle_type && !item.is_custom && ` · ${item.vehicle_type}`}
         </span>
+        {lastDoneDate && (
+          <LastDoneLine
+            lastDoneDate={lastDoneDate}
+            intervalMonths={item.interval_months}
+            enabled={item.enabled}
+          />
+        )}
       </div>
       <div onClick={(e) => e.stopPropagation()}>
         <Switch
@@ -755,6 +809,47 @@ function Field({ label, value, onChange, suffix, type = 'text', placeholder }) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Renders a "בוצע לפני X · ייעשה שוב בעוד Y" status line under the
+ * interval. Colour-coded: red if overdue, amber if due soon (≤30d),
+ * gray otherwise. Only shown when the user has actually logged this
+ * maintenance before.
+ */
+function LastDoneLine({ lastDoneDate, intervalMonths, enabled }) {
+  const now = new Date();
+  const last = new Date(lastDoneDate);
+  const daysSince = Math.floor((now - last) / (1000 * 60 * 60 * 24));
+  if (isNaN(daysSince) || daysSince < 0) return null;
+
+  // Translate days → human phrase.
+  let timeAgo;
+  if (daysSince < 7)       timeAgo = `לפני ${daysSince} ימים`;
+  else if (daysSince < 30) timeAgo = `לפני ${Math.round(daysSince / 7)} שבועות`;
+  else if (daysSince < 365) timeAgo = `לפני ${Math.round(daysSince / 30)} חודשים`;
+  else                     timeAgo = `לפני ${Math.round(daysSince / 365)} שנים`;
+
+  // Compute next-due only if an interval is configured.
+  let colour = '#6B7280';
+  let urgency = null;
+  if (intervalMonths && enabled) {
+    const daysInterval = intervalMonths * 30;
+    const daysLeft = daysInterval - daysSince;
+    if (daysLeft < 0) {
+      colour = '#DC2626';
+      urgency = `באיחור ${-daysLeft} ימים`;
+    } else if (daysLeft <= 30) {
+      colour = '#D97706';
+      urgency = `עוד ${daysLeft} ימים`;
+    }
+  }
+
+  return (
+    <span className="text-[11px] truncate block mt-0.5" style={{ color: colour }}>
+      בוצע {timeAgo}{urgency ? ` · ${urgency}` : ''}
+    </span>
   );
 }
 
