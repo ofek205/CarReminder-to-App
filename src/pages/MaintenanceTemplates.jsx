@@ -1,672 +1,695 @@
-﻿import React, { useState, useEffect } from 'react';
+/**
+ * /MaintenanceTemplates — per-user reminder settings for maintenance + repairs.
+ *
+ * Reshaped per PM decision (Option B + custom escape hatch):
+ *   - Source of truth for the built-in catalog stays in
+ *     src/components/shared/MaintenanceCatalog.jsx.
+ *   - This page merges the catalog with the user's overrides +
+ *     user-added custom types (table: maintenance_reminder_prefs).
+ *   - Repairs tab is a simple name list (table: repair_types) with no
+ *     recurring reminder — per explicit user decision.
+ *   - The actual reminder dispatch (cron / push / email) is Phase B.
+ *     For now the UI shows "התזכורות יופעלו בהמשך" so expectations are
+ *     clear. The toggle + interval fields still persist correctly.
+ */
+
+import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Edit, Trash2, Loader2, Wrench, Settings, ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import PageHeader from "../components/shared/PageHeader";
-import LoadingSpinner from "../components/shared/LoadingSpinner";
-import EmptyState from "../components/shared/EmptyState";
-import ConfirmDeleteDialog from "../components/shared/ConfirmDeleteDialog";
+import PageHeader from "@/components/shared/PageHeader";
+import LoadingSpinner from "@/components/shared/LoadingSpinner";
+import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
+import { Plus, Wrench, Settings, Trash2, Loader2, Save, Edit3, Clock, Info } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "../components/shared/GuestContext";
+import { useAuth } from "@/components/shared/GuestContext";
+import { MAINTENANCE_CATALOG, getCatalogForVehicleType } from "@/components/shared/MaintenanceCatalog";
 import { C } from '@/lib/designTokens';
 
-const vehicleTypes = ['רכב', 'אופנוע כביש', 'קטנוע', 'כלי שייט', 'מפרשית', 'סירה מנועית', 'אופנוע ים', 'סירת גומי', "ג'יפ שטח", 'טרקטורון', 'אופנוע שטח', 'RZR', 'מיול', 'באגי חולות'];
-const intervalUnits = ['ימים', 'שבועות', 'חודשים'];
+// ═══════════════════════════════════════════════════════════════════════════
+// Guest view — marketing teaser, no persistence.
+// ═══════════════════════════════════════════════════════════════════════════
 
 export default function MaintenanceTemplates() {
   const { isGuest } = useAuth();
-  if (isGuest) {
-    const demoItems = [
-      { name: 'טיפול שמן מנוע', interval: 'כל 6 חודשים / 10,000 ק"מ', icon: '🛢️' },
-      { name: 'החלפת מסנן אוויר', interval: 'כל 12 חודשים / 20,000 ק"מ', icon: '💨' },
-      { name: 'בדיקת בלמים', interval: 'כל 12 חודשים / 15,000 ק"מ', icon: '🔧' },
-    ];
-    return (
-      <div dir="rtl">
-        <PageHeader title="טיפולים ותיקונים" />
-        {/* Demo banner */}
-        <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
-          style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
-          <span className="text-lg">👀</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-black" style={{ color: '#92400E' }}>טיפולים לדוגמה</p>
-            <p className="text-xs" style={{ color: '#B45309' }}>הירשם כדי ליצור תבניות טיפול מותאמות אישית</p>
-          </div>
-        </div>
-        {/* Demo items */}
-        <div className="space-y-2 mb-6">
-          {demoItems.map(item => (
-            <div key={item.name} className="rounded-2xl p-4 flex items-center gap-3"
-              style={{ background: '#fff', border: `1.5px solid ${C.border}`, opacity: 0.7 }}>
-              <span className="text-lg">{item.icon}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold" style={{ color: C.text }}>{item.name}</p>
-                <p className="text-xs" style={{ color: C.muted }}>{item.interval}</p>
-              </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: '#FFBF00', color: '#92400E' }}>לדוגמה</span>
-            </div>
-          ))}
-        </div>
-        {/* CTA */}
-        <Card className="p-6 border border-gray-100 shadow-sm rounded-2xl text-center space-y-3">
-          <p className="text-sm font-medium text-gray-500">הירשם כדי ליצור תבניות מותאמות ולעקוב אחרי לוח הזמנים</p>
-          <Button onClick={() => window.location.href = '/Auth'}
-            className="text-white gap-2 rounded-2xl font-bold"
-            style={{ background: C.yellow, color: C.primary }}>
-            הירשם בחינם
-          </Button>
-        </Card>
-      </div>
-    );
-  }
-  return <AuthMaintenanceTemplates />;
+  if (isGuest) return <GuestView />;
+  return <AuthenticatedView />;
 }
 
-function AuthMaintenanceTemplates() {
+function GuestView() {
+  const demoItems = [
+    { name: 'טיפול שמן מנוע', interval: 'כל 12 חודשים / 10,000 ק"מ' },
+    { name: 'החלפת מסנן אוויר', interval: 'כל 24 חודשים / 20,000 ק"מ' },
+    { name: 'בדיקת בלמים', interval: 'כל 12 חודשים / 15,000 ק"מ' },
+  ];
+  return (
+    <div dir="rtl">
+      <PageHeader title="סוגי טיפולים ותיקונים" subtitle="נהל טיפולים ותזכורות" icon={Wrench} />
+      <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
+        style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
+        <span className="text-lg">👀</span>
+        <div className="flex-1">
+          <p className="text-sm font-black" style={{ color: '#92400E' }}>דוגמה בלבד</p>
+          <p className="text-xs" style={{ color: '#B45309' }}>הרשמה חינם כדי להגדיר תזכורות לטיפולים בפועל</p>
+        </div>
+      </div>
+      <div className="space-y-2 mb-6">
+        {demoItems.map(item => (
+          <div key={item.name} className="rounded-2xl p-4"
+            style={{ background: '#fff', border: `1.5px solid ${C.border}`, opacity: 0.7 }}>
+            <p className="text-sm font-bold">{item.name}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{item.interval}</p>
+          </div>
+        ))}
+      </div>
+      <Card className="p-6 text-center rounded-2xl">
+        <p className="text-sm font-medium text-gray-500 mb-3">הרשמה חינם כדי להגדיר תזכורות</p>
+        <Button onClick={() => window.location.href = '/Auth'}
+          className="rounded-2xl font-bold" style={{ background: C.yellow, color: C.primary }}>
+          הרשמה בחינם
+        </Button>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Authenticated view — real CRUD against Supabase.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function AuthenticatedView() {
   const [userId, setUserId] = useState(null);
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [dialogType, setDialogType] = useState('maintenance');
-  const [deleteTarget, setDeleteTarget] = useState(null); // { type, item }
-  const [globalExpanded, setGlobalExpanded] = useState(false);
-  const [searchInput, setSearchInput] = useState('');
-  const [activeSearch, setActiveSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('mine'); // 'all' | 'mine' | 'global'
-  const [frequencyFilter, setFrequencyFilter] = useState('all');
-  const [form, setForm] = useState({
-    name: '',
-    is_recurring: true,
-    interval_unit: 'חודשים',
-    interval_value: 6,
-    applies_to: [],
-  });
-  const queryClient = useQueryClient();
 
   useEffect(() => {
-    async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      setUserId(user.id);
-    }
-    init();
+    supabase.auth.getUser().then(({ data }) => setUserId(data?.user?.id || null));
   }, []);
 
-  const { data: globalTpl = [], isLoading: loadingGlobal } = useQuery({
-    queryKey: ['templates-global'],
-    queryFn: async () => {
-      // TODO: MaintenanceTemplate entity not yet in Supabase - returning empty array
-      return [];
-    },
+  // ── Data loads ─────────────────────────────────────────────────────────
+  const { data: prefs = [], isLoading: prefsLoading } = useQuery({
+    queryKey: ['maint-prefs', userId],
+    queryFn: () => db.maintenance_reminder_prefs.filter({ user_id: userId }),
     enabled: !!userId,
   });
 
-  const { data: userTpl = [], isLoading: loadingUser } = useQuery({
-    queryKey: ['templates-user', userId],
-    queryFn: async () => {
-      // TODO: MaintenanceTemplate entity not yet in Supabase - returning empty array
-      return [];
-    },
-    enabled: !!userId,
-  });
-
-  const isLoading = loadingGlobal || loadingUser;
-  const templates = [...globalTpl, ...userTpl];
-
-  const { data: repairTypes = [], isLoading: loadingRepairTypes } = useQuery({
+  const { data: repairs = [], isLoading: repairsLoading } = useQuery({
     queryKey: ['repair-types', userId],
-    queryFn: async () => {
-      // TODO: RepairType entity not yet in Supabase - returning empty array
-      return [];
-    },
+    queryFn: () => db.repair_types.filter({ user_id: userId }),
     enabled: !!userId,
   });
 
-  const openDialog = (type = 'maintenance', template = null) => {
-    setDialogType(type);
-    if (template) {
-      setEditingTemplate(template);
-      if (type === 'repair') {
-        setForm({ name: template.name });
-      } else {
-        setForm({
-          name: template.name,
-          is_recurring: template.recurrence_enabled !== false,
-          interval_unit: template.interval_unit || 'חודשים',
-          interval_value: template.interval_value || 6,
-          applies_to: template.applies_to || [],
-          remind_days_before: template.remind_days_before || '',
-        });
-      }
-    } else {
-      setEditingTemplate(null);
-      if (type === 'repair') {
-        setForm({ name: '' });
-      } else {
-        setForm({
-          name: '',
-          is_recurring: true,
-          interval_unit: 'חודשים',
-          interval_value: 6,
-          applies_to: [],
-          remind_days_before: '',
+  const { data: vehicles = [] } = useQuery({
+    queryKey: ['my-vehicles-for-templates', userId],
+    queryFn: () => db.vehicles.list(),
+    enabled: !!userId,
+  });
+
+  // Narrow the catalog to the vehicle-types the user actually owns — a car-
+  // only user shouldn't see 74 items, just the ~10 relevant to their car.
+  // Default to 'רכב' if we can't determine.
+  const userVehicleTypes = useMemo(() => {
+    const set = new Set();
+    vehicles.forEach(v => { if (v.vehicle_type) set.add(v.vehicle_type); });
+    if (set.size === 0) set.add('רכב');
+    return Array.from(set);
+  }, [vehicles]);
+
+  // Merge catalog + user prefs into a single flat list.
+  // Each entry: { key, name, vehicle_type, interval_months, interval_km,
+  //               remind_days_before, enabled, is_custom, pref_id? }
+  const merged = useMemo(() => {
+    const prefByKey = Object.fromEntries(
+      prefs.filter(p => !p.is_custom && p.catalog_key).map(p => [p.catalog_key, p])
+    );
+    const out = [];
+    // Built-in items filtered to user's vehicle types.
+    for (const vType of userVehicleTypes) {
+      const catalog = getCatalogForVehicleType(vType) || [];
+      for (const item of catalog) {
+        const key = `${vType}::${item.name}`;
+        const pref = prefByKey[key];
+        out.push({
+          key,
+          catalog_key: key,
+          name: item.name,
+          vehicle_type: vType,
+          interval_months: pref?.interval_months ?? item.months,
+          interval_km:     pref?.interval_km     ?? item.km,
+          remind_days_before: pref?.remind_days_before ?? 14,
+          enabled: pref ? pref.enabled : true,
+          is_custom: false,
+          pref_id: pref?.id || null,
         });
       }
     }
-    setShowDialog(true);
+    // User-added customs.
+    for (const p of prefs.filter(p => p.is_custom)) {
+      out.push({
+        key: `custom::${p.id}`,
+        catalog_key: null,
+        name: p.custom_name,
+        vehicle_type: p.vehicle_type || null,
+        interval_months: p.interval_months,
+        interval_km:     p.interval_km,
+        remind_days_before: p.remind_days_before,
+        enabled: p.enabled,
+        is_custom: true,
+        pref_id: p.id,
+      });
+    }
+    return out;
+  }, [prefs, userVehicleTypes]);
+
+  // ── Filters ────────────────────────────────────────────────────────────
+  const [vehicleTypeFilter, setVehicleTypeFilter] = useState('all');
+  const visibleList = useMemo(() => {
+    if (vehicleTypeFilter === 'all') return merged;
+    if (vehicleTypeFilter === 'custom') return merged.filter(m => m.is_custom);
+    return merged.filter(m => m.vehicle_type === vehicleTypeFilter);
+  }, [merged, vehicleTypeFilter]);
+
+  // ── Loading state ──────────────────────────────────────────────────────
+  if (!userId || prefsLoading) return <LoadingSpinner />;
+
+  return (
+    <div dir="rtl" className="pb-24">
+      <PageHeader
+        title="סוגי טיפולים ותיקונים"
+        subtitle="הגדר תזכורות לטיפולים וסוגי תיקונים"
+        icon={Wrench}
+      />
+
+      <Tabs defaultValue="maintenance" className="w-full">
+        <TabsList className="w-full rounded-2xl bg-gray-100 p-1 mb-4 h-auto">
+          <TabsTrigger value="maintenance" className="flex-1 rounded-xl gap-2">
+            <Settings className="w-4 h-4" />
+            טיפולים
+          </TabsTrigger>
+          <TabsTrigger value="repairs" className="flex-1 rounded-xl gap-2">
+            <Wrench className="w-4 h-4" />
+            תיקונים
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ── Maintenance tab ────────────────────────────────────────── */}
+        <TabsContent value="maintenance" className="m-0">
+          <InfoBanner />
+
+          {/* Vehicle-type chips (only show if user has >1 type) */}
+          {userVehicleTypes.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto mb-4 pb-1">
+              <FilterChip active={vehicleTypeFilter === 'all'} onClick={() => setVehicleTypeFilter('all')}>
+                הכל ({merged.length})
+              </FilterChip>
+              {userVehicleTypes.map(vt => (
+                <FilterChip key={vt} active={vehicleTypeFilter === vt} onClick={() => setVehicleTypeFilter(vt)}>
+                  {vt}
+                </FilterChip>
+              ))}
+              {merged.some(m => m.is_custom) && (
+                <FilterChip active={vehicleTypeFilter === 'custom'} onClick={() => setVehicleTypeFilter('custom')}>
+                  אישיים ({merged.filter(m => m.is_custom).length})
+                </FilterChip>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {visibleList.length === 0 ? (
+              <p className="text-center text-sm text-gray-500 py-10">
+                אין טיפולים להצגה. הוסף סוג משלך כדי להתחיל.
+              </p>
+            ) : (
+              visibleList.map(item => (
+                <MaintenanceRow key={item.key} item={item} userId={userId} />
+              ))
+            )}
+          </div>
+
+          <AddCustomMaintenanceButton userId={userId} vehicleTypes={userVehicleTypes} />
+        </TabsContent>
+
+        {/* ── Repairs tab ────────────────────────────────────────────── */}
+        <TabsContent value="repairs" className="m-0">
+          <p className="text-xs text-gray-500 mb-4 px-1">
+            תיקונים נרשמים בעת הצורך (ללא תזכורת חוזרת). שמור כאן סוגי תיקונים שאתה משתמש בהם לעיתים קרובות כדי למצוא אותם בהוספה מהירה.
+          </p>
+          <div className="space-y-2">
+            {repairsLoading ? (
+              <LoadingSpinner />
+            ) : repairs.length === 0 ? (
+              <p className="text-center text-sm text-gray-500 py-10">
+                אין סוגי תיקונים שמורים עדיין.
+              </p>
+            ) : (
+              repairs.map(r => <RepairRow key={r.id} repair={r} userId={userId} />)
+            )}
+          </div>
+
+          <AddRepairTypeButton userId={userId} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Presentational bits
+// ═══════════════════════════════════════════════════════════════════════════
+
+function InfoBanner() {
+  return (
+    <div className="mb-4 rounded-2xl p-3 flex items-start gap-2.5"
+      style={{ background: '#EFF6FF', border: '1.5px solid #BFDBFE' }}>
+      <Info className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#1E40AF' }} />
+      <div className="text-xs leading-relaxed" style={{ color: '#1E40AF' }}>
+        כאן אתה מגדיר <strong>כל כמה זמן</strong> לעשות כל סוג טיפול ומתי להזכיר לך.
+        ההגדרות ישפיעו על התזכורות הבאות ברכבים שלך.
+        <span className="text-[11px] text-gray-500 mr-1">(מנוע התזכורות יופעל בגרסה הבאה.)</span>
+      </div>
+    </div>
+  );
+}
+
+function FilterChip({ active, onClick, children }) {
+  return (
+    <button onClick={onClick}
+      className={`text-xs font-bold px-3 py-1.5 rounded-full shrink-0 transition-colors ${
+        active ? 'text-white' : 'text-gray-600 bg-gray-100'
+      }`}
+      style={active ? { background: C.primary } : undefined}>
+      {children}
+    </button>
+  );
+}
+
+// Each row in the maintenance list — collapsed summary + expand-to-edit.
+function MaintenanceRow({ item, userId }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const [form, setForm] = useState({
+    interval_months: item.interval_months ?? '',
+    interval_km: item.interval_km ?? '',
+    remind_days_before: item.remind_days_before ?? 14,
+    enabled: item.enabled,
+  });
+
+  useEffect(() => {
+    setForm({
+      interval_months: item.interval_months ?? '',
+      interval_km: item.interval_km ?? '',
+      remind_days_before: item.remind_days_before ?? 14,
+      enabled: item.enabled,
+    });
+  }, [item.key, item.interval_months, item.interval_km, item.remind_days_before, item.enabled]);
+
+  const handleToggleEnabled = async (value) => {
+    // Optimistic update of local state; persist.
+    setForm(f => ({ ...f, enabled: value }));
+    try {
+      await upsertPref({
+        pref_id: item.pref_id,
+        user_id: userId,
+        catalog_key: item.catalog_key,
+        is_custom: item.is_custom,
+        custom_name: item.is_custom ? item.name : null,
+        vehicle_type: item.vehicle_type,
+        interval_months: form.interval_months === '' ? null : Number(form.interval_months),
+        interval_km: form.interval_km === '' ? null : Number(form.interval_km),
+        remind_days_before: Number(form.remind_days_before) || 14,
+        enabled: value,
+      });
+      qc.invalidateQueries({ queryKey: ['maint-prefs', userId] });
+    } catch (e) {
+      toast.error(`שמירה נכשלה: ${e.message}`);
+      setForm(f => ({ ...f, enabled: !value }));  // revert
+    }
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) {
-      toast.error(`יש להזין שם ${dialogType === 'repair' ? 'תיקון' : 'טיפול'}`);
-      return;
-    }
-    
     setSaving(true);
-    
-    if (dialogType === 'repair') {
-      const repairData = {
-        name: form.name,
-        scope: 'user',
-        owner_user_id: userId,
-        is_active: true,
-      };
-      
-      // TODO: RepairType entity not yet in Supabase - CRUD is a no-op for now
-      // if (editingTemplate) {
-      //   await db.repair_types.update(editingTemplate.id, repairData);
-      // } else {
-      //   await db.repair_types.create(repairData);
-      // }
-      
-      queryClient.invalidateQueries({ queryKey: ['repair-types'] });
-    } else {
-      const data = {
-        name: form.name,
-        recurrence_enabled: form.is_recurring,
-        interval_unit: form.is_recurring ? form.interval_unit : undefined,
-        interval_value: form.is_recurring ? Number(form.interval_value) : undefined,
-        remind_days_before: form.is_recurring && form.remind_days_before ? Number(form.remind_days_before) : undefined,
-        applies_to: form.applies_to,
-        is_active: true,
-        scope: 'user',
-        owner_user_id: userId,
-      };
-      Object.keys(data).forEach(k => { if (data[k] === undefined) delete data[k]; });
-
-      // TODO: MaintenanceTemplate entity not yet in Supabase - CRUD is a no-op for now
-      // if (editingTemplate) {
-      //   await db.maintenance_templates.update(editingTemplate.id, data);
-      // } else {
-      //   await db.maintenance_templates.create(data);
-      // }
-
-      queryClient.invalidateQueries({ queryKey: ['templates'] });
+    try {
+      await upsertPref({
+        pref_id: item.pref_id,
+        user_id: userId,
+        catalog_key: item.catalog_key,
+        is_custom: item.is_custom,
+        custom_name: item.is_custom ? item.name : null,
+        vehicle_type: item.vehicle_type,
+        interval_months: form.interval_months === '' ? null : Number(form.interval_months),
+        interval_km: form.interval_km === '' ? null : Number(form.interval_km),
+        remind_days_before: Number(form.remind_days_before) || 14,
+        enabled: form.enabled,
+      });
+      qc.invalidateQueries({ queryKey: ['maint-prefs', userId] });
+      toast.success('נשמר');
+      setOpen(false);
+    } catch (e) {
+      toast.error(`שמירה נכשלה: ${e.message}`);
+    } finally {
+      setSaving(false);
     }
-    
-    setShowDialog(false);
-    setSaving(false);
-    toast.success(editingTemplate ? 'עודכן בהצלחה' : 'נוסף בהצלחה');
   };
 
-  const handleDelete = async (type, item) => {
-    setDeleteTarget({ type, item });
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    const { type, item } = deleteTarget;
-    setDeleteTarget(null);
-    // TODO: RepairLog, RepairType, MaintenanceLog, MaintenanceTemplate not yet in Supabase - delete is a no-op
-    if (type === 'repair') {
-      // const logs = await db.repair_logs.filter({ repair_type_id: item.id });
-      // if (logs.length > 0) {
-      //   await db.repair_types.update(item.id, { is_active: false });
-      // } else {
-      //   await db.repair_types.delete(item.id);
-      // }
-      queryClient.invalidateQueries({ queryKey: ['repair-types'] });
-    } else {
-      // const logs = await db.maintenance_logs.filter({ template_id: item.id });
-      // if (logs.length > 0) {
-      //   await db.maintenance_templates.update(item.id, { is_active: false });
-      // } else {
-      //   await db.maintenance_templates.delete(item.id);
-      // }
-      queryClient.invalidateQueries({ queryKey: ['templates'] });
+  const handleDeleteCustom = async () => {
+    if (!item.pref_id) return;
+    try {
+      await db.maintenance_reminder_prefs.delete(item.pref_id);
+      qc.invalidateQueries({ queryKey: ['maint-prefs', userId] });
+      toast.success('נמחק');
+    } catch (e) {
+      toast.error(`מחיקה נכשלה: ${e.message}`);
     }
-    toast.success('הפריט נמחק בהצלחה');
   };
 
-  const toggleAppliesTo = (type) => {
-    setForm(f => ({
-      ...f,
-      applies_to: f.applies_to.includes(type)
-        ? f.applies_to.filter(t => t !== type)
-        : [...f.applies_to, type]
-    }));
-  };
-
-  if (!userId || isLoading || loadingRepairTypes) return <LoadingSpinner />;
-
-  const activeTemplates = templates.filter(t => t.is_active !== false);
-  const inactiveTemplates = templates.filter(t => t.is_active === false);
-  const userTemplates = activeTemplates.filter(t => t.scope === 'user');
-  const globalTemplates = activeTemplates.filter(t => t.scope === 'global');
-  const activeRepairTypes = repairTypes.filter(t => t.is_active !== false);
-  const inactiveRepairTypes = repairTypes.filter(t => t.is_active === false);
+  const intervalText = buildIntervalText(form.interval_months, form.interval_km);
 
   return (
-    <div className="space-y-6">
-      <ConfirmDeleteDialog
-        open={!!deleteTarget}
-        onConfirm={confirmDelete}
-        onCancel={() => setDeleteTarget(null)}
-      />
-      <PageHeader
-        title="סוגי טיפולים ותיקונים"
-        subtitle="נהל סוגי טיפולים ותיקונים לרכבים שלך"
-      />
-
-      <Tabs defaultValue="maintenance" className="w-full" dir="rtl">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="maintenance">סוגי טיפולים</TabsTrigger>
-          <TabsTrigger value="repairs">סוגי תיקונים</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="maintenance" className="space-y-5">
-          {/* Header row */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">{userTemplates.length} אישיים • {globalTemplates.length} מומלצים</p>
-            <Button onClick={() => openDialog('maintenance')} className="bg-[#2D5233] hover:bg-[#1E3D24] text-white gap-2">
-              <Plus className="h-4 w-4" />
-              סוג טיפול חדש
-            </Button>
+    <>
+      <div className="rounded-2xl"
+        style={{ background: '#fff', border: `1.5px solid ${C.border}`, opacity: form.enabled ? 1 : 0.55 }}>
+        <button onClick={() => setOpen(o => !o)}
+          className="w-full p-3.5 flex items-center gap-3 text-right">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: item.is_custom ? '#FEF3C7' : '#F4F7F3' }}>
+            <Clock className="w-4 h-4" style={{ color: item.is_custom ? '#92400E' : C.primary }} />
           </div>
-
-          {/* Category filter tabs */}
-          <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit" dir="rtl">
-            {[
-              { value: 'mine', label: 'הטיפולים שלי' },
-              { value: 'all', label: 'הכל' },
-              { value: 'global', label: 'מומלצים' },
-            ].map(tab => (
-              <button
-                key={tab.value}
-                onClick={() => {
-                  setCategoryFilter(tab.value);
-                  if (tab.value === 'global') setGlobalExpanded(true);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  categoryFilter === tab.value
-                    ? 'bg-white text-amber-700 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-bold truncate" style={{ color: C.text }}>{item.name}</p>
+              {item.is_custom && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ background: '#FEF3C7', color: '#92400E' }}>אישי</span>
+              )}
+              {item.vehicle_type && !item.is_custom && (
+                <span className="text-[10px] text-gray-400">· {item.vehicle_type}</span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">{intervalText}</p>
           </div>
+          <Switch
+            checked={form.enabled}
+            onCheckedChange={handleToggleEnabled}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <Edit3 className="w-4 h-4 text-gray-400 shrink-0" />
+        </button>
 
-          {/* Search bar */}
-          {(categoryFilter === 'mine' || categoryFilter === 'all') && (
-            <div className="flex gap-2" dir="rtl">
-              <Input
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && setActiveSearch(searchInput)}
-                placeholder="חפש טיפול…"
-                className="flex-1"
-              />
-              <Button onClick={() => setActiveSearch(searchInput)} variant="outline" className="gap-1.5">
-                <Search className="h-4 w-4" />
-                חפש
+        {open && (
+          <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <LabeledInput label="כל X חודשים" value={form.interval_months}
+                onChange={v => setForm(f => ({ ...f, interval_months: v }))}
+                suffix="חודשים" type="number" />
+              <LabeledInput label="או כל X ק״מ" value={form.interval_km}
+                onChange={v => setForm(f => ({ ...f, interval_km: v }))}
+                suffix="ק״מ" type="number" />
+            </div>
+            <LabeledInput label="התראה כמה ימים מראש" value={form.remind_days_before}
+              onChange={v => setForm(f => ({ ...f, remind_days_before: v }))}
+              suffix="ימים" type="number" />
+            <div className="flex gap-2 pt-1">
+              <Button onClick={handleSave} disabled={saving}
+                className="flex-1 gap-1.5 rounded-xl" style={{ background: C.primary, color: 'white' }}>
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                שמור
               </Button>
-              {(activeSearch || searchInput || frequencyFilter !== 'all') && (
-                <Button variant="ghost" onClick={() => { setSearchInput(''); setActiveSearch(''); setFrequencyFilter('all'); }} className="gap-1.5 text-gray-500">
-                  <X className="h-4 w-4" />
-                  נקה
+              {item.is_custom && (
+                <Button variant="outline" onClick={() => setConfirmDelete(true)}
+                  className="rounded-xl text-red-600 hover:bg-red-50">
+                  <Trash2 className="w-4 h-4" />
                 </Button>
               )}
             </div>
-          )}
-
-          {/* Frequency filter */}
-          {(categoryFilter === 'mine' || categoryFilter === 'all') && (
-            <div className="flex items-center gap-2" dir="rtl">
-              <span className="text-sm text-gray-500">תדירות:</span>
-              <Select value={frequencyFilter} onValueChange={setFrequencyFilter}>
-                <SelectTrigger className="w-44 h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">הכל</SelectItem>
-                  <SelectItem value="monthly">חודשי</SelectItem>
-                  <SelectItem value="biannual">כל 6 חודשים</SelectItem>
-                  <SelectItem value="yearly">שנתי</SelectItem>
-                  <SelectItem value="none">לא תקופתי</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* === הטיפולים שלי === */}
-          {(categoryFilter === 'mine' || categoryFilter === 'all') && (() => {
-            const filtered = userTemplates.filter(t => {
-              const matchSearch = !activeSearch ||
-                t.name.toLowerCase().includes(activeSearch.toLowerCase());
-              const matchFreq = frequencyFilter === 'all' ||
-                (frequencyFilter === 'none' && t.recurrence_enabled === false) ||
-                (frequencyFilter === 'monthly' && t.recurrence_enabled !== false && t.interval_unit === 'חודשים' && t.interval_value === 1) ||
-                (frequencyFilter === 'biannual' && t.recurrence_enabled !== false && t.interval_unit === 'חודשים' && t.interval_value === 6) ||
-                (frequencyFilter === 'yearly' && t.recurrence_enabled !== false && ((t.interval_unit === 'חודשים' && t.interval_value === 12) || (t.interval_unit === 'ימים' && t.interval_value === 365)));
-              return matchSearch && matchFreq;
-            });
-
-            return (
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">הטיפולים שלי</h3>
-                {filtered.length === 0 ? (
-                  <EmptyState icon={Wrench} title="אין טיפולים" description="הוסף טיפול חדש או שנה את הפילטר" />
-                ) : (
-                  <div className="space-y-2">
-                    {filtered.map(template => (
-                      <Card key={template.id} className="p-4 border border-gray-100">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <h4 className="font-semibold text-gray-900">{template.name}</h4>
-                              <Badge variant="outline" className="text-xs">אישי</Badge>
-                              {template.recurrence_enabled === false && <Badge variant="secondary" className="text-xs">חד-פעמי</Badge>}
-                            </div>
-                            {template.recurrence_enabled !== false ? (
-                              <p className="text-sm text-gray-500">כל {template.interval_value} {template.interval_unit}</p>
-                            ) : (
-                              <p className="text-sm text-gray-500">טיפול חד-פעמי ללא תזכורות</p>
-                            )}
-                            {template.applies_to?.length > 0 && (
-                              <div className="flex gap-1 mt-2 flex-wrap">
-                                {template.applies_to.map(type => (
-                                  <Badge key={type} variant="secondary" className="text-xs">{type}</Badge>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => openDialog('maintenance', template)}>
-                              <Edit className="h-4 w-4 text-gray-500" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete('maintenance', template)}>
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* === טיפולים מומלצים (collapsed by default) === */}
-          {(categoryFilter === 'global' || categoryFilter === 'all') && globalTemplates.length > 0 && (
-            <div>
-              <button
-                onClick={() => setGlobalExpanded(v => !v)}
-                className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors"
-                dir="rtl"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-600">טיפולים מומלצים</span>
-                  <Badge variant="secondary" className="text-xs">{globalTemplates.length} מומלצים</Badge>
-                </div>
-                {globalExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
-              </button>
-
-              {globalExpanded && (
-                <div className="space-y-2 mt-2">
-                  {globalTemplates.map(template => (
-                    <Card key={template.id} className="p-4 border border-gray-100 bg-gray-50/50">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <h4 className="font-medium text-gray-800">{template.name}</h4>
-                            <Badge variant="outline" className="text-xs bg-white">מומלץ</Badge>
-                            {template.recurrence_enabled === false && <Badge variant="secondary" className="text-xs">חד-פעמי</Badge>}
-                          </div>
-                          {template.recurrence_enabled !== false ? (
-                            <p className="text-sm text-gray-500">כל {template.interval_value} {template.interval_unit}</p>
-                          ) : (
-                            <p className="text-sm text-gray-500">טיפול חד-פעמי ללא תזכורות</p>
-                          )}
-                          {template.applies_to?.length > 0 && (
-                            <div className="flex gap-1 mt-2 flex-wrap">
-                              {template.applies_to.map(type => (
-                                <Badge key={type} variant="secondary" className="text-xs">{type}</Badge>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50 shrink-0 mr-2"
-                          onClick={async () => {
-                            // TODO: MaintenanceTemplate entity not yet in Supabase - clone is a no-op
-                            // await db.maintenance_templates.create({
-                            //   name: template.name,
-                            //   recurrence_enabled: template.recurrence_enabled,
-                            //   interval_unit: template.interval_unit,
-                            //   interval_value: template.interval_value,
-                            //   remind_days_before: template.remind_days_before,
-                            //   applies_to: template.applies_to,
-                            //   is_active: true,
-                            //   scope: 'user',
-                            //   owner_user_id: userId,
-                            // });
-                            queryClient.invalidateQueries({ queryKey: ['templates'] });
-                            toast.info('הוספת טיפולים תתאפשר בקרוב (בהעברה ל-Supabase)');
-                          }}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          הוסף
-                        </Button>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Inactive templates */}
-          {inactiveTemplates.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-gray-400 mb-3">סוגי טיפול מושבתים</h3>
-              <div className="space-y-2">
-                {inactiveTemplates.map(template => (
-                  <Card key={template.id} className="p-4 border border-gray-100 opacity-50">
-                    <div>
-                      <h4 className="font-medium text-gray-600">{template.name}</h4>
-                      <p className="text-sm text-gray-400">לא פעיל</p>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="repairs" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">{activeRepairTypes.length} סוגי תיקון פעילים</p>
-            <Button onClick={() => openDialog('repair')} className="bg-[#DC2626] hover:bg-[#B91C1C] text-white gap-2">
-              <Plus className="h-4 w-4" />
-              סוג תיקון חדש
-            </Button>
           </div>
+        )}
+      </div>
 
-          {activeRepairTypes.length > 0 ? (
-            <div className="space-y-2">
-              {activeRepairTypes.map(type => (
-                <Card key={type.id} className="p-4 border border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold text-gray-900">{type.name}</h4>
-                      <p className="text-xs text-gray-400">סוג תיקון אישי</p>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openDialog('repair', type)}>
-                        <Edit className="h-4 w-4 text-gray-500" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete('repair', type)}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              icon={Wrench}
-              title="אין סוגי תיקון"
-              description="צור סוגי תיקון כדי לעקוב אחר תיקונים ברכבים"
-            />
-          )}
+      <ConfirmDeleteDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        onConfirm={handleDeleteCustom}
+        title="מחיקת סוג טיפול אישי"
+        description={`למחוק את "${item.name}"? זה רק מסיר אותו מהרשימה שלך, ולא ישפיע על היסטוריית טיפולים קיימת.`}
+      />
+    </>
+  );
+}
 
-          {inactiveRepairTypes.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-gray-400 mb-3">סוגי תיקון מושבתים</h3>
-              <div className="space-y-2">
-                {inactiveRepairTypes.map(type => (
-                  <Card key={type.id} className="p-4 border border-gray-100 opacity-50">
-                    <div>
-                      <h4 className="font-medium text-gray-600">{type.name}</h4>
-                      <p className="text-sm text-gray-400">לא פעיל</p>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+// ═══════════════════════════════════════════════════════════════════════════
+// Add custom maintenance + repair buttons
+// ═══════════════════════════════════════════════════════════════════════════
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-md" dir="rtl">
+function AddCustomMaintenanceButton({ userId, vehicleTypes }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    custom_name: '',
+    vehicle_type: vehicleTypes[0] || '',
+    interval_months: 12,
+    interval_km: '',
+    remind_days_before: 14,
+  });
+
+  useEffect(() => { if (vehicleTypes[0] && !form.vehicle_type) setForm(f => ({ ...f, vehicle_type: vehicleTypes[0] })); }, [vehicleTypes, form.vehicle_type]);
+
+  const handleSave = async () => {
+    if (!form.custom_name.trim()) { toast.error('יש להזין שם לטיפול'); return; }
+    if (!form.interval_months || Number(form.interval_months) <= 0) { toast.error('יש להזין מרווח חודשים תקין'); return; }
+    setSaving(true);
+    try {
+      await db.maintenance_reminder_prefs.create({
+        user_id: userId,
+        is_custom: true,
+        custom_name: form.custom_name.trim(),
+        vehicle_type: form.vehicle_type || null,
+        interval_months: Number(form.interval_months),
+        interval_km: form.interval_km === '' ? null : Number(form.interval_km),
+        remind_days_before: Number(form.remind_days_before) || 14,
+        enabled: true,
+      });
+      qc.invalidateQueries({ queryKey: ['maint-prefs', userId] });
+      toast.success('נוסף');
+      setOpen(false);
+      setForm({ custom_name: '', vehicle_type: vehicleTypes[0] || '', interval_months: 12, interval_km: '', remind_days_before: 14 });
+    } catch (e) {
+      if (String(e.message || '').includes('duplicate')) {
+        toast.error('כבר יש לך טיפול בשם הזה');
+      } else {
+        toast.error(`שמירה נכשלה: ${e.message}`);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <Button
+        onClick={() => setOpen(true)}
+        className="w-full mt-4 gap-2 rounded-2xl h-11 font-bold"
+        style={{ background: C.primary, color: 'white' }}>
+        <Plus className="w-4 h-4" />
+        הוסף סוג טיפול משלי
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent dir="rtl" className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingTemplate ? 'עריכת' : 'הוספת'} {dialogType === 'repair' ? 'סוג תיקון' : 'סוג טיפול'}</DialogTitle>
+            <DialogTitle>סוג טיפול חדש</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>{dialogType === 'repair' ? 'שם סוג התיקון' : 'שם הטיפול'} *</Label>
-              <Input
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                placeholder={dialogType === 'repair' ? 'למשל: פחחות, החלפת חלון, תיקון מזגן' : 'למשל: החלפת פלאגים'}
-                required
-              />
+          <div className="space-y-3 py-2">
+            <LabeledInput label="שם הטיפול" value={form.custom_name}
+              onChange={v => setForm(f => ({ ...f, custom_name: v }))}
+              placeholder="לדוגמה: החלפת נוזל הידראולי" />
+            <div className="grid grid-cols-2 gap-3">
+              <LabeledInput label="כל X חודשים" value={form.interval_months}
+                onChange={v => setForm(f => ({ ...f, interval_months: v }))}
+                suffix="חודשים" type="number" />
+              <LabeledInput label="או כל X ק״מ" value={form.interval_km}
+                onChange={v => setForm(f => ({ ...f, interval_km: v }))}
+                suffix="ק״מ" type="number" placeholder="אופציונלי" />
             </div>
-
-            {dialogType === 'maintenance' && (
-              <>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">טיפול תקופתי</p>
-                    <p className="text-xs text-gray-500">אם כבוי - טיפול חד-פעמי ללא תזכורות</p>
-                  </div>
-                  <Switch
-                    checked={form.is_recurring}
-                    onCheckedChange={v => setForm(f => ({ ...f, is_recurring: v }))}
-                  />
-                </div>
-
-                {form.is_recurring && (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label>תדירות *</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          value={form.interval_value}
-                          onChange={e => setForm(f => ({ ...f, interval_value: e.target.value }))}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label>יחידה</Label>
-                        <Select value={form.interval_unit} onValueChange={v => setForm(f => ({ ...f, interval_unit: v }))}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {intervalUnits.map(unit => (
-                              <SelectItem key={unit} value={unit}>{unit}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div>
-                      <Label>ימים מראש לתזכורת</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder="ברירת מחדל: 7 ימים"
-                        value={form.remind_days_before || ''}
-                        onChange={e => setForm(f => ({ ...f, remind_days_before: e.target.value }))}
-                      />
-                      <p className="text-xs text-gray-400 mt-1">כמה ימים לפני המועד לשלוח תזכורת</p>
-                    </div>
-                  </>
-                )}
-
-                <div>
-                  <Label>חל על סוגי כלי רכב</Label>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {vehicleTypes.map(type => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => toggleAppliesTo(type)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                          form.applies_to.includes(type)
-                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                            : 'bg-gray-100 text-gray-600 border border-gray-200'
-                        }`}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-400 mt-2">
-                    {form.applies_to.length === 0 ? 'אם לא נבחר, יחול על כל סוגי הרכב' : ''}
-                  </p>
-                </div>
-              </>
-            )}
-
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              className={`w-full ${dialogType === 'repair' ? 'bg-[#DC2626] hover:bg-[#B91C1C]' : 'bg-[#2D5233] hover:bg-[#1E3D24]'} text-white h-11`}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingTemplate ? 'עדכן' : `צור ${dialogType === 'repair' ? 'סוג תיקון' : 'סוג טיפול'}`}
-            </Button>
+            <LabeledInput label="התראה כמה ימים מראש" value={form.remind_days_before}
+              onChange={v => setForm(f => ({ ...f, remind_days_before: v }))}
+              suffix="ימים" type="number" />
           </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl">ביטול</Button>
+            <Button onClick={handleSave} disabled={saving}
+              className="rounded-xl gap-2" style={{ background: C.primary, color: 'white' }}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              שמור
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+function RepairRow({ repair, userId }) {
+  const qc = useQueryClient();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleDelete = async () => {
+    try {
+      await db.repair_types.delete(repair.id);
+      qc.invalidateQueries({ queryKey: ['repair-types', userId] });
+      toast.success('נמחק');
+    } catch (e) {
+      toast.error(`מחיקה נכשלה: ${e.message}`);
+    }
+  };
+
+  return (
+    <>
+      <div className="rounded-2xl p-3.5 flex items-center gap-3"
+        style={{ background: '#fff', border: `1.5px solid ${C.border}` }}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: '#FEF3C7' }}>
+          <Wrench className="w-4 h-4" style={{ color: '#92400E' }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold truncate">{repair.name}</p>
+          {repair.description && <p className="text-xs text-gray-500 truncate">{repair.description}</p>}
+        </div>
+        <Button variant="ghost" size="sm"
+          onClick={() => setConfirmDelete(true)}
+          className="rounded-xl text-red-600 hover:bg-red-50 shrink-0">
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </div>
+      <ConfirmDeleteDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        onConfirm={handleDelete}
+        title="מחיקת סוג תיקון"
+        description={`למחוק את "${repair.name}" מהרשימה שלך?`}
+      />
+    </>
+  );
+}
+
+function AddRepairTypeButton({ userId }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+
+  const handleSave = async () => {
+    if (!name.trim()) { toast.error('יש להזין שם'); return; }
+    setSaving(true);
+    try {
+      await db.repair_types.create({
+        user_id: userId,
+        name: name.trim(),
+        description: description.trim() || null,
+      });
+      qc.invalidateQueries({ queryKey: ['repair-types', userId] });
+      toast.success('נוסף');
+      setName(''); setDescription(''); setOpen(false);
+    } catch (e) {
+      if (String(e.message || '').includes('duplicate')) {
+        toast.error('כבר יש לך תיקון בשם הזה');
+      } else {
+        toast.error(`שמירה נכשלה: ${e.message}`);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}
+        className="w-full mt-4 gap-2 rounded-2xl h-11 font-bold"
+        style={{ background: C.primary, color: 'white' }}>
+        <Plus className="w-4 h-4" />
+        הוסף סוג תיקון
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent dir="rtl" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>סוג תיקון חדש</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <LabeledInput label="שם התיקון" value={name} onChange={setName}
+              placeholder="לדוגמה: תיקון מזגן" />
+            <LabeledInput label="תיאור (אופציונלי)" value={description} onChange={setDescription}
+              placeholder="הערה קצרה שתעזור לזהות" />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl">ביטול</Button>
+            <Button onClick={handleSave} disabled={saving}
+              className="rounded-xl gap-2" style={{ background: C.primary, color: 'white' }}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              שמור
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+function LabeledInput({ label, value, onChange, suffix, type = 'text', placeholder }) {
+  return (
+    <div>
+      <label className="text-xs font-bold text-gray-700 block mb-1">{label}</label>
+      <div className="relative">
+        <Input type={type} value={value ?? ''} onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder} dir="rtl"
+          className="rounded-xl pl-14" />
+        {suffix && (
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">
+            {suffix}
+          </span>
+        )}
+      </div>
     </div>
   );
+}
+
+function buildIntervalText(months, km) {
+  const parts = [];
+  if (months) parts.push(`כל ${months} חודשים`);
+  if (km)     parts.push(`${Number(km).toLocaleString('he-IL')} ק״מ`);
+  return parts.length ? parts.join(' / ') : 'ללא מועד קבוע';
+}
+
+// Persist a single pref row — works for built-in overrides and customs.
+// Uses upsert semantics: if pref_id exists → update; otherwise → insert.
+async function upsertPref({ pref_id, user_id, catalog_key, is_custom, custom_name, vehicle_type,
+                           interval_months, interval_km, remind_days_before, enabled }) {
+  const payload = {
+    user_id,
+    is_custom,
+    catalog_key: is_custom ? null : catalog_key,
+    custom_name: is_custom ? custom_name : null,
+    vehicle_type: vehicle_type || null,
+    interval_months: interval_months ?? null,
+    interval_km: interval_km ?? null,
+    remind_days_before,
+    enabled,
+  };
+  if (pref_id) {
+    await db.maintenance_reminder_prefs.update(pref_id, payload);
+  } else {
+    await db.maintenance_reminder_prefs.create(payload);
+  }
 }

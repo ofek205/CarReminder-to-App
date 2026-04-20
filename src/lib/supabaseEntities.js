@@ -133,4 +133,6 @@ export const db = {
   community_saved:    makeEntity('community_saved'),
   community_comment_likes: makeEntity('community_comment_likes'),
   maintenance_logs:   makeEntity('maintenance_logs'),
+  maintenance_reminder_prefs: makeEntity('maintenance_reminder_prefs'),
+  repair_types:       makeEntity('repair_types'),
 };

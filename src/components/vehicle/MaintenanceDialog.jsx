@@ -9,7 +9,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Check, Plus, X, Clock } from "lucide-react";
 import { usesKm, usesHours } from "../shared/DateStatusUtils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { db } from '@/lib/supabaseEntities';
+import { getCatalogForVehicleType } from '@/components/shared/MaintenanceCatalog';
+import { toast } from 'sonner';
 
+// Baseline quick-add chips. These stay hardcoded — they are the "safe
+// bets" we surface first so a new user sees something useful even if
+// they never visited /MaintenanceTemplates. User-defined custom items
+// from that page are merged in below as additional chips.
 const PRESET_SMALL = ['החלפת שמן', 'החלפת פילטר שמן', 'החלפת פילטר אוויר', 'החלפת פילטר מזגן'];
 const PRESET_LARGE = ['החלפת פלאגים', 'החלפת ציריות', 'החלפת רצועת טיימינג', 'החלפת בולמי זעזועים', 'החלפת רצועות', 'בדיקת בלמים', 'החלפת נוזל בלמים', 'החלפת מצבר'];
 
@@ -148,9 +156,36 @@ function AddCustomItemDialog({ open, onClose, onSave, user }) {
 export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm, setLogForm, saving, onSave, user }) {
   const [showAddCustom, setShowAddCustom] = useState(false);
 
-  const allPreset = [...PRESET_SMALL, ...PRESET_LARGE];
+  // User's custom maintenance types — defined via /MaintenanceTemplates.
+  // Merge into the suggestion chips so the two places stay in sync.
+  const { data: myPrefs = [] } = useQuery({
+    queryKey: ['maint-prefs', user?.id],
+    queryFn: () => db.maintenance_reminder_prefs.filter({ user_id: user.id }),
+    enabled: !!user?.id,
+  });
+  const userCustomNames = myPrefs
+    .filter(p => p.is_custom && p.enabled && p.custom_name)
+    .map(p => p.custom_name);
+
+  // Catalog-backed "large service" list — supplements the hardcoded PRESET_LARGE
+  // with whatever the catalog knows for this vehicle type. Dedup against the
+  // small-preset list so names don't appear twice.
+  const catalogItems = vehicle?.vehicle_type
+    ? (getCatalogForVehicleType(vehicle.vehicle_type) || []).map(i => i.name)
+    : [];
+  const extraLarge = catalogItems.filter(n =>
+    !PRESET_SMALL.includes(n) && !PRESET_LARGE.includes(n)
+  );
+
+  const allPreset = [...PRESET_SMALL, ...PRESET_LARGE, ...extraLarge, ...userCustomNames];
   const customItems = (logForm.selected_items || []).filter(i => !allPreset.includes(i));
-  const currentPreset = logForm.service_type === 'small' ? PRESET_SMALL : logForm.service_type === 'large' ? PRESET_LARGE : [];
+
+  const currentPreset =
+    logForm.service_type === 'small'
+      ? [...PRESET_SMALL]
+      : logForm.service_type === 'large'
+        ? [...PRESET_LARGE, ...extraLarge, ...userCustomNames]
+        : [];
 
   const toggleItem = (item) => {
     const items = logForm.selected_items || [];
@@ -160,30 +195,54 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
     }));
   };
 
+  const queryClient = useQueryClient();
+
   const handleAddCustom = async (form) => {
     setShowAddCustom(false);
-    // Add item to selected immediately
+    // Add to the selected-items list so the new name shows up as a chip
+    // immediately — feels instant even before the DB write finishes.
     setLogForm(f => ({
       ...f,
       selected_items: [...(f.selected_items || []), form.name],
     }));
-    // If user defined a reminder, save as a template
-    if (form.reminder_type !== 'none' && user) {
-      const templateData = {
-        name: form.name,
-        recurrence_enabled: true,
-        scope: 'user',
-        owner_user_id: user.id,
-        is_active: true,
-      };
-      if (form.reminder_type === 'time' && form.reminder_interval_value) {
-        templateData.interval_unit = form.reminder_interval_unit;
-        templateData.interval_value = Number(form.reminder_interval_value);
-      }
+
+    // If the user chose a reminder, persist this as a recurring custom
+    // maintenance type so it also appears in /MaintenanceTemplates and on
+    // future maintenance-add dialogs. Replaces the old base44 call that
+    // was silently no-op'ing.
+    if (form.reminder_type !== 'none' && user?.id) {
       try {
-        const { base44 } = await import('@/api/base44Client');
-        await base44.entities.MaintenanceTemplate.create(templateData);
-      } catch(e) {}
+        let interval_months = null;
+        let interval_km = null;
+        if (form.reminder_type === 'time' && form.reminder_interval_value) {
+          const val = Number(form.reminder_interval_value);
+          const unit = form.reminder_interval_unit || 'חודשים';
+          // Normalise every unit into months for storage.
+          interval_months = unit === 'חודשים' ? val
+                          : unit === 'שבועות' ? Math.max(1, Math.round(val / 4.345))
+                          : unit === 'ימים'   ? Math.max(1, Math.round(val / 30))
+                          : val;
+        }
+        if (form.reminder_type === 'km' && form.reminder_km) {
+          interval_km = Number(form.reminder_km);
+        }
+
+        await db.maintenance_reminder_prefs.create({
+          user_id: user.id,
+          is_custom: true,
+          custom_name: form.name.trim(),
+          vehicle_type: vehicle?.vehicle_type || null,
+          interval_months,
+          interval_km,
+          remind_days_before: 14,
+          enabled: true,
+        });
+        queryClient.invalidateQueries({ queryKey: ['maint-prefs', user.id] });
+        toast.success('נשמר גם ברשימת סוגי הטיפולים שלך');
+      } catch (e) {
+        // Non-blocking — the item is already added to this maintenance log.
+        if (import.meta.env.DEV) console.warn('Save custom template failed:', e.message);
+      }
     }
   };
 
