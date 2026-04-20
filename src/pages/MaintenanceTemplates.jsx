@@ -33,7 +33,7 @@ import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { Plus, Wrench, Settings, Trash2, Loader2, Check, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/shared/GuestContext";
-import { MAINTENANCE_CATALOG, getCatalogForVehicleType } from "@/components/shared/MaintenanceCatalog";
+import { MAINTENANCE_CATALOG, MAINTENANCE_CATEGORIES, getCatalogForVehicleType } from "@/components/shared/MaintenanceCatalog";
 import { C } from '@/lib/designTokens';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -122,6 +122,7 @@ function AuthenticatedView() {
           catalog_key: key,
           name: item.name,
           vehicle_type: vType,
+          category: item.category || 'כללי',
           interval_months: pref?.interval_months ?? item.months,
           interval_km:     pref?.interval_km     ?? item.km,
           remind_days_before: pref?.remind_days_before ?? 14,
@@ -137,6 +138,7 @@ function AuthenticatedView() {
         catalog_key: null,
         name: p.custom_name,
         vehicle_type: p.vehicle_type || null,
+        category: 'אישיים',
         interval_months: p.interval_months,
         interval_km:     p.interval_km,
         remind_days_before: p.remind_days_before,
@@ -159,6 +161,23 @@ function AuthenticatedView() {
     if (q) list = list.filter(m => m.name.includes(q));
     return list;
   }, [merged, vehicleFilter, search]);
+
+  // Group visible items by category so the UI can render section headers.
+  // Sort categories by the global MAINTENANCE_CATEGORIES order; custom
+  // items land in 'אישיים' which appears last.
+  const groupedByCategory = useMemo(() => {
+    const groups = {};
+    for (const item of visibleList) {
+      const cat = item.category || 'כללי';
+      (groups[cat] ||= []).push(item);
+    }
+    const knownOrder = [...MAINTENANCE_CATEGORIES, 'אישיים'];
+    return Object.entries(groups).sort(([a], [b]) => {
+      const ai = knownOrder.indexOf(a);
+      const bi = knownOrder.indexOf(b);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
+  }, [visibleList]);
 
   // ── Editor sheet + create dialog state ─────────────────────────────────
   const [editing, setEditing] = useState(null);   // item being edited in the sheet
@@ -191,7 +210,7 @@ function AuthenticatedView() {
         <TabsContent value="maintenance" className="m-0">
 
           {/* Single-row filter + search */}
-          <div className="flex items-center gap-2 mb-4">
+          <div dir="rtl" className="flex items-center gap-2 mb-4">
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <Input
@@ -226,21 +245,32 @@ function AuthenticatedView() {
             </Button>
           </div>
 
-          {/* List */}
+          {/* List — grouped by category */}
           {visibleList.length === 0 ? (
             <EmptyState search={search} onAdd={() => setCreateOpen(true)} />
           ) : (
-            <div className="rounded-2xl overflow-hidden"
-              style={{ background: '#fff', border: `1.5px solid ${C.border}` }}>
-              {visibleList.map((item, idx) => (
-                <MaintenanceRow
-                  key={item.key}
-                  item={item}
-                  isLast={idx === visibleList.length - 1}
-                  userId={userId}
-                  onEdit={() => setEditing(item)}
-                  onQueryInvalidate={() => qc.invalidateQueries({ queryKey: ['maint-prefs', userId] })}
-                />
+            <div className="space-y-4">
+              {groupedByCategory.map(([category, items]) => (
+                <section key={category}>
+                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 px-1 flex items-center gap-2">
+                    <span>{category}</span>
+                    <span className="text-gray-300">·</span>
+                    <span className="text-gray-400 font-normal">{items.length}</span>
+                  </h3>
+                  <div className="rounded-2xl overflow-hidden"
+                    style={{ background: '#fff', border: `1.5px solid ${C.border}` }}>
+                    {items.map((item, idx) => (
+                      <MaintenanceRow
+                        key={item.key}
+                        item={item}
+                        isLast={idx === items.length - 1}
+                        userId={userId}
+                        onEdit={() => setEditing(item)}
+                        onQueryInvalidate={() => qc.invalidateQueries({ queryKey: ['maint-prefs', userId] })}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           )}
@@ -338,6 +368,7 @@ function MaintenanceRow({ item, isLast, userId, onEdit, onQueryInvalidate }) {
       tabIndex={0}
       onClick={onEdit}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit(); } }}
+      dir="rtl"
       className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50 focus:outline-none focus-visible:bg-gray-50 ${isLast ? '' : 'border-b border-gray-100'}`}
       style={{ opacity: item.enabled ? 1 : 0.5 }}>
       <div className="flex-1 min-w-0 text-right">
@@ -377,7 +408,7 @@ function RepairRow({ repair, isLast, userId, onQueryInvalidate }) {
   };
   return (
     <>
-      <div className={`flex items-center gap-3 px-4 py-3 ${isLast ? '' : 'border-b border-gray-100'}`}>
+      <div dir="rtl" className={`flex items-center gap-3 px-4 py-3 ${isLast ? '' : 'border-b border-gray-100'}`}>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold truncate">{repair.name}</p>
           {repair.description && <p className="text-xs text-gray-500 truncate">{repair.description}</p>}
