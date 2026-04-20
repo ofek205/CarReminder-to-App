@@ -206,41 +206,50 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
       selected_items: [...(f.selected_items || []), form.name],
     }));
 
-    // If the user chose a reminder, persist this as a recurring custom
-    // maintenance type so it also appears in /MaintenanceTemplates and on
-    // future maintenance-add dialogs. Replaces the old base44 call that
-    // was silently no-op'ing.
-    if (form.reminder_type !== 'none' && user?.id) {
-      try {
-        let interval_months = null;
-        let interval_km = null;
-        if (form.reminder_type === 'time' && form.reminder_interval_value) {
-          const val = Number(form.reminder_interval_value);
-          const unit = form.reminder_interval_unit || 'חודשים';
-          // Normalise every unit into months for storage.
-          interval_months = unit === 'חודשים' ? val
-                          : unit === 'שבועות' ? Math.max(1, Math.round(val / 4.345))
-                          : unit === 'ימים'   ? Math.max(1, Math.round(val / 30))
-                          : val;
-        }
-        if (form.reminder_type === 'km' && form.reminder_km) {
-          interval_km = Number(form.reminder_km);
-        }
+    if (!user?.id) return;
 
-        await db.maintenance_reminder_prefs.create({
-          user_id: user.id,
-          is_custom: true,
-          custom_name: form.name.trim(),
-          vehicle_type: vehicle?.vehicle_type || null,
-          interval_months,
-          interval_km,
-          remind_days_before: 14,
-          enabled: true,
-        });
-        queryClient.invalidateQueries({ queryKey: ['maint-prefs', user.id] });
-        toast.success('נשמר גם ברשימת סוגי הטיפולים שלך');
-      } catch (e) {
-        // Non-blocking — the item is already added to this maintenance log.
+    // Always persist the custom name to /MaintenanceTemplates — whether
+    // or not a reminder was chosen. Reminder chosen = intervals set +
+    // enabled. No reminder = enabled=false with null intervals, still
+    // appears in the templates list so the user can configure later.
+    // Duplicate names (case-insensitive, per the DB unique index) are
+    // swallowed — user won't see an error for what is effectively a
+    // no-op.
+    let interval_months = null;
+    let interval_km = null;
+    if (form.reminder_type === 'time' && form.reminder_interval_value) {
+      const val = Number(form.reminder_interval_value);
+      const unit = form.reminder_interval_unit || 'חודשים';
+      interval_months = unit === 'חודשים' ? val
+                      : unit === 'שבועות' ? Math.max(1, Math.round(val / 4.345))
+                      : unit === 'ימים'   ? Math.max(1, Math.round(val / 30))
+                      : val;
+    }
+    if (form.reminder_type === 'km' && form.reminder_km) {
+      interval_km = Number(form.reminder_km);
+    }
+
+    const hasReminder = form.reminder_type !== 'none';
+
+    try {
+      await db.maintenance_reminder_prefs.create({
+        user_id: user.id,
+        is_custom: true,
+        custom_name: form.name.trim(),
+        vehicle_type: vehicle?.vehicle_type || null,
+        interval_months,
+        interval_km,
+        remind_days_before: 14,
+        enabled: hasReminder,       // disabled by default if user skipped reminder
+      });
+      queryClient.invalidateQueries({ queryKey: ['maint-prefs', user.id] });
+      toast.success(hasReminder
+        ? 'נשמר ברשימת סוגי הטיפולים שלך'
+        : 'נוסף לרשימה — להגדיר תזכורת בהגדרות הטיפולים');
+    } catch (e) {
+      // Duplicate names are a benign no-op — the template already exists.
+      // Any other error is non-blocking: the log entry itself succeeded.
+      if (!/duplicate/i.test(String(e.message || ''))) {
         if (import.meta.env.DEV) console.warn('Save custom template failed:', e.message);
       }
     }

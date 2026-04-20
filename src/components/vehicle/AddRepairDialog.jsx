@@ -1,6 +1,7 @@
 import { toast } from 'sonner';
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -106,13 +107,13 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
     }
   }, [repair]);
 
+  // Repair types live in the Supabase repair_types table (owned per-user,
+  // RLS scoped to the current user) so this list stays in sync with what
+  // the user sees/edits at /MaintenanceTemplates → תיקונים tab.
   const { data: repairTypes = [] } = useQuery({
-    queryKey: ['repairTypes'],
-    queryFn: async () => {
-      if (!currentUser) return [];
-      return base44.entities.RepairType.filter({ owner_user_id: currentUser.id, is_active: true });
-    },
-    enabled: !!currentUser,
+    queryKey: ['repair-types', currentUser?.id],
+    queryFn: () => db.repair_types.filter({ user_id: currentUser.id }),
+    enabled: !!currentUser?.id,
   });
 
   const saveMutation = useMutation({
@@ -178,16 +179,19 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
     },
   });
 
+  // Creates a user-owned repair type in Supabase. Same table the
+  // /MaintenanceTemplates → תיקונים tab reads from, so a type added
+  // here immediately shows up there too. Duplicate names are surfaced
+  // gracefully (case-insensitive UNIQUE per user).
   const createRepairTypeMutation = useMutation({
     mutationFn: async (name) => {
-      return base44.entities.RepairType.create({
-        name,
-        owner_user_id: currentUser.id,
-        scope: 'user',
+      return db.repair_types.create({
+        user_id: currentUser.id,
+        name: name.trim(),
       });
     },
     onSuccess: (newType) => {
-      queryClient.invalidateQueries({ queryKey: ['repairTypes'] });
+      queryClient.invalidateQueries({ queryKey: ['repair-types', currentUser?.id] });
       setForm(prev => ({ ...prev, repair_type_id: newType.id }));
       setNewRepairType('');
       setShowNewTypeInput(false);
