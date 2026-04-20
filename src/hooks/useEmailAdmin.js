@@ -24,6 +24,8 @@ const K = {
   notifications: ['email-admin', 'notifications'],
   template:      (key) => ['email-admin', 'template', key],
   settings:      ['email-admin', 'settings'],
+  triggers:      ['email-admin', 'triggers'],
+  sendLog:       ['email-admin', 'send-log'],
 };
 
 // ── Notifications (the 7 types) ────────────────────────────────────────────
@@ -147,5 +149,85 @@ export function useToggleKillSwitch() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: K.settings }),
+  });
+}
+
+// ── Triggers (Phase 2 automation) ─────────────────────────────────────────
+
+export function useEmailTriggers() {
+  return useQuery({
+    queryKey: K.triggers,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('email_triggers')
+        .select('*')
+        .order('notification_key');
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useSaveTrigger() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (trigger) => {
+      const payload = {
+        notification_key: trigger.notification_key,
+        enabled:          !!trigger.enabled,
+        days_before:      Math.max(0, Math.min(365, Number(trigger.days_before) || 0)),
+        cooldown_days:    Math.max(0, Math.min(365, Number(trigger.cooldown_days) || 0)),
+      };
+      const { error } = await supabase
+        .from('email_triggers')
+        .upsert(payload, { onConflict: 'notification_key' });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: K.triggers }),
+  });
+}
+
+// Manual invocation of the Edge Function. `keys` = which notifications to
+// process (omit to process all enabled triggers). `dryRun=true` counts
+// matches without actually sending — useful for "how many would go out".
+export function useRunDispatcher() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ keys, dryRun = false } = {}) => {
+      const { data, error } = await supabase.functions.invoke('dispatch-reminder-emails', {
+        body: { keys, dryRun },
+      });
+      if (error) {
+        let detail = error.message;
+        try { const body = await error.context?.json?.(); if (body?.error) detail = body.error; } catch {}
+        throw new Error(detail);
+      }
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: K.triggers });
+      qc.invalidateQueries({ queryKey: K.sendLog });
+    },
+  });
+}
+
+// ── Send log (recent history) ─────────────────────────────────────────────
+
+export function useSendLog({ limit = 50, notificationKey } = {}) {
+  return useQuery({
+    queryKey: [...K.sendLog, { limit, notificationKey }],
+    queryFn: async () => {
+      let q = supabase
+        .from('email_send_log')
+        .select('*')
+        .order('sent_at', { ascending: false })
+        .limit(limit);
+      if (notificationKey) q = q.eq('notification_key', notificationKey);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 10_000,
   });
 }
