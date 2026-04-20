@@ -14,11 +14,11 @@
 
 UPDATE public.email_templates
    SET subject   = 'מומחה רכב זמין לכם 24/7 באפליקציה',
-       preheader = 'שאלו על נוריות אזהרה, טיפולים, תקלות — מקבלים תשובה מקצועית בשניות',
-       title     = 'מומחה רכב — עכשיו זמין תמיד',
+       preheader = 'שאלו על נוריות אזהרה, טיפולים, תקלות, מקבלים תשובה מקצועית בשניות',
+       title     = 'מומחה רכב, עכשיו זמין תמיד',
        cta_label = 'לשאול את המומחה',
        body_html = '<p style="margin:0 0 18px;font-size:15px;line-height:1.7">
-  שלום <strong>{{firstName}}</strong>, הוספנו לאפליקציה <strong>מומחה רכב מבוסס AI</strong> — שואלים אותו הכל ומקבלים תשובה בשניות.
+  שלום <strong>{{firstName}}</strong>, הוספנו לאפליקציה <strong>מומחה רכב מבוסס AI</strong>, שואלים אותו הכל ומקבלים תשובה בשניות.
 </p>
 
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 10px">
@@ -37,7 +37,7 @@ UPDATE public.email_templates
     <td style="background:#E8F2EA;border-radius:16px;padding:16px 18px">
       <p style="margin:0 0 4px;font-size:11px;color:#2D5233;font-weight:700;letter-spacing:0.5px">CarReminder AI עונה</p>
       <p style="margin:0;font-size:14px;color:#1C3620;line-height:1.6">
-        תפסיקו לנסוע מיד ותבדקו מפלס שמן. נורית שמן יכולה להצביע על חוסר חמור. אם המפלס תקין — כנראה חיישן תקול; לא מסוכן מיידית אבל להגיע למוסך תוך יומיים.
+        תפסיקו לנסוע מיד ותבדקו מפלס שמן. נורית שמן יכולה להצביע על חוסר חמור. אם המפלס תקין, כנראה חיישן תקול; לא מסוכן מיידית אבל להגיע למוסך תוך יומיים.
       </p>
     </td>
   </tr>
@@ -59,7 +59,7 @@ UPDATE public.email_templates
 </table>
 
 <p style="margin:0;font-size:14px;line-height:1.7;color:#4B5563;text-align:center">
-  חינם לחלוטין למשתמשי CarReminder. אין מה להתקין — זה כבר שם.
+  חינם לחלוטין למשתמשי CarReminder. אין מה להתקין, זה כבר שם.
 </p>'
  WHERE notification_key = 'marketing_ai_expert';
 
@@ -67,12 +67,12 @@ UPDATE public.email_templates
 -- ── 2. Community — "ask the people who actually drove this car" ───────────
 
 UPDATE public.email_templates
-   SET subject   = 'פורום חדש באפליקציה — רק משתמשים אמיתיים',
-       preheader = 'המלצות מוסכים, טיפים על דגמים, ביקורות מהשטח — בלי ספאם ובלי מוכרים',
+   SET subject   = 'פורום חדש באפליקציה, רק משתמשים אמיתיים',
+       preheader = 'המלצות מוסכים, טיפים על דגמים, ביקורות מהשטח, בלי ספאם ובלי מוכרים',
        title     = 'הקהילה של CarReminder פתוחה',
        cta_label = 'להצטרפות לקהילה',
        body_html = '<p style="margin:0 0 18px;font-size:15px;line-height:1.7">
-  שלום <strong>{{firstName}}</strong>, פתחנו באפליקציה <strong>פורום לבעלי רכב</strong> — שאלות אמיתיות, תשובות אמיתיות, בלי שאף אחד ינסה למכור לכם כלום.
+  שלום <strong>{{firstName}}</strong>, פתחנו באפליקציה <strong>פורום לבעלי רכב</strong>, שאלות אמיתיות, תשובות אמיתיות, בלי שאף אחד ינסה למכור לכם כלום.
 </p>
 
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 22px">
@@ -83,7 +83,7 @@ UPDATE public.email_templates
         שאלתי אם שווה לחדש את הרכב או לקנות חדש. קיבלתי תוך שעה 8 תשובות ממי שכבר עמד באותה דילמה עם אותו הדגם.
       </p>
       <p style="margin:0;font-size:12px;color:#3A6B42;font-weight:700">
-        — יעל, בעלת הונדה סיוויק 2017
+        יעל, בעלת הונדה סיוויק 2017
       </p>
     </td>
   </tr>
@@ -97,7 +97,7 @@ UPDATE public.email_templates
   <tr>
     <td style="background:#FFFFFF;border:1.5px solid #D8E5D9;border-radius:14px;padding:14px 16px">
       <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#1C3620">💬&nbsp; שאלות ותשובות ממוקדות</p>
-      <p style="margin:0;font-size:13px;color:#6B7280;line-height:1.6">על דגמים ספציפיים — לא דיונים כלליים שלא עוזרים.</p>
+      <p style="margin:0;font-size:13px;color:#6B7280;line-height:1.6">על דגמים ספציפיים, לא דיונים כלליים שלא עוזרים.</p>
     </td>
   </tr>
 </table>
@@ -121,7 +121,7 @@ UPDATE public.email_templates
 </table>
 
 <p style="margin:0;font-size:14px;line-height:1.7;color:#4B5563;text-align:center">
-  חינם, ללא הרשמה נפרדת — אתם כבר חלק מהקהילה.
+  חינם, ללא הרשמה נפרדת, אתם כבר חלק מהקהילה.
 </p>'
  WHERE notification_key = 'marketing_community';
 
@@ -130,11 +130,11 @@ UPDATE public.email_templates
 
 UPDATE public.email_templates
    SET subject   = 'יש לכם גם סירה? האפליקציה תומכת גם בים',
-       preheader = 'סירה, יאכטה, אופנוע ים או סירת גומי — כל הניהול באפליקציה אחת',
-       title     = 'לא רק כביש — גם ים',
+       preheader = 'סירה, יאכטה, אופנוע ים או סירת גומי, כל הניהול באפליקציה אחת',
+       title     = 'לא רק כביש, גם ים',
        cta_label = 'להוספת כלי שייט',
        body_html = '<p style="margin:0 0 20px;font-size:15px;line-height:1.7">
-  שלום <strong>{{firstName}}</strong>, אם יש לכם <strong>סירה, יאכטה, אופנוע ים או סירת גומי</strong> — האפליקציה יודעת לנהל אותם בדיוק כמו רכב, רק בצבעים של הים.
+  שלום <strong>{{firstName}}</strong>, אם יש לכם <strong>סירה, יאכטה, אופנוע ים או סירת גומי</strong>, האפליקציה יודעת לנהל אותם בדיוק כמו רכב, רק בצבעים של הים.
 </p>
 
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px">
@@ -145,7 +145,7 @@ UPDATE public.email_templates
         ניהול חכם גם לכלי שייט
       </p>
       <p style="margin:0;font-size:13px;color:#B2EBF2;line-height:1.5">
-        רישוי, ביטוח, כושר שייט ותחזוקה — הכל במקום אחד.
+        רישוי, ביטוח, כושר שייט ותחזוקה, הכל במקום אחד.
       </p>
     </td>
   </tr>
