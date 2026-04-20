@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Users, UserPlus, Copy, Trash2, Crown, Shield, User, Loader2, Share2, MessageCircle, Check, Link2, ChevronLeft, Eye, Car, ChevronDown, ChevronUp } from "lucide-react";
+import { Users, UserPlus, Copy, Trash2, Crown, Shield, User, Loader2, Share2, MessageCircle, Check, Link2, ChevronLeft, Eye, Car, ChevronDown, ChevronUp, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
@@ -178,6 +178,9 @@ function AuthAccountSettings({ embedded = false }) {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteRole, setInviteRole] = useState('שותף');
   const [invitesExpanded, setInvitesExpanded] = useState(false);
+  const [inviteeEmail, setInviteeEmail] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
   const [creating, setCreating] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -244,6 +247,13 @@ function AuthAccountSettings({ embedded = false }) {
       setInviteLink(link);
       queryClient.invalidateQueries({ queryKey: ['active-invites'] });
       toast.success('ההזמנה נוצרה בהצלחה');
+
+      // If the user entered an email, fire off the invite mail in the background.
+      // We don't block on it — the user already has the link they can copy /
+      // share on WhatsApp. The email is just a convenience.
+      if (inviteeEmail && inviteeEmail.includes('@')) {
+        sendInviteEmail(link).catch(() => { /* already handled inside */ });
+      }
     } catch (e) {
       if (import.meta.env.DEV) console.error('Invite creation error:', e);
       toast.error('שגיאה ביצירת ההזמנה. נסה שוב.');
@@ -251,6 +261,66 @@ function AuthAccountSettings({ embedded = false }) {
       setCreating(false);
     }
   };
+
+  // Send the invite link to the invitee by email via the Resend-backed
+  // Edge Function. The actual sending lives in src/lib/sendEmail.js.
+  const sendInviteEmail = async (link) => {
+    if (!inviteeEmail) return;
+    setEmailSending(true);
+    try {
+      const { sendEmail } = await import('@/lib/sendEmail');
+      const inviterName = user?.full_name || user?.email || 'משתמש CarReminder';
+      const roleLabel = inviteRole; // 'מנהל' / 'שותף'
+      const subject = `${inviterName} הזמין/ה אותך ל-CarReminder`;
+      const html = `
+        <div dir="rtl" style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#1F2937">
+          <div style="text-align:center;margin-bottom:24px">
+            <div style="display:inline-block;width:56px;height:56px;border-radius:18px;background:linear-gradient(135deg,#2D5233,#4A8C5C);line-height:56px;text-align:center;font-size:28px">🚗</div>
+            <h1 style="font-size:22px;font-weight:900;color:#1C3620;margin:16px 0 4px">הוזמנת ל-CarReminder</h1>
+            <p style="font-size:14px;color:#6B7280;margin:0">אפליקציה לניהול חכם של כלי רכב</p>
+          </div>
+
+          <div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:16px;padding:16px 18px;margin-bottom:20px">
+            <p style="font-size:14px;margin:0 0 6px;color:#166534"><strong>${escapeHtml(inviterName)}</strong> מזמין/ה אותך להצטרף לחשבון הרכבים ב-CarReminder.</p>
+            <p style="font-size:13px;margin:0;color:#166534">רמת ההרשאה שלך תהיה: <strong>${escapeHtml(roleLabel)}</strong></p>
+          </div>
+
+          <div style="text-align:center;margin:28px 0">
+            <a href="${link}" style="display:inline-block;background:linear-gradient(135deg,#2D5233,#4A8C5C);color:white;padding:14px 32px;border-radius:14px;text-decoration:none;font-weight:800;font-size:15px;box-shadow:0 8px 20px rgba(45,82,51,0.25)">
+              הצטרף לחשבון ←
+            </a>
+          </div>
+
+          <p style="font-size:12px;color:#9CA3AF;text-align:center;margin:0">או העתק את הקישור לדפדפן:</p>
+          <p style="font-size:12px;word-break:break-all;text-align:center;margin:6px 0 24px;color:#4B5563">
+            <a href="${link}" style="color:#2D5233">${link}</a>
+          </p>
+
+          <hr style="border:none;border-top:1px solid #E5E7EB;margin:24px 0">
+          <p style="font-size:11px;color:#9CA3AF;text-align:center;margin:0;line-height:1.6">
+            הקישור תקף ל-7 ימים וניתן לשימוש פעם אחת בלבד.<br>
+            אם לא ביקשת את ההזמנה — התעלם/י ממייל זה.
+          </p>
+        </div>
+      `;
+      const text = `${inviterName} מזמין/ה אותך להצטרף ל-CarReminder כ${roleLabel}.\nקישור הצטרפות (תקף 7 ימים): ${link}`;
+
+      await sendEmail({ to: inviteeEmail, subject, html, text });
+      setEmailSent(true);
+      toast.success(`המייל נשלח ל-${inviteeEmail}`);
+    } catch (e) {
+      if (import.meta.env.DEV) console.error('Invite email send error:', e);
+      toast.error('שליחת המייל נכשלה — אפשר לשתף דרך WhatsApp או להעתיק את הקישור');
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  // Tiny helper — the invite email embeds user-supplied names. Escaping
+  // protects against someone sticking HTML into their profile name.
+  const escapeHtml = (s) => String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
   const copyLink = async () => {
     const { copyToClipboard } = await import('@/lib/clipboard');
@@ -316,6 +386,9 @@ function AuthAccountSettings({ embedded = false }) {
     setInviteRole('שותף');
     setShareAll(true);
     setSelectedVehicleIds([]);
+    setInviteeEmail('');
+    setEmailSending(false);
+    setEmailSent(false);
   };
 
   const toggleVehicle = (vId) => {
@@ -616,6 +689,32 @@ function AuthAccountSettings({ embedded = false }) {
               </div>
             )}
 
+            {/* Optional email — if provided, we ALSO send the invite link
+                by email once the invite is created. WhatsApp/Copy still work
+                afterwards, so the email is purely a convenience. */}
+            {!inviteLink && (
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">
+                  שלח במייל (אופציונלי)
+                </label>
+                <div className="relative">
+                  <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  <input
+                    type="email"
+                    value={inviteeEmail}
+                    onChange={e => setInviteeEmail(e.target.value)}
+                    placeholder="friend@example.com"
+                    dir="ltr"
+                    className="w-full h-11 pr-9 pl-3 rounded-xl border text-sm font-medium outline-none transition-all focus:ring-2"
+                    style={{ background: '#fff', borderColor: '#E5E7EB', color: '#1F2937', '--tw-ring-color': C.primary }}
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1.5">
+                  אם תזין מייל, נשלח את קישור ההזמנה ישירות ל-inbox של המוזמן.
+                </p>
+              </div>
+            )}
+
             {!inviteLink ? (
               <Button onClick={createInvite} disabled={creating || (!shareAll && selectedVehicleIds.length === 0)}
                 className="w-full h-12 rounded-2xl font-bold text-base gap-2"
@@ -623,7 +722,7 @@ function AuthAccountSettings({ embedded = false }) {
                 {creating ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                   <>
                     <Link2 className="h-5 w-5" />
-                    צור קישור הזמנה
+                    {inviteeEmail && inviteeEmail.includes('@') ? 'צור קישור ושלח במייל' : 'צור קישור הזמנה'}
                   </>
                 )}
               </Button>
@@ -636,6 +735,31 @@ function AuthAccountSettings({ embedded = false }) {
                   <p className="text-sm font-bold text-green-800">הקישור מוכן! תקף 7 ימים</p>
                 </div>
 
+                {/* Email status — only shown when the user typed an email upfront.
+                    Sending happens in the background after invite creation. */}
+                {inviteeEmail && (
+                  <div className="rounded-2xl p-3 flex items-center gap-2"
+                    style={{
+                      background: emailSent ? '#EFF6FF' : emailSending ? '#FFFBEB' : '#FEF2F2',
+                      border: `1.5px solid ${emailSent ? '#BFDBFE' : emailSending ? '#FDE68A' : '#FECACA'}`,
+                    }}>
+                    {emailSending ? <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                      : emailSent ? <Mail className="w-4 h-4 text-blue-600 shrink-0" />
+                      : <Mail className="w-4 h-4 text-red-500 shrink-0" />}
+                    <p className="text-xs font-bold flex-1" style={{
+                      color: emailSent ? '#1E40AF' : emailSending ? '#92400E' : '#991B1B',
+                    }}>
+                      {emailSending ? 'שולח מייל...'
+                        : emailSent ? `המייל נשלח ל-${inviteeEmail}`
+                        : 'שליחת המייל נכשלה'}
+                    </p>
+                    {!emailSending && !emailSent && (
+                      <button onClick={() => sendInviteEmail(inviteLink)}
+                        className="text-[11px] font-bold text-red-700 underline">נסה שוב</button>
+                    )}
+                  </div>
+                )}
+
                 {/* Share buttons */}
                 <div className="grid grid-cols-1 gap-2.5">
                   {/* WhatsApp - primary */}
@@ -645,6 +769,33 @@ function AuthAccountSettings({ embedded = false }) {
                     <WhatsAppIcon />
                     שתף ב-WhatsApp
                   </Button>
+
+                  {/* Email — post-hoc option for users who didn't fill the
+                      email field upfront. Shown only when no email was
+                      entered + sent yet. */}
+                  {!inviteeEmail && (
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <input
+                          type="email"
+                          value={inviteeEmail}
+                          onChange={e => setInviteeEmail(e.target.value)}
+                          placeholder="שלח לכתובת מייל"
+                          dir="ltr"
+                          className="w-full h-12 pr-9 pl-3 rounded-2xl border-2 text-sm font-medium outline-none"
+                          style={{ background: '#fff', borderColor: '#E5E7EB' }}
+                        />
+                      </div>
+                      <Button
+                        onClick={() => sendInviteEmail(inviteLink)}
+                        disabled={!inviteeEmail || !inviteeEmail.includes('@') || emailSending}
+                        className="h-12 rounded-2xl font-bold px-4"
+                        style={{ background: C.primary, color: 'white' }}>
+                        {emailSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                      </Button>
+                    </div>
+                  )}
 
                   {/* Copy link */}
                   <Button onClick={copyLink} variant="outline"
