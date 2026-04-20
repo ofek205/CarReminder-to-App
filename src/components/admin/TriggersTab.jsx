@@ -140,18 +140,29 @@ function Stat({ label, value, warn }) {
 function TriggerRow({ row }) {
   const save = useSaveTrigger();
   const [draft, setDraft] = useState({
-    enabled:       row.enabled,
-    days_before:   row.days_before,
-    cooldown_days: row.cooldown_days,
+    enabled:              row.enabled,
+    days_before:          row.days_before,
+    cooldown_days:        row.cooldown_days,
+    min_days_since_signup: row.conditions?.min_days_since_signup ?? 0,
   });
   const dirty =
-    draft.enabled       !== row.enabled ||
-    draft.days_before   !== row.days_before ||
-    draft.cooldown_days !== row.cooldown_days;
+    draft.enabled              !== row.enabled ||
+    draft.days_before          !== row.days_before ||
+    draft.cooldown_days        !== row.cooldown_days ||
+    draft.min_days_since_signup !== (row.conditions?.min_days_since_signup ?? 0);
 
   const handleSave = async () => {
     try {
-      await save.mutateAsync({ notification_key: row.notification_key, ...draft });
+      await save.mutateAsync({
+        notification_key: row.notification_key,
+        enabled:          draft.enabled,
+        days_before:      draft.days_before,
+        cooldown_days:    draft.cooldown_days,
+        conditions: {
+          ...(row.conditions || {}),
+          min_days_since_signup: Math.max(0, Math.min(365, Number(draft.min_days_since_signup) || 0)),
+        },
+      });
       toast.success('נשמר');
     } catch (e) {
       toast.error(`נכשל: ${e.message}`);
@@ -181,7 +192,7 @@ function TriggerRow({ row }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-3 gap-3 mb-3">
         <label className="text-xs">
           <span className="block font-bold text-gray-700 mb-1">ימים לפני פקיעה</span>
           <Input
@@ -191,7 +202,7 @@ function TriggerRow({ row }) {
             dir="ltr"
             className="h-9"
           />
-          <span className="text-[10px] text-gray-400 mt-0.5 block">נשלח כש-(תאריך פקיעה - היום) = הערך הזה</span>
+          <span className="text-[10px] text-gray-400 mt-0.5 block">מועד שליחה</span>
         </label>
         <label className="text-xs">
           <span className="block font-bold text-gray-700 mb-1">Cooldown (ימים)</span>
@@ -202,7 +213,18 @@ function TriggerRow({ row }) {
             dir="ltr"
             className="h-9"
           />
-          <span className="text-[10px] text-gray-400 mt-0.5 block">הפרש מינימלי בין שני מיילים על אותה תזכורת</span>
+          <span className="text-[10px] text-gray-400 mt-0.5 block">מינימום בין שליחות</span>
+        </label>
+        <label className="text-xs">
+          <span className="block font-bold text-gray-700 mb-1">ותק משתמש (ימים)</span>
+          <Input
+            type="number" min={0} max={365}
+            value={draft.min_days_since_signup}
+            onChange={(e) => setDraft(d => ({ ...d, min_days_since_signup: Number(e.target.value) }))}
+            dir="ltr"
+            className="h-9"
+          />
+          <span className="text-[10px] text-gray-400 mt-0.5 block">רק משתמשים רשומים לפחות X ימים</span>
         </label>
       </div>
 

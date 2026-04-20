@@ -29,6 +29,7 @@ const K = {
   events:        (logId) => ['email-admin', 'events', logId],
   stats:         (days) => ['email-admin', 'stats', days],
   versions:      (tplId) => ['email-admin', 'versions', tplId],
+  myPrefs:       ['email-prefs', 'me'],
 };
 
 // ── Notifications (the 7 types) ────────────────────────────────────────────
@@ -182,6 +183,10 @@ export function useSaveTrigger() {
         days_before:      Math.max(0, Math.min(365, Number(trigger.days_before) || 0)),
         cooldown_days:    Math.max(0, Math.min(365, Number(trigger.cooldown_days) || 0)),
       };
+      // Audience conditions are optional — only patch when caller provided.
+      if (trigger.conditions !== undefined) {
+        payload.conditions = trigger.conditions || {};
+      }
       const { error } = await supabase
         .from('email_triggers')
         .upsert(payload, { onConflict: 'notification_key' });
@@ -291,6 +296,23 @@ export function useTemplateVersions(templateId) {
   });
 }
 
+// Publish the current draft — snapshots the row into published_snapshot
+// and stamps published_at/by. The dispatcher's get_email_template() RPC
+// returns the PUBLISHED content, so in-flight drafts never go to users.
+export function usePublishTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ templateId, notificationKey }) => {
+      const { error } = await supabase.rpc('email_template_publish', { p_template_id: templateId });
+      if (error) throw error;
+      return { templateId, notificationKey };
+    },
+    onSuccess: ({ notificationKey }) => {
+      qc.invalidateQueries({ queryKey: K.template(notificationKey) });
+    },
+  });
+}
+
 // Revert the current template row to the state of a historical snapshot.
 // The revert itself writes a NEW snapshot (auto-trigger on UPDATE) so
 // nothing is lost — you can always "un-revert" from history.
@@ -325,5 +347,58 @@ export function useRevertToVersion() {
       qc.invalidateQueries({ queryKey: K.versions(row.id) });
       qc.invalidateQueries({ queryKey: K.template(row.notification_key) });
     },
+  });
+}
+
+// ── User-facing email preferences (Phase 4) ───────────────────────────────
+
+// Hook for the end-user NotificationPreferences page. Returns the full
+// list of notifications + the current user's prefs merged in. Notifications
+// with category='auth' are excluded (users can't opt out of auth emails).
+export function useMyEmailPreferences() {
+  return useQuery({
+    queryKey: K.myPrefs,
+    queryFn: async () => {
+      const [{ data: notifs, error: e1 }, { data: prefs, error: e2 }, { data: { user } }] = await Promise.all([
+        supabase
+          .from('email_notifications')
+          .select('key, display_name, description, category, enabled')
+          .neq('category', 'auth')
+          .order('category', { ascending: true }),
+        supabase.from('user_notification_preferences').select('*'),
+        supabase.auth.getUser(),
+      ]);
+      if (e1) throw e1;
+      if (e2) throw e2;
+
+      const prefsMap = Object.fromEntries((prefs || []).map(p => [p.notification_key, p]));
+      return {
+        userId: user?.id || null,
+        items: (notifs || []).map(n => ({
+          ...n,
+          // Merge: explicit preference row wins; otherwise opt-in by default.
+          subscribed: prefsMap[n.key] ? !!prefsMap[n.key].email_enabled : true,
+          raw: prefsMap[n.key] || null,
+        })),
+      };
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateMyEmailPreference() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, notificationKey, subscribed }) => {
+      if (!userId) throw new Error('not signed in');
+      const { error } = await supabase
+        .from('user_notification_preferences')
+        .upsert(
+          { user_id: userId, notification_key: notificationKey, email_enabled: subscribed },
+          { onConflict: 'user_id,notification_key' }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: K.myPrefs }),
   });
 }

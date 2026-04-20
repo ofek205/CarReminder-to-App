@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Save, AlertTriangle, Eye, Code, Smartphone, Monitor, History } from 'lucide-react';
-import { useEmailTemplate, useSaveEmailTemplate } from '@/hooks/useEmailAdmin';
+import { Loader2, Save, AlertTriangle, Eye, Code, Smartphone, Monitor, History, Rocket, CircleDot } from 'lucide-react';
+import { useEmailTemplate, useSaveEmailTemplate, usePublishTemplate } from '@/hooks/useEmailAdmin';
 import { validateTemplate, extractPlaceholders } from '@/lib/emailValidate';
 import { renderFromTemplateObject } from '@/lib/emailRender';
 import { toast } from 'sonner';
@@ -35,9 +35,17 @@ const SAMPLE_VARS = {
 export default function TemplateEditorDialog({ notification, open, onClose }) {
   const { data: existingTemplate, isLoading } = useEmailTemplate(notification?.key);
   const save = useSaveEmailTemplate();
+  const publish = usePublishTemplate();
   const [draft, setDraft] = useState(null);
   const [previewMode, setPreviewMode] = useState('desktop');
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // A draft is "unpublished" if the row was saved since the last publish.
+  const hasUnpublishedChanges = !!(
+    existingTemplate?.id &&
+    existingTemplate?.updated_at &&
+    (!existingTemplate?.published_at || new Date(existingTemplate.updated_at) > new Date(existingTemplate.published_at))
+  );
 
   // When template loads, copy it into local draft state so edits are buffered.
   useEffect(() => {
@@ -90,10 +98,25 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
     }
     try {
       await save.mutateAsync(draft);
-      toast.success('התבנית נשמרה');
-      onClose?.();
+      toast.success('נשמר כטיוטה. לחצ/י "פרסם" כדי שזה יצא למשתמשים.');
     } catch (e) {
       toast.error(`שמירה נכשלה: ${e.message}`);
+    }
+  };
+
+  const handlePublish = async () => {
+    // If the draft has unsaved edits, save them first.
+    const v = validateTemplate(draft);
+    if (!v.ok) { toast.error(`לא ניתן לפרסם — ${v.errors.length} שגיאות במשתנים`); return; }
+    try {
+      if (existingTemplate && JSON.stringify(draft) !== JSON.stringify(existingTemplate)) {
+        await save.mutateAsync(draft);
+      }
+      await publish.mutateAsync({ templateId: existingTemplate.id, notificationKey: notification.key });
+      toast.success('פורסם! מעכשיו המיילים יוצאים עם הגרסה הזו.');
+      onClose?.();
+    } catch (e) {
+      toast.error(`פרסום נכשל: ${e.message}`);
     }
   };
 
@@ -112,9 +135,25 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose?.()}>
       <DialogContent dir="rtl" className="max-w-5xl max-h-[92vh] p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader className="px-6 py-4 border-b shrink-0">
-          <DialogTitle className="text-lg font-bold">
-            עריכת תבנית — {notification.display_name}
-          </DialogTitle>
+          <div className="flex items-center gap-2 flex-wrap">
+            <DialogTitle className="text-lg font-bold">
+              עריכת תבנית — {notification.display_name}
+            </DialogTitle>
+            {existingTemplate?.id && (
+              hasUnpublishedChanges ? (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
+                  style={{ background: '#FEF3C7', color: '#92400E' }}>
+                  <CircleDot className="w-2.5 h-2.5" />
+                  טיוטה לא מפורסמת
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                  style={{ background: '#D1FAE5', color: '#047857' }}>
+                  מפורסם
+                </span>
+              )
+            )}
+          </div>
           <p className="text-xs text-gray-500 font-mono" dir="ltr">{notification.key}</p>
         </DialogHeader>
 
@@ -292,14 +331,22 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
               היסטוריית גרסאות
             </Button>
           )}
-          <Button variant="outline" onClick={onClose} className="rounded-xl">ביטול</Button>
+          <Button variant="outline" onClick={onClose} className="rounded-xl">סגירה</Button>
           <Button
+            variant="outline"
             onClick={handleSave}
             disabled={save.isPending || !validation.ok}
+            className="rounded-xl gap-2">
+            {save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            שמור טיוטה
+          </Button>
+          <Button
+            onClick={handlePublish}
+            disabled={publish.isPending || save.isPending || !validation.ok}
             className="rounded-xl gap-2"
             style={{ background: '#2D5233', color: 'white' }}>
-            {save.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            שמירה
+            {publish.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
+            פרסם
           </Button>
         </DialogFooter>
 

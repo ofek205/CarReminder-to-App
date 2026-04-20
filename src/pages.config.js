@@ -34,6 +34,7 @@ const AiAssistant = React.lazy(() => import('./pages/AiAssistant'));
 const Contact = React.lazy(() => import('./pages/Contact'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const EmailCenter = React.lazy(() => import('./pages/EmailCenter'));
+const NotificationPreferences = React.lazy(() => import('./pages/NotificationPreferences'));
 
 export const PAGES = {
     "Accidents": Accidents,
@@ -64,6 +65,7 @@ export const PAGES = {
     "Vehicles": Vehicles,
     "Settings": Settings,
     "EmailCenter": EmailCenter,
+    "NotificationPreferences": NotificationPreferences,
 }
 
 export const pagesConfig = {
