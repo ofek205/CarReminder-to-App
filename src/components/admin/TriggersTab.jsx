@@ -32,10 +32,18 @@ export default function TriggersTab() {
     try {
       const res = await run.mutateAsync({ dryRun });
       setLastRun({ ...res, at: new Date(), dryRun });
-      if (res.paused) toast.error('שליחה מושעתת על ידי Kill Switch');
-      else toast.success(dryRun
-        ? `בדיקה יבשה: ${res.totals?.matched} נמענים זוהו`
-        : `הפצה הושלמה: ${res.totals?.sent} נשלחו, ${res.totals?.skipped} דולגו`);
+      if (res.paused) {
+        toast.error('שליחה מושעתת על ידי Kill Switch');
+      } else if (!res.totals) {
+        // Function ran but had nothing to do (no triggers enabled).
+        toast.message(res.message === 'No enabled triggers'
+          ? 'אין טריגרים פעילים — הפעל/י לפחות אחד ונסה/י שוב'
+          : 'הפונקציה רצה בהצלחה אבל לא היו תוצאות');
+      } else if (dryRun) {
+        toast.success(`בדיקה יבשה: ${res.totals.matched} נמענים זוהו`);
+      } else {
+        toast.success(`הפצה הושלמה: ${res.totals.sent} נשלחו, ${res.totals.skipped} דולגו`);
+      }
     } catch (e) {
       toast.error(`הפצה נכשלה: ${e.message}`);
       setLastRun({ ok: false, error: e.message, at: new Date(), dryRun });
