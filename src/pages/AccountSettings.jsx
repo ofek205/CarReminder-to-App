@@ -236,7 +236,7 @@ function AuthAccountSettings({ embedded = false }) {
       });
 
       // Use public production URL for share links (works on WhatsApp, etc.)
-      const PUBLIC_DOMAIN = 'https://car-reminder-to-app.vercel.app';
+      const PUBLIC_DOMAIN = 'https://car-reminder.app';
       const origin = (typeof window !== 'undefined' && window.location.origin && window.location.origin.startsWith('http') && !window.location.origin.includes('localhost'))
         ? window.location.origin
         : PUBLIC_DOMAIN;

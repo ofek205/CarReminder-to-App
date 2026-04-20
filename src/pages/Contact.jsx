@@ -49,7 +49,7 @@ export default function Contact() {
       } catch (err) {
         // Silently fail if table doesn't exist — fall back to mailto
         console.warn('Contact message DB insert failed, using mailto fallback:', err?.message);
-        window.location.href = `mailto:support@carreminder.co.il?subject=${encodeURIComponent(form.subject || 'פנייה כללית')}&body=${encodeURIComponent(`${form.message}\n\n---\nמאת: ${form.name} (${form.email})`)}`;
+        window.location.href = `mailto:support@car-reminder.app?subject=${encodeURIComponent(form.subject || 'פנייה כללית')}&body=${encodeURIComponent(`${form.message}\n\n---\nמאת: ${form.name} (${form.email})`)}`;
       }
       setSent(true);
       toast.success('ההודעה נשלחה בהצלחה');
@@ -150,7 +150,7 @@ export default function Contact() {
         </button>
 
         <p className="text-xs text-center" style={{ color: C.muted }}>
-          נענה תוך 24-48 שעות. למקרה דחוף, ניתן לפנות ישירות ל-support@carreminder.co.il
+          נענה תוך 24-48 שעות. למקרה דחוף, ניתן לפנות ישירות ל-support@car-reminder.app
         </p>
       </form>
     </div>

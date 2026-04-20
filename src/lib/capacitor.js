@@ -319,7 +319,7 @@ export async function initSessionKeepAlive() {
 // ── Deep links ──────────────────────────────────────────────────────────────
 /**
  * Handle incoming deep links (e.g. carreminder://vehicle/<id> or
- * https://carreminder.co.il/VehicleDetail?id=...).
+ * https://car-reminder.app/VehicleDetail?id=...).
  *
  * Converts the incoming URL's pathname + search into a history push so the
  * React Router sees it as a normal navigation. Used for push-notification
@@ -338,8 +338,8 @@ export async function initDeepLinks(navigate) {
         const u = new URL(url);
         // Accept only our own scheme/host to avoid hijacking
         const ok = u.protocol === 'carreminder:'
-                || u.hostname === 'carreminder.co.il'
-                || u.hostname === 'www.carreminder.co.il';
+                || u.hostname === 'car-reminder.app'
+                || u.hostname === 'www.car-reminder.app';
         if (!ok) return;
         // carreminder://vehicle/abc → /VehicleDetail?id=abc
         let path = u.pathname + (u.search || '');

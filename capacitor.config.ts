@@ -15,6 +15,8 @@ const config: CapacitorConfig = {
       'images.pexels.com',
       '*.tile.openstreetmap.org',
       'overpass-api.de',
+      'car-reminder.app',
+      'www.car-reminder.app',
     ],
   },
   plugins: {
