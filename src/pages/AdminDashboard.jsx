@@ -1339,6 +1339,20 @@ function AdminUsersTab() {
   const [loading, setLoading] = useState(true);
   const [rpcMissing, setRpcMissing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [lastRefreshed, setLastRefreshed] = useState(null);
+
+  // Background refresh — same pattern as the Stats tab. Re-runs the RPC
+  // on window focus and every 60 s while the tab is visible so new
+  // signups / deletions appear without a manual refresh click.
+  useEffect(() => {
+    const bump = () => setRefreshKey(k => k + 1);
+    window.addEventListener('focus', bump);
+    const timer = setInterval(bump, 60_000);
+    return () => {
+      window.removeEventListener('focus', bump);
+      clearInterval(timer);
+    };
+  }, []);
 
   // Load accounts via the admin RPC when it's available; gracefully fall back
   // to client-side joins (accounts + account_members + vehicles + documents)
@@ -1353,6 +1367,7 @@ function AdminUsersTab() {
         if (cancelled) return;
         if (error) throw error;
         setRpcMissing(false);
+        setLastRefreshed(new Date());
         setUsers(
           (data || []).map(r => ({
             id: r.account_id,
