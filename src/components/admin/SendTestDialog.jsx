@@ -11,6 +11,36 @@ import { sendEmail } from '@/lib/sendEmail';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
+// Sensible defaults for the admin's Send-Test flow. Used instead of the
+// generic `[varName]` stub so a test send feels like a real email. Anything
+// we don't know a default for falls back to the literal variable name —
+// visible enough to edit, but not broken-looking.
+function buildSmartStub(varName, ctx) {
+  const today = new Date();
+  const inDays = (n) => {
+    const d = new Date(today); d.setDate(d.getDate() + n);
+    return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+  switch (varName) {
+    case 'firstName':    return (ctx.firstName || 'ישראל');
+    case 'inviterName':  return (ctx.fullName  || 'דנה כהן');
+    case 'roleLabel':    return 'שותף';
+    case 'inviteLink':   return 'https://car-reminder.app/JoinInvite?token=DEMO_TOKEN_1234';
+    case 'vehicleName':  return 'טויוטה קורולה';
+    case 'licensePlate': return '12-345-67';
+    case 'daysLeft':     return '14';
+    case 'expiryDate':   return inDays(14);
+    case 'vehicleId':    return 'demo-vehicle-id';
+    case 'reminderText': return 'טיפול 10,000 ק"מ';
+    case 'title':        return 'הודעה מצוות CarReminder';
+    case 'preheader':    return 'פרטים חשובים בפנים';
+    case 'message':      return 'זוהי הודעה לדוגמה. בהמשך נוכל לכתוב פה תוכן אמיתי.';
+    case 'ctaLabel':     return 'למידע נוסף';
+    case 'ctaUrl':       return 'https://car-reminder.app';
+    default:             return varName;  // visible, editable, not broken
+  }
+}
+
 /**
  * SendTestDialog — sends a test copy of a notification template to a
  * recipient the admin chooses. Renders the template with JSON variables,
@@ -27,20 +57,29 @@ export default function SendTestDialog({ notification, open, onClose }) {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null); // { ok, msg, id? }
 
-  // Prefill recipient with the current user's email.
+  const [adminCtx, setAdminCtx] = useState({});
+
+  // Prefill recipient + pull admin context (used to personalise stubs).
   useEffect(() => {
     if (!open) return;
     supabase.auth.getUser().then(({ data }) => {
-      if (data?.user?.email) setRecipient(data.user.email);
+      const u = data?.user;
+      if (u?.email) setRecipient(u.email);
+      const fullName = u?.user_metadata?.full_name || u?.user_metadata?.name || '';
+      setAdminCtx({
+        fullName: fullName || (u?.email ? u.email.split('@')[0] : ''),
+        firstName: fullName ? fullName.split(/\s+/)[0] : '',
+      });
     });
     setResult(null);
   }, [open]);
 
-  // Prefill vars from the template's declared variables with placeholder strings.
+  // Prefill vars from the template's declared variables with smart defaults
+  // (admin name → inviterName, sample license plate → licensePlate, etc.).
+  // Admin can still edit the JSON before sending.
   useEffect(() => {
     if (!template) return;
     const declared = Array.isArray(template.variables) ? template.variables : [];
-    // Also pick up anything used but not declared, just in case.
     const used = new Set([
       ...declared,
       ...extractPlaceholders(template.subject),
@@ -48,9 +87,9 @@ export default function SendTestDialog({ notification, open, onClose }) {
       ...extractPlaceholders(template.cta_url),
     ]);
     const stub = {};
-    for (const name of used) stub[name] = `[${name}]`;
+    for (const name of used) stub[name] = buildSmartStub(name, adminCtx);
     setVarsJson(JSON.stringify(stub, null, 2));
-  }, [template]);
+  }, [template, adminCtx]);
 
   if (!notification) return null;
 
