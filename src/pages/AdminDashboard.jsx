@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
@@ -52,6 +52,31 @@ const CHART_PALETTE = [C.blue, C.green, C.amber, C.red, C.purple, C.teal];
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Human-readable "X ago" for the last-refreshed label.
+function formatRelative(date) {
+  const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (secs < 10)   return 'עכשיו';
+  if (secs < 60)   return `לפני ${secs} שניות`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60)   return `לפני ${mins} דק'`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)    return `לפני ${hrs} שעות`;
+  return `לפני ${Math.floor(hrs / 24)} ימים`;
+}
+
+// Number of days the current filter spans — used by analytics memos so
+// the trend charts respect the top-of-page date picker.
+function daysForFilter(key) {
+  switch (key) {
+    case 'today':     return 1;
+    case 'yesterday': return 2;
+    case 'week':      return 7;
+    case 'month':     return 30;
+    case 'all':       return 90;    // cap "all" at 90 days for trend charts — unbounded series are unreadable
+    default:          return 7;
+  }
+}
 
 function getRangeStart(key) {
   switch (key) {
@@ -121,11 +146,18 @@ function retentionColor(rate) {
 // UI sub-components
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SectionLabel({ children }) {
+// allTime prop turns on a "כל הזמן" pill so admins know this particular
+// widget doesn't change when the top-of-page date picker moves.
+function SectionLabel({ children, allTime = false }) {
   return (
     <div className="flex items-center gap-2 mb-4">
-      <div className="w-0.5 h-4 rounded-full bg-blue-500" />
+      <div className={`w-0.5 h-4 rounded-full ${allTime ? 'bg-gray-400' : 'bg-blue-500'}`} />
       <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.12em]">{children}</h2>
+      {allTime && (
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 tracking-normal">
+          כל הזמן
+        </span>
+      )}
     </div>
   );
 }
@@ -284,18 +316,27 @@ export default function AdminDashboard() {
     checkAdmin();
   }, []);
 
-  // Step 2: fetch data (admin only) - using Supabase entities
-  useEffect(() => {
+  // Track the last successful refresh so the UI can show "updated N
+  // minutes ago" — transparency matters in an admin dashboard.
+  const [lastRefreshed, setLastRefreshed] = useState(null);
+
+  // Central refetch. Called on mount, on window-focus, on a 60-second
+  // interval while the tab is visible, and by the manual refresh button.
+  // The `silent` flag means "don't flash the full-page loading state" —
+  // background refreshes shouldn't make widgets blank.
+  const refetchData = useCallback(async (opts = {}) => {
     if (isAdmin !== true) return;
-    setLoading(true);
-    Promise.all([
-      db.accounts.list().catch(() => []),
-      db.vehicles.list().catch(() => []),
-      db.maintenance_logs.list().catch(() => []),
-      Promise.resolve([]),  // repairLogs merged into maintenance_logs
-      Promise.resolve([]),  // reviews placeholder
-      db.documents.list().catch(() => []),
-    ]).then(([accs, vehs, maint, repairs, revs, docs]) => {
+    const silent = !!opts.silent;
+    if (!silent) setLoading(true);
+    try {
+      const [accs, vehs, maint, repairs, revs, docs] = await Promise.all([
+        db.accounts.list().catch(() => []),
+        db.vehicles.list().catch(() => []),
+        db.maintenance_logs.list().catch(() => []),
+        Promise.resolve([]),  // repairLogs merged into maintenance_logs
+        Promise.resolve([]),  // reviews placeholder
+        db.documents.list().catch(() => []),
+      ]);
       setFetchError(false);
       setAccounts(accs   || []);
       setVehicles(vehs   || []);
@@ -303,12 +344,33 @@ export default function AdminDashboard() {
       setRepairLogs(repairs || []);
       setReviews(revs    || []);
       setDocuments(docs  || []);
-    }).catch(() => setFetchError(true))
-      .finally(() => setLoading(false));
 
-    // Fetch anonymous analytics
-    db.analytics.list().then(rows => setAnalyticsData(rows || [])).catch(() => {});
+      const ana = await db.analytics.list().catch(() => []);
+      setAnalyticsData(ana || []);
+      setLastRefreshed(new Date());
+    } catch {
+      setFetchError(true);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [isAdmin]);
+
+  // Initial + explicit-admin-change fetch (full loading state).
+  useEffect(() => { refetchData({ silent: false }); }, [refetchData]);
+
+  // Background refresh triggers — window focus + 60s interval. Both use
+  // silent mode so widgets don't flash; only the "updated N min ago"
+  // timestamp changes.
+  useEffect(() => {
+    if (isAdmin !== true) return;
+    const onFocus = () => refetchData({ silent: true });
+    window.addEventListener('focus', onFocus);
+    const timer = setInterval(onFocus, 60_000);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      clearInterval(timer);
+    };
+  }, [isAdmin, refetchData]);
 
   // ── Analytics aggregations ────────────────────────────────────────────────
 
@@ -322,16 +384,17 @@ export default function AdminDashboard() {
   }, [analyticsData]);
 
   const analyticsRecent = useMemo(() => {
-    // Last 7 days of guest sessions
-    const last7 = [];
-    for (let i = 6; i >= 0; i--) {
+    // Daily guest sessions — window respects the global filter.
+    const days = Math.min(daysForFilter(filter), 30); // cap to 30 bars for readability
+    const out = [];
+    for (let i = days - 1; i >= 0; i--) {
       const d = format(subDays(TODAY, i), 'yyyy-MM-dd');
       const label = format(subDays(TODAY, i), 'dd/MM', { locale: he });
       const row = analyticsData.find(r => r.event === 'guest_session' && r.date === d);
-      last7.push({ name: label, אורחים: row?.count || 0 });
+      out.push({ name: label, אורחים: row?.count || 0 });
     }
-    return last7;
-  }, [analyticsData]);
+    return out;
+  }, [analyticsData, filter]);
 
   // ── BI metrics ─────────────────────────────────────────────────────────────
   // Everything from here powers the redesigned stats dashboard.
@@ -347,25 +410,28 @@ export default function AdminDashboard() {
       .reduce((s, r) => s + (r.count || 0), 0);
   };
 
-  // 14-day trend: logins, signups, guest sessions, page views — one point per day.
+  // Engagement trend — logins + signups per day. Guest sessions removed
+  // from this chart (they live in the Anonymous Analytics section as the
+  // single source of truth to avoid showing the same number in 3 places).
+  // Window respects the global filter.
   const engagementTrend = useMemo(() => {
-    const days = 14;
+    const days = daysForFilter(filter);
     const out = [];
     for (let i = days - 1; i >= 0; i--) {
       const d = format(subDays(TODAY, i), 'yyyy-MM-dd');
       const label = format(subDays(TODAY, i), 'dd/MM', { locale: he });
       const login = analyticsData.find(r => r.event === 'auth_login' && r.date === d)?.count || 0;
       const signup = analyticsData.find(r => r.event === 'auth_signup' && r.date === d)?.count || 0;
-      const guest = analyticsData.find(r => r.event === 'guest_session' && r.date === d)?.count || 0;
-      out.push({ name: label, date: d, 'התחברויות': login, 'הרשמות': signup, 'אורחים': guest });
+      out.push({ name: label, date: d, 'התחברויות': login, 'הרשמות': signup });
     }
     return out;
-  }, [analyticsData]);
+  }, [analyticsData, filter]);
 
   // Conversion: guest→signup ratio per day with a 7-day rolling mean to smooth
-  // out weekday noise. A row is only kept if the denominator is non-zero.
+  // out weekday noise. Window respects the global filter; minimum 14 days so
+  // the rolling average is meaningful even on short ranges.
   const conversionTrend = useMemo(() => {
-    const days = 30;
+    const days = Math.max(daysForFilter(filter), 14);
     const daily = [];
     for (let i = days - 1; i >= 0; i--) {
       const d = format(subDays(TODAY, i), 'yyyy-MM-dd');
@@ -382,11 +448,10 @@ export default function AdminDashboard() {
       return {
         name: format(parseISO(p.d), 'dd/MM', { locale: he }),
         'המרה %': rate,
-        'אורחים': p.guest,
         'הרשמות': p.signup,
       };
     });
-  }, [analyticsData]);
+  }, [analyticsData, filter]);
 
   // Feature engagement — sum of page_view:<path> events per page, all-time.
   const featureRanking = useMemo(() => {
@@ -422,62 +487,66 @@ export default function AdminDashboard() {
       .slice(0, 10);
   }, [analyticsData]);
 
-  // Week-over-week deltas — powers the "insights" callouts.
+  // Period-over-period deltas — the "insights" callouts. Both window and
+  // comparison period scale with the global filter.
   const insights = useMemo(() => {
     const today = format(TODAY, 'yyyy-MM-dd');
-    const d7Ago = format(subDays(TODAY, 7), 'yyyy-MM-dd');
-    const d14Ago = format(subDays(TODAY, 14), 'yyyy-MM-dd');
-    const d1Ago = format(subDays(TODAY, 1), 'yyyy-MM-dd');
+    const days = daysForFilter(filter);
+    const dFromAgo  = format(subDays(TODAY, days),      'yyyy-MM-dd');
+    const dPrevAgo  = format(subDays(TODAY, days * 2),  'yyyy-MM-dd');
+    const d1Ago     = format(subDays(TODAY, 1),         'yyyy-MM-dd');
 
-    // Signups this week vs previous week
-    const signup7 = sumEvent('auth_signup', d7Ago, today);
-    const signup7prev = sumEvent('auth_signup', d14Ago, d7Ago);
-    const signupDelta = signup7prev > 0
-      ? Math.round(((signup7 - signup7prev) / signup7prev) * 100)
-      : (signup7 > 0 ? 100 : 0);
+    // Signups — current period vs previous period of same length.
+    const signupCur  = sumEvent('auth_signup', dFromAgo, today);
+    const signupPrev = sumEvent('auth_signup', dPrevAgo, dFromAgo);
+    const signupDelta = signupPrev > 0
+      ? Math.round(((signupCur - signupPrev) / signupPrev) * 100)
+      : (signupCur > 0 ? 100 : 0);
 
-    // Logins this week vs previous week
-    const login7 = sumEvent('auth_login', d7Ago, today);
-    const login7prev = sumEvent('auth_login', d14Ago, d7Ago);
-    const loginDelta = login7prev > 0
-      ? Math.round(((login7 - login7prev) / login7prev) * 100)
-      : (login7 > 0 ? 100 : 0);
+    // Logins — same pattern.
+    const loginCur  = sumEvent('auth_login', dFromAgo, today);
+    const loginPrev = sumEvent('auth_login', dPrevAgo, dFromAgo);
+    const loginDelta = loginPrev > 0
+      ? Math.round(((loginCur - loginPrev) / loginPrev) * 100)
+      : (loginCur > 0 ? 100 : 0);
 
-    // Conversion rate 7-day vs previous 7-day
-    const guest7 = sumEvent('guest_session', d7Ago, today);
-    const guest7prev = sumEvent('guest_session', d14Ago, d7Ago);
-    const conv7 = guest7 > 0 ? Math.round((signup7 / guest7) * 100) : 0;
-    const conv7prev = guest7prev > 0 ? Math.round((signup7prev / guest7prev) * 100) : 0;
-    const convDelta = conv7 - conv7prev; // absolute percentage points
+    // Conversion rate — guest→signup.
+    const guestCur  = sumEvent('guest_session', dFromAgo, today);
+    const guestPrev = sumEvent('guest_session', dPrevAgo, dFromAgo);
+    const convCur  = guestCur > 0 ? Math.round((signupCur / guestCur) * 100) : 0;
+    const convPrev = guestPrev > 0 ? Math.round((signupPrev / guestPrev) * 100) : 0;
+    const convDelta = convCur - convPrev;   // absolute percentage points
 
-    // Top feature in the last 7 days
-    const weeklyFeatures = {};
+    // Top feature within the current window.
+    const periodFeatures = {};
     analyticsData.forEach(r => {
       if (!r.event?.startsWith('page_view:')) return;
-      if (r.date < d7Ago || r.date > today) return;
+      if (r.date < dFromAgo || r.date > today) return;
       const page = r.event.slice('page_view:'.length);
-      weeklyFeatures[page] = (weeklyFeatures[page] || 0) + (r.count || 0);
+      periodFeatures[page] = (periodFeatures[page] || 0) + (r.count || 0);
     });
-    const topFeature = Object.entries(weeklyFeatures)
+    const topFeature = Object.entries(periodFeatures)
       .sort((a, b) => b[1] - a[1])[0];
 
-    // Login today (proxy for DAU)
-    const loginToday = sumEvent('auth_login', today, today);
+    const loginToday     = sumEvent('auth_login', today, today);
     const loginYesterday = sumEvent('auth_login', d1Ago, d1Ago);
 
     return {
-      signup7,
+      // Keep the old `signup7` / `login7` / `conv7` / `guest7` keys so the
+      // rendering code keeps working without a UI refactor.
+      signup7:   signupCur,
       signupDelta,
-      login7,
+      login7:    loginCur,
       loginDelta,
-      conv7,
+      conv7:     convCur,
       convDelta,
+      guest7:    guestCur,
       topFeature: topFeature ? { page: topFeature[0], count: topFeature[1] } : null,
       loginToday,
       loginYesterday,
-      guest7,
+      windowDays: days,
     };
-  }, [analyticsData]);
+  }, [analyticsData, filter]);
 
   // ── Filtered slices (all driven by the global `filter`) ────────────────────
 
@@ -666,9 +735,15 @@ export default function AdminDashboard() {
             <p className="text-xs text-gray-400 mt-0.5">{format(TODAY, 'EEEE · dd/MM/yyyy', { locale: he })}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => window.location.reload()}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all">
-              <RefreshCw className="w-3 h-3" />
+            {lastRefreshed && (
+              <span className="text-[10px] text-gray-400 hidden sm:inline" title={lastRefreshed.toLocaleString('he-IL')}>
+                עודכן {formatRelative(lastRefreshed)}
+              </span>
+            )}
+            <button onClick={() => refetchData({ silent: false })}
+              disabled={loading}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all disabled:opacity-50">
+              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
               רענן
             </button>
             {adminTab === 'stats' && (
@@ -787,7 +862,7 @@ export default function AdminDashboard() {
                 BI — תובנות מרכזיות (auto-generated week-over-week)
             ══════════════════════════════════════════════════════ */}
             <section>
-              <SectionLabel>תובנות מרכזיות (7 ימים אחרונים)</SectionLabel>
+              <SectionLabel>תובנות מרכזיות · {fLabel}</SectionLabel>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <InsightCard
                   label="הרשמות חדשות השבוע"
@@ -837,13 +912,13 @@ export default function AdminDashboard() {
             </section>
 
             {/* ══════════════════════════════════════════════════════
-                BI — מגמת כניסות ורישומים (14 ימים)
+                BI — מגמת כניסות ורישומים (respects filter)
             ══════════════════════════════════════════════════════ */}
             <section>
-              <SectionLabel>מגמת כניסות ורישומים · 14 ימים אחרונים</SectionLabel>
+              <SectionLabel>מגמת כניסות ורישומים · {fLabel}</SectionLabel>
               <ChartCard>
-                {engagementTrend.every(d => !d['התחברויות'] && !d['הרשמות'] && !d['אורחים'])
-                  ? <EmptyChart text="עדיין אין אירועי כניסה מתוצפים" />
+                {engagementTrend.every(d => !d['התחברויות'] && !d['הרשמות'])
+                  ? <EmptyChart text="עדיין אין אירועי כניסה בטווח הזה" />
                   : (
                     <ResponsiveContainer width="100%" height={240}>
                       <LineChart data={engagementTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
@@ -852,15 +927,14 @@ export default function AdminDashboard() {
                         <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} allowDecimals={false} />
                         <Tooltip content={<BiTooltip />} />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
-                        <Line type="monotone" dataKey="התחברויות" stroke={C.blue} strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
-                        <Line type="monotone" dataKey="הרשמות" stroke={C.green} strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
-                        <Line type="monotone" dataKey="אורחים" stroke={C.purple} strokeWidth={2.5} strokeDasharray="4 3" dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                        <Line type="monotone" dataKey="התחברויות" stroke={C.blue}  strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                        <Line type="monotone" dataKey="הרשמות"   stroke={C.green} strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
                       </LineChart>
                     </ResponsiveContainer>
                   )
                 }
                 <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
-                  כל נקודה = מספר אירועים ביום. קו מקווקו (אורחים) מאפשר להשוות מי פותח את האפליקציה בלי להירשם.
+                  כניסות אורחים עברו לסעיף "אנליטיקס אנונימי" למטה כדי למנוע כפילות.
                 </p>
               </ChartCard>
             </section>
@@ -869,7 +943,7 @@ export default function AdminDashboard() {
                 BI — אחוז המרה אורחים → משתמשים (30 יום, 7-day rolling)
             ══════════════════════════════════════════════════════ */}
             <section>
-              <SectionLabel>אחוז המרה אורחים → רישום · 30 יום</SectionLabel>
+              <SectionLabel>אחוז המרה אורחים → רישום · {fLabel}</SectionLabel>
               <ChartCard>
                 {conversionTrend.every(d => d['המרה %'] === null)
                   ? <EmptyChart text="אין מספיק נתונים לחישוב המרה" />
@@ -882,7 +956,6 @@ export default function AdminDashboard() {
                         <YAxis yAxisId="right" orientation="left" tick={{ fontSize: 11, fill: '#A855F7' }} axisLine={false} tickLine={false} unit="%" />
                         <Tooltip content={<BiTooltip />} />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
-                        <Bar yAxisId="left" dataKey="אורחים" fill={C.slate} opacity={0.5} radius={[4, 4, 0, 0]} />
                         <Bar yAxisId="left" dataKey="הרשמות" fill={C.green} radius={[4, 4, 0, 0]} />
                         <Line yAxisId="right" type="monotone" dataKey="המרה %" stroke={C.purple} strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 6 }} />
                       </ComposedChart>
@@ -899,7 +972,7 @@ export default function AdminDashboard() {
                 BI — דירוג פיצ'רים (page view events, כל הזמנים)
             ══════════════════════════════════════════════════════ */}
             <section>
-              <SectionLabel>דירוג פיצ'רים — איפה המשתמשים מבלים</SectionLabel>
+              <SectionLabel allTime>דירוג פיצ'רים · איפה המשתמשים מבלים</SectionLabel>
               <ChartCard>
                 {featureRanking.length === 0
                   ? <EmptyChart text="עדיין אין נתוני page_view (טרקר הופעל זה עתה)" />
@@ -1012,9 +1085,9 @@ export default function AdminDashboard() {
             )}
 
             {/* ══════════════════════════════════════════════════════
-                SECTION 4 + 5 - BEHAVIOR & TRAFFIC SOURCE
+                SECTION 4 - USER BEHAVIOR
             ══════════════════════════════════════════════════════ */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 gap-5">
 
               {/* User behavior */}
               <section>
@@ -1056,42 +1129,16 @@ export default function AdminDashboard() {
                 </ChartCard>
               </section>
 
-              {/* Traffic source (placeholder - requires external analytics) */}
-              <section>
-                <SectionLabel>מקורות תנועה</SectionLabel>
-                <ChartCard className="h-full flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                      <span>דורש אינטגרציה עם ספק אנליטיקס חיצוני</span>
-                    </div>
-                    <div className="space-y-2 mt-4">
-                      {[
-                        { src: 'Google Search', icon: '🔍', color: '#4285F4' },
-                        { src: 'Facebook / Meta', icon: '📘', color: '#1877F2' },
-                        { src: 'כניסה ישירה',    icon: '🔗', color: C.green   },
-                        { src: 'אחר',             icon: '🌐', color: C.slate   },
-                      ].map(s => (
-                        <div key={s.src} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
-                          <span className="text-sm">{s.icon}</span>
-                          <span className="text-xs text-gray-600 flex-1">{s.src}</span>
-                          <span className="text-xs font-bold text-gray-300">-</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-4 leading-relaxed">
-                    לאחר חיבור Google Analytics או Mixpanel, הנתונים יוצגו כאן אוטומטית.
-                  </p>
-                </ChartCard>
-              </section>
+              {/* Traffic sources removed — placeholder with no data source
+                  was added noise. Re-introduce when we wire Google Analytics
+                  / Mixpanel / Plausible. See PR for history. */}
             </div>
 
             {/* ══════════════════════════════════════════════════════
                 SECTION 6 - RETENTION
             ══════════════════════════════════════════════════════ */}
             <section>
-              <SectionLabel>שימור משתמשים (כל הזמנים)</SectionLabel>
+              <SectionLabel allTime>שימור משתמשים</SectionLabel>
               <div className="grid grid-cols-3 gap-4">
                 <RetentionCard label="חזרו לאחר" period="יום אחד"   {...retention.d1}  />
                 <RetentionCard label="חזרו לאחר" period="7 ימים"    {...retention.d7}  />
@@ -1106,7 +1153,7 @@ export default function AdminDashboard() {
                 SECTION 7 - TOP USERS TABLE
             ══════════════════════════════════════════════════════ */}
             <section>
-              <SectionLabel>משתמשים מובילים לפי רכבים</SectionLabel>
+              <SectionLabel allTime>משתמשים מובילים לפי רכבים</SectionLabel>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 {topUsers.length === 0
                   ? <EmptyChart text="אין נתוני משתמשים" />
@@ -1176,7 +1223,7 @@ export default function AdminDashboard() {
             ══════════════════════════════════════════════════════ */}
             {totalAlerts > 0 && (
               <section>
-                <SectionLabel>התראות מערכת (כל הזמנים)</SectionLabel>
+                <SectionLabel allTime>התראות מערכת</SectionLabel>
                 <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
                   <button
                     className="w-full flex items-center justify-between px-5 py-4 hover:bg-amber-50 transition-colors"
@@ -1223,7 +1270,7 @@ export default function AdminDashboard() {
                 SECTION - ANONYMOUS ANALYTICS
             ══════════════════════════════════════════════════════ */}
             <section>
-              <SectionLabel>אנליטיקס אנונימי (כל הזמנים)</SectionLabel>
+              <SectionLabel allTime>אנליטיקס אנונימי</SectionLabel>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                 <MetricCard
                   icon={Users}
@@ -1254,7 +1301,7 @@ export default function AdminDashboard() {
                   color={C.amber}
                 />
               </div>
-              <ChartCard title="כניסות אורחים - 7 ימים אחרונים">
+              <ChartCard title={`כניסות אורחים · ${fLabel}`}>
                 {analyticsRecent.every(d => d['אורחים'] === 0)
                   ? <EmptyChart text="אין נתוני אורחים עדיין" />
                   : (
