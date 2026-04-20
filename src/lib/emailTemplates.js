@@ -36,7 +36,7 @@ export const EMAIL_BRAND = {
   tagline:    'ניהול חכם של כלי רכב',
   supportMail:'support@car-reminder.app',
   siteUrl:    'https://car-reminder.app',
-  logoUrl:    'https://car-reminder.app/icons/icon-192x192.png',
+  logoUrl:    'https://car-reminder.app/icons/email-logo.png',
 };
 
 // ── HTML escape ────────────────────────────────────────────────────────────
@@ -77,14 +77,22 @@ export function ctaButton(label, href) {
     </table>`;
 }
 
-// 6-digit verification code, displayed as a big letter-spaced block.
+// 6-digit verification code rendered as a big tappable "copy pill".
+// Since email clients don't run JavaScript, we can't wire a real
+// navigator.clipboard button. We fake it with user-select:all — one
+// tap/click selects the whole code so Ctrl/Cmd+C (or long-press →
+// Copy on mobile) finishes the job. This is the exact pattern Google,
+// Stripe and Apple use in their OTP emails.
 export function codeBox(code) {
   const safeCode = escapeHtml(code);
   return `
-    <div style="background:${EMAIL_BRAND.codeBg};border:2px dashed ${EMAIL_BRAND.codeBorder};border-radius:18px;padding:22px 16px;text-align:center;margin:8px 0 24px">
-      <div style="font-size:13px;color:${EMAIL_BRAND.textDim};margin:0 0 8px;font-weight:600">קוד אימות</div>
-      <div dir="ltr" style="font-size:36px;font-weight:900;letter-spacing:10px;color:${EMAIL_BRAND.codeText};font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace">
+    <div style="text-align:center;margin:8px 0 20px">
+      <div style="font-size:13px;color:${EMAIL_BRAND.textDim};margin:0 0 10px;font-weight:600">קוד אימות</div>
+      <div dir="ltr" style="display:inline-block;background:${EMAIL_BRAND.codeBg};border:2px solid ${EMAIL_BRAND.codeBorder};border-radius:16px;padding:18px 32px;font-size:34px;font-weight:900;letter-spacing:10px;color:${EMAIL_BRAND.codeText};font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;user-select:all;-webkit-user-select:all;-moz-user-select:all;-ms-user-select:all;cursor:pointer">
         ${safeCode}
+      </div>
+      <div style="font-size:12px;color:${EMAIL_BRAND.textMute};margin:10px 0 0">
+        לחצ/י על הקוד כדי לסמן ולהעתיק
       </div>
     </div>`;
 }
