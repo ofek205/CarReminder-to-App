@@ -510,19 +510,19 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
             <div className="rounded-2xl p-3.5 flex items-center justify-between"
               style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB' }}>
               <div className="flex items-center gap-3">
-                <Mail className="w-5 h-5" style={{ color: settings.email_enabled ? C.primary : '#9CA3AF' }} />
+                <Mail className="w-5 h-5" style={{ color: form.email_enabled ? C.primary : '#9CA3AF' }} />
                 <div>
                   <p className="font-bold text-sm text-gray-900">התראות באימייל</p>
                   <p className="text-xs text-gray-500">
-                    {settings.email_enabled
+                    {form.email_enabled
                       ? 'נשלחות לכתובת המייל שרשומה בחשבון'
                       : 'קבל תזכורות גם במייל, נוסף ל-push באפליקציה'}
                   </p>
                 </div>
               </div>
               <Switch
-                checked={!!settings.email_enabled}
-                onCheckedChange={(v) => setSettings(s => ({ ...s, email_enabled: v }))}
+                checked={!!form.email_enabled}
+                onCheckedChange={(v) => setForm(f => ({ ...f, email_enabled: v }))}
               />
             </div>
             {/* WhatsApp - coming soon */}
