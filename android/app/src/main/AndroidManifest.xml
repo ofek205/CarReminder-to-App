@@ -58,6 +58,16 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- USE_EXACT_ALARM — backup for SCHEDULE_EXACT_ALARM. Some OEM
+         builds on Android 13+ auto-grant this for notification-centric
+         apps, keeping alarms exact even when the other permission is
+         revoked by the system. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Lets us prompt the user to disable Doze battery optimisation for
+         the app — otherwise AlarmManager.setExactAndAllowWhileIdle is
+         throttled during long idle periods and alarms batch up until
+         the next app open. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>
