@@ -47,9 +47,10 @@ function CustomCaption({ displayMonth }) {
 
   return (
     <div className="flex items-center justify-between px-1 pb-1 gap-1" dir="ltr">
-      {/* Prev month */}
-      <button type="button" onClick={() => previousMonth && goToMonth(previousMonth)}
-        disabled={!previousMonth} className={btnBase}>
+      {/* Left-side arrow = NEXT month (Hebrew/RTL mental model: forward is
+          leftward). Icon stays pointing left to match visual intent. */}
+      <button type="button" onClick={() => nextMonth && goToMonth(nextMonth)}
+        disabled={!nextMonth} className={btnBase} aria-label="חודש הבא">
         <ChevronLeft className="h-4 w-4" />
       </button>
 
@@ -71,9 +72,9 @@ function CustomCaption({ displayMonth }) {
         </div>
       </div>
 
-      {/* Next month */}
-      <button type="button" onClick={() => nextMonth && goToMonth(nextMonth)}
-        disabled={!nextMonth} className={btnBase}>
+      {/* Right-side arrow = PREVIOUS month. */}
+      <button type="button" onClick={() => previousMonth && goToMonth(previousMonth)}
+        disabled={!previousMonth} className={btnBase} aria-label="חודש קודם">
         <ChevronRight className="h-4 w-4" />
       </button>
     </div>
