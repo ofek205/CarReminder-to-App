@@ -329,13 +329,19 @@ export default function AdminDashboard() {
     const silent = !!opts.silent;
     if (!silent) setLoading(true);
     try {
+      // Admin dashboard only needs metadata (counts, dates). Skip heavy
+      // base64 columns — vehicle_photo, receipt_photo, file_url — which
+      // otherwise dominate egress (MB per row × hundreds of rows).
+      const VEH_COLS = 'id,account_id,nickname,manufacturer,model,year,vehicle_type,license_plate,created_at,test_due_date,insurance_due_date,pyrotechnics_expiry_date,fire_extinguisher_expiry_date,life_raft_expiry_date,current_km';
+      const MAINT_COLS = 'id,vehicle_id,account_id,title,performed_at,created_at,cost';
+      const DOC_COLS = 'id,account_id,vehicle_id,title,category,created_at,expires_at';
       const [accs, vehs, maint, repairs, revs, docs] = await Promise.all([
         db.accounts.list().catch(() => []),
-        db.vehicles.list().catch(() => []),
-        db.maintenance_logs.list().catch(() => []),
+        db.vehicles.list({ select: VEH_COLS }).catch(() => []),
+        db.maintenance_logs.list({ select: MAINT_COLS }).catch(() => []),
         Promise.resolve([]),  // repairLogs merged into maintenance_logs
         Promise.resolve([]),  // reviews placeholder
-        db.documents.list().catch(() => []),
+        db.documents.list({ select: DOC_COLS }).catch(() => []),
       ]);
       setFetchError(false);
       setAccounts(accs   || []);

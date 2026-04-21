@@ -840,7 +840,13 @@ function AuthDocuments({ vehicleIdParam }) {
       try {
         const filter = { account_id: accountId };
         if (vehicleIdParam) filter.vehicle_id = vehicleIdParam;
-        return await db.documents.filter(filter);
+        // Keep file_url for now (inline view/download buttons depend on it)
+        // but cap the page and order by newest so giant historical blobs
+        // don't dominate egress on every refresh.
+        return await db.documents.filter(filter, {
+          order: { column: 'created_at', ascending: false },
+          limit: 200,
+        });
       } catch { return []; }
     },
     enabled: !!accountId,

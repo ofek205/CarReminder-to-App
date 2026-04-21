@@ -68,13 +68,24 @@ function sanitizeRow(row) {
 
 function makeEntity(table) {
   return {
-    /** Filter rows by exact-match conditions. Returns array of rows. */
-    async filter(conditions = {}) {
+    /**
+     * Filter rows by exact-match conditions. Returns array of rows.
+     *
+     * Options (second arg):
+     *   select  — column list string, e.g. 'id,name,status'. Defaults '*'.
+     *             Use this on list pages to skip heavy base64 columns
+     *             (vehicle_photo, receipt_photo, image_url, file_url).
+     *   limit   — integer, caps rows returned.
+     *   order   — { column, ascending? } for server-side ordering.
+     */
+    async filter(conditions = {}, { select = '*', limit, order } = {}) {
       validateFilterKeys(conditions);
-      let query = supabase.from(table).select('*');
+      let query = supabase.from(table).select(select);
       for (const [key, value] of Object.entries(conditions)) {
         query = query.eq(key, value);
       }
+      if (order) query = query.order(order.column, { ascending: order.ascending ?? true });
+      if (limit) query = query.limit(limit);
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
@@ -102,9 +113,15 @@ function makeEntity(table) {
       if (error) throw error;
     },
 
-    /** List all accessible rows. Returns array. */
-    async list() {
-      const { data, error } = await supabase.from(table).select('*');
+    /**
+     * List all accessible rows. Returns array.
+     * Accepts the same { select, limit, order } options as filter().
+     */
+    async list({ select = '*', limit, order } = {}) {
+      let query = supabase.from(table).select(select);
+      if (order) query = query.order(order.column, { ascending: order.ascending ?? true });
+      if (limit) query = query.limit(limit);
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },

@@ -35,8 +35,9 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
     queryKey: ['community_comments', postId],
     queryFn: async () => {
       try {
+        // Cap comment fetch to avoid unbounded egress on popular threads.
         const { data, error } = await supabase.from('community_comments').select('*')
-          .eq('post_id', postId).order('created_at', { ascending: true });
+          .eq('post_id', postId).order('created_at', { ascending: true }).limit(200);
         if (error) throw error;
         return data || [];
       } catch { return []; }
