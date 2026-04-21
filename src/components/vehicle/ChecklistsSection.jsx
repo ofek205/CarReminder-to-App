@@ -60,7 +60,7 @@ export default function ChecklistsSection({ vehicle }) {
           <Anchor className="w-5 h-5 text-teal-600" />
           צ'ק ליסטים
         </CardTitle>
-        <p className="text-xs text-slate-500">רשימות אישיות שלך — לפני ואחרי יציאה לים. ניתן לערוך ולשמור.</p>
+        <p className="text-xs text-slate-500">רשימות אישיות שלך לפני ואחרי יציאה לים. ניתן לערוך ולשמור.</p>
       </CardHeader>
       <CardContent>
         <Tabs value={activePhase} onValueChange={setActivePhase} dir="rtl">
