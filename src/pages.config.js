@@ -35,7 +35,6 @@ const Contact = React.lazy(() => import('./pages/Contact'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const EmailCenter = React.lazy(() => import('./pages/EmailCenter'));
 const NotificationPreferences = React.lazy(() => import('./pages/NotificationPreferences'));
-const OutingRun = React.lazy(() => import('./pages/OutingRun'));
 
 export const PAGES = {
     "Accidents": Accidents,
@@ -67,7 +66,6 @@ export const PAGES = {
     "Settings": Settings,
     "EmailCenter": EmailCenter,
     "NotificationPreferences": NotificationPreferences,
-    "OutingRun": OutingRun,
 }
 
 export const pagesConfig = {
