@@ -73,12 +73,16 @@ export default function Settings() {
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => setActive(tab.key)}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl transition-all active:scale-[0.98] whitespace-nowrap"
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl active:scale-[0.98] whitespace-nowrap"
                 style={{
                   background: isActive ? '#fff' : 'transparent',
                   boxShadow: isActive ? '0 2px 8px rgba(45,82,51,0.12)' : 'none',
                   color: isActive ? C.primary : C.muted,
-                  fontWeight: isActive ? 800 : 600,
+                  // Keep weight stable — font-weight doesn't animate smoothly
+                  // between 600 and 800 (browsers snap to nearest loaded face).
+                  // Color + background + icon stroke now carry the active state.
+                  fontWeight: 700,
+                  transition: 'background-color 180ms cubic-bezier(0.4,0,0.2,1), color 180ms cubic-bezier(0.4,0,0.2,1), box-shadow 180ms cubic-bezier(0.4,0,0.2,1)',
                 }}>
                 <Icon className="w-4 h-4" strokeWidth={isActive ? 2.4 : 1.8} />
                 <span className="text-xs">{tab.label}</span>
