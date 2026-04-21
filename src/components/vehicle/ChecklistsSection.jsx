@@ -13,7 +13,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
-import { pickTemplateForBoat } from '@/lib/checklistTemplates';
+import { getDefaultsForPhase, PHASE_LABELS, PHASE_ORDER } from '@/lib/checklistTemplates';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -23,10 +23,7 @@ import { Anchor, Plus, Trash2, Pencil, Check, X, Download, CheckCircle2 } from '
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 
-const PHASES = [
-  { key: 'pre',  label: 'לפני יציאה' },
-  { key: 'post', label: 'אחרי יציאה' },
-];
+const PHASES = PHASE_ORDER.map(key => ({ key, label: PHASE_LABELS[key] }));
 
 function uid() {
   return `i_${Math.random().toString(36).slice(2, 10)}`;
@@ -40,7 +37,7 @@ function fmtAgo(ts) {
 
 export default function ChecklistsSection({ vehicle }) {
   const qc = useQueryClient();
-  const [activePhase, setActivePhase] = useState('pre');
+  const [activePhase, setActivePhase] = useState('engine');
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['vessel_checklists', vehicle.id],
@@ -67,7 +64,7 @@ export default function ChecklistsSection({ vehicle }) {
       </CardHeader>
       <CardContent>
         <Tabs value={activePhase} onValueChange={setActivePhase} dir="rtl">
-          <TabsList className="w-full grid grid-cols-2">
+          <TabsList className="w-full grid grid-cols-3">
             {PHASES.map(p => (
               <TabsTrigger key={p.key} value={p.key}>{p.label}</TabsTrigger>
             ))}
@@ -153,13 +150,9 @@ function PhasePanel({ phase, vehicle, row, loading, onChange }) {
 
   const mImport = useMutation({
     mutationFn: async () => {
-      const tpl = pickTemplateForBoat(vehicle, phase);
-      const flat = [];
-      for (const section of tpl.sections || []) {
-        for (const it of section.items || []) {
-          flat.push({ id: uid(), text: it.name, checked: false });
-        }
-      }
+      const flat = getDefaultsForPhase(phase).map(text => ({
+        id: uid(), text, checked: false,
+      }));
       await persist(flat);
     },
   });
