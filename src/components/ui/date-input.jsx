@@ -158,6 +158,8 @@ const DateInput = React.forwardRef(({ className, value, onChange, ...props }, re
             month={calMonth}
             onMonthChange={setCalMonth}
             components={{ Caption: CustomCaption }}
+            fromDate={props.min && /^\d{4}-\d{2}-\d{2}$/.test(props.min) ? new Date(props.min + 'T12:00:00') : undefined}
+            toDate={props.max && /^\d{4}-\d{2}-\d{2}$/.test(props.max) ? new Date(props.max + 'T12:00:00') : undefined}
             initialFocus
           />
         </PopoverContent>

@@ -2,6 +2,27 @@ import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Phone, Calendar, ArrowLeft, User, Loader2 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
+import { toast } from 'sonner';
+
+const MIN_AGE_YEARS = 12;
+
+/** Latest valid birth date for a user to be at least MIN_AGE_YEARS old. */
+function maxBirthDateForMinAge() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_AGE_YEARS);
+  return d.toISOString().slice(0, 10);
+}
+
+function isOldEnough(birthDateStr, minAge = MIN_AGE_YEARS) {
+  if (!birthDateStr) return true; // empty is allowed (optional field)
+  const b = new Date(birthDateStr);
+  if (isNaN(b.getTime())) return false;
+  const today = new Date();
+  let age = today.getFullYear() - b.getFullYear();
+  const m = today.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+  return age >= minAge;
+}
 
 const COMPLETE_PROFILE_KEY = 'profile_completed';
 const SKIP_UNTIL_KEY = 'profile_skip_until';
@@ -41,6 +62,10 @@ export default function CompleteProfileScreen({ user, onDone }) {
   const fullName = user?.user_metadata?.full_name || '';
 
   const handleSave = async () => {
+    if (birthDate && !isOldEnough(birthDate)) {
+      toast.error(`תאריך הלידה חייב להיות לפני גיל ${MIN_AGE_YEARS} לפחות`);
+      return;
+    }
     setSaving(true);
     try {
       // Try to create profile row (upsert pattern)
@@ -131,9 +156,15 @@ export default function CompleteProfileScreen({ user, onDone }) {
               type="date"
               value={birthDate}
               onChange={e => setBirthDate(e.target.value)}
+              max={maxBirthDateForMinAge()}
               dir="ltr"
               className="text-center"
             />
+            {birthDate && !isOldEnough(birthDate) && (
+              <p className="text-[10px] mt-1 text-red-600">
+                גיל מינימלי לשימוש: {MIN_AGE_YEARS}
+              </p>
+            )}
           </div>
 
           {/* Save button */}

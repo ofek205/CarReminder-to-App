@@ -20,6 +20,26 @@ import FieldError from '../components/shared/FieldError';
 import SystemErrorBanner from '../components/shared/SystemErrorBanner';
 import PinLockCard from '../components/shared/PinLockCard';
 
+const MIN_AGE_YEARS = 12;
+
+/** Latest valid birth date so the user is at least MIN_AGE_YEARS old. */
+function maxBirthDateForMinAge() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - MIN_AGE_YEARS);
+  return d.toISOString().slice(0, 10);
+}
+
+function isOldEnough(birthDateStr, minAge = MIN_AGE_YEARS) {
+  if (!birthDateStr) return true;
+  const b = new Date(birthDateStr);
+  if (isNaN(b.getTime())) return false;
+  const today = new Date();
+  let age = today.getFullYear() - b.getFullYear();
+  const m = today.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+  return age >= minAge;
+}
+
 function calcAge(birthDate) {
   if (!birthDate) return null;
   // Ensure we parse date-only string correctly (avoid timezone issues)
@@ -227,6 +247,11 @@ function AuthUserProfile({ embedded = false }) {
       driver_license_number: { pattern: [/^\d{7,8}$/, 'מספר רישיון לא תקין (7-8 ספרות)'] },
     })) return;
 
+    if (form.birth_date && !isOldEnough(form.birth_date)) {
+      toast.error(`תאריך הלידה חייב להיות לפני גיל ${MIN_AGE_YEARS} לפחות`);
+      return;
+    }
+
     setSaving(true);
     try {
       // Save full_name to auth user
@@ -357,8 +382,14 @@ function AuthUserProfile({ embedded = false }) {
               <DateInput
                 value={form.birth_date}
                 onChange={e => handleChange('birth_date', e.target.value)}
+                max={maxBirthDateForMinAge()}
                 className={!form.birth_date ? 'border-amber-300 focus:border-amber-500 bg-amber-50/30' : ''}
               />
+              {form.birth_date && !isOldEnough(form.birth_date) && (
+                <p className="text-xs mt-1 text-red-600">
+                  גיל מינימלי לשימוש: {MIN_AGE_YEARS}
+                </p>
+              )}
             </div>
 
             {age !== null && (
