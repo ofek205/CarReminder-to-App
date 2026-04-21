@@ -8,6 +8,27 @@ import { createPageUrl } from "@/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
+import FirstTimeTour from "../components/shared/FirstTimeTour";
+
+// First-time walkthrough of the vehicle detail page. Fires once per user
+// the very first time they open any vehicle. Short, crisp, no dashes.
+const VEHICLE_DETAIL_TOUR_STEPS = [
+  {
+    key: 'vd-reminders',
+    title: 'תזכורות וחידושים',
+    body: 'תאריכי טסט, ביטוח וטיפולים שמתקרבים. נזכיר בזמן, לא ברגע שיפוג התוקף.',
+  },
+  {
+    key: 'vd-maintenance',
+    title: 'טיפולים ותיקונים',
+    body: 'כל טיפול או תיקון שנעשה לרכב. הוסף חדש או עיין בהיסטוריה.',
+  },
+  {
+    key: 'vd-corkboard',
+    title: 'לוח הודעות אישי',
+    body: 'מקום לרשום הערות, מספרי טלפון חשובים ולהצמיד תמונות.',
+  },
+];
 import VehicleInfoSection from "../components/vehicle/VehicleInfoSection";
 import MaintenanceSection from "../components/vehicle/MaintenanceSection";
 import ChecklistsSection from "../components/vehicle/ChecklistsSection";
@@ -545,6 +566,13 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         )}
       </div>
 
+      {/* First-visit tour — runs once per user, self-gated by localStorage. */}
+      <FirstTimeTour
+        enabled
+        steps={VEHICLE_DETAIL_TOUR_STEPS}
+        storageKey="cr_vdtl_first_tour_v1_seen"
+      />
+
       {/* ── Vehicle info + maintenance ── */}
       <div className="px-4 space-y-4 pb-8">
         <SafeComponent label="VehicleInfoSection">
@@ -552,7 +580,9 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         </SafeComponent>
 
         {/* Inline reminders */}
-        <RemindersPreview vehicle={vehicle} T={T} />
+        <div data-tour="vd-reminders">
+          <RemindersPreview vehicle={vehicle} T={T} />
+        </div>
 
         {/* Pre/Post-trip editable checklists — vessels only. */}
         {isVessel && (
@@ -561,12 +591,16 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           </SafeComponent>
         )}
 
-        <SafeComponent label="MaintenanceSection">
-          <MaintenanceSection vehicle={vehicle} />
-        </SafeComponent>
-        <SafeComponent label="CorkBoard">
-          <CorkBoard vehicle={vehicle} readOnly={isViewOnly(role)} />
-        </SafeComponent>
+        <div data-tour="vd-maintenance">
+          <SafeComponent label="MaintenanceSection">
+            <MaintenanceSection vehicle={vehicle} />
+          </SafeComponent>
+        </div>
+        <div data-tour="vd-corkboard">
+          <SafeComponent label="CorkBoard">
+            <CorkBoard vehicle={vehicle} readOnly={isViewOnly(role)} />
+          </SafeComponent>
+        </div>
       </div>
     </div>
   );

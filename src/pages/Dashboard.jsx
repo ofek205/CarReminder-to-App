@@ -869,9 +869,13 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Vehicles list - each card gets its own demo/guest status */}
-          {vehiclesToShow.map(v => (
-            <VehicleCard key={v.id} vehicle={v} isDemo={!!v._isDemo} isGuestVehicle={!v._isDemo && v.id?.startsWith('guest_')} />
+          {/* Vehicles list - each card gets its own demo/guest status.
+              data-tour target is attached to the FIRST card only so the
+              post-first-save tour can point at it. */}
+          {vehiclesToShow.map((v, idx) => (
+            <div key={v.id} data-tour={idx === 0 ? 'dash-first-vehicle' : undefined}>
+              <VehicleCard vehicle={v} isDemo={!!v._isDemo} isGuestVehicle={!v._isDemo && v.id?.startsWith('guest_')} />
+            </div>
           ))}
 
           {/* Add vehicle button */}
@@ -1008,7 +1012,24 @@ export default function Dashboard() {
         const justRegistered = createdAt > 0 && ageMs < dayMs;
         const stuckNoVehicles = createdAt > 0 && ageMs >= 10 * dayMs && (vehicles?.length || 0) === 0;
         const shouldTour = isAuthenticated && !isGuest && (justRegistered || stuckNoVehicles);
-        return <FirstTimeTour enabled={shouldTour} />;
+        const hasAnyVehicle = isAuthenticated && !isGuest && (vehicles?.length || 0) > 0;
+        return (
+          <>
+            <FirstTimeTour enabled={shouldTour} />
+            {/* Post-first-save tour: shown ONCE the moment a user first has
+                vehicles. One short step on the first card, telling them to
+                tap it to open the details page. Marked "seen" after finish/skip. */}
+            <FirstTimeTour
+              enabled={hasAnyVehicle}
+              storageKey="cr_dash_firstcard_tour_v1_seen"
+              steps={[{
+                key: 'dash-first-vehicle',
+                title: 'הרכב שלך כאן',
+                body: 'לחץ על הכרטיס כדי להיכנס לדף הרכב ולראות את כל הפרטים במקום אחד.',
+              }]}
+            />
+          </>
+        );
       })()}
       <div className="px-4 pt-6">
 
