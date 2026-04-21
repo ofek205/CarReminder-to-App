@@ -869,13 +869,9 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Vehicles list - each card gets its own demo/guest status.
-              data-tour target is attached to the FIRST card only so the
-              post-first-save tour can point at it. */}
-          {vehiclesToShow.map((v, idx) => (
-            <div key={v.id} data-tour={idx === 0 ? 'dash-first-vehicle' : undefined}>
-              <VehicleCard vehicle={v} isDemo={!!v._isDemo} isGuestVehicle={!v._isDemo && v.id?.startsWith('guest_')} />
-            </div>
+          {/* Vehicles list - each card gets its own demo/guest status */}
+          {vehiclesToShow.map(v => (
+            <VehicleCard key={v.id} vehicle={v} isDemo={!!v._isDemo} isGuestVehicle={!v._isDemo && v.id?.startsWith('guest_')} />
           ))}
 
           {/* Add vehicle button */}
@@ -1105,9 +1101,12 @@ export default function Dashboard() {
             {/* Status summary cards */}
             <StatusSummary vehicles={vehicles} />
 
-            {/* Compact vehicle list */}
-            {displayedVehicles.map(vehicle => (
-              <VehicleRow key={vehicle.id} vehicle={vehicle} />
+            {/* Compact vehicle list. The first row gets a data-tour hook
+                for the post-first-save walkthrough. */}
+            {displayedVehicles.map((vehicle, idx) => (
+              <div key={vehicle.id} data-tour={idx === 0 ? 'dash-first-vehicle' : undefined}>
+                <VehicleRow vehicle={vehicle} />
+              </div>
             ))}
 
             {/* Add vehicle button */}
