@@ -135,4 +135,6 @@ export const db = {
   maintenance_logs:   makeEntity('maintenance_logs'),
   maintenance_reminder_prefs: makeEntity('maintenance_reminder_prefs'),
   repair_types:       makeEntity('repair_types'),
+  outings:            makeEntity('outings'),
+  checklist_runs:     makeEntity('checklist_runs'),
 };

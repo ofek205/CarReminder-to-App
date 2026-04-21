@@ -10,6 +10,7 @@ import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import VehicleInfoSection from "../components/vehicle/VehicleInfoSection";
 import MaintenanceSection from "../components/vehicle/MaintenanceSection";
+import OutingsSection from "../components/vehicle/OutingsSection";
 import CorkBoard from "../components/vehicle/CorkBoard";
 import { SafeComponent } from "../components/shared/SafeComponent";
 import { useAuth } from "../components/shared/GuestContext";
@@ -552,6 +553,14 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
 
         {/* Inline reminders */}
         <RemindersPreview vehicle={vehicle} T={T} />
+
+        {/* Skipper Assistant — only for vessels. Sits above maintenance so
+            pre-/post-trip flow is the primary surface the skipper sees. */}
+        {isVessel && (
+          <SafeComponent label="OutingsSection">
+            <OutingsSection vehicle={vehicle} />
+          </SafeComponent>
+        )}
 
         <SafeComponent label="MaintenanceSection">
           <MaintenanceSection vehicle={vehicle} />
