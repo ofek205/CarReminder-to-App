@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { validateUploadFile } from '@/lib/securityUtils';
+import { compressImage } from '@/lib/imageCompress';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -91,8 +92,11 @@ export default function RepairsSection({ vehicle }) {
     for (const file of files) {
       const validation = validateUploadFile(file, 'doc', 10);
       if (!validation.ok) { alert(validation.error); continue; }
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setUploadingFiles(prev => [...prev, { file_url, file_type: 'אחר', fileName: file.name }]);
+      // If the upload is an image, compress client-side before sending
+      // to cut both upload time and storage egress.
+      const payload = file.type?.startsWith('image/') ? await compressImage(file) : file;
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: payload });
+      setUploadingFiles(prev => [...prev, { file_url, file_type: 'אחר', fileName: payload.name || file.name }]);
     }
   };
 

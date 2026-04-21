@@ -17,6 +17,7 @@ import useFormDraft from '@/hooks/useFormDraft';
 import FieldError from '../shared/FieldError';
 import { toast } from 'sonner';
 import { getAiExpertForDomain } from '@/lib/aiExpert';
+import { compressImage } from '@/lib/imageCompress';
 
 // Hebrew stop words to filter from search keywords
 const STOP_WORDS = new Set(['של', 'את', 'על', 'עם', 'זה', 'אני', 'הוא', 'היא', 'לא', 'כן', 'יש', 'אין', 'מה', 'איך', 'למה', 'כי', 'אם', 'או', 'גם', 'רק', 'עוד', 'כל', 'הם', 'אבל', 'שלי', 'שלך', 'אחרי', 'לפני', 'בין', 'תוך', 'כמו', 'מאוד', 'הרבה', 'קצת']);
@@ -73,14 +74,18 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
   const reset = () => { setBody(''); setImageUrl(''); setLinkedVehicleId(''); setIsAnonymous(false); setSimilarPosts([]); setSimilarDismissed(false); setBodyError(''); };
 
-  const handleImage = (e) => {
+  const handleImage = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) { toast.error('תמונה גדולה מ-3MB'); return; }
-    if (!['image/jpeg', 'image/png'].includes(file.type)) { toast.error('ניתן להעלות רק JPG/PNG'); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error('תמונה גדולה מ-10MB'); return; }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('ניתן להעלות רק JPG/PNG/WebP'); return;
+    }
+    // Compress before embedding as base64 to cut egress & DB size
+    const compressed = await compressImage(file, { maxWidth: 1280, maxHeight: 1280, quality: 0.8 });
     const reader = new FileReader();
     reader.onload = (ev) => setImageUrl(ev.target.result);
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(compressed);
   };
 
   const handleSubmit = async () => {

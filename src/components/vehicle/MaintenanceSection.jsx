@@ -14,6 +14,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { formatDateHe } from '../shared/DateStatusUtils';
+import { compressImage } from '@/lib/imageCompress';
 
 export default function MaintenanceSection({ vehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
@@ -94,16 +95,19 @@ export default function MaintenanceSection({ vehicle }) {
     } finally { setAiScanning(false); }
   };
 
-  const handleReceiptUpload = (e) => {
+  const handleReceiptUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Compress receipts before embedding — quality 0.78 keeps text legible
+    // for AI OCR while shrinking egress dramatically.
+    const compressed = await compressImage(file, { maxWidth: 1400, maxHeight: 1400, quality: 0.78 });
     const reader = new FileReader();
     reader.onload = ev => {
       const base64 = ev.target.result;
       setReceiptPhoto(base64);
       scanReceipt(base64);
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(compressed);
   };
 
   const openDialog = (type) => {

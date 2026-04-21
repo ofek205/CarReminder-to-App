@@ -642,7 +642,7 @@ function AuthAccountSettings({ embedded = false }) {
                           }}>
                           <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-gray-100">
                             {v.vehicle_photo ? (
-                              <img src={v.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                              <img src={v.vehicle_photo} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
                                 <Car className="w-4 h-4 text-gray-400" />

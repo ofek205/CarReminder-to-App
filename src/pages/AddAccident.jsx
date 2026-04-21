@@ -428,7 +428,7 @@ export default function AddAccident() {
             {(form.photos || []).map((photo, i) => (
               <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden border cursor-pointer group" style={{ borderColor: C.border }}
                 onClick={() => { setViewerIndex(i); setViewerOpen(true); }}>
-                <img src={photo} alt={`תמונה ${i + 1}`} className="w-full h-full object-cover" />
+                <img src={photo} alt={`תמונה ${i + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 {/* Hover overlay */}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                   <ZoomIn className="w-4 h-4 text-white drop-shadow" />
@@ -600,7 +600,7 @@ export default function AddAccident() {
             <div className="flex items-center gap-3">
               {form.other_driver_insurance_photo ? (
                 <div className="relative w-24 h-16 rounded-xl overflow-hidden border" style={{ borderColor: C.border }}>
-                  <img src={form.other_driver_insurance_photo} alt="תעודת ביטוח" className="w-full h-full object-cover" />
+                  <img src={form.other_driver_insurance_photo} alt="תעודת ביטוח" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   <button type="button" onClick={() => handleChange('other_driver_insurance_photo', '')}
                     className="absolute top-1 left-1 w-5 h-5 rounded-full flex items-center justify-center"
                     style={{ background: 'rgba(0,0,0,0.6)' }}>
