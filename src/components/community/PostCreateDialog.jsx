@@ -238,7 +238,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             </div>
 
             <p className="text-xs font-medium text-center" style={{ color: 'rgba(255,255,255,0.85)' }}>
-              שתף שאלה או חוויה - הקהילה ו{getAiExpertForDomain(domain).firstName} יענו תוך שניות 🚀
+              שתף שאלה או חוויה. הקהילה ו{getAiExpertForDomain(domain).firstName} יענו תוך שניות 🚀
             </p>
           </div>
         </div>

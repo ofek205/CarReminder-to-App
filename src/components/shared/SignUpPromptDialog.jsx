@@ -49,17 +49,17 @@ export default function SignUpPromptDialog({ open, onClose, reason }) {
             CarReminder
           </p>
           <h2 className="text-center mt-1.5 text-2xl font-black text-white leading-tight relative z-10">
-            שמור את הנתונים שלך
+            שמור הכול בחשבון חינמי
           </h2>
         </div>
 
         {/* ── Content ──────────────────────────────────────────────────── */}
         <div className="px-6 pt-5 pb-5">
           <p className="text-gray-700 text-center text-sm font-medium leading-relaxed">
-            {reason || 'כדי לשמור נתונים באופן קבוע'}
+            {reason || 'כדי לשמור את הנתונים לצמיתות'}
           </p>
           <p className="text-gray-500 text-center text-xs mt-2 leading-relaxed">
-            הירשם בחינם ב-30 שניות. הנתונים הזמניים שלך יועברו אוטומטית לחשבון החדש.
+            הרשמה בחינם בפחות מדקה. כל מה שהזנת עד כה יעבור אוטומטית לחשבון החדש.
           </p>
 
           {/* Trust row — 2 tiny value props */}
@@ -86,17 +86,17 @@ export default function SignUpPromptDialog({ open, onClose, reason }) {
               fontSize: 16,
             }}>
             <UserPlus className="h-5 w-5" strokeWidth={2.3} />
-            הירשם / התחבר בחינם
+            הרשמה בחינם
           </button>
           <button onClick={onClose}
             className="w-full font-bold transition-all hover:bg-gray-50 mt-2"
             style={{ height: 44, borderRadius: 12, color: '#9CA3AF', fontSize: 13 }}>
-            המשך ללא הרשמה
+            המשך כאורח
           </button>
 
           <div className="flex items-center gap-1.5 justify-center text-[10px] text-gray-400 mt-4">
             <Shield className="h-3 w-3" />
-            <span>הנתונים מאובטחים ומוצפנים</span>
+            <span>כל הנתונים מוצפנים</span>
           </div>
         </div>
       </DialogContent>

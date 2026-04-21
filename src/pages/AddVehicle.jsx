@@ -803,10 +803,12 @@ export default function AddVehicle() {
               <PartyPopper className="h-9 w-9 text-white" />
             </div>
             <h2 className="text-xl font-black text-gray-900">
-              {isVesselCategory ? 'כלי השייט נוסף בהצלחה!' : 'הרכב נוסף בהצלחה!'}
+              {isVesselCategory ? 'כלי השייט נוסף' : 'הרכב נוסף'}
             </h2>
             <p className="text-gray-500 text-sm leading-relaxed">
-              {form?.nickname || [form?.manufacturer, form?.model].filter(Boolean).join(' ') || (isVesselCategory ? 'כלי השייט' : 'הרכב')} נוסף למערכת ועכשיו אפשר לעקוב אחרי {isVesselCategory ? 'כושר שייט, ביטוח ימי וטיפולים' : 'טיפולים, טסטים וביטוחים'}
+              {isVesselCategory
+                ? 'עכשיו נעקוב יחד אחרי כושר שייט, ביטוח ימי וטיפולים.'
+                : 'עכשיו נעקוב יחד אחרי טסט, ביטוח וטיפולים.'}
             </p>
             <div className="space-y-2 pt-2">
               <Button
@@ -814,7 +816,7 @@ export default function AddVehicle() {
                 className="w-full text-white h-11"
                 style={{ background: T.primary }}
               >
-                עבור למסך הבית שלי
+                למסך הבית
               </Button>
               <Button
                 onClick={handleAddAnother}

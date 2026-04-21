@@ -11,8 +11,8 @@ export default function ConfirmDeleteDialog({
   open,
   onConfirm,
   onCancel,
-  title = "האם אתה בטוח שברצונך למחוק?",
-  description = "פעולה זו אינה ניתנת לביטול.",
+  title = "למחוק את הפריט?",
+  description = "המחיקה סופית ולא ניתנת לביטול.",
 }) {
   return (
     <AlertDialog open={open} onOpenChange={(v) => { if (!v) onCancel(); }}>
@@ -47,7 +47,7 @@ export default function ConfirmDeleteDialog({
           <AlertDialogHeader className="space-y-1.5 relative z-10 mt-3">
             <p className="text-center text-[11px] font-bold"
               style={{ letterSpacing: '0.25em', color: 'rgba(255,255,255,0.85)' }}>
-              פעולה בלתי הפיכה
+              פעולה סופית
             </p>
             <AlertDialogTitle className="text-center text-xl font-black text-white leading-tight">
               {title}

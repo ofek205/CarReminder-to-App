@@ -244,8 +244,8 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
       });
       queryClient.invalidateQueries({ queryKey: ['maint-prefs', user.id] });
       toast.success(hasReminder
-        ? 'נשמר ברשימת סוגי הטיפולים שלך'
-        : 'נוסף לרשימה — להגדיר תזכורת בהגדרות הטיפולים');
+        ? 'נשמר ברשימת הטיפולים שלך'
+        : 'נוסף. להגדרת תזכורת, היכנס להגדרות הטיפולים.');
     } catch (e) {
       // Duplicate names are a benign no-op — the template already exists.
       // Any other error is non-blocking: the log entry itself succeeded.

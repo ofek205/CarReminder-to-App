@@ -15,8 +15,8 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 export default function WelcomePopup({ open, onClose, isReturningUser = false, userName = '' }) {
   const firstName = userName ? userName.split(' ')[0] : '';
   const title = isReturningUser
-    ? `כיף שחזרת${firstName ? `, ${firstName}` : ''}! 👋`
-    : 'ברוך הבא! 👋';
+    ? `טוב שחזרת${firstName ? `, ${firstName}` : ''} 👋`
+    : 'ברוך הבא 👋';
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -85,7 +85,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
             <FeatureRow
               icon={Wrench}
               title="מומחה AI אישי"
-              body="ברוך המוסכניק ויוסי מומחה כלי שייט כבר מכירים את פרטי הרכב שלך, ויענו לשאלות בצורה מדויקת על תקלות, עלויות וטיפולים."
+              body="ברוך ויוסי מכירים את הפרטים של הרכב או הסירה שלך, ועונים מדויק על תקלות, עלויות וטיפולים."
               bg="#FAFCF9"
               accent="#2D5233"
               tileShadow="0 8px 16px -4px rgba(45,82,51,0.35)"
@@ -95,7 +95,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
             <FeatureRow
               icon={AlertTriangle}
               title="ניהול תאונות"
-              body="תיעוד מסודר של תאונות: נזקים, פרטי נהג שני, צילומים וחברת ביטוח, הכל במקום אחד."
+              body="נזקים, פרטי נהג שני, צילומים וחברת ביטוח. הכול במקום אחד."
               bg="#FFFCF5"
               accent="#D97706"
               tileShadow="0 8px 16px -4px rgba(217,119,6,0.35)"
@@ -105,12 +105,12 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
             <div className="flex items-center justify-center gap-1.5 mt-4">
               <Star className="h-3.5 w-3.5" style={{ color: '#FFBF00', fill: '#FFBF00' }} />
               <p className="text-[11px] font-medium text-gray-500">
-                האפליקציה מתפתחת, נשמח לפידבק ורעיונות.
+                האפליקציה מתפתחת. נשמח לשמוע רעיונות.
               </p>
             </div>
 
             {/* CTA */}
-            <PremiumCta onClick={onClose} label="בואו נמשיך 🚗" />
+            <PremiumCta onClick={onClose} label="נמשיך 🚗" />
 
             {/* Credit */}
             <p className="text-center text-[11px] text-gray-400 mt-4">פותח על ידי אופק אדלשטיין</p>
@@ -119,25 +119,25 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
           // ── First-time user content — mirrors GuestWelcomePopup DNA ────
           <div className="px-6 pt-5 pb-5">
             <p className="text-gray-600 text-center text-sm leading-relaxed mb-4">
-              כאן תוכל לנהל ולעקוב אחרי הרכבים שלך בקלות ובנוחות.
+              מכאן תנהל את כל הרכבים והסירות שלך במקום אחד.
             </p>
             <div className="rounded-2xl p-4 space-y-3 relative overflow-hidden"
               style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #E8F2EA 100%)', border: '1.5px solid #BBF7D0' }}>
               <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full pointer-events-none"
                 style={{ background: 'rgba(45,82,51,0.04)' }} />
-              <MiniRow icon={Sparkles}  title="מומחה AI"
-                body="ברוך המוסכניק ויוסי מומחה כלי שייט עונים לשאלות, מכירים את פרטי הרכב שלך." />
-              <MiniRow icon={ScanLine}  title="סריקת מסמכים ותמונות ב-AI"
-                body="צלם רישיון, ביטוח או טסט, והפרטים ממולאים אוטומטית." />
-              <MiniRow icon={MapPin}    title="מצא מוסך"
-                body="מפת מוסכים סביבך, סינון לפי סוג שירות ורדיוס חיפוש." />
-              <MiniRow icon={Bell}      title="תזכורות והתראות חכמות"
-                body="התראות מתוזמנות לטסט, ביטוח, צמיגים וטיפולים." />
-              <MiniRow icon={Database}  title="פרטי רכב ממשרד התחבורה"
-                body="מספר רישוי אחד, והמערכת משלימה מפרט טכני מלא." />
+              <MiniRow icon={Sparkles}  title="מומחה AI אישי"
+                body="ברוך ויוסי זמינים 24/7 עם כל הפרטים של הרכב או הסירה שלך." />
+              <MiniRow icon={ScanLine}  title="סריקה אוטומטית"
+                body="צלם רישיון, ביטוח או טסט. הפרטים ימולאו לבד." />
+              <MiniRow icon={MapPin}    title="מוסכים בסביבה"
+                body="מפה חיה עם סינון לפי סוג שירות ומרחק." />
+              <MiniRow icon={Bell}      title="תזכורות בזמן"
+                body="טסט, ביטוח, צמיגים וטיפולים. נזכיר לפני שיפוג." />
+              <MiniRow icon={Database}  title="פרטי הרכב ממשרד התחבורה"
+                body="מספר רישוי אחד, והמפרט המלא נטען מעצמו." />
             </div>
 
-            <PremiumCta onClick={onClose} label="בואו נתחיל! 🚗" />
+            <PremiumCta onClick={onClose} label="נתחיל 🚗" />
 
             <p className="text-center text-[11px] text-gray-400 mt-4">פותח על ידי אופק אדלשטיין</p>
           </div>

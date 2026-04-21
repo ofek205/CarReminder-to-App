@@ -89,10 +89,10 @@ export default function CompleteProfileScreen({ user, onDone }) {
             <User className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-xl font-black" style={{ color: '#1C2E20' }}>
-            {fullName ? `שלום ${fullName}!` : 'ברוך הבא!'}
+            {fullName ? `שלום ${fullName}` : 'ברוך הבא'}
           </h1>
           <p className="text-sm mt-1" style={{ color: '#6B7280' }}>
-            רק עוד רגע - כדי שנוכל לשלוח לך תזכורות
+            רגע קצר, ונוכל להתחיל לשלוח לך תזכורות.
           </p>
         </div>
 
@@ -117,7 +117,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
               maxLength={15}
             />
             <p className="text-[10px] mt-1" style={{ color: '#9CA3AF' }}>
-              לקבלת תזכורות לטסט וביטוח
+              כדי שנוכל להתריע לפני טסט וביטוח
             </p>
           </div>
 
@@ -151,12 +151,12 @@ export default function CompleteProfileScreen({ user, onDone }) {
           <button onClick={handleSkip}
             className="w-full py-2 text-sm font-medium transition-all"
             style={{ color: '#9CA3AF' }}>
-            דלג, אמלא אחר כך
+            אמלא אחר כך
           </button>
         </div>
 
         <p className="text-center text-[10px] mt-4" style={{ color: '#9CA3AF' }}>
-          ניתן תמיד לעדכן באזור האישי
+          אפשר לשנות בכל עת באזור האישי
         </p>
       </div>
     </div>

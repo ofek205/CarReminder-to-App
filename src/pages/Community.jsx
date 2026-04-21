@@ -305,9 +305,9 @@ export default function Community() {
                   <PenLine className="w-4 h-4 text-white" />
                 </div>
               </div>
-              <h3 className="text-lg font-black mb-2" style={{ color: '#1F2937' }}>הקהילה מחכה לך!</h3>
+              <h3 className="text-lg font-black mb-2" style={{ color: '#1F2937' }}>הקהילה מחכה לך</h3>
               <p className="text-sm mb-6 leading-relaxed max-w-[250px] mx-auto" style={{ color: '#9CA3AF' }}>
-                שאל שאלה על הרכב שלך וקבל תשובות מהקהילה ומהמומחים שלנו: ברוך לרכב, יוסי לכלי שייט
+                שאל כל שאלה על הרכב או הסירה. הקהילה, ברוך ויוסי עונים.
               </p>
               <button onClick={handleFab}
                 className="inline-flex items-center gap-2 px-7 py-3.5 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97]"

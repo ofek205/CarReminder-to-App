@@ -72,26 +72,26 @@ export default function MileageReminderPopup({ open, onClose }) {
             תזכורת
           </p>
           <h2 className="text-center mt-1.5 text-xl font-black text-white leading-tight relative z-10">
-            עדכון קילומטראז׳ / שעות מנוע
+            עדכן קילומטראז׳ או שעות מנוע
           </h2>
         </div>
 
         {/* ── Content ──────────────────────────────────────────────────── */}
         <div className="px-6 pt-5 pb-5">
           <p className="text-sm text-gray-700 text-center leading-relaxed">
-            עדכון הק״מ או שעות המנוע הנוכחיות עוזר למערכת לשלוח תזכורות טיפול מדויקות יותר.
+            הנתון העדכני עוזר לנו לתזמן לך תזכורות טיפול מדויקות יותר.
           </p>
 
           <div className="flex items-center gap-2 justify-center mt-3 rounded-xl px-3 py-2"
             style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
             <Clock className="h-3.5 w-3.5" style={{ color: '#D97706' }} />
             <span className="text-[11px] font-bold" style={{ color: '#92400E' }}>
-              מומלץ לעדכן פעם בחודש
+              מספיק פעם בחודש
             </span>
           </div>
 
           <p className="text-[11px] text-gray-400 text-center mt-3">
-            ניתן לעדכן ישירות מדף הרכב
+            אפשר לעדכן בכל עת בדף הרכב
           </p>
 
           <button onClick={handleClose}
@@ -102,7 +102,7 @@ export default function MileageReminderPopup({ open, onClose }) {
               boxShadow: '0 12px 24px -6px rgba(45,82,51,0.4), 0 4px 8px rgba(45,82,51,0.15)',
               fontSize: 16,
             }}>
-            הבנתי, אעדכן עכשיו
+            אעדכן עכשיו
           </button>
           <button onClick={handleClose}
             className="w-full font-bold transition-all hover:bg-gray-50 mt-2"

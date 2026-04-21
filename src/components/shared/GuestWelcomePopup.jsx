@@ -18,7 +18,7 @@ export default function GuestWelcomePopup({ open, onClose }) {
         className="max-w-md w-[calc(100vw-32px)] max-h-[90vh] p-0 overflow-y-auto overflow-x-hidden rounded-3xl border-0"
         style={{ boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
         <VisuallyHidden.Root>
-          <DialogTitle>שלום לך, נכנסת כאורח</DialogTitle>
+          <DialogTitle>ברוך הבא כאורח</DialogTitle>
         </VisuallyHidden.Root>
 
         {/* ── Hero ─────────────────────────────────────────────────────── */}
@@ -49,14 +49,14 @@ export default function GuestWelcomePopup({ open, onClose }) {
             CarReminder
           </p>
           <h2 className="text-center mt-1.5 text-2xl font-black text-white leading-tight relative z-10">
-            שלום לך, נכנסת כאורח 👋
+            ברוך הבא כאורח 👋
           </h2>
         </div>
 
         {/* ── Content ──────────────────────────────────────────────────── */}
         <div className="px-6 pt-5 pb-5">
           <p className="text-gray-600 text-center text-sm leading-relaxed mb-4">
-            התרשם מהמערכת לפני שנרשמים. אלה הכלים שתקבל:
+            סיור קצר במה שתקבל, עוד לפני שנרשמת.
           </p>
 
           {/* Unified features card */}
@@ -68,16 +68,16 @@ export default function GuestWelcomePopup({ open, onClose }) {
             <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full pointer-events-none"
               style={{ background: 'rgba(45,82,51,0.04)' }} />
 
-            <MiniRow icon={Sparkles} title="מומחה AI"
-              body="ברוך המוסכניק ויוסי מומחה כלי שייט עונים לשאלות, מכירים את פרטי הרכב שלך." />
-            <MiniRow icon={ScanLine} title="סריקת מסמכים ותמונות ב-AI"
-              body="צלם רישיון, ביטוח או טסט, והפרטים ממולאים אוטומטית." />
-            <MiniRow icon={MapPin} title="מצא מוסך"
-              body="מפת מוסכים סביבך, סינון לפי סוג שירות ורדיוס חיפוש." />
-            <MiniRow icon={Bell} title="תזכורות והתראות חכמות"
-              body="התראות מתוזמנות לטסט, ביטוח, צמיגים וטיפולים." />
-            <MiniRow icon={Database} title="פרטי רכב ממשרד התחבורה"
-              body="מספר רישוי אחד, והמערכת משלימה מפרט טכני מלא." />
+            <MiniRow icon={Sparkles} title="מומחה AI אישי"
+              body="ברוך ויוסי זמינים 24/7 עם כל הפרטים של הרכב או הסירה שלך." />
+            <MiniRow icon={ScanLine} title="סריקה אוטומטית"
+              body="צלם רישיון, ביטוח או טסט. הפרטים ימולאו לבד." />
+            <MiniRow icon={MapPin} title="מוסכים בסביבה"
+              body="מפה חיה עם סינון לפי סוג שירות ומרחק." />
+            <MiniRow icon={Bell} title="תזכורות בזמן"
+              body="טסט, ביטוח, צמיגים וטיפולים. נזכיר לפני שיפוג." />
+            <MiniRow icon={Database} title="פרטי הרכב ממשרד התחבורה"
+              body="מספר רישוי אחד, והמפרט המלא נטען מעצמו." />
           </div>
 
           {/* CTAs — register primary, continue as guest secondary */}
@@ -89,12 +89,12 @@ export default function GuestWelcomePopup({ open, onClose }) {
               boxShadow: '0 12px 24px -6px rgba(45,82,51,0.4), 0 4px 8px rgba(45,82,51,0.15)',
               fontSize: 16,
             }}>
-            להרשמה 🚗
+            נרשם בחינם 🚗
           </button>
           <button onClick={onClose}
             className="w-full font-bold transition-all hover:bg-gray-50 mt-2"
             style={{ height: 44, borderRadius: 12, color: '#6B7280', fontSize: 14 }}>
-            להמשיך כאורח
+            המשך כאורח
           </button>
 
           <p className="text-center text-[11px] text-gray-400 mt-4">פותח על ידי אופק אדלשטיין</p>
