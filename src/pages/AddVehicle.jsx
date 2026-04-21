@@ -2,6 +2,24 @@
 import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
+import FirstTimeTour from '@/components/shared/FirstTimeTour';
+
+// Mini tour shown the first time a user lands on /AddVehicle with no
+// vehicles yet. Kept intentionally short: two steps, plain Hebrew,
+// no dashes. Goal — reassure that it's fast and show the plate-lookup
+// magic that fills everything automatically.
+const ADD_VEHICLE_TOUR_STEPS = [
+  {
+    key: 'av-methods',
+    title: 'בוא נתחיל',
+    body: 'שלוש דרכים להוסיף רכב חדש. כולן פשוטות ומהירות.',
+  },
+  {
+    key: 'av-plate-card',
+    title: 'הכי מהיר',
+    body: 'הזן מספר רישוי, והפרטים ימולאו אוטומטית ממשרד התחבורה.',
+  },
+];
 import { hapticFeedback } from '@/lib/capacitor';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
@@ -639,8 +657,20 @@ export default function AddVehicle() {
     );
   }
 
+  // Show the mini tour only on the user's very first visit to AddVehicle
+  // (no existing vehicles). Guests are excluded — tour is for authenticated
+  // first-time setup. Storage key is scoped so the dashboard tour and this
+  // tour don't share a "seen" flag.
+  const firstVehicleTour = !!isAuthenticated && !isGuest && existingVehicles.length === 0;
+
   return (
     <div dir="rtl">
+      <FirstTimeTour
+        enabled={firstVehicleTour}
+        steps={ADD_VEHICLE_TOUR_STEPS}
+        storageKey="cr_addveh_tour_v1_seen"
+      />
+
       <SignUpPromptDialog
         open={showSignUp}
         onClose={() => setShowSignUp(false)}
@@ -1012,11 +1042,12 @@ export default function AddVehicle() {
       {/* ─── Step 2: Method selection ─── */}
       <div className={`transition-all duration-300 ${categoryReady ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
       <h2 className="font-black text-lg mb-4 text-center" style={{ color: '#1C2E20' }}>איך תרצה להוסיף?</h2>
-      <div className="space-y-3 mb-6">
+      <div className="space-y-3 mb-6" data-tour="av-methods">
 
         {/* 1. Plate lookup - only if category supports it */}
         {selectedCategory?.methods.includes('plate') && (
         <div
+          data-tour="av-plate-card"
           className={`rounded-2xl border-2 bg-white p-4 transition-all duration-200 ${isSelected('plate') ? 'border-[#003DA5] shadow-md' : 'border-gray-200 hover:border-blue-300 cursor-pointer'}`}
           onClick={() => !isSelected('plate') && setSelectedMethod('plate')}
         >

@@ -17,26 +17,26 @@ import useFirstTimeTour from '@/hooks/useFirstTimeTour';
  * See useFirstTimeTour for state + localStorage logic.
  */
 
-const STEPS = [
+const DEFAULT_STEPS = [
   {
     key: 'add-vehicle',
     title: 'הוסף את הרכב הראשון',
-    body: 'כאן תוסיף רכב חדש. אפשר לסרוק רישיון רכב, לצלם אותו, או לקבל את הפרטים אוטומטית ממשרד התחבורה רק עם מספר הרישוי.',
+    body: 'כאן תוסיף רכב חדש. אפשר לסרוק רישיון, לצלם אותו, או לקבל את הפרטים אוטומטית ממשרד התחבורה עם מספר הרישוי.',
   },
   {
     key: 'notif-bell',
     title: 'התראות חכמות',
-    body: 'כל התזכורות לטסט, ביטוח, טיפולים וצמיגים יופיעו כאן — מתוזמנות לזמן הנכון, לא ברגע שפג התוקף.',
+    body: 'תזכורות לטסט, ביטוח, טיפולים וצמיגים יופיעו כאן, מתוזמנות לזמן הנכון.',
   },
   {
     key: 'ai-tab',
     title: 'מומחה AI 24/7',
-    body: 'ברוך המוסכניק ויוסי טכנאי כלי שייט עונים לכל שאלה על הרכב שלך. הם מכירים את הפרטים הספציפיים שלך ויענו בדיוק.',
+    body: 'ברוך המוסכניק ויוסי טכנאי כלי שייט עונים לכל שאלה על הרכב שלך.',
   },
   {
     key: 'menu',
     title: 'תפריט מלא',
-    body: 'ההגדרות, חוות דעת, שיתוף חשבון, מוסכים ועוד. נגיש תמיד מהכפתור הזה.',
+    body: 'ההגדרות, שיתוף חשבון, מוסכים ועוד. תמיד נגיש מהכפתור הזה.',
   },
 ];
 
@@ -44,10 +44,18 @@ const VIEWPORT_PAD = 12;
 const CARD_WIDTH = 300;
 const ARROW_SIZE = 10;
 
-export default function FirstTimeTour({ enabled }) {
+/**
+ * @param {object} props
+ * @param {boolean} props.enabled      - gate the tour on/off
+ * @param {Array}   [props.steps]      - custom steps [{key,title,body}] (default: DEFAULT_STEPS)
+ * @param {string}  [props.storageKey] - localStorage key for "seen" flag
+ */
+export default function FirstTimeTour({ enabled, steps = DEFAULT_STEPS, storageKey }) {
+  const STEPS = steps;
   const { open, step, next, skip, finish, totalSteps } = useFirstTimeTour({
     enabled,
     totalSteps: STEPS.length,
+    storageKey,
   });
 
   const [targetRect, setTargetRect] = useState(null);

@@ -10,40 +10,48 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 
-const STORAGE_KEY = 'cr_tour_v1_seen';
+const DEFAULT_STORAGE_KEY = 'cr_tour_v1_seen';
 const AUTO_START_DELAY_MS = 500;
 
 /** Read-only check for callers that want to know if the user has seen the tour. */
-export function hasSeenFirstTimeTour() {
-  try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch { return false; }
+export function hasSeenFirstTimeTour(storageKey = DEFAULT_STORAGE_KEY) {
+  try { return localStorage.getItem(storageKey) === '1'; } catch { return false; }
 }
 
 /** Reset (e.g. future "show tour again" button). Not wired anywhere yet. */
-export function resetFirstTimeTour() {
-  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+export function resetFirstTimeTour(storageKey = DEFAULT_STORAGE_KEY) {
+  try { localStorage.removeItem(storageKey); } catch {}
 }
 
 /**
  * @param {object} opts
- * @param {boolean} opts.enabled  – gate (isAuthenticated && !isGuest && route match)
+ * @param {boolean} opts.enabled     - gate (authenticated + right route)
+ * @param {number}  opts.totalSteps  - number of steps, controls next()/finish
+ * @param {string}  opts.storageKey  - localStorage key for "seen" flag.
+ *                                     Different tours use different keys so
+ *                                     they don't share one dismissal.
  * @returns {{ open, step, next, skip, finish, totalSteps }}
  */
-export default function useFirstTimeTour({ enabled, totalSteps = 4 } = {}) {
+export default function useFirstTimeTour({
+  enabled,
+  totalSteps = 4,
+  storageKey = DEFAULT_STORAGE_KEY,
+} = {}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
   // Auto-start when enabled flips on AND user has never seen the tour.
   useEffect(() => {
     if (!enabled) return;
-    if (hasSeenFirstTimeTour()) return;
+    if (hasSeenFirstTimeTour(storageKey)) return;
     const t = setTimeout(() => {
       setStep(0);
       setOpen(true);
     }, AUTO_START_DELAY_MS);
     return () => clearTimeout(t);
-  }, [enabled]);
+  }, [enabled, storageKey]);
 
-  const markSeen = () => { try { localStorage.setItem(STORAGE_KEY, '1'); } catch {} };
+  const markSeen = () => { try { localStorage.setItem(storageKey, '1'); } catch {} };
 
   const next = useCallback(() => {
     setStep(s => {
