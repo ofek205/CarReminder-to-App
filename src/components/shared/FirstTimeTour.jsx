@@ -44,6 +44,32 @@ const VIEWPORT_PAD = 12;
 const CARD_WIDTH = 300;
 const ARROW_SIZE = 10;
 
+// Color palettes. 'default' is the land-vehicle green theme that the
+// dashboard tour uses; 'vessel' swaps to the marine teal/cyan used
+// across vessel-detail pages for visual consistency.
+const THEMES = {
+  default: {
+    badgeBg:      '#E8F2EA',
+    badgeColor:   '#2D5233',
+    dotActive:    '#2D5233',
+    buttonGrad:   'linear-gradient(135deg, #2D5233 0%, #4A8C5C 100%)',
+    buttonShadow: 'rgba(45,82,51,0.35)',
+    ring:         '#FFBF00',
+    ringGlow:     'rgba(255,191,0,0.25)',
+    titleColor:   '#1C3620',
+  },
+  vessel: {
+    badgeBg:      '#CFFAFE',
+    badgeColor:   '#0E7490',
+    dotActive:    '#0C7B93',
+    buttonGrad:   'linear-gradient(135deg, #065A6E 0%, #0C7B93 100%)',
+    buttonShadow: 'rgba(12,123,147,0.35)',
+    ring:         '#00BCD4',
+    ringGlow:     'rgba(0,188,212,0.25)',
+    titleColor:   '#083544',
+  },
+};
+
 /**
  * @param {object}  props
  * @param {boolean} props.enabled         - gate the tour on/off
@@ -57,8 +83,10 @@ export default function FirstTimeTour({
   steps = DEFAULT_STEPS,
   storageKey,
   persistSeen = true,
+  theme = 'default',
 }) {
   const STEPS = steps;
+  const T = THEMES[theme] || THEMES.default;
   const { open, step, next, skip, finish, totalSteps } = useFirstTimeTour({
     enabled,
     totalSteps: STEPS.length,
@@ -163,7 +191,7 @@ export default function FirstTimeTour({
           width: targetRect.width + 12,
           height: targetRect.height + 12,
           borderRadius: 16,
-          boxShadow: '0 0 0 2px #FFBF00, 0 0 0 6px rgba(255,191,0,0.25), 0 0 0 9999px rgba(0,0,0,0.0)',
+          boxShadow: `0 0 0 2px ${T.ring}, 0 0 0 6px ${T.ringGlow}, 0 0 0 9999px rgba(0,0,0,0.0)`,
           background: 'transparent',
         }}
       />
@@ -200,11 +228,11 @@ export default function FirstTimeTour({
 
         {/* Step badge */}
         <div className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full"
-          style={{ background: '#E8F2EA', color: '#2D5233' }}>
+          style={{ background: T.badgeBg, color: T.badgeColor }}>
           {step + 1} מתוך {totalSteps}
         </div>
 
-        <h3 className="text-[15px] font-black mt-2" style={{ color: '#1C3620' }}>
+        <h3 className="text-[15px] font-black mt-2" style={{ color: T.titleColor }}>
           {current.title}
         </h3>
         <p className="text-[13px] mt-1.5 leading-relaxed text-gray-600">
@@ -225,7 +253,7 @@ export default function FirstTimeTour({
                 style={{
                   width: i === step ? 18 : 6,
                   height: 6,
-                  background: i === step ? '#2D5233' : '#D1D5DB',
+                  background: i === step ? T.dotActive : '#D1D5DB',
                 }}
               />
             ))}
@@ -236,8 +264,8 @@ export default function FirstTimeTour({
             style={{
               height: 38,
               borderRadius: 12,
-              background: 'linear-gradient(135deg, #2D5233 0%, #4A8C5C 100%)',
-              boxShadow: '0 6px 16px -4px rgba(45,82,51,0.35)',
+              background: T.buttonGrad,
+              boxShadow: `0 6px 16px -4px ${T.buttonShadow}`,
             }}>
             {isLast ? 'סיום' : 'הבא'}
           </button>

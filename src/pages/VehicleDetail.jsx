@@ -10,9 +10,9 @@ import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import FirstTimeTour from "../components/shared/FirstTimeTour";
 
-// First-time walkthrough of the vehicle detail page. Fires once per user
-// the very first time they open any vehicle. Short, crisp, no dashes.
-const VEHICLE_DETAIL_TOUR_STEPS = [
+// First-time walkthrough of the vehicle detail page (cars/motorcycles/etc).
+// Fires once per user the first time they open any non-vessel vehicle.
+const CAR_DETAIL_TOUR_STEPS = [
   {
     key: 'vd-reminders',
     title: 'תזכורות וחידושים',
@@ -27,6 +27,31 @@ const VEHICLE_DETAIL_TOUR_STEPS = [
     key: 'vd-corkboard',
     title: 'לוח הודעות אישי',
     body: 'מקום לרשום הערות, מספרי טלפון חשובים ולהצמיד תמונות.',
+  },
+];
+
+// Vessel-specific walkthrough. Maritime terminology, teal palette.
+// Fires once per user the first time they open any vessel.
+const VESSEL_DETAIL_TOUR_STEPS = [
+  {
+    key: 'vd-reminders',
+    title: 'תעודות ומועדים',
+    body: 'כושר שייט, ביטוח ימי ופירוטכניקה. נזכיר לפני שיפוג התוקף, לא אחרי.',
+  },
+  {
+    key: 'vd-checklists',
+    title: 'צ׳ק ליסטים לים',
+    body: 'בדיקות לפני הנעת מנוע, הכנה ליציאה וסיום לאחר חזרה. ערוך רשימות משלך ושמור.',
+  },
+  {
+    key: 'vd-maintenance',
+    title: 'יומן תחזוקה',
+    body: 'טיפולים, תיקונים ושעות מנוע. כל ההיסטוריה של הכלי במקום אחד.',
+  },
+  {
+    key: 'vd-corkboard',
+    title: 'לוח הקברניט',
+    body: 'הערות, אנשי קשר מהמרינה ותמונות מהים. לוח אישי שלך.',
   },
 ];
 import VehicleInfoSection from "../components/vehicle/VehicleInfoSection";
@@ -566,12 +591,23 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         )}
       </div>
 
-      {/* First-visit tour — runs once per user, self-gated by localStorage. */}
-      <FirstTimeTour
-        enabled
-        steps={VEHICLE_DETAIL_TOUR_STEPS}
-        storageKey="cr_vdtl_first_tour_v1_seen"
-      />
+      {/* First-visit tour. Vessels and cars get different scripts, palettes,
+          and storage keys. A user who owns both will see each tour once,
+          at the first detail-page open for that vehicle type. */}
+      {isVessel ? (
+        <FirstTimeTour
+          enabled
+          steps={VESSEL_DETAIL_TOUR_STEPS}
+          storageKey="cr_vdtl_vessel_tour_v1_seen"
+          theme="vessel"
+        />
+      ) : (
+        <FirstTimeTour
+          enabled
+          steps={CAR_DETAIL_TOUR_STEPS}
+          storageKey="cr_vdtl_car_tour_v1_seen"
+        />
+      )}
 
       {/* ── Vehicle info + maintenance ── */}
       <div className="px-4 space-y-4 pb-8">
@@ -586,9 +622,11 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
 
         {/* Pre/Post-trip editable checklists — vessels only. */}
         {isVessel && (
-          <SafeComponent label="ChecklistsSection">
-            <ChecklistsSection vehicle={vehicle} />
-          </SafeComponent>
+          <div data-tour="vd-checklists">
+            <SafeComponent label="ChecklistsSection">
+              <ChecklistsSection vehicle={vehicle} />
+            </SafeComponent>
+          </div>
         )}
 
         <div data-tour="vd-maintenance">
