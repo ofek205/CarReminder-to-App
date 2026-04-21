@@ -18,7 +18,7 @@ import { daysUntil } from "../components/shared/ReminderEngine";
 import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_REMINDERS, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VESSEL_ISSUES, DEMO_DOCUMENTS, DEMO_VESSEL_DOCUMENTS } from "../components/shared/demoVehicleData";
 import { format, parseISO } from 'date-fns';
 import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
-import CompleteProfileScreen, { hasCompletedProfile } from '../components/shared/CompleteProfileScreen';
+import CompleteProfileScreen, { isProfileSkipActive } from '../components/shared/CompleteProfileScreen';
 import LicensePlate from '../components/shared/LicensePlate';
 import FirstTimeTour from '../components/shared/FirstTimeTour';
 
@@ -723,26 +723,28 @@ export default function Dashboard() {
         }
         setAccountId(finalAccountId);
 
-        // Check if profile is complete
-        if (!hasCompletedProfile()) {
-          try {
-            const profiles = await db.user_profiles.filter({ user_id: user.id });
-            if (profiles.length === 0 || !profiles[0].phone) {
-              setShowCompleteProfile(true);
-            } else {
-              localStorage.setItem('profile_completed', '1');
-            }
-          } catch {
-            setShowCompleteProfile(true); // Table may not exist yet - show screen anyway
+        // Profile-completion popup.
+        //   Source of truth = DB (user_profiles.phone). The old localStorage
+        //   "profile_completed" flag would gate the popup forever after the
+        //   first session, so users who skipped once never saw it again.
+        //   Now: always check DB. If phone missing → show the popup UNLESS
+        //   the user tapped "דלג" recently (short cooldown). Notifications
+        //   page also shows a pending card the whole time phone is missing.
+        try {
+          const profiles = await db.user_profiles.filter({ user_id: user.id });
+          const hasPhone = profiles.length > 0 && !!profiles[0].phone;
+          if (hasPhone) {
+            localStorage.setItem('profile_completed', '1');
+          } else if (!isProfileSkipActive()) {
+            setShowCompleteProfile(true);
+          } else {
+            // Skipped recently — keep the lightweight banner instead of popup.
+            setProfileMissing(true);
           }
-        } else {
-          // Profile was completed before - check if phone is still missing (for banner)
-          try {
-            const profiles = await db.user_profiles.filter({ user_id: user.id });
-            if (profiles.length === 0 || !profiles[0].phone) {
-              setProfileMissing(true);
-            }
-          } catch {}
+        } catch {
+          // If the profiles table read fails, fall back to showing the popup
+          // unless the user just skipped.
+          if (!isProfileSkipActive()) setShowCompleteProfile(true);
         }
 
         // Guest → authenticated migration

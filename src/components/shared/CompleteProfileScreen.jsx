@@ -4,12 +4,29 @@ import { Phone, Calendar, ArrowLeft, User, Loader2 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
 
 const COMPLETE_PROFILE_KEY = 'profile_completed';
+const SKIP_UNTIL_KEY = 'profile_skip_until';
+const SKIP_COOLDOWN_DAYS = 3; // reshow the popup 3 days after "דלג"
 
 /**
- * Check if the user has already completed (or dismissed) the profile screen.
+ * Check if the user explicitly completed the profile in a prior session.
+ * Kept for backwards-compat with older callers; the source of truth is
+ * the DB (profiles.phone). Dashboard now reads DB directly and only uses
+ * the skip-cooldown flag below.
  */
 export function hasCompletedProfile() {
   return localStorage.getItem(COMPLETE_PROFILE_KEY) === '1';
+}
+
+/**
+ * Returns true if the user dismissed the popup recently (cooldown active).
+ * Use this to avoid re-popping on every mount inside the same session /
+ * within N days. Notifications page still shows the pending task card.
+ */
+export function isProfileSkipActive() {
+  try {
+    const ts = Number(localStorage.getItem(SKIP_UNTIL_KEY) || 0);
+    return Date.now() < ts;
+  } catch { return false; }
 }
 
 /**
@@ -43,14 +60,21 @@ export default function CompleteProfileScreen({ user, onDone }) {
       console.error('Profile save error:', err);
       // Don't block - save what we can
     }
+    // Real completion — mark done AND clear any active skip cooldown.
     localStorage.setItem(COMPLETE_PROFILE_KEY, '1');
+    localStorage.removeItem(SKIP_UNTIL_KEY);
     window.dispatchEvent(new Event('profileSaved'));
     setSaving(false);
     onDone();
   };
 
   const handleSkip = () => {
-    localStorage.setItem(COMPLETE_PROFILE_KEY, '1');
+    // Don't mark as completed — only set a short cooldown so the popup
+    // doesn't re-appear within the same session. It will resurface after
+    // SKIP_COOLDOWN_DAYS days, and stays visible in Notifications forever
+    // until the user actually fills phone in DB.
+    const until = Date.now() + SKIP_COOLDOWN_DAYS * 86400000;
+    localStorage.setItem(SKIP_UNTIL_KEY, String(until));
     onDone();
   };
 
