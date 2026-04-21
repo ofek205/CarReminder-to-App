@@ -45,17 +45,25 @@ const CARD_WIDTH = 300;
 const ARROW_SIZE = 10;
 
 /**
- * @param {object} props
- * @param {boolean} props.enabled      - gate the tour on/off
- * @param {Array}   [props.steps]      - custom steps [{key,title,body}] (default: DEFAULT_STEPS)
- * @param {string}  [props.storageKey] - localStorage key for "seen" flag
+ * @param {object}  props
+ * @param {boolean} props.enabled         - gate the tour on/off
+ * @param {Array}   [props.steps]         - custom steps [{key,title,body}]
+ * @param {string}  [props.storageKey]    - localStorage key for "seen" flag
+ * @param {boolean} [props.persistSeen]   - if false, don't persist dismissal;
+ *                                          tour reopens every eligible mount
  */
-export default function FirstTimeTour({ enabled, steps = DEFAULT_STEPS, storageKey }) {
+export default function FirstTimeTour({
+  enabled,
+  steps = DEFAULT_STEPS,
+  storageKey,
+  persistSeen = true,
+}) {
   const STEPS = steps;
   const { open, step, next, skip, finish, totalSteps } = useFirstTimeTour({
     enabled,
     totalSteps: STEPS.length,
     storageKey,
+    persistSeen,
   });
 
   const [targetRect, setTargetRect] = useState(null);

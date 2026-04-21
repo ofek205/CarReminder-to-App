@@ -670,10 +670,14 @@ export default function AddVehicle() {
 
   return (
     <div dir="rtl">
+      {/* Re-runs on every mount while the user has zero vehicles. Once
+          they add even one, existingVehicles.length > 0 and the tour
+          stops appearing. No localStorage flag — skip/finish are only
+          in-session and the tour returns the next time they try. */}
       <FirstTimeTour
         enabled={firstVehicleTour}
         steps={ADD_VEHICLE_TOUR_STEPS}
-        storageKey="cr_addveh_tour_v2_seen"
+        persistSeen={false}
       />
 
       <SignUpPromptDialog

@@ -30,28 +30,41 @@ export function resetFirstTimeTour(storageKey = DEFAULT_STORAGE_KEY) {
  * @param {string}  opts.storageKey  - localStorage key for "seen" flag.
  *                                     Different tours use different keys so
  *                                     they don't share one dismissal.
+ * @param {boolean} opts.persistSeen - if false, skip/finish do NOT mark the
+ *                                     tour as seen in localStorage. The
+ *                                     caller is expected to gate the tour
+ *                                     with some other condition (e.g. has
+ *                                     the user completed the setup step?).
+ *                                     Default true (original behaviour).
  * @returns {{ open, step, next, skip, finish, totalSteps }}
  */
 export default function useFirstTimeTour({
   enabled,
   totalSteps = 4,
   storageKey = DEFAULT_STORAGE_KEY,
+  persistSeen = true,
 } = {}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
-  // Auto-start when enabled flips on AND user has never seen the tour.
+  // Auto-start when enabled flips on AND user has never seen the tour
+  // (when persistence is on). When persistSeen=false we ignore the flag
+  // and rely entirely on the caller's `enabled` gate, so the tour reopens
+  // on every eligible mount.
   useEffect(() => {
     if (!enabled) return;
-    if (hasSeenFirstTimeTour(storageKey)) return;
+    if (persistSeen && hasSeenFirstTimeTour(storageKey)) return;
     const t = setTimeout(() => {
       setStep(0);
       setOpen(true);
     }, AUTO_START_DELAY_MS);
     return () => clearTimeout(t);
-  }, [enabled, storageKey]);
+  }, [enabled, storageKey, persistSeen]);
 
-  const markSeen = () => { try { localStorage.setItem(storageKey, '1'); } catch {} };
+  const markSeen = () => {
+    if (!persistSeen) return;
+    try { localStorage.setItem(storageKey, '1'); } catch {}
+  };
 
   const next = useCallback(() => {
     setStep(s => {
