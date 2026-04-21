@@ -160,11 +160,6 @@ export default function CompleteProfileScreen({ user, onDone }) {
               dir="ltr"
               className="text-center"
             />
-            {birthDate && !isOldEnough(birthDate) && (
-              <p className="text-[10px] mt-1 text-red-600">
-                גיל מינימלי לשימוש: {MIN_AGE_YEARS}
-              </p>
-            )}
           </div>
 
           {/* Save button */}

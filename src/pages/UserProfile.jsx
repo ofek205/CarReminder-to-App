@@ -385,11 +385,6 @@ function AuthUserProfile({ embedded = false }) {
                 max={maxBirthDateForMinAge()}
                 className={!form.birth_date ? 'border-amber-300 focus:border-amber-500 bg-amber-50/30' : ''}
               />
-              {form.birth_date && !isOldEnough(form.birth_date) && (
-                <p className="text-xs mt-1 text-red-600">
-                  גיל מינימלי לשימוש: {MIN_AGE_YEARS}
-                </p>
-              )}
             </div>
 
             {age !== null && (
