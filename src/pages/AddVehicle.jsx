@@ -10,14 +10,19 @@ import FirstTimeTour from '@/components/shared/FirstTimeTour';
 // magic that fills everything automatically.
 const ADD_VEHICLE_TOUR_STEPS = [
   {
-    key: 'av-methods',
+    key: 'av-category',
     title: 'בוא נתחיל',
-    body: 'שלוש דרכים להוסיף רכב חדש. כולן פשוטות ומהירות.',
+    body: 'בחר סוג כלי רכב. רכב פרטי, אופנוע, סירה, משאית ועוד.',
+  },
+  {
+    key: 'av-methods',
+    title: 'שלוש דרכים להוסיף',
+    body: 'אחרי שבחרת סוג, יופיעו כאן אפשרויות: חיפוש לפי מספר רכב, סריקת רישיון, או הזנה ידנית.',
   },
   {
     key: 'av-plate-card',
     title: 'הכי מהיר',
-    body: 'הזן מספר רישוי, והפרטים ימולאו אוטומטית ממשרד התחבורה.',
+    body: 'הזן מספר רישוי בלבד, והפרטים ימולאו אוטומטית ממשרד התחבורה.',
   },
 ];
 import { hapticFeedback } from '@/lib/capacitor';
@@ -668,7 +673,7 @@ export default function AddVehicle() {
       <FirstTimeTour
         enabled={firstVehicleTour}
         steps={ADD_VEHICLE_TOUR_STEPS}
-        storageKey="cr_addveh_tour_v1_seen"
+        storageKey="cr_addveh_tour_v2_seen"
       />
 
       <SignUpPromptDialog
@@ -888,7 +893,7 @@ export default function AddVehicle() {
       </div>
 
       {/* ─── Step 1: Vehicle type ─── */}
-      <div className="mb-6">
+      <div className="mb-6" data-tour="av-category">
         <h2 className="font-black text-lg mb-3 text-center" style={{ color: '#1C2E20' }}>בחר סוג כלי רכב</h2>
         <VehicleTypeSelector
           variant="tabs"

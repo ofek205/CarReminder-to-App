@@ -63,15 +63,24 @@ export default function FirstTimeTour({ enabled, steps = DEFAULT_STEPS, storageK
   const cardRef = useRef(null);
 
   // Find target + compute position on every step change + on resize.
+  // If the target isn't in the DOM yet (e.g. it appears only after the
+  // user selects a category first), we poll every 400ms instead of
+  // failing. The overlay stays invisible until the target materializes,
+  // so the user can keep interacting with the page.
   useLayoutEffect(() => {
     if (!open) return;
     const currentKey = STEPS[step]?.key;
     if (!currentKey) return;
 
+    let pollTimer = null;
+
     const compute = () => {
       const el = document.querySelector(`[data-tour="${currentKey}"]`);
       if (!el) {
         setTargetRect(null);
+        // Keep polling — target may appear after the user interacts with
+        // the page (selecting a category, expanding a section, etc.).
+        pollTimer = setTimeout(compute, 400);
         return;
       }
       // If target is offscreen, snap it into view instantly — smooth scroll
@@ -117,6 +126,7 @@ export default function FirstTimeTour({ enabled, steps = DEFAULT_STEPS, storageK
     window.addEventListener('resize', compute);
     window.addEventListener('orientationchange', compute);
     return () => {
+      if (pollTimer) clearTimeout(pollTimer);
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
     };
@@ -127,15 +137,10 @@ export default function FirstTimeTour({ enabled, steps = DEFAULT_STEPS, storageK
   const current = STEPS[step];
   const isLast = step === totalSteps - 1;
 
-  // If we can't find the target, just skip the step silently rather than
-  // blocking the user (shouldn't happen in practice — dashboard renders all 4).
-  if (!targetRect) {
-    return createPortal(
-      <div className="fixed inset-0 z-[9000] bg-black/60"
-        onClick={skip} />,
-      document.body
-    );
-  }
+  // Target not in DOM yet (e.g. appears only after the user selects a
+  // category on AddVehicle). Render nothing and let the user interact.
+  // The poll loop above will re-compute as soon as the target mounts.
+  if (!targetRect) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[9000]" dir="rtl" role="dialog" aria-modal="true">
