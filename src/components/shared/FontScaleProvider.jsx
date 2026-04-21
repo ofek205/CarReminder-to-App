@@ -45,14 +45,19 @@ export function FontScaleProvider({ children }) {
   };
 
   const applyFontScale = (scale) => {
-    // Previous line `document.documentElement.style.fontSize = ...` zoomed
-    // every rem-based Tailwind value (padding, gap, width). Keep only the
-    // CSS variable so legacy callers that read --font-scale still work,
-    // but do NOT touch html.fontSize. Actual text scaling is now owned by
-    // AccessibilityContext (see a11y-font-* classes) which uses the
-    // same pattern correctly — scoped to text properties only.
+    // Restore the mobile-default proportions that users got used to:
+    // the original behaviour was html.fontSize = scale*16 so on mobile
+    // (0.8) everything rendered 20% tighter than desktop, which the
+    // whole layout was tuned for. When we moved font-size to pure CSS
+    // variables earlier the mobile baseline went from 12.8px to 16px —
+    // cards, chips, badges all grew ~25% and things looked bloated.
+    //
+    // Putting the html.fontSize write back fixes the proportions.
+    // The accessibility text-scale (AccessibilityContext) layers on top
+    // with calc(1rem * var(--a11y-text-scale)) so users who set ±1..±5
+    // still scale TEXT only, not the layout — the two systems compose.
     document.documentElement.style.setProperty('--font-scale', scale);
-    document.documentElement.style.fontSize = '';
+    document.documentElement.style.fontSize = `${scale * 16}px`;
   };
 
   const applyScale = async (newScale) => {
