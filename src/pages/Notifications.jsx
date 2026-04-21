@@ -69,7 +69,15 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
       }}
       dir="rtl">
       <div className="flex items-center gap-3"
-        onClick={() => { if (editUrl) { if (onMarkRead) onMarkRead(notif.id); navigate(editUrl); } }}>
+        onClick={async () => {
+          if (!editUrl) return;
+          // Mark as read BEFORE navigating so the server-side state is updated
+          // before the destination page mounts and possibly refetches. On slow
+          // networks this used to leave the notification looking unread after
+          // returning to the list.
+          try { if (onMarkRead) await onMarkRead(notif.id); } catch {}
+          navigate(editUrl);
+        }}>
       {/* Icon */}
       <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
         style={{ background: isOverdue ? '#DC2626' : tc.bg, boxShadow: isOverdue ? '0 3px 10px rgba(220,38,38,0.2)' : 'none' }}>

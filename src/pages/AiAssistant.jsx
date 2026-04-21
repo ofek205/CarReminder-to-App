@@ -230,7 +230,7 @@ export default function AiAssistant() {
     // Rate limit (skip for retries)
     const now = Date.now();
     if (!isRetry && now - lastSendRef.current < MIN_INTERVAL_MS) {
-      setError('רגע, לאט-לאט... חכה שנייה לפני שאלה חדשה');
+      setError('רגע אחד. ניתן לשאול שאלה הבאה בעוד שנייה.');
       return;
     }
     lastSendRef.current = now;

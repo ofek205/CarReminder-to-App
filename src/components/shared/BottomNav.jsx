@@ -84,9 +84,10 @@ export default function BottomNav({ sheetOpen = false }) {
                 }}>
                 <tab.icon className="w-5 h-5" strokeWidth={active ? 2.5 : 1.8}
                   style={{ color: active ? activeIconColor : (tab.isAi ? '#D97706' : '#9CA3AF') }} />
-                {tab.isAi && !active && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 ring-2 ring-white" />
-                )}
+                {/* The always-on green dot used to imply "online" status for
+                    the AI service, which misled users when the service was
+                    actually down. The amber border + color already make the
+                    tab visually distinct; the dot is removed. */}
               </div>
               <span className="text-[10px] font-bold whitespace-nowrap"
                 style={{ color: active ? activeTextColor : (tab.isAi ? '#D97706' : '#9CA3AF') }}>

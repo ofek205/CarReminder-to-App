@@ -61,20 +61,34 @@ function daysUntil(dateStr) {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
+const GOV_LICENSE_RENEWAL_URL = 'https://www.gov.il/he/service/renew_driving_license';
+
 function LicenseStatus({ expDate }) {
   if (!expDate) return null;
   const days = daysUntil(expDate);
   const formatted = format(parseISO(expDate), 'dd/MM/yyyy');
   if (days < 0) return (
-    <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-      <XCircle className="h-4 w-4 shrink-0" />
-      <span>רישיון הנהיגה אינו בתוקף</span>
+    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700" dir="rtl">
+      <div className="flex items-center gap-2">
+        <XCircle className="h-4 w-4 shrink-0" />
+        <span>רישיון הנהיגה אינו בתוקף</span>
+      </div>
+      <a href={GOV_LICENSE_RENEWAL_URL} target="_blank" rel="noopener noreferrer"
+        className="inline-block mt-2 text-xs font-bold underline text-red-800 hover:text-red-900">
+        חדש עכשיו באתר משרד התחבורה ←
+      </a>
     </div>
   );
   if (days <= 30) return (
-    <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-800">
-      <AlertTriangle className="h-4 w-4 shrink-0" />
-      <span>תוקף הרישיון עומד להסתיים בקרוב ({formatted})</span>
+    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-sm text-yellow-800" dir="rtl">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 shrink-0" />
+        <span>הרישיון יפוג ב-{formatted}</span>
+      </div>
+      <a href={GOV_LICENSE_RENEWAL_URL} target="_blank" rel="noopener noreferrer"
+        className="inline-block mt-2 text-xs font-bold underline text-yellow-900 hover:text-yellow-950">
+        חדש באתר משרד התחבורה ←
+      </a>
     </div>
   );
   return (
