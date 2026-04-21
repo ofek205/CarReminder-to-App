@@ -1007,14 +1007,15 @@ export default function Dashboard() {
         const dayMs = 24 * 60 * 60 * 1000;
         const justRegistered = createdAt > 0 && ageMs < dayMs;
         const stuckNoVehicles = createdAt > 0 && ageMs >= 10 * dayMs && (vehicles?.length || 0) === 0;
-        const shouldTour = isAuthenticated && !isGuest && (justRegistered || stuckNoVehicles);
         const hasAnyVehicle = isAuthenticated && !isGuest && (vehicles?.length || 0) > 0;
+        // Mutually-exclusive gates so the two dashboard tours never open at
+        // the same time. Before the user adds anything → original 4-step
+        // onboarding tour. Once they have any vehicle → a single "this is
+        // your card, tap it" spotlight that nudges them into VehicleDetail.
+        const shouldTour = isAuthenticated && !isGuest && (justRegistered || stuckNoVehicles) && !hasAnyVehicle;
         return (
           <>
             <FirstTimeTour enabled={shouldTour} />
-            {/* Post-first-save tour: shown ONCE the moment a user first has
-                vehicles. One short step on the first card, telling them to
-                tap it to open the details page. Marked "seen" after finish/skip. */}
             <FirstTimeTour
               enabled={hasAnyVehicle}
               storageKey="cr_dash_firstcard_tour_v1_seen"
