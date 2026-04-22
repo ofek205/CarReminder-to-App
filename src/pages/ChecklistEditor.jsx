@@ -3,29 +3,28 @@
  *
  * URL: /ChecklistEditor?vehicleId=<uuid>&phase=engine|pre|post
  *
- * Product rules (from planning session):
- *   • Viewing ≠ editing. An explicit toggle at the top switches modes.
- *   • In VIEW mode: no trash/pencil/add buttons. Just sections + items.
- *   • In EDIT mode: rename sections/items, delete, add item, add section,
- *     import defaults (only if the template is empty).
- *   • Changes are auto-saved on blur / toggle-off. There is no "save"
- *     button — editing a template is inherently live.
- *
- * The template drives future run snapshots; existing runs keep their own
- * frozen items and aren't affected when the template changes.
+ * Product rules (from latest planning pass):
+ *   • Entering this page = editing. There is no read-only mode — the
+ *     landing Hub is where people "view" the template via phase cards.
+ *   • Items and sections are reorder-able via drag handles. A long press
+ *     on the grip icon activates drag; on desktop, click-hold works too.
+ *   • Items are numbered (1., 2., 3.) within each section to help the
+ *     user keep track during real-world execution.
+ *   • All changes are live (auto-saved on every mutation). No save button.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { db } from '@/lib/supabaseEntities';
 import { PHASE_LABELS, getDefaultSections } from '@/lib/checklistTemplates';
-import { ArrowRight, Plus, Trash2, Pencil, Check, X, FolderPlus, Download, Anchor, Eye, Edit3 } from 'lucide-react';
+import {
+  ArrowRight, Plus, Trash2, Pencil, Check, X, FolderPlus, Download, Anchor, GripVertical,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
   AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
@@ -35,6 +34,16 @@ import {
 } from '@/components/ui/dialog';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
+  useSensor, useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext, arrayMove, useSortable, verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
 const THEME = {
   primary: '#0C7B93',
   grad:    'linear-gradient(135deg, #065A6E 0%, #0C7B93 100%)',
@@ -43,7 +52,6 @@ const THEME = {
 
 function uid() { return `i_${Math.random().toString(36).slice(2, 10)}`; }
 
-/** Normalise whatever the DB holds into the canonical { sections: [...] } shape. */
 function normalizeTemplate(raw) {
   if (!raw) return { sections: [] };
   if (raw.sections && Array.isArray(raw.sections)) {
@@ -51,14 +59,10 @@ function normalizeTemplate(raw) {
       sections: raw.sections.map(s => ({
         id: s.id || uid(),
         name: s.name || 'ללא שם',
-        items: (s.items || []).map(it => ({
-          id: it.id || uid(),
-          text: it.text || '',
-        })),
+        items: (s.items || []).map(it => ({ id: it.id || uid(), text: it.text || '' })),
       })),
     };
   }
-  // Legacy flat shape
   if (Array.isArray(raw)) {
     return {
       sections: raw.length
@@ -78,17 +82,15 @@ export default function ChecklistEditor() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  const [data, setData] = useState(null);                    // { sections: [...] }
-  const [row, setRow] = useState(null);                      // vessel_checklists row
+  const [data, setData] = useState(null);
+  const [row, setRow] = useState(null);
   const [vehicle, setVehicle] = useState(null);
-  const [editMode, setEditMode] = useState(false);
   const [bootError, setBootError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [confirmDeleteSection, setConfirmDeleteSection] = useState(null);
   const [newSectionOpen, setNewSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
 
-  // Load vehicle + existing template on mount
   useEffect(() => {
     if (!vehicleId || !phase) return;
     (async () => {
@@ -108,7 +110,6 @@ export default function ChecklistEditor() {
     })();
   }, [vehicleId, phase]);
 
-  // Persist the whole template. Create the row on first save if absent.
   const persist = async (next) => {
     if (!vehicle) return;
     setSaving(true);
@@ -127,7 +128,6 @@ export default function ChecklistEditor() {
       qc.invalidateQueries({ queryKey: ['vessel_checklists', vehicleId] });
     } catch (e) {
       toast.error('שמירה נכשלה');
-      if (import.meta.env.DEV) console.warn('[editor save]', e?.message);
     } finally {
       setSaving(false);
     }
@@ -139,6 +139,7 @@ export default function ChecklistEditor() {
     await persist(next);
   };
 
+  // ── Mutations ───────────────────────────────────────────────────────
   const importDefaults = async () => {
     const sections = getDefaultSections(phase, vehicle?.engine_type || 'outboard').map(s => ({
       id: uid(),
@@ -154,28 +155,53 @@ export default function ChecklistEditor() {
     if (!clean) return;
     await updateSections(prev => [...prev, { id: uid(), name: clean, items: [] }]);
   };
+  const deleteSection = (sectionId) => updateSections(prev => prev.filter(s => s.id !== sectionId));
+  const renameSection = (sectionId, name) => updateSections(prev => prev.map(s => s.id === sectionId ? { ...s, name } : s));
+  const addItem = (sectionId, text) => updateSections(prev => prev.map(s => s.id !== sectionId ? s : {
+    ...s, items: [...s.items, { id: uid(), text }]
+  }));
+  const deleteItem = (sectionId, itemId) => updateSections(prev => prev.map(s => s.id !== sectionId ? s : {
+    ...s, items: s.items.filter(i => i.id !== itemId)
+  }));
+  const renameItem = (sectionId, itemId, text) => updateSections(prev => prev.map(s => s.id !== sectionId ? s : {
+    ...s, items: s.items.map(i => i.id === itemId ? { ...i, text } : i)
+  }));
 
-  const deleteSection = async (sectionId) =>
-    updateSections(prev => prev.filter(s => s.id !== sectionId));
+  // ── Drag-and-drop for sections ──────────────────────────────────────
+  const sensors = useSensors(
+    // Desktop: pointer. activationConstraint.distance prevents accidental
+    // drags when the user meant to click a button.
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    // Mobile: touch. 200ms press delay so tapping an edit/delete button
+    // doesn't trigger a drag.
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
-  const renameSection = async (sectionId, name) =>
-    updateSections(prev => prev.map(s => s.id === sectionId ? { ...s, name } : s));
+  const onSectionDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    updateSections(prev => {
+      const oldIdx = prev.findIndex(s => s.id === active.id);
+      const newIdx = prev.findIndex(s => s.id === over.id);
+      if (oldIdx < 0 || newIdx < 0) return prev;
+      return arrayMove(prev, oldIdx, newIdx);
+    });
+  };
 
-  const addItem = async (sectionId, text) =>
-    updateSections(prev => prev.map(s => s.id !== sectionId ? s : {
-      ...s, items: [...s.items, { id: uid(), text }]
+  const onItemDragEnd = (sectionId) => (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    updateSections(prev => prev.map(s => {
+      if (s.id !== sectionId) return s;
+      const oldIdx = s.items.findIndex(i => i.id === active.id);
+      const newIdx = s.items.findIndex(i => i.id === over.id);
+      if (oldIdx < 0 || newIdx < 0) return s;
+      return { ...s, items: arrayMove(s.items, oldIdx, newIdx) };
     }));
+  };
 
-  const deleteItem = async (sectionId, itemId) =>
-    updateSections(prev => prev.map(s => s.id !== sectionId ? s : {
-      ...s, items: s.items.filter(i => i.id !== itemId)
-    }));
-
-  const renameItem = async (sectionId, itemId, text) =>
-    updateSections(prev => prev.map(s => s.id !== sectionId ? s : {
-      ...s, items: s.items.map(i => i.id === itemId ? { ...i, text } : i)
-    }));
-
+  // ── Render ──────────────────────────────────────────────────────────
   if (!vehicleId || !phase) {
     return <div className="p-6 text-center text-sm text-slate-500">פרמטרים חסרים</div>;
   }
@@ -197,21 +223,14 @@ export default function ChecklistEditor() {
             <ArrowRight className="w-4 h-4" />
             חזרה
           </button>
-          <div className="mt-2 flex items-center justify-between">
-            <div>
-              <h1 className="font-black text-lg text-slate-800 flex items-center gap-2">
-                <Anchor className="w-5 h-5" style={{ color: THEME.primary }} />
-                {PHASE_LABELS[phase]}
-              </h1>
-              <p className="text-[11px] text-slate-500 mt-0.5">תבנית הצ'ק ליסט שלך</p>
-            </div>
-
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <span className={`text-xs font-bold flex items-center gap-1 ${editMode ? 'text-teal-700' : 'text-slate-500'}`}>
-                {editMode ? <><Edit3 className="w-3.5 h-3.5" /> מצב עריכה</> : <><Eye className="w-3.5 h-3.5" /> צפייה</>}
-              </span>
-              <Switch checked={editMode} onCheckedChange={setEditMode} />
-            </label>
+          <div className="mt-2">
+            <h1 className="font-black text-lg text-slate-800 flex items-center gap-2">
+              <Anchor className="w-5 h-5" style={{ color: THEME.primary }} />
+              עריכת: {PHASE_LABELS[phase]}
+            </h1>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              החזק את האייקון <GripVertical className="inline w-3 h-3 align-text-bottom" /> וגרור לשינוי סדר. השינויים נשמרים אוטומטית.
+            </p>
           </div>
           {saving && <p className="text-[10px] text-amber-600 mt-1">שומר…</p>}
         </div>
@@ -234,24 +253,34 @@ export default function ChecklistEditor() {
         </div>
       )}
 
-      {/* Sections */}
-      <div className="px-4 pt-4 space-y-5">
-        {data.sections.map(section => (
-          <SectionBlock
-            key={section.id}
-            section={section}
-            editMode={editMode}
-            onRename={(name) => renameSection(section.id, name)}
-            onDelete={() => setConfirmDeleteSection(section.id)}
-            onAddItem={(text) => addItem(section.id, text)}
-            onRenameItem={(itemId, text) => renameItem(section.id, itemId, text)}
-            onDeleteItem={(itemId) => deleteItem(section.id, itemId)}
-          />
-        ))}
-      </div>
+      {/* Sections with DnD */}
+      {!isEmpty && (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onSectionDragEnd}>
+          <SortableContext
+            items={data.sections.map(s => s.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="px-4 pt-4 space-y-5">
+              {data.sections.map((section) => (
+                <SortableSection
+                  key={section.id}
+                  section={section}
+                  onRename={(name) => renameSection(section.id, name)}
+                  onDelete={() => setConfirmDeleteSection(section.id)}
+                  onAddItem={(text) => addItem(section.id, text)}
+                  onRenameItem={(itemId, text) => renameItem(section.id, itemId, text)}
+                  onDeleteItem={(itemId) => deleteItem(section.id, itemId)}
+                  sensors={sensors}
+                  onItemDragEnd={onItemDragEnd(section.id)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
 
-      {/* Footer actions (edit mode only) */}
-      {editMode && !isEmpty && (
+      {/* Footer: add section */}
+      {!isEmpty && (
         <div className="px-4 mt-6">
           <Button variant="outline" onClick={() => setNewSectionOpen(true)}
             className="w-full gap-2">
@@ -311,26 +340,28 @@ export default function ChecklistEditor() {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Section block (sortable)                                                   */
+/* -------------------------------------------------------------------------- */
 
-function SectionBlock({ section, editMode, onRename, onDelete, onAddItem, onRenameItem, onDeleteItem }) {
+function SortableSection({ section, onRename, onDelete, onAddItem, onRenameItem, onDeleteItem, sensors, onItemDragEnd }) {
+  const {
+    attributes, listeners, setNodeRef, transform, transition, isDragging,
+  } = useSortable({ id: section.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
   const [editingName, setEditingName] = useState(false);
   const [nameBuf, setNameBuf] = useState(section.name);
   const [adding, setAdding] = useState('');
-  const [editingItemId, setEditingItemId] = useState(null);
-  const [itemBuf, setItemBuf] = useState('');
 
   const saveName = () => {
     const n = nameBuf.trim();
     if (n && n !== section.name) onRename(n);
     setEditingName(false);
-  };
-
-  const startEditItem = (it) => { setEditingItemId(it.id); setItemBuf(it.text); };
-  const saveEditItem = () => {
-    const t = itemBuf.trim();
-    if (t) onRenameItem(editingItemId, t);
-    setEditingItemId(null);
-    setItemBuf('');
   };
 
   const submitAdd = (e) => {
@@ -342,15 +373,26 @@ function SectionBlock({ section, editMode, onRename, onDelete, onAddItem, onRena
   };
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
+    <div ref={setNodeRef} style={style}>
+      <div className="flex items-center gap-1 mb-2">
+        {/* Drag handle */}
+        <button
+          type="button"
+          className="text-slate-400 hover:text-slate-600 touch-none cursor-grab active:cursor-grabbing p-1"
+          aria-label="גרור קטגוריה"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+
         {editingName ? (
           <>
             <Input value={nameBuf}
               onChange={e => setNameBuf(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') { setEditingName(false); setNameBuf(section.name); } }}
               autoFocus
-              className="h-7 text-sm" />
+              className="h-7 text-sm flex-1" />
             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={saveName}>
               <Check className="w-3.5 h-3.5" />
             </Button>
@@ -360,7 +402,7 @@ function SectionBlock({ section, editMode, onRename, onDelete, onAddItem, onRena
             {section.name}
           </h2>
         )}
-        {editMode && !editingName && (
+        {!editingName && (
           <>
             <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-500"
               onClick={() => setEditingName(true)}>
@@ -373,55 +415,105 @@ function SectionBlock({ section, editMode, onRename, onDelete, onAddItem, onRena
         )}
       </div>
 
-      <ul className="space-y-1.5">
-        {section.items.map(it => (
-          <li key={it.id}
-            className="flex items-center gap-2 border rounded-md px-3 py-2 bg-white" dir="rtl">
-            {editingItemId === it.id ? (
-              <>
-                <Input autoFocus value={itemBuf}
-                  onChange={e => setItemBuf(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') saveEditItem(); if (e.key === 'Escape') { setEditingItemId(null); setItemBuf(''); } }}
-                  className="flex-1 h-8" />
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={saveEditItem}>
-                  <Check className="w-4 h-4" />
-                </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8"
-                  onClick={() => { setEditingItemId(null); setItemBuf(''); }}>
-                  <X className="w-4 h-4" />
-                </Button>
-              </>
-            ) : (
-              <>
-                <span className="flex-1 text-sm text-slate-800">{it.text}</span>
-                {editMode && (
-                  <>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500"
-                      onClick={() => startEditItem(it)}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500"
-                      onClick={() => onDeleteItem(it.id)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </>
-                )}
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
+      {/* Items list with nested DnD */}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onItemDragEnd}>
+        <SortableContext items={section.items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+          <ul className="space-y-1.5">
+            {section.items.map((it, idx) => (
+              <SortableItem
+                key={it.id}
+                item={it}
+                number={idx + 1}
+                onRename={(text) => onRenameItem(it.id, text)}
+                onDelete={() => onDeleteItem(it.id)}
+              />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
 
-      {editMode && (
-        <form onSubmit={submitAdd} className="mt-2 flex gap-2" dir="rtl">
-          <Input value={adding} onChange={e => setAdding(e.target.value)}
-            placeholder="הוסף פריט..." className="flex-1 h-9" />
-          <Button type="submit" size="icon" disabled={!adding.trim()} className="h-9 w-9"
-            style={{ background: THEME.primary, color: 'white' }}>
-            <Plus className="w-4 h-4" />
-          </Button>
-        </form>
-      )}
+      <form onSubmit={submitAdd} className="mt-2 flex gap-2" dir="rtl">
+        <Input value={adding} onChange={e => setAdding(e.target.value)}
+          placeholder="הוסף פריט..." className="flex-1 h-9" />
+        <Button type="submit" size="icon" disabled={!adding.trim()} className="h-9 w-9"
+          style={{ background: THEME.primary, color: 'white' }}>
+          <Plus className="w-4 h-4" />
+        </Button>
+      </form>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Item row (sortable)                                                        */
+/* -------------------------------------------------------------------------- */
+
+function SortableItem({ item, number, onRename, onDelete }) {
+  const {
+    attributes, listeners, setNodeRef, transform, transition, isDragging,
+  } = useSortable({ id: item.id });
+
+  const [editing, setEditing] = useState(false);
+  const [buf, setBuf] = useState(item.text);
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  const saveEdit = () => {
+    const t = buf.trim();
+    if (t) onRename(t);
+    setEditing(false);
+  };
+
+  return (
+    <li ref={setNodeRef} style={style}
+      className="flex items-center gap-2 border rounded-md px-2 py-2 bg-white" dir="rtl">
+      {/* Drag handle */}
+      <button
+        type="button"
+        className="text-slate-400 hover:text-slate-600 touch-none cursor-grab active:cursor-grabbing p-0.5 shrink-0"
+        aria-label="גרור פריט"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+
+      {/* Number badge (1., 2., 3., …) */}
+      <span className="shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[11px] font-black flex items-center justify-center">
+        {number}
+      </span>
+
+      {editing ? (
+        <>
+          <Input autoFocus value={buf}
+            onChange={e => setBuf(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') { setEditing(false); setBuf(item.text); } }}
+            className="flex-1 h-8" />
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={saveEdit}>
+            <Check className="w-4 h-4" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8"
+            onClick={() => { setEditing(false); setBuf(item.text); }}>
+            <X className="w-4 h-4" />
+          </Button>
+        </>
+      ) : (
+        <>
+          <span className="flex-1 text-sm text-slate-800 min-w-0 break-words">{item.text}</span>
+          <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 shrink-0"
+            onClick={() => setEditing(true)}>
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 shrink-0"
+            onClick={onDelete}>
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </>
+      )}
+    </li>
   );
 }
