@@ -90,9 +90,15 @@ function groupBySection(items) {
 export default function Checklist() {
   const [params] = useSearchParams();
   const vehicleId = params.get('vehicleId');
-  const phase = params.get('phase');
+  const phaseParam = params.get('phase');
+  const templateIdParam = params.get('templateId');
   const navigate = useNavigate();
   const qc = useQueryClient();
+
+  // "phase" is whichever makes sense: the URL param (for built-ins) or
+  // 'custom' (for user-created templates looked up by id).
+  const [resolvedPhase, setResolvedPhase] = useState(phaseParam);
+  const phase = resolvedPhase;
 
   const [items, setItems] = useState(null);          // snapshot in memory
   const [runId, setRunId] = useState(null);          // row in vessel_checklist_runs
@@ -105,25 +111,42 @@ export default function Checklist() {
   // Issue-sheet state — which item is having its issue captured
   const [issueItemId, setIssueItemId] = useState(null);
 
-  // Load template + existing draft on mount
+  // Load template + existing draft on mount.
+  //
+  // Lookup order:
+  //   1. If templateId is in the URL, load that exact template (works for
+  //      custom templates and for system phases alike).
+  //   2. Otherwise fall back to (vehicle_id, phase) for backwards compat
+  //      with existing links.
   useEffect(() => {
-    if (!vehicleId || !phase) return;
+    if (!vehicleId || (!phaseParam && !templateIdParam)) return;
     (async () => {
       try {
-        // Resolve account_id from the vehicle row.
         const vrows = await db.vehicles.filter({ id: vehicleId });
         const acc = vrows?.[0]?.account_id;
         if (!acc) throw new Error('אין גישה לכלי');
         setAccountId(acc);
 
-        // Template
-        const tplRows = await db.vessel_checklists.filter({ vehicle_id: vehicleId, phase });
-        const template = tplRows?.[0] || null;
+        let template = null;
+        if (templateIdParam) {
+          const rows = await db.vessel_checklists.filter({ id: templateIdParam });
+          template = rows?.[0] || null;
+        } else {
+          const rows = await db.vessel_checklists.filter({ vehicle_id: vehicleId, phase: phaseParam });
+          template = rows?.[0] || null;
+        }
+
+        const resolvedPhaseLocal = template?.phase || phaseParam || 'custom';
+        setResolvedPhase(resolvedPhaseLocal);
+
         const hasTemplate = !!template && (template.items?.sections || []).length > 0;
 
-        // Look for an open draft that started today.
+        // Look for an open draft from today that matches this template.
+        const draftQuery = templateIdParam
+          ? { vehicle_id: vehicleId, template_id: templateIdParam }
+          : { vehicle_id: vehicleId, phase: resolvedPhaseLocal };
         const drafts = await db.vessel_checklist_runs.filter(
-          { vehicle_id: vehicleId, phase },
+          draftQuery,
           { order: { column: 'started_at', ascending: false }, limit: 5 }
         );
         const draft = (drafts || []).find(r =>
@@ -137,7 +160,7 @@ export default function Checklist() {
         }
 
         if (!hasTemplate) {
-          setBootError('אין עדיין תבנית לשלב זה. פתח את "ערוך תבנית" כדי לבנות אחת.');
+          setBootError('אין עדיין פריטים בתבנית. פתח את "ערוך תבנית" כדי להוסיף פריטים.');
           return;
         }
 
@@ -147,7 +170,7 @@ export default function Checklist() {
           template_id: template.id,
           vehicle_id: vehicleId,
           account_id: acc,
-          phase,
+          phase: resolvedPhaseLocal,
           items: snapshot,
           started_at: new Date().toISOString(),
         });
@@ -158,7 +181,7 @@ export default function Checklist() {
         setBootError('טעינת הבדיקה נכשלה. נסה שוב.');
       }
     })();
-  }, [vehicleId, phase]);
+  }, [vehicleId, phaseParam, templateIdParam]);
 
   // Debounced auto-save
   const scheduleSave = useCallback((nextItems) => {

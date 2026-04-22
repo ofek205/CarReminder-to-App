@@ -60,6 +60,19 @@ export default function ChecklistHistory() {
     enabled: !!vehicleId,
   });
 
+  // Fetch templates so custom runs can display their user-given name
+  // (runs store phase but not the template name at time of run).
+  const { data: templates = [] } = useQuery({
+    queryKey: ['vessel_checklists', vehicleId],
+    queryFn: () => db.vessel_checklists.filter({ vehicle_id: vehicleId }),
+    enabled: !!vehicleId,
+  });
+  const templateNameById = useMemo(() => {
+    const m = {};
+    for (const t of templates) m[t.id] = t.name || null;
+    return m;
+  }, [templates]);
+
   const completedRuns = useMemo(() =>
     runs.filter(r => !!r.completed_at && (phaseFilter === 'all' || r.phase === phaseFilter)),
     [runs, phaseFilter]
@@ -104,7 +117,9 @@ export default function ChecklistHistory() {
             אין עדיין בדיקות שהושלמו.
           </div>
         )}
-        {completedRuns.map(run => <RunRow key={run.id} run={run} />)}
+        {completedRuns.map(run => (
+          <RunRow key={run.id} run={run} templateName={templateNameById[run.template_id]} />
+        ))}
       </div>
     </div>
   );
@@ -123,10 +138,14 @@ function FilterChip({ label, active, onClick }) {
   );
 }
 
-function RunRow({ run }) {
+function RunRow({ run, templateName }) {
   const [open, setOpen] = useState(false);
   const s = statsOf(run.items);
-  const phaseLabel = PHASE_LABELS[run.phase] || run.phase;
+  // Prefer the template's user-given name (if any) for custom runs;
+  // fall back to the system phase label for built-ins.
+  const phaseLabel = run.phase === 'custom'
+    ? (templateName || 'צ\'ק ליסט')
+    : (PHASE_LABELS[run.phase] || run.phase);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">

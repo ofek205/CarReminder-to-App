@@ -78,7 +78,8 @@ function normalizeTemplate(raw) {
 export default function ChecklistEditor() {
   const [params] = useSearchParams();
   const vehicleId = params.get('vehicleId');
-  const phase = params.get('phase');
+  const templateIdParam = params.get('templateId');
+  const phaseParam = params.get('phase');
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -90,17 +91,28 @@ export default function ChecklistEditor() {
   const [confirmDeleteSection, setConfirmDeleteSection] = useState(null);
   const [newSectionOpen, setNewSectionOpen] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
+  const [editingTemplateName, setEditingTemplateName] = useState(false);
+  const [templateNameBuf, setTemplateNameBuf] = useState('');
 
   useEffect(() => {
-    if (!vehicleId || !phase) return;
+    if (!vehicleId || (!phaseParam && !templateIdParam)) return;
     (async () => {
       try {
         const vrows = await db.vehicles.filter({ id: vehicleId });
         const v = vrows?.[0];
         if (!v) throw new Error('כלי לא נמצא');
         setVehicle(v);
-        const tplRows = await db.vessel_checklists.filter({ vehicle_id: vehicleId, phase });
-        const tpl = tplRows?.[0] || null;
+
+        // Prefer exact templateId lookup (for custom templates). Fall
+        // back to (vehicle, phase) for the 3 built-in phases.
+        let tpl = null;
+        if (templateIdParam) {
+          const rows = await db.vessel_checklists.filter({ id: templateIdParam });
+          tpl = rows?.[0] || null;
+        } else {
+          const rows = await db.vessel_checklists.filter({ vehicle_id: vehicleId, phase: phaseParam });
+          tpl = rows?.[0] || null;
+        }
         setRow(tpl);
         setData(normalizeTemplate(tpl?.items));
       } catch (e) {
@@ -108,20 +120,21 @@ export default function ChecklistEditor() {
         setBootError('טעינת התבנית נכשלה');
       }
     })();
-  }, [vehicleId, phase]);
+  }, [vehicleId, phaseParam, templateIdParam]);
 
-  const persist = async (next) => {
+  const persist = async (next, extra = {}) => {
     if (!vehicle) return;
     setSaving(true);
     try {
       if (row) {
-        await db.vessel_checklists.update(row.id, { items: next });
+        await db.vessel_checklists.update(row.id, { items: next, ...extra });
       } else {
         const created = await db.vessel_checklists.create({
           vehicle_id: vehicle.id,
           account_id: vehicle.account_id,
-          phase,
+          phase: phaseParam || 'custom',
           items: next,
+          ...extra,
         });
         setRow(created);
       }
@@ -133,6 +146,19 @@ export default function ChecklistEditor() {
     }
   };
 
+  // Rename a CUSTOM template (system phases derive their name from PHASE_LABELS).
+  const renameTemplate = async (newName) => {
+    const n = (newName || '').trim();
+    if (!n || !row) return;
+    try {
+      await db.vessel_checklists.update(row.id, { name: n });
+      setRow({ ...row, name: n });
+      qc.invalidateQueries({ queryKey: ['vessel_checklists', vehicleId] });
+    } catch (e) {
+      toast.error('שינוי השם נכשל');
+    }
+  };
+
   const updateSections = async (updater) => {
     const next = { ...data, sections: updater(data.sections) };
     setData(next);
@@ -140,8 +166,14 @@ export default function ChecklistEditor() {
   };
 
   // ── Mutations ───────────────────────────────────────────────────────
+  // Defaults only make sense for the 3 built-in phases. Custom templates
+  // start empty by design (the user named them for a reason).
+  const effectivePhase = row?.phase || phaseParam || 'custom';
+  const isCustom = effectivePhase === 'custom';
+
   const importDefaults = async () => {
-    const sections = getDefaultSections(phase, vehicle?.engine_type || 'outboard').map(s => ({
+    if (isCustom) return; // no defaults for user templates
+    const sections = getDefaultSections(effectivePhase, vehicle?.engine_type || 'outboard').map(s => ({
       id: uid(),
       name: s.name,
       items: s.items.map(text => ({ id: uid(), text })),
@@ -224,10 +256,45 @@ export default function ChecklistEditor() {
             חזרה
           </button>
           <div className="mt-2">
-            <h1 className="font-black text-lg text-slate-800 flex items-center gap-2">
-              <Anchor className="w-5 h-5" style={{ color: THEME.primary }} />
-              עריכת: {PHASE_LABELS[phase]}
-            </h1>
+            {editingTemplateName ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={templateNameBuf}
+                  onChange={(e) => setTemplateNameBuf(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      renameTemplate(templateNameBuf);
+                      setEditingTemplateName(false);
+                    } else if (e.key === 'Escape') {
+                      setEditingTemplateName(false);
+                    }
+                  }}
+                  autoFocus
+                  className="h-8 text-sm flex-1"
+                  maxLength={60}
+                />
+                <Button size="icon" variant="ghost" className="h-8 w-8"
+                  onClick={() => { renameTemplate(templateNameBuf); setEditingTemplateName(false); }}>
+                  <Check className="w-4 h-4" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-8 w-8"
+                  onClick={() => setEditingTemplateName(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <h1 className="font-black text-lg text-slate-800 flex items-center gap-2">
+                <Anchor className="w-5 h-5" style={{ color: THEME.primary }} />
+                <span>עריכת: {isCustom ? (row?.name || 'צ\'ק ליסט') : PHASE_LABELS[effectivePhase]}</span>
+                {isCustom && row && (
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-500"
+                    onClick={() => { setTemplateNameBuf(row.name || ''); setEditingTemplateName(true); }}
+                    aria-label="שנה שם">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </h1>
+            )}
             <p className="text-[11px] text-slate-500 mt-0.5">
               החזק את האייקון <GripVertical className="inline w-3 h-3 align-text-bottom" /> וגרור לשינוי סדר. השינויים נשמרים אוטומטית.
             </p>
@@ -241,13 +308,17 @@ export default function ChecklistEditor() {
         <div className="px-4 pt-8 text-center">
           <p className="text-sm text-slate-500">אין עדיין פריטים בתבנית.</p>
           <div className="mt-4 flex flex-col gap-2">
-            <Button onClick={importDefaults} className="gap-2" style={{ background: THEME.primary }}>
-              <Download className="w-4 h-4" />
-              טען רשימה מומלצת
-            </Button>
+            {/* "רשימה מומלצת" is meaningful only for the 3 built-in phases.
+                Custom templates start blank by design. */}
+            {!isCustom && (
+              <Button onClick={importDefaults} className="gap-2" style={{ background: THEME.primary }}>
+                <Download className="w-4 h-4" />
+                טען רשימה מומלצת
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setNewSectionOpen(true)} className="gap-2">
               <FolderPlus className="w-4 h-4" />
-              בנה מאפס
+              {isCustom ? 'הוסף קטגוריה ראשונה' : 'בנה מאפס'}
             </Button>
           </div>
         </div>
