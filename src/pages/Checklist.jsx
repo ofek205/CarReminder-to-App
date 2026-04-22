@@ -27,7 +27,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { db } from '@/lib/supabaseEntities';
 import { PHASE_LABELS } from '@/lib/checklistTemplates';
-import { ArrowRight, Check, X, Minus, AlertCircle, CheckCircle2, Pin, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Check, X, Minus, AlertCircle, CheckCircle2, Pin, AlertTriangle, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -321,6 +321,27 @@ export default function Checklist() {
     }
   };
 
+  /**
+   * Reset all item statuses back to 'pending' so the user can start the
+   * run over without creating a new row. Clears notes + linked cork/issue
+   * IDs so subsequent re-flagging creates fresh side effects. Auto-saves.
+   */
+  const handleReset = () => {
+    if (!items || items.length === 0) return;
+    const marked = items.filter(i => i.status && i.status !== 'pending').length;
+    if (marked === 0) return; // nothing to reset, don't even confirm
+    const ok = window.confirm(`לאפס את כל הסימונים ולהתחיל מחדש? ${marked} סימונים יימחקו.`);
+    if (!ok) return;
+    setItems(prev => {
+      const next = prev.map(it => ({
+        ...it, status: 'pending', note: null, cork_note_id: null, issue_id: null,
+      }));
+      scheduleSave(next);
+      return next;
+    });
+    toast.success('הסימונים אופסו');
+  };
+
   const handleFinish = async () => {
     if (!runId) return;
     const pendingCount = items.filter(i => i.status === 'pending').length;
@@ -379,12 +400,24 @@ export default function Checklist() {
       <div className="sticky top-0 z-20 bg-white border-b border-slate-200"
         style={{ paddingTop: 'env(safe-area-inset-top, 0)' }}>
         <div className="px-4 py-3">
-          <button
-            onClick={() => navigate(`${createPageUrl('ChecklistHub')}?vehicleId=${vehicleId}`)}
-            className="flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-slate-700">
-            <ArrowRight className="w-4 h-4" />
-            חזרה
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => navigate(`${createPageUrl('ChecklistHub')}?vehicleId=${vehicleId}`)}
+              className="flex items-center gap-1 text-sm font-bold text-slate-500 hover:text-slate-700">
+              <ArrowRight className="w-4 h-4" />
+              חזרה
+            </button>
+            {/* Reset button. Only active once the user has marked something,
+                so a fresh run doesn't show an unnecessary action. */}
+            {(stats.done + stats.issue + stats.skip) > 0 && (
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-red-600 transition-colors px-2 py-1 rounded-md border border-slate-200 hover:border-red-200">
+                <RotateCcw className="w-3.5 h-3.5" />
+                אפס סימונים
+              </button>
+            )}
+          </div>
           <div className="mt-2 flex items-center justify-between">
             <h1 className="font-black text-lg text-slate-800">{PHASE_LABELS[phase]}</h1>
             <div className="text-xs font-bold flex items-center gap-1.5" style={{ color: THEME.primary }}>
