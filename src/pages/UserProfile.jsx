@@ -19,6 +19,7 @@ import useFormValidation from '@/hooks/useFormValidation';
 import FieldError from '../components/shared/FieldError';
 import SystemErrorBanner from '../components/shared/SystemErrorBanner';
 import PinLockCard from '../components/shared/PinLockCard';
+import ChangePasswordCard from '../components/profile/ChangePasswordCard';
 
 const MIN_AGE_YEARS = 12;
 
@@ -462,14 +463,15 @@ function AuthUserProfile({ embedded = false }) {
           {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Save className="h-4 w-4 ml-2" />שמור פרופיל</>}
         </Button>
 
-        {/*  Security section 
-            PIN lock moved here from the notifications tab. it's a security
-            setting, not a notification one. */}
-        <div className="mt-8">
+        {/*  Security section
+            PIN lock + password change live here together. Both are
+            authentication concerns rather than notification ones. */}
+        <div className="mt-8 space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wider mb-3 px-1" style={{ color: '#9CA3AF' }}>
             אבטחה
           </h3>
           <PinLockCard />
+          <ChangePasswordCard />
         </div>
 
         {/* Delete account link */}
