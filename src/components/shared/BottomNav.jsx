@@ -89,7 +89,11 @@ export default function BottomNav({ sheetOpen = false }) {
                     actually down. The amber border + color already make the
                     tab visually distinct; the dot is removed. */}
               </div>
-              <span className="text-[10px] font-bold whitespace-nowrap"
+              {/* Tab label uses line-clamp-1 instead of whitespace-nowrap so
+                  when the user bumps OS font size the label shrinks to a
+                  single truncated line rather than overflowing into the
+                  neighbouring tab or disappearing behind the icon. */}
+              <span className="text-[10px] font-bold line-clamp-1 text-center max-w-full"
                 style={{ color: active ? activeTextColor : (tab.isAi ? '#D97706' : '#9CA3AF') }}>
                 {tab.label}
               </span>

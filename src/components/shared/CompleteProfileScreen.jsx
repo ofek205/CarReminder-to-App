@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Phone, Calendar, ArrowLeft, User, Loader2 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
 import { toast } from 'sonner';
@@ -152,13 +153,14 @@ export default function CompleteProfileScreen({ user, onDone }) {
               <Calendar className="w-3.5 h-3.5 inline ml-1" style={{ color: '#2D5233' }} />
               תאריך לידה
             </label>
-            <Input
-              type="date"
+            {/* Use our shared DateInput rather than the native <input type="date">.
+                The native Android date picker is painfully slow for scrolling
+                back 30+ years for a birth-year, while DateInput has explicit
+                year ± buttons + direct DD/MM/YYYY typing. */}
+            <DateInput
               value={birthDate}
               onChange={e => setBirthDate(e.target.value)}
               max={maxBirthDateForMinAge()}
-              dir="ltr"
-              className="text-center"
             />
           </div>
 

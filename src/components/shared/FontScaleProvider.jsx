@@ -45,19 +45,21 @@ export function FontScaleProvider({ children }) {
   };
 
   const applyFontScale = (scale) => {
-    // Restore the mobile-default proportions that users got used to:
-    // the original behaviour was html.fontSize = scale*16 so on mobile
-    // (0.8) everything rendered 20% tighter than desktop, which the
-    // whole layout was tuned for. When we moved font-size to pure CSS
-    // variables earlier the mobile baseline went from 12.8px to 16px 
-    // cards, chips, badges all grew ~25% and things looked bloated.
+    // Only set the CSS variable. We used to also do
+    //   document.documentElement.style.fontSize = `${scale * 16}px`
+    // which pinned the html root to a fixed pixel value and, as a side
+    // effect, completely blocked the OS/browser font-size accessibility
+    // setting — users who bumped their Android font size up saw the
+    // rest of the UI unchanged while their WebView's text zoom still
+    // enlarged certain elements, so layout "lost its proportions"
+    // (user bug report, v2.6.1).
     //
-    // Putting the html.fontSize write back fixes the proportions.
-    // The accessibility text-scale (AccessibilityContext) layers on top
-    // with calc(1rem * var(--a11y-text-scale)) so users who set ±1..±5
-    // still scale TEXT only, not the layout. the two systems compose.
+    // Keeping only the --font-scale variable still lets our in-app
+    // slider control size (via calc(1rem * var(--font-scale)) in
+    // globals.css) while letting the OS control the rem baseline.
+    // Result: OS font scaling works AND everything scales together,
+    // so side proportions stay intact.
     document.documentElement.style.setProperty('--font-scale', scale);
-    document.documentElement.style.fontSize = `${scale * 16}px`;
   };
 
   const applyScale = async (newScale) => {

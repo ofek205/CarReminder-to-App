@@ -22,6 +22,13 @@ initSessionKeepAlive();
 import { initNotifications } from '@/lib/notificationService';
 initNotifications();
 
+// First-launch permission bootstrap. Fires the native permission prompts
+// for location / notifications / camera in sequence on the first launch
+// so users aren't surprised by them mid-workflow. No-op on web and on
+// subsequent launches.
+import { requestAllPermissionsOnFirstLaunch } from '@/lib/permissionBootstrap';
+requestAllPermissionsOnFirstLaunch();
+
 // Hide splash screen after app mounts
 setTimeout(() => hideSplash(), 500);
 

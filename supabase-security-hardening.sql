@@ -23,12 +23,13 @@ drop policy if exists "invites_update"  on public.invites;
 drop policy if exists "invites_delete"  on public.invites;
 
 -- Inviter (the user who issued the invite) can see / manage their own invites.
+-- NOTE: schema uses invited_by_user_id, not invited_by.
 create policy invites_select_owner on public.invites
-  for select using (invited_by = auth.uid());
+  for select using (invited_by_user_id = auth.uid());
 
 create policy invites_insert_auth on public.invites
   for insert with check (
-    invited_by = auth.uid()
+    invited_by_user_id = auth.uid()
     and exists (
       select 1 from public.account_members
       where user_id = auth.uid()
@@ -39,10 +40,10 @@ create policy invites_insert_auth on public.invites
   );
 
 create policy invites_update_owner on public.invites
-  for update using (invited_by = auth.uid());
+  for update using (invited_by_user_id = auth.uid());
 
 create policy invites_delete_owner on public.invites
-  for delete using (invited_by = auth.uid());
+  for delete using (invited_by_user_id = auth.uid());
 
 -- A SECURITY DEFINER RPC the JoinInvite UI calls with a token. Returns
 -- a single matching invite row if the token is valid, increments

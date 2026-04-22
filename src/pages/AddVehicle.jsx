@@ -150,9 +150,43 @@ export default function AddVehicle() {
   // to a different vehicle class than the one the user picked
   const [typeMismatch, setTypeMismatch] = useState(null); // { detectedType, detectedLabel, pendingFields, pendingUpdates }
 
+  // Draft auto-save. The `extras` bag persists the three UI selectors
+  // (category / subcategory / method) alongside the form data. Without
+  // this, restoring a vessel draft would silently repopulate the form
+  // but leave the form HIDDEN — `formVisible` requires all three
+  // selectors set, and vessels have `hasSubcategories: true` + no
+  // 'plate' fallback method. Users reported exiting mid-flow and being
+  // unable to find their work on return.
   const draft = useFormDraft({
     key: 'add_vehicle', data: form, setData: setForm,
     defaultData: EMPTY_FORM, userId: user?.id,
+    extras: {
+      categoryLabel:     selectedCategory?.label ?? null,
+      subcategoryDbName: selectedSubcategory?.dbName ?? null,
+      method:            selectedMethod,
+    },
+    setExtras: (e) => {
+      if (!e) return;
+      // Map category label back to the object reference (state holds
+      // the full object so downstream code can read .methods etc.)
+      const cat = VEHICLE_CATEGORIES.find(c => c.label === e.categoryLabel) || null;
+      setSelectedCategory(cat);
+      // Subcategory lookup has to consult the correct list because
+      // each category keeps its own list (boat / moto / offroad /
+      // special). No cross-list sharing of dbNames.
+      if (cat?.hasSubcategories && e.subcategoryDbName) {
+        const list =
+          cat.label === 'כלי שייט' ? BOAT_SUBCATEGORIES :
+          cat.label === 'אופנועים' ? MOTO_SUBCATEGORIES :
+          cat.label === 'כלי שטח' ? OFFROAD_SUBCATEGORIES :
+          SPECIAL_SUBCATEGORIES;
+        const sub = list.find(s => s.dbName === e.subcategoryDbName) || null;
+        setSelectedSubcategory(sub);
+      } else {
+        setSelectedSubcategory(null);
+      }
+      setSelectedMethod(e.method ?? null);
+    },
   });
   const { errors, validate, clearError } = useFormValidation();
   const [systemError, setSystemError] = useState(null);

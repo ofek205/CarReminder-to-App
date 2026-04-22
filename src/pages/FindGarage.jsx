@@ -221,25 +221,44 @@ export default function FindGarage() {
     }
   }, [isGuest, guestVehicles, isAuthenticated, user]);
 
-  // Get user location. fallback to Tel Aviv if GPS fails
+  // Location state. Tracks both "using real GPS vs. Tel Aviv fallback"
+  // and whether we got here because permission was denied (so we can
+  // surface a distinct banner + "try again" button to the user). The
+  // old flow fell back to Tel Aviv silently whenever anything went
+  // wrong, which users interpreted as a bug.
   const [usingGps, setUsingGps] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      // No geolocation support. default to Tel Aviv
-      setUserLocation({ lat: 32.0853, lng: 34.7818 });
-      setLoading(false);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setUsingGps(true); setLoading(false); },
-      () => {
-        // GPS failed. default to Tel Aviv instead of showing error
+    let cancelled = false;
+    (async () => {
+      try {
+        // getCurrentPosition from @/lib/capacitor routes through the
+        // native Geolocation plugin on Android/iOS, which triggers the
+        // OS permission dialog if needed. On web it falls back to
+        // navigator.geolocation.
+        const pos = await getCurrentPosition();
+        if (cancelled) return;
+        setUserLocation({ lat: pos.latitude, lng: pos.longitude });
+        setUsingGps(true);
+        setLocationDenied(false);
+      } catch (err) {
+        if (cancelled) return;
+        // PERMISSION_DENIED = 1 on browser GeolocationPositionError.
+        // Native plugin throws an Error whose message contains "denied"
+        // or "not authorized" — sniff both so we can show the right UX.
+        const msg = String(err?.message || err || '').toLowerCase();
+        const denied = err?.code === 1 || msg.includes('denied') || msg.includes('not authorized');
+        setLocationDenied(denied);
+        // Keep the Tel Aviv fallback so the map is not blank, but the
+        // banner above makes the fallback clear instead of pretending
+        // this is the user's real location.
         setUserLocation({ lat: 32.0853, lng: 34.7818 });
-        setLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-    );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const retryGps = async () => {
@@ -248,13 +267,17 @@ export default function FindGarage() {
       const pos = await getCurrentPosition();
       setUserLocation({ lat: pos.latitude, lng: pos.longitude });
       setUsingGps(true);
+      setLocationDenied(false);
       // Snap the map back to the new location.
       if (mapRef.current) {
         try { mapRef.current.setView([pos.latitude, pos.longitude], 14, { animate: true }); } catch {}
       }
-    } catch {
-      setLocError('לא הצלחנו לזהות מיקום');
-      setTimeout(() => setLocError(null), 3000);
+    } catch (err) {
+      const msg = String(err?.message || err || '').toLowerCase();
+      const denied = err?.code === 1 || msg.includes('denied') || msg.includes('not authorized');
+      setLocationDenied(denied);
+      setLocError(denied ? 'הרשאת מיקום נדחתה. אפשר לאפשר בהגדרות האפליקציה.' : 'לא הצלחנו לזהות מיקום');
+      setTimeout(() => setLocError(null), 4000);
     }
   };
 
@@ -469,6 +492,22 @@ export default function FindGarage() {
               </p>
             </div>
           </div>
+
+          {/* Location-denied banner. Shown when the OS permission was
+              refused so the user knows why the map is parked on Tel Aviv.
+              Clicking the button retriggers the native prompt. */}
+          {locationDenied && (
+            <div className="mb-2 rounded-lg px-3 py-2 flex items-start gap-2"
+              style={{ background: 'rgba(255,191,0,0.15)', border: '1px solid rgba(255,191,0,0.3)' }}>
+              <MapPinOff className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#FFBF00' }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-white">הרשאת מיקום חסרה</p>
+                <p className="text-[10px] leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                  אנחנו מציגים את תל אביב כברירת מחדל. אשר גישה למיקום בהגדרות או לחץ "מיקום" למטה.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Location: GPS + City search */}
           <div className="flex gap-1.5 mb-2">
