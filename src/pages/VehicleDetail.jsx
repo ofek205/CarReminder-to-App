@@ -591,23 +591,11 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         )}
       </div>
 
-      {/* First-visit tour. Vessels and cars get different scripts, palettes,
-          and storage keys. A user who owns both will see each tour once,
-          at the first detail-page open for that vehicle type. */}
-      {isVessel ? (
-        <FirstTimeTour
-          enabled
-          steps={VESSEL_DETAIL_TOUR_STEPS}
-          storageKey="cr_vdtl_vessel_tour_v1_seen"
-          theme="vessel"
-        />
-      ) : (
-        <FirstTimeTour
-          enabled
-          steps={CAR_DETAIL_TOUR_STEPS}
-          storageKey="cr_vdtl_car_tour_v1_seen"
-        />
-      )}
+      {/* Tool-tip tours intentionally disabled on this page. Reaching
+          VehicleDetail implies the user already has at least one vehicle,
+          and per product decision the tours are reserved for first-time
+          users with zero vehicles. Components kept imported for future
+          use but not rendered. */}
 
       {/*  Vehicle info + maintenance  */}
       <div className="px-4 space-y-4 pb-8">

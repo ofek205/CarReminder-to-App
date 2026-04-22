@@ -1005,28 +1005,19 @@ export default function Dashboard() {
         const createdAt = user?.created_at ? new Date(user.created_at).getTime() : 0;
         const ageMs = createdAt ? Date.now() - createdAt : 0;
         const dayMs = 24 * 60 * 60 * 1000;
-        const justRegistered = createdAt > 0 && ageMs < dayMs;
-        const stuckNoVehicles = createdAt > 0 && ageMs >= 10 * dayMs && (vehicles?.length || 0) === 0;
-        const hasAnyVehicle = isAuthenticated && !isGuest && (vehicles?.length || 0) > 0;
-        // Mutually-exclusive gates so the two dashboard tours never open at
-        // the same time. Before the user adds anything → original 4-step
-        // onboarding tour. Once they have any vehicle → a single "this is
-        // your card, tap it" spotlight that nudges them into VehicleDetail.
-        const shouldTour = isAuthenticated && !isGuest && (justRegistered || stuckNoVehicles) && !hasAnyVehicle;
-        return (
-          <>
-            <FirstTimeTour enabled={shouldTour} />
-            <FirstTimeTour
-              enabled={hasAnyVehicle}
-              storageKey="cr_dash_firstcard_tour_v1_seen"
-              steps={[{
-                key: 'dash-first-vehicle',
-                title: 'הרכב שלך כאן',
-                body: 'לחץ על הכרטיס כדי להיכנס לדף הרכב ולראות את כל הפרטים במקום אחד.',
-              }]}
-            />
-          </>
-        );
+        const noVehicles = (vehicles?.length || 0) === 0;
+        // Both "just registered" and "stuck onboarding" sub-conditions
+        // require zero vehicles at the source. The earlier code relied
+        // on a single outer `!hasAnyVehicle` guard; pushing the check
+        // down to each sub-condition makes the gate self-protecting
+        // against future refactors.
+        const justRegistered = createdAt > 0 && ageMs < dayMs && noVehicles;
+        const stuckNoVehicles = createdAt > 0 && ageMs >= 10 * dayMs && noVehicles;
+        const shouldTour = isAuthenticated && !isGuest && (justRegistered || stuckNoVehicles);
+        // Product decision: tool-tip tours are for brand-new users only.
+        // Once any vehicle exists the user has completed setup and doesn't
+        // need further hand-holding on this page.
+        return <FirstTimeTour enabled={shouldTour} />;
       })()}
       <div className="px-4 pt-6">
 

@@ -251,13 +251,8 @@ export default function ChecklistHub() {
         </div>
       </div>
 
-      {/* First-visit tour — vessel palette, fires once per user. */}
-      <FirstTimeTour
-        enabled
-        steps={HUB_TOUR_STEPS}
-        storageKey="cr_ch_hub_tour_v1_seen"
-        theme="vessel"
-      />
+      {/* Tool-tip tour disabled — reserved for first-time users with no
+          vehicles. Reaching this page means a vessel already exists. */}
 
       {/* Phase + custom cards */}
       <div className="px-4 mt-4 space-y-3" data-tour="ch-phase-cards">
