@@ -8,7 +8,7 @@
  *   - User-gesture violations after navigation
  *
  * When the Clipboard API rejects (or throws synchronously), fall back to
- * execCommand('copy') via a hidden textarea — crusty but universally
+ * execCommand('copy') via a hidden textarea. crusty but universally
  * supported. Returns a Promise<boolean> so callers can show correct feedback.
  */
 export async function copyToClipboard(text) {

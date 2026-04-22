@@ -19,7 +19,7 @@ import { useAuth } from '../components/shared/GuestContext';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+//  Helpers 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
   const diff = new Date(dateStr) - new Date();
@@ -41,7 +41,7 @@ const DUAL_CATEGORY_TYPES = {
 };
 
 function getCategory(vehicle) {
-  // Check for dual-category types first — primary category is the first one
+  // Check for dual-category types first. primary category is the first one
   if (DUAL_CATEGORY_TYPES[vehicle.vehicle_type]) return DUAL_CATEGORY_TYPES[vehicle.vehicle_type][0];
   if (isOffroad(vehicle.vehicle_type)) return 'offroad';
   if (isVessel(vehicle.vehicle_type, vehicle.nickname)) return 'vessel';
@@ -63,7 +63,7 @@ function matchesCategory(vehicle, categoryTab) {
   return getCategory(vehicle) === categoryTab;
 }
 
-// ── Category Tabs Config ────────────────────────────────────────────────────
+//  Category Tabs Config 
 const CATEGORY_TABS = [
   { key: 'all',        label: 'הכל',       icon: null,     color: C.primary },
   { key: 'car',        label: 'רכבים',     icon: Car,      color: C.primary },
@@ -74,7 +74,7 @@ const CATEGORY_TABS = [
   { key: 'special',    label: 'מיוחדים',   icon: Star,     color: C.warn },
 ];
 
-// ── Sort Options ────────────────────────────────────────────────────────────
+//  Sort Options 
 const SORT_OPTIONS = [
   { key: 'name',   label: 'שם' },
   { key: 'status', label: 'סטטוס' },
@@ -83,7 +83,7 @@ const SORT_OPTIONS = [
 
 const STATUS_ORDER = { overdue: 0, soon: 1, ok: 2 };
 
-// ── Status Summary Bar ──────────────────────────────────────────────────────
+//  Status Summary Bar 
 function StatusSummaryBar({ counts, activeFilter, onFilter }) {
   const items = [
     { key: null,       label: 'הכל',     count: counts.total,   icon: Car,            color: C.primary, bg: C.light },
@@ -117,7 +117,7 @@ function StatusSummaryBar({ counts, activeFilter, onFilter }) {
   );
 }
 
-// ── Category Tabs ───────────────────────────────────────────────────────────
+//  Category Tabs 
 function CategoryTabs({ activeTab, onTab, categoryCounts }) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 mb-3" dir="rtl"
@@ -146,7 +146,7 @@ function CategoryTabs({ activeTab, onTab, categoryCounts }) {
   );
 }
 
-// ── Search + Filter Row ─────────────────────────────────────────────────────
+//  Search + Filter Row 
 function SearchFilterRow({ searchQuery, onSearch, sortBy, onSort, isVessel, theme }) {
   const T = theme || C;
   return (
@@ -193,7 +193,7 @@ function SearchFilterRow({ searchQuery, onSearch, sortBy, onSort, isVessel, them
   );
 }
 
-// ── Skeleton Card ───────────────────────────────────────────────────────────
+//  Skeleton Card 
 function SkeletonCard() {
   return (
     <div className="rounded-2xl p-4 mb-3 flex gap-3.5 items-start animate-pulse"
@@ -208,7 +208,7 @@ function SkeletonCard() {
   );
 }
 
-// ── Premium Empty State ─────────────────────────────────────────────────────
+//  Premium Empty State 
 function PremiumEmptyState({ hasFilters, onClearFilters, theme, isVessel }) {
   const T = theme || C;
   return (
@@ -248,12 +248,12 @@ function PremiumEmptyState({ hasFilters, onClearFilters, theme, isVessel }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ── Main Component ──────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════
+// 
+//  Main Component 
+// 
 
 function VehiclesContent({ vehicles, isLoading }) {
-  // ── Filter & sort state ─────────────────────────────────────────────────
+  //  Filter & sort state 
   const location = useLocation();
   const urlCategory = new URLSearchParams(location.search).get('category');
   const isVesselPage = urlCategory === 'vessel';
@@ -271,7 +271,7 @@ function VehiclesContent({ vehicles, isLoading }) {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeCategoryTab, setActiveCategoryTab] = useState('all');
   const [sortBy, setSortBy] = useState('name');
-  // null | 'overdue' | 'soon' — driven by the two clickable badges above the list.
+  // null | 'overdue' | 'soon'. driven by the two clickable badges above the list.
   const [statusFilter, setStatusFilter] = useState(null);
 
   // Debounce search
@@ -280,7 +280,7 @@ function VehiclesContent({ vehicles, isLoading }) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // ── Computed: status & category per vehicle ─────────────────────────────
+  //  Computed: status & category per vehicle 
   const vehicleMeta = useMemo(() => {
     return filteredByPage.map(v => ({
       vehicle: v,
@@ -289,7 +289,7 @@ function VehiclesContent({ vehicles, isLoading }) {
     }));
   }, [filteredByPage]);
 
-  // ── Counts ──────────────────────────────────────────────────────────────
+  //  Counts 
   const statusCounts = useMemo(() => {
     const c = { total: filteredByPage.length, ok: 0, soon: 0, overdue: 0 };
     vehicleMeta.forEach(m => { if (c[m.status] !== undefined) c[m.status]++; });
@@ -310,11 +310,11 @@ function VehiclesContent({ vehicles, isLoading }) {
     return c;
   }, [vehicleMeta, filteredByPage.length]);
 
-  // ── Filtering pipeline ──────────────────────────────────────────────────
+  //  Filtering pipeline 
   const filteredVehicles = useMemo(() => {
     let result = [...vehicleMeta];
 
-    // Status filter (overdue / soon) — clicked from the quick-status row.
+    // Status filter (overdue / soon). clicked from the quick-status row.
     if (statusFilter) {
       result = result.filter(m => m.status === statusFilter);
     }
@@ -362,7 +362,7 @@ function VehiclesContent({ vehicles, isLoading }) {
     setStatusFilter(null);
   };
 
-  // ── Loading ─────────────────────────────────────────────────────────────
+  //  Loading 
   if (isLoading) {
     return (
       <div dir="rtl">
@@ -372,7 +372,7 @@ function VehiclesContent({ vehicles, isLoading }) {
     );
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────
+  //  Render 
   return (
     <div dir="rtl" style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
       <PageHeader
@@ -406,7 +406,7 @@ function VehiclesContent({ vehicles, isLoading }) {
         <PremiumEmptyState hasFilters={false} theme={T} isVessel={isVesselPage} />
       ) : (
         <>
-          {/* Quick status line — both badges are clickable and toggle a
+          {/* Quick status line. both badges are clickable and toggle a
               filter on the vehicle list (same UX as the dashboard). */}
           {(statusCounts.overdue > 0 || statusCounts.soon > 0) && (
             <div className="flex items-center gap-2 mb-3 px-1 flex-wrap" dir="rtl">
@@ -493,9 +493,9 @@ function VehiclesContent({ vehicles, isLoading }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ── Page Export (handles auth/guest routing) ─────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════
+// 
+//  Page Export (handles auth/guest routing) 
+// 
 
 export default function Vehicles() {
   const auth = useAuth();
@@ -522,7 +522,7 @@ export default function Vehicles() {
     staleTime: 2 * 60 * 1000, // 2 minutes cache
   });
 
-  // Pull-to-refresh — re-fetches the vehicles list.
+  // Pull-to-refresh. re-fetches the vehicles list.
   const { pulling, progress } = usePullToRefresh(async () => {
     await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
     await new Promise(r => setTimeout(r, 500));
@@ -530,7 +530,7 @@ export default function Vehicles() {
 
   if (authLoading) return <LoadingSpinner />;
 
-  // ── Guest mode ──────────────────────────────────────────────────────────
+  //  Guest mode 
   if (isGuest) {
     return (
       <div dir="rtl">
@@ -541,7 +541,7 @@ export default function Vehicles() {
     );
   }
 
-  // ── Authenticated mode ──────────────────────────────────────────────────
+  //  Authenticated mode 
   return (
     <>
       <PullToRefreshIndicator pulling={pulling} progress={progress} />

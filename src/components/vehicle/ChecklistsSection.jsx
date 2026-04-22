@@ -1,5 +1,5 @@
 /**
- * ChecklistsSection — sectioned, editable pre/engine/post checklists.
+ * ChecklistsSection. sectioned, editable pre/engine/post checklists.
  *
  * Internal data shape (jsonb on vessel_checklists.items):
  *   {
@@ -112,9 +112,9 @@ function totalStats(data) {
   return { total, done };
 }
 
-// ══════════════════════════════════════════════════════════════════════
+// 
 // Root section
-// ══════════════════════════════════════════════════════════════════════
+// 
 
 export default function ChecklistsSection({ vehicle }) {
   const qc = useQueryClient();
@@ -169,9 +169,9 @@ export default function ChecklistsSection({ vehicle }) {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════
+// 
 // Phase panel
-// ══════════════════════════════════════════════════════════════════════
+// 
 
 function PhasePanel({ phase, vehicle, row, loading, onChange }) {
   const qc = useQueryClient();
@@ -184,7 +184,7 @@ function PhasePanel({ phase, vehicle, row, loading, onChange }) {
   const [engineDialogOpen, setEngineDialogOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null); // section id pending delete
 
-  // Persistence helper — always writes the whole sections object back.
+  // Persistence helper. always writes the whole sections object back.
   const persist = async (next, extra = {}) => {
     if (row) {
       await db.vessel_checklists.update(row.id, { items: next, ...extra });
@@ -200,7 +200,7 @@ function PhasePanel({ phase, vehicle, row, loading, onChange }) {
     onChange();
   };
 
-  // ── Section-level ops ────────────────────────────────────────────
+  //  Section-level ops 
   const updateSections = (updater, extra = {}) =>
     persist({ ...data, sections: updater(data.sections) }, extra);
 
@@ -248,13 +248,13 @@ function PhasePanel({ phase, vehicle, row, loading, onChange }) {
     [...secs, { id: uid(), name, collapsed: false, items: [] }]
   );
 
-  // ── Finish run: clear all checks + stamp last_completed_at ──────
+  //  Finish run: clear all checks + stamp last_completed_at 
   const finishRun = () => updateSections(
     secs => secs.map(s => ({ ...s, items: s.items.map(it => ({ ...it, checked: false })) })),
     { last_completed_at: new Date().toISOString() }
   );
 
-  // ── Import defaults: for engine phase, ensure engine_type is set ─
+  //  Import defaults: for engine phase, ensure engine_type is set 
   const loadDefaults = async (engineTypeForPhase) => {
     const next = buildFromDefaults(phase, engineTypeForPhase);
     await persist(next);
@@ -427,9 +427,9 @@ function PhasePanel({ phase, vehicle, row, loading, onChange }) {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════
+// 
 // Section block (collapsible)
-// ══════════════════════════════════════════════════════════════════════
+// 
 
 function SectionBlock({
   section, onToggleCollapse, onRename, onAskDelete,
@@ -593,9 +593,9 @@ function SectionBlock({
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════
+// 
 // Engine-type picker dialog
-// ══════════════════════════════════════════════════════════════════════
+// 
 
 function EngineTypePicker({ open, current, onClose, onPick }) {
   return (

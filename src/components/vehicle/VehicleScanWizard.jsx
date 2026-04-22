@@ -134,8 +134,8 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
             { type: 'text', text: `אתה רואה תמונה או PDF של רישיון רכב ישראלי. חלץ את השדות המופיעים במסמך והחזר JSON בלבד.
 
 חוקים קריטיים נגד המצאה:
-- אם השדה לא מופיע במסמך — החזר "" (מחרוזת ריקה). אל תנחש.
-- אם המסמך אינו רישיון רכב, או שאינך יכול לקרוא אותו (טשטוש, חיתוך, איכות נמוכה) — החזר {"_unreadable": true}.
+- אם השדה לא מופיע במסמך. החזר "" (מחרוזת ריקה). אל תנחש.
+- אם המסמך אינו רישיון רכב, או שאינך יכול לקרוא אותו (טשטוש, חיתוך, איכות נמוכה). החזר {"_unreadable": true}.
 - מספר רכב הוא 7-8 ספרות עם מקפים. אל תחזיר אותיות.
 - תאריכים בפורמט DD/MM/YYYY כפי שהם מודפסים במסמך הישראלי.
 
@@ -393,7 +393,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
                   <span className="text-[10px] text-gray-400">PDF / JPG / PNG</span>
                   <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFileSelect} />
                 </label>
-                {/* Camera capture — uses the Capacitor Camera plugin on native
+                {/* Camera capture. uses the Capacitor Camera plugin on native
                     (Android WebView silently ignores capture="environment" and
                     only opens the gallery, so we route natives to takePhoto()). */}
                 <button
@@ -449,7 +449,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
         {step === 'preview' && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
-              {nonEmptyFields.length > 0 ? 'מצאתי את הפרטים הבאים – ניתן לערוך לפני האישור:' : 'לא חולצו פרטים. המשך להשלמה ידנית.'}
+              {nonEmptyFields.length > 0 ? 'מצאתי את הפרטים הבאים, ניתן לערוך לפני האישור:' : 'לא חולצו פרטים. המשך להשלמה ידנית.'}
             </p>
 
             {plateMismatchWarning && (
@@ -506,7 +506,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
           </div>
         )}
 
-        {/* STEP: COMPLETE (new vehicle – fill missing fields) */}
+        {/* STEP: COMPLETE (new vehicle, fill missing fields) */}
         {step === 'complete' && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600 bg-green-50 p-3 rounded-lg">

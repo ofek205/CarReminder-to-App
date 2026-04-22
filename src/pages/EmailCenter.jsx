@@ -17,14 +17,14 @@ import StatsStrip from '@/components/admin/StatsStrip';
 import BroadcastDialog from '@/components/admin/BroadcastDialog';
 
 /**
- * EmailCenter — Admin-only Email Management Center (Phase 1).
+ * EmailCenter. Admin-only Email Management Center (Phase 1).
  *
  * Access: protected by useIsAdmin. Non-admins see a denied screen and are
  * bounced to the dashboard. RLS on the DB blocks their queries anyway, so
  * the UI check is just a nicer experience than "forbidden" errors.
  *
  * Sections live in separate dialogs opened from the list of notifications,
- * rather than separate tabs — keeps the info density high and the flow
+ * rather than separate tabs. keeps the info density high and the flow
  * short for the admin.
  */
 
@@ -57,7 +57,7 @@ export default function EmailCenter() {
       .map(cat => ({ category: cat, items: byCat[cat] }));
   }, [notifications]);
 
-  // ── Loading / Access control ─────────────────────────────────────────────
+  //  Loading / Access control 
   if (isAdmin === null) return <LoadingSpinner />;
 
   if (isAdmin === false) {
@@ -81,7 +81,7 @@ export default function EmailCenter() {
     );
   }
 
-  // ── Admin view ───────────────────────────────────────────────────────────
+  //  Admin view 
   return (
     <div dir="rtl" className="min-h-screen pb-24" style={{ background: '#F4F7F3' }}>
       <PageHeader

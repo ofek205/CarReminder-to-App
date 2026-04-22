@@ -16,7 +16,7 @@ import { Star, Search, PlusCircle, LogIn, BadgeCheck, Car, Ship, Bike, Truck } f
 import { format } from "date-fns";
 import { C } from "@/lib/designTokens";
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+//  Helpers 
 function initials(name) {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/);
@@ -40,7 +40,7 @@ const VEHICLE_TYPE_ICON = {
   'כלי שטח': Car,
 };
 
-// ── Star rendering (display only) ──────────────────────────────────────────
+//  Star rendering (display only) 
 function StarDisplay({ rating, size = 16 }) {
   return (
     <div className="flex gap-0.5" aria-label={`${rating} מתוך 5 כוכבים`}>
@@ -53,7 +53,7 @@ function StarDisplay({ rating, size = 16 }) {
   );
 }
 
-// ── Avatar with initials ───────────────────────────────────────────────────
+//  Avatar with initials 
 function Avatar({ name, size = 44 }) {
   const hue = hueFromName(name);
   return (
@@ -70,7 +70,7 @@ function Avatar({ name, size = 44 }) {
   );
 }
 
-// ── Rating distribution bar ────────────────────────────────────────────────
+//  Rating distribution bar 
 function RatingBar({ stars, count, total }) {
   const pct = total > 0 ? (count / total) * 100 : 0;
   return (
@@ -88,7 +88,7 @@ function RatingBar({ stars, count, total }) {
   );
 }
 
-// ── Hero with average + distribution ───────────────────────────────────────
+//  Hero with average + distribution 
 function ReviewsHero({ reviews }) {
   const total = reviews.length;
   const avg = total ? reviews.reduce((s, r) => s + (r.rating || 0), 0) / total : 0;
@@ -134,7 +134,7 @@ function ReviewsHero({ reviews }) {
   );
 }
 
-// ── Single review card ────────────────────────────────────────────────────
+//  Single review card 
 function ReviewCard({ review }) {
   const Icon = VEHICLE_TYPE_ICON[review.vehicle_type] || Car;
   return (
@@ -191,7 +191,7 @@ function ReviewCard({ review }) {
   );
 }
 
-// ── Main page ──────────────────────────────────────────────────────────────
+//  Main page 
 export default function AdminReviews() {
   const { isGuest, isAuthenticated } = useAuth();
   const navigate = useNavigate();

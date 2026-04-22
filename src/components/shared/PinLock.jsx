@@ -8,7 +8,7 @@ import logo from '@/assets/logo.png';
 
 const PIN_LENGTH = 4;
 
-// ── Keypad row ─────────────────────────────────────────────────────────────
+//  Keypad row 
 function KeypadBtn({ value, onPress, icon, disabled }) {
   return (
     <button
@@ -27,7 +27,7 @@ function KeypadBtn({ value, onPress, icon, disabled }) {
   );
 }
 
-// ── Dot indicator ───────────────────────────────────────────────────────────
+//  Dot indicator 
 function Dots({ length, total, shake }) {
   return (
     <div
@@ -45,7 +45,7 @@ function Dots({ length, total, shake }) {
   );
 }
 
-// ── Shake CSS injected once ────────────────────────────────────────────────
+//  Shake CSS injected once 
 function injectShakeCSS() {
   if (document.getElementById('pin-shake-css')) return;
   const style = document.createElement('style');
@@ -217,7 +217,7 @@ export default function PinLock({ mode = 'unlock', onSuccess, onForgot, onCancel
   );
 }
 
-// ── Gate wrapper: shows PinLock if needed, else renders children ───────────
+//  Gate wrapper: shows PinLock if needed, else renders children 
 export function PinGate({ children }) {
   const [locked, setLocked] = useState(() => isPinEnabled() && !isStillUnlocked());
 

@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 const A11Y_CSS = `
-/* ── Font sizes ─────────────────────────────────
-   Scales TEXT only — never the html root. The previous rule
+/*  Font sizes 
+   Scales TEXT only. never the html root. The previous rule
    (html.a11y-font-1 { font-size: 110% }) zoomed every rem unit
    (padding, gap, width) because Tailwind is rem-based. Now the
    scale lives in --a11y-text-scale, applied selectively to
@@ -20,7 +20,7 @@ html.a11y-font-5  { --a11y-text-scale: 1.70; }
    fires when one of the a11y-font-* classes is on html, so default
    rendering is untouched for users with the scale set to 0/default. */
 html[class*="a11y-font"] body                { font-size: calc(1rem     * var(--a11y-text-scale, 1)) !important; }
-/* Arbitrary Tailwind values — common ones used throughout the app. */
+/* Arbitrary Tailwind values. common ones used throughout the app. */
 html[class*="a11y-font"] .text-\\[10px\\]     { font-size: calc(10px     * var(--a11y-text-scale, 1)) !important; }
 html[class*="a11y-font"] .text-\\[11px\\]     { font-size: calc(11px     * var(--a11y-text-scale, 1)) !important; }
 html[class*="a11y-font"] .text-\\[12px\\]     { font-size: calc(12px     * var(--a11y-text-scale, 1)) !important; }
@@ -35,7 +35,7 @@ html[class*="a11y-font"] .text-3xl           { font-size: calc(1.875rem * var(--
 html[class*="a11y-font"] .text-4xl           { font-size: calc(2.25rem  * var(--a11y-text-scale, 1)) !important; }
 html[class*="a11y-font"] .text-5xl           { font-size: calc(3rem     * var(--a11y-text-scale, 1)) !important; }
 
-/* ── Readable font ────────────────────────────── */
+/*  Readable font  */
 html.a11y-readable-font,
 html.a11y-readable-font * {
   font-family: Arial, 'Helvetica Neue', sans-serif !important;
@@ -43,7 +43,7 @@ html.a11y-readable-font * {
   word-spacing: 0.12em !important;
 }
 
-/* ── Line spacing ─────────────────────────────── */
+/*  Line spacing  */
 html.a11y-line-spacing p,
 html.a11y-line-spacing span,
 html.a11y-line-spacing li,
@@ -52,7 +52,7 @@ html.a11y-line-spacing div {
   line-height: 2 !important;
 }
 
-/* ── Highlight links ──────────────────────────── */
+/*  Highlight links  */
 html.a11y-highlight-links a,
 html.a11y-highlight-links [role="link"] {
   text-decoration: underline !important;
@@ -62,7 +62,7 @@ html.a11y-highlight-links [role="link"] {
   outline-offset: 2px !important;
 }
 
-/* ── Highlight focus ──────────────────────────── */
+/*  Highlight focus  */
 html.a11y-highlight-focus *:focus,
 html.a11y-highlight-focus *:focus-visible {
   outline: 3px solid #f97316 !important;
@@ -71,7 +71,7 @@ html.a11y-highlight-focus *:focus-visible {
   box-shadow: 0 0 0 5px rgba(249,115,22,0.25) !important;
 }
 
-/* ── Disable animations ───────────────────────── */
+/*  Disable animations  */
 html.a11y-no-animations *,
 html.a11y-no-animations *::before,
 html.a11y-no-animations *::after {
@@ -117,7 +117,7 @@ function persist(settings) {
 
 export function AccessibilityProvider({ children }) {
   // Initialise from localStorage synchronously so the first render already
-  // reflects the user's saved preferences — prevents the flash of default
+  // reflects the user's saved preferences. prevents the flash of default
   // styling that would happen if we loaded in useEffect.
   const [settings, setSettings] = useState(() => loadPersisted() || { ...defaultSettings });
   const styleRef = useRef(null);
@@ -160,7 +160,7 @@ export function AccessibilityProvider({ children }) {
   };
 
   // Explicit "save" is a no-op in state terms (we already auto-persist on
-  // every change) — but callers use it to show a confirmation toast and
+  // every change). but callers use it to show a confirmation toast and
   // close the panel. Keeping it as a function here lets the panel stay
   // agnostic about persistence details.
   const savePreferences = () => { persist(settings); };
@@ -180,7 +180,7 @@ export function AccessibilityProvider({ children }) {
 function applyClasses(settings) {
   const html = document.documentElement;
 
-  // Font size — strip any existing a11y-font-* class first so switching
+  // Font size. strip any existing a11y-font-* class first so switching
   // between scales doesn't leave two classes active at once (CSS cascade
   // would pick the wrong one). Range extended to -2 … +5.
   html.classList.remove(

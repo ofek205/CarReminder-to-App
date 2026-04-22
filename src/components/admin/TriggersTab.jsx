@@ -7,12 +7,12 @@ import { useEmailTriggers, useSaveTrigger, useRunDispatcher, useEmailNotificatio
 import { toast } from 'sonner';
 
 /**
- * TriggersTab — admin-facing controls for the automation layer.
+ * TriggersTab. admin-facing controls for the automation layer.
  *
  * Lists each time-based notification (reminder_*) with three knobs:
- *   • enabled toggle      — turns dispatch on/off
- *   • days_before         — how many days before expiry to fire
- *   • cooldown_days       — minimum gap between re-sends of the same kind
+ *   • enabled toggle     . turns dispatch on/off
+ *   • days_before        . how many days before expiry to fire
+ *   • cooldown_days      . minimum gap between re-sends of the same kind
  *
  * Plus a "Run now" button (actual + dry-run variants) for immediate testing.
  */

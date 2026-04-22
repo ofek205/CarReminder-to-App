@@ -31,7 +31,7 @@ import { reportError } from '@/lib/crashReporter';
 window.addEventListener('error', (e) => reportError('Error', e.error || e));
 window.addEventListener('unhandledrejection', (e) => reportError('Promise', e.reason));
 
-// Service Worker — offline support for web users only (Capacitor loads from
+// Service Worker. offline support for web users only (Capacitor loads from
 // file:// and doesn't need/benefit from a SW).
 if (!isNative && 'serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {

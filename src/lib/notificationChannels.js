@@ -1,5 +1,5 @@
 /**
- * Notification Channels — abstract interface for sending notifications.
+ * Notification Channels. abstract interface for sending notifications.
  *
  * Current channels:
  *   - local: Android device notifications via @capacitor/local-notifications
@@ -13,7 +13,7 @@
 import { isNative } from './capacitor';
 import { db } from './supabaseEntities';
 
-// ── Stable numeric ID from string (Capacitor requires numeric IDs) ─────────
+//  Stable numeric ID from string (Capacitor requires numeric IDs) 
 function hashStringToInt(str) {
   let hash = 5381;
   for (let i = 0; i < str.length; i++) {
@@ -22,7 +22,7 @@ function hashStringToInt(str) {
   return hash;
 }
 
-// ── Local Notifications (Android device) ───────────────────────────────────
+//  Local Notifications (Android device) 
 export async function scheduleLocalNotification({ id, title, body, scheduleAt, extra = {} }) {
   if (!isNative) return;
   try {
@@ -88,7 +88,7 @@ export async function checkNotificationPermission() {
   }
 }
 
-// ── Create notification channel (Android) ──────────────────────────────────
+//  Create notification channel (Android) 
 export async function createNotificationChannel() {
   if (!isNative) return;
   try {
@@ -107,7 +107,7 @@ export async function createNotificationChannel() {
   }
 }
 
-// ── In-App Notifications (Supabase notification_log) ───────────────────────
+//  In-App Notifications (Supabase notification_log) 
 export async function sendInAppNotification({ userId, vehicleId, type, title, body }) {
   try {
     await db.notification_log.create({
@@ -141,13 +141,13 @@ export async function getUnreadCount(userId) {
   }
 }
 
-// ── Future: Email Channel ──────────────────────────────────────────────────
+//  Future: Email Channel 
 // export async function sendEmailNotification({ to, subject, body }) {
 //   // Supabase Edge Function + Resend/SendGrid
 //   // await supabase.functions.invoke('send-email', { body: { to, subject, body } });
 // }
 
-// ── Future: WhatsApp Channel ───────────────────────────────────────────────
+//  Future: WhatsApp Channel 
 // export async function sendWhatsAppNotification({ phone, template, params }) {
 //   // WhatsApp Business API
 //   // await fetch('https://graph.facebook.com/v18.0/...', { ... });

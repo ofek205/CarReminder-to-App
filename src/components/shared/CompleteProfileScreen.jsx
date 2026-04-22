@@ -85,7 +85,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
       console.error('Profile save error:', err);
       // Don't block - save what we can
     }
-    // Real completion — mark done AND clear any active skip cooldown.
+    // Real completion. mark done AND clear any active skip cooldown.
     localStorage.setItem(COMPLETE_PROFILE_KEY, '1');
     localStorage.removeItem(SKIP_UNTIL_KEY);
     window.dispatchEvent(new Event('profileSaved'));
@@ -94,7 +94,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
   };
 
   const handleSkip = () => {
-    // Don't mark as completed — only set a short cooldown so the popup
+    // Don't mark as completed. only set a short cooldown so the popup
     // doesn't re-appear within the same session. It will resurface after
     // SKIP_COOLDOWN_DAYS days, and stays visible in Notifications forever
     // until the user actually fills phone in DB.

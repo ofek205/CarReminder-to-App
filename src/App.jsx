@@ -37,7 +37,7 @@ const LayoutWrapper = ({ children, currentPageName }) => {
   );
 };
 
-// ── Error Boundary — catches unhandled errors (e.g. Base44 SDK crashes) ────
+//  Error Boundary. catches unhandled errors (e.g. Base44 SDK crashes) 
 class AppErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, errorMsg: '' }; }
   static getDerivedStateFromError(err) { return { hasError: true, errorMsg: err?.message || String(err) }; }

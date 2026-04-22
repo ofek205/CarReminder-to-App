@@ -7,7 +7,7 @@
 import { differenceInDays, parseISO } from 'date-fns';
 import { getVehicleLabels, isVessel } from './DateStatusUtils';
 
-// ── Primitive helpers ──────────────────────────────────────────────────────────
+//  Primitive helpers 
 
 /** Days until a date string. Negative means past due. */
 export function daysUntil(dateStr) {
@@ -46,7 +46,7 @@ export function daysLabelShort(daysLeft) {
   return `${daysLeft} ימים`;
 }
 
-// ── Category → doc type mapping ────────────────────────────────────────────────
+//  Category → doc type mapping 
 const INSURANCE_TYPES = new Set(['ביטוח חובה', 'ביטוח מקיף', 'ביטוח צד ג', 'צד ג']);
 const TEST_TYPES      = new Set(['טסט']);
 const LICENSE_TYPES   = new Set(['רישיון רכב', 'רישיון נהיגה']);
@@ -60,18 +60,18 @@ export function getDocEmoji(documentType) {
   return '📄';
 }
 
-// ── Main calculation ───────────────────────────────────────────────────────────
+//  Main calculation 
 
 /**
  * calcReminders({ vehicles, documents, settings })
- * Legacy wrapper — calls calcAllReminders for backward compat.
+ * Legacy wrapper. calls calcAllReminders for backward compat.
  */
 export function calcReminders({ vehicles = [], documents = [], settings = {} }) {
   return calcAllReminders({ vehicles, documents, settings });
 }
 
 /**
- * calcAllReminders — UNIFIED notification engine.
+ * calcAllReminders. UNIFIED notification engine.
  * Used by: NotificationBell, Notifications page, device notifications.
  *
  * Computes ALL 13 notification types:
@@ -355,10 +355,10 @@ export function calcUsageAlerts({ vehicle, logs = [], catalog = [] }) {
     const lastKm  = lastLog ? Number(lastLog.km_at_service) : null;
     const current = currentKm;
 
-    if (current === null) return; // no current reading — skip
+    if (current === null) return; // no current reading. skip
 
     // If no log exists, count from km_baseline (the odometer when the vehicle was added).
-    // This ensures alerts only fire after the user has actually driven an interval since joining —
+    // This ensures alerts only fire after the user has actually driven an interval since joining 
     // not immediately because the odometer was high when they first registered.
     const baseline  = vehicle.km_baseline != null ? Number(vehicle.km_baseline) : current;
     const since     = lastKm !== null ? current - lastKm : current - baseline;

@@ -1,5 +1,5 @@
 /**
- * Supabase data access layer — replaces base44.entities
+ * Supabase data access layer. replaces base44.entities
  *
  * Usage:  import { db } from '@/lib/supabaseEntities';
  *         const rows = await db.vehicles.filter({ account_id: '...' });
@@ -7,7 +7,7 @@
  */
 import { supabase } from './supabase';
 
-// ── Security helpers ──────────────────────────────────────────────────────
+//  Security helpers 
 const VALID_KEY = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 function validateFilterKeys(conditions) {
@@ -72,11 +72,11 @@ function makeEntity(table) {
      * Filter rows by exact-match conditions. Returns array of rows.
      *
      * Options (second arg):
-     *   select  — column list string, e.g. 'id,name,status'. Defaults '*'.
+     *   select . column list string, e.g. 'id,name,status'. Defaults '*'.
      *             Use this on list pages to skip heavy base64 columns
      *             (vehicle_photo, receipt_photo, image_url, file_url).
-     *   limit   — integer, caps rows returned.
-     *   order   — { column, ascending? } for server-side ordering.
+     *   limit  . integer, caps rows returned.
+     *   order  . { column, ascending? } for server-side ordering.
      */
     async filter(conditions = {}, { select = '*', limit, order } = {}) {
       validateFilterKeys(conditions);

@@ -37,7 +37,7 @@ async function callGemini(body) {
         if (part.type === 'text') {
           parts.push({ text: part.text });
         } else if ((part.type === 'image' || part.type === 'document') && part.source?.type === 'base64') {
-          // Gemini accepts both images and PDFs via inline_data — same shape,
+          // Gemini accepts both images and PDFs via inline_data. same shape,
           // just different mime_type. Document type used for PDF uploads.
           parts.push({
             inline_data: {
@@ -159,7 +159,7 @@ async function callClaude(body) {
  */
 export async function aiRequest(body) {
   // Detect whether this request includes any images. Groq is text-only and
-  // silently strips image parts — sending an OCR prompt to it would make the
+  // silently strips image parts. sending an OCR prompt to it would make the
   // model hallucinate from the prompt alone (this caused garbage results in
   // the vehicle license scan flow). Vision requests must skip straight to
   // Gemini (or another vision-capable provider).

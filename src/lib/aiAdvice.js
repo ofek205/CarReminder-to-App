@@ -1,5 +1,5 @@
 /**
- * AI Advice for vessel issues — uses proxy to avoid exposing API key
+ * AI Advice for vessel issues. uses proxy to avoid exposing API key
  */
 import { aiRequest } from './aiProxy';
 

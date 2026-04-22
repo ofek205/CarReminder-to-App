@@ -23,7 +23,7 @@ const EVENT_VISUAL = {
 };
 
 /**
- * SendLogTab — recent dispatch history.
+ * SendLogTab. recent dispatch history.
  *
  * Read-only table of the last 100 send attempts, grouped by status, with
  * basic filtering. Admins can click a row to see the metadata (template
@@ -103,7 +103,7 @@ export default function SendLogTab() {
   );
 }
 
-// ── Expanded row: event timeline + metadata ────────────────────────────────
+//  Expanded row: event timeline + metadata 
 function ExpandedDetail({ row }) {
   const { data: events = [], isLoading } = useSendEvents(row.id);
 

@@ -1,5 +1,5 @@
 /**
- * /MaintenanceTemplates — per-user reminder settings for maintenance + repairs.
+ * /MaintenanceTemplates. per-user reminder settings for maintenance + repairs.
  *
  * UX direction (after the "מבולגן" complaint):
  *   - Every row is 2 lines, same height, no inline-expand. Editing opens
@@ -8,7 +8,7 @@
  *   - Single-row filter (<Select> + search input) replaces the chip row.
  *   - "+ חדש" is a small floating button in the page header, not a huge
  *     green bar at the bottom.
- *   - Info banner removed — replaced by a single gray hint under the list.
+ *   - Info banner removed. replaced by a single gray hint under the list.
  *
  * Source of truth for the built-in catalog stays in code
  * (src/components/shared/MaintenanceCatalog.jsx). The DB only stores
@@ -36,9 +36,9 @@ import { useAuth } from "@/components/shared/GuestContext";
 import { MAINTENANCE_CATALOG, MAINTENANCE_CATEGORIES, getCatalogForVehicleType } from "@/components/shared/MaintenanceCatalog";
 import { C } from '@/lib/designTokens';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Guest view (unchanged from prior version — keep the marketing teaser)
-// ═══════════════════════════════════════════════════════════════════════════
+// 
+// Guest view (unchanged from prior version. keep the marketing teaser)
+// 
 
 export default function MaintenanceTemplates() {
   const { isGuest } = useAuth();
@@ -75,9 +75,9 @@ function GuestView() {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Authenticated view — the real page
-// ═══════════════════════════════════════════════════════════════════════════
+// 
+// Authenticated view. the real page
+// 
 
 function AuthenticatedView() {
   const [userId, setUserId] = useState(null);
@@ -100,7 +100,7 @@ function AuthenticatedView() {
     enabled: !!userId,
   });
 
-  // Maintenance history — used to show "בוצע לפני X" next to each row.
+  // Maintenance history. used to show "בוצע לפני X" next to each row.
   // We read ALL logs the user can see (RLS already filters by account
   // membership) and build a name → latest-date map below.
   const { data: logs = [] } = useQuery({
@@ -131,7 +131,7 @@ function AuthenticatedView() {
     return map;
   }, [logs]);
 
-  // Best-effort lookup — tries exact match first, then substring match
+  // Best-effort lookup. tries exact match first, then substring match
   // in either direction. Returns the date string or null.
   const findLastDone = React.useCallback((catalogName) => {
     if (!catalogName) return null;
@@ -153,7 +153,7 @@ function AuthenticatedView() {
     return Array.from(s);
   }, [vehicles]);
 
-  // Most-owned vehicle type — used as the default filter so a user with
+  // Most-owned vehicle type. used as the default filter so a user with
   // 10 cars and 1 boat lands on "רכב", not on the noisy "הכל" mix.
   const dominantVehicleType = useMemo(() => {
     if (!vehicles.length) return null;
@@ -212,7 +212,7 @@ function AuthenticatedView() {
     return out;
   }, [prefs, userVehicleTypes]);
 
-  // ── Filters: vehicle-type Select + search input — one row, compact ──
+  //  Filters: vehicle-type Select + search input. one row, compact 
   // Default to the dominant vehicle type (most-owned). User can change
   // freely; once they do, we stop auto-syncing (respect their choice).
   const [vehicleFilter, setVehicleFilter] = useState(null);
@@ -256,7 +256,7 @@ function AuthenticatedView() {
     });
   }, [visibleList]);
 
-  // ── Editor sheet + create dialog state ─────────────────────────────────
+  //  Editor sheet + create dialog state 
   const [editing, setEditing] = useState(null);   // item being edited in the sheet
   const [createOpen, setCreateOpen] = useState(false);
   const [createRepairOpen, setCreateRepairOpen] = useState(false);
@@ -283,7 +283,7 @@ function AuthenticatedView() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Maintenance tab ────────────────────────────────────────── */}
+        {/*  Maintenance tab  */}
         <TabsContent value="maintenance" className="m-0">
 
           {/* Single-row filter + search */}
@@ -322,7 +322,7 @@ function AuthenticatedView() {
             </Button>
           </div>
 
-          {/* List — grouped by category */}
+          {/* List. grouped by category */}
           {visibleList.length === 0 ? (
             <EmptyState search={search} onAdd={() => setCreateOpen(true)} />
           ) : (
@@ -358,7 +358,7 @@ function AuthenticatedView() {
           </p>
         </TabsContent>
 
-        {/* ── Repairs tab ────────────────────────────────────────────── */}
+        {/*  Repairs tab  */}
         <TabsContent value="repairs" className="m-0">
           <div className="flex items-center justify-end mb-4">
             <Button
@@ -415,14 +415,14 @@ function AuthenticatedView() {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // Row components
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 function MaintenanceRow({ item, isLast, userId, lastDoneDate, onEdit, onQueryInvalidate }) {
   const [pending, setPending] = useState(false);
 
-  // Toggle enabled directly without opening the sheet — most common action.
+  // Toggle enabled directly without opening the sheet. most common action.
   const handleToggle = async (value) => {
     setPending(true);
     try {
@@ -437,7 +437,7 @@ function MaintenanceRow({ item, isLast, userId, lastDoneDate, onEdit, onQueryInv
 
   // Row uses a <div> with role=button rather than a real <button>, so the
   // Radix Switch (which is itself a button) never ends up as a descendant
-  // of another button — fixes the validateDOMNesting warning. The Switch
+  // of another button. fixes the validateDOMNesting warning. The Switch
   // stops event propagation so clicking the toggle doesn't also open the
   // editor sheet.
   return (
@@ -536,9 +536,9 @@ function EmptyState({ search, onAdd }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // Edit bottom sheet
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 function MaintenanceEditorSheet({ item, open, onClose, userId }) {
   const qc = useQueryClient();
@@ -660,9 +660,9 @@ function MaintenanceEditorSheet({ item, open, onClose, userId }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // Create dialogs (custom maintenance / repair)
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 function CreateMaintenanceDialog({ open, onClose, userId, vehicleTypes }) {
   const qc = useQueryClient();
@@ -791,9 +791,9 @@ function CreateRepairDialog({ open, onClose, userId }) {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // Helpers
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 function Field({ label, value, onChange, suffix, type = 'text', placeholder }) {
   return (
@@ -862,7 +862,7 @@ function buildIntervalText(months, km) {
 
 async function upsertPref({ pref_id, user_id, catalog_key, is_custom, custom_name, vehicle_type,
                            interval_months, interval_km, remind_days_before, enabled, name /* row may pass full item */ }) {
-  // Allow callers to pass the full row (includes `name`) — we ignore
+  // Allow callers to pass the full row (includes `name`). we ignore
   // extras so handleToggle at the row level can just spread the item.
   const payload = {
     user_id,

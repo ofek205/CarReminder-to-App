@@ -218,7 +218,7 @@ export default function EditVehicle() {
     const validation = validateUploadFile(file, 'photo', 10);
     if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
     try {
-      // Shared compressor — WebP when supported, JPEG fallback. Keeps the
+      // Shared compressor. WebP when supported, JPEG fallback. Keeps the
       // final data URL small so the row fits comfortably.
       const small = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.75 });
       const base64 = await new Promise((resolve, reject) => {
@@ -244,7 +244,7 @@ export default function EditVehicle() {
     const vesselMode = isVesselType(form.vehicle_type, form.nickname);
 
     // Check for duplicate license plate (excluding self). Skip the check if
-    // the plate is empty — also skip for vessels (letter-based IDs get
+    // the plate is empty. also skip for vessels (letter-based IDs get
     // stripped to nothing by normalizePlate and would falsely match any car).
     const normalizedNew = normalizePlate(form.license_plate);
     if (normalizedNew && accountId && !isGuest) {
@@ -256,7 +256,7 @@ export default function EditVehicle() {
         );
         if (duplicate) {
           const dupName = duplicate.nickname || duplicate.license_plate || 'רכב אחר';
-          toast.error(`מספר הרישוי כבר קיים ב"${dupName}" — אי אפשר להזין פעמיים`);
+          toast.error(`מספר הרישוי כבר קיים ב"${dupName}". אי אפשר להזין פעמיים`);
           setSaving(false);
           return;
         }
@@ -403,7 +403,7 @@ export default function EditVehicle() {
 
   return (
     <div dir="rtl">
-      {/* ── Hero Header ── */}
+      {/*  Hero Header  */}
       <div className="rounded-3xl p-4 pb-5 mb-5 relative overflow-hidden"
         style={{ background: T.grad || C.grad, boxShadow: `0 8px 32px ${T.primary}30` }}>
         <div className="absolute -top-12 -left-12 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.07)' }} />
@@ -429,9 +429,9 @@ export default function EditVehicle() {
         </div>
       </div>
 
-      {/* Sync button removed — data is fetched once on AddVehicle */}
+      {/* Sync button removed. data is fetched once on AddVehicle */}
 
-      {/* ── Photo ── */}
+      {/*  Photo  */}
       <div className="flex flex-col items-center gap-2.5 mb-6">
         {photoPreview ? (
           <img src={photoPreview} alt="" className="w-28 h-28 rounded-2xl object-cover"
@@ -459,7 +459,7 @@ export default function EditVehicle() {
         </div>
       </div>
 
-      {/* ── Form ── */}
+      {/*  Form  */}
       <div className="p-4 sm:p-6 rounded-3xl" style={{ background: '#FAFAF8', border: `1.5px solid ${T.border || '#E8E0D4'}`, boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
         <form onSubmit={handleSubmit} className="space-y-4">
 
@@ -746,7 +746,7 @@ export default function EditVehicle() {
             </div>
           )}
 
-          {/* ── Off-road equipment section ── */}
+          {/*  Off-road equipment section  */}
           {(offroadMode || hasOffroadData) && (
             <div className="border border-green-200 bg-green-50 rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-2 mb-1">

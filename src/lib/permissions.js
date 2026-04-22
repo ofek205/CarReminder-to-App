@@ -2,31 +2,31 @@
  * Permission helpers for family vehicle sharing.
  *
  * Roles:
- *   בעלים (Owner)  — full control
- *   מנהל  (Admin)  — add/edit, but not delete vehicles or remove members
- *   חבר   (Member) — view only
+ *   בעלים (Owner) . full control
+ *   מנהל  (Admin) . add/edit, but not delete vehicles or remove members
+ *   חבר   (Member). view only
  *
  * Usage:
  *   import { canEdit, canDelete, canManage, isViewOnly } from '@/lib/permissions';
  *   if (canEdit(role)) { ... }
  */
 
-/** Owner or Admin — can add/edit vehicles, maintenance, documents */
+/** Owner or Admin. can add/edit vehicles, maintenance, documents */
 export function canEdit(role) {
   return role === 'בעלים' || role === 'מנהל';
 }
 
-/** Owner only — can delete vehicles, remove members */
+/** Owner only. can delete vehicles, remove members */
 export function canDelete(role) {
   return role === 'בעלים';
 }
 
-/** Owner or Admin — can invite members, manage account settings */
+/** Owner or Admin. can invite members, manage account settings */
 export function canManage(role) {
   return role === 'בעלים' || role === 'מנהל';
 }
 
-/** Owner or Admin — can send invites */
+/** Owner or Admin. can send invites */
 export function canInvite(role) {
   return canManage(role);
 }
@@ -36,7 +36,7 @@ export function isOwner(role) {
   return role === 'בעלים';
 }
 
-/** View-only role — no mutations */
+/** View-only role. no mutations */
 export function isViewOnly(role) {
   return role === 'שותף';
 }

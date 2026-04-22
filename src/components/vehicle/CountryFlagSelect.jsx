@@ -6,7 +6,7 @@ import { ChevronsUpDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const COUNTRIES = [
-  // ── Middle East ──
+  //  Middle East 
   { code: 'IL', flag: '🇮🇱', name: 'ישראל' },
   { code: 'AE', flag: '🇦🇪', name: 'איחוד האמירויות' },
   { code: 'SA', flag: '🇸🇦', name: 'ערב הסעודית' },
@@ -21,7 +21,7 @@ const COUNTRIES = [
   { code: 'OM', flag: '🇴🇲', name: 'עומאן' },
   { code: 'YE', flag: '🇾🇪', name: 'תימן' },
   { code: 'SY', flag: '🇸🇾', name: 'סוריה' },
-  // ── Europe ──
+  //  Europe 
   { code: 'GB', flag: '🇬🇧', name: 'בריטניה' },
   { code: 'FR', flag: '🇫🇷', name: 'צרפת' },
   { code: 'DE', flag: '🇩🇪', name: 'גרמניה' },
@@ -72,11 +72,11 @@ const COUNTRIES = [
   { code: 'AD', flag: '🇦🇩', name: 'אנדורה' },
   { code: 'LI', flag: '🇱🇮', name: 'ליכטנשטיין' },
   { code: 'SM', flag: '🇸🇲', name: 'סן מרינו' },
-  // ── North America ──
+  //  North America 
   { code: 'US', flag: '🇺🇸', name: 'ארצות הברית' },
   { code: 'CA', flag: '🇨🇦', name: 'קנדה' },
   { code: 'MX', flag: '🇲🇽', name: 'מקסיקו' },
-  // ── Central America & Caribbean ──
+  //  Central America & Caribbean 
   { code: 'PA', flag: '🇵🇦', name: 'פנמה' },
   { code: 'CR', flag: '🇨🇷', name: 'קוסטה ריקה' },
   { code: 'GT', flag: '🇬🇹', name: 'גואטמלה' },
@@ -96,7 +96,7 @@ const COUNTRIES = [
   { code: 'VG', flag: '🇻🇬', name: 'איי הבתולה הבריטיים' },
   { code: 'VI', flag: '🇻🇮', name: 'איי הבתולה האמריקניים' },
   { code: 'PR', flag: '🇵🇷', name: 'פוארטו ריקו' },
-  // ── South America ──
+  //  South America 
   { code: 'BR', flag: '🇧🇷', name: 'ברזיל' },
   { code: 'AR', flag: '🇦🇷', name: 'ארגנטינה' },
   { code: 'CL', flag: '🇨🇱', name: 'צ׳ילה' },
@@ -109,7 +109,7 @@ const COUNTRIES = [
   { code: 'BO', flag: '🇧🇴', name: 'בוליביה' },
   { code: 'GY', flag: '🇬🇾', name: 'גיאנה' },
   { code: 'SR', flag: '🇸🇷', name: 'סורינאם' },
-  // ── East Asia ──
+  //  East Asia 
   { code: 'CN', flag: '🇨🇳', name: 'סין' },
   { code: 'JP', flag: '🇯🇵', name: 'יפן' },
   { code: 'KR', flag: '🇰🇷', name: 'דרום קוריאה' },
@@ -118,7 +118,7 @@ const COUNTRIES = [
   { code: 'MN', flag: '🇲🇳', name: 'מונגוליה' },
   { code: 'HK', flag: '🇭🇰', name: 'הונג קונג' },
   { code: 'MO', flag: '🇲🇴', name: 'מקאו' },
-  // ── Southeast Asia ──
+  //  Southeast Asia 
   { code: 'TH', flag: '🇹🇭', name: 'תאילנד' },
   { code: 'VN', flag: '🇻🇳', name: 'וייטנאם' },
   { code: 'ID', flag: '🇮🇩', name: 'אינדונזיה' },
@@ -129,21 +129,21 @@ const COUNTRIES = [
   { code: 'KH', flag: '🇰🇭', name: 'קמבודיה' },
   { code: 'LA', flag: '🇱🇦', name: 'לאוס' },
   { code: 'BN', flag: '🇧🇳', name: 'ברוניי' },
-  // ── South Asia ──
+  //  South Asia 
   { code: 'IN', flag: '🇮🇳', name: 'הודו' },
   { code: 'PK', flag: '🇵🇰', name: 'פקיסטן' },
   { code: 'BD', flag: '🇧🇩', name: 'בנגלדש' },
   { code: 'LK', flag: '🇱🇰', name: 'סרי לנקה' },
   { code: 'NP', flag: '🇳🇵', name: 'נפאל' },
   { code: 'MV', flag: '🇲🇻', name: 'מלדיביים' },
-  // ── Central Asia ──
+  //  Central Asia 
   { code: 'KZ', flag: '🇰🇿', name: 'קזחסטן' },
   { code: 'UZ', flag: '🇺🇿', name: 'אוזבקיסטן' },
   { code: 'TM', flag: '🇹🇲', name: 'טורקמניסטן' },
   { code: 'KG', flag: '🇰🇬', name: 'קירגיזסטן' },
   { code: 'TJ', flag: '🇹🇯', name: 'טג׳יקיסטן' },
   { code: 'AF', flag: '🇦🇫', name: 'אפגניסטן' },
-  // ── Africa ──
+  //  Africa 
   { code: 'ZA', flag: '🇿🇦', name: 'דרום אפריקה' },
   { code: 'NG', flag: '🇳🇬', name: 'ניגריה' },
   { code: 'KE', flag: '🇰🇪', name: 'קניה' },
@@ -171,7 +171,7 @@ const COUNTRIES = [
   { code: 'SC', flag: '🇸🇨', name: 'סיישל' },
   { code: 'LR', flag: '🇱🇷', name: 'ליבריה' },
   { code: 'MH', flag: '🇲🇭', name: 'איי מרשל' },
-  // ── Oceania ──
+  //  Oceania 
   { code: 'AU', flag: '🇦🇺', name: 'אוסטרליה' },
   { code: 'NZ', flag: '🇳🇿', name: 'ניו זילנד' },
   { code: 'FJ', flag: '🇫🇯', name: 'פיג׳י' },

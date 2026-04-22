@@ -94,7 +94,7 @@ export function GuestProvider({ children }) {
       // Get account_id for the authenticated user
       const members = await db.account_members.filter({ user_id: authenticatedUser.id, status: 'פעיל' });
       if (members.length === 0) {
-        // New user might not have account_members yet — retry after short delay
+        // New user might not have account_members yet. retry after short delay
         setTimeout(() => {
           migrationRunRef.current = false;
           migrateGuestDataIfNeeded(authenticatedUser);
@@ -156,7 +156,7 @@ export function GuestProvider({ children }) {
       }
     } catch (err) {
       console.error('Guest data migration error:', err);
-      // Don't block the user — they can still use the app
+      // Don't block the user. they can still use the app
     } finally {
       migrationRunRef.current = false;
     }
@@ -213,7 +213,7 @@ export function GuestProvider({ children }) {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
-  // ── Vehicles ────────────────────────────────────────────────────────────────
+  //  Vehicles 
 
   const addGuestVehicle = (vehicleData) => {
     if (guestVehicles.length >= 20) return null;
@@ -279,7 +279,7 @@ export function GuestProvider({ children }) {
     try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || DEFAULT_REMINDER_SETTINGS; } catch { return DEFAULT_REMINDER_SETTINGS; }
   };
 
-  // ── Documents ───────────────────────────────────────────────────────────────
+  //  Documents 
 
   const addGuestDocument = (docData) => {
     const cleanData = Object.fromEntries(
@@ -302,7 +302,7 @@ export function GuestProvider({ children }) {
     });
   };
 
-  // ── Accidents ──────────────────────────────────────────────────────────────
+  //  Accidents 
 
   const addGuestAccident = (data) => {
     const cleanData = Object.fromEntries(
@@ -333,7 +333,7 @@ export function GuestProvider({ children }) {
     });
   };
 
-  // ── Vessel Issues ──────────────────────────────────────────────────────────
+  //  Vessel Issues 
 
   const addGuestVesselIssue = (data) => {
     const cleanData = Object.fromEntries(
@@ -364,7 +364,7 @@ export function GuestProvider({ children }) {
     });
   };
 
-  // ── Cork notes ─────────────────────────────────────────────────────────────
+  //  Cork notes 
 
   const addGuestCorkNote = (noteData) => {
     const note = { ...noteData, id: `guest_note_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
@@ -392,7 +392,7 @@ export function GuestProvider({ children }) {
     });
   };
 
-  // ── Reminder settings ───────────────────────────────────────────────────────
+  //  Reminder settings 
 
   const updateGuestReminderSettings = (changes) => {
     setGuestReminderSettings(prev => {
@@ -402,7 +402,7 @@ export function GuestProvider({ children }) {
     });
   };
 
-  // ── User ────────────────────────────────────────────────────────────────────
+  //  User 
 
   const refreshUser = async () => {
     const { data: { user: u } } = await supabase.auth.getUser();
@@ -413,7 +413,7 @@ export function GuestProvider({ children }) {
     }
   };
 
-  // ── Demo ────────────────────────────────────────────────────────────────────
+  //  Demo 
 
   const dismissDemo = () => {
     localStorage.setItem(DEMO_DISMISSED_KEY, 'true');
@@ -478,7 +478,7 @@ export function GuestProvider({ children }) {
   );
 }
 
-// Safe default — returned when useAuth() is called outside <GuestProvider>
+// Safe default. returned when useAuth() is called outside <GuestProvider>
 // Prevents "Cannot destructure property 'user' of 'useAuth(...)' as it is null" crashes
 const SAFE_DEFAULT_AUTH = {
   authState: 'loading',

@@ -4,7 +4,7 @@ import { AlertTriangle, RefreshCw, MessageCircle, X } from 'lucide-react';
 /**
  * System error banner for API/save/upload failures.
  * Shows a clear message with "רענן", "תמיכה" and a dismiss (X) action.
- * The onDismiss prop was being accepted but ignored — now it drives a
+ * The onDismiss prop was being accepted but ignored. now it drives a
  * close button so the banner can actually be dismissed.
  */
 export default function SystemErrorBanner({ message, onRetry, onDismiss }) {

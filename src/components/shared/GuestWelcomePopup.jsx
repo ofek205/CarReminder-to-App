@@ -4,7 +4,7 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Car, Bell, Sparkles, MapPin, Database, ScanLine } from "lucide-react";
 
 /**
- * GuestWelcomePopup — shown every time a user enters in guest mode.
+ * GuestWelcomePopup. shown every time a user enters in guest mode.
  * Shares DNA with WelcomePopup (magazine-cover hero + premium CTA).
  * Primary CTA pushes to /Auth; secondary lets the user continue as guest.
  */
@@ -21,7 +21,7 @@ export default function GuestWelcomePopup({ open, onClose }) {
           <DialogTitle>ברוך הבא כאורח</DialogTitle>
         </VisuallyHidden.Root>
 
-        {/* ── Hero ─────────────────────────────────────────────────────── */}
+        {/*  Hero  */}
         <div className="relative overflow-hidden"
           style={{
             background: 'linear-gradient(165deg, #1C3620 0%, #2D5233 45%, #4A8C5C 100%)',
@@ -53,7 +53,7 @@ export default function GuestWelcomePopup({ open, onClose }) {
           </h2>
         </div>
 
-        {/* ── Content ──────────────────────────────────────────────────── */}
+        {/*  Content  */}
         <div className="px-6 pt-5 pb-5">
           <p className="text-gray-600 text-center text-sm leading-relaxed mb-4">
             סיור קצר במה שתקבל, עוד לפני שנרשמת.
@@ -80,7 +80,7 @@ export default function GuestWelcomePopup({ open, onClose }) {
               body="מספר רישוי אחד, והמפרט המלא נטען מעצמו." />
           </div>
 
-          {/* CTAs — register primary, continue as guest secondary */}
+          {/* CTAs. register primary, continue as guest secondary */}
           <button onClick={handleSignup}
             className="w-full text-white font-extrabold transition-all active:translate-y-px mt-5"
             style={{

@@ -15,7 +15,7 @@ const CATEGORY_VISUAL = {
 };
 
 /**
- * NotificationTypeRow — a single row in the Notifications table.
+ * NotificationTypeRow. a single row in the Notifications table.
  *
  * Shows: category badge · display name · description · status · actions.
  * Actions: enable/disable toggle, "edit template", "send test".

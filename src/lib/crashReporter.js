@@ -1,12 +1,12 @@
 /**
- * Crash reporter — fire-and-forget error logging.
+ * Crash reporter. fire-and-forget error logging.
  *
  * Errors are written to:
- *   1. localStorage 'app_error_log' (cap 50) — used by the Admin Bugs tab
+ *   1. localStorage 'app_error_log' (cap 50). used by the Admin Bugs tab
  *   2. Supabase table 'app_errors' (best-effort, silently fails if the
  *      table doesn't exist or RLS blocks). Batched when offline.
  *
- * No third-party SDK (Sentry etc.) — keeps the bundle lean and avoids
+ * No third-party SDK (Sentry etc.). keeps the bundle lean and avoids
  * sending data to external services without an explicit contract.
  *
  * To enable remote reporting, run scripts/supabase-add-app-errors.sql.
@@ -57,11 +57,11 @@ async function flushQueue() {
   try {
     const { error } = await supabase.from('app_errors').insert(items);
     if (error) {
-      // Table may not exist yet, or RLS blocked — requeue silently
+      // Table may not exist yet, or RLS blocked. requeue silently
       items.forEach(pushQueue);
     }
   } catch {
-    // Network/other — requeue so we retry later
+    // Network/other. requeue so we retry later
     items.forEach(pushQueue);
   }
 }
@@ -78,9 +78,9 @@ function scheduleFlush() {
  * Record an error. Always writes to localStorage; attempts a remote insert
  * (best-effort) a short time later so a crash storm can't flood Supabase.
  *
- * @param {string} type    — 'Error' | 'Promise' | 'React' | custom
+ * @param {string} type   . 'Error' | 'Promise' | 'React' | custom
  * @param {Error|string} error
- * @param {object} [extra] — free-form context (page, action, etc.)
+ * @param {object} [extra]. free-form context (page, action, etc.)
  */
 export function reportError(type, error, extra) {
   const entry = {

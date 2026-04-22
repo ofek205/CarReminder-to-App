@@ -1,15 +1,15 @@
 /**
- * emailRender — the glue between a DB-stored email template (editable by
+ * emailRender. the glue between a DB-stored email template (editable by
  * admins) and the final HTML that goes to Resend.
  *
  * Pipeline:
  *   notification_key + vars
- *     → fetchTemplate()       — SELECT from email_templates via RPC
- *     → renderPlaceholders    — {{x}} → vars.x (or literal if missing)
- *     → buildEmailHtml()      — wrap in the brand shell (logo, footer, …)
+ *     → fetchTemplate()      . SELECT from email_templates via RPC
+ *     → renderPlaceholders   . {{x}} → vars.x (or literal if missing)
+ *     → buildEmailHtml()     . wrap in the brand shell (logo, footer, …)
  *     → { subject, html, text, fromName, fromEmail, replyTo }
  *
- * Also exposes renderFromTemplateObject() for the admin preview UI —
+ * Also exposes renderFromTemplateObject() for the admin preview UI 
  * same render path but takes the unsaved template object directly.
  *
  * Feature flag: VITE_USE_DB_TEMPLATES. When false/unset, renderEmail()
@@ -25,13 +25,13 @@ import { renderPlaceholders } from './emailValidate';
 export const DB_TEMPLATES_ENABLED =
   String(import.meta.env.VITE_USE_DB_TEMPLATES || '').toLowerCase() === 'true';
 
-// ── Internal helpers ───────────────────────────────────────────────────────
+//  Internal helpers 
 
 // Escape every value in the vars map before it gets substituted into the
 // HTML body. URLs get a looser treatment (escape only ", <, > to keep
 // query-strings intact). Call sites that WANT raw HTML inside a value
 // (e.g. a bolded name already marked safe) can pass `{ raw: { key: '<b>x</b>' }}`
-// via the `rawVars` option — but by default everything is escaped.
+// via the `rawVars` option. but by default everything is escaped.
 function escapeValuesForHtml(vars = {}, rawVars = {}) {
   const out = {};
   for (const [k, v] of Object.entries(vars)) {
@@ -51,7 +51,7 @@ function plainVars(vars = {}) {
   return out;
 }
 
-// ── Public API ─────────────────────────────────────────────────────────────
+//  Public API 
 
 /**
  * Fetch a template row by notification key. Uses the SECURITY DEFINER
@@ -74,8 +74,8 @@ export async function fetchTemplate(notificationKey) {
  * Render a template object (from DB or an unsaved editor draft) into the
  * full email payload ready for Resend.
  *
- * @param {object} template  — row from email_templates (or in-memory draft)
- * @param {object} vars      — values for the {{placeholders}}
+ * @param {object} template . row from email_templates (or in-memory draft)
+ * @param {object} vars     . values for the {{placeholders}}
  * @param {object} options
  *   - rawVars: map of keys whose value should NOT be escaped (caller has
  *              already produced trusted HTML). Use sparingly.
@@ -96,7 +96,7 @@ export function renderFromTemplateObject(template, vars = {}, options = {}) {
   const bodyHtmlRaw = renderPlaceholders(template.body_html || '', htmlVars);
   // cta_label and cta_url get inserted into HTML (anchor text + href). Values
   // were already HTML-escaped when we built htmlVars, so variable content is
-  // safe — but the template author's own cta_label text gets inlined as-is.
+  // safe. but the template author's own cta_label text gets inlined as-is.
   // That's intentional (admin is trusted and may want &nbsp; / emoji codes).
   const ctaLabel    = renderPlaceholders(template.cta_label || '', htmlVars);
   const ctaUrl      = renderPlaceholders(template.cta_url || '', htmlVars);
@@ -134,7 +134,7 @@ export function renderFromTemplateObject(template, vars = {}, options = {}) {
     footerNote,
   });
 
-  // Build a simple plain-text counterpart — strip tags, collapse whitespace.
+  // Build a simple plain-text counterpart. strip tags, collapse whitespace.
   const textBody = bodyHtmlRaw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   const text = [
     title,
@@ -155,7 +155,7 @@ export function renderFromTemplateObject(template, vars = {}, options = {}) {
 
 /**
  * End-to-end: fetch + render. Throws if DB templates are disabled via
- * feature flag — caller should catch and fall back to its own builder.
+ * feature flag. caller should catch and fall back to its own builder.
  */
 export async function renderEmail(notificationKey, vars = {}, options = {}) {
   if (!DB_TEMPLATES_ENABLED) {
@@ -169,7 +169,7 @@ export async function renderEmail(notificationKey, vars = {}, options = {}) {
 
 /**
  * Check the global kill switch. Returns { paused: bool, reason?: string }.
- * Called by sendEmail() before every dispatch (1ms SELECT, no caching —
+ * Called by sendEmail() before every dispatch (1ms SELECT, no caching 
  * the whole point of a kill switch is immediate effect).
  */
 export async function getKillSwitchState() {
@@ -180,7 +180,7 @@ export async function getKillSwitchState() {
     .maybeSingle();
   if (error) {
     // If we can't read the table (not an admin, RLS blocks), assume not
-    // paused — the Edge Function will enforce server-side anyway when we
+    // paused. the Edge Function will enforce server-side anyway when we
     // add that check in Phase 2. Admin UI is the only place that needs
     // the full state.
     return { paused: false, reason: null, readable: false };

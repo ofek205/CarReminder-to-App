@@ -1,5 +1,5 @@
 /**
- * Checklist — full-page runner for ONE phase of a vessel checklist.
+ * Checklist. full-page runner for ONE phase of a vessel checklist.
  *
  * URL: /Checklist?vehicleId=<uuid>&phase=engine|pre|post
  *
@@ -10,7 +10,7 @@
  *   3. Auto-save on every change (debounced 1.5s) + on visibility hidden.
  *
  * Item states:
- *   pending (no mark) · done (✓ תקין) · issue (✗ with note) · skip (—)
+ *   pending (no mark) · done (✓ תקין) · issue (✗ with note) · skip ()
  *
  * Finishing:
  *   setCompletedAt(now), invalidate cache, navigate back to the hub.
@@ -108,7 +108,7 @@ export default function Checklist() {
   const [finishing, setFinishing] = useState(false);
   const saveTimerRef = useRef(null);
 
-  // Issue-sheet state — which item is having its issue captured
+  // Issue-sheet state. which item is having its issue captured
   const [issueItemId, setIssueItemId] = useState(null);
 
   // Load template + existing draft on mount.
@@ -312,7 +312,7 @@ export default function Checklist() {
     });
     setIssueItemId(null);
 
-    // 4) Final toast — reflect what actually happened
+    // 4) Final toast. reflect what actually happened
     if (!corkFailed && !issueFailed) {
       const parts = ['התקלה נשמרה'];
       if (addToCorkboard) parts.push('נוסף פתק ללוח');
@@ -521,8 +521,8 @@ function ActionChip({ active, activeColor, activeBg, icon: Icon, label, onClick 
 /* Slides up from the bottom when the user flags a checklist item as תקלה.    */
 /* Captures a free-text note (required by product decision) and two           */
 /* opt-in switches:                                                           */
-/*   ▢ הוסף ללוח ההודעות של הכלי   (Q3 — default OFF)                          */
-/*   ▢ הוסף לרשימת התקלות בסירה    (Q2 — default OFF)                          */
+/*   ▢ הוסף ללוח ההודעות של הכלי   (Q3. default OFF)                          */
+/*   ▢ הוסף לרשימת התקלות בסירה    (Q2. default OFF)                          */
 /* -------------------------------------------------------------------------- */
 
 function IssueNoteSheet({ open, itemText, initialNote, onClose, onSave }) {

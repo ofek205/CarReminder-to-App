@@ -22,7 +22,7 @@ const STATUS_MAP = {
   'סגור':   { bg: '#E8F5E9', color: '#2E7D32', gradBg: '#2E7D32', icon: CheckCircle,   label: 'סגור' },
 };
 
-// ── Status Summary Cards ────────────────────────────────────────────────────
+//  Status Summary Cards 
 function StatusSummary({ accidents }) {
   const counts = { 'פתוח': 0, 'בטיפול': 0, 'סגור': 0 };
   accidents.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
@@ -49,7 +49,7 @@ function StatusSummary({ accidents }) {
   );
 }
 
-// ── Accident Card (premium) ─────────────────────────────────────────────────
+//  Accident Card (premium) 
 function AccidentRow({ accident, vehicleName, vehicle }) {
   const status = STATUS_MAP[accident.status] || STATUS_MAP['פתוח'];
   const hasPhotos = accident.photos?.length > 0;
@@ -184,7 +184,7 @@ function AccidentRow({ accident, vehicleName, vehicle }) {
   );
 }
 
-// ── Empty State (premium) ───────────────────────────────────────────────────
+//  Empty State (premium) 
 function EmptyState() {
   return (
     <div className="text-center py-12" dir="rtl">
@@ -221,7 +221,7 @@ function EmptyState() {
   );
 }
 
-// ── Main Page ───────────────────────────────────────────────────────────────
+//  Main Page 
 export default function Accidents() {
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles, guestAccidents } = useAuth();
   const [accountId, setAccountId] = useState(null);

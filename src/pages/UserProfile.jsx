@@ -462,8 +462,8 @@ function AuthUserProfile({ embedded = false }) {
           {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Save className="h-4 w-4 ml-2" />שמור פרופיל</>}
         </Button>
 
-        {/* ── Security section ───────────────────────────────────────────
-            PIN lock moved here from the notifications tab — it's a security
+        {/*  Security section 
+            PIN lock moved here from the notifications tab. it's a security
             setting, not a notification one. */}
         <div className="mt-8">
           <h3 className="text-xs font-bold uppercase tracking-wider mb-3 px-1" style={{ color: '#9CA3AF' }}>

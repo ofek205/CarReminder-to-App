@@ -49,13 +49,13 @@ export function FontScaleProvider({ children }) {
     // the original behaviour was html.fontSize = scale*16 so on mobile
     // (0.8) everything rendered 20% tighter than desktop, which the
     // whole layout was tuned for. When we moved font-size to pure CSS
-    // variables earlier the mobile baseline went from 12.8px to 16px —
+    // variables earlier the mobile baseline went from 12.8px to 16px 
     // cards, chips, badges all grew ~25% and things looked bloated.
     //
     // Putting the html.fontSize write back fixes the proportions.
     // The accessibility text-scale (AccessibilityContext) layers on top
     // with calc(1rem * var(--a11y-text-scale)) so users who set ±1..±5
-    // still scale TEXT only, not the layout — the two systems compose.
+    // still scale TEXT only, not the layout. the two systems compose.
     document.documentElement.style.setProperty('--font-scale', scale);
     document.documentElement.style.fontSize = `${scale * 16}px`;
   };

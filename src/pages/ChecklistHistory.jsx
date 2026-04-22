@@ -1,11 +1,11 @@
 /**
- * ChecklistHistory — read-only archive of completed checklist runs.
+ * ChecklistHistory. read-only archive of completed checklist runs.
  *
  * URL: /ChecklistHistory?vehicleId=<uuid>[&phase=engine|pre|post]
  *
  * List of past completed runs, newest first, with chips showing the
  * balance of תקין / תקלה / דלג for each run. Tapping a row expands it
- * inline to show the items themselves (read-only — no mutations here).
+ * inline to show the items themselves (read-only. no mutations here).
  *
  * A phase filter in the header lets the user narrow to one phase.
  * Respects the 90-day DB retention cap, so nothing older than that

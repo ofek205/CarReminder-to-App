@@ -50,7 +50,7 @@ export const DEMO_VEHICLE = {
   rear_tire: '195/65R15',
 };
 
-/** Treatments – completed and upcoming */
+/** Treatments, completed and upcoming */
 export const DEMO_TREATMENTS = [
   {
     id: 'demo_treat_001',
@@ -254,9 +254,9 @@ export const DEMO_CORK_NOTES = [
   },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ── Demo Vessel (Yacht / Sailboat) ──────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
+// 
+//  Demo Vessel (Yacht / Sailboat) 
+// 
 
 export const DEMO_VESSEL_ID = 'demo_vessel_001';
 
@@ -284,7 +284,7 @@ export const DEMO_VESSEL = {
   flag_country: 'IL',
   marina: 'מרינה הרצליה',
   created_date: '2023-06-01T10:00:00.000Z',
-  // מפרט טכני — כלי שייט
+  // מפרט טכני. כלי שייט
   color: 'לבן',
   fuel_type: 'דיזל',
   engine_model: '3YM30',

@@ -7,7 +7,7 @@ function Bone({ className = '', style = {} }) {
   return <div className={`${shimmer} rounded-lg bg-gray-200 ${className}`} style={style} />;
 }
 
-// ── Vehicle Card Skeleton ───────────────────────────────────────────────────
+//  Vehicle Card Skeleton 
 export function VehicleCardSkeleton() {
   return (
     <div className="rounded-2xl p-4 flex items-center gap-4" dir="rtl"
@@ -25,7 +25,7 @@ export function VehicleCardSkeleton() {
   );
 }
 
-// ── Post Card Skeleton (Community) ──────────────────────────────────────────
+//  Post Card Skeleton (Community) 
 export function PostCardSkeleton() {
   return (
     <div className="rounded-2xl p-4 space-y-3" dir="rtl"
@@ -50,7 +50,7 @@ export function PostCardSkeleton() {
   );
 }
 
-// ── Document Card Skeleton ──────────────────────────────────────────────────
+//  Document Card Skeleton 
 export function DocumentCardSkeleton() {
   return (
     <div className="rounded-2xl p-4 flex items-center gap-3" dir="rtl"
@@ -65,7 +65,7 @@ export function DocumentCardSkeleton() {
   );
 }
 
-// ── Notification Skeleton ───────────────────────────────────────────────────
+//  Notification Skeleton 
 export function NotificationSkeleton() {
   return (
     <div className="rounded-2xl p-4 flex items-center gap-3" dir="rtl"
@@ -79,7 +79,7 @@ export function NotificationSkeleton() {
   );
 }
 
-// ── Generic List Skeleton ───────────────────────────────────────────────────
+//  Generic List Skeleton 
 export function ListSkeleton({ count = 3, variant = 'vehicle' }) {
   const Component = {
     vehicle: VehicleCardSkeleton,
@@ -97,7 +97,7 @@ export function ListSkeleton({ count = 3, variant = 'vehicle' }) {
   );
 }
 
-// ── Page Skeleton (full page placeholder) ───────────────────────────────────
+//  Page Skeleton (full page placeholder) 
 export function PageSkeleton() {
   return (
     <div className="space-y-4" dir="rtl">

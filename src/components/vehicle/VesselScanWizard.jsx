@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Upload, Pencil, Anchor, AlertTriangle, Check, Camera, Info } from "lucide-react";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+//  Helpers 
 
 /** Parse DD/MM/YYYY (or DD/MM/YY) → YYYY-MM-DD. Returns '' on failure. */
 function parseDate(dateStr) {
@@ -47,7 +47,7 @@ const FIELD_LABELS = {
   hull_material:       'חומר גוף',
 };
 
-// ─── JSON schema sent to the AI extraction API ─────────────────────────────
+//  JSON schema sent to the AI extraction API 
 
 const VESSEL_SCHEMA = {
   type: 'object',
@@ -95,7 +95,7 @@ const VESSEL_SCHEMA = {
   },
 };
 
-// ─── Component ───────────────────────────────────────────────────────────────
+//  Component 
 
 /**
  * Props:
@@ -116,7 +116,7 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
   const [partialWarning, setPartialWarning] = useState(false);
   const [error, setError] = useState('');
 
-  // ── Reset ──────────────────────────────────────────────────────────────────
+  //  Reset 
   const reset = () => {
     setStep('upload');
     setUploadedFile(null);
@@ -131,7 +131,7 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
 
   const handleClose = () => { reset(); onClose(); };
 
-  // ── Upload ─────────────────────────────────────────────────────────────────
+  //  Upload 
   const handleFileSelect = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -150,7 +150,7 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
     }
   };
 
-  // ── AI Extraction ──────────────────────────────────────────────────────────
+  //  AI Extraction 
   const handleExtract = async () => {
     if (!fileUrl) { setError('יש להעלות קובץ תחילה'); return; }
     setExtracting(true);
@@ -205,11 +205,11 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
     }
   };
 
-  // ── Field editing ──────────────────────────────────────────────────────────
+  //  Field editing 
   const handleFieldEdit = (key, value) =>
     setFields(prev => ({ ...prev, [key]: value }));
 
-  // ── Confirm & return data ──────────────────────────────────────────────────
+  //  Confirm & return data 
   // IMPORTANT: handleClose() must run BEFORE onExtracted() so that the
   // onClose callback's setSelectedMethod(null) is batched BEFORE
   // handleVesselScanExtracted's setSelectedMethod('scan').
@@ -220,10 +220,10 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
     onExtracted(data);   // runs AFTER → setSelectedMethod('scan') wins
   };
 
-  // ── Derived ───────────────────────────────────────────────────────────────
+  //  Derived 
   const nonEmpty = Object.entries(fields).filter(([, v]) => v !== '');
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  //  Render 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
@@ -234,7 +234,7 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
           </DialogTitle>
         </DialogHeader>
 
-        {/* ══ STEP: UPLOAD ══════════════════════════════════════════════════ */}
+        {/*  STEP: UPLOAD  */}
         {step === 'upload' && (
           <div className="space-y-5">
 
@@ -318,7 +318,7 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
           </div>
         )}
 
-        {/* ══ STEP: PREVIEW ═════════════════════════════════════════════════ */}
+        {/*  STEP: PREVIEW  */}
         {step === 'preview' && (
           <div className="space-y-4">
 
@@ -326,7 +326,7 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
             {nonEmpty.length > 0 ? (
               <p className="text-sm text-gray-700 bg-green-50 border border-green-200 p-3 rounded-xl flex items-start gap-2">
                 <Check className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                זיהינו {nonEmpty.length} שד{nonEmpty.length === 1 ? 'ה' : 'ות'} – ניתן לערוך לפני האישור.
+                זיהינו {nonEmpty.length} שד{nonEmpty.length === 1 ? 'ה' : 'ות'}, ניתן לערוך לפני האישור.
               </p>
             ) : (
               <p className="text-sm text-gray-600 bg-gray-50 border border-gray-200 p-3 rounded-xl">
@@ -339,7 +339,7 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
               <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>
-                  לא הצלחנו לזהות את כל הפרטים מהמסמך – אפשר להשלים ידנית בטופס.
+                  לא הצלחנו לזהות את כל הפרטים מהמסמך, אפשר להשלים ידנית בטופס.
                 </span>
               </div>
             )}

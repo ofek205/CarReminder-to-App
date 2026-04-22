@@ -1,5 +1,5 @@
 /**
- * AI expert identity — two distinct agents:
+ * AI expert identity. two distinct agents:
  *   - ברוך המוסכניק (default): cars, motorcycles, trucks, anything land-based
  *   - יוסי מומחה כלי שייט: vessels only
  *

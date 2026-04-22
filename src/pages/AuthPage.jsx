@@ -7,7 +7,7 @@ import { isNative } from '@/lib/capacitor';
 import logo from '@/assets/logo.png';
 import { ChevronLeft, Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 
-// ── Design tokens ──────────────────────────────────────────────────────────
+//  Design tokens 
 const C = {
   green:     '#4B7A53',
   greenDark: '#2D5233',
@@ -24,7 +24,7 @@ const C = {
   successBg: '#F0FDF4',
 };
 
-// ── Google icon ────────────────────────────────────────────────────────────
+//  Google icon 
 const GoogleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -34,7 +34,7 @@ const GoogleIcon = () => (
   </svg>
 );
 
-// ── Floating input with icon ───────────────────────────────────────────────
+//  Floating input with icon 
 function AuthInput({ icon: Icon, label, type: initialType, value, onChange, placeholder, dir, required, autoComplete }) {
   const [focused, setFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -84,7 +84,7 @@ function AuthInput({ icon: Icon, label, type: initialType, value, onChange, plac
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────
+//  Main component 
 export default function AuthPage() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth();
@@ -98,7 +98,7 @@ export default function AuthPage() {
   const [oauthLoading, setOauthLoading] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  // "Remember me" — default true. Persisted across sessions so the user
+  // "Remember me". default true. Persisted across sessions so the user
   // doesn't need to re-tick every time. When false, the Supabase session
   // still survives tab close (Supabase JS default), but we log the user
   // out of their OTHER tabs on close via BroadcastChannel (see handleSubmit).
@@ -172,7 +172,7 @@ export default function AuthPage() {
     }
   };
 
-  // Basic email validation — before hitting Supabase
+  // Basic email validation. before hitting Supabase
   const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim());
 
   const handleSubmit = async (e) => {
@@ -182,7 +182,7 @@ export default function AuthPage() {
     // Dev bypass: "00/00" skips client-side email + length checks; real
     // validation happens in the auth handler once the env creds swap in.
     const isDevBypass = mode === 'login' && email === '00' && password === '00';
-    // Client-side validation — fast feedback, no network round-trip
+    // Client-side validation. fast feedback, no network round-trip
     if (!isDevBypass && !isValidEmail(email)) {
       setError('כתובת אימייל לא תקינה');
       return;
@@ -260,7 +260,7 @@ export default function AuthPage() {
     }
   };
 
-  // ── Loading ────────────────────────────────────────────────────────────
+  //  Loading 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#ffffff' }}>
@@ -279,7 +279,7 @@ export default function AuthPage() {
     <div className="min-h-screen flex flex-col" dir="rtl"
       style={{ background: '#ffffff', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
-      {/* ── Hero ─────────────────────────────────────────────── */}
+      {/*  Hero  */}
       <div className="relative w-full overflow-hidden"
         style={{ height: showForm ? '160px' : '280px', transition: 'height 0.4s cubic-bezier(0.4,0,0.2,1)' }}>
 
@@ -322,10 +322,10 @@ export default function AuthPage() {
         </div>
       </div>
 
-      {/* ── Content ──────────────────────────────────────────── */}
+      {/*  Content  */}
       <div className="flex-1 px-5 pb-10 flex flex-col items-center max-w-md mx-auto w-full">
 
-        {/* ── Main view (buttons) ──────────────────────────────── */}
+        {/*  Main view (buttons)  */}
         {!showForm ? (
           <div className="w-full" style={{ marginTop: '4px' }}>
             {/* Headline + subtitle */}
@@ -387,7 +387,7 @@ export default function AuthPage() {
           </div>
 
         ) : (
-          /* ── Form view ────────────────────────────────────────── */
+          /*  Form view  */
           <div className="w-full" style={{ marginTop: '4px' }}>
 
             {/* Back button - context-aware: reset → login, otherwise → main view */}
@@ -465,7 +465,7 @@ export default function AuthPage() {
 
                 {mode === 'login' && (
                   <div className="flex items-center justify-between mt-1">
-                    {/* "Remember me" — defaults to on; lets the user drop the
+                    {/* "Remember me". defaults to on; lets the user drop the
                         session on tab close if they're on a shared device. */}
                     <label className="flex items-center gap-2 cursor-pointer select-none"
                       style={{ color: C.text }}>

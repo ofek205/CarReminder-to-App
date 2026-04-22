@@ -60,7 +60,7 @@ export default function PopupQueue({ items = [] }) {
         /* hide the default shadcn close button - we render our own */
         onPointerDownOutside={e => e.preventDefault()}
       >
-        {/* ── X button - always top-right ── */}
+        {/*  X button - always top-right  */}
         <button
           onClick={advance}
           aria-label="סגור"
@@ -69,7 +69,7 @@ export default function PopupQueue({ items = [] }) {
           <X className="h-4 w-4" />
         </button>
 
-        {/* ── Progress dots (only when >1 item) ── */}
+        {/*  Progress dots (only when >1 item)  */}
         {queue.length > 1 && (
           <div className="flex justify-center gap-1.5 pt-4 pb-0 px-6">
             {queue.map((item, i) => (
@@ -83,7 +83,7 @@ export default function PopupQueue({ items = [] }) {
           </div>
         )}
 
-        {/* ── Animated content ── */}
+        {/*  Animated content  */}
         <div style={slideStyle} className="px-6 pb-6 pt-4">
           {current?.render(advance)}
         </div>

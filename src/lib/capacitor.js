@@ -8,13 +8,13 @@
 
 import { Capacitor } from '@capacitor/core';
 
-// ── Platform Detection ─────────────────────────────────────────────────────
+//  Platform Detection 
 export const isNative = Capacitor.isNativePlatform();
 export const isAndroid = Capacitor.getPlatform() === 'android';
 export const isIOS = Capacitor.getPlatform() === 'ios';
 export const isWeb = Capacitor.getPlatform() === 'web';
 
-// ── Status Bar ─────────────────────────────────────────────────────────────
+//  Status Bar 
 export async function initStatusBar() {
   if (!isNative) return;
   try {
@@ -29,7 +29,7 @@ export async function initStatusBar() {
   }
 }
 
-// ── Splash Screen ──────────────────────────────────────────────────────────
+//  Splash Screen 
 export async function hideSplash() {
   if (!isNative) return;
   try {
@@ -40,7 +40,7 @@ export async function hideSplash() {
   }
 }
 
-// ── Camera ─────────────────────────────────────────────────────────────────
+//  Camera 
 /**
  * Take a photo using native camera or file picker.
  * Returns { dataUrl, webPath } or null if cancelled.
@@ -78,7 +78,7 @@ export async function pickImage() {
   return takePhoto('PHOTOS');
 }
 
-// ── Geolocation ────────────────────────────────────────────────────────────
+//  Geolocation 
 /**
  * Get current position. Uses native plugin on Capacitor, web API on browser.
  * Returns { latitude, longitude }
@@ -111,7 +111,7 @@ export async function getCurrentPosition() {
   });
 }
 
-// ── Filesystem (Downloads) ─────────────────────────────────────────────────
+//  Filesystem (Downloads) 
 /**
  * Save a file to the device. On native, uses Filesystem plugin.
  * On web, falls back to blob download.
@@ -144,7 +144,7 @@ export async function saveFile(fileName, data, mimeType = 'application/octet-str
     }
   }
 
-  // Web fallback — blob download
+  // Web fallback. blob download
   let blob;
   if (data instanceof Blob) {
     blob = data;
@@ -178,7 +178,7 @@ export async function downloadImage(imageUrl, fileName) {
   }
 }
 
-// ── Share ──────────────────────────────────────────────────────────────────
+//  Share 
 /**
  * Native share dialog. Falls back to clipboard on web.
  */
@@ -194,7 +194,7 @@ export async function shareContent({ title, text, url }) {
     }
   }
 
-  // Web fallback — Web Share API or clipboard
+  // Web fallback. Web Share API or clipboard
   if (navigator.share) {
     try {
       await navigator.share({ title, text, url });
@@ -209,7 +209,7 @@ export async function shareContent({ title, text, url }) {
   } catch { return false; }
 }
 
-// ── Keyboard ───────────────────────────────────────────────────────────────
+//  Keyboard 
 export async function initKeyboard() {
   if (!isNative) return;
   try {
@@ -226,7 +226,7 @@ export async function initKeyboard() {
   }
 }
 
-// ── App (back button) ──────────────────────────────────────────────────────
+//  App (back button) 
 export async function initBackButton(onBackButton) {
   if (!isNative) return;
   try {
@@ -245,7 +245,7 @@ export async function initBackButton(onBackButton) {
   }
 }
 
-// ── Session keep-alive ──────────────────────────────────────────────────────
+//  Session keep-alive 
 /**
  * Refresh the Supabase session whenever the app returns to the foreground.
  *
@@ -253,7 +253,7 @@ export async function initBackButton(onBackButton) {
  * JWT has expired while the app was backgrounded, the next API call will fail
  * with a cryptic 401 unless we proactively refresh on resume.
  *
- * Also checks for session on web when the tab becomes visible again — covers
+ * Also checks for session on web when the tab becomes visible again. covers
  * the "left the tab open overnight" case for PWA users.
  */
 export async function initSessionKeepAlive() {
@@ -291,7 +291,7 @@ export async function initSessionKeepAlive() {
                 await supabase.auth.refreshSession();
               }
             }
-          } catch { /* network/no session — leave auto-refresh alone */ }
+          } catch { /* network/no session. leave auto-refresh alone */ }
         }
       });
     }
@@ -305,18 +305,18 @@ export async function initSessionKeepAlive() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          // Always refresh on resume — the app may have been suspended for
+          // Always refresh on resume. the app may have been suspended for
           // hours. Cheap call, big UX win.
           await supabase.auth.refreshSession();
         }
-      } catch { /* ignore — next API call will retry */ }
+      } catch { /* ignore. next API call will retry */ }
     });
   } catch (e) {
     console.warn('Session keep-alive init failed:', e);
   }
 }
 
-// ── Deep links ──────────────────────────────────────────────────────────────
+//  Deep links 
 /**
  * Handle incoming deep links (e.g. carreminder://vehicle/<id> or
  * https://car-reminder.app/VehicleDetail?id=...).
@@ -325,7 +325,7 @@ export async function initSessionKeepAlive() {
  * React Router sees it as a normal navigation. Used for push-notification
  * deep-links and external links from WhatsApp/email.
  *
- * @param {function(path: string): void} navigate — called with '/Path?query'
+ * @param {function(path: string): void} navigate. called with '/Path?query'
  */
 export async function initDeepLinks(navigate) {
   if (!isNative) return;
@@ -352,14 +352,14 @@ export async function initDeepLinks(navigate) {
         }
         if (typeof navigate === 'function') navigate(path);
         else window.location.href = path;
-      } catch { /* malformed URL — ignore */ }
+      } catch { /* malformed URL. ignore */ }
     });
   } catch (e) {
     console.warn('Deep links init failed:', e);
   }
 }
 
-// ── Haptics ────────────────────────────────────────────────────────────────
+//  Haptics 
 export async function hapticFeedback(type = 'light') {
   if (!isNative) return;
   try {
@@ -371,7 +371,7 @@ export async function hapticFeedback(type = 'light') {
   } catch (e) { /* silent */ }
 }
 
-// ── Utility ────────────────────────────────────────────────────────────────
+//  Utility 
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

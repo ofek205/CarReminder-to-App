@@ -10,7 +10,7 @@ import { ChevronsUpDown, Check, Plus, Car, Truck, Bus, Ship, Star, Bike, Loader2
 import { cn } from "@/lib/utils";
 import { getTheme } from '@/lib/designTokens';
 
-// ─── Sub-categories for "כלי שייט" ──────────────────────────────────────────
+//  Sub-categories for "כלי שייט" 
 export const BOAT_SUBCATEGORIES = [
   { label: 'מפרשית',       dbName: 'מפרשית',       usageMetric: 'שעות מנוע' },
   { label: 'מנועית',       dbName: 'סירה מנועית',  usageMetric: 'שעות מנוע' },
@@ -18,14 +18,14 @@ export const BOAT_SUBCATEGORIES = [
   { label: 'סירת גומי',   dbName: 'סירת גומי',    usageMetric: 'שעות מנוע' },
 ];
 
-// ─── Sub-categories for "אופנועים" (כולל אופנוע שטח) ────────────────────────
+//  Sub-categories for "אופנועים" (כולל אופנוע שטח) 
 export const MOTO_SUBCATEGORIES = [
   { label: 'אופנוע כביש',  dbName: 'אופנוע כביש',  usageMetric: 'קילומטרים' },
   { label: 'קטנוע',        dbName: 'קטנוע',         usageMetric: 'קילומטרים' },
   { label: 'אופנוע שטח',  dbName: 'אופנוע שטח',   usageMetric: 'קילומטרים' },
 ];
 
-// ─── Sub-categories for "מיוחדים" (ללא כלי שטח - יש להם קטגוריה נפרדת) ──
+//  Sub-categories for "מיוחדים" (ללא כלי שטח - יש להם קטגוריה נפרדת) 
 export const SPECIAL_SUBCATEGORIES = [
   { label: 'רכב אספנות',                   dbName: 'רכב אספנות',                    usageMetric: 'קילומטרים' },
   { label: 'טרקטור',                        dbName: 'טרקטור',                         usageMetric: 'שעות מנוע'  },
@@ -38,7 +38,7 @@ export const SPECIAL_SUBCATEGORIES = [
   { label: 'אוטובוס ומיניבוס',             dbName: 'אוטובוס',                        usageMetric: 'קילומטרים' },
 ];
 
-// ─── Sub-categories for "כלי שטח" (כולל אופנוע שטח וטרקטורון) ──────────────
+//  Sub-categories for "כלי שטח" (כולל אופנוע שטח וטרקטורון) 
 export const OFFROAD_SUBCATEGORIES = [
   { label: "ג'יפ שטח",       dbName: "ג'יפ שטח",       usageMetric: 'קילומטרים' },
   { label: 'טרקטורון',       dbName: 'טרקטורון',        usageMetric: 'קילומטרים' },
@@ -48,7 +48,7 @@ export const OFFROAD_SUBCATEGORIES = [
   { label: 'באגי חולות',     dbName: 'באגי חולות',      usageMetric: 'קילומטרים' },
 ];
 
-// ─── Off-road equipment & usage type options ────────────────────────────────
+//  Off-road equipment & usage type options 
 export const OFFROAD_EQUIPMENT = [
   { key: 'winch',               label: 'כננת' },
   { key: 'snorkel',             label: 'שנורקל' },
@@ -69,7 +69,7 @@ export const OFFROAD_USAGE_TYPES = [
   { value: 'general',     label: 'שימוש כללי' },
 ];
 
-// ─── Manufacturers per sub-category (for non-car categories) ────────────────
+//  Manufacturers per sub-category (for non-car categories) 
 export const MANUFACTURERS_BY_SUBCATEGORY = {
   'אופנוע כביש':  ['Honda', 'Yamaha', 'SYM', 'Kawasaki', 'Suzuki', 'KTM', 'BMW Motorrad', 'Ducati', 'Harley-Davidson', 'Triumph', 'Royal Enfield', 'Aprilia'],
   'אופנוע שטח':   ['KTM', 'Husqvarna', 'Honda', 'Yamaha', 'Kawasaki', 'Suzuki', 'GasGas', 'Beta', 'Sherco', 'TM Racing', 'Fantic'],
@@ -92,7 +92,7 @@ export const MANUFACTURERS_BY_SUBCATEGORY = {
   'באגי חולות':    ['Polaris', 'Can-Am', 'Yamaha', 'Arctic Cat', 'Kawasaki', 'CFMOTO'],
 };
 
-// ─── The 6 main categories (fixed, maps to DB by keyword) ───────────────────
+//  The 6 main categories (fixed, maps to DB by keyword) 
 export const VEHICLE_CATEGORIES = [
   {
     label: 'פרטיים ומסחריים',
@@ -148,28 +148,28 @@ export const VEHICLE_CATEGORIES = [
   },
 ];
 
-// ─── Local vehicle types (no DB dependency) ────────────────────────────────
+//  Local vehicle types (no DB dependency) 
 const LOCAL_VEHICLE_TYPES = [
-  // ── רכב ──
+  //  רכב 
   { id: 'vt-car',       name: 'רכב',             usage_metric: 'קילומטרים',  scope: 'global' },
-  // ── אופנועים (כביש בלבד) ──
+  //  אופנועים (כביש בלבד) 
   { id: 'vt-moto-road', name: 'אופנוע כביש',    usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-scooter',   name: 'קטנוע',           usage_metric: 'קילומטרים',  scope: 'global' },
-  // ── משאיות ──
+  //  משאיות 
   { id: 'vt-truck',     name: 'משאית',           usage_metric: 'קילומטרים',  scope: 'global' },
-  // ── כלי שייט ──
+  //  כלי שייט 
   { id: 'vt-sail',      name: 'מפרשית',          usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-motor',     name: 'סירה מנועית',     usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-jetski',    name: 'אופנוע ים',       usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-dinghy',    name: 'סירת גומי',       usage_metric: 'שעות מנוע',  scope: 'global' },
-  // ── כלי שטח (אופנוע שטח + טרקטורון כאן בלבד) ──
+  //  כלי שטח (אופנוע שטח + טרקטורון כאן בלבד) 
   { id: 'vt-jeep-off',  name: "ג'יפ שטח",       usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-atv',       name: 'טרקטורון',        usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-moto-off',  name: 'אופנוע שטח',     usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-rzr',       name: 'RZR',             usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-mule',      name: 'מיול',            usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-dunebuggy', name: 'באגי חולות',      usage_metric: 'קילומטרים',  scope: 'global' },
-  // ── מיוחדים ──
+  //  מיוחדים 
   { id: 'vt-vintage',   name: 'רכב אספנות',      usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-tractor',   name: 'טרקטור',          usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-utility',   name: 'רכב תפעולי',      usage_metric: 'קילומטרים',  scope: 'global' },
@@ -188,7 +188,7 @@ function findLocalType(category) {
   ) || LOCAL_VEHICLE_TYPES.find(t => t.name === category.dbName);
 }
 
-// ─── Tab-strip variant (used in AddVehicle) ──────────────────────────────────
+//  Tab-strip variant (used in AddVehicle) 
 function TabVariant({ selectedCategory, onSelectCategory }) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -225,7 +225,7 @@ function TabVariant({ selectedCategory, onSelectCategory }) {
   );
 }
 
-// ─── Cards variant (horizontal scroll) ──────────────────────────────────────
+//  Cards variant (horizontal scroll) 
 function CardVariant({ value, onChange }) {
   return (
     <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
@@ -254,7 +254,7 @@ function CardVariant({ value, onChange }) {
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+//  Main component 
 export default function VehicleTypeSelector({
   value,
   onChange,
@@ -270,7 +270,7 @@ export default function VehicleTypeSelector({
   const filteredTypes = allTypes.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
   const selectedType = allTypes.find(t => t.id === value);
 
-  // ── Tab variant: resolve type on category select ──
+  //  Tab variant: resolve type on category select 
   const handleCategorySelect = (cat) => {
     if (onSelectCategory) onSelectCategory(cat);
     if (cat.hasSubcategories) {
@@ -286,7 +286,7 @@ export default function VehicleTypeSelector({
     }
   };
 
-  // ── Render ──
+  //  Render 
   if (variant === 'tabs') {
     return (
       <TabVariant
@@ -305,7 +305,7 @@ export default function VehicleTypeSelector({
     );
   }
 
-  // ── Default: popover ──
+  //  Default: popover 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>

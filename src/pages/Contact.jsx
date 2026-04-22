@@ -47,7 +47,7 @@ export default function Contact() {
           status: 'new',
         });
       } catch (err) {
-        // Silently fail if table doesn't exist — fall back to mailto
+        // Silently fail if table doesn't exist. fall back to mailto
         console.warn('Contact message DB insert failed, using mailto fallback:', err?.message);
         window.location.href = `mailto:support@car-reminder.app?subject=${encodeURIComponent(form.subject || 'פנייה כללית')}&body=${encodeURIComponent(`${form.message}\n\n---\nמאת: ${form.name} (${form.email})`)}`;
       }

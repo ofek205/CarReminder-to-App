@@ -26,7 +26,7 @@ export default function useNotificationScheduler(vehicles = [], accountId = null
     if (isGuest || !user?.id) return;
     if (!vehicles.length) return;
 
-    // Stable fingerprint of vehicles — id + every date/odometer field that
+    // Stable fingerprint of vehicles. id + every date/odometer field that
     // feeds the engine. If none of these change, scheduling would be a no-op.
     const fp = vehicles
       .map(v => [
@@ -51,7 +51,7 @@ export default function useNotificationScheduler(vehicles = [], accountId = null
           const rows = await db.reminder_settings.filter({ user_id: user.id });
           if (rows.length > 0) settings = { ...DEFAULT_REMINDER_SETTINGS, ...rows[0] };
         } catch {
-          // Table missing — use defaults
+          // Table missing. use defaults
         }
 
         // Load documents so the engine can emit document reminders too.
@@ -60,7 +60,7 @@ export default function useNotificationScheduler(vehicles = [], accountId = null
           try {
             documents = await db.documents.filter({ account_id: accountId });
           } catch {
-            // Table missing or RLS blocked — engine just won't emit document items
+            // Table missing or RLS blocked. engine just won't emit document items
           }
         }
 

@@ -1,5 +1,5 @@
 /**
- * useEmailAdmin — React-Query hooks for the admin Email Center.
+ * useEmailAdmin. React-Query hooks for the admin Email Center.
  *
  * One file, multiple exports, so every piece of the admin UI can import
  * from a single entry point:
@@ -13,7 +13,7 @@
  *     useToggleKillSwitch,
  *   } from '@/hooks/useEmailAdmin';
  *
- * Access is gated by RLS — these hooks will simply return empty/error
+ * Access is gated by RLS. these hooks will simply return empty/error
  * for non-admins, and the UI uses useIsAdmin() to hide itself anyway.
  */
 
@@ -32,7 +32,7 @@ const K = {
   myPrefs:       ['email-prefs', 'me'],
 };
 
-// ── Notifications (the 7 types) ────────────────────────────────────────────
+//  Notifications (the 7 types) 
 
 export function useEmailNotifications() {
   return useQuery({
@@ -64,7 +64,7 @@ export function useToggleNotification() {
   });
 }
 
-// ── Templates ─────────────────────────────────────────────────────────────
+//  Templates 
 
 export function useEmailTemplate(notificationKey) {
   return useQuery({
@@ -102,7 +102,7 @@ export function useSaveEmailTemplate() {
         reply_to:         template.reply_to || null,
         variables:        Array.isArray(template.variables) ? template.variables : [],
       };
-      // Upsert on the UNIQUE constraint — works for first save or edits.
+      // Upsert on the UNIQUE constraint. works for first save or edits.
       const { data, error } = await supabase
         .from('email_templates')
         .upsert(payload, { onConflict: 'notification_key' })
@@ -117,7 +117,7 @@ export function useSaveEmailTemplate() {
   });
 }
 
-// ── Kill switch + global settings ─────────────────────────────────────────
+//  Kill switch + global settings 
 
 export function useEmailSettings() {
   return useQuery({
@@ -156,7 +156,7 @@ export function useToggleKillSwitch() {
   });
 }
 
-// ── Triggers (Phase 2 automation) ─────────────────────────────────────────
+//  Triggers (Phase 2 automation) 
 
 export function useEmailTriggers() {
   return useQuery({
@@ -183,7 +183,7 @@ export function useSaveTrigger() {
         days_before:      Math.max(0, Math.min(365, Number(trigger.days_before) || 0)),
         cooldown_days:    Math.max(0, Math.min(365, Number(trigger.cooldown_days) || 0)),
       };
-      // Audience conditions are optional — only patch when caller provided.
+      // Audience conditions are optional. only patch when caller provided.
       if (trigger.conditions !== undefined) {
         payload.conditions = trigger.conditions || {};
       }
@@ -198,7 +198,7 @@ export function useSaveTrigger() {
 
 // Manual invocation of the Edge Function. `keys` = which notifications to
 // process (omit to process all enabled triggers). `dryRun=true` counts
-// matches without actually sending — useful for "how many would go out".
+// matches without actually sending. useful for "how many would go out".
 export function useRunDispatcher() {
   const qc = useQueryClient();
   return useMutation({
@@ -220,7 +220,7 @@ export function useRunDispatcher() {
   });
 }
 
-// ── Send log (recent history) ─────────────────────────────────────────────
+//  Send log (recent history) 
 
 export function useSendLog({ limit = 50, notificationKey } = {}) {
   return useQuery({
@@ -240,7 +240,7 @@ export function useSendLog({ limit = 50, notificationKey } = {}) {
   });
 }
 
-// ── Events (Phase 3: Resend webhook) ──────────────────────────────────────
+//  Events (Phase 3: Resend webhook) 
 
 // Timeline of events for a single send_log row (delivered → opened →
 // clicked → …). Used by the row-expanded detail in SendLogTab.
@@ -274,7 +274,7 @@ export function useEmailStats({ days = 30 } = {}) {
   });
 }
 
-// ── Version history (Phase 3) ─────────────────────────────────────────────
+//  Version history (Phase 3) 
 
 // List of snapshots for a template, newest first. The auto-snapshot
 // trigger in SQL writes one row per content-changing UPDATE.
@@ -296,7 +296,7 @@ export function useTemplateVersions(templateId) {
   });
 }
 
-// Publish the current draft — snapshots the row into published_snapshot
+// Publish the current draft. snapshots the row into published_snapshot
 // and stamps published_at/by. The dispatcher's get_email_template() RPC
 // returns the PUBLISHED content, so in-flight drafts never go to users.
 export function usePublishTemplate() {
@@ -315,7 +315,7 @@ export function usePublishTemplate() {
 
 // Revert the current template row to the state of a historical snapshot.
 // The revert itself writes a NEW snapshot (auto-trigger on UPDATE) so
-// nothing is lost — you can always "un-revert" from history.
+// nothing is lost. you can always "un-revert" from history.
 export function useRevertToVersion() {
   const qc = useQueryClient();
   return useMutation({
@@ -350,7 +350,7 @@ export function useRevertToVersion() {
   });
 }
 
-// ── User-facing email preferences (Phase 4) ───────────────────────────────
+//  User-facing email preferences (Phase 4) 
 
 // Hook for the end-user NotificationPreferences page. Returns the full
 // list of notifications + the current user's prefs merged in. Notifications
@@ -403,7 +403,7 @@ export function useUpdateMyEmailPreference() {
   });
 }
 
-// ── Broadcast (marketing / announcements) ──────────────────────────────────
+//  Broadcast (marketing / announcements) 
 
 // Fire a manual broadcast to every opted-in recipient for a notification.
 // Admin-triggered only. Respects: kill switch, notification.enabled,

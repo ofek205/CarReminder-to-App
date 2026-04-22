@@ -38,7 +38,7 @@ function autoFormat(raw) {
 const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני',
                    'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 
-// Custom caption: [ ← ]  Month  [ − YYYY + ]  [ → ]
+// Custom caption: [ ← ]  Month  [  YYYY + ]  [ → ]
 function CustomCaption({ displayMonth }) {
   const { goToMonth, nextMonth, previousMonth } = useNavigation();
   const year  = displayMonth.getFullYear();
@@ -60,8 +60,9 @@ function CustomCaption({ displayMonth }) {
         <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-2xl px-1.5 py-0.5">
           <button type="button"
             onClick={() => goToMonth(new Date(year - 1, month))}
-            className="h-6 w-6 flex items-center justify-center rounded hover:bg-gray-200 text-gray-600 text-base leading-none font-bold transition-colors">
-            −
+            className="h-6 w-6 flex items-center justify-center rounded hover:bg-gray-200 text-gray-600 text-base leading-none font-bold transition-colors"
+            aria-label="שנה קודמת">
+            -
           </button>
           <span className="w-11 text-center tabular-nums text-sm">{year}</span>
           <button type="button"

@@ -4,7 +4,7 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Shield, UserPlus, CloudUpload, Lock, Sparkles } from "lucide-react";
 
 /**
- * SignUpPromptDialog — softer CTA popup that gently encourages registration
+ * SignUpPromptDialog. softer CTA popup that gently encourages registration
  * when the user tries to do something that requires a persistent account.
  * Uses the same hero DNA as WelcomePopup but with a cloud-upload tile.
  */
@@ -21,7 +21,7 @@ export default function SignUpPromptDialog({ open, onClose, reason }) {
           <DialogTitle>שמור את הנתונים שלך</DialogTitle>
         </VisuallyHidden.Root>
 
-        {/* ── Hero ─────────────────────────────────────────────────────── */}
+        {/*  Hero  */}
         <div className="relative overflow-hidden"
           style={{
             background: 'linear-gradient(165deg, #1C3620 0%, #2D5233 45%, #4A8C5C 100%)',
@@ -53,7 +53,7 @@ export default function SignUpPromptDialog({ open, onClose, reason }) {
           </h2>
         </div>
 
-        {/* ── Content ──────────────────────────────────────────────────── */}
+        {/*  Content  */}
         <div className="px-6 pt-5 pb-5">
           <p className="text-gray-700 text-center text-sm font-medium leading-relaxed">
             {reason || 'כדי לשמור את הנתונים לצמיתות'}
@@ -62,7 +62,7 @@ export default function SignUpPromptDialog({ open, onClose, reason }) {
             הרשמה בחינם בפחות מדקה. כל מה שהזנת עד כה יעבור אוטומטית לחשבון החדש.
           </p>
 
-          {/* Trust row — 2 tiny value props */}
+          {/* Trust row. 2 tiny value props */}
           <div className="grid grid-cols-2 gap-2 mt-4">
             <div className="rounded-xl px-3 py-2.5 flex items-center gap-2"
               style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>

@@ -98,7 +98,7 @@ export default function MaintenanceSection({ vehicle }) {
   const handleReceiptUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Compress receipts before embedding — quality 0.78 keeps text legible
+    // Compress receipts before embedding. quality 0.78 keeps text legible
     // for AI OCR while shrinking egress dramatically.
     const compressed = await compressImage(file, { maxWidth: 1400, maxHeight: 1400, quality: 0.78 });
     const reader = new FileReader();

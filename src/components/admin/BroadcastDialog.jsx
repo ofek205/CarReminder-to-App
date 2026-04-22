@@ -6,10 +6,10 @@ import { useRunBroadcast } from '@/hooks/useEmailAdmin';
 import { toast } from 'sonner';
 
 /**
- * BroadcastDialog — "send to all opted-in users" for a marketing /
+ * BroadcastDialog. "send to all opted-in users" for a marketing /
  * announcement notification. Two-step flow:
  *
- *   1. Dry run (default) — counts eligible recipients without sending.
+ *   1. Dry run (default). counts eligible recipients without sending.
  *   2. Confirm + send.
  *
  * Safeguards:

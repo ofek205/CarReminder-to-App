@@ -10,13 +10,13 @@ import { toast } from "sonner";
  * On native (Capacitor) uses the Camera plugin; on web falls back to <input>.
  *
  * Props:
- *   accept      – accept string for the file picker (e.g. "image/*,.pdf")
- *   onChange    – file input change handler (same for both inputs)
- *   multiple    – allow selecting multiple files (file picker only, web)
- *   disabled    – disable both inputs
- *   uploading   – show spinner / disable during upload
- *   label       – label for the file-picker button (default: "העלה קובץ")
- *   className   – extra classes on the wrapper div
+ *   accept     , accept string for the file picker (e.g. "image/*,.pdf")
+ *   onChange   , file input change handler (same for both inputs)
+ *   multiple   , allow selecting multiple files (file picker only, web)
+ *   disabled   , disable both inputs
+ *   uploading  , show spinner / disable during upload
+ *   label      , label for the file-picker button (default: "העלה קובץ")
+ *   className  , extra classes on the wrapper div
  */
 
 /** Convert a data URL back into a File so onChange handlers don't need to know. */
@@ -92,7 +92,7 @@ export default function FileOrCameraUpload({
     );
   }
 
-  // Web fallback — original <input type=file> behaviour
+  // Web fallback. original <input type=file> behaviour
   return (
     <div className={cn("flex gap-2", className)}>
       <label

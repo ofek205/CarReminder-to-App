@@ -40,7 +40,7 @@ const SLIDES = [
 ];
 
 /**
- * First-run onboarding tour — 4 slides shown on first login/visit only.
+ * First-run onboarding tour. 4 slides shown on first login/visit only.
  * User can skip at any time. Uses localStorage to track completion.
  */
 export default function OnboardingTour({ onComplete }) {

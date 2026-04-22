@@ -14,7 +14,7 @@ import { Pin, Plus, Wrench, Anchor, Trash2, Check, ChevronDown, ChevronUp, Calen
 import { format, parseISO } from 'date-fns';
 import { DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VEHICLE_ID, DEMO_VESSEL_ID } from '@/components/shared/demoVehicleData';
 
-// ── Note Colors ────────────────────────────────────────────────────────────
+//  Note Colors 
 const COLORS = {
   yellow: { bg: '#FFF9C4', border: '#F9E547', pin: '#DC2626' },
   pink:   { bg: '#FCE4EC', border: '#F48FB1', pin: '#E91E63' },
@@ -23,7 +23,7 @@ const COLORS = {
   orange: { bg: '#FFF3E0', border: '#FFB74D', pin: '#E65100' },
 };
 
-// ── Categories per vehicle type ────────────────────────────────────────────
+//  Categories per vehicle type 
 const CATEGORIES = {
   vessel: ['גוף', 'מנוע', 'חשמל', 'אינסטלציה', 'בטיחות', 'מפרשים'],
   car: ['מנוע', 'בלמים', 'צמיגים', 'חשמל', 'מרכב', 'פנים'],
@@ -45,7 +45,7 @@ function getVehicleCategories(vehicleType, nickname) {
   return CATEGORIES.car;
 }
 
-// ── Pin SVG ────────────────────────────────────────────────────────────────
+//  Pin SVG 
 function PinSvg({ color = '#DC2626' }) {
   return (
     <svg width="14" height="18" viewBox="0 0 14 18" fill="none" className="mx-auto drop-shadow-sm">
@@ -56,7 +56,7 @@ function PinSvg({ color = '#DC2626' }) {
   );
 }
 
-// ── Sticky Note ────────────────────────────────────────────────────────────
+//  Sticky Note 
 function StickyNote({ note, T, readOnly, onEdit, constraintsRef, tidyMode = false }) {
   const colorDef = COLORS[note.color] || COLORS.yellow;
   // Tidy mode cancels the playful random rotation + drag so notes sit
@@ -145,7 +145,7 @@ function StickyNote({ note, T, readOnly, onEdit, constraintsRef, tidyMode = fals
   );
 }
 
-// ── Add/Edit Dialog ────────────────────────────────────────────────────────
+//  Add/Edit Dialog 
 function NoteDialog({ open, onClose, note, onSave, onDelete, categories, T }) {
   const isEdit = !!note?.id;
   const [title, setTitle] = useState('');
@@ -320,7 +320,7 @@ function NoteDialog({ open, onClose, note, onSave, onDelete, categories, T }) {
   );
 }
 
-// ── Main CorkBoard Component ───────────────────────────────────────────────
+//  Main CorkBoard Component 
 export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }) {
   const { user, guestCorkNotes, addGuestCorkNote, updateGuestCorkNote, removeGuestCorkNote } = useAuth();
   const queryClient = useQueryClient();
@@ -337,7 +337,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
   // User toggles this via the "סדר אוטומטי" button in the header.
   const [tidyMode, setTidyMode] = useState(false);
 
-  // ── Data ──
+  //  Data 
   const { data: authNotes = [] } = useQuery({
     queryKey: ['cork-notes', vehicle.id],
     queryFn: () => db.cork_notes.filter({ vehicle_id: vehicle.id }),
@@ -375,7 +375,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
 
   const randomRotation = () => Math.round((Math.random() - 0.5) * 6);
 
-  // ── CRUD ──
+  //  CRUD 
   const handleSave = async (noteData) => {
     // DB columns: vehicle_id, title, content, color, due_date, is_done, rotation
     // category + priority don't exist in DB yet - stored in guest/localStorage only

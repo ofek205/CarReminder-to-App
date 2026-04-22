@@ -12,13 +12,13 @@ import { toast } from 'sonner';
 import VersionHistoryDialog from './VersionHistoryDialog';
 
 /**
- * TemplateEditorDialog — full editor for a single notification's template.
+ * TemplateEditorDialog. full editor for a single notification's template.
  *
  * Layout: two columns on desktop, tabs on mobile.
  *   - Left  = form (subject, preheader, title, body, CTA, footer)
  *   - Right = tabs: Preview | Source (final HTML) | Variables
  *
- * Save is blocked if validateTemplate() returns errors — prevents silent
+ * Save is blocked if validateTemplate() returns errors. prevents silent
  * {{foo}} leaking to production (architect's #2 fix).
  */
 
@@ -52,7 +52,7 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
     if (existingTemplate) {
       setDraft({ ...existingTemplate });
     } else if (notification && !isLoading) {
-      // No template row yet — prepare a blank one.
+      // No template row yet. prepare a blank one.
       setDraft({
         notification_key: notification.key,
         subject: '',
@@ -164,7 +164,7 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
         ) : (
           <div className="flex-1 overflow-hidden grid md:grid-cols-2">
 
-            {/* LEFT — editor form */}
+            {/* LEFT. editor form */}
             <div className="overflow-y-auto p-6 border-l">
               <div className="space-y-4">
 
@@ -261,7 +261,7 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
               </div>
             </div>
 
-            {/* RIGHT — preview */}
+            {/* RIGHT. preview */}
             <div className="overflow-y-auto bg-gray-50">
               <Tabs defaultValue="preview" className="w-full">
                 <TabsList className="rounded-none border-b w-full justify-start px-4 bg-white">

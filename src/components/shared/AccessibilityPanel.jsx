@@ -41,7 +41,7 @@ function ToggleRow({ label, description, settingKey }) {
 export default function AccessibilityPanel({ open, onOpenChange }) {
   const { settings, update, resetAll, savePreferences } = useAccessibility();
 
-  // Explicit "save and close" — settings already auto-persist on every
+  // Explicit "save and close". settings already auto-persist on every
   // change, but users asked for a clear commit action. The button closes
   // the panel with a confirmation toast so the save is visible.
   const handleSave = () => {
@@ -59,7 +59,7 @@ export default function AccessibilityPanel({ open, onOpenChange }) {
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
 
-          {/* ── Vision ─────────────────────────────────────────── */}
+          {/*  Vision  */}
           <div>
             <SectionTitle>ראייה</SectionTitle>
 
@@ -142,7 +142,7 @@ export default function AccessibilityPanel({ open, onOpenChange }) {
             />
           </div>
 
-          {/* ── Interaction ─────────────────────────────────────── */}
+          {/*  Interaction  */}
           <div>
             <SectionTitle>אינטראקציה</SectionTitle>
             <ToggleRow
@@ -157,7 +157,7 @@ export default function AccessibilityPanel({ open, onOpenChange }) {
             />
           </div>
 
-          {/* ── General ─────────────────────────────────────────── */}
+          {/*  General  */}
           <div>
             <SectionTitle>כללי</SectionTitle>
             <ToggleRow

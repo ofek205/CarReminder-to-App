@@ -44,7 +44,7 @@ export default function MileageReminderPopup({ open, onClose }) {
           <DialogTitle>עדכון קילומטראז׳</DialogTitle>
         </VisuallyHidden.Root>
 
-        {/* ── Hero (amber variant — signals action needed) ────────────── */}
+        {/*  Hero (amber variant. signals action needed)  */}
         <div className="relative overflow-hidden"
           style={{
             background: 'linear-gradient(165deg, #92400E 0%, #D97706 50%, #F59E0B 100%)',
@@ -76,7 +76,7 @@ export default function MileageReminderPopup({ open, onClose }) {
           </h2>
         </div>
 
-        {/* ── Content ──────────────────────────────────────────────────── */}
+        {/*  Content  */}
         <div className="px-6 pt-5 pb-5">
           <p className="text-sm text-gray-700 text-center leading-relaxed">
             הנתון העדכני עוזר לנו לתזמן לך תזכורות טיפול מדויקות יותר.

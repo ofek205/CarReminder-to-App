@@ -20,27 +20,27 @@ import { AccessibilityProvider } from "@/components/shared/AccessibilityContext"
 import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
 
-// Bottom nav paths (duplicated in mobile sidebar — hide from sidebar on mobile)
+// Bottom nav paths (duplicated in mobile sidebar. hide from sidebar on mobile)
 const BOTTOM_NAV_PATHS = new Set(['Dashboard', 'Documents', 'FindGarage', 'Accidents', 'AiAssistant']);
 
 const navItems = [
-  // ── ניווט ──
+  //  ניווט 
   { name: 'Dashboard',             label: 'דף הבית שלי',     icon: LayoutDashboard, guestAllowed: true },
   { name: 'Vehicles',              label: 'רכבים',            icon: Car,             guestAllowed: true },
   { name: 'Vehicles?category=vessel', label: 'כלי שייט',      icon: Ship,            guestAllowed: true, vesselOnly: true },
-  // ── ניהול ──
+  //  ניהול 
   { divider: true, title: 'ניהול' },
   { name: 'MaintenanceTemplates',  label: 'טיפולים ותיקונים', icon: Wrench,          guestAllowed: true },
   { name: 'Documents',             label: 'מסמכים',           icon: FileText,        guestAllowed: true },
   { name: 'Accidents',             label: 'תאונות',           icon: AlertTriangle,   guestAllowed: true },
-  // ── קהילה ──
+  //  קהילה 
   { divider: true, title: 'קהילה' },
   { name: 'Community',             label: 'קהילה וייעוץ',    icon: Users,           guestAllowed: true },
   { name: 'AiAssistant',           label: 'התייעצות עם מומחה AI', icon: Sparkles,    guestAllowed: true },
-  // ── כלים ──
+  //  כלים 
   { divider: true, title: 'כלים' },
   { name: 'FindGarage',            label: 'מצא מוסך',        icon: MapPin,          guestAllowed: true },
-  // ── חשבון ──
+  //  חשבון 
   { divider: true, title: 'חשבון' },
   // Unified Settings hub replaces three separate entries (אזור אישי /
   // שיתוף חשבון / הגדרות תזכורות). The old routes still work as
@@ -331,13 +331,13 @@ function DraggableA11yButton({ onClick }) {
   );
 }
 
-// ── Notification Bell with dropdown (authenticated users only) ───────────────
+//  Notification Bell with dropdown (authenticated users only) 
 function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
   const [readIds, setReadIds] = useState(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('read_notif_ids') || '[]');
-      // Check timed reads — remove expired ones (older than 7 days)
+      // Check timed reads. remove expired ones (older than 7 days)
       const timedReads = JSON.parse(localStorage.getItem('read_notif_timed') || '{}');
       const now = Date.now();
       const validTimedIds = Object.entries(timedReads)
@@ -443,7 +443,7 @@ function NotificationBell() {
 
           if (v.test_due_date) {
             let nextTestDate = new Date(v.test_due_date);
-            // רכב אספנות: טסט כל 6 חודשים — אם תאריך הטסט הבא רחוק, חשב חצי שנה
+            // רכב אספנות: טסט כל 6 חודשים. אם תאריך הטסט הבא רחוק, חשב חצי שנה
             if (isVintage) {
               const sixMonthsFromTest = new Date(v.test_due_date);
               sixMonthsFromTest.setMonth(sixMonthsFromTest.getMonth() - 6);
@@ -452,7 +452,7 @@ function NotificationBell() {
                 const halfTest = new Date(nextTestDate);
                 halfTest.setMonth(halfTest.getMonth() - 6);
                 if (halfTest > now) {
-                  // Both are in the future — use the closer one (half)
+                  // Both are in the future. use the closer one (half)
                   nextTestDate = halfTest;
                 }
               }
@@ -474,7 +474,7 @@ function NotificationBell() {
               name, insDays, 'VehicleDetail');
           }
 
-          // 3. ציוד בטיחות — כלי שייט בלבד
+          // 3. ציוד בטיחות. כלי שייט בלבד
           if (isVessel) {
             const pyroDays = daysTo(v.pyrotechnics_expiry_date);
             if (pyroDays !== null && pyroDays <= threshold) {
@@ -496,7 +496,7 @@ function NotificationBell() {
             }
           }
 
-          // 4. החלפת צמיגים — כל 100,000 ק"מ או 3 שנים
+          // 4. החלפת צמיגים. כל 100,000 ק"מ או 3 שנים
           if (!isVessel && v.current_km && v.last_tire_change_date) {
             const kmSinceTire = v.current_km - (v.km_since_tire_change ? (v.current_km - Number(v.km_since_tire_change)) : 0);
             const tireDaysAgo = Math.floor((now - new Date(v.last_tire_change_date)) / 86400000);
@@ -509,7 +509,7 @@ function NotificationBell() {
             }
           }
 
-          // 5. טיפול תקופתי — כל 15,000 ק"מ או שנה מהטיפול האחרון
+          // 5. טיפול תקופתי. כל 15,000 ק"מ או שנה מהטיפול האחרון
           if (!isVessel && v.current_km) {
             // Check last maintenance from maintenance_logs or km_baseline
             const lastServiceKm = v.km_baseline || 0;
@@ -522,7 +522,7 @@ function NotificationBell() {
             }
           }
 
-          // 6. מספנה — כלי שייט, כל 3 שנים מהפעם הקודמת
+          // 6. מספנה. כלי שייט, כל 3 שנים מהפעם הקודמת
           if (isVessel && v.last_shipyard_date) {
             const shipyardDaysAgo = Math.floor((now - new Date(v.last_shipyard_date)) / 86400000);
             const shipyardYears = shipyardDaysAgo / 365;
@@ -534,7 +534,7 @@ function NotificationBell() {
             }
           }
 
-          // 7. רכב מעל 15 שנה — נדרש אישור בלמים לפני טסט
+          // 7. רכב מעל 15 שנה. נדרש אישור בלמים לפני טסט
           if (!isVessel && vehicleAge >= 15 && v.test_due_date) {
             const testDaysLeft = daysTo(v.test_due_date);
             if (testDaysLeft !== null && testDaysLeft <= 60 && testDaysLeft > 0) {
@@ -544,7 +544,7 @@ function NotificationBell() {
             }
           }
 
-          // 8. עדכון ק"מ / שעות מנוע — לא עודכן חצי שנה
+          // 8. עדכון ק"מ / שעות מנוע. לא עודכן חצי שנה
           const localMileageDate = mileageDates[v.id] || null;
           const mileageDate = localMileageDate || v.km_update_date || v.engine_hours_update_date;
           if (mileageDate) {
@@ -556,14 +556,14 @@ function NotificationBell() {
                 name, 999, 'VehicleDetail');
             }
           } else if (v.current_km || v.current_engine_hours) {
-            // Has mileage but no update date — probably old, remind
+            // Has mileage but no update date. probably old, remind
             addNotif(`mileage-${v.id}`, v.id, 'mileage',
               !isVessel ? 'עדכן קילומטראז\'' : 'עדכן שעות מנוע',
               name, 999, 'VehicleDetail');
           }
         });
 
-        // 9. הכן את הרכב לחורף — נובמבר
+        // 9. הכן את הרכב לחורף. נובמבר
         const month = now.getMonth(); // 0-indexed: 10=November
         const hasNonVesselVehicles = vehicles.some(v => !isVesselVeh(v));
         const hasVesselVehicles = vehicles.some(v => isVesselVeh(v));
@@ -583,7 +583,7 @@ function NotificationBell() {
           }
         }
 
-        // 10. עונת הפלגה — אפריל
+        // 10. עונת הפלגה. אפריל
         if (month === 3 && hasVesselVehicles) { // April
           const sailKey = `sailing_dismissed_${now.getFullYear()}`;
           if (!localStorage.getItem(sailKey)) {
@@ -772,7 +772,7 @@ function NotificationBell() {
                     <div key={n.id}
                       className="flex items-center gap-3 px-4 py-3 transition-all"
                       style={{ background: isRead ? '#fff' : '#FEFCE8', borderBottom: '1px solid #F5F5F5' }}>
-                      {/* Click area — navigate */}
+                      {/* Click area. navigate */}
                       <button
                         onClick={() => {
                           markRead(n.id);
@@ -848,7 +848,7 @@ function NotificationBell() {
                         <div className="flex-1 min-w-0">
                           <p className={`text-xs truncate ${isRead ? 'font-medium' : 'font-bold'}`}
                             style={{ color: n.isExpired ? '#DC2626' : isRead ? '#6B7280' : '#1C2E20' }}>
-                            {/* Keep "פג תוקף" in the bell label — here there's no chip
+                            {/* Keep "פג תוקף" in the bell label. here there's no chip
                                 to convey the state, so the trailing signal earns its keep. */}
                             {n.label}
                           </p>
@@ -920,7 +920,7 @@ function LayoutInner({ children }) {
   // Side menu stays open across navigation. BottomNav is lifted above the
   // sheet so the user can route between tabs while the drawer is visible.
   // Explicit closers (X button, overlay click, menu item onClick) handle
-  // intentional dismissal — we don't want to slam the drawer shut every
+  // intentional dismissal. we don't want to slam the drawer shut every
   // time the route changes.
 
   // Track page views for BI dashboard. Normalizes /VehicleDetail?id=... style
@@ -931,10 +931,10 @@ function LayoutInner({ children }) {
     const key = `pv:${location.pathname}`;
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, '1');
-    // Public static pages aren't features — skip to keep the dashboard clean.
+    // Public static pages aren't features. skip to keep the dashboard clean.
     const SKIP = ['/', '/Auth', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
     if (SKIP.includes(location.pathname)) return;
-    // The analytics table aggregates per (event, date) — so encode the page
+    // The analytics table aggregates per (event, date). so encode the page
     // into the event name to get one row per (page, day).
     const page = location.pathname.replace(/^\//, '').split('?')[0] || 'root';
     import('@/lib/analytics').then(({ trackEvent }) => {
@@ -981,7 +981,7 @@ function LayoutInner({ children }) {
     }
   }, [isLoading, isAuthenticated, isGuest, isPublicRoute, navigate]);
 
-  // Authenticated popup — show once per browser session.
+  // Authenticated popup. show once per browser session.
   // Returning-user detection is based on account age rather than a
   // per-browser localStorage flag, so that logging in from a new device or
   // after clearing storage still correctly shows "כיף שחזרת". A user is
@@ -996,7 +996,7 @@ function LayoutInner({ children }) {
     sessionStorage.setItem(`welcome_popup_shown_${user.id}`, '1');
   }, [isAuthenticated, user]);
 
-  // Mileage reminder — skip for now (database not migrated yet)
+  // Mileage reminder. skip for now (database not migrated yet)
   useEffect(() => {
     if (!isAuthenticated) return;
     setMileageCheckDone(true);
@@ -1094,12 +1094,12 @@ function LayoutInner({ children }) {
         </div>
         {/* Spacer so content never hides behind fixed BottomNav on mobile.
             Uses arbitrary [88px] (not h-20=5rem) so it doesn't shrink under
-            user font-scaling — the BottomNav has a fixed 12px gesture-pill
+            user font-scaling. the BottomNav has a fixed 12px gesture-pill
             floor + ~60px of content, so we need a real-px floor here too. */}
         <div className="h-[88px] lg:h-0 shrink-0" aria-hidden="true" />
       </main>
 
-      {/* Bottom navigation — mobile only. `sheetOpen` lifts it above the
+      {/* Bottom navigation. mobile only. `sheetOpen` lifts it above the
           side-menu sheet so the user can tap a tab (e.g. מצא מוסך) straight
           from an open menu instead of having to close + re-tap. */}
       <BottomNav sheetOpen={open} />

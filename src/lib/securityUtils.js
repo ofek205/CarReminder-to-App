@@ -1,6 +1,6 @@
 /**
  * securityUtils.js
- * Centralized security helpers — URL validation, input sanitization.
+ * Centralized security helpers. URL validation, input sanitization.
  * Import from here to keep security logic DRY and testable.
  */
 
@@ -48,7 +48,7 @@ export function openFileUrlSafely(url) {
   return true;
 }
 
-// ── File upload validation ─────────────────────────────────────────────────
+//  File upload validation 
 
 /** Allowed MIME types for document/attachment uploads */
 export const ALLOWED_DOC_MIME_TYPES = [
@@ -86,7 +86,7 @@ export function validateUploadFile(file, mode = 'doc', maxMB = 10) {
     return { ok: false, error: `ניתן להעלות רק ${label}` };
   }
 
-  // Check file extension (secondary check — prevents extension spoofing)
+  // Check file extension (secondary check. prevents extension spoofing)
   const ext = '.' + file.name.split('.').pop().toLowerCase();
   if (!allowedExt.includes(ext)) {
     return { ok: false, error: 'סיומת הקובץ אינה מותרת' };
@@ -121,7 +121,7 @@ export function sanitizeString(value, maxLength = 200) {
 }
 
 /**
- * Sanitize a date string — only allow ISO date format YYYY-MM-DD.
+ * Sanitize a date string. only allow ISO date format YYYY-MM-DD.
  */
 export function sanitizeDateString(value) {
   if (typeof value !== 'string') return undefined;

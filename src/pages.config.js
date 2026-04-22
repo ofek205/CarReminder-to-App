@@ -9,7 +9,7 @@ import VehicleDetail from './pages/VehicleDetail';
 import Vehicles from './pages/Vehicles';
 import __Layout from './Layout.jsx';
 
-// Lazy-loaded pages — loaded on demand when navigated to
+// Lazy-loaded pages. loaded on demand when navigated to
 const Community = React.lazy(() => import('./pages/Community'));
 const DeleteAccount = React.lazy(() => import('./pages/DeleteAccount'));
 const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy'));

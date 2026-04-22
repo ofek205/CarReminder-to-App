@@ -28,7 +28,7 @@ import {
   CalendarPlus,
 } from "lucide-react";
 
-// ── Calendar helper ────────────────────────────────────────────────────────
+//  Calendar helper 
 function downloadIcs(title, dateStr) {
   if (!dateStr) return;
   const date = dateStr.replace(/-/g, ''); // YYYYMMDD
@@ -52,7 +52,7 @@ function downloadIcs(title, dateStr) {
   URL.revokeObjectURL(url);
 }
 
-// ── helpers ────────────────────────────────────────────────────────────────
+//  helpers 
 function InfoCard({ vehicle }) {
   const testStatus = getDateStatus(vehicle.test_due_date);
   const insuranceStatus = getDateStatus(vehicle.insurance_due_date);
@@ -306,7 +306,7 @@ function DocumentsCard() {
   );
 }
 
-// ── Main page ───────────────────────────────────────────────────────────────
+//  Main page 
 export default function DemoVehicleDetail() {
   return (
     <div>

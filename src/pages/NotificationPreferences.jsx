@@ -10,7 +10,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import { toast } from 'sonner';
 
 /**
- * NotificationPreferences — user-facing page (not admin) for managing
+ * NotificationPreferences. user-facing page (not admin) for managing
  * which notifications each user wants to receive by email. Groups by
  * category, shows a brief description for each, and persists flips
  * to user_notification_preferences via RLS-protected hooks.

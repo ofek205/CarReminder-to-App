@@ -29,7 +29,7 @@ import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from '@/hooks/useAccountRole';
 import { canEdit } from '@/lib/permissions';
 
-// ── Document category definitions ─────────────────────────────────────────────
+//  Document category definitions 
 const DOC_CATEGORIES = [
   { type: 'ביטוח חובה',   emoji: '🛡️', bg: 'bg-blue-50',    text: 'text-blue-700',   border: 'border-blue-200'  },
   { type: 'ביטוח מקיף',   emoji: '🔒', bg: 'bg-indigo-50',  text: 'text-indigo-700', border: 'border-indigo-200'},
@@ -64,7 +64,7 @@ function getCat(type) {
     || DOC_CATEGORIES[DOC_CATEGORIES.length - 1];
 }
 
-// ── Parse DD/MM/YYYY → YYYY-MM-DD ─────────────────────────────────────────────
+//  Parse DD/MM/YYYY → YYYY-MM-DD 
 function parseDocDate(str) {
   if (!str) return '';
   const parts = str.split('/');
@@ -77,7 +77,7 @@ function parseDocDate(str) {
 
 const EMPTY_FORM = { document_type: 'מסמך אחר', title: '', description: '', vehicle_id: '', issue_date: '', expiry_date: '', file_url: '' };
 
-// ── Upload dialog (shared logic wrapper) ──────────────────────────────────────
+//  Upload dialog (shared logic wrapper) 
 function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, saving, isGuest = false }) {
   const [form, setForm] = useState({ ...EMPTY_FORM, vehicle_id: vehicleIdParam || '' });
   const [uploading, setUploading] = useState(false);
@@ -114,7 +114,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
     setUploading(true);
     try {
       // Compress images before storing (PDFs pass through unchanged). A 4MB phone
-      // photo typically shrinks to ~300KB WebP — keeps base64 payloads sane.
+      // photo typically shrinks to ~300KB WebP. keeps base64 payloads sane.
       const fileForUpload = file.type.startsWith('image/') ? await compressImage(file) : file;
 
       const reader = new FileReader();
@@ -207,7 +207,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
 
         <div className="space-y-4" dir="rtl">
 
-          {/* ── Guest: AI scan requires registration ── */}
+          {/*  Guest: AI scan requires registration  */}
           {isGuest && (
             <div className="rounded-2xl p-4 flex items-start gap-3"
               style={{ background: '#F3E5F5', border: '1.5px solid #CE93D8' }}>
@@ -231,7 +231,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             </div>
           )}
 
-          {/* ── Upload zone ── */}
+          {/*  Upload zone  */}
           {!isGuest && (
             <div>
               <label
@@ -258,7 +258,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             </div>
           )}
 
-          {/* ── AI Scan banner ── */}
+          {/*  AI Scan banner  */}
           {!isGuest && form.file_url && !aiResult && (
             <div className="flex items-center justify-between gap-3 bg-purple-50 border border-purple-200 rounded-xl px-4 py-3">
               <div>
@@ -280,7 +280,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             </div>
           )}
 
-          {/* ── AI result preview ── */}
+          {/*  AI result preview  */}
           {aiResult && (
             <div className="border border-green-300 bg-green-50 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between">
@@ -305,7 +305,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             </div>
           )}
 
-          {/* ── Category ── */}
+          {/*  Category  */}
           <div>
             <Label className="text-right block mb-1.5">קטגוריה</Label>
             <div className="grid grid-cols-2 gap-2">
@@ -327,7 +327,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             </div>
           </div>
 
-          {/* ── Title ── */}
+          {/*  Title  */}
           <div>
             <Label className="text-right block mb-1.5">כותרת / שם המסמך</Label>
             <Input
@@ -338,7 +338,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             />
           </div>
 
-          {/* ── Description ── */}
+          {/*  Description  */}
           <div>
             <Label className="text-right block mb-1.5">תיאור (אופציונלי)</Label>
             <Textarea
@@ -351,7 +351,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             />
           </div>
 
-          {/* ── Vehicle selector ── */}
+          {/*  Vehicle selector  */}
           {!vehicleIdParam && vehicles && vehicles.length > 0 && (
             <div>
               <Label className="text-right block mb-1.5">רכב (אופציונלי)</Label>
@@ -366,7 +366,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             </div>
           )}
 
-          {/* ── Dates ── */}
+          {/*  Dates  */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-right block mb-1.5">תאריך הוצאה</Label>
@@ -391,7 +391,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
   );
 }
 
-// ── Expiry pill helper ────────────────────────────────────────────────────────
+//  Expiry pill helper 
 function ExpiryPill({ expiryDate }) {
   if (!expiryDate) return null;
   const dl = daysUntil(expiryDate);
@@ -411,7 +411,7 @@ function ExpiryPill({ expiryDate }) {
   );
 }
 
-// ── Document card ──────────────────────────────────────────────────────────────
+//  Document card 
 function DocCard({ doc, vehicle, onOpen, onDelete, openingId }) {
   const cat = getCat(doc.document_type);
 
@@ -486,7 +486,7 @@ function DocCard({ doc, vehicle, onOpen, onDelete, openingId }) {
   );
 }
 
-// ── Vehicle-grouped wrapper (used on "all vehicles" view) ─────────────────
+//  Vehicle-grouped wrapper (used on "all vehicles" view) 
 // Wraps GroupedDocList inside a per-vehicle section so the user can scan
 // "which docs belong to which vehicle" at a glance, instead of a flat
 // category list that mixes all vehicles' docs together.
@@ -560,7 +560,7 @@ function VehicleGroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) 
   );
 }
 
-// ── Grouped document list ─────────────────────────────────────────────────────
+//  Grouped document list 
 function GroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
   const [collapsed, setCollapsed] = useState({});
 
@@ -665,7 +665,7 @@ function GroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
   );
 }
 
-// ── Guest Documents ───────────────────────────────────────────────────────────
+//  Guest Documents 
 function GuestDocuments({ vehicleIdParam }) {
   const { guestDocuments, guestVehicles, addGuestDocument, removeGuestDocument } = useAuth();
   const [showAdd, setShowAdd] = useState(false);
@@ -737,7 +737,7 @@ function GuestDocuments({ vehicleIdParam }) {
       {docs.length === 0 ? (
         <EmptyState icon={FileText} title="אין מסמכים" description="הוסף מסמכים כמו רישיון רכב, ביטוח ועוד" />
       ) : vehicleIdParam ? (
-        // Viewing one specific vehicle — skip the per-vehicle wrapper and
+        // Viewing one specific vehicle. skip the per-vehicle wrapper and
         // just show the category-grouped list.
         <GroupedDocList
           docs={docs}
@@ -745,7 +745,7 @@ function GuestDocuments({ vehicleIdParam }) {
           onDelete={id => setDeleteTarget(id)}
         />
       ) : (
-        // "All vehicles" view — group by vehicle first, then by category.
+        // "All vehicles" view. group by vehicle first, then by category.
         <VehicleGroupedDocList
           docs={docs}
           vehicles={guestVehicles}
@@ -801,7 +801,7 @@ function GuestDocuments({ vehicleIdParam }) {
   );
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+//  Main export 
 export default function Documents() {
   const { isGuest } = useAuth();
   const urlParams = new URLSearchParams(window.location.search);
@@ -811,7 +811,7 @@ export default function Documents() {
   return <AuthDocuments vehicleIdParam={vehicleIdParam} />;
 }
 
-// ── Auth Documents ─────────────────────────────────────────────────────────────
+//  Auth Documents 
 function AuthDocuments({ vehicleIdParam }) {
   const { role } = useAccountRole();
   const [accountId, setAccountId] = useState(null);
@@ -862,7 +862,7 @@ function AuthDocuments({ vehicleIdParam }) {
     setSaving(true);
     try {
       // Re-verify that the current user is actually בעלים/מנהל on the account
-      // we're about to write into — the documents RLS policy rejects inserts
+      // we're about to write into. the documents RLS policy rejects inserts
       // from שותף (viewers) with a cryptic "row-level security policy"
       // message. Catch it here so the user sees a clear Hebrew explanation
       // instead of the raw Postgres error.
@@ -877,13 +877,13 @@ function AuthDocuments({ vehicleIdParam }) {
         throw new Error('רק בעלים או מנהל יכולים להוסיף מסמכים. פנה לבעל החשבון לעלות בהרשאה.');
       }
 
-      // Diagnostic log — helps narrow down RLS rejections. Stripped at build
+      // Diagnostic log. helps narrow down RLS rejections. Stripped at build
       // time by Vite since we don't ship to production with NODE_ENV=dev.
       console.info('[Documents.save] authUser=%s accountId=%s role=%s status=%s',
         authUser.id, accountId, myMember.role, myMember.status);
 
       // Only keep known DB columns. The form has a `description` field that
-      // the DB stores as `notes` — map it explicitly so the user's notes
+      // the DB stores as `notes`. map it explicitly so the user's notes
       // aren't silently dropped during save.
       const DOC_COLUMNS = ['document_type','title','issue_date','expiry_date','vehicle_id','file_url','notes'];
       const data = { account_id: accountId };
@@ -894,7 +894,7 @@ function AuthDocuments({ vehicleIdParam }) {
       if (form.description && !data.notes) data.notes = form.description;
 
       // Guard against oversized uploads. Supabase rejects >10MB JSON payloads,
-      // and base64 inflates by ~33%, so a 5MB file is ~6.7MB as base64 — fine,
+      // and base64 inflates by ~33%, so a 5MB file is ~6.7MB as base64. fine,
       // but anything bigger will fail silently and the user will just see
       // "Save failed" with no hint. Check before we try.
       if (data.file_url && typeof data.file_url === 'string' && data.file_url.length > 8 * 1024 * 1024) {

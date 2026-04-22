@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 
 // Sensible defaults for the admin's Send-Test flow. Used instead of the
 // generic `[varName]` stub so a test send feels like a real email. Anything
-// we don't know a default for falls back to the literal variable name —
+// we don't know a default for falls back to the literal variable name 
 // visible enough to edit, but not broken-looking.
 function buildSmartStub(varName, ctx) {
   const today = new Date();
@@ -42,11 +42,11 @@ function buildSmartStub(varName, ctx) {
 }
 
 /**
- * SendTestDialog — sends a test copy of a notification template to a
+ * SendTestDialog. sends a test copy of a notification template to a
  * recipient the admin chooses. Renders the template with JSON variables,
  * then pipes through the regular sendEmail() (Edge Function → Resend).
  *
- * Note: test sends bypass the "enabled" flag on the notification — the
+ * Note: test sends bypass the "enabled" flag on the notification. the
  * point is to preview while disabled. But they DO respect the global
  * kill switch, because sendEmail() will check it.
  */

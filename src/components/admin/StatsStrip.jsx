@@ -3,14 +3,14 @@ import { Send, CheckCircle2, Eye, MousePointerClick, AlertCircle, XCircle } from
 import { useEmailStats } from '@/hooks/useEmailAdmin';
 
 /**
- * StatsStrip — 30-day rollup of delivery health across all notifications.
+ * StatsStrip. 30-day rollup of delivery health across all notifications.
  *
  * Shows: sent, delivered, opened, clicked, bounced, failed. Rates (open %,
  * click %) are computed relative to delivered. Shown as a horizontal
  * strip at the top of EmailCenter, above the tabs.
  *
  * If Resend webhook isn't configured yet, delivered/opened/clicked will
- * all be zero — the hint line explains why.
+ * all be zero. the hint line explains why.
  */
 export default function StatsStrip() {
   const { data: stats, isLoading } = useEmailStats({ days: 30 });

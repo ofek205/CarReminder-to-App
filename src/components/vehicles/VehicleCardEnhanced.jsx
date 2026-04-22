@@ -17,7 +17,7 @@ import {
 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 
-// ── localStorage helper for mileage update dates ───────────────────────────
+//  localStorage helper for mileage update dates 
 const MILEAGE_DATES_KEY = 'carreminder_mileage_dates';
 function getMileageUpdateDate(vehicleId) {
   try {
@@ -33,7 +33,7 @@ function setMileageUpdateDate(vehicleId) {
   } catch {}
 }
 
-// ── Inline Quick Update (left side button) ─────────────────────────────────
+//  Inline Quick Update (left side button) 
 function QuickMileageBtn({ vehicle, T, isKm, onOpenUpdate }) {
   const unit = isKm ? 'ק״מ' : 'שעות';
   const localDate = getMileageUpdateDate(vehicle.id);
@@ -56,7 +56,7 @@ function QuickMileageBtn({ vehicle, T, isKm, onOpenUpdate }) {
   );
 }
 
-// ── Inline update row (appears below card) ─────────────────────────────────
+//  Inline update row (appears below card) 
 function QuickMileageInput({ vehicle, T, isKm, onClose }) {
   const [value, setValue] = useState(
     (isKm ? vehicle.current_km : vehicle.current_engine_hours)
@@ -179,7 +179,7 @@ function VehicleCardEnhanced({ vehicle }) {
 
   // Missing fields detection
   const isVesselV = isVessel(vehicle.vehicle_type, vehicle.nickname);
-  // Missing fields — only truly essential ones, adapted per vehicle type
+  // Missing fields. only truly essential ones, adapted per vehicle type
   const missingFields = [];
   if (!vehicle.test_due_date) missingFields.push(labels.testWord);
   if (!vehicle.insurance_due_date) missingFields.push(isVesselV ? 'ביטוח ימי' : 'ביטוח');
@@ -196,10 +196,10 @@ function VehicleCardEnhanced({ vehicle }) {
 
   const borderColor = worstSt === 'danger' ? '#FECACA' : worstSt === 'warn' ? '#FDE68A' : T.border;
 
-  // Title + subtitle — show each piece of info exactly once. If the title
+  // Title + subtitle. show each piece of info exactly once. If the title
   // (nickname or manufacturer+model) already contains a word from the
   // manufacturer/model, drop it from the subtitle so we don't echo the same
-  // text on two lines. Year is always kept — it's unique.
+  // text on two lines. Year is always kept. it's unique.
   const name = vehicle.nickname || vehicle.manufacturer || labels.vehicleFallback;
   const titleWords = name.toLowerCase().split(/[\s·]+/).filter(Boolean);
   const isWordInTitle = (s) => (s || '').toLowerCase().split(/\s+/).filter(Boolean).some(w => titleWords.includes(w));
@@ -299,7 +299,7 @@ function VehicleCardEnhanced({ vehicle }) {
               <StatusBadge status={insStatus.status} label={insStatus.label} />
             </div>
 
-            {/* Missing fields — compact chip with count. Click navigates to edit.
+            {/* Missing fields. compact chip with count. Click navigates to edit.
                 Previously this was a wide banner shown on nearly every card,
                 adding visual noise. Now it's a single compact chip with a
                 tooltip-title listing the missing fields for hover/long-press. */}

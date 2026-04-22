@@ -7,7 +7,7 @@ import { useTemplateVersions, useRevertToVersion } from '@/hooks/useEmailAdmin';
 import { toast } from 'sonner';
 
 /**
- * VersionHistoryDialog — list of auto-snapshots for a template. Admin
+ * VersionHistoryDialog. list of auto-snapshots for a template. Admin
  * can click any version to preview its content, and revert with a single
  * button. The revert writes a NEW snapshot so nothing is ever lost.
  */
@@ -40,7 +40,7 @@ export default function VersionHistoryDialog({ template, open, onClose }) {
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden grid md:grid-cols-2">
-          {/* LEFT — version list */}
+          {/* LEFT. version list */}
           <div className="overflow-y-auto border-l p-3">
             {isLoading ? (
               <div className="py-12 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
@@ -70,7 +70,7 @@ export default function VersionHistoryDialog({ template, open, onClose }) {
             )}
           </div>
 
-          {/* RIGHT — selected version preview */}
+          {/* RIGHT. selected version preview */}
           <div className="overflow-y-auto p-4 bg-gray-50">
             {!selected ? (
               <div className="py-20 text-center text-sm text-gray-400">

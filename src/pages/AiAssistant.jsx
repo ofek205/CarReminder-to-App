@@ -37,7 +37,7 @@ const SUGGESTED_PROMPTS_VEHICLE = [
   'יש לי רעש מוזר, מה זה יכול להיות?',
 ];
 
-// Sanitize message text — strip HTML, control chars
+// Sanitize message text. strip HTML, control chars
 function sanitize(text) {
   if (typeof text !== 'string') return '';
   return text
@@ -70,7 +70,7 @@ export default function AiAssistant() {
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Load chat history — works for both guests and authenticated users
+  // Load chat history. works for both guests and authenticated users
   useEffect(() => {
     setMessages([]);
     const key = getStorageKey(user?.id);
@@ -92,7 +92,7 @@ export default function AiAssistant() {
     try { localStorage.removeItem('yossi_chat_history'); } catch {}
   }, [user?.id]);
 
-  // Save chat history (last 50 messages) — auto-save with timestamp
+  // Save chat history (last 50 messages). auto-save with timestamp
   useEffect(() => {
     if (messages.length === 0) return;
     const key = getStorageKey(user?.id);
@@ -189,7 +189,7 @@ export default function AiAssistant() {
     }
     if (status.length) lines.push('**מצב רישוי:** ' + status.join(' | '));
 
-    // Recent maintenance — KEY for AI to avoid suggesting things already done
+    // Recent maintenance. KEY for AI to avoid suggesting things already done
     if (maintenanceLogs.length) {
       lines.push('\n### היסטוריית טיפולים אחרונים (אל תמליץ על מה שכבר בוצע לאחרונה!):');
       maintenanceLogs.slice(0, 8).forEach(log => {
@@ -355,7 +355,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
   return (
     <div dir="rtl" className="-mx-4 -mt-4 flex flex-col" style={{ background: '#F9FAFB', minHeight: '100dvh' }}>
 
-      {/* Hero gradient header — scrolls away naturally so the layout's fixed
+      {/* Hero gradient header. scrolls away naturally so the layout's fixed
           top bar is the only thing pinned. Sticky here was overlapping the
           chat under the global bar at z-9998. */}
       <div className="relative overflow-hidden pb-6" style={{ background: C.grad }}>
@@ -367,7 +367,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
 
         <div className="relative z-10 px-4 pt-4">
           <div className="flex items-center justify-between mb-2">
-            {/* Left avatar — yellow accent */}
+            {/* Left avatar. yellow accent */}
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
               style={{ background: '#FFBF00', boxShadow: '0 4px 16px rgba(255,191,0,0.5), 0 2px 4px rgba(255,191,0,0.3)' }}>
               <Sparkles className="w-6 h-6" style={{ color: C.primary }} />
@@ -513,7 +513,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
           </div>
         )}
 
-        {/* Disclaimer — vibrant amber */}
+        {/* Disclaimer. vibrant amber */}
         <div className="flex items-start gap-2 px-3 py-2.5 rounded-2xl"
           style={{
             background: 'linear-gradient(135deg, #FFFBEB, #FEF3C7)',
@@ -692,7 +692,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
         )}
       </div>
 
-      {/* Input area — premium */}
+      {/* Input area. premium */}
       <div className="fixed left-0 right-0 z-40"
         style={{
           bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',

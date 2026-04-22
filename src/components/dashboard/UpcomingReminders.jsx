@@ -15,7 +15,7 @@ import { calcReminders, daysLabel, daysLabelShort } from '../shared/ReminderEngi
 import { formatDateHe } from '../shared/DateStatusUtils';
 import { useAuth } from '../shared/GuestContext';
 
-// ── Status color tokens ────────────────────────────────────────────────────────
+//  Status color tokens 
 const STATUS = {
   danger:   { bar: 'bg-red-500',     badge: 'bg-red-50 text-red-700 border border-red-200',     dot: 'bg-red-500'    },
   warn:     { bar: 'bg-amber-400',   badge: 'bg-amber-50 text-amber-700 border border-amber-200', dot: 'bg-amber-400'  },
@@ -23,7 +23,7 @@ const STATUS = {
   ok:       { bar: 'bg-emerald-400', badge: 'bg-emerald-50 text-emerald-700 border border-emerald-200', dot: 'bg-emerald-400' },
 };
 
-// ── Single reminder row ────────────────────────────────────────────────────────
+//  Single reminder row 
 function ReminderRow({ item }) {
   const s = STATUS[item.status] || STATUS.ok;
 
@@ -60,7 +60,7 @@ function ReminderRow({ item }) {
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+//  Main component 
 export default function UpcomingReminders({ vehicles = [], accountId }) {
   const { isGuest, guestDocuments, guestReminderSettings } = useAuth();
   const [expanded, setExpanded] = useState(false);
@@ -104,7 +104,7 @@ export default function UpcomingReminders({ vehicles = [], accountId }) {
 
   return (
     <Card className="border border-gray-100 rounded-2xl overflow-hidden mt-4 shadow-sm" dir="rtl">
-      {/* ── Header ── */}
+      {/*  Header  */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gradient-to-l from-[#FDF6F0] to-white">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-[#2D5233] flex items-center justify-center">
@@ -126,14 +126,14 @@ export default function UpcomingReminders({ vehicles = [], accountId }) {
         </span>
       </div>
 
-      {/* ── Rows ── */}
+      {/*  Rows  */}
       <div className="divide-y divide-gray-50">
         {visible.map(item => (
           <ReminderRow key={item.id} item={item} />
         ))}
       </div>
 
-      {/* ── Expand / collapse ── */}
+      {/*  Expand / collapse  */}
       {hasMore && (
         <button
           type="button"

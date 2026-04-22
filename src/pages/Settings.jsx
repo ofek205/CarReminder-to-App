@@ -1,5 +1,5 @@
 /**
- * Settings — unified hub for personal/account/notifications.
+ * Settings. unified hub for personal/account/notifications.
  *
  * Replaces three separate sidebar entries (אזור אישי / שיתוף חשבון /
  * הגדרות תזכורות) with one entry point + tab navigation. Each tab
@@ -24,7 +24,7 @@ import PageHeader from '../components/shared/PageHeader';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { C } from '@/lib/designTokens';
 
-// Reuse existing pages, not lazy — user will browse between tabs, so
+// Reuse existing pages, not lazy. user will browse between tabs, so
 // loading all three up front is cheaper than Suspense-flashing on each click.
 import UserProfilePage from './UserProfile';
 import AccountSettings from './AccountSettings';
@@ -57,7 +57,7 @@ export default function Settings() {
     <div dir="rtl" className="pb-20">
       <PageHeader title="הגדרות" subtitle={current.subtitle} />
 
-      {/* ── Tab bar ──────────────────────────────────────────────────── */}
+      {/*  Tab bar  */}
       <div className="px-4 mb-5">
         <div
           role="tablist"
@@ -78,7 +78,7 @@ export default function Settings() {
                   background: isActive ? '#fff' : 'transparent',
                   boxShadow: isActive ? '0 2px 8px rgba(45,82,51,0.12)' : 'none',
                   color: isActive ? C.primary : C.muted,
-                  // Keep weight stable — font-weight doesn't animate smoothly
+                  // Keep weight stable. font-weight doesn't animate smoothly
                   // between 600 and 800 (browsers snap to nearest loaded face).
                   // Color + background + icon stroke now carry the active state.
                   fontWeight: 700,
@@ -92,7 +92,7 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* ── Active tab content ──────────────────────────────────────── */}
+      {/*  Active tab content  */}
       <div className="px-4">
         <Suspense fallback={<div className="flex justify-center py-16"><LoadingSpinner /></div>}>
           {active === 'profile' && <UserProfilePage embedded />}

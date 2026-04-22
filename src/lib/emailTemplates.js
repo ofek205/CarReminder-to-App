@@ -1,17 +1,17 @@
 /**
- * emailTemplates — single source of truth for all branded emails sent from
+ * emailTemplates. single source of truth for all branded emails sent from
  * CarReminder. Any HTML that reaches a user's inbox should be built via
  * `buildEmailHtml(...)` so the look & feel stays consistent.
  *
  * Palette, spacing and typography mirror the in-app design tokens
- * (src/lib/designTokens.js) — forest green gradient, soft cream backdrop,
+ * (src/lib/designTokens.js). forest green gradient, soft cream backdrop,
  * rounded cards, heavy titles, calm body.
  *
  * The same template file is also used as the basis for the Supabase Auth
- * email templates under `supabase/email-templates/` — keep them in sync.
+ * email templates under `supabase/email-templates/`. keep them in sync.
  */
 
-// ── Brand palette ──────────────────────────────────────────────────────────
+//  Brand palette 
 // Deliberately copied (not imported from designTokens) so that any HTML
 // generated here stays self-contained: email clients strip <style> tags
 // aggressively, so we inline everything.
@@ -39,7 +39,7 @@ export const EMAIL_BRAND = {
   logoUrl:    'https://car-reminder.app/icons/email-logo.png',
 };
 
-// ── HTML escape ────────────────────────────────────────────────────────────
+//  HTML escape 
 // Used everywhere we interpolate user-supplied strings into the template.
 export function escapeHtml(s = '') {
   return String(s)
@@ -50,9 +50,9 @@ export function escapeHtml(s = '') {
     .replace(/'/g, '&#39;');
 }
 
-// ── Building blocks ────────────────────────────────────────────────────────
+//  Building blocks 
 
-// Card the user sees as the "gentle highlight" — used for invite details,
+// Card the user sees as the "gentle highlight". used for invite details,
 // one-line context, etc.
 export function infoBox(html) {
   return `<div style="background:${EMAIL_BRAND.infoBg};border:1.5px solid ${EMAIL_BRAND.infoBorder};border-radius:16px;padding:18px 20px;margin:0 0 24px;color:${EMAIL_BRAND.infoText};font-size:15px;line-height:1.7">${html}</div>`;
@@ -79,7 +79,7 @@ export function ctaButton(label, href) {
 
 // 6-digit verification code rendered as a big tappable "copy pill".
 // Since email clients don't run JavaScript, we can't wire a real
-// navigator.clipboard button. We fake it with user-select:all — one
+// navigator.clipboard button. We fake it with user-select:all. one
 // tap/click selects the whole code so Ctrl/Cmd+C (or long-press →
 // Copy on mobile) finishes the job. This is the exact pattern Google,
 // Stripe and Apple use in their OTP emails.
@@ -107,7 +107,7 @@ export function fallbackLink(href, label = 'או העתק/י את הקישור �
     </p>`;
 }
 
-// ── Full-page shell ────────────────────────────────────────────────────────
+//  Full-page shell 
 /**
  * buildEmailHtml({ preheader, title, subtitle, bodyHtml, footerNote })
  *
@@ -191,12 +191,12 @@ export function buildEmailHtml({
 </html>`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // Ready-made builders
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 /**
- * Invite email — sent when an admin invites a family member to their
+ * Invite email. sent when an admin invites a family member to their
  * CarReminder account. Called from AccountSettings.
  */
 export function buildInviteEmail({ inviterName, roleLabel, inviteLink }) {

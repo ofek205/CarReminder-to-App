@@ -17,7 +17,7 @@ const BODY_MAX  = 500;
 
 const VEHICLE_TYPES = ['רכב', 'כלי שייט', 'אופנוע', 'משאית', 'כלי שטח'];
 
-// ── Interactive star rating ────────────────────────────────────────────────
+//  Interactive star rating 
 function StarRating({ value, onChange }) {
   const [hover, setHover] = useState(0);
   const display = hover || value;
@@ -42,7 +42,7 @@ function StarRating({ value, onChange }) {
   );
 }
 
-// ── Short label under the stars ────────────────────────────────────────────
+//  Short label under the stars 
 const RATING_LABELS = {
   1: 'גרוע',
   2: 'לא טוב',

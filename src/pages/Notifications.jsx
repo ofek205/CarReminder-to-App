@@ -48,7 +48,7 @@ function getNotifEditUrl(notif) {
 const GOV_LICENSE_URL = 'https://www.gov.il/he/service/car-license-renewal';
 const GOV_VESSEL_URL = 'https://www.gov.il/he/service/seaworthiness-certificate';
 
-// ── Notification Card ────────────────────────────────────────────────────────
+//  Notification Card 
 function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
   const navigate = useNavigate();
   const tc = TYPE_CONFIG[notif.notification_type] || { icon: Bell, bg: '#F5F5F5', color: '#757575', border: '#E0E0E0' };
@@ -88,7 +88,7 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
       <div className="flex-1 min-w-0">
         <p className={`text-sm ${isRead ? 'font-medium' : 'font-bold'}`}
           style={{ color: isOverdue ? '#991B1B' : isRead ? '#6B7280' : C.text }}>
-          {/* Strip the trailing "פג תוקף!" from the label — the chip below
+          {/* Strip the trailing "פג תוקף!" from the label. the chip below
               already communicates that, and duplicating it turns the card into
               visual noise ("טסט פג תוקף!" + chip "פג תוקף"). Keep bang for
               non-expired upcoming labels. */}
@@ -164,7 +164,7 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
   );
 }
 
-// ── Empty State ──────────────────────────────────────────────────────────────
+//  Empty State 
 function NotifEmptyState() {
   return (
     <div className="text-center py-12" dir="rtl">
@@ -186,7 +186,7 @@ function NotifEmptyState() {
   );
 }
 
-// ── Status Summary ───────────────────────────────────────────────────────────
+//  Status Summary 
 function NotifSummary({ overdue, upcoming }) {
   const items = [
     { label: 'פג תוקף', count: overdue, color: '#DC2626', bg: '#FEF2F2', icon: AlertTriangle },
@@ -211,12 +211,12 @@ function NotifSummary({ overdue, upcoming }) {
   );
 }
 
-// ── Guest Notifications ──────────────────────────────────────────────────────
+//  Guest Notifications 
 function GuestNotifications() {
   const { guestVehicles, guestReminderSettings } = useAuth();
   const today = new Date();
 
-  // Detect if any vehicles are demo — if so, widen the reminder window so users
+  // Detect if any vehicles are demo. if so, widen the reminder window so users
   // see the system working. Real guest vehicles keep the user-configured window.
   const hasDemoOnly = guestVehicles.every(v => v._isDemo || v.id?.startsWith('demo_'));
   const defaultBase = guestReminderSettings || {};
@@ -302,7 +302,7 @@ function GuestNotifications() {
   );
 }
 
-// ── Map ReminderEngine output → NotifCard shape ─────────────────────────────
+//  Map ReminderEngine output → NotifCard shape 
 const REMINDER_TYPE_FALLBACK = {
   test: 'טסט',
   insurance: 'ביטוח',
@@ -323,7 +323,7 @@ function remindersToNotifs(reminders) {
   }));
 }
 
-// ── Auth Notifications ───────────────────────────────────────────────────────
+//  Auth Notifications 
 function AuthNotifications() {
   const { user } = useAuth();
   const queryClient = useQueryClient();

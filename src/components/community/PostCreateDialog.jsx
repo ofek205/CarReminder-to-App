@@ -203,7 +203,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
           <DialogDescription>פרסם פוסט חדש בקהילה</DialogDescription>
         </VisuallyHidden.Root>
 
-        {/* ── Hero gradient header ── */}
+        {/*  Hero gradient header  */}
         <div className="relative overflow-hidden px-4 pt-4 pb-6"
           style={{ background: T.grad || T.primary }}>
           {/* Decorative circles */}
@@ -243,11 +243,11 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
           </div>
         </div>
 
-        {/* ── Content ── */}
+        {/*  Content  */}
         <div className="px-4 py-4 space-y-3 -mt-3 relative z-20">
 
 
-          {/* Vehicle picker — inline expandable (no Popover — works inside Dialog) */}
+          {/* Vehicle picker. inline expandable (no Popover. works inside Dialog) */}
           {vehicles && vehicles.length > 0 && (
             <div dir="rtl">
               <button type="button" onClick={() => setPickerOpen(o => !o)}
@@ -331,7 +331,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             </div>
           )}
 
-          {/* Textarea — prominent, with focus glow */}
+          {/* Textarea. prominent, with focus glow */}
           <div className="relative">
             <Textarea value={body} onChange={e => { setBody(e.target.value); if (bodyError) setBodyError(''); }}
               placeholder={selectedVehicle ? `על מה תרצה לפרסם בקשר ל-${selectedVehicle.nickname || selectedVehicle.manufacturer || 'הרכב'}?` : 'מה תרצה לפרסם?'}
@@ -360,7 +360,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             <FieldError message={bodyError} />
           </div>
 
-          {/* Similar posts — shown while typing */}
+          {/* Similar posts. shown while typing */}
           {similarPosts.length > 0 && !similarDismissed && (
             <div className="rounded-2xl p-3 space-y-2 transition-all"
               style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A' }}>
@@ -400,7 +400,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             </div>
           )}
 
-          {/* Anonymous toggle — vibrant card */}
+          {/* Anonymous toggle. vibrant card */}
           <div className="rounded-2xl p-3 flex items-center justify-between transition-all"
             style={{
               background: isAnonymous ? '#FFFBEB' : '#fff',
@@ -446,7 +446,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             </div>
           )}
 
-          {/* Image upload card — vibrant gradient when empty */}
+          {/* Image upload card. vibrant gradient when empty */}
           {imageUrl ? (
             <div className="relative rounded-2xl overflow-hidden" style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}>
               <img src={imageUrl} alt="" className="w-full object-cover" style={{ maxHeight: '220px' }} />
@@ -489,7 +489,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
         </div>
 
-        {/* ── Bottom submit button — bold gradient with shimmer ── */}
+        {/*  Bottom submit button. bold gradient with shimmer  */}
         <div className="px-4 pb-4 pt-2">
           <button onClick={handleSubmit} disabled={!isValid || saving}
             className="w-full py-4 rounded-2xl font-black text-base transition-all active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"

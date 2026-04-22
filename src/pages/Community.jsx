@@ -182,7 +182,7 @@ export default function Community() {
   return (
     <div dir="rtl" className="-mx-4 -mt-4" style={{ background: '#F3F4F6', minHeight: '100dvh' }}>
 
-      {/* ── Hero Header ── */}
+      {/*  Hero Header  */}
       <div className="sticky top-0 z-30 relative" style={{ background: T.grad || C.grad }}>
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
@@ -203,7 +203,7 @@ export default function Community() {
             </div>
           </div>
 
-          {/* Search bar — always visible */}
+          {/* Search bar. always visible */}
           <div className="relative mb-2.5">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'rgba(255,255,255,0.5)' }} />
             {searching && <Loader2 className="absolute left-10 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin" style={{ color: 'rgba(255,255,255,0.5)' }} />}
@@ -257,7 +257,7 @@ export default function Community() {
         )}
       </div>
 
-      {/* ── Search result count ── */}
+      {/*  Search result count  */}
       {debouncedSearch && !searching && (
         <div className="px-4 py-2 flex items-center justify-between" style={{ background: '#fff', borderBottom: '1px solid #E5E7EB' }}>
           <p className="text-xs font-bold" style={{ color: filteredPosts.length > 0 ? T.primary : '#9CA3AF' }}>
@@ -272,11 +272,11 @@ export default function Community() {
         </div>
       )}
 
-      {/* ── Feed ── */}
+      {/*  Feed  */}
       <div className="px-3 pt-3 pb-28">
         {isLoading ? <ListSkeleton count={4} variant="post" /> : filteredPosts.length === 0 ? (
           debouncedSearch ? (
-            /* No search results — suggest posting */
+            /* No search results. suggest posting */
             <div className="text-center py-16 px-6 card-animate">
               <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
                 style={{ background: T.light || '#F3F4F6' }}>
@@ -293,7 +293,7 @@ export default function Community() {
               </button>
             </div>
           ) : (
-            /* Empty feed — no posts at all */
+            /* Empty feed. no posts at all */
             <div className="text-center py-20 px-6 card-animate">
               <div className="relative w-24 h-24 mx-auto mb-5">
                 <div className="absolute inset-0 rounded-full" style={{ background: T.light || '#F3F4F6' }} />
@@ -333,7 +333,7 @@ export default function Community() {
         )}
       </div>
 
-      {/* ── Floating Action Button ── */}
+      {/*  Floating Action Button  */}
       <button onClick={handleFab}
         className="fixed z-40 flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm text-white transition-all active:scale-[0.95]"
         style={{ background: T.grad || T.primary, bottom: '72px', left: '50%', transform: 'translateX(-50%)', boxShadow: `0 4px 20px ${T.primary}50` }}>

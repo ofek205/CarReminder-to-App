@@ -12,14 +12,14 @@
  *
  * Usage:
  *   const small = await compressImage(file);
- *   // small is a File — pass it anywhere the original File went
+ *   // small is a File. pass it anywhere the original File went
  */
 
 const DEFAULTS = {
   maxWidth: 1280,
   maxHeight: 1280,
   quality: 0.82,
-  // Skip files under this size — no gain worth the CPU spend
+  // Skip files under this size. no gain worth the CPU spend
   skipBelowBytes: 200 * 1024, // 200 KB
   // Non-image files bypass compression entirely
   imageMimePrefix: 'image/',
@@ -59,7 +59,7 @@ function canvasToBlob(canvas, mime, quality) {
 }
 
 /**
- * Main entry — returns a (possibly new) File. Original filename is kept,
+ * Main entry. returns a (possibly new) File. Original filename is kept,
  * extension is swapped to match the new mime.
  */
 export async function compressImage(file, opts = {}) {
@@ -94,7 +94,7 @@ export async function compressImage(file, opts = {}) {
     const targetMime = canEncodeWebP() ? 'image/webp' : 'image/jpeg';
     const blob = await canvasToBlob(canvas, targetMime, o.quality);
     if (!blob || blob.size >= file.size) {
-      // Compression didn't help (already well-optimized) — keep original
+      // Compression didn't help (already well-optimized). keep original
       return file;
     }
 

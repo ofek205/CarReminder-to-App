@@ -68,7 +68,7 @@ import StatusBadge from '../components/shared/StatusBadge';
 import LicensePlate from '../components/shared/LicensePlate';
 
 
-// ── Inline Reminders Section ─────────────────────────────────────────────────
+//  Inline Reminders Section 
 function RemindersPreview({ vehicle, T }) {
   const [open, setOpen] = useState(false);
   const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
@@ -106,7 +106,7 @@ function RemindersPreview({ vehicle, T }) {
   );
 }
 
-// ── Inline Documents Preview ─────────────────────────────────────────────────
+//  Inline Documents Preview 
 function DocumentsPreview({ vehicleId, documents, T }) {
   const vehicleDocs = (documents || []).filter(d => d.vehicle_id === vehicleId).slice(0, 4);
   if (vehicleDocs.length === 0) return null;
@@ -142,16 +142,16 @@ function DocumentsPreview({ vehicleId, documents, T }) {
   );
 }
 
-// ── Vehicle icon helper ───────────────────────────────────────────────────────
+//  Vehicle icon helper 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 function getVehicleIcon(vehicleType, nickname, manufacturer) {
   return ICON_MAP[getVehicleCategory(vehicleType, nickname, manufacturer)] || Car;
 }
 
-// ── Helper: vessel-aware label ───────────────────────────────────────────────
+//  Helper: vessel-aware label 
 function vehicleWord(vt, nn) { return isVesselType(vt, nn) ? 'כלי שייט' : 'רכב'; }
 
-// ── Guest vehicle detail ──────────────────────────────────────────────────────
+//  Guest vehicle detail 
 function GuestVehicleDetail({ vehicle, vehicleId }) {
   const { removeGuestVehicle, guestDocuments } = useAuth();
   const navigate = useNavigate();
@@ -203,7 +203,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
             </div>
           </Link>
 
-          {/* License plate — top-left identity chip (if available).
+          {/* License plate. top-left identity chip (if available).
               Falls back to the status badge when the vehicle has no plate
               (guest demo cars without a license number). */}
           {vehicle.license_plate && !isVessel ? (
@@ -326,7 +326,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+//  Main component 
 export default function VehicleDetail() {
   const urlParams = new URLSearchParams(window.location.search);
   const vehicleId = urlParams.get('id');
@@ -361,7 +361,7 @@ export default function VehicleDetail() {
   if (isGuest || vehicleId.startsWith('guest_') || vehicleId.startsWith('demo_')) {
     const guestVehicle = guestVehicles.find(v => v.id === vehicleId);
     if (!guestVehicle) {
-      // Valid id format but not found in local storage — same friendly fallback
+      // Valid id format but not found in local storage. same friendly fallback
       return (
         <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
           <div className="max-w-sm w-full text-center">
@@ -493,7 +493,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
 
   return (
     <div className="-mx-4 -mt-4" dir="rtl">
-      {/* ── Hero Card ── */}
+      {/*  Hero Card  */}
       <div className="relative overflow-hidden" style={{ height: hasPhoto ? '220px' : '150px' }}>
         {hasPhoto ? (
           <img src={vehicle.vehicle_photo} alt={name}
@@ -515,7 +515,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           </div>
         </Link>
 
-        {/* License plate — top-left identity chip (separated from the yellow
+        {/* License plate. top-left identity chip (separated from the yellow
             "edit" CTA at the bottom to avoid yellow-on-yellow clash) */}
         {vehicle.license_plate && !isVessel && (
           <div className="absolute top-4 left-4 z-20">
@@ -542,14 +542,14 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         </div>
       </div>
 
-      {/* ── View-only banner for חבר ── */}
+      {/*  View-only banner for חבר  */}
       {isViewOnly(role) && (
         <div className="mx-4 mb-3 rounded-2xl px-4 py-2.5 flex items-center gap-2 text-sm font-medium" style={{ background: '#DBEAFE', color: '#1E40AF', border: '1px solid #93C5FD' }} dir="rtl">
           הצטרפת כחבר - תצוגה בלבד
         </div>
       )}
 
-      {/* ── Action buttons ── */}
+      {/*  Action buttons  */}
       <div className="px-4 -mt-5 relative z-20 flex gap-2 mb-4">
         {canEdit(role) && (
           <Link to={createPageUrl(`EditVehicle?id=${vehicleId}`)}>
@@ -609,7 +609,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         />
       )}
 
-      {/* ── Vehicle info + maintenance ── */}
+      {/*  Vehicle info + maintenance  */}
       <div className="px-4 space-y-4 pb-8">
         <SafeComponent label="VehicleInfoSection">
           <VehicleInfoSection vehicle={vehicle} />
@@ -620,7 +620,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           <RemindersPreview vehicle={vehicle} T={T} />
         </div>
 
-        {/* Pre/Post-trip checklists — vessels only. CTA card opens the
+        {/* Pre/Post-trip checklists. vessels only. CTA card opens the
             dedicated /ChecklistHub page where the user actually runs the
             checklist. Keeping a lightweight entry point here preserves
             discoverability from the vessel page. */}
@@ -654,7 +654,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
 
 /* -------------------------------------------------------------------------- */
 /* Entry card for the vessel-only checklist hub.                              */
-/* Kept minimal on purpose — the full experience lives on /ChecklistHub.      */
+/* Kept minimal on purpose. the full experience lives on /ChecklistHub.      */
 /* -------------------------------------------------------------------------- */
 
 function ChecklistsEntryCard({ vehicleId, navigate }) {

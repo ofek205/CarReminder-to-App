@@ -15,7 +15,7 @@ import { getTheme } from '@/lib/designTokens';
 
 const M = getTheme('כלי שייט'); // marine theme tokens
 
-// ── Constants ────────────────────────────────────────────────────────────────
+//  Constants 
 
 const CATEGORY_LABELS = {
   hull: 'גוף/שלד', engine: 'מנוע', electrical: 'חשמל',
@@ -60,7 +60,7 @@ function fmtDate(d) {
   try { return format(parseISO(d), 'dd.MM.yyyy'); } catch { return d; }
 }
 
-// ── Issue Card ───────────────────────────────────────────────────────────────
+//  Issue Card 
 
 function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false }) {
   const [expanded, setExpanded] = useState(false);
@@ -265,7 +265,7 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
   );
 }
 
-// ── Empty State ──────────────────────────────────────────────────────────────
+//  Empty State 
 
 function EmptyState({ onAdd }) {
   return (
@@ -291,7 +291,7 @@ function EmptyState({ onAdd }) {
   );
 }
 
-// ── Main Section Component ───────────────────────────────────────────────────
+//  Main Section Component 
 
 export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false }) {
   const queryClient = useQueryClient();
@@ -301,7 +301,7 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
   const [editingIssue, setEditingIssue] = useState(null);
   const [filter, setFilter] = useState('all');
 
-  // ── Data loading ─────────────────────────────────────────────────────────
+  //  Data loading 
   const { data: authIssues = [], isLoading } = useQuery({
     queryKey: ['vessel_issues', vehicle.id],
     queryFn: () => db.vessel_issues.filter({ vehicle_id: vehicle.id }),
@@ -313,7 +313,7 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
     ? (guestVesselIssues || []).filter(i => i.vehicle_id === vehicle.id)
     : authIssues;
 
-  // ── Sort: status order → priority order → date desc ─────────────────────
+  //  Sort: status order → priority order → date desc 
   const sorted = [...issues].sort((a, b) => {
     const sDiff = (STATUS_ORDER[a.status] || 0) - (STATUS_ORDER[b.status] || 0);
     if (sDiff !== 0) return sDiff;
@@ -324,11 +324,11 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
 
   const filtered = filter === 'all' ? sorted : sorted.filter(i => i.status === filter);
 
-  // ── Counts ──────────────────────────────────────────────────────────────
+  //  Counts 
   const counts = { all: issues.length, open: 0, 'in-progress': 0, done: 0 };
   issues.forEach(i => { if (counts[i.status] !== undefined) counts[i.status]++; });
 
-  // ── Handlers ────────────────────────────────────────────────────────────
+  //  Handlers 
   const handleSave = async (formData) => {
     if (isGuest) {
       if (editingIssue) {
@@ -377,7 +377,7 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
   const openAdd = () => { setEditingIssue(null); setDialogOpen(true); };
   const openEdit = (issue) => { setEditingIssue(issue); setDialogOpen(true); };
 
-  // ── Render ──────────────────────────────────────────────────────────────
+  //  Render 
   return (
     <div className="rounded-2xl overflow-hidden"
       style={{ background: '#fff', border: `1px solid ${M.border}`, boxShadow: `0 2px 16px ${M.primary}14` }}>

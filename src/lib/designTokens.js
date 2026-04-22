@@ -7,7 +7,7 @@
  *   style={{ background: T.primary }}
  */
 
-// ── Default theme (green — cars, motorcycles, trucks) ──────────────────────
+//  Default theme (green. cars, motorcycles, trucks) 
 export const C = {
   bg:        '#FFFFFF',
   primary:   '#2D5233',
@@ -33,7 +33,7 @@ export const C = {
   greenGrad: 'linear-gradient(135deg, #2D5233 0%, #3A6B42 100%)',
 };
 
-// ── Marine theme (teal — vessels / כלי שייט) ────────────────────────────────
+//  Marine theme (teal. vessels / כלי שייט) 
 const marine = {
   bg:        '#FFFFFF',
   primary:   '#0C7B93',
@@ -59,7 +59,7 @@ const marine = {
   greenGrad: 'linear-gradient(135deg, #065A6E 0%, #0C7B93 100%)',
 };
 
-// ── Vessel detection ───────────────────────────────────────────────────────
+//  Vessel detection 
 const VESSEL_EXACT = new Set([
   'כלי שייט', 'מפרשית', 'סירה מנועית', 'אופנוע ים', 'סירת גומי', 'יאכטה מנועית',
 ]);
@@ -115,7 +115,7 @@ export function isOffroadType(vehicleType) {
   return OFFROAD_EXACT.has(vehicleType);
 }
 
-// ── Off-road / earthy theme (rich chocolate brown) ──────────────────────────
+//  Off-road / earthy theme (rich chocolate brown) 
 export const offroad = {
   bg:        '#FFFFFF',
   primary:   '#5D4037',     // rich chocolate brown (Material Brown 700)
@@ -163,7 +163,7 @@ export function getVehicleVisual(vehicle) {
 export function getVehicleCategory(vehicleType, nickname, manufacturer) {
   const combined = `${vehicleType || ''} ${nickname || ''} ${manufacturer || ''}`.toLowerCase();
   if (checkVesselFull(vehicleType, nickname, manufacturer)) return 'vessel';
-  // Off-road check FIRST — so "טרקטורון" isn't matched as "טרקטור" (tractor/truck)
+  // Off-road check FIRST. so "טרקטורון" isn't matched as "טרקטור" (tractor/truck)
   if (OFFROAD_EXACT.has(vehicleType)) return 'offroad';
   if (MOTO_KEYWORDS.some(kw => combined.includes(kw))) return 'motorcycle';
   if (MOTO_MANUFACTURERS.some(m => combined.includes(m))) return 'motorcycle';

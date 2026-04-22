@@ -6,7 +6,7 @@ import PinLock from './PinLock';
 import { isPinEnabled, clearPin } from '@/lib/pinLock';
 
 /**
- * PinLockCard — PIN-lock toggle + change-code button.
+ * PinLockCard. PIN-lock toggle + change-code button.
  *
  * Lives in the Settings hub's Profile tab (security belongs with the
  * user's identity, not with notification timing). Used to live inside

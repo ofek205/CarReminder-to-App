@@ -18,7 +18,7 @@ import { isNative } from "@/lib/capacitor";
 import { requestNotificationPermission, checkNotificationPermission } from "@/lib/notificationChannels";
 import { C } from '@/lib/designTokens';
 
-// ── Reminder categories — merged toggle + timing ──────────────────────────
+//  Reminder categories. merged toggle + timing 
 // Each row now controls (a) whether the type fires at all, and (b) how many
 // days before the due date the push goes out. The old two-section layout
 // (toggle list + timing list) repeated the same 5 rows twice.
@@ -53,7 +53,7 @@ const REMINDER_CATEGORIES = [
   },
   {
     key:     'notify_safety',
-    // Safety has no dedicated "days before" in DB yet — it re-uses document.
+    // Safety has no dedicated "days before" in DB yet. it re-uses document.
     timing:  'remind_document_days_before',
     label:   'ציוד בטיחות וחירום',
     emoji:   '🛟',
@@ -78,14 +78,14 @@ const DEFAULT_FORM = {
   device_notifications_enabled: true,
   email_enabled: false,
   whatsapp_enabled: false,
-  // Quiet hours — suppress pushes outside of user's active window.
+  // Quiet hours. suppress pushes outside of user's active window.
   // Default off (00→00 meaning "no quiet hours applied").
   quiet_hours_enabled: false,
   quiet_hours_start:   22,
   quiet_hours_end:      7,
 };
 
-// ── Guest version ─────────────────────────────────────────────────────────────
+//  Guest version 
 function GuestReminderSettings({ embedded = false }) {
   const { guestReminderSettings, updateGuestReminderSettings } = useAuth();
   const [form, setForm] = useState({ ...DEFAULT_FORM, ...guestReminderSettings });
@@ -142,14 +142,14 @@ function GuestReminderSettings({ embedded = false }) {
   );
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+//  Main export 
 export default function ReminderSettingsPage({ embedded = false }) {
   const { isGuest } = useAuth();
   if (isGuest) return <GuestReminderSettings embedded={embedded} />;
   return <AuthReminderSettings embedded={embedded} />;
 }
 
-// ── Auth version ──────────────────────────────────────────────────────────────
+//  Auth version 
 function AuthReminderSettings({ embedded = false }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -162,14 +162,14 @@ function AuthReminderSettings({ embedded = false }) {
       if (!user?.id) { setLoading(false); return; }
 
       // Pull UI-only toggles from localStorage (notify_*, device_notifications_enabled).
-      // These aren't in the DB yet — see DB_COLUMNS below + pending SQL migration.
+      // These aren't in the DB yet. see DB_COLUMNS below + pending SQL migration.
       let localOnly = {};
       try { localOnly = JSON.parse(localStorage.getItem('reminder_settings_local') || '{}') || {}; } catch {}
 
       try {
         let rows = await db.reminder_settings.filter({ user_id: user.id });
         if (rows.length === 0) {
-          // Create default settings — only with columns the DB knows about.
+          // Create default settings. only with columns the DB knows about.
           const dbDefaults = {};
           ['remind_test_days_before','remind_insurance_days_before','remind_document_days_before',
            'remind_maintenance_days_before','overdue_repeat_every_days','daily_job_hour',
@@ -195,7 +195,7 @@ function AuthReminderSettings({ embedded = false }) {
 
   // Columns that actually exist in the 'reminder_settings' table today.
   // The `notify_*` booleans and `device_notifications_enabled` are UI-level
-  // toggles that we persist locally until a DB migration adds them — that
+  // toggles that we persist locally until a DB migration adds them. that
   // way saving doesn't 500 on an unknown column.
   // TODO: after running supabase-add-reminder-notify-columns.sql, this list
   // can be expanded to include the notify_* + device_notifications_enabled fields.
@@ -258,7 +258,7 @@ function AuthReminderSettings({ embedded = false }) {
   );
 }
 
-// ── Shared Settings UI ────────────────────────────────────────────────────────
+//  Shared Settings UI 
 function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }) {
   const [devicePermission, setDevicePermission] = useState(null);
 
@@ -281,7 +281,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
 
   return (
     <>
-      {/* Header — skip when embedded inside the Settings hub. */}
+      {/* Header. skip when embedded inside the Settings hub. */}
       {!embedded && (
         <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
           style={{ background: C.grad, boxShadow: `0 8px 32px ${C.primary}40` }}>
@@ -300,7 +300,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
         </div>
       )}
 
-      {/* ── Device notifications permission ── */}
+      {/*  Device notifications permission  */}
       {isNative && (
         <div className="rounded-2xl p-4 mb-5 flex items-center justify-between"
           style={{
@@ -327,7 +327,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
         </div>
       )}
 
-      {/* ── Reminder categories — toggle + timing merged per row ──────── */}
+      {/*  Reminder categories. toggle + timing merged per row  */}
       <div className="mb-5">
         <h2 className="font-bold text-base text-gray-900 mb-1 flex items-center gap-2">
           <Bell className="w-4 h-4" style={{ color: C.primary }} />
@@ -383,7 +383,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
         </div>
       </div>
 
-      {/* ── Overdue repeat ── */}
+      {/*  Overdue repeat  */}
       <div className="mb-5 rounded-2xl p-3.5 flex items-center justify-between gap-3"
         style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA' }}>
         <div className="flex items-center gap-3 min-w-0">
@@ -408,7 +408,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
         </div>
       </div>
 
-      {/* ── Notification time + quiet hours ── */}
+      {/*  Notification time + quiet hours  */}
       <div className="mb-5">
         <h2 className="font-bold text-base text-gray-900 mb-3">תזמון</h2>
         <div className="rounded-2xl overflow-hidden" style={{ border: '1.5px solid #E5E7EB' }}>
@@ -436,7 +436,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
             </Select>
           </div>
 
-          {/* Quiet hours — suppress pushes during sleep */}
+          {/* Quiet hours. suppress pushes during sleep */}
           <div className="border-t" style={{ borderColor: '#F3F4F6' }}>
             <div className="flex items-center justify-between gap-3 px-4 py-3.5">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -482,7 +482,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
         </div>
       </div>
 
-      {/* ── History link ── */}
+      {/*  History link  */}
       {!isGuest && (
         <Link to="/Notifications"
           className="mb-5 rounded-2xl p-3.5 flex items-center justify-between transition-all hover:bg-gray-50"
@@ -498,12 +498,12 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
         </Link>
       )}
 
-      {/* ── Future channels ── */}
+      {/*  Future channels  */}
       {!isGuest && (
         <div className="mb-5">
           <h2 className="font-bold text-base text-gray-900 mb-3">ערוצי התראה נוספים</h2>
           <div className="space-y-2">
-            {/* Email reminders — UI is live; the dispatcher ships in Phase 2
+            {/* Email reminders. UI is live; the dispatcher ships in Phase 2
                 (pg_cron → Edge Function). Until then the toggle just
                 persists the user's preference so we can honour it the
                 moment the dispatcher goes live. */}
@@ -553,8 +553,8 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
         )}
       </Button>
 
-      {/* Test notification — lets the user confirm push is wired end-to-end.
-          PIN lock used to live here, but security ≠ notifications — it's now
+      {/* Test notification. lets the user confirm push is wired end-to-end.
+          PIN lock used to live here, but security ≠ notifications. it's now
           in the Profile tab. */}
       {!isGuest && isNative && <TestNotificationButton />}
     </>

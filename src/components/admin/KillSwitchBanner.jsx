@@ -7,7 +7,7 @@ import { useEmailSettings, useToggleKillSwitch } from '@/hooks/useEmailAdmin';
 import { toast } from 'sonner';
 
 /**
- * KillSwitchBanner — global pause control for all outgoing emails.
+ * KillSwitchBanner. global pause control for all outgoing emails.
  *
  * Shows a red "paused" banner when emails_paused=true, with the reason
  * and a resume button. When emails are flowing, shows a muted green

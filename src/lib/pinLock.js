@@ -1,15 +1,15 @@
 /**
- * PIN lock — fast on-device unlock gate for the authenticated session.
+ * PIN lock. fast on-device unlock gate for the authenticated session.
  *
  * Why this exists: we already keep the Supabase session alive on-device
  * (see capacitor Preferences + autoRefreshToken wiring). That's convenient
- * — but if someone else picks up an unlocked phone, they're straight into
+ *. but if someone else picks up an unlocked phone, they're straight into
  * the app. A 4-6 digit PIN adds a local gate without re-entering a password.
  *
  * Security model:
  *   - We store a SHA-256 hash of (PIN + random salt). Never the PIN itself.
  *   - The salt is per-user and kept alongside the hash in localStorage.
- *   - This is NOT a crypto authenticator — it's a UX gate. Wiping the
+ *   - This is NOT a crypto authenticator. it's a UX gate. Wiping the
  *     device, opening devtools, or re-installing the app all clear it.
  *   - "Forgot PIN" flow drops the gate and asks the user to re-login with
  *     their Supabase password.
@@ -36,12 +36,12 @@ const MAX_FAIL_BEFORE_LOCKOUT = 5;
 const LOCKOUT_DURATION_MS = 30 * 1000;
 const MAX_FAIL_BEFORE_FULL_LOGOUT = 10;
 
-// ── Storage helpers ─────────────────────────────────────────────────────────
+//  Storage helpers 
 const safeGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const safeSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const safeRemove = (k) => { try { localStorage.removeItem(k); } catch {} };
 
-// ── Hashing (WebCrypto SHA-256) ────────────────────────────────────────────
+//  Hashing (WebCrypto SHA-256) 
 async function sha256(str) {
   const buf = new TextEncoder().encode(str);
   const hashBuf = await crypto.subtle.digest('SHA-256', buf);
@@ -54,7 +54,7 @@ function randomSalt() {
   return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ── Public API ──────────────────────────────────────────────────────────────
+//  Public API 
 
 /** True if the user has enabled PIN lock. */
 export function isPinEnabled() {
@@ -123,12 +123,12 @@ export async function tryUnlock(pin) {
     return { ok: true };
   }
 
-  // Wrong PIN — bump fail counter
+  // Wrong PIN. bump fail counter
   const failed = Number(safeGet(KEY_FAILED_COUNT) || 0) + 1;
   safeSet(KEY_FAILED_COUNT, String(failed));
 
   if (failed >= MAX_FAIL_BEFORE_FULL_LOGOUT) {
-    // Too many attempts — fall back to full logout
+    // Too many attempts. fall back to full logout
     clearPin();
     return { ok: false, reason: 'too_many_failures', shouldLogout: true };
   }

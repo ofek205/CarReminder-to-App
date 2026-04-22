@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 const PREFIX = 'draft_';
 const EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
-const SILENT_RESTORE_MS = 60 * 1000; // 1 minute — restore without prompt
+const SILENT_RESTORE_MS = 60 * 1000; // 1 minute. restore without prompt
 const DEBOUNCE_MS = 2000;
 const INDICATOR_MS = 1400;
 
@@ -45,12 +45,12 @@ function isFormEmpty(data, defaultData) {
  * Smart form draft hook.
  *
  * @param {object} opts
- * @param {string} opts.key         — unique form identifier (e.g. 'add_vehicle')
- * @param {object} opts.data        — current form state
- * @param {function} opts.setData   — state setter
- * @param {object} opts.defaultData — empty/initial form state (to detect "nothing filled")
- * @param {string} [opts.userId]    — isolate drafts per user
- * @param {boolean} [opts.enabled=true] — disable draft for certain conditions
+ * @param {string} opts.key        . unique form identifier (e.g. 'add_vehicle')
+ * @param {object} opts.data       . current form state
+ * @param {function} opts.setData  . state setter
+ * @param {object} opts.defaultData. empty/initial form state (to detect "nothing filled")
+ * @param {string} [opts.userId]   . isolate drafts per user
+ * @param {boolean} [opts.enabled=true]. disable draft for certain conditions
  */
 export default function useFormDraft({ key, data, setData, defaultData, userId, enabled = true }) {
   const storageKey = getDraftKey(key, userId);
@@ -62,7 +62,7 @@ export default function useFormDraft({ key, data, setData, defaultData, userId, 
   const initializedRef = useRef(false);
   const suppressSaveRef = useRef(false);
 
-  // ── On mount: check for existing draft ──
+  //  On mount: check for existing draft 
   useEffect(() => {
     if (!enabled || initializedRef.current) return;
     initializedRef.current = true;
@@ -78,7 +78,7 @@ export default function useFormDraft({ key, data, setData, defaultData, userId, 
     pendingDraftRef.current = draft.data;
 
     if (age < SILENT_RESTORE_MS) {
-      // Silent restore — no prompt
+      // Silent restore. no prompt
       suppressSaveRef.current = true;
       setData(draft.data);
       setTimeout(() => { suppressSaveRef.current = false; }, 500);
@@ -88,7 +88,7 @@ export default function useFormDraft({ key, data, setData, defaultData, userId, 
     }
   }, [storageKey, enabled]);
 
-  // ── Auto-save on data change (debounced) ──
+  //  Auto-save on data change (debounced) 
   useEffect(() => {
     if (!enabled || !initializedRef.current || suppressSaveRef.current) return;
     if (isFormEmpty(data, defaultData)) return;
@@ -105,7 +105,7 @@ export default function useFormDraft({ key, data, setData, defaultData, userId, 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [data, storageKey, enabled]);
 
-  // ── Save on exit (beforeunload + visibilitychange) ──
+  //  Save on exit (beforeunload + visibilitychange) 
   useEffect(() => {
     if (!enabled) return;
     const saveNow = () => {
@@ -122,7 +122,7 @@ export default function useFormDraft({ key, data, setData, defaultData, userId, 
     };
   }, [data, storageKey, enabled, defaultData]);
 
-  // ── Resume / discard actions ──
+  //  Resume / discard actions 
   const resumeDraft = useCallback(() => {
     if (pendingDraftRef.current) {
       suppressSaveRef.current = true;
@@ -139,7 +139,7 @@ export default function useFormDraft({ key, data, setData, defaultData, userId, 
     setShowResume(false);
   }, [storageKey]);
 
-  // ── Clear draft (call on successful submit) ──
+  //  Clear draft (call on successful submit) 
   const clear = useCallback(() => {
     clearDraft(storageKey);
     setShowResume(false);

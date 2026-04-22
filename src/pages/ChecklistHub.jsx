@@ -1,5 +1,5 @@
 /**
- * ChecklistHub — landing page for a vessel's checklists.
+ * ChecklistHub. landing page for a vessel's checklists.
  *
  * URL: /ChecklistHub?vehicleId=<uuid>
  *
@@ -45,7 +45,7 @@ const PHASE_ICONS = {
   custom: ListChecks,
 };
 
-// Marine teal palette — same as the vessel tour, keeps visual continuity.
+// Marine teal palette. same as the vessel tour, keeps visual continuity.
 const THEME = {
   primary:   '#0C7B93',
   primaryFg: '#FFFFFF',
@@ -116,7 +116,7 @@ export default function ChecklistHub() {
     enabled: !!vehicleId,
   });
 
-  // Q6 — archive yesterday-or-older open drafts on mount.
+  // Q6. archive yesterday-or-older open drafts on mount.
   useEffect(() => {
     if (!runs.length) return;
     const stale = runs.filter(r =>

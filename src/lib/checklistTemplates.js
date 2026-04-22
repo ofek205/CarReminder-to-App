@@ -26,9 +26,9 @@ export const ENGINE_TYPE_LABELS = {
   inboard:  'מנוע פנימי',
 };
 
-// ──────────────────────────────────────────────────────────────────────
-// ENGINE — outboard (motor on the transom)
-// ──────────────────────────────────────────────────────────────────────
+// 
+// ENGINE. outboard (motor on the transom)
+// 
 const ENGINE_OUTBOARD = [
   {
     name: 'מנוע ראשי',
@@ -72,9 +72,9 @@ const ENGINE_OUTBOARD = [
   },
 ];
 
-// ──────────────────────────────────────────────────────────────────────
-// ENGINE — inboard (engine room, ventilation, fuel vapour risk)
-// ──────────────────────────────────────────────────────────────────────
+// 
+// ENGINE. inboard (engine room, ventilation, fuel vapour risk)
+// 
 const ENGINE_INBOARD = [
   {
     name: 'חדר מנוע',
@@ -129,9 +129,9 @@ const ENGINE_INBOARD = [
   },
 ];
 
-// ──────────────────────────────────────────────────────────────────────
-// PRE — preparation before routine trip (shared for all engines)
-// ──────────────────────────────────────────────────────────────────────
+// 
+// PRE. preparation before routine trip (shared for all engines)
+// 
 const PRE_DEFAULTS = [
   {
     name: 'מזג אוויר ותוכנית',
@@ -188,9 +188,9 @@ const PRE_DEFAULTS = [
   },
 ];
 
-// ──────────────────────────────────────────────────────────────────────
-// POST — return & pack up (shared)
-// ──────────────────────────────────────────────────────────────────────
+// 
+// POST. return & pack up (shared)
+// 
 const POST_DEFAULTS = [
   {
     name: 'מנוע ומערכות',
@@ -232,9 +232,9 @@ const POST_DEFAULTS = [
   },
 ];
 
-// ──────────────────────────────────────────────────────────────────────
+// 
 // Public API
-// ──────────────────────────────────────────────────────────────────────
+// 
 
 /**
  * Return a fresh (cloned) sections array for the given phase + engine type.

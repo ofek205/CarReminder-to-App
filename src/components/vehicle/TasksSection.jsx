@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { formatDateHe } from '../shared/DateStatusUtils';
 import { Plus, Check, ChevronDown, ChevronUp, Trash2, AlertCircle, Clock, Calendar } from 'lucide-react';
 
-// ── Category chips per vehicle type ──────────────────────────────────────────
+//  Category chips per vehicle type 
 const CATEGORIES = {
   vessel: ['גוף', 'מנוע', 'חשמל', 'אינסטלציה', 'בטיחות', 'מפרשים'],
   car: ['מנוע', 'בלמים', 'צמיגים', 'חשמל', 'מרכב', 'פנים'],
@@ -43,7 +43,7 @@ function getVehicleCategories(vehicleType, nickname) {
   return CATEGORIES.car;
 }
 
-// ── Task Card ────────────────────────────────────────────────────────────────
+//  Task Card 
 function TaskCard({ task, T, onToggle, onDelete }) {
   const isDone = task.is_done;
   const isOverdue = task.due_date && !isDone && new Date(task.due_date) < new Date();
@@ -111,7 +111,7 @@ function TaskCard({ task, T, onToggle, onDelete }) {
   );
 }
 
-// ── Main Component ───────────────────────────────────────────────────────────
+//  Main Component 
 export default function TasksSection({ vehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const { isGuest, guestCorkNotes, addGuestCorkNote, updateGuestCorkNote, removeGuestCorkNote } = useAuth();

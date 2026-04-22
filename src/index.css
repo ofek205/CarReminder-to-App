@@ -87,7 +87,7 @@
   }
 }
 
-/* ── Capacitor Native Safe Areas ─────────────────────────────────────────── */
+/*  Capacitor Native Safe Areas  */
 /* Adds padding for status bar, notch, and navigation gestures on native */
 html.native-app {
   --sat: env(safe-area-inset-top, 0px);
@@ -108,12 +108,12 @@ html.native-app {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Keyboard visible — shrink bottom padding */
+/* Keyboard visible. shrink bottom padding */
 body.keyboard-visible {
   padding-bottom: 0 !important;
 }
 
-/* Leaflet map — keep below modals/sheets/overlays/BottomNav */
+/* Leaflet map. keep below modals/sheets/overlays/BottomNav */
 .leaflet-container {
   z-index: 0 !important;
 }
@@ -133,7 +133,7 @@ body.keyboard-visible {
   z-index: 1 !important;
 }
 
-/* Card entrance animation — staggered fade-in + slide-up */
+/* Card entrance animation. staggered fade-in + slide-up */
 @keyframes card-enter {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -172,7 +172,7 @@ body.keyboard-visible {
   animation: send-fly 0.3s ease-out;
 }
 
-/* Field highlight animation — used when navigating to a missing field */
+/* Field highlight animation. used when navigating to a missing field */
 @keyframes field-flash {
   0%   { box-shadow: none; background: transparent; }
   15%  { box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.45); background: rgba(255, 247, 237, 0.6); }
@@ -204,7 +204,7 @@ body.keyboard-visible {
   animation: field-error-in 0.2s ease-out;
 }
 
-/* Keyboard-aware viewport — ensures focused input scrolls into view */
+/* Keyboard-aware viewport. ensures focused input scrolls into view */
 html, body {
   /* Use dynamic viewport height (accounts for keyboard on mobile) */
   min-height: 100vh;

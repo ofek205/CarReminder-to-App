@@ -22,9 +22,9 @@ import {
 } from 'date-fns';
 import { he } from 'date-fns/locale';
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 // Constants
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 
 const FILTERS = [
   { key: 'today',     label: 'היום' },
@@ -49,9 +49,9 @@ const C = {
 
 const CHART_PALETTE = [C.blue, C.green, C.amber, C.red, C.purple, C.teal];
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 // Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 
 // Human-readable "X ago" for the last-refreshed label.
 function formatRelative(date) {
@@ -65,7 +65,7 @@ function formatRelative(date) {
   return `לפני ${Math.floor(hrs / 24)} ימים`;
 }
 
-// Number of days the current filter spans — used by analytics memos so
+// Number of days the current filter spans. used by analytics memos so
 // the trend charts respect the top-of-page date picker.
 function daysForFilter(key) {
   switch (key) {
@@ -73,7 +73,7 @@ function daysForFilter(key) {
     case 'yesterday': return 2;
     case 'week':      return 7;
     case 'month':     return 30;
-    case 'all':       return 90;    // cap "all" at 90 days for trend charts — unbounded series are unreadable
+    case 'all':       return 90;    // cap "all" at 90 days for trend charts. unbounded series are unreadable
     default:          return 7;
   }
 }
@@ -142,9 +142,9 @@ function retentionColor(rate) {
   return C.red;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 // UI sub-components
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 
 // allTime prop turns on a "כל הזמן" pill so admins know this particular
 // widget doesn't change when the top-of-page date picker moves.
@@ -279,9 +279,9 @@ function RetentionCard({ label, period, rate, count, total }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 // Main Component
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 
 export default function AdminDashboard() {
   const [isAdmin, setIsAdmin]       = useState(null);
@@ -317,12 +317,12 @@ export default function AdminDashboard() {
   }, []);
 
   // Track the last successful refresh so the UI can show "updated N
-  // minutes ago" — transparency matters in an admin dashboard.
+  // minutes ago". transparency matters in an admin dashboard.
   const [lastRefreshed, setLastRefreshed] = useState(null);
 
   // Central refetch. Called on mount, on window-focus, on a 60-second
   // interval while the tab is visible, and by the manual refresh button.
-  // The `silent` flag means "don't flash the full-page loading state" —
+  // The `silent` flag means "don't flash the full-page loading state" 
   // background refreshes shouldn't make widgets blank.
   const refetchData = useCallback(async (opts = {}) => {
     if (isAdmin !== true) return;
@@ -330,7 +330,7 @@ export default function AdminDashboard() {
     if (!silent) setLoading(true);
     try {
       // Admin dashboard only needs metadata (counts, dates). Skip heavy
-      // base64 columns — vehicle_photo, receipt_photo, file_url — which
+      // base64 columns. vehicle_photo, receipt_photo, file_url. which
       // otherwise dominate egress (MB per row × hundreds of rows).
       const VEH_COLS = 'id,account_id,nickname,manufacturer,model,year,vehicle_type,license_plate,created_at,test_due_date,insurance_due_date,pyrotechnics_expiry_date,fire_extinguisher_expiry_date,life_raft_expiry_date,current_km';
       const MAINT_COLS = 'id,vehicle_id,account_id,title,performed_at,created_at,cost';
@@ -364,7 +364,7 @@ export default function AdminDashboard() {
   // Initial + explicit-admin-change fetch (full loading state).
   useEffect(() => { refetchData({ silent: false }); }, [refetchData]);
 
-  // Background refresh triggers — window focus + 60s interval. Both use
+  // Background refresh triggers. window focus + 60s interval. Both use
   // silent mode so widgets don't flash; only the "updated N min ago"
   // timestamp changes.
   useEffect(() => {
@@ -378,7 +378,7 @@ export default function AdminDashboard() {
     };
   }, [isAdmin, refetchData]);
 
-  // ── Analytics aggregations ────────────────────────────────────────────────
+  //  Analytics aggregations 
 
   const analyticsAgg = useMemo(() => {
     const agg = {};
@@ -390,7 +390,7 @@ export default function AdminDashboard() {
   }, [analyticsData]);
 
   const analyticsRecent = useMemo(() => {
-    // Daily guest sessions — window respects the global filter.
+    // Daily guest sessions. window respects the global filter.
     const days = Math.min(daysForFilter(filter), 30); // cap to 30 bars for readability
     const out = [];
     for (let i = days - 1; i >= 0; i--) {
@@ -402,7 +402,7 @@ export default function AdminDashboard() {
     return out;
   }, [analyticsData, filter]);
 
-  // ── BI metrics ─────────────────────────────────────────────────────────────
+  //  BI metrics 
   // Everything from here powers the redesigned stats dashboard.
 
   // Helper: sum a specific event's count over a date range.
@@ -416,7 +416,7 @@ export default function AdminDashboard() {
       .reduce((s, r) => s + (r.count || 0), 0);
   };
 
-  // Engagement trend — logins + signups per day. Guest sessions removed
+  // Engagement trend. logins + signups per day. Guest sessions removed
   // from this chart (they live in the Anonymous Analytics section as the
   // single source of truth to avoid showing the same number in 3 places).
   // Window respects the global filter.
@@ -459,7 +459,7 @@ export default function AdminDashboard() {
     });
   }, [analyticsData, filter]);
 
-  // Feature engagement — sum of page_view:<path> events per page, all-time.
+  // Feature engagement. sum of page_view:<path> events per page, all-time.
   const featureRanking = useMemo(() => {
     const byPage = {};
     const PAGE_LABELS = {
@@ -493,7 +493,7 @@ export default function AdminDashboard() {
       .slice(0, 10);
   }, [analyticsData]);
 
-  // Period-over-period deltas — the "insights" callouts. Both window and
+  // Period-over-period deltas. the "insights" callouts. Both window and
   // comparison period scale with the global filter.
   const insights = useMemo(() => {
     const today = format(TODAY, 'yyyy-MM-dd');
@@ -502,21 +502,21 @@ export default function AdminDashboard() {
     const dPrevAgo  = format(subDays(TODAY, days * 2),  'yyyy-MM-dd');
     const d1Ago     = format(subDays(TODAY, 1),         'yyyy-MM-dd');
 
-    // Signups — current period vs previous period of same length.
+    // Signups. current period vs previous period of same length.
     const signupCur  = sumEvent('auth_signup', dFromAgo, today);
     const signupPrev = sumEvent('auth_signup', dPrevAgo, dFromAgo);
     const signupDelta = signupPrev > 0
       ? Math.round(((signupCur - signupPrev) / signupPrev) * 100)
       : (signupCur > 0 ? 100 : 0);
 
-    // Logins — same pattern.
+    // Logins. same pattern.
     const loginCur  = sumEvent('auth_login', dFromAgo, today);
     const loginPrev = sumEvent('auth_login', dPrevAgo, dFromAgo);
     const loginDelta = loginPrev > 0
       ? Math.round(((loginCur - loginPrev) / loginPrev) * 100)
       : (loginCur > 0 ? 100 : 0);
 
-    // Conversion rate — guest→signup.
+    // Conversion rate. guest→signup.
     const guestCur  = sumEvent('guest_session', dFromAgo, today);
     const guestPrev = sumEvent('guest_session', dPrevAgo, dFromAgo);
     const convCur  = guestCur > 0 ? Math.round((signupCur / guestCur) * 100) : 0;
@@ -554,7 +554,7 @@ export default function AdminDashboard() {
     };
   }, [analyticsData, filter]);
 
-  // ── Filtered slices (all driven by the global `filter`) ────────────────────
+  //  Filtered slices (all driven by the global `filter`) 
 
   const fAcc  = useMemo(() => accounts.filter(a  => inRange(a.created_date,  filter)), [accounts,  filter]);
   const fVeh  = useMemo(() => vehicles.filter(v  => inRange(v.created_at,    filter)), [vehicles,  filter]);
@@ -563,7 +563,7 @@ export default function AdminDashboard() {
   const fDoc  = useMemo(() => documents.filter(d => inRange(d.created_at,    filter)), [documents, filter]);
   const fRev  = useMemo(() => reviews.filter(r   => inRange(r.created_at,    filter)), [reviews,   filter]);
 
-  // ── Cross-reference maps ───────────────────────────────────────────────────
+  //  Cross-reference maps 
 
   // vehicle_id → account_id
   const v2a = useMemo(() => {
@@ -583,7 +583,7 @@ export default function AdminDashboard() {
     return m;
   }, [vehicles]);
 
-  // ── Active accounts in the filter window ──────────────────────────────────
+  //  Active accounts in the filter window 
 
   const activeIds = useMemo(() => {
     const ids = new Set();
@@ -594,7 +594,7 @@ export default function AdminDashboard() {
     return ids;
   }, [fVeh, fMnt, fRep, fDoc, v2a]);
 
-  // ── Funnel ─────────────────────────────────────────────────────────────────
+  //  Funnel 
 
   const funnel = useMemo(() => {
     const s1 = fAcc.length; // new registrations
@@ -621,7 +621,7 @@ export default function AdminDashboard() {
     ];
   }, [fAcc, fVeh, fMnt, fDoc, accounts, filter, activeIds, v2a]);
 
-  // ── Time series ────────────────────────────────────────────────────────────
+  //  Time series 
 
   const showSeries = !['today', 'yesterday', 'all'].includes(filter);
 
@@ -641,7 +641,7 @@ export default function AdminDashboard() {
     );
   }, [accounts, vehicles, maintLogs, repairLogs, documents, filter, showSeries]);
 
-  // ── User behavior (action ranking) ────────────────────────────────────────
+  //  User behavior (action ranking) 
 
   const actionRank = useMemo(() => [
     { name: 'הוספת רכב',    count: fVeh.length, emoji: '🚗' },
@@ -651,7 +651,7 @@ export default function AdminDashboard() {
     { name: 'ביקורת',       count: fRev.length, emoji: '⭐' },
   ].sort((a, b) => b.count - a.count), [fVeh, fMnt, fRep, fDoc, fRev]);
 
-  // ── Retention (all-time, not window-dependent) ────────────────────────────
+  //  Retention (all-time, not window-dependent) 
 
   const retention = useMemo(() => {
     // Build last-activity-date per account from all data
@@ -688,7 +688,7 @@ export default function AdminDashboard() {
     return { d1: compute(1), d7: compute(7), d30: compute(30) };
   }, [accounts, vehicles, maintLogs, repairLogs, documents, v2a]);
 
-  // ── Top users by vehicle count ─────────────────────────────────────────────
+  //  Top users by vehicle count 
 
   const topUsers = useMemo(() =>
     accounts
@@ -698,7 +698,7 @@ export default function AdminDashboard() {
       .slice(0, 10),
   [accounts, a2v]);
 
-  // ── Alerts (all-time) ─────────────────────────────────────────────────────
+  //  Alerts (all-time) 
 
   const expiredTest  = useMemo(() => vehicles.filter(v => { const d = safeDate(v.test_due_date);      return d && isBefore(d, TODAY); }), [vehicles]);
   const soonTest     = useMemo(() => vehicles.filter(v => { const d = safeDate(v.test_due_date);      return d && isAfter(d, TODAY) && differenceInDays(d, TODAY) <= 30; }), [vehicles]);
@@ -709,13 +709,13 @@ export default function AdminDashboard() {
   const expiredRaft  = useMemo(() => vehicles.filter(v => { const d = safeDate(v.life_raft_expiry_date); return d && isBefore(d, TODAY); }), [vehicles]);
   const totalAlerts  = expiredTest.length + soonTest.length + expiredIns.length + soonIns.length + expiredPyro.length + expiredExt.length + expiredRaft.length;
 
-  // ── Misc stats ─────────────────────────────────────────────────────────────
+  //  Misc stats 
 
   const avgRating   = useMemo(() => reviews.length ? (reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length).toFixed(1) : null, [reviews]);
   const totalFActs  = fMnt.length + fRep.length + fDoc.length;
   const fLabel      = FILTERS.find(f => f.key === filter)?.label || '';
 
-  // ── Guard states ───────────────────────────────────────────────────────────
+  //  Guard states 
 
   if (isAdmin === null) return <LoadingSpinner />;
   if (isAdmin === false) {
@@ -728,12 +728,12 @@ export default function AdminDashboard() {
     );
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  //  Render 
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 pb-20">
 
-      {/* ── Page header ── */}
+      {/*  Page header  */}
       <div className="bg-white border-b border-gray-100">
         <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 flex-wrap">
           <div>
@@ -812,9 +812,9 @@ export default function AdminDashboard() {
         ) : (
           <>
 
-            {/* ══════════════════════════════════════════════════════
+            {/* 
                 SECTION 1 - KPI CARDS
-            ══════════════════════════════════════════════════════ */}
+             */}
             <section>
               <SectionLabel>מדדי ביצוע מרכזיים · {fLabel}</SectionLabel>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -864,9 +864,9 @@ export default function AdminDashboard() {
               </div>
             </section>
 
-            {/* ══════════════════════════════════════════════════════
-                BI — תובנות מרכזיות (auto-generated week-over-week)
-            ══════════════════════════════════════════════════════ */}
+            {/* 
+                BI. תובנות מרכזיות (auto-generated week-over-week)
+             */}
             <section>
               <SectionLabel>תובנות מרכזיות · {fLabel}</SectionLabel>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -917,9 +917,9 @@ export default function AdminDashboard() {
               )}
             </section>
 
-            {/* ══════════════════════════════════════════════════════
-                BI — מגמת כניסות ורישומים (respects filter)
-            ══════════════════════════════════════════════════════ */}
+            {/* 
+                BI. מגמת כניסות ורישומים (respects filter)
+             */}
             <section>
               <SectionLabel>מגמת כניסות ורישומים · {fLabel}</SectionLabel>
               <ChartCard>
@@ -945,9 +945,9 @@ export default function AdminDashboard() {
               </ChartCard>
             </section>
 
-            {/* ══════════════════════════════════════════════════════
-                BI — אחוז המרה אורחים → משתמשים (30 יום, 7-day rolling)
-            ══════════════════════════════════════════════════════ */}
+            {/* 
+                BI. אחוז המרה אורחים → משתמשים (30 יום, 7-day rolling)
+             */}
             <section>
               <SectionLabel>אחוז המרה אורחים → רישום · {fLabel}</SectionLabel>
               <ChartCard>
@@ -974,9 +974,9 @@ export default function AdminDashboard() {
               </ChartCard>
             </section>
 
-            {/* ══════════════════════════════════════════════════════
-                BI — דירוג פיצ'רים (page view events, כל הזמנים)
-            ══════════════════════════════════════════════════════ */}
+            {/* 
+                BI. דירוג פיצ'רים (page view events, כל הזמנים)
+             */}
             <section>
               <SectionLabel allTime>דירוג פיצ'רים · איפה המשתמשים מבלים</SectionLabel>
               <ChartCard>
@@ -1012,9 +1012,9 @@ export default function AdminDashboard() {
               </ChartCard>
             </section>
 
-            {/* ══════════════════════════════════════════════════════
+            {/* 
                 SECTION 2 - FUNNEL
-            ══════════════════════════════════════════════════════ */}
+             */}
             <section>
               <SectionLabel>משפך הפעלה · {fLabel}</SectionLabel>
               <ChartCard>
@@ -1043,9 +1043,9 @@ export default function AdminDashboard() {
               </ChartCard>
             </section>
 
-            {/* ══════════════════════════════════════════════════════
+            {/* 
                 SECTION 3 - TIME SERIES
-            ══════════════════════════════════════════════════════ */}
+             */}
             {showSeries && (
               <section>
                 <SectionLabel>מגמות לאורך זמן · {fLabel}</SectionLabel>
@@ -1090,9 +1090,9 @@ export default function AdminDashboard() {
               </section>
             )}
 
-            {/* ══════════════════════════════════════════════════════
+            {/* 
                 SECTION 4 - USER BEHAVIOR
-            ══════════════════════════════════════════════════════ */}
+             */}
             <div className="grid grid-cols-1 gap-5">
 
               {/* User behavior */}
@@ -1135,14 +1135,14 @@ export default function AdminDashboard() {
                 </ChartCard>
               </section>
 
-              {/* Traffic sources removed — placeholder with no data source
+              {/* Traffic sources removed. placeholder with no data source
                   was added noise. Re-introduce when we wire Google Analytics
                   / Mixpanel / Plausible. See PR for history. */}
             </div>
 
-            {/* ══════════════════════════════════════════════════════
+            {/* 
                 SECTION 6 - RETENTION
-            ══════════════════════════════════════════════════════ */}
+             */}
             <section>
               <SectionLabel allTime>שימור משתמשים</SectionLabel>
               <div className="grid grid-cols-3 gap-4">
@@ -1155,9 +1155,9 @@ export default function AdminDashboard() {
               </p>
             </section>
 
-            {/* ══════════════════════════════════════════════════════
+            {/* 
                 SECTION 7 - TOP USERS TABLE
-            ══════════════════════════════════════════════════════ */}
+             */}
             <section>
               <SectionLabel allTime>משתמשים מובילים לפי רכבים</SectionLabel>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -1224,9 +1224,9 @@ export default function AdminDashboard() {
               </div>
             </section>
 
-            {/* ══════════════════════════════════════════════════════
+            {/* 
                 ALERTS - collapsible
-            ══════════════════════════════════════════════════════ */}
+             */}
             {totalAlerts > 0 && (
               <section>
                 <SectionLabel allTime>התראות מערכת</SectionLabel>
@@ -1272,9 +1272,9 @@ export default function AdminDashboard() {
               </section>
             )}
 
-            {/* ══════════════════════════════════════════════════════
+            {/* 
                 SECTION - ANONYMOUS ANALYTICS
-            ══════════════════════════════════════════════════════ */}
+             */}
             <section>
               <SectionLabel allTime>אנליטיקס אנונימי</SectionLabel>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
@@ -1338,7 +1338,7 @@ export default function AdminDashboard() {
   );
 }
 
-// ── Admin Tabs ────────────────────────────────────────────────────────────
+//  Admin Tabs 
 
 function AdminUsersTab() {
   const [users, setUsers] = useState([]);
@@ -1347,7 +1347,7 @@ function AdminUsersTab() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [lastRefreshed, setLastRefreshed] = useState(null);
 
-  // Background refresh — same pattern as the Stats tab. Re-runs the RPC
+  // Background refresh. same pattern as the Stats tab. Re-runs the RPC
   // on window focus and every 60 s while the tab is visible so new
   // signups / deletions appear without a manual refresh click.
   useEffect(() => {
@@ -1363,7 +1363,7 @@ function AdminUsersTab() {
   // Load accounts via the admin RPC when it's available; gracefully fall back
   // to client-side joins (accounts + account_members + vehicles + documents)
   // when the RPC hasn't been deployed yet. That way the richer table still
-  // renders — just without emails and role info.
+  // renders. just without emails and role info.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1392,7 +1392,7 @@ function AdminUsersTab() {
         );
       } catch (e) {
         if (cancelled) return;
-        // RPC not deployed yet — fall back to whatever we can see client-side.
+        // RPC not deployed yet. fall back to whatever we can see client-side.
         setRpcMissing(true);
         try {
           const [accounts, members, vehicles, documents] = await Promise.all([
@@ -1428,7 +1428,7 @@ function AdminUsersTab() {
     return () => { cancelled = true; };
   }, [refreshKey]);
 
-  // ── Search + sort + pagination ─────────────────────────────────────────
+  //  Search + sort + pagination 
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState('created');   // created | vehicles | lastLogin | name
@@ -1468,7 +1468,7 @@ function AdminUsersTab() {
     else { setSortKey(key); setSortDir('desc'); }
   };
 
-  // ── Actions ────────────────────────────────────────────────────────────
+  //  Actions 
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -1533,7 +1533,7 @@ function AdminUsersTab() {
     URL.revokeObjectURL(url);
   };
 
-  // ── Summary stats for the quick pills above the table ──────────────────
+  //  Summary stats for the quick pills above the table 
   const stats = useMemo(() => {
     const now = Date.now();
     const day = 24 * 60 * 60 * 1000;
@@ -1579,7 +1579,7 @@ function AdminUsersTab() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 p-3 sm:p-4">
-        {/* Toolbar — stacks on mobile, row on desktop. */}
+        {/* Toolbar. stacks on mobile, row on desktop. */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
           <h2 className="font-bold text-gray-900 text-sm sm:text-base">
             כל החשבונות ({filtered.length}{search && ` / ${users.length}`})
@@ -1605,7 +1605,7 @@ function AdminUsersTab() {
           </div>
         </div>
 
-        {/* Mobile sort control — the table's click-to-sort doesn't exist in card view. */}
+        {/* Mobile sort control. the table's click-to-sort doesn't exist in card view. */}
         <div className="sm:hidden mb-3">
           <select value={`${sortKey}:${sortDir}`}
             onChange={(e) => { const [k, d] = e.target.value.split(':'); setSortKey(k); setSortDir(d); }}
@@ -1619,7 +1619,7 @@ function AdminUsersTab() {
           </select>
         </div>
 
-        {/* Mobile card list ── one account per card. */}
+        {/* Mobile card list  one account per card. */}
         <div className="sm:hidden space-y-2">
           {pageUsers.map(u => (
             <div key={u.id} className="border border-gray-100 rounded-xl p-3 bg-white">
@@ -1636,7 +1636,7 @@ function AdminUsersTab() {
                         <Copy className="w-3 h-3" />
                       </button>
                     </div>
-                  ) : <p className="text-[11px] text-gray-300 mt-0.5">—</p>}
+                  ) : <p className="text-[11px] text-gray-300 mt-0.5"></p>}
                 </div>
                 {u.role === 'admin' && (
                   <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 shrink-0">
@@ -1652,7 +1652,7 @@ function AdminUsersTab() {
               <div className="flex items-center justify-between pt-2 border-t border-gray-50 gap-2">
                 <div className="text-[10px] text-gray-400 min-w-0">
                   <div className="truncate">נוצר: {u.created_at ? format(parseISO(u.created_at), 'dd/MM/yy') : '-'}</div>
-                  <div className="truncate">כניסה: {u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), 'dd/MM/yy HH:mm') : '—'}</div>
+                  <div className="truncate">כניסה: {u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), 'dd/MM/yy HH:mm') : ''}</div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button onClick={() => toggleAdmin(u)}
@@ -1676,7 +1676,7 @@ function AdminUsersTab() {
           )}
         </div>
 
-        {/* Desktop table ── hidden on mobile. */}
+        {/* Desktop table  hidden on mobile. */}
         <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-xs min-w-[720px]">
             <thead className="text-gray-500 border-b border-gray-100">
@@ -1707,7 +1707,7 @@ function AdminUsersTab() {
                           <Copy className="w-3 h-3" />
                         </button>
                       </div>
-                    ) : <span className="text-gray-300">—</span>}
+                    ) : <span className="text-gray-300"></span>}
                   </td>
                   <td className="py-2 px-2">
                     {u.role === 'admin' ? (
@@ -1720,7 +1720,7 @@ function AdminUsersTab() {
                   <td className="py-2 px-2">{u.documentCount}</td>
                   <td className="py-2 px-2">{u.memberCount}</td>
                   <td className="py-2 px-2 text-gray-500">
-                    {u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), 'dd/MM/yy HH:mm') : <span className="text-gray-300">—</span>}
+                    {u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), 'dd/MM/yy HH:mm') : <span className="text-gray-300"></span>}
                   </td>
                   <td className="py-2 px-2 text-gray-500">{u.created_at ? format(parseISO(u.created_at), 'dd/MM/yy') : '-'}</td>
                   <td className="py-2 px-2">

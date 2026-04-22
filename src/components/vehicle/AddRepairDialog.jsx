@@ -435,7 +435,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
             </div>
           </div>
 
-          {/* Action row — sticky bottom so it stays above the keyboard */}
+          {/* Action row. sticky bottom so it stays above the keyboard */}
           <div className="sticky bottom-0 bg-white border-t border-gray-100 -mx-6 px-6 py-3 flex gap-2"
             style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}>
             <Button type="submit" disabled={saveMutation.isPending} className="flex-1 bg-amber-600 hover:bg-amber-700">

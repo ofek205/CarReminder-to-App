@@ -6,7 +6,7 @@ import FirstTimeTour from '@/components/shared/FirstTimeTour';
 
 // Mini tour shown the first time a user lands on /AddVehicle with no
 // vehicles yet. Kept intentionally short: two steps, plain Hebrew,
-// no dashes. Goal — reassure that it's fast and show the plate-lookup
+// no dashes. Goal. reassure that it's fast and show the plate-lookup
 // magic that fills everything automatically.
 const ADD_VEHICLE_TOUR_STEPS = [
   {
@@ -146,7 +146,7 @@ export default function AddVehicle() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const formRef = useRef(null);
 
-  // Category-mismatch dialog state — opens when gov.il says the plate belongs
+  // Category-mismatch dialog state. opens when gov.il says the plate belongs
   // to a different vehicle class than the one the user picked
   const [typeMismatch, setTypeMismatch] = useState(null); // { detectedType, detectedLabel, pendingFields, pendingUpdates }
 
@@ -319,13 +319,13 @@ export default function AddVehicle() {
   // Map a selected category → the vehicle types the gov.il API may return
   // that are considered "a match". Used to warn on plate/category mismatch.
   const expectedTypesForCategory = (cat) => {
-    if (!cat) return null; // no category yet — skip check
+    if (!cat) return null; // no category yet. skip check
     switch (cat.label) {
       case 'פרטיים ומסחריים': return ['car', 'commercial'];
       case 'אופנועים':        return ['motorcycle'];
       case 'משאיות':           return ['truck', 'commercial'];
-      case 'כלי שטח':         return null; // gov.il can't classify reliably — skip
-      case 'מיוחדים':          return null; // same — skip for special subcategories
+      case 'כלי שטח':         return null; // gov.il can't classify reliably. skip
+      case 'מיוחדים':          return null; // same. skip for special subcategories
       default: return null;
     }
   };
@@ -445,7 +445,7 @@ export default function AddVehicle() {
       const fields = await lookupVehicleByPlate(plateQuery.trim());
       if (!fields) { setLookupStatus('not_found'); return; }
 
-      // ── Category-mismatch check ─────────────────────────────────────────
+      //  Category-mismatch check 
       // If the user already chose a category, verify gov.il's classification
       // matches. If not, pause and ask the user what to do.
       const expected = expectedTypesForCategory(selectedCategory);
@@ -462,7 +462,7 @@ export default function AddVehicle() {
         return;
       }
 
-      // No mismatch — apply fields directly
+      // No mismatch. apply fields directly
       applyLookupToForm(fields, buildUpdatesFromFields(fields));
     } catch (_) {
       setLookupStatus('error');
@@ -473,7 +473,7 @@ export default function AddVehicle() {
     if (e?.preventDefault) e.preventDefault();
 
     setSystemError(null);
-    // Plate format validation — Israeli plates are 5-8 digits (possibly with dashes),
+    // Plate format validation. Israeli plates are 5-8 digits (possibly with dashes),
     // vessels use an IL- prefix with 3-7 chars after. Allow letters for vessel-only.
     const plateFormat = isVesselCategory
       ? (v) => !v || /^[A-Z0-9\-]{3,15}$/i.test((v || '').trim())
@@ -663,7 +663,7 @@ export default function AddVehicle() {
   }
 
   // Show the mini tour only on the user's very first visit to AddVehicle
-  // (no existing vehicles). Guests are excluded — tour is for authenticated
+  // (no existing vehicles). Guests are excluded. tour is for authenticated
   // first-time setup. Storage key is scoped so the dashboard tour and this
   // tour don't share a "seen" flag.
   const firstVehicleTour = !!isAuthenticated && !isGuest && existingVehicles.length === 0;
@@ -672,7 +672,7 @@ export default function AddVehicle() {
     <div dir="rtl">
       {/* Re-runs on every mount while the user has zero vehicles. Once
           they add even one, existingVehicles.length > 0 and the tour
-          stops appearing. No localStorage flag — skip/finish are only
+          stops appearing. No localStorage flag. skip/finish are only
           in-session and the tour returns the next time they try. */}
       <FirstTimeTour
         enabled={firstVehicleTour}
@@ -746,7 +746,7 @@ export default function AddVehicle() {
         </div>
       )}
 
-      {/* Category-mismatch Modal — opens when gov.il says the plate belongs
+      {/* Category-mismatch Modal. opens when gov.il says the plate belongs
           to a different vehicle class than the one the user picked. */}
       {typeMismatch && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" dir="rtl" role="dialog" aria-modal="true" aria-labelledby="mismatch-title">
@@ -862,7 +862,7 @@ export default function AddVehicle() {
         </div>
       )}
 
-      {/* ─── Premium Hero Header ─── */}
+      {/*  Premium Hero Header  */}
       <div className="rounded-3xl p-4 pb-5 mb-5 relative overflow-hidden" dir="rtl"
         style={{ background: T.grad || C.grad, boxShadow: `0 8px 32px ${T.primary}30` }}>
         <div className="absolute -top-12 -left-12 w-44 h-44 rounded-full" style={{ background: 'rgba(255,255,255,0.07)' }} />
@@ -898,7 +898,7 @@ export default function AddVehicle() {
         </div>
       </div>
 
-      {/* ─── Step 1: Vehicle type ─── */}
+      {/*  Step 1: Vehicle type  */}
       <div className="mb-6" data-tour="av-category">
         <h2 className="font-black text-lg mb-3 text-center" style={{ color: '#1C2E20' }}>בחר סוג כלי רכב</h2>
         <VehicleTypeSelector
@@ -1050,7 +1050,7 @@ export default function AddVehicle() {
         )}
       </div>
 
-      {/* ─── Step 2: Method selection ─── */}
+      {/*  Step 2: Method selection  */}
       <div className={`transition-all duration-300 ${categoryReady ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
       <h2 className="font-black text-lg mb-4 text-center" style={{ color: '#1C2E20' }}>איך תרצה להוסיף?</h2>
       <div className="space-y-3 mb-6" data-tour="av-methods">
@@ -1179,7 +1179,7 @@ export default function AddVehicle() {
       </div>
       </div>{/* end step-2 wrapper */}
 
-      {/* ─── Vehicle form (revealed after method selection) ─── */}
+      {/*  Vehicle form (revealed after method selection)  */}
       <div
         ref={formRef}
         className={`transition-all duration-400 ${formVisible ? 'opacity-100 translate-y-0' : 'opacity-0 pointer-events-none translate-y-4'}`}
@@ -1233,7 +1233,7 @@ export default function AddVehicle() {
 
             <div className="p-4 sm:p-6 rounded-3xl" style={{ background: '#FAFAF8', border: '1.5px solid #E8E0D4', boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
               <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Photo — gallery input on the preview + native camera button below.
+                {/* Photo. gallery input on the preview + native camera button below.
                     Capacitor's WebView ignores capture="environment" on <input>, so
                     direct camera access needs the Capacitor Camera plugin (which
                     FileOrCameraUpload wraps). Two tap targets avoids forcing either. */}
@@ -1263,7 +1263,7 @@ export default function AddVehicle() {
                   />
                 </div>
 
-                {/* ── Form fields ── */}
+                {/*  Form fields  */}
                 <div className="space-y-3" dir="rtl">
                   {/* כינוי + מספר רישוי - 2 columns */}
                   <div className="grid grid-cols-2 gap-3">
@@ -1660,7 +1660,7 @@ export default function AddVehicle() {
                   </div>
                 )}
 
-                {/* ── Off-road equipment section ── */}
+                {/*  Off-road equipment section  */}
                 {(isOffroadCategory || isJeepOffroad) && (
                   <div className="border border-green-200 bg-green-50 rounded-xl p-4 space-y-3">
                     {isJeepOffroad ? (

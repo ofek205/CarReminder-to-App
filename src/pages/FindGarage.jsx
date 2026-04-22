@@ -6,7 +6,7 @@ import { db } from '@/lib/supabaseEntities';
 import { MapPin, Navigation, Wrench, Search, Loader2, AlertCircle, MapPinOff, Phone, Star, Filter, ArrowUpDown, ExternalLink, Anchor, Ship, Package, Settings, LocateFixed } from 'lucide-react';
 import { getCurrentPosition } from '@/lib/capacitor';
 
-// Brand SVG marks — used on the directions buttons. Kept inline to avoid extra assets.
+// Brand SVG marks. used on the directions buttons. Kept inline to avoid extra assets.
 const GoogleMapsMark = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
     <path d="M12 2C7.58 2 4 5.58 4 10c0 7 8 12 8 12s8-5 8-12c0-4.42-3.58-8-8-8z" fill="#EA4335"/>
@@ -34,7 +34,7 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
 
-// ── Type definitions with colors & icons ──────────────────────────────────
+//  Type definitions with colors & icons 
 const TYPE_CONFIG = {
   garage: {
     label: 'מוסך',
@@ -70,7 +70,7 @@ const TYPE_CONFIG = {
   },
 };
 
-// ── Marine type definitions (shown only when user has a vessel) ─────────
+//  Marine type definitions (shown only when user has a vessel) 
 const MARINE_TYPE_CONFIG = {
   marina: {
     label: 'מרינה',
@@ -221,12 +221,12 @@ export default function FindGarage() {
     }
   }, [isGuest, guestVehicles, isAuthenticated, user]);
 
-  // Get user location — fallback to Tel Aviv if GPS fails
+  // Get user location. fallback to Tel Aviv if GPS fails
   const [usingGps, setUsingGps] = useState(false);
 
   useEffect(() => {
     if (!navigator.geolocation) {
-      // No geolocation support — default to Tel Aviv
+      // No geolocation support. default to Tel Aviv
       setUserLocation({ lat: 32.0853, lng: 34.7818 });
       setLoading(false);
       return;
@@ -234,7 +234,7 @@ export default function FindGarage() {
     navigator.geolocation.getCurrentPosition(
       (pos) => { setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setUsingGps(true); setLoading(false); },
       () => {
-        // GPS failed — default to Tel Aviv instead of showing error
+        // GPS failed. default to Tel Aviv instead of showing error
         setUserLocation({ lat: 32.0853, lng: 34.7818 });
         setLoading(false);
       },
@@ -266,7 +266,7 @@ export default function FindGarage() {
 
   // Stale-while-revalidate cache for Overpass results.
   //   Key: rounded lat/lng (1km grid) + radius + vessel flag
-  //   TTL: 24h — garages don't appear/disappear often; users can pull-to-refresh
+  //   TTL: 24h. garages don't appear/disappear often; users can pull-to-refresh
   //   Strategy: on hit, render cached results instantly + fetch in background
   const CACHE_VERSION = 'fg_v1';
   const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -428,7 +428,7 @@ export default function FindGarage() {
   const typeCounts = { all: garages.length };
   garages.forEach(g => { typeCounts[g.typeKey] = (typeCounts[g.typeKey] || 0) + 1; });
 
-  // ── Loading ──
+  //  Loading 
   if (loading) {
     return (
       <div className="-mx-4 -mt-4 min-h-[85vh] flex flex-col items-center justify-center gap-5 relative overflow-hidden pb-24" dir="rtl">
@@ -446,9 +446,9 @@ export default function FindGarage() {
     );
   }
 
-  // Error screen removed — we always fallback to Tel Aviv, so main view always shows
+  // Error screen removed. we always fallback to Tel Aviv, so main view always shows
 
-  // ── Main view ──
+  //  Main view 
   return (
     <div className="-mx-4 -mt-4" style={{ maxWidth: '100vw', overflowX: 'hidden' }} dir="rtl">
       {/* Hero header */}
@@ -645,7 +645,7 @@ export default function FindGarage() {
               </MapContainer>
             )}
 
-            {/* Floating "recenter to my location" button — bottom-left of map in RTL feels natural for left-hand thumbs */}
+            {/* Floating "recenter to my location" button. bottom-left of map in RTL feels natural for left-hand thumbs */}
             {userLocation && (
               <button
                 onClick={retryGps}
@@ -700,7 +700,7 @@ export default function FindGarage() {
       {/* Garage cards */}
       <div className="px-3 mt-2 pb-28">
         <div className="space-y-2.5">
-          {/* Initial fetch skeleton — Overpass API can take 5-10s */}
+          {/* Initial fetch skeleton. Overpass API can take 5-10s */}
           {fetching && displayGarages.length === 0 && (
             <div className="space-y-2.5" aria-live="polite" aria-busy="true">
               <div className="text-center py-4 px-4 rounded-2xl" style={{ background: '#FFF8E1', border: '1.5px solid #FDE68A' }}>
@@ -781,7 +781,7 @@ export default function FindGarage() {
                       </a>
                     )}
 
-                    {/* Action buttons — compact for mobile */}
+                    {/* Action buttons. compact for mobile */}
                     <div className="flex gap-1 mt-2">
                       <button onClick={e => { e.stopPropagation(); openGoogleNav(g.lat, g.lon); }}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-[0.95]"

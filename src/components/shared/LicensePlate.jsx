@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/clipboard';
 
 /**
- * Israeli license plate display — yellow plate, IL flag, copy button.
+ * Israeli license plate display. yellow plate, IL flag, copy button.
  * Usage: <LicensePlate value={vehicle.license_plate} size="sm|md|lg" />
  */
 export default function LicensePlate({ value, size = 'md', showCopy = true, className = '' }) {
@@ -24,7 +24,7 @@ export default function LicensePlate({ value, size = 'md', showCopy = true, clas
     }
   };
 
-  // Size presets. The plate number is the only info that matters — the IL
+  // Size presets. The plate number is the only info that matters. the IL
   // badge is a brand signal, so we keep it compact (flag only, no stacked
   // "IL" text that was 4-8px and illegible anyway) and give the number
   // the room it needs to actually be readable.
@@ -45,7 +45,7 @@ export default function LicensePlate({ value, size = 'md', showCopy = true, clas
           boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
           height: P.height,
         }}>
-        {/* IL flag badge — flag only; no stacked "IL" text (was illegible at small sizes) */}
+        {/* IL flag badge. flag only; no stacked "IL" text (was illegible at small sizes) */}
         <span className="flex items-center justify-center rounded-sm"
           style={{ background: '#1A3A5C', padding: P.flagPad }}>
           <svg viewBox="0 0 60 40" style={{ width: P.flagWidth, height: P.flagHeight, display: 'block' }} aria-label="דגל ישראל">

@@ -1,10 +1,10 @@
 /**
- * ChecklistEditor — dedicated page for editing the TEMPLATE of one phase.
+ * ChecklistEditor. dedicated page for editing the TEMPLATE of one phase.
  *
  * URL: /ChecklistEditor?vehicleId=<uuid>&phase=engine|pre|post
  *
  * Product rules (from latest planning pass):
- *   • Entering this page = editing. There is no read-only mode — the
+ *   • Entering this page = editing. There is no read-only mode. the
  *     landing Hub is where people "view" the template via phase cards.
  *   • Items and sections are reorder-able via drag handles. A long press
  *     on the grip icon activates drag; on desktop, click-hold works too.
@@ -165,7 +165,7 @@ export default function ChecklistEditor() {
     await persist(next);
   };
 
-  // ── Mutations ───────────────────────────────────────────────────────
+  //  Mutations 
   // Defaults only make sense for the 3 built-in phases. Custom templates
   // start empty by design (the user named them for a reason).
   const effectivePhase = row?.phase || phaseParam || 'custom';
@@ -199,7 +199,7 @@ export default function ChecklistEditor() {
     ...s, items: s.items.map(i => i.id === itemId ? { ...i, text } : i)
   }));
 
-  // ── Drag-and-drop for sections ──────────────────────────────────────
+  //  Drag-and-drop for sections 
   const sensors = useSensors(
     // Desktop: pointer. activationConstraint.distance prevents accidental
     // drags when the user meant to click a button.
@@ -233,7 +233,7 @@ export default function ChecklistEditor() {
     }));
   };
 
-  // ── Render ──────────────────────────────────────────────────────────
+  //  Render 
   if (!vehicleId || !phase) {
     return <div className="p-6 text-center text-sm text-slate-500">פרמטרים חסרים</div>;
   }

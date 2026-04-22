@@ -26,7 +26,7 @@ const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 function getVehicleIcon(vt, nn, mfr) { return ICON_MAP[getVehicleCategory(vt, nn, mfr)] || Car; }
 import { he } from 'date-fns/locale';
 
-// ── Helper: format date nicely ──────────────────────────────────────────────
+//  Helper: format date nicely 
 function fmtDate(dateStr) {
   if (!dateStr) return '';
   try { return format(parseISO(dateStr), 'dd.MM.yyyy'); } catch { return dateStr; }
@@ -48,7 +48,7 @@ function daysLabel(days) {
   return `בעוד ${months} ${months === 1 ? 'חודש' : 'חודשים'}`;
 }
 
-// ── Urgent Banner ───────────────────────────────────────────────────────────
+//  Urgent Banner 
 function UrgentBanner({ reminders, vehicles }) {
   const allReminders = reminders || [];
   const withDays = allReminders
@@ -97,7 +97,7 @@ function UrgentBanner({ reminders, vehicles }) {
   const vCat = getVehicleCategory(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
   const vehicleTypeLabel = vCat === 'vessel' ? '' : vCat === 'motorcycle' ? 'האופנוע' : vCat === 'truck' ? 'המשאית' : vCat === 'offroad' ? ('ה' + (vType || 'כלי שטח')) : 'הרכב';
 
-  // Headline is the *action* required — the "expired" urgency is already
+  // Headline is the *action* required. the "expired" urgency is already
   // communicated by the red badge above, so avoid repeating "פג תוקף" here.
   const typeLabel = isExpired ? ({
     insurance: isUrgentVessel ? 'חידוש ביטוח ימי נדרש' : 'חידוש ביטוח נדרש',
@@ -145,7 +145,7 @@ function UrgentBanner({ reminders, vehicles }) {
   );
 }
 
-// ── Hero Vehicle Card (premium design - photo background) ──────────────────
+//  Hero Vehicle Card (premium design - photo background) 
 function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
@@ -253,7 +253,7 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
   );
 }
 
-// ── Info Tile (premium) ─────────────────────────────────────────────────────
+//  Info Tile (premium) 
 function InfoTile({ icon: Icon, label, value, status }) {
   const isOk = status === 'ok';
   const isWarn = status === 'warn';
@@ -277,7 +277,7 @@ function InfoTile({ icon: Icon, label, value, status }) {
   );
 }
 
-// ── Reminder Row (premium) ──────────────────────────────────────────────────
+//  Reminder Row (premium) 
 function ReminderRow({ reminder }) {
   const days = daysUntil(reminder.date);
   const urgency = days !== null && days < 0 ? 'danger' : days !== null && days <= 14 ? 'warn' : 'ok';
@@ -304,7 +304,7 @@ function ReminderRow({ reminder }) {
   );
 }
 
-// ── Status Summary (authenticated multi-vehicle) ───────────────────────────
+//  Status Summary (authenticated multi-vehicle) 
 // Each card is tappable: opens a small popover listing the vehicles in that
 // bucket with the specific reason (טסט / ביטוח + date/days), each row links
 // to /VehicleDetail?id=<id>.
@@ -335,7 +335,7 @@ function StatusSummary({ vehicles }) {
       else if (worst <= 60) soon.push(row);
       else ok.push(row);
     });
-    // Sort each bucket — most urgent first (smallest "worst" first).
+    // Sort each bucket. most urgent first (smallest "worst" first).
     const byUrgency = (a, b) => a.worst - b.worst;
     overdue.sort(byUrgency);
     soon.sort(byUrgency);
@@ -422,7 +422,7 @@ function StatusDrilldownDialog({ open, status, rows, onClose }) {
           <DialogTitle>{meta.title}</DialogTitle>
         </VisuallyHidden.Root>
 
-        {/* Header — pr-14 leaves room for the absolute-positioned X button
+        {/* Header. pr-14 leaves room for the absolute-positioned X button
             (top-right in RTL, 32px × 32px + 16px gutter). */}
         <div className="px-4 pr-14 py-3.5 flex items-center gap-2 border-b"
           style={{ background: meta.bg, borderColor: meta.color + '20' }}>
@@ -475,7 +475,7 @@ function StatusDrilldownDialog({ open, status, rows, onClose }) {
   );
 }
 
-// ── Compact Vehicle Row (for multi-vehicle authenticated view) ─────────────
+//  Compact Vehicle Row (for multi-vehicle authenticated view) 
 function VehicleRow({ vehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
@@ -490,7 +490,7 @@ function VehicleRow({ vehicle }) {
   const isOverdue = worstDays < 0;
   const isSoon    = worstDays >= 0 && worstDays <= 60;
 
-  // Title + subtitle — avoid repeating info the user can already read from
+  // Title + subtitle. avoid repeating info the user can already read from
   // the title. Two scenarios to handle:
   //   (a) nickname exists → title=nickname, subtitle=mfr+model+year. But if
   //       the nickname already contains a word from the manufacturer (e.g.
@@ -506,7 +506,7 @@ function VehicleRow({ vehicle }) {
   if (vehicle.year) subtitleParts.push(vehicle.year);
   const subtitle = subtitleParts.join(' · ');
 
-  // Missing fields — reduced list: only the fields that matter for reminders.
+  // Missing fields. reduced list: only the fields that matter for reminders.
   // Cosmetic gaps (photo / fuel type / insurance company) are no longer flagged
   // here because every card lacking a photo was flaring the warning banner and
   // turning the whole dashboard into a wall of orange. Those still appear in
@@ -597,7 +597,7 @@ function VehicleRow({ vehicle }) {
               )}`}
               onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full hover:bg-orange-100 transition-colors"
-              title={`חסר: ${missingFields.join(', ')} — לחץ להשלמה`}
+              title={`חסר: ${missingFields.join(', ')}. לחץ להשלמה`}
               style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
               <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} aria-hidden="true" />
               <span className="text-[10px] font-bold" style={{ color: '#EA580C' }}>
@@ -632,7 +632,7 @@ function VehicleRow({ vehicle }) {
 
 // BottomNav moved to Layout - shared across all pages
 
-// ── Main Dashboard ──────────────────────────────────────────────────────────
+//  Main Dashboard 
 import useNotificationScheduler from '@/hooks/useNotificationScheduler';
 
 export default function Dashboard() {
@@ -663,7 +663,7 @@ export default function Dashboard() {
   });
 
 
-  // ── Authenticated init (Supabase) ────────────────────────────────────────
+  //  Authenticated init (Supabase) 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
     async function init() {
@@ -710,7 +710,7 @@ export default function Dashboard() {
               }
             } catch {}
           } else {
-            // No migration — create fresh account
+            // No migration. create fresh account
             const account = await db.accounts.create({
               name: `החשבון של ${user.full_name || 'המשתמש'}`,
               owner_user_id: user.id,
@@ -738,7 +738,7 @@ export default function Dashboard() {
           } else if (!isProfileSkipActive()) {
             setShowCompleteProfile(true);
           } else {
-            // Skipped recently — keep the lightweight banner instead of popup.
+            // Skipped recently. keep the lightweight banner instead of popup.
             setProfileMissing(true);
           }
         } catch {
@@ -793,7 +793,7 @@ export default function Dashboard() {
 
   if (isLoading) return <LoadingSpinner />;
 
-  // ── GUEST MODE ─────────────────────────────────────────────────────────────
+  //  GUEST MODE 
   if (isGuest) {
     // Seed demo data on first visit (synchronous - no useEffect needed)
     if (guestVehicles.length === 0 && !isDemoDismissed) {
@@ -910,15 +910,15 @@ export default function Dashboard() {
     );
   }
 
-  // ── Complete Profile Screen (one-time) ──────────────────────────────────────
+  //  Complete Profile Screen (one-time) 
   if (showCompleteProfile && user) {
     return <CompleteProfileScreen user={user} onDone={() => { setShowCompleteProfile(false); setProfileMissing(false); }} />;
   }
 
-  // ── AUTHENTICATED MODE ─────────────────────────────────────────────────────
+  //  AUTHENTICATED MODE 
   if (!accountId || vehiclesLoading) return <LoadingSpinner />;
 
-  // Status severity used when the user sorts by status — most urgent first.
+  // Status severity used when the user sorts by status. most urgent first.
   // Matches the intent on /Vehicles: expired > upcoming > ok.
   const statusRank = (v) => {
     const dates = [v.test_due_date, v.insurance_due_date].map(daysUntil).filter(d => d !== null);
@@ -994,11 +994,11 @@ export default function Dashboard() {
   return (
     <div className="-mx-4 -mt-4 pb-4" style={{ background: C.bg, minHeight: '100dvh', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <PullToRefreshIndicator pulling={pulling} progress={progress} />
-      {/* First-time user tooltip tour — narrowly targeted so we don't annoy
+      {/* First-time user tooltip tour. narrowly targeted so we don't annoy
           engaged users. Shown only when:
             (a) The account was created within the last 24h, OR
             (b) The account is >10 days old AND the user still has zero vehicles
-                (they never completed onboarding — the tour is the nudge they need).
+                (they never completed onboarding. the tour is the nudge they need).
           The hook self-gates with localStorage so a user who skipped it once
           never sees it again. */}
       {(() => {
@@ -1044,7 +1044,7 @@ export default function Dashboard() {
           </Link>
         </div>
 
-        {/* Search + sort — visually identical to the /Vehicles page for
+        {/* Search + sort. visually identical to the /Vehicles page for
             consistency. Only rendered when there are 2+ vehicles to filter. */}
         {vehicles.length > 1 && (
           <div className="flex items-center gap-2 mb-4" dir="rtl">

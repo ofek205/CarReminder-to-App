@@ -5,7 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ChevronsUpDown, Check, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ─── Common car manufacturers in Israel ─────────────────────────────────────
+//  Common car manufacturers in Israel 
 const CAR_MANUFACTURERS = [
   'Toyota', 'Hyundai', 'Kia', 'Mazda', 'Skoda', 'Suzuki', 'Mitsubishi',
   'Nissan', 'Honda', 'Subaru', 'Volkswagen', 'Ford', 'Chevrolet', 'Peugeot',
@@ -15,7 +15,7 @@ const CAR_MANUFACTURERS = [
   'Porsche', 'Jaguar', 'Alfa Romeo',
 ].sort();
 
-// ─── Combobox with search and custom add ────────────────────────────────────
+//  Combobox with search and custom add 
 function ManufacturerCombobox({ manufacturers, selectedName, onChange }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -82,7 +82,7 @@ function ManufacturerCombobox({ manufacturers, selectedName, onChange }) {
   );
 }
 
-// ─── Main export ─────────────────────────────────────────────────────────────
+//  Main export 
 export default function ManufacturerSelector({ value, selectedName, onChange, accountId, quickManufacturers }) {
   // Non-car categories with a known list
   if (quickManufacturers && quickManufacturers.length > 0) {

@@ -10,13 +10,13 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
  * Why: on native (Capacitor), WebView localStorage CAN be cleared by Android
  * when the device is low on memory or when the user does "Clear cache" in
  * system settings. Capacitor's @capacitor/preferences is backed by
- * SharedPreferences on Android + NSUserDefaults on iOS — it survives those
+ * SharedPreferences on Android + NSUserDefaults on iOS. it survives those
  * operations and only clears on full "Clear data" / uninstall.
  *
  * On web we just use localStorage so nothing changes for browser users.
  *
  * The adapter is synchronous-compatible (Supabase expects sync or promise).
- * Preferences returns promises — that's fine, Supabase awaits them.
+ * Preferences returns promises. that's fine, Supabase awaits them.
  */
 const isNative = Capacitor.isNativePlatform();
 
@@ -55,7 +55,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     // and WebView clears). Fall back to localStorage on the web.
     storage: isNative ? nativeStorage : webStorage,
 
-    // Persist the session across app launches — this is the default but we
+    // Persist the session across app launches. this is the default but we
     // spell it out so it's obvious at the call site.
     persistSession: true,
 
@@ -64,7 +64,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     // API call. With this, the refresh happens transparently.
     autoRefreshToken: true,
 
-    // Parse ?access_token=... from OAuth redirects — needed for Google login.
+    // Parse ?access_token=... from OAuth redirects. needed for Google login.
     detectSessionInUrl: true,
 
     // PKCE is safer than implicit flow for public clients (mobile apps).

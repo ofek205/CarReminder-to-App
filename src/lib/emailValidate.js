@@ -1,12 +1,12 @@
 /**
- * emailValidate — lightweight validation for editable email templates.
+ * emailValidate. lightweight validation for editable email templates.
  *
  * Two responsibilities:
  *
- *   1. extractPlaceholders(string)  — scan any template field and return
+ *   1. extractPlaceholders(string) . scan any template field and return
  *      the list of {{variable}} names found inside it.
  *
- *   2. validateTemplate(template)   — take a full template object and tell
+ *   2. validateTemplate(template)  . take a full template object and tell
  *      the caller whether the declared `variables` array matches what the
  *      content actually uses. This is the architect's #2 critical fix:
  *      silent `{{foo}}` leaking into production emails is the worst
@@ -18,12 +18,12 @@
 
 // Matches {{ anything }} with optional whitespace. Name is \w+ (letters,
 // digits, underscore). Admin-authored content, so we don't try to be a
-// full HTML parser — just find every Mustache-style token.
+// full HTML parser. just find every Mustache-style token.
 const PLACEHOLDER_RE = /\{\{\s*(\w+)\s*\}\}/g;
 
 /**
  * Returns an array of unique placeholder names (order preserved, dedup).
- * Example: extractPlaceholders("Hi {{name}}, see {{link}} — {{name}}")
+ * Example: extractPlaceholders("Hi {{name}}, see {{link}}. {{name}}")
  *          → ["name", "link"]
  */
 export function extractPlaceholders(text = '') {
@@ -121,7 +121,7 @@ export function validateTemplate(template) {
  * Replaces {{name}} with vars[name]. Missing vars are left as literal
  * `{{name}}` so validation errors are visible rather than silently empty.
  *
- * Intentionally NOT HTML-escaping the values — admin-authored templates
+ * Intentionally NOT HTML-escaping the values. admin-authored templates
  * may want to inject URLs, which can contain &. Callers that embed user-
  * supplied strings (like an invitee's name) must escape those BEFORE
  * passing them in. See emailRender.js for the full pipeline.

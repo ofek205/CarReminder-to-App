@@ -5,7 +5,7 @@ import { Car, Wrench, Star, AlertTriangle, Sparkles, ScanLine, MapPin, Bell, Dat
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
 /**
- * WelcomePopup — post-login greeting modal.
+ * WelcomePopup. post-login greeting modal.
  *
  * Returning-user variant is a "magazine cover" layout: a branded dark-green
  * hero up top, then two feature rows with accent stripes, a subtle feedback
@@ -30,7 +30,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
           <DialogTitle>{title}</DialogTitle>
         </VisuallyHidden.Root>
 
-        {/* ── Hero ─────────────────────────────────────────────────────── */}
+        {/*  Hero  */}
         <div className="relative overflow-hidden"
           style={{
             background: 'linear-gradient(165deg, #1C3620 0%, #2D5233 45%, #4A8C5C 100%)',
@@ -56,7 +56,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
             </div>
           </div>
 
-          {/* Brand label — keep brand's camelCase "CarReminder" intact (no uppercase) */}
+          {/* Brand label. keep brand's camelCase "CarReminder" intact (no uppercase) */}
           <p className="text-center mt-3 text-[11px] font-bold relative z-10"
             style={{ letterSpacing: '0.25em', color: 'rgba(255,255,255,0.85)' }}>
             CarReminder
@@ -68,7 +68,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
           </h2>
         </div>
 
-        {/* ── Content zone ─────────────────────────────────────────────── */}
+        {/*  Content zone  */}
         {isReturningUser ? (
           <div className="px-6 pt-5 pb-5">
             {/* "מה חדש" divider */}
@@ -116,7 +116,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
             <p className="text-center text-[11px] text-gray-400 mt-4">פותח על ידי אופק אדלשטיין</p>
           </div>
         ) : (
-          // ── First-time user content — mirrors GuestWelcomePopup DNA ────
+          //  First-time user content. mirrors GuestWelcomePopup DNA 
           <div className="px-6 pt-5 pb-5">
             <p className="text-gray-600 text-center text-sm leading-relaxed mb-4">
               מכאן תנהל את כל הרכבים והסירות שלך במקום אחד.
@@ -147,7 +147,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
   );
 }
 
-// ── Feature row (returning-user) ───────────────────────────────────────
+//  Feature row (returning-user) 
 function FeatureRow({ icon: Icon, title, body, bg, accent, tileShadow }) {
   return (
     <div className="flex items-start gap-3 p-3.5 rounded-2xl"
@@ -168,7 +168,7 @@ function FeatureRow({ icon: Icon, title, body, bg, accent, tileShadow }) {
   );
 }
 
-// ── Mini row (first-time user) — matches GuestWelcomePopup layout ─────
+//  Mini row (first-time user). matches GuestWelcomePopup layout 
 function MiniRow({ icon: Icon, title, body }) {
   return (
     <div className="flex items-start gap-3 relative z-10">
@@ -184,7 +184,7 @@ function MiniRow({ icon: Icon, title, body }) {
   );
 }
 
-// ── Premium CTA button ─────────────────────────────────────────────────
+//  Premium CTA button 
 function PremiumCta({ onClick, label }) {
   return (
     <button

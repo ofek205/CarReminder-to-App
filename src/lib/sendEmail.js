@@ -1,5 +1,5 @@
 /**
- * sendEmail / sendTemplatedEmail — the two front doors to the outbound
+ * sendEmail / sendTemplatedEmail. the two front doors to the outbound
  * email pipeline.
  *
  * sendEmail({ to, subject, html, text, from, replyTo })
@@ -20,7 +20,7 @@
 import { supabase } from './supabase';
 import { getKillSwitchState, renderEmail } from './emailRender';
 
-// ── Kill switch error — distinct so callers can render a clearer UI ────────
+//  Kill switch error. distinct so callers can render a clearer UI 
 export class EmailsPausedError extends Error {
   constructor(reason) {
     super(reason ? `שליחת מיילים מושעתת: ${reason}` : 'שליחת מיילים מושעתת על ידי אדמין');
@@ -29,14 +29,14 @@ export class EmailsPausedError extends Error {
   }
 }
 
-// ── Low-level dispatch ─────────────────────────────────────────────────────
+//  Low-level dispatch 
 
 export async function sendEmail({ to, subject, html, text, from, replyTo }) {
   if (!to) throw new Error('sendEmail: "to" is required');
   if (!subject) throw new Error('sendEmail: "subject" is required');
   if (!html && !text) throw new Error('sendEmail: "html" or "text" is required');
 
-  // Kill switch — checked client-side. Non-admin users can't read the
+  // Kill switch. checked client-side. Non-admin users can't read the
   // email_settings table (RLS blocks), so getKillSwitchState returns
   // { paused: false } for them and the Edge Function is the real gate.
   // When Phase 2 adds server-side enforcement in the Edge Function,
@@ -67,16 +67,16 @@ export async function sendEmail({ to, subject, html, text, from, replyTo }) {
   return data; // { ok: true, id: 'resend-message-id' }
 }
 
-// ── High-level dispatch (DB templates) ─────────────────────────────────────
+//  High-level dispatch (DB templates) 
 
 /**
  * Send an email using a DB-managed template.
  *
- * @param {string} notificationKey — e.g. 'invite', 'welcome', 'reminder_insurance'
+ * @param {string} notificationKey. e.g. 'invite', 'welcome', 'reminder_insurance'
  * @param {object} args
  *   - to:      recipient address (or array)
  *   - vars:    map of {{placeholder}} values (will be HTML-escaped)
- *   - rawVars: keys in this map are NOT escaped — use only for trusted HTML
+ *   - rawVars: keys in this map are NOT escaped. use only for trusted HTML
  *   - replyTo: override template's reply_to
  *
  * Behaviour:

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import useFirstTimeTour from '@/hooks/useFirstTimeTour';
 
 /**
- * FirstTimeTour — 4-step contextual tooltip tour for first-time users.
+ * FirstTimeTour. 4-step contextual tooltip tour for first-time users.
  *
  * Each step points at a real UI element identified by `data-tour="..."`.
  * Renders a full-viewport dark backdrop, a yellow spotlight ring around the
@@ -100,7 +100,7 @@ export default function FirstTimeTour({
   const nextBtnRef = useRef(null);
   const touchStartRef = useRef(null); // for swipe detection
 
-  // ── Scroll lock while the tour is open ──────────────────────────────
+  //  Scroll lock while the tour is open 
   // Problem the user hit: with nothing blocking touch on the backdrop,
   // a swipe would scroll the page under the spotlight, leaving the ring
   // pointing at empty space. We block both mouse-wheel and touch-move
@@ -126,7 +126,7 @@ export default function FirstTimeTour({
     };
   }, [open]);
 
-  // ── Keyboard navigation: Esc skips, arrows navigate ─────────────────
+  //  Keyboard navigation: Esc skips, arrows navigate 
   // In RTL Hebrew the reading direction is right→left, so ArrowLeft
   // feels like "forward" and ArrowRight like "back", mirroring the
   // calendar convention we set elsewhere.
@@ -142,7 +142,7 @@ export default function FirstTimeTour({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, skip, next, prev, step]);
 
-  // ── Auto-focus the primary CTA when a step opens (a11y + quick tap) ─
+  //  Auto-focus the primary CTA when a step opens (a11y + quick tap) 
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => {
@@ -167,7 +167,7 @@ export default function FirstTimeTour({
       const el = document.querySelector(`[data-tour="${currentKey}"]`);
       if (!el) {
         setTargetRect(null);
-        // Keep polling — target may appear after the user interacts with
+        // Keep polling. target may appear after the user interacts with
         // the page (selecting a category, expanding a section, etc.).
         pollTimer = setTimeout(compute, 400);
         return;
@@ -222,7 +222,7 @@ export default function FirstTimeTour({
     compute();
     window.addEventListener('resize', compute);
     window.addEventListener('orientationchange', compute);
-    // Also recompute when the target element itself changes size —
+    // Also recompute when the target element itself changes size 
     // e.g. an accordion opening, a dynamic badge appearing, fonts
     // loading late on slow devices. Prevents spotlight drift.
     let ro = null;
@@ -254,7 +254,7 @@ export default function FirstTimeTour({
   // The poll loop above will re-compute as soon as the target mounts.
   if (!targetRect) return null;
 
-  // ── Swipe gesture handlers (RTL: left swipe = next, right swipe = prev) ─
+  //  Swipe gesture handlers (RTL: left swipe = next, right swipe = prev) 
   const onTouchStart = (e) => {
     const t = e.touches[0];
     touchStartRef.current = { x: t.clientX, y: t.clientY, at: Date.now() };
@@ -282,11 +282,11 @@ export default function FirstTimeTour({
       onTouchEnd={onTouchEnd}
       style={{ animation: 'cr-tour-fade 180ms ease-out' }}>
       <style>{`@keyframes cr-tour-fade { from { opacity: 0 } to { opacity: 1 } }`}</style>
-      {/* ARIA live — announces step transitions for screen readers */}
+      {/* ARIA live. announces step transitions for screen readers */}
       <div role="status" aria-live="polite" className="sr-only">
         שלב {step + 1} מתוך {totalSteps}. {current.title}
       </div>
-      {/* Dimmed backdrop — tapping it dismisses the whole tour. */}
+      {/* Dimmed backdrop. tapping it dismisses the whole tour. */}
       <div className="absolute inset-0 bg-black/60" onClick={skip} aria-hidden="true" />
 
       {/* Spotlight ring around target. Positioned absolutely. */}
@@ -362,7 +362,7 @@ export default function FirstTimeTour({
             )}
           </div>
 
-          {/* Clickable progress dots — tap to jump to step */}
+          {/* Clickable progress dots. tap to jump to step */}
           <div className="flex items-center gap-1.5" role="tablist" aria-label="שלבי הטור">
             {STEPS.map((_, i) => (
               <button key={i}

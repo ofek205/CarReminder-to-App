@@ -1,5 +1,5 @@
 /**
- * useFirstTimeTour — state machine for the first-time-user tooltip tour.
+ * useFirstTimeTour. state machine for the first-time-user tooltip tour.
  *
  * Shows a 4-step contextual walkthrough exactly ONCE to authenticated users
  * on their first /Dashboard visit. The tour auto-starts 500ms after the

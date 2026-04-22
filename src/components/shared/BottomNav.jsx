@@ -57,7 +57,7 @@ export default function BottomNav({ sheetOpen = false }) {
         //     true): the OS already reserves space for the nav bar BELOW
         //     our WebView and paints it with android:navigationBarColor
         //     (white, matches this bar). Any padding we add here becomes a
-        //     visible band between our labels and the system buttons — the
+        //     visible band between our labels and the system buttons. the
         //     user's "הרווח הזה" complaint. Drop to 0 so the bar is flush.
         //   • iOS / gesture-pill devices: env(safe-area-inset-bottom) is a
         //     real ~34 px reserved area we DO need to clear. Keep it.

@@ -1,4 +1,4 @@
-// Navigation tracker — Base44 logging removed, also serves as the deep-link
+// Navigation tracker. Base44 logging removed, also serves as the deep-link
 // bridge from Capacitor's appUrlOpen event to React Router.
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';

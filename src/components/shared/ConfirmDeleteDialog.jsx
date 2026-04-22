@@ -3,7 +3,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { AlertTriangle } from "lucide-react";
 
 /**
- * ConfirmDeleteDialog — destructive confirmation with the same premium
+ * ConfirmDeleteDialog. destructive confirmation with the same premium
  * hero treatment as the other popups, but in the red "danger" palette
  * to make the consequence visually unmissable.
  */
@@ -21,7 +21,7 @@ export default function ConfirmDeleteDialog({
         className="max-w-sm w-[calc(100vw-32px)] max-h-[90vh] p-0 overflow-y-auto overflow-x-hidden rounded-3xl border-0"
         style={{ boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
 
-        {/* ── Hero (red "danger" variant) ─────────────────────────────── */}
+        {/*  Hero (red "danger" variant)  */}
         <div className="relative overflow-hidden"
           style={{
             background: 'linear-gradient(165deg, #7F1D1D 0%, #B91C1C 50%, #DC2626 100%)',
@@ -55,7 +55,7 @@ export default function ConfirmDeleteDialog({
           </AlertDialogHeader>
         </div>
 
-        {/* ── Content ──────────────────────────────────────────────────── */}
+        {/*  Content  */}
         <div className="px-6 pt-5 pb-5">
           <AlertDialogDescription className="text-sm text-gray-700 text-center leading-relaxed">
             {description}

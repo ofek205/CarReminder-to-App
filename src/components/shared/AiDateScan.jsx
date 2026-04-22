@@ -69,7 +69,7 @@ export default function AiDateScan({ onDateExtracted, label = 'סרוק תוקף
     }
   };
 
-  // Native (Capacitor): Camera plugin — the plain <input> picker only opens
+  // Native (Capacitor): Camera plugin. the plain <input> picker only opens
   // the gallery on native, so users couldn't actually take a fresh photo of
   // an extinguisher / pyro label / certificate. Here we invoke the native
   // camera directly.

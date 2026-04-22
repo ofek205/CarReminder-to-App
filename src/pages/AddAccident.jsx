@@ -95,7 +95,7 @@ export default function AddAccident() {
   const [systemError, setSystemError] = useState(null);
   const [fetchingLoc, setFetchingLoc] = useState(false);
 
-  // WhatsApp-style "use current location" — grab GPS, reverse-geocode to a
+  // WhatsApp-style "use current location". grab GPS, reverse-geocode to a
   // human-readable address via Nominatim, and drop it into the location field.
   // Falls back to raw "lat, lng" if reverse-geocoding fails so the user still
   // gets something usable.
@@ -207,7 +207,7 @@ export default function AddAccident() {
     }
   };
 
-  // Photo handling — compressed to WebP/JPEG before store
+  // Photo handling. compressed to WebP/JPEG before store
   const handlePhotoCapture = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -357,7 +357,7 @@ export default function AddAccident() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
 
-        {/* ── Vehicle selector ── */}
+        {/*  Vehicle selector  */}
         <div data-field="vehicle_id" className="rounded-2xl p-4" style={{ background: '#F5F1EB', border: `1px solid ${errors.vehicle_id ? '#FCA5A5' : C.border}` }}>
           <Label className="font-bold text-sm mb-2 block" style={{ color: C.text }}>
             <Car className="w-4 h-4 inline ml-1" />
@@ -379,7 +379,7 @@ export default function AddAccident() {
           <FieldError message={errors.vehicle_id} />
         </div>
 
-        {/* ── Date & location ── */}
+        {/*  Date & location  */}
         <div className="rounded-2xl p-4 space-y-3" style={{ background: '#F5F1EB', border: `1px solid ${errors.date ? '#FCA5A5' : C.border}` }}>
           <div className="flex items-center gap-2 mb-1">
             <Calendar className="w-4 h-4" style={{ color: C.primary }} />
@@ -415,7 +415,7 @@ export default function AddAccident() {
           </div>
         </div>
 
-        {/* ── Accident photos ── */}
+        {/*  Accident photos  */}
         <div className="rounded-2xl p-4 space-y-3" style={{ background: '#F5F1EB', border: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-2 mb-1">
             <Camera className="w-4 h-4" style={{ color: C.primary }} />
@@ -453,7 +453,7 @@ export default function AddAccident() {
           </div>
         </div>
 
-        {/* ── Other driver section ── */}
+        {/*  Other driver section  */}
         <div className="rounded-2xl p-4 space-y-4" style={{ background: '#F5F1EB', border: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-2 mb-1">
             <User className="w-4 h-4" style={{ color: C.primary }} />
@@ -559,7 +559,7 @@ export default function AddAccident() {
           </div>
         </div>
 
-        {/* ── Other driver insurance ── */}
+        {/*  Other driver insurance  */}
         <div className="rounded-2xl p-4 space-y-3" style={{ background: '#F5F1EB', border: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-2 mb-1">
             <Shield className="w-4 h-4" style={{ color: C.primary }} />
@@ -619,7 +619,7 @@ export default function AddAccident() {
           </div>
         </div>
 
-        {/* ── Description ── */}
+        {/*  Description  */}
         <div className="rounded-2xl p-4 space-y-3" style={{ background: '#F5F1EB', border: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-2 mb-1">
             <FileText className="w-4 h-4" style={{ color: C.primary }} />
@@ -635,7 +635,7 @@ export default function AddAccident() {
           />
         </div>
 
-        {/* ── Status ── */}
+        {/*  Status  */}
         <div className="rounded-2xl p-4" style={{ background: '#F5F1EB', border: `1px solid ${C.border}` }}>
           <Label className="font-bold text-sm mb-2 block" style={{ color: C.text }}>סטטוס</Label>
           <Select value={form.status} onValueChange={v => handleChange('status', v)}>
@@ -650,7 +650,7 @@ export default function AddAccident() {
           </Select>
         </div>
 
-        {/* ── Submit ── */}
+        {/*  Submit  */}
         {!isDemo && (
           <button type="submit" disabled={saving}
             className="w-full py-3.5 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98]"

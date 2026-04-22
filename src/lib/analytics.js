@@ -1,5 +1,5 @@
 /**
- * Anonymous analytics — no personal data, just event counters.
+ * Anonymous analytics. no personal data, just event counters.
  * Uses Supabase upsert with UNIQUE(event, date) to increment daily counters.
  */
 import { supabase } from './supabase';
@@ -32,7 +32,7 @@ export async function trackEvent(event, metadata = {}) {
         .insert({ event, date: today, count: 1, metadata });
     }
   } catch (e) {
-    // Silent — analytics should never break the app
+    // Silent. analytics should never break the app
   }
 }
 

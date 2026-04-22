@@ -1,5 +1,5 @@
 /**
- * Notification Service — schedules local device notifications
+ * Notification Service. schedules local device notifications
  * from vehicle reminder data.
  *
  * Pattern: cancel-all → recalculate → schedule-new (idempotent)
@@ -8,7 +8,7 @@
  * Design: the ReminderEngine is the single source of truth for what
  * appears in-app. We take its output verbatim (label/emoji/typeName)
  * and turn it into device notifications. If the engine changes what it
- * emits, push automatically follows — no template drift.
+ * emits, push automatically follows. no template drift.
  */
 
 import { calcReminders } from '@/components/shared/ReminderEngine';
@@ -30,7 +30,7 @@ const GOV_RENEWAL = {
   vessel: 'https://www.gov.il/he/service/renewing_vessel_license',
 };
 
-// ── Default reminder settings ──────────────────────────────────────────────
+//  Default reminder settings 
 export const DEFAULT_REMINDER_SETTINGS = {
   remind_test_days_before: 14,
   remind_insurance_days_before: 14,
@@ -42,7 +42,7 @@ export const DEFAULT_REMINDER_SETTINGS = {
   whatsapp_enabled: false,
 };
 
-// ── Limits ─────────────────────────────────────────────────────────────────
+//  Limits 
 // Android AlarmManager comfortably handles months out, but scheduling too
 // many pending alarms slows the system + our cancel-all loop. Cap sanely.
 const MAX_SCHEDULE_HORIZON_DAYS = 90;
@@ -53,7 +53,7 @@ const MAX_OVERDUE_REPEATS       = 3;
 // a gentle "tomorrow morning" slot instead of scheduling years in advance.
 const PASSIVE_DAYS_THRESHOLD = 365;
 
-// ── Per-type "days before due" lookup ──────────────────────────────────────
+//  Per-type "days before due" lookup 
 function daysBeforeFor(type, settings) {
   switch (type) {
     case 'test':        return settings.remind_test_days_before        ?? 14;
@@ -65,7 +65,7 @@ function daysBeforeFor(type, settings) {
   }
 }
 
-// ── User's per-type on/off toggles ─────────────────────────────────────────
+//  User's per-type on/off toggles 
 // Absent key (mileage/seasonal/brakes→safety) means "not overridden" → send.
 function isTypeMuted(type, settings) {
   const map = {
@@ -78,7 +78,7 @@ function isTypeMuted(type, settings) {
   return map[type] === false;
 }
 
-// ── Schedule time computation ──────────────────────────────────────────────
+//  Schedule time computation 
 /**
  * Decide when to fire this reminder as a push.
  * Returns an array of Date objects (one per firing, possibly multiple for
@@ -96,12 +96,12 @@ function computeScheduleTimes(reminder, settings) {
     return d;
   };
 
-  // Passive reminders (mileage/seasonal) — always next morning.
+  // Passive reminders (mileage/seasonal). always next morning.
   if (reminder.daysLeft >= PASSIVE_DAYS_THRESHOLD) {
     return [morningSlot(1)];
   }
 
-  // Overdue — nudge once in ~1 hour, then repeat every N days (capped).
+  // Overdue. nudge once in ~1 hour, then repeat every N days (capped).
   if (reminder.daysLeft <= 0) {
     const repeatEvery = Math.max(1, Number(settings.overdue_repeat_every_days) || 3);
     const times = [new Date(now + 60 * 60 * 1000)]; // +1h
@@ -111,7 +111,7 @@ function computeScheduleTimes(reminder, settings) {
     return times;
   }
 
-  // Upcoming — fire `daysBefore` days ahead of due date, at morning hour.
+  // Upcoming. fire `daysBefore` days ahead of due date, at morning hour.
   const daysBefore = daysBeforeFor(reminder.type, settings);
   const triggerInDays = Math.max(0, reminder.daysLeft - daysBefore);
 
@@ -123,7 +123,7 @@ function computeScheduleTimes(reminder, settings) {
   return slot.getTime() > now ? [slot] : [morningSlot(1)];
 }
 
-// ── Title / body from engine output ────────────────────────────────────────
+//  Title / body from engine output 
 // Uses `label` (already Hebrew, context-aware) as the body, and builds a
 // concise title from emoji + vehicle/topic name.
 function buildPayload(reminder) {
@@ -231,7 +231,7 @@ export async function initNotifications() {
   await createNotificationChannel();
 
   // Ask for permission once per install. We remember the outcome so we
-  // don't re-prompt the user on every launch — Android shows a system
+  // don't re-prompt the user on every launch. Android shows a system
   // dialog, which would get annoying fast.
   const PROMPTED_KEY = 'cr_notif_prompted_v1';
   try {

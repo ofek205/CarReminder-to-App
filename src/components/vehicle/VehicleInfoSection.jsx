@@ -24,7 +24,7 @@ const ISRAEL_MARINAS = [
 ];
 import MileageUpdateWidget from "./MileageUpdateWidget";
 
-// ── Renewal Dialog - scan document + update dates ──────────────────────────
+//  Renewal Dialog - scan document + update dates 
 function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
   const fileRef = useRef(null);
   const [step, setStep] = useState('upload'); // upload | scanning | confirm | done
@@ -355,7 +355,7 @@ function AddToCalendarButton({ dateField, vehicle, T }) {
   );
 }
 
-// ── Status Card (clean, white-based with colored accent) ─────────────────────
+//  Status Card (clean, white-based with colored accent) 
 const GOV_RENEWAL_URLS = {
   car: 'https://www.gov.il/he/service/car_licence_renewal',
   vessel: 'https://www.gov.il/he/service/renewing_vessel_license',
@@ -398,11 +398,11 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
           <AddToCalendarButton dateField={dateField} vehicle={vehicle} T={T} />
         </>
       )}
-      {/* Renewal actions — 2-color palette: solid primary CTA + outline secondary.
+      {/* Renewal actions. 2-color palette: solid primary CTA + outline secondary.
           Keeps the card calm: status color on the border, app primary on actions. */}
       {(dateField === 'test_due_date' || dateField === 'insurance_due_date') && (
         <div className="space-y-1.5 mt-1.5">
-          {/* Primary CTA — gov.il external renewal (test only) */}
+          {/* Primary CTA. gov.il external renewal (test only) */}
           {dateField === 'test_due_date' && (
             <a href={vesselMode ? GOV_RENEWAL_URLS.vessel : GOV_RENEWAL_URLS.car}
               target="_blank" rel="noopener noreferrer"
@@ -412,7 +412,7 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
               {vesselMode ? 'חידוש כושר שייט באתר הממשלה' : 'חידוש רישיון באתר הממשלה'}
             </a>
           )}
-          {/* Secondary — same color, outline variant */}
+          {/* Secondary. same color, outline variant */}
           {onRenewed && (
             <button onClick={() => onRenewed(dateField)}
               className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-[10px] font-bold transition-all active:scale-[0.97]"
@@ -430,7 +430,7 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
   );
 }
 
-// ── Info Row ────────────────────────────────────────────────────────────────
+//  Info Row 
 function InfoRow({ label, value, T }) {
   if (!value) return null;
   return (
@@ -442,7 +442,7 @@ function InfoRow({ label, value, T }) {
   );
 }
 
-// ── Vessel Inspection Readiness Checklist ─────────────────────────────────────
+//  Vessel Inspection Readiness Checklist 
 function statusIcon(status) {
   if (status === 'ok')     return <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />;
   if (status === 'danger') return <XCircle className="h-4 w-4 text-red-500 shrink-0" />;
@@ -581,7 +581,7 @@ function VesselInspectionChecklist({ vehicle, T }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// 
 export default function VehicleInfoSection({ vehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const testStatus = getDateStatus(vehicle.test_due_date);
@@ -598,7 +598,7 @@ export default function VehicleInfoSection({ vehicle }) {
   return (
     <div className="space-y-4" dir="rtl">
 
-      {/* ── Vintage badge ── */}
+      {/*  Vintage badge  */}
       {!vesselMode && (vehicle.is_vintage || (vehicle.year && new Date().getFullYear() - Number(vehicle.year) >= 20) || vehicle.vehicle_type === 'רכב אספנות') && (
         <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
           style={{ background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', border: '1.5px solid #DDD6FE' }}>
@@ -607,10 +607,10 @@ export default function VehicleInfoSection({ vehicle }) {
         </div>
       )}
 
-      {/* ── Mileage / Engine hours ── */}
+      {/*  Mileage / Engine hours  */}
       <MileageUpdateWidget vehicle={vehicle} />
 
-      {/* ── Test & Insurance Status ── */}
+      {/*  Test & Insurance Status  */}
       <div className="grid grid-cols-2 gap-3">
         <StatusCard
           icon={Calendar}
@@ -635,7 +635,7 @@ export default function VehicleInfoSection({ vehicle }) {
         />
       </div>
 
-      {/* ── Technical Spec - grouped ── */}
+      {/*  Technical Spec - grouped  */}
       {(() => {
         const groups = [
           { title: 'פרטי רישום', items: [
@@ -711,7 +711,7 @@ export default function VehicleInfoSection({ vehicle }) {
         );
       })()}
 
-      {/* ── Vessel-specific sections ── */}
+      {/*  Vessel-specific sections  */}
       {vesselMode && (
         <>
           {/* Flag + engine + marina info */}
@@ -791,7 +791,7 @@ export default function VehicleInfoSection({ vehicle }) {
         </>
       )}
 
-      {/* ── Off-road equipment display ── */}
+      {/*  Off-road equipment display  */}
       {(offroadMode || vehicle.offroad_equipment?.length > 0) && (
         <>
           {vehicle.offroad_equipment?.length > 0 && (

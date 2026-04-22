@@ -14,7 +14,7 @@ import { db } from '@/lib/supabaseEntities';
 import { getCatalogForVehicleType } from '@/components/shared/MaintenanceCatalog';
 import { toast } from 'sonner';
 
-// Baseline quick-add chips. These stay hardcoded — they are the "safe
+// Baseline quick-add chips. These stay hardcoded. they are the "safe
 // bets" we surface first so a new user sees something useful even if
 // they never visited /MaintenanceTemplates. User-defined custom items
 // from that page are merged in below as additional chips.
@@ -156,7 +156,7 @@ function AddCustomItemDialog({ open, onClose, onSave, user }) {
 export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm, setLogForm, saving, onSave, user }) {
   const [showAddCustom, setShowAddCustom] = useState(false);
 
-  // User's custom maintenance types — defined via /MaintenanceTemplates.
+  // User's custom maintenance types. defined via /MaintenanceTemplates.
   // Merge into the suggestion chips so the two places stay in sync.
   const { data: myPrefs = [] } = useQuery({
     queryKey: ['maint-prefs', user?.id],
@@ -167,7 +167,7 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
     .filter(p => p.is_custom && p.enabled && p.custom_name)
     .map(p => p.custom_name);
 
-  // Catalog-backed "large service" list — supplements the hardcoded PRESET_LARGE
+  // Catalog-backed "large service" list. supplements the hardcoded PRESET_LARGE
   // with whatever the catalog knows for this vehicle type. Dedup against the
   // small-preset list so names don't appear twice.
   const catalogItems = vehicle?.vehicle_type
@@ -200,7 +200,7 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
   const handleAddCustom = async (form) => {
     setShowAddCustom(false);
     // Add to the selected-items list so the new name shows up as a chip
-    // immediately — feels instant even before the DB write finishes.
+    // immediately. feels instant even before the DB write finishes.
     setLogForm(f => ({
       ...f,
       selected_items: [...(f.selected_items || []), form.name],
@@ -208,12 +208,12 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
 
     if (!user?.id) return;
 
-    // Always persist the custom name to /MaintenanceTemplates — whether
+    // Always persist the custom name to /MaintenanceTemplates. whether
     // or not a reminder was chosen. Reminder chosen = intervals set +
     // enabled. No reminder = enabled=false with null intervals, still
     // appears in the templates list so the user can configure later.
     // Duplicate names (case-insensitive, per the DB unique index) are
-    // swallowed — user won't see an error for what is effectively a
+    // swallowed. user won't see an error for what is effectively a
     // no-op.
     let interval_months = null;
     let interval_km = null;
@@ -247,7 +247,7 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
         ? 'נשמר ברשימת הטיפולים שלך'
         : 'נוסף. להגדרת תזכורת, היכנס להגדרות הטיפולים.');
     } catch (e) {
-      // Duplicate names are a benign no-op — the template already exists.
+      // Duplicate names are a benign no-op. the template already exists.
       // Any other error is non-blocking: the log entry itself succeeded.
       if (!/duplicate/i.test(String(e.message || ''))) {
         if (import.meta.env.DEV) console.warn('Save custom template failed:', e.message);
@@ -280,7 +280,7 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
 
           <div className="px-5 py-5 space-y-6">
 
-            {/* ── Service Type Cards ── */}
+            {/*  Service Type Cards  */}
             <div className="space-y-3">
               <p className="text-sm font-semibold text-gray-700">סוג הטיפול</p>
               <div className="grid grid-cols-2 gap-3">
@@ -312,7 +312,7 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
               </div>
             </div>
 
-            {/* ── Actions Checklist ── */}
+            {/*  Actions Checklist  */}
             <AnimatePresence>
               {logForm.service_type && (
                 <motion.div
@@ -376,7 +376,7 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
               )}
             </AnimatePresence>
 
-            {/* ── Details card ── */}
+            {/*  Details card  */}
             <div className="bg-gray-50 rounded-2xl p-4 space-y-4">
               <p className="text-sm font-semibold text-gray-700">פרטי הטיפול</p>
 
@@ -452,7 +452,7 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
 
           </div>
 
-          {/* ── Save button — sticky footer so it stays above the mobile keyboard ── */}
+          {/*  Save button. sticky footer so it stays above the mobile keyboard  */}
           <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-3"
             style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}>
             <Button

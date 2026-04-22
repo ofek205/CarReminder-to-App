@@ -1,6 +1,6 @@
 const RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';           // רכב 4 גלגלים
 const MOTO_RESOURCE_ID = 'bf9df4e2-d90d-4c0a-a400-19e15af8e95f';   // אופנועים + דו גלגליים
-const SPECS_RESOURCE_ID = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';  // מאגר דגמי רכב — מפרט טכני
+const SPECS_RESOURCE_ID = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';  // מאגר דגמי רכב. מפרט טכני
 import { isNative } from '@/lib/capacitor';
 
 // In dev browser, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
@@ -9,7 +9,7 @@ const API_BASE = (import.meta.env.DEV && !isNative)
   ? '/gov-api/api/3/action/datastore_search'
   : 'https://data.gov.il/api/3/action/datastore_search';
 
-// ── Input validation ───────────────────────────────────────────────────────
+//  Input validation 
 /** Israeli plate: 7-8 digits, optionally separated by dashes */
 const PLATE_REGEX = /^[\d\-]{7,11}$/;
 
@@ -22,7 +22,7 @@ function validatePlateInput(plate) {
   return digits;
 }
 
-// ── Output sanitization ────────────────────────────────────────────────────
+//  Output sanitization 
 const safeStr = (v, max = 80) => {
   if (typeof v !== 'string') return '';
   return v
@@ -62,7 +62,7 @@ function mapRecord(r) {
     if (d) fields.test_due_date = d;
   }
 
-  // Fallback: if no tokef_dt (new cars) — use first_registration + 4 years
+  // Fallback: if no tokef_dt (new cars). use first_registration + 4 years
   // (Israeli law: first test at 4 years old, then annually)
   if (!fields.test_due_date && r.moed_aliya_lakvish) {
     const raw = String(r.moed_aliya_lakvish);
@@ -137,7 +137,7 @@ function mapMotoRecord(r) {
   if (r.mida_zmig_kidmi)  fields.front_tire = safeStr(r.mida_zmig_kidmi, 40);
   if (r.mida_zmig_ahori)  fields.rear_tire  = safeStr(r.mida_zmig_ahori, 40);
 
-  // Motorcycle-specific specs — embedded directly (no second API needed)
+  // Motorcycle-specific specs. embedded directly (no second API needed)
   if (r.nefach_manoa)  fields.engine_cc     = safeNum(r.nefach_manoa) + ' סמ"ק';
   if (r.hespek)        fields.horsepower    = safeNum(r.hespek) + ' כ"ס';
   if (r.mishkal_kolel) fields.total_weight  = safeNum(r.mishkal_kolel) + ' ק"ג';
@@ -180,7 +180,7 @@ function mapSpecRecord(r) {
   if (r.mazgan_ind === 1 || r.mazgan_ind === '1') specs.ac = 'כן';
   if (r.abs_ind === 1 || r.abs_ind === '1') specs.abs = 'כן';
   // Tow capacity: combine "with brakes" + "without brakes" in one string when both exist.
-  // Display pattern: "1500 / 750 ק\"ג" (עם בלמים / בלי) — matches how Israeli specs sheets show it.
+  // Display pattern: "1500 / 750 ק\"ג" (עם בלמים / בלי). matches how Israeli specs sheets show it.
   const towBraked = safeNum(r.kosher_grira_im_blamim);
   const towUnbraked = safeNum(r.kosher_grira_bli_blamim);
   if (towBraked && towUnbraked) {
