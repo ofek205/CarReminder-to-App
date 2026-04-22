@@ -233,8 +233,11 @@ export default function ChecklistEditor() {
     }));
   };
 
-  //  Render 
-  if (!vehicleId || !phase) {
+  //  Render
+  // Need a vehicle AND at least one of (templateId OR phase) to know
+  // which template to load. Either is fine; the loader picks the right
+  // lookup strategy.
+  if (!vehicleId || (!phaseParam && !templateIdParam)) {
     return <div className="p-6 text-center text-sm text-slate-500">פרמטרים חסרים</div>;
   }
   if (bootError) {
