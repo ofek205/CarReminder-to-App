@@ -86,6 +86,15 @@ export default function useFirstTimeTour({
     });
   }, [totalSteps]);
 
+  const prev = useCallback(() => {
+    setStep(s => Math.max(0, s - 1));
+  }, []);
+
+  const goTo = useCallback((idx) => {
+    if (typeof idx !== 'number' || !Number.isFinite(idx)) return;
+    setStep(Math.max(0, Math.min(totalSteps - 1, idx)));
+  }, [totalSteps]);
+
   const skip = useCallback(() => {
     markSeen();
     setOpen(false);
@@ -107,5 +116,5 @@ export default function useFirstTimeTour({
     return () => window.removeEventListener('popstate', onPop);
   }, [open, skip]);
 
-  return { open, step, next, skip, finish, totalSteps };
+  return { open, step, next, prev, goTo, skip, finish, totalSteps };
 }
