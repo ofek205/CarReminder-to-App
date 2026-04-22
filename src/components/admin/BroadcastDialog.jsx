@@ -42,7 +42,7 @@ export default function BroadcastDialog({ notification, open, onClose }) {
       const res = await run.mutateAsync({ notificationKey: notification.key, dryRun: true });
       setPreview(res);
       if (res.paused)       { toast.error('Kill switch פעיל'); setStep('intro'); return; }
-      if (res.disabled)     { toast.error('ההתראה מושבתת — הפעל/י אותה קודם'); setStep('intro'); return; }
+      if (res.disabled)     { toast.error('ההתראה מושבתת. הפעל/י אותה קודם.'); setStep('intro'); return; }
       setStep('confirm');
     } catch (e) {
       toast.error(`בדיקה נכשלה: ${e.message}`);
@@ -74,7 +74,7 @@ export default function BroadcastDialog({ notification, open, onClose }) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Megaphone className="w-4 h-4" />
-            שליחה לכל המשתמשים — {notification.display_name}
+            שליחה לכל המשתמשים: {notification.display_name}
           </DialogTitle>
         </DialogHeader>
 
@@ -126,7 +126,7 @@ export default function BroadcastDialog({ notification, open, onClose }) {
           {step === 'sending' && (
             <div className="py-8 flex flex-col items-center gap-2 text-sm text-gray-600">
               <Loader2 className="w-6 h-6 animate-spin" />
-              שולח — נא להמתין...
+              שולח, נא להמתין...
               <span className="text-[11px] text-gray-400">שליחה ב-rate של ~8 מיילים לשנייה, כדי לא להעמיס על Resend</span>
             </div>
           )}

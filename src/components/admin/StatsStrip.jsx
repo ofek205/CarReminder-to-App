@@ -29,7 +29,7 @@ export default function StatsStrip() {
     <div dir="rtl" className="rounded-2xl p-4 mb-6"
       style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB' }}>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-sm" style={{ color: '#1C2E20' }}>סטטיסטיקה — 30 ימים אחרונים</h3>
+        <h3 className="font-bold text-sm" style={{ color: '#1C2E20' }}>סטטיסטיקה של 30 הימים האחרונים</h3>
         <span className="text-[10px] text-gray-400">{total} מיילים נשלחו</span>
       </div>
 

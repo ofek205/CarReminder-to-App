@@ -93,7 +93,7 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
   const handleSave = async () => {
     const v = validateTemplate(draft);
     if (!v.ok) {
-      toast.error(`לא ניתן לשמור — ${v.errors.length} שגיאות במשתנים`);
+      toast.error(`לא ניתן לשמור. נמצאו ${v.errors.length} שגיאות במשתנים.`);
       return;
     }
     try {
@@ -107,7 +107,7 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
   const handlePublish = async () => {
     // If the draft has unsaved edits, save them first.
     const v = validateTemplate(draft);
-    if (!v.ok) { toast.error(`לא ניתן לפרסם — ${v.errors.length} שגיאות במשתנים`); return; }
+    if (!v.ok) { toast.error(`לא ניתן לפרסם. נמצאו ${v.errors.length} שגיאות במשתנים.`); return; }
     try {
       if (existingTemplate && JSON.stringify(draft) !== JSON.stringify(existingTemplate)) {
         await save.mutateAsync(draft);
@@ -137,7 +137,7 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
         <DialogHeader className="px-6 py-4 border-b shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
             <DialogTitle className="text-lg font-bold">
-              עריכת תבנית — {notification.display_name}
+              עריכת תבנית: {notification.display_name}
             </DialogTitle>
             {existingTemplate?.id && (
               hasUnpublishedChanges ? (

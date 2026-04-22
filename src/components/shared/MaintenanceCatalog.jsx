@@ -230,7 +230,7 @@ export const MAINTENANCE_CATALOG = {
     { name: 'טיפול שמן מנוע',                 months: 12, km: null,  category: 'שמן ופילטרים' },
     { name: 'החלפת מסנן שמן',                 months: 12, km: null,  category: 'שמן ופילטרים' },
     { name: 'החלפת מסנן דלק',                  months: 12, km: null,  category: 'מערכת דלק' },
-    { name: 'החלפת מפריד מים — דלק',           months: 6,  km: null,  category: 'מערכת דלק' },
+    { name: 'החלפת מפריד מים ודלק',            months: 6,  km: null,  category: 'מערכת דלק' },
     { name: 'החלפת פלאגים',                    months: 12, km: null,  category: 'רצועות ושרשראות' },
 
     { name: 'החלפת משאבת מים / impeller',       months: 12, km: null,  category: 'קירור וחימום' },

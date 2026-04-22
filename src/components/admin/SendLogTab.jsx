@@ -117,7 +117,7 @@ function ExpandedDetail({ row }) {
           <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
         ) : events.length === 0 ? (
           <div className="text-[11px] text-gray-500 italic">
-            אין אירועים עדיין. אירועים מגיעים מ-Resend Webhook — ודא/י שהוא מוגדר.
+            אין אירועים עדיין. אירועים מגיעים מ-Resend Webhook. ודא/י שהוא מוגדר.
           </div>
         ) : (
           <div className="flex flex-wrap gap-2">

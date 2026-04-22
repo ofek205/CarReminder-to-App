@@ -96,7 +96,7 @@ export default function SendTestDialog({ notification, open, onClose }) {
   const handleSend = async () => {
     setResult(null);
     if (!template) {
-      setResult({ ok: false, msg: 'אין תבנית שמורה — שמור קודם את התבנית ואז שלח בדיקה' });
+      setResult({ ok: false, msg: 'אין תבנית שמורה. שמור קודם את התבנית, ואז שלח בדיקה.' });
       return;
     }
     if (!recipient.includes('@')) {
@@ -136,7 +136,7 @@ export default function SendTestDialog({ notification, open, onClose }) {
     <Dialog open={open} onOpenChange={(o) => !o && onClose?.()}>
       <DialogContent dir="rtl" className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>שליחת מייל בדיקה — {notification.display_name}</DialogTitle>
+          <DialogTitle>שליחת מייל בדיקה: {notification.display_name}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">

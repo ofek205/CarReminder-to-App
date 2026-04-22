@@ -37,7 +37,7 @@ export default function TriggersTab() {
       } else if (!res.totals) {
         // Function ran but had nothing to do (no triggers enabled).
         toast.message(res.message === 'No enabled triggers'
-          ? 'אין טריגרים פעילים — הפעל/י לפחות אחד ונסה/י שוב'
+          ? 'אין טריגרים פעילים. הפעל/י לפחות אחד ונסה/י שוב.'
           : 'הפונקציה רצה בהצלחה אבל לא היו תוצאות');
       } else if (dryRun) {
         toast.success(`בדיקה יבשה: ${res.totals.matched} נמענים זוהו`);
@@ -67,7 +67,7 @@ export default function TriggersTab() {
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-sm" style={{ color: '#1C2E20' }}>הפעלה ידנית של ה-Dispatcher</h3>
           <p className="text-xs text-gray-500">
-            ה-cron רץ אוטומטית כל שעה. כאן אפשר להריץ מיד — לבדיקה או לזרז שליחה.
+            ה-cron רץ אוטומטית כל שעה. כאן אפשר להריץ מיד לבדיקה או לזרז שליחה.
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -100,7 +100,7 @@ export default function TriggersTab() {
           }}>
           <div className="flex items-center gap-2 mb-1 font-bold" style={{ color: lastRun.ok !== false ? '#064E3B' : '#991B1B' }}>
             {lastRun.ok !== false ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            הרצה אחרונה — {new Date(lastRun.at).toLocaleTimeString('he-IL')}
+            הרצה אחרונה: {new Date(lastRun.at).toLocaleTimeString('he-IL')}
             {lastRun.dryRun && <span className="text-[10px] font-normal">(dry run)</span>}
           </div>
           {lastRun.totals && (

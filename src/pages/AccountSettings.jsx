@@ -297,7 +297,7 @@ function AuthAccountSettings({ embedded = false }) {
       if (import.meta.env.DEV) console.error('Invite email send error:', e);
       const msg = e.name === 'EmailsPausedError'
         ? 'שליחת מיילים מושעתה על ידי אדמין'
-        : 'שליחת המייל נכשלה — אפשר לשתף דרך WhatsApp או להעתיק את הקישור';
+        : 'שליחת המייל נכשלה. אפשר לשתף דרך WhatsApp או להעתיק את הקישור.';
       toast.error(msg);
     } finally {
       setEmailSending(false);

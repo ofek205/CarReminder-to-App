@@ -127,7 +127,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
           <Label className="text-sm font-bold text-gray-700 block mb-1">איך היית מדרג?</Label>
           <StarRating value={rating} onChange={setRating} />
           <p className="text-xs font-bold h-4" style={{ color: rating > 0 ? '#B45309' : 'transparent' }}>
-            {rating > 0 ? RATING_LABELS[rating] : '—'}
+            {rating > 0 ? RATING_LABELS[rating] : '\u00A0'}
           </p>
         </div>
 

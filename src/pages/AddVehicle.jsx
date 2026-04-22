@@ -498,7 +498,7 @@ export default function AddVehicle() {
       if (duplicate) {
         setDuplicateVehicle(duplicate);
         const dupName = duplicate.nickname || duplicate.license_plate || 'רכב קיים';
-        toast.error(`מספר הרישוי כבר קיים ב"${dupName}" — אי אפשר להזין פעמיים`);
+        toast.error(`מספר הרישוי כבר קיים ב"${dupName}". לא ניתן להזין פעמיים.`);
         return;
       }
     }

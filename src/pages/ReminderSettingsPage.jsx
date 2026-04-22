@@ -28,7 +28,7 @@ const REMINDER_CATEGORIES = [
     timing:  'remind_test_days_before',
     label:   'טסט שנתי / כושר שייט',
     emoji:   '📋',
-    description: 'טסט רכב, כושר שייט — לפני שהרישיון פג',
+    description: 'טסט רכב, כושר שייט. התרעה לפני שהרישיון פג.',
   },
   {
     key:     'notify_insurance',

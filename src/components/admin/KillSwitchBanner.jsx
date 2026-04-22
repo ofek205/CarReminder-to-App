@@ -111,7 +111,7 @@ export default function KillSwitchBanner() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-gray-600">
-              פעולה זו עוצרת מיידית שליחה של <strong>כל</strong> המיילים מהאפליקציה —
+              פעולה זו עוצרת מיידית שליחה של <strong>כל</strong> המיילים מהאפליקציה:
               הזמנות, תזכורות, אימות וכל היתר. מומלץ רק בעת בעיה דחופה.
             </p>
             <div>

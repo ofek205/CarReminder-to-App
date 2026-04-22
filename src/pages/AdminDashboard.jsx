@@ -1610,12 +1610,12 @@ function AdminUsersTab() {
           <select value={`${sortKey}:${sortDir}`}
             onChange={(e) => { const [k, d] = e.target.value.split(':'); setSortKey(k); setSortDir(d); }}
             className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 font-bold">
-            <option value="created:desc">נוצר — חדש לישן</option>
-            <option value="created:asc">נוצר — ישן לחדש</option>
-            <option value="lastLogin:desc">התחברות אחרונה — חדש לישן</option>
-            <option value="vehicles:desc">רכבים — הרבה למעט</option>
-            <option value="vehicles:asc">רכבים — מעט להרבה</option>
-            <option value="name:asc">שם — א–ת</option>
+            <option value="created:desc">נוצר: חדש לישן</option>
+            <option value="created:asc">נוצר: ישן לחדש</option>
+            <option value="lastLogin:desc">התחברות אחרונה: חדש לישן</option>
+            <option value="vehicles:desc">רכבים: הרבה למעט</option>
+            <option value="vehicles:asc">רכבים: מעט להרבה</option>
+            <option value="name:asc">שם: א עד ת</option>
           </select>
         </div>
 
