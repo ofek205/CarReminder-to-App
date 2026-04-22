@@ -139,10 +139,16 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
     setAiResult(null);
     try {
       const { aiRequest } = await import('@/lib/aiProxy');
-      // Read the file as base64 for AI vision
-      const mediaType = form.file_url.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      // Detect real MIME type instead of assuming PNG/JPEG — uploads
+      // are often PDFs (contracts, vehicle licenses) or WEBP.
+      const mimeMatch = form.file_url.match(/^data:([^;]+);base64,/);
+      const mediaType = mimeMatch?.[1] || 'image/jpeg';
       const imageData = form.file_url.split(',')[1];
       if (!imageData) { toast.error('לא ניתן לקרוא את הקובץ'); setAiScanning(false); return; }
+      const isPdf = mediaType === 'application/pdf';
+      const sourcePart = isPdf
+        ? { type: 'document', source: { type: 'base64', media_type: mediaType, data: imageData } }
+        : { type: 'image',    source: { type: 'base64', media_type: mediaType, data: imageData } };
 
       const json = await aiRequest({
         model: 'claude-sonnet-4-20250514',
@@ -150,7 +156,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
+            sourcePart,
             { type: 'text', text: `סרוק מסמך זה וחלץ פרטים. סוגי מסמכים אפשריים: ${docTypes.join(' / ')}.
 החזר JSON בלבד: {"document_type":"סוג", "title":"כותרת/שם מנפיק", "issue_date":"YYYY-MM-DD", "expiry_date":"YYYY-MM-DD"}.
 אם לא ניתן לזהות שדה - השאר ריק.` },
@@ -173,8 +179,19 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
         toast.error('לא הצלחתי לקרוא את המסמך - מלא ידנית');
       }
     } catch (err) {
-      console.error('Document AI scan error:', err);
-      toast.error('שגיאה בסריקת המסמך');
+      console.error('Document AI scan error:', err?.code, err?.message);
+      let msg;
+      switch (err?.code) {
+        case 'TIMEOUT':              msg = 'התשובה מהשרת מאחרת. נסה ברשת יציבה יותר.'; break;
+        case 'NETWORK':              msg = 'אין חיבור לאינטרנט'; break;
+        case 'RATE_LIMIT':           msg = 'יותר מדי סריקות. נסה בעוד דקה'; break;
+        case 'UNAUTHORIZED':
+        case 'NO_SESSION':           msg = 'ההתחברות פגה. יש להתחבר מחדש'; break;
+        case 'PROVIDER_UNAVAILABLE':
+        case 'AI_UNAVAILABLE':       msg = 'שירות AI לא זמין כרגע'; break;
+        default:                     msg = 'שגיאה בסריקת המסמך';
+      }
+      toast.error(msg);
     } finally {
       setAiScanning(false);
     }

@@ -297,17 +297,39 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
         vehicleId: selectedVehicleId,
       }]);
     } catch (err) {
-      console.error('AI chat error:', err);
-      const errMsg = err?.message || '';
-      let userMsg = 'אופס, תקלת תקשורת. נסה שוב.';
-      if (errMsg.includes('Invalid Groq API key') || errMsg.includes('401') || errMsg.includes('403')) {
-        userMsg = 'מפתח ה-AI לא תקין. צור קשר עם המנהל.';
-      } else if (errMsg.includes('429') || errMsg.includes('rate')) {
-        userMsg = 'יותר מדי בקשות. חכה רגע ונסה שוב.';
-      } else if (errMsg.includes('שירות AI לא זמין')) {
-        userMsg = errMsg;
-      } else if (errMsg) {
-        userMsg = `שגיאה: ${errMsg.slice(0, 80)}`;
+      console.error('AI chat error:', err?.code, err?.message);
+      // aiProxy now tags errors with .code — match on code first,
+      // fall back to message matching for legacy paths. This gives
+      // the user an actionable explanation rather than the generic
+      // "שירות AI לא זמין" that hid the real problem (network /
+      // expired session / quota / slow cold-start).
+      let userMsg;
+      switch (err?.code) {
+        case 'TIMEOUT':
+          userMsg = 'התשובה איטית. נסה שוב, יכול להיות שהשירות קם מרדמה.'; break;
+        case 'NETWORK':
+          userMsg = 'אין חיבור לאינטרנט. בדוק את הרשת ונסה שוב.'; break;
+        case 'RATE_LIMIT':
+          userMsg = 'יותר מדי בקשות. המתן דקה ונסה שוב.'; break;
+        case 'UNAUTHORIZED':
+        case 'NO_SESSION':
+          userMsg = 'ההתחברות פגה. התחבר מחדש ונסה שוב.'; break;
+        case 'PROVIDER_UNAVAILABLE':
+          userMsg = 'שירות AI לא מוגדר. צור קשר עם המנהל.'; break;
+        case 'AI_UNAVAILABLE':
+          userMsg = 'שירות AI לא זמין כרגע. נסה שוב בעוד רגע.'; break;
+        default: {
+          const errMsg = err?.message || '';
+          if (errMsg.includes('401') || errMsg.includes('403')) {
+            userMsg = 'מפתח ה-AI לא תקין. צור קשר עם המנהל.';
+          } else if (errMsg.includes('429')) {
+            userMsg = 'יותר מדי בקשות. חכה רגע ונסה שוב.';
+          } else if (errMsg) {
+            userMsg = `שגיאה: ${errMsg.slice(0, 80)}`;
+          } else {
+            userMsg = 'אופס, תקלת תקשורת. נסה שוב.';
+          }
+        }
       }
       setMessages(prev => [...prev, {
         role: 'assistant',

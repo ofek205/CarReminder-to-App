@@ -15,6 +15,7 @@ import { createPageUrl } from '@/utils';
 import { useAuth } from '../shared/GuestContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
+import { compressImage } from '@/lib/imageCompress';
 
 // Israeli marinas
 const ISRAEL_MARINAS = [
@@ -41,21 +42,31 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
 
   const reset = () => { setStep('upload'); setAiResult(null); setError(''); };
 
-  const handleFile = (e) => {
+  const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
+    // Compress images before base64 to stay well under the ai-proxy
+    // 8MB payload cap. PDFs and non-image files pass through unchanged.
+    const ready = await compressImage(file);
     const reader = new FileReader();
-    reader.onload = (ev) => scanDocument(ev.target.result);
-    reader.readAsDataURL(file);
+    reader.onload = (ev) => scanDocument(ev.target.result, ready?.type);
+    reader.readAsDataURL(ready);
   };
 
-  const scanDocument = async (base64) => {
+  const scanDocument = async (base64, fileType) => {
     setStep('scanning');
     setError('');
     try {
-      const mediaType = base64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      // Detect actual MIME from the data URL prefix (was hardcoded to
+      // PNG/JPEG which mis-tagged WEBP and PDF uploads).
+      const mimeMatch = base64.match(/^data:([^;]+);base64,/);
+      const mediaType = mimeMatch?.[1] || fileType || 'image/jpeg';
       const imageData = base64.split(',')[1];
+      const isPdf = mediaType === 'application/pdf';
+      const sourcePart = isPdf
+        ? { type: 'document', source: { type: 'base64', media_type: mediaType, data: imageData } }
+        : { type: 'image',    source: { type: 'base64', media_type: mediaType, data: imageData } };
 
       const json = await aiRequest({
         model: 'claude-sonnet-4-20250514',
@@ -63,7 +74,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
+            sourcePart,
             { type: 'text', text: `סרוק מסמך זה וחלץ את הפרטים. החזר JSON בלבד:
 {"document_type":"סוג (רישיון רכב/כושר שייט/ביטוח חובה/ביטוח מקיף/ביטוח צד ג/ביטוח ימי חובה/ביטוח ימי מקיף)", "title":"שם החברה או הגוף המנפיק", "issue_date":"YYYY-MM-DD", "expiry_date":"YYYY-MM-DD"}.
 אם לא ניתן לזהות שדה - השאר ריק.` },
@@ -89,8 +100,22 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         setStep('upload');
       }
     } catch (err) {
-      console.error('Document scan error:', err);
-      setError('שגיאה בסריקה. נסה שוב.');
+      console.error('Document scan error:', err?.code, err?.message);
+      // Surface the actual failure cause instead of the generic
+      // "שגיאה בסריקה". Network/auth/quota issues each have their
+      // own remediation.
+      let msg;
+      switch (err?.code) {
+        case 'TIMEOUT':              msg = 'התשובה מהשרת מאחרת. נסה ברשת יציבה יותר.'; break;
+        case 'NETWORK':              msg = 'אין חיבור לאינטרנט. בדוק את הרשת.'; break;
+        case 'RATE_LIMIT':           msg = 'יותר מדי סריקות. נסה בעוד דקה.'; break;
+        case 'UNAUTHORIZED':
+        case 'NO_SESSION':           msg = 'ההתחברות פגה. יש להתחבר מחדש.'; break;
+        case 'PROVIDER_UNAVAILABLE':
+        case 'AI_UNAVAILABLE':       msg = 'שירות AI לא זמין כרגע. נסה בעוד רגע.'; break;
+        default:                     msg = 'שגיאה בסריקה. נסה שוב או תמונה ברורה יותר.';
+      }
+      setError(msg);
       setStep('upload');
     }
   };

@@ -1,8 +1,23 @@
 import React, { useRef, useState } from 'react';
 import { Camera, Loader2 } from 'lucide-react';
 import { aiRequest } from '@/lib/aiProxy';
+import { compressImage } from '@/lib/imageCompress';
 import { toast } from 'sonner';
 import { isNative, takePhoto } from '@/lib/capacitor';
+
+// Translate aiProxy error codes to short Hebrew toast copy.
+function aiErrorToast(err) {
+  switch (err?.code) {
+    case 'TIMEOUT':              return 'התשובה איטית, נסה שוב על רשת טובה יותר';
+    case 'NETWORK':              return 'אין חיבור לאינטרנט';
+    case 'RATE_LIMIT':           return 'יותר מדי סריקות. נסה בעוד דקה';
+    case 'UNAUTHORIZED':
+    case 'NO_SESSION':           return 'ההתחברות פגה, התחבר מחדש';
+    case 'PROVIDER_UNAVAILABLE':
+    case 'AI_UNAVAILABLE':       return 'שירות AI לא זמין כרגע';
+    default:                     return 'שגיאה בסריקה, נסה שוב';
+  }
+}
 
 /**
  * Small camera button that scans a photo/certificate and extracts an expiry date using AI.
@@ -17,18 +32,25 @@ export default function AiDateScan({ onDateExtracted, label = 'סרוק תוקף
     if (!file) return;
     e.target.value = '';
 
+    // Compress before reading — a 6MB phone photo becomes ~8MB base64
+    // which overflows the ai-proxy 8MB payload cap.
+    const ready = await compressImage(file);
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const base64 = ev.target.result;
       await scanDate(base64);
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(ready);
   };
 
   const scanDate = async (base64) => {
     setScanning(true);
     try {
-      const mediaType = base64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      // Detect real MIME type from the data URL rather than assuming.
+      // Camera output may be WEBP (Android) or HEIC-converted JPEG —
+      // mis-tagging makes Gemini refuse or hallucinate.
+      const mimeMatch = base64.match(/^data:([^;]+);base64,/);
+      const mediaType = mimeMatch?.[1] || 'image/jpeg';
       const imageData = base64.split(',')[1];
 
       const json = await aiRequest({
@@ -62,8 +84,8 @@ export default function AiDateScan({ onDateExtracted, label = 'סרוק תוקף
         toast.error('לא הצלחתי לעבד את התמונה, נסה שוב');
       }
     } catch (err) {
-      console.error('AI date scan error:', err);
-      toast.error('שגיאה בסריקה, נסה שוב');
+      console.error('AI date scan error:', err?.code, err?.message);
+      toast.error(aiErrorToast(err));
     } finally {
       setScanning(false);
     }

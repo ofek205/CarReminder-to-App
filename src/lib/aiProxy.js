@@ -19,6 +19,31 @@
  */
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+// Cold-start on Gemini can push a single request to 15-25s, plus our
+// own network overhead. 45s gives headroom without leaving the user
+// hanging forever.
+const REQUEST_TIMEOUT_MS = 45_000;
+
+/**
+ * AbortController-wrapped fetch. Throws a domain-specific error on
+ * timeout so callers can distinguish it from network failures.
+ */
+async function fetchWithTimeout(url, opts = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      const e = new Error('התשובה מהשרת מאחרת. נסה שוב או התחבר לרשת יציבה יותר.');
+      e.code = 'TIMEOUT';
+      throw e;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * Call the Supabase ai-proxy Edge Function. The function validates the
@@ -26,28 +51,64 @@ const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
  */
 async function callEdgeProxy(body) {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  if (!supabaseUrl) return null;
+  if (!supabaseUrl) {
+    const e = new Error('VITE_SUPABASE_URL לא מוגדר');
+    e.code = 'NO_SUPABASE_URL';
+    throw e;
+  }
 
   const { supabase } = await import('./supabase');
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
-  if (!token) return null; // Edge function requires an authenticated user
+  if (!token) {
+    const e = new Error('יש להתחבר מחדש כדי להשתמש ב-AI');
+    e.code = 'NO_SESSION';
+    throw e;
+  }
 
-  const res = await fetch(`${supabaseUrl}/functions/v1/ai-proxy`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
+  let res;
+  try {
+    res = await fetchWithTimeout(`${supabaseUrl}/functions/v1/ai-proxy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    // TIMEOUT or network error. Bubble up with a helpful code.
+    if (err?.code === 'TIMEOUT') throw err;
+    const e = new Error('שגיאת רשת בפנייה ל-AI. בדוק חיבור לאינטרנט.');
+    e.code = 'NETWORK';
+    throw e;
+  }
 
   if (res.status === 429) {
-    throw new Error('חרגת ממגבלת קריאות ה-AI. נסה שוב בעוד דקה.');
+    const e = new Error('חרגת ממגבלת קריאות ה-AI. נסה שוב בעוד דקה.');
+    e.code = 'RATE_LIMIT';
+    throw e;
+  }
+  if (res.status === 401) {
+    const e = new Error('ההתחברות פגה. יש להתחבר מחדש.');
+    e.code = 'UNAUTHORIZED';
+    throw e;
+  }
+  if (res.status === 503) {
+    // Edge function returns 503 when no AI provider is configured / all
+    // providers failed. That typically means GEMINI_API_KEY isn't set
+    // or is invalid. Surface a distinct message so deploys with missing
+    // secrets are obvious.
+    const e = new Error('שירות ה-AI עומס או לא מוגדר. נסה שוב בעוד כמה דקות.');
+    e.code = 'PROVIDER_UNAVAILABLE';
+    throw e;
   }
   if (!res.ok) {
-    // Let the caller fall back to Claude dev path if available
-    return null;
+    let detail = '';
+    try { detail = (await res.json())?.error || ''; } catch {}
+    const e = new Error(detail ? `AI error: ${detail}` : `AI error (${res.status})`);
+    e.code = 'HTTP_' + res.status;
+    throw e;
   }
   return await res.json();
 }
@@ -61,7 +122,7 @@ async function callClaudeDev(body) {
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
-  const res = await fetch(ANTHROPIC_URL, {
+  const res = await fetchWithTimeout(ANTHROPIC_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -80,15 +141,30 @@ async function callClaudeDev(body) {
  * Send an AI request — routes through the Edge Function proxy.
  * @param {object} body - Claude-format request body
  * @returns {Promise<object>} - Response with { content: [{ text }] }
+ * @throws {Error} - with a `.code` property describing the failure kind:
+ *   TIMEOUT / NETWORK / NO_SESSION / RATE_LIMIT / UNAUTHORIZED /
+ *   PROVIDER_UNAVAILABLE / HTTP_4xx / NO_SUPABASE_URL / AI_UNAVAILABLE
+ * Callers that want to surface a meaningful UI message should inspect
+ * `error.code` and pick the right copy.
  */
 export async function aiRequest(body) {
   try {
     const result = await callEdgeProxy(body);
     if (result) return result;
   } catch (err) {
-    // Rate-limit errors bubble up. Other failures fall through to dev path.
-    if (err?.message && err.message.includes('חרגת')) throw err;
-    if (import.meta.env.DEV) console.warn('ai-proxy edge function failed:', err?.message);
+    // Rate-limit / auth / timeout errors bubble up with their
+    // specific codes so the UI can react intelligently (e.g. offer
+    // a retry after 60s for rate limits, a "log in again" prompt
+    // for UNAUTHORIZED).
+    if (err?.code) {
+      // Dev fallback only for provider/network issues — user-facing
+      // errors like RATE_LIMIT / UNAUTHORIZED shouldn't be masked.
+      const hardFails = new Set([
+        'RATE_LIMIT', 'UNAUTHORIZED', 'NO_SESSION', 'NO_SUPABASE_URL',
+      ]);
+      if (hardFails.has(err.code)) throw err;
+    }
+    if (import.meta.env.DEV) console.warn('ai-proxy edge function failed:', err?.code, err?.message);
   }
 
   // Dev offline fallback
@@ -101,5 +177,7 @@ export async function aiRequest(body) {
     }
   }
 
-  throw new Error('שירות AI לא זמין - ודא שהתחברת למערכת');
+  const e = new Error('שירות ה-AI לא זמין כעת. נסה שוב בעוד רגע.');
+  e.code = 'AI_UNAVAILABLE';
+  throw e;
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { aiRequest } from '@/lib/aiProxy';
+import { compressImage } from '@/lib/imageCompress';
 import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { useNavigate } from 'react-router-dom';
@@ -84,10 +85,17 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     const validation = validateUploadFile(file, 'doc', 15);
     if (!validation.ok) { setError(validation.error); e.target.value = ''; return; }
     setError('');
-    setUploadedFile(file);
     setUploading(true);
-    // Convert to base64 data URL (stored inline for AI scan)
     try {
+      // Compress the image before converting to base64. Phone camera
+      // shots are routinely 4-8MB — once base64-encoded that pushes
+      // the ai-proxy payload past Supabase's 8MB edge-function limit
+      // and the request silently fails. compressImage is a no-op for
+      // PDFs (it preserves non-image files), so documents pass
+      // through untouched.
+      const ready = await compressImage(file);
+      setUploadedFile(ready);
+
       const reader = new FileReader();
       reader.onload = (ev) => {
         setFileUrl(ev.target.result);
@@ -97,7 +105,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
         setError('שגיאה בקריאת הקובץ');
         setUploading(false);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(ready);
     } catch (err) {
       setError('שגיאה בהעלאה');
       setUploading(false);
@@ -115,6 +123,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     // mis-tagged as JPEGs (which used to cause the model to "see" garbage and
     // hallucinate plausible-but-wrong fields).
     let raw = null;
+    let aiErrorCode = null;
     try {
       const mimeMatch = fileUrl.match(/^data:([^;]+);base64,/);
       const mediaType = mimeMatch?.[1] || 'image/jpeg';
@@ -151,10 +160,37 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
         if (parsed._unreadable) raw = null;
         else raw = parsed;
       }
-    } catch (err) { console.warn('Scan error:', err?.message); }
+    } catch (err) {
+      // Remember which category of failure happened so we can show the
+      // user a message they can actually act on. Before this we always
+      // said "I couldn't read the document", which was misleading when
+      // the real cause was network / auth / quota.
+      aiErrorCode = err?.code || 'UNKNOWN';
+      console.warn('Scan error:', aiErrorCode, err?.message);
+    }
 
     if (!raw) {
-      setError('לא הצלחתי לקרוא את המסמך. ניתן להמשיך עם הזנה ידנית.');
+      // Map aiProxy error codes to Hebrew user-facing copy.
+      let msg;
+      switch (aiErrorCode) {
+        case 'TIMEOUT':
+          msg = 'התשובה מהשרת מאחרת. נסה שוב על רשת יציבה יותר.'; break;
+        case 'NETWORK':
+          msg = 'אין חיבור לאינטרנט. בדוק את הרשת ונסה שוב.'; break;
+        case 'RATE_LIMIT':
+          msg = 'יותר מדי ניסיונות. נסה שוב בעוד דקה.'; break;
+        case 'UNAUTHORIZED':
+        case 'NO_SESSION':
+          msg = 'ההתחברות פגה. יש להתחבר מחדש ולנסות שוב.'; break;
+        case 'PROVIDER_UNAVAILABLE':
+        case 'AI_UNAVAILABLE':
+          msg = 'שירות AI לא זמין כרגע. נסה שוב בעוד רגע.'; break;
+        default:
+          // No error code → AI replied but couldn't extract. The
+          // document itself was the problem, not the plumbing.
+          msg = 'לא הצלחתי לקרוא את המסמך. ודא שהתמונה חדה וכל הרישיון נראה, או המשך להזנה ידנית.';
+      }
+      setError(msg);
       setExtracting(false);
       setEditableFields({});
       setStep('preview');
@@ -451,6 +487,17 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
             <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
               {nonEmptyFields.length > 0 ? 'מצאתי את הפרטים הבאים, ניתן לערוך לפני האישור:' : 'לא חולצו פרטים. המשך להשלמה ידנית.'}
             </p>
+
+            {/* Retry button — when the scan came back empty/failed, give
+                the user an inline way to try again with the same file
+                instead of forcing them to back out of the wizard. */}
+            {nonEmptyFields.length === 0 && fileUrl && (
+              <Button variant="outline" className="w-full"
+                onClick={() => { setError(''); handleExtract(); }}
+                disabled={extracting}>
+                {extracting ? <><Loader2 className="h-4 w-4 animate-spin ml-2" /> סורק...</> : 'נסה סריקה שוב'}
+              </Button>
+            )}
 
             {plateMismatchWarning && (
               <div className="flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
