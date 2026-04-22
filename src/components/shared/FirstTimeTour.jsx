@@ -98,6 +98,40 @@ export default function FirstTimeTour({
   const [cardPos, setCardPos] = useState({ top: 0, left: 0, placement: 'below' });
   const cardRef = useRef(null);
 
+  // ── Scroll lock while the tour is open ──────────────────────────────
+  // Problem the user hit: with nothing blocking touch on the backdrop,
+  // a swipe would scroll the page under the spotlight, leaving the ring
+  // pointing at empty space. We block both mouse-wheel and touch-move
+  // at the document level, which still lets our own `scrollIntoView`
+  // run because it happens imperatively (not via a user gesture).
+  useEffect(() => {
+    if (!open) return;
+    const prevBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const blockWheel = (e) => e.preventDefault();
+    const blockTouch = (e) => {
+      // Allow scroll inside the tooltip card itself (long body text on
+      // small screens) but block everywhere else.
+      if (cardRef.current && cardRef.current.contains(e.target)) return;
+      e.preventDefault();
+    };
+    window.addEventListener('wheel', blockWheel, { passive: false });
+    window.addEventListener('touchmove', blockTouch, { passive: false });
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      window.removeEventListener('wheel', blockWheel);
+      window.removeEventListener('touchmove', blockTouch);
+    };
+  }, [open]);
+
+  // ── Escape key → skip ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') skip(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, skip]);
+
   // Find target + compute position on every step change + on resize.
   // If the target isn't in the DOM yet (e.g. it appears only after the
   // user selects a category first), we poll every 400ms instead of
@@ -119,20 +153,28 @@ export default function FirstTimeTour({
         pollTimer = setTimeout(compute, 400);
         return;
       }
-      // If target is offscreen, snap it into view instantly — smooth scroll
-      // races with our measurement and leaves the spotlight ring at an
-      // intermediate position.
+      // Always pull the target toward the center of the viewport so the
+      // card has room above AND below. Use smooth scroll when the target
+      // is only a little off; instant when it's far away to keep the
+      // spotlight from chasing the page. scrollIntoView is imperative,
+      // so it bypasses the wheel/touch listeners set above.
       const r = el.getBoundingClientRect();
       const vh = window.innerHeight;
-      if (r.top < 80 || r.bottom > vh - 80) {
-        el.scrollIntoView({ behavior: 'instant', block: 'center' });
+      const needsScroll = r.top < 80 || r.bottom > vh - 80;
+      if (needsScroll) {
+        const delta = Math.abs(r.top - vh / 2);
+        el.scrollIntoView({
+          behavior: delta > vh * 1.5 ? 'instant' : 'smooth',
+          block: 'center',
+        });
       }
-      // Measure after the (possibly just-completed) scroll.
-      requestAnimationFrame(() => {
+      // Wait for the scroll to settle (2 frames) before measuring, so
+      // the spotlight ring doesn't land on a stale rect.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
         const fresh = el.getBoundingClientRect();
         setTargetRect(fresh);
         positionCard(fresh);
-      });
+      }));
     };
 
     const positionCard = (r) => {
@@ -179,7 +221,9 @@ export default function FirstTimeTour({
   if (!targetRect) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[9000]" dir="rtl" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[9000]" dir="rtl" role="dialog" aria-modal="true"
+      style={{ animation: 'cr-tour-fade 180ms ease-out' }}>
+      <style>{`@keyframes cr-tour-fade { from { opacity: 0 } to { opacity: 1 } }`}</style>
       {/* Dimmed backdrop — tapping it dismisses the whole tour. */}
       <div className="absolute inset-0 bg-black/60" onClick={skip} aria-hidden="true" />
 

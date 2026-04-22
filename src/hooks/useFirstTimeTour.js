@@ -66,11 +66,20 @@ export default function useFirstTimeTour({
     try { localStorage.setItem(storageKey, '1'); } catch {}
   };
 
+  // When the tour completes (not when skipped), return the user to the
+  // top of the page so they can start interacting from a clean slate
+  // rather than being stranded wherever the last spotlight happened to
+  // land (usually deep on the page).
+  const scrollToTop = () => {
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
+  };
+
   const next = useCallback(() => {
     setStep(s => {
       if (s + 1 >= totalSteps) {
         markSeen();
         setOpen(false);
+        scrollToTop();
         return 0;
       }
       return s + 1;
@@ -87,6 +96,7 @@ export default function useFirstTimeTour({
     markSeen();
     setOpen(false);
     setStep(0);
+    scrollToTop();
   }, []);
 
   // Android hardware back button → treat as skip (native only, no-op on web).
