@@ -37,6 +37,22 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import FirstTimeTour from '@/components/shared/FirstTimeTour';
+
+// Mini tour shown on the first visit to /ChecklistHub for a vessel.
+// Vessel palette to match the rest of the marine UI. Three short steps.
+const HUB_TOUR_STEPS = [
+  {
+    key: 'ch-phase-cards',
+    title: 'שלושה שלבים, כלי אחד',
+    body: 'בדיקות מנוע לפני הנעה, הכנה לפני יציאה, וסיום לאחר חזרה. כל שלב נשמר בנפרד.',
+  },
+  {
+    key: 'ch-new-button',
+    title: 'צ\'ק ליסט מותאם',
+    body: 'תן שם משלך ובנה רשימה לכל מטרה. לדוגמה: בדיקה עונתית או סריקה לפני העונה.',
+  },
+];
 
 const PHASE_ICONS = {
   engine: Wrench,
@@ -235,8 +251,16 @@ export default function ChecklistHub() {
         </div>
       </div>
 
+      {/* First-visit tour — vessel palette, fires once per user. */}
+      <FirstTimeTour
+        enabled
+        steps={HUB_TOUR_STEPS}
+        storageKey="cr_ch_hub_tour_v1_seen"
+        theme="vessel"
+      />
+
       {/* Phase + custom cards */}
-      <div className="px-4 mt-4 space-y-3">
+      <div className="px-4 mt-4 space-y-3" data-tour="ch-phase-cards">
         {cards.map((card) => (
           <PhaseCard
             key={card.key}
@@ -263,6 +287,7 @@ export default function ChecklistHub() {
       {/* Footer actions */}
       <div className="px-4 mt-6 flex flex-col gap-2">
         <Button
+          data-tour="ch-new-button"
           onClick={() => setCreateOpen(true)}
           className="w-full h-11 gap-2 text-white font-bold"
           style={{ background: THEME.grad, boxShadow: '0 4px 12px rgba(12,123,147,0.2)' }}>
