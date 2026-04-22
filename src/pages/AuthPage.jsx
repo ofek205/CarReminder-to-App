@@ -90,7 +90,20 @@ export default function AuthPage() {
   const { isAuthenticated, isLoading } = useAuth();
 
   const [showForm, setShowForm] = useState(false);
-  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'reset'
+  // Modes:
+  //   login, signup, reset  — email-based flows.
+  //   update-password        — user clicked a password-reset email link.
+  //                            Supabase has already consumed the recovery
+  //                            token into a session by the time we mount,
+  //                            so we just need the user to pick a new pwd.
+  const [mode, setMode] = useState(() => {
+    try {
+      const u = new URL(window.location.href);
+      const m = u.searchParams.get('mode');
+      if (m === 'update-password') return 'update-password';
+    } catch {}
+    return 'login';
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -217,15 +230,32 @@ export default function AuthPage() {
         setLoading(false);
         return;
       }
+      if (mode === 'update-password') {
+        // User followed a recovery email link; Supabase converted the
+        // fragment token into an active session on page load. All we need
+        // is a new password.
+        if (password.length < 8)            { setError('הסיסמה חייבת להכיל לפחות 8 תווים'); setLoading(false); return; }
+        if (!/[A-Za-z]/.test(password))     { setError('הסיסמה חייבת לכלול אות'); setLoading(false); return; }
+        if (!/[0-9]/.test(password))        { setError('הסיסמה חייבת לכלול ספרה'); setLoading(false); return; }
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) {
+          setError(error.message || 'עדכון הסיסמה נכשל');
+        } else {
+          setSuccess('הסיסמה עודכנה. מעביר לאפליקציה...');
+          setTimeout(() => { window.location.href = '/'; }, 1200);
+        }
+        setLoading(false);
+        return;
+      }
       if (mode === 'login') {
         // Dev bypass: typing "00" in both fields signs in with the dev
-        // credentials from .env.local (VITE_DEV_EMAIL + VITE_DEV_PASSWORD).
-        // Falls through to a clear error if the env vars aren't set, so
-        // prod builds without them just show "אימייל או סיסמה שגויים"
-        // instead of silently leaking a default account.
+        // credentials from .env.local. Wrapped in import.meta.env.DEV so
+        // Vite dead-code-eliminates the whole block (including any literal
+        // env values) from production bundles. Prod users who type "00/00"
+        // just see the normal invalid-credentials message.
         let effectiveEmail = email;
         let effectivePassword = password;
-        if (email === '00' && password === '00') {
+        if (import.meta.env.DEV && email === '00' && password === '00') {
           const devEmail = import.meta.env.VITE_DEV_EMAIL;
           const devPass = import.meta.env.VITE_DEV_PASSWORD;
           if (!devEmail || !devPass) {
@@ -407,7 +437,17 @@ export default function AuthPage() {
             <div ref={formRef} className="w-full rounded-3xl p-6"
               style={{ background: C.card, boxShadow: '0 4px 32px rgba(45,82,51,0.10)', border: `1px solid ${C.border}` }}>
 
-              {/* Mode toggle */}
+              {/* Mode toggle — hidden in the recovery-landing flow; the
+                  user arrives here from an email link and should not be
+                  able to switch modes until the new password is set. */}
+              {mode === 'update-password' ? (
+                <div className="text-center mb-6">
+                  <h2 className="text-lg font-black" style={{ color: C.greenDark }}>בחירת סיסמה חדשה</h2>
+                  <p className="text-xs mt-1" style={{ color: C.muted }}>
+                    לפחות 8 תווים, עם אות וספרה.
+                  </p>
+                </div>
+              ) : (
               <div className="flex rounded-2xl overflow-hidden mb-6" style={{ background: '#F1F5F1' }}>
                 {(mode === 'reset' ? ['reset'] : ['login', 'signup']).map(m => (
                   <button key={m}
@@ -422,6 +462,7 @@ export default function AuthPage() {
                   </button>
                 ))}
               </div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-4" noValidate>
                 {mode === 'signup' && (
@@ -437,26 +478,28 @@ export default function AuthPage() {
                   />
                 )}
 
-                <AuthInput
-                  icon={Mail}
-                  label="אימייל"
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="example@email.com"
-                  dir="ltr"
-                  required
-                  autoComplete="email"
-                />
+                {mode !== 'update-password' && (
+                  <AuthInput
+                    icon={Mail}
+                    label="אימייל"
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="example@email.com"
+                    dir="ltr"
+                    required
+                    autoComplete="email"
+                  />
+                )}
 
-                {mode !== 'reset' && (
+                {(mode !== 'reset') && (
                   <AuthInput
                     icon={Lock}
-                    label="סיסמה"
+                    label={mode === 'update-password' ? 'סיסמה חדשה' : 'סיסמה'}
                     type="password"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder={mode === 'signup' ? 'לפחות 6 תווים' : 'הזן סיסמה'}
+                    placeholder={mode === 'signup' || mode === 'update-password' ? 'לפחות 8 תווים, אות וספרה' : 'הזן סיסמה'}
                     dir="ltr"
                     required
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}

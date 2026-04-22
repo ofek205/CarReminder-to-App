@@ -50,8 +50,9 @@ create policy invites_delete_owner on public.invites
 -- race condition).
 create or replace function public.redeem_invite_token(tok text)
 returns table (
-  id uuid, account_id uuid, role text, status text,
-  remaining_uses int, was_consumed boolean
+  id uuid, account_id uuid, role_to_assign text, status text,
+  vehicle_ids uuid[],
+  remaining_uses int, was_consumed boolean, already_member boolean
 )
 language plpgsql
 security definer
@@ -59,7 +60,15 @@ set search_path = public
 as $$
 declare
   inv public.invites%rowtype;
+  uid uuid := auth.uid();
+  is_member boolean;
+  safe_role text;
+  new_status text;
 begin
+  if uid is null then
+    raise exception 'not_authenticated';
+  end if;
+
   -- Lock the row so concurrent redemptions don't race
   select * into inv
   from public.invites
@@ -70,7 +79,12 @@ begin
     raise exception 'invite_not_found';
   end if;
 
+  if inv.status <> 'פעיל' then
+    raise exception 'invite_not_active';
+  end if;
+
   if inv.expires_at is not null and inv.expires_at < now() then
+    update public.invites set status = 'פג תוקף' where id = inv.id;
     raise exception 'invite_expired';
   end if;
 
@@ -78,15 +92,43 @@ begin
     raise exception 'invite_exhausted';
   end if;
 
-  -- Increment atomically
+  -- Already a member? Short-circuit without consuming the invite.
+  select exists(
+    select 1 from public.account_members
+     where account_id = inv.account_id
+       and user_id = uid
+       and status = 'פעיל'
+  ) into is_member;
+
+  if is_member then
+    return query
+    select inv.id, inv.account_id, inv.role_to_assign, inv.status,
+           inv.vehicle_ids,
+           (inv.max_uses - inv.uses_count)::int,
+           false, true;
+    return;
+  end if;
+
+  -- Only safe, non-owner roles assignable via invite
+  safe_role := case when inv.role_to_assign in ('מנהל','שותף') then inv.role_to_assign else 'שותף' end;
+
+  -- Create membership atomically with the redemption
+  insert into public.account_members (account_id, user_id, role, status, joined_at, vehicle_ids)
+  values (inv.account_id, uid, safe_role, 'פעיל', now(), inv.vehicle_ids);
+
+  -- Increment & potentially close out the invite
+  new_status := case when inv.uses_count + 1 >= inv.max_uses then 'מומש' else inv.status end;
   update public.invites
-     set uses_count = uses_count + 1
+     set uses_count = uses_count + 1,
+         status = new_status
    where id = inv.id;
 
   return query
-  select inv.id, inv.account_id, inv.role, inv.status,
-         (inv.max_uses - inv.uses_count - 1)::int as remaining_uses,
-         (inv.uses_count + 1 >= inv.max_uses) as was_consumed;
+  select inv.id, inv.account_id, safe_role, new_status,
+         inv.vehicle_ids,
+         (inv.max_uses - inv.uses_count - 1)::int,
+         (inv.uses_count + 1 >= inv.max_uses),
+         false;
 end $$;
 
 grant execute on function public.redeem_invite_token(text) to authenticated;

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { db } from '@/lib/supabaseEntities';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
@@ -37,68 +36,41 @@ export default function JoinInvite() {
     }
 
     try {
-      // Find invite by token
-      const invites = await db.invites.filter({ token, status: 'פעיל' });
-      if (invites.length === 0) {
+      // All validation, role-safety, expiry, max-uses checks, and the
+      // membership insert run atomically inside the SECURITY DEFINER RPC.
+      // This closes M7 (race condition) and prevents a direct-from-client
+      // invites table walk that previously let clients peek at invite rows.
+      const { data, error: rpcError } = await supabase.rpc('redeem_invite_token', { tok: token });
+
+      if (rpcError) {
+        const code = String(rpcError.message || '').toLowerCase();
+        let friendly = 'אירעה שגיאה. נסה שוב.';
+        if (code.includes('not_authenticated')) friendly = 'יש להתחבר מחדש';
+        else if (code.includes('invite_not_found')) friendly = 'ההזמנה לא נמצאה';
+        else if (code.includes('invite_expired')) friendly = 'ההזמנה פגה תוקף';
+        else if (code.includes('invite_exhausted')) friendly = 'ההזמנה כבר מומשה';
+        else if (code.includes('invite_not_active')) friendly = 'ההזמנה אינה פעילה';
         setStatus('error');
-        setMessage('ההזמנה לא נמצאה או שפג תוקפה');
+        setMessage(friendly);
         return;
       }
 
-      const invite = invites[0];
-
-      // Check expiry
-      if (new Date(invite.expires_at) < new Date()) {
-        await db.invites.update(invite.id, { status: 'פג תוקף' });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row) {
         setStatus('error');
-        setMessage('ההזמנה פגה תוקף');
+        setMessage('ההזמנה לא נמצאה');
         return;
       }
 
-      // Check max uses (re-fetch for race condition mitigation)
-      const freshInvites = await db.invites.filter({ token, status: 'פעיל' });
-      const freshInvite = freshInvites[0];
-      if (!freshInvite || freshInvite.uses_count >= freshInvite.max_uses) {
-        setStatus('error');
-        setMessage('ההזמנה כבר מומשה');
-        return;
-      }
-
-      // Check if already a member
-      const existing = await db.account_members.filter({
-        account_id: invite.account_id,
-        user_id: user.id,
-        status: 'פעיל',
-      });
-      if (existing.length > 0) {
+      if (row.already_member) {
         setStatus('error');
         setMessage('אתה כבר חבר בחשבון זה');
         return;
       }
 
-      // Validate role - only allow safe roles, never 'בעלים' via invite
-      const ALLOWED_INVITE_ROLES = ['מנהל', 'שותף'];
-      const safeRole = ALLOWED_INVITE_ROLES.includes(invite.role_to_assign) ? invite.role_to_assign : 'שותף';
-
-      // Join the account!
-      await db.account_members.create({
-        account_id: invite.account_id,
-        user_id: user.id,
-        role: safeRole,
-        status: 'פעיל',
-        joined_at: new Date().toISOString(),
-        vehicle_ids: invite.vehicle_ids || null, // null = all vehicles, array = specific
-      });
-
-      // Increment usage counter
-      await db.invites.update(freshInvite.id, {
-        uses_count: freshInvite.uses_count + 1,
-        ...(freshInvite.uses_count + 1 >= freshInvite.max_uses ? { status: 'מומש' } : {}),
-      });
-
-      setAssignedRole(invite.role_to_assign);
+      setAssignedRole(row.role_to_assign);
       setStatus('success');
-      const vehicleCount = invite.vehicle_ids?.length;
+      const vehicleCount = row.vehicle_ids?.length;
       setMessage(vehicleCount
         ? `הצטרפת בהצלחה! גישה ל-${vehicleCount} רכבים`
         : 'הצטרפת בהצלחה לחשבון!'

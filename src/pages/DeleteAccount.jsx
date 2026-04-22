@@ -13,6 +13,10 @@ export default function DeleteAccount() {
   const [step, setStep] = useState('choose'); // choose | confirm | deleting | done
   const [mode, setMode] = useState(null); // 'account' | 'data'
   const [error, setError] = useState('');
+  // Re-auth state. Mandatory before any destructive operation so a
+  // hijacked session can't delete the user's data without the password.
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [reauthPending, setReauthPending] = useState(false);
 
   // Not logged in
   if (!isAuthenticated || isGuest) {
@@ -30,8 +34,32 @@ export default function DeleteAccount() {
   }
 
   const handleDelete = async () => {
-    setStep('deleting');
     setError('');
+    // Require a fresh password check. If the user opened this page from a
+    // stale or stolen session we still force them to prove possession of the
+    // password before anything is deleted.
+    if (!confirmPassword) {
+      setError('יש להזין סיסמה לאישור');
+      return;
+    }
+    setReauthPending(true);
+    try {
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: confirmPassword,
+      });
+      if (reauthError) {
+        setReauthPending(false);
+        setError('סיסמה שגויה');
+        return;
+      }
+    } catch {
+      setReauthPending(false);
+      setError('שגיאה באימות הסיסמה');
+      return;
+    }
+    setReauthPending(false);
+    setStep('deleting');
     try {
       const userId = user.id;
       const members = await db.account_members.filter({ user_id: userId, status: 'פעיל' });
@@ -173,6 +201,24 @@ export default function DeleteAccount() {
             </div>
           )}
 
+          {/* Re-auth gate. Deletion is destructive and irreversible; require
+              the account password every time, even if the session is fresh. */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold block" style={{ color: '#6B7280' }}>
+              הזן סיסמה לאישור
+            </label>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl text-sm font-bold border"
+              style={{ borderColor: '#E5E7EB', background: '#F9FAFB' }}
+              placeholder="הסיסמה שלך"
+              dir="ltr"
+            />
+          </div>
+
           <div className="space-y-3">
             <p className="text-xs font-bold" style={{ color: '#6B7280' }}>הנתונים הבאים יימחקו:</p>
             <ul className="text-xs space-y-1" style={{ color: '#9CA3AF' }}>
@@ -188,11 +234,16 @@ export default function DeleteAccount() {
 
           <div className="flex gap-3">
             <button onClick={handleDelete}
-              className="flex-1 py-3.5 rounded-2xl font-bold text-sm text-white transition-all active:scale-[0.98]"
+              disabled={reauthPending || !confirmPassword}
+              className="flex-1 py-3.5 rounded-2xl font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-50"
               style={{ background: mode === 'account' ? '#DC2626' : '#D97706' }}>
-              {mode === 'account' ? 'מחק חשבון לצמיתות' : 'מחק את כל הנתונים'}
+              {reauthPending ? (
+                <span className="inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> מאמת...</span>
+              ) : (
+                mode === 'account' ? 'מחק חשבון לצמיתות' : 'מחק את כל הנתונים'
+              )}
             </button>
-            <button onClick={() => { setStep('choose'); setMode(null); setError(''); }}
+            <button onClick={() => { setStep('choose'); setMode(null); setError(''); setConfirmPassword(''); }}
               className="px-6 py-3.5 rounded-2xl font-bold text-sm" style={{ color: '#6B7280', background: '#F3F4F6' }}>
               ביטול
             </button>
