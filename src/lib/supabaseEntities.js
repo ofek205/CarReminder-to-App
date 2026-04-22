@@ -152,5 +152,6 @@ export const db = {
   maintenance_logs:   makeEntity('maintenance_logs'),
   maintenance_reminder_prefs: makeEntity('maintenance_reminder_prefs'),
   repair_types:       makeEntity('repair_types'),
-  vessel_checklists:  makeEntity('vessel_checklists'),
+  vessel_checklists:     makeEntity('vessel_checklists'),
+  vessel_checklist_runs: makeEntity('vessel_checklist_runs'),
 };

@@ -56,7 +56,6 @@ const VESSEL_DETAIL_TOUR_STEPS = [
 ];
 import VehicleInfoSection from "../components/vehicle/VehicleInfoSection";
 import MaintenanceSection from "../components/vehicle/MaintenanceSection";
-import ChecklistsSection from "../components/vehicle/ChecklistsSection";
 import CorkBoard from "../components/vehicle/CorkBoard";
 import { SafeComponent } from "../components/shared/SafeComponent";
 import { useAuth } from "../components/shared/GuestContext";
@@ -620,12 +619,13 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           <RemindersPreview vehicle={vehicle} T={T} />
         </div>
 
-        {/* Pre/Post-trip editable checklists — vessels only. */}
+        {/* Pre/Post-trip checklists — vessels only. CTA card opens the
+            dedicated /ChecklistHub page where the user actually runs the
+            checklist. Keeping a lightweight entry point here preserves
+            discoverability from the vessel page. */}
         {isVessel && (
           <div data-tour="vd-checklists">
-            <SafeComponent label="ChecklistsSection">
-              <ChecklistsSection vehicle={vehicle} />
-            </SafeComponent>
+            <ChecklistsEntryCard vehicleId={vehicle.id} navigate={navigate} />
           </div>
         )}
 
@@ -641,5 +641,40 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Entry card for the vessel-only checklist hub.                              */
+/* Kept minimal on purpose — the full experience lives on /ChecklistHub.      */
+/* -------------------------------------------------------------------------- */
+
+function ChecklistsEntryCard({ vehicleId, navigate }) {
+  const handleOpen = () => {
+    navigate(`${createPageUrl('ChecklistHub')}?vehicleId=${vehicleId}`);
+  };
+  return (
+    <button onClick={handleOpen}
+      className="w-full text-right rounded-2xl p-4 transition-all active:translate-y-px"
+      style={{
+        background: 'linear-gradient(135deg, #065A6E 0%, #0C7B93 100%)',
+        boxShadow: '0 6px 20px rgba(12,123,147,0.28)',
+        color: '#fff',
+      }} dir="rtl">
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-black text-base">צ'ק ליסטים</p>
+          <p className="text-xs opacity-85 mt-0.5">בדיקות מנוע, לפני יציאה וסיום. לחץ כדי להתחיל.</p>
+        </div>
+        <div className="text-white/80 text-lg">←</div>
+      </div>
+    </button>
   );
 }
