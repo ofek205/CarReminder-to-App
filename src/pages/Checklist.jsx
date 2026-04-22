@@ -245,7 +245,9 @@ export default function Checklist() {
       }
     }
 
-    // 3) optional vessel_issues row
+    // 3) optional vessel_issues row. Mirrors the field list the existing
+    //    VesselIssuesSection writes so the new rows render there without
+    //    a migration (created_date is the display key).
     if (addToIssues) {
       try {
         const created = await db.vessel_issues.create({
@@ -256,6 +258,7 @@ export default function Checklist() {
           category: 'other',
           priority: 'medium',
           status: 'open',
+          created_date: new Date().toISOString(),
         });
         issueId = created?.id || null;
       } catch (e) {
@@ -327,7 +330,10 @@ export default function Checklist() {
   if (!items) return <LoadingSpinner />;
 
   return (
-    <div dir="rtl" className="pb-28">
+    // pb-[160px]: leave room for the sticky finish footer (~68px) + the
+    // BottomNav underneath (~64px) so the last checklist item is never
+    // hidden behind them.
+    <div dir="rtl" className="pb-[160px]">
       {/* Sticky header */}
       <div className="sticky top-0 z-20 bg-white border-b border-slate-200"
         style={{ paddingTop: 'env(safe-area-inset-top, 0)' }}>
@@ -368,9 +374,13 @@ export default function Checklist() {
         ))}
       </div>
 
-      {/* Sticky footer */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white px-4 py-3 z-20"
-        style={{ paddingBottom: `calc(env(safe-area-inset-bottom, 0) + 12px)` }}>
+      {/* Sticky footer.
+          Positioned ABOVE the BottomNav (z-40, ~64px tall) so the "סיום"
+          button stays visible on small screens without covering the main
+          navigation. lg:bottom-0 restores the default on desktop where
+          no BottomNav is drawn. */}
+      <div className="fixed left-0 right-0 border-t border-slate-200 bg-white px-4 py-3 z-40 bottom-[64px] lg:bottom-0"
+        style={{ paddingBottom: '12px' }}>
         <button onClick={handleFinish}
           disabled={finishing || !items.length}
           className="w-full h-12 rounded-2xl font-extrabold text-base text-white active:translate-y-px transition-all disabled:opacity-50"

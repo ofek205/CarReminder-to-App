@@ -56,6 +56,7 @@ const VESSEL_DETAIL_TOUR_STEPS = [
 ];
 import VehicleInfoSection from "../components/vehicle/VehicleInfoSection";
 import MaintenanceSection from "../components/vehicle/MaintenanceSection";
+import VesselIssuesSection from "../components/vehicle/VesselIssuesSection";
 import CorkBoard from "../components/vehicle/CorkBoard";
 import { SafeComponent } from "../components/shared/SafeComponent";
 import { useAuth } from "../components/shared/GuestContext";
@@ -634,6 +635,13 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             <MaintenanceSection vehicle={vehicle} />
           </SafeComponent>
         </div>
+        {/* Vessel-only: list of open/active issues on the boat. Checklist
+            runs can auto-push issues here via the opt-in checkbox. */}
+        {isVessel && (
+          <SafeComponent label="VesselIssuesSection">
+            <VesselIssuesSection vehicle={vehicle} readOnly={isViewOnly(role)} />
+          </SafeComponent>
+        )}
         <div data-tour="vd-corkboard">
           <SafeComponent label="CorkBoard">
             <CorkBoard vehicle={vehicle} readOnly={isViewOnly(role)} />
