@@ -166,9 +166,9 @@ function renderTemplate(template: any, rawVars: Record<string, unknown>) {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: buildCors(req) });
-  if (req.method !== 'POST')    return json({ error: 'Method not allowed' }, 405, req, 200, req);
+  if (req.method !== 'POST')    return json({ error: 'Method not allowed' }, 405, req);
   if (!RESEND_API_KEY || !SUPABASE_URL || !SERVICE_ROLE) {
-    return json({ error: 'Missing RESEND_API_KEY / SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY' }, 500, req, 200, req);
+    return json({ error: 'Missing RESEND_API_KEY / SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY' }, 500, req);
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
@@ -176,11 +176,11 @@ serve(async (req) => {
   });
 
   const auth = await authorizeCaller(req, supabase);
-  if (!auth.ok) return json({ error: 'unauthorized', reason: auth.reason }, 401, req, 200, req);
+  if (!auth.ok) return json({ error: 'unauthorized', reason: auth.reason }, 401, req);
 
   let body: { notificationKey?: string; dryRun?: boolean } = {};
   try { body = await req.json(); } catch { /* empty is invalid here */ }
-  if (!body.notificationKey) return json({ error: 'notificationKey is required' }, 400, req, 200, req);
+  if (!body.notificationKey) return json({ error: 'notificationKey is required' }, 400, req);
   const dryRun = !!body.dryRun;
 
   // 1. Kill switch.
@@ -193,14 +193,14 @@ serve(async (req) => {
   // 2. Template.
   const { data: tplRows, error: tplErr } = await supabase
     .rpc('get_email_template', { p_key: body.notificationKey });
-  if (tplErr || !tplRows?.length) return json({ error: `Template missing: ${tplErr?.message || body.notificationKey}` }, 400, 200, req);
+  if (tplErr || !tplRows?.length) return json({ error: `Template missing: ${tplErr?.message || body.notificationKey}` }, 400, req);
   const template = tplRows[0];
   if (template.enabled === false) return json({ ok: false, disabled: true }, 200, req);
 
   // 3. Recipients.
   const { data: recipients, error: recErr } = await supabase
     .rpc('email_broadcast_recipients', { p_notification_key: body.notificationKey });
-  if (recErr) return json({ error: `Recipients query: ${recErr.message}` }, 500, 200, req);
+  if (recErr) return json({ error: `Recipients query: ${recErr.message}` }, 500, req);
 
   const stats = { matched: recipients?.length || 0, sent: 0, skipped: 0, errors: 0, errorDetails: [] as string[] };
   const refDate = new Date().toISOString().slice(0, 10);   // today, for idempotency

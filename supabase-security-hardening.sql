@@ -180,6 +180,17 @@ create policy accounts_insert_owner on public.accounts
 -- with a numeric pseudo-id), but author_name is generated here, not by
 -- the client.
 
+-- Ensure the anonymity columns exist. The UI already reads/writes these
+-- and older schemas may be missing them; ADD COLUMN IF NOT EXISTS keeps
+-- this idempotent and stops the triggers below from throwing on
+-- column-not-found.
+alter table if exists public.community_posts
+  add column if not exists is_anonymous boolean not null default false,
+  add column if not exists anonymous_number int;
+alter table if exists public.community_comments
+  add column if not exists is_anonymous boolean not null default false,
+  add column if not exists anonymous_number int;
+
 create or replace function public.community_posts_set_author()
 returns trigger
 language plpgsql

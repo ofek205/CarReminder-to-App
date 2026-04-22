@@ -24,8 +24,11 @@
 //   ALLOWED_ORIGIN          (optional — comma-separated CORS whitelist)
 //
 // Rate limit:
-//   Per-user soft cap via the public.rate_limit_counters table (created in
-//   the security hardening SQL). 60 requests per user per rolling hour.
+//   Per-user soft cap via the public.rate_limit_counters table and the
+//   rate_limit_check(kind, max_per_min) RPC. Bucket is ai_proxy:<user_id>
+//   so counters don't collide between users. Limit: 10 requests per user
+//   per rolling minute (≈600/hr), enough for interactive use but blocks
+//   a compromised token from draining the provider quota.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
@@ -36,7 +39,10 @@ const SERVICE_ROLE     = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const GEMINI_KEY       = Deno.env.get('GEMINI_API_KEY');
 const GROQ_KEY         = Deno.env.get('GROQ_API_KEY');
 const ANTHROPIC_KEY    = Deno.env.get('ANTHROPIC_API_KEY');
-const ALLOWED_ORIGIN   = Deno.env.get('ALLOWED_ORIGIN') || '';
+// Fail-closed default. If ALLOWED_ORIGIN isn't configured we refuse all
+// browser origins rather than echo whatever the caller sent. Same pattern
+// as dispatch-reminder-emails.
+const ALLOWED_ORIGIN   = Deno.env.get('ALLOWED_ORIGIN') || 'https://car-reminder.app';
 
 const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 const GROQ_URL      = 'https://api.groq.com/openai/v1/chat/completions';
@@ -45,7 +51,10 @@ const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 function buildCors(req: Request): HeadersInit {
   const origin = req.headers.get('origin') || '';
   const allowList = ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
-  const allow = allowList.length === 0 || allowList.includes(origin) ? origin : allowList[0] || 'null';
+  // Only echo the caller's origin if it's in the whitelist. Otherwise
+  // advertise the first allowed origin, which will trigger a browser
+  // CORS failure for unauthorised callers instead of silently succeeding.
+  const allow = allowList.includes(origin) ? origin : (allowList[0] || 'null');
   return {
     'Access-Control-Allow-Origin':  allow,
     'Access-Control-Allow-Headers': 'authorization, content-type',
