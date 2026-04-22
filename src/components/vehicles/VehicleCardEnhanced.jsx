@@ -299,20 +299,22 @@ function VehicleCardEnhanced({ vehicle }) {
               <StatusBadge status={insStatus.status} label={insStatus.label} />
             </div>
 
-            {/* Missing fields. compact chip with count. Click navigates to edit.
-                Previously this was a wide banner shown on nearly every card,
-                adding visual noise. Now it's a single compact chip with a
-                tooltip-title listing the missing fields for hover/long-press. */}
+            {/* Missing fields chip. Matches the dashboard format: names the
+                specific missing fields so the user knows exactly what to fix,
+                not just a count. For 1-2 fields lists them inline; for more,
+                falls back to "חסרים N פרטים: X, Y…" */}
             {hasMissing && (
               <button
                 onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(`${createPageUrl('EditVehicle')}?id=${vehicle.id}`); }}
-                title={`חסר: ${missingFields.join(', ')}`}
+                title={`חסר: ${missingFields.join(', ')}. לחץ להשלמה`}
                 aria-label={`השלם פרטים חסרים: ${missingFields.join(', ')}`}
                 className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full transition-all active:scale-[0.98]"
                 style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
                 <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} aria-hidden="true" />
                 <span className="text-[10px] font-bold" style={{ color: '#EA580C' }}>
-                  השלם {missingFields.length} פרטים
+                  {missingFields.length <= 2
+                    ? `חסר: ${missingFields.join(', ')}`
+                    : `חסרים ${missingFields.length} פרטים: ${missingFields.slice(0, 2).join(', ')}…`}
                 </span>
               </button>
             )}
