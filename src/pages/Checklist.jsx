@@ -27,9 +27,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { db } from '@/lib/supabaseEntities';
 import { PHASE_LABELS } from '@/lib/checklistTemplates';
-import { ArrowRight, Check, X, Minus, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Check, X, Minus, AlertCircle, CheckCircle2, Pin, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
 import { isToday } from 'date-fns';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
@@ -97,6 +101,9 @@ export default function Checklist() {
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const saveTimerRef = useRef(null);
+
+  // Issue-sheet state — which item is having its issue captured
+  const [issueItemId, setIssueItemId] = useState(null);
 
   // Load template + existing draft on mount
   useEffect(() => {
@@ -196,11 +203,78 @@ export default function Checklist() {
     });
   };
 
-  const handleIssue = (itemId) => {
-    // Placeholder until next commit ships the proper bottom-sheet modal.
-    const note = window.prompt('תאר את התקלה:', '');
-    if (note === null) return; // cancelled
-    setItemStatus(itemId, 'issue', note.trim() || '(ללא פירוט)');
+  const handleIssueClick = (itemId) => {
+    setIssueItemId(itemId);
+  };
+
+  /**
+   * Persist an issue for the given item. Called by IssueNoteSheet when
+   * the user taps Save. Besides updating the checklist item itself, it
+   * optionally creates a corkboard note and/or a vessel_issues row based
+   * on the user's opt-in checkboxes.
+   *
+   * Both side-effects are best-effort: a DB hiccup here must not strand
+   * the user mid-checklist. We swallow errors and just toast.
+   */
+  const saveIssue = async ({ note, addToCorkboard, addToIssues }) => {
+    if (!issueItemId || !accountId) return;
+    const itemRef = items.find(i => i.id === issueItemId);
+    const itemTitle = itemRef?.text || 'תקלה בצ\'ק ליסט';
+    const fullNote = (note || '').trim() || '(ללא פירוט)';
+
+    // 1) update the checklist item
+    let corkNoteId = null;
+    let issueId = null;
+
+    // 2) optional cork note
+    if (addToCorkboard) {
+      try {
+        const created = await db.cork_notes.create({
+          vehicle_id: vehicleId,
+          title: `תקלה: ${itemTitle}`,
+          content: fullNote,
+          color: '#FEF3C7',
+          priority: 'high',
+          category: 'תקלות',
+          is_done: false,
+        });
+        corkNoteId = created?.id || null;
+      } catch (e) {
+        if (import.meta.env.DEV) console.warn('cork note failed:', e?.message);
+        toast.error('פתק הלוח לא נוצר, אבל התקלה נשמרה');
+      }
+    }
+
+    // 3) optional vessel_issues row
+    if (addToIssues) {
+      try {
+        const created = await db.vessel_issues.create({
+          vehicle_id: vehicleId,
+          account_id: accountId,
+          title: itemTitle,
+          description: `${fullNote}\n\nזוהה בצ'ק ליסט: ${PHASE_LABELS[phase] || phase}`,
+          category: 'other',
+          priority: 'medium',
+          status: 'open',
+        });
+        issueId = created?.id || null;
+      } catch (e) {
+        if (import.meta.env.DEV) console.warn('vessel_issue failed:', e?.message);
+        toast.error('רשומת התקלה בסירה לא נוצרה, אבל התקלה נשמרה');
+      }
+    }
+
+    // 4) apply to the item in memory + persist the run
+    setItems(prev => {
+      const next = prev.map(it => it.id === issueItemId
+        ? { ...it, status: 'issue', note: fullNote, cork_note_id: corkNoteId, issue_id: issueId }
+        : it
+      );
+      scheduleSave(next);
+      return next;
+    });
+    setIssueItemId(null);
+    toast.success('התקלה נשמרה');
   };
 
   const handleFinish = async () => {
@@ -285,7 +359,7 @@ export default function Checklist() {
               {g.items.map(it => (
                 <ItemRow key={it.id} item={it}
                   onDone={() => setItemStatus(it.id, it.status === 'done' ? 'pending' : 'done')}
-                  onIssue={() => handleIssue(it.id)}
+                  onIssue={() => handleIssueClick(it.id)}
                   onSkip={() => setItemStatus(it.id, it.status === 'skip' ? 'pending' : 'skip')}
                 />
               ))}
@@ -304,6 +378,15 @@ export default function Checklist() {
           {finishing ? 'שומר…' : 'סיום ושמירה'}
         </button>
       </div>
+
+      {/* Issue note bottom sheet */}
+      <IssueNoteSheet
+        open={!!issueItemId}
+        itemText={items.find(i => i.id === issueItemId)?.text || ''}
+        initialNote={items.find(i => i.id === issueItemId)?.note || ''}
+        onClose={() => setIssueItemId(null)}
+        onSave={saveIssue}
+      />
     </div>
   );
 }
@@ -378,5 +461,125 @@ function ActionChip({ active, activeColor, activeBg, icon: Icon, label, onClick 
       <Icon className="w-3.5 h-3.5" strokeWidth={2.5} />
       {label}
     </button>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Issue capture sheet                                                        */
+/*                                                                            */
+/* Slides up from the bottom when the user flags a checklist item as תקלה.    */
+/* Captures a free-text note (required by product decision) and two           */
+/* opt-in switches:                                                           */
+/*   ▢ הוסף ללוח ההודעות של הכלי   (Q3 — default OFF)                          */
+/*   ▢ הוסף לרשימת התקלות בסירה    (Q2 — default OFF)                          */
+/* -------------------------------------------------------------------------- */
+
+function IssueNoteSheet({ open, itemText, initialNote, onClose, onSave }) {
+  const [note, setNote] = useState('');
+  const [addToCorkboard, setAddToCorkboard] = useState(false);
+  const [addToIssues, setAddToIssues] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setNote(initialNote || '');
+      setAddToCorkboard(false);
+      setAddToIssues(false);
+      setSaving(false);
+    }
+  }, [open, initialNote]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave({
+        note: note.trim(),
+        addToCorkboard,
+        addToIssues,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <SheetContent side="bottom" dir="rtl"
+        className="rounded-t-3xl max-h-[90vh] overflow-y-auto">
+        <SheetHeader className="text-right">
+          <SheetTitle className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+            תקלה בפריט
+          </SheetTitle>
+          <SheetDescription className="text-right">
+            <span className="font-bold text-slate-700">{itemText}</span>
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="mt-4 space-y-4">
+          <div>
+            <label className="text-xs font-bold text-slate-700 mb-1.5 block">
+              תיאור התקלה
+            </label>
+            <Textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="מה מצאת? דוגמה: דליפת שמן מצד ימין, או חיבור רופף במצבר."
+              rows={4}
+              autoFocus
+              className="resize-none"
+            />
+          </div>
+
+          <div className="space-y-3 pt-1">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                checked={addToCorkboard}
+                onCheckedChange={(v) => setAddToCorkboard(!!v)}
+                className="mt-0.5"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  <Pin className="w-3.5 h-3.5 text-amber-600" />
+                  הוסף ללוח ההודעות
+                </p>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  פתק חדש יופיע בלוח של הכלי, כדי שלא תשכח.
+                </p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <Checkbox
+                checked={addToIssues}
+                onCheckedChange={(v) => setAddToIssues(!!v)}
+                className="mt-0.5"
+              />
+              <div className="flex-1">
+                <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                  הוסף לרשימת התקלות בסירה
+                </p>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  רישום רשמי במאגר התקלות של הכלי, למעקב עד לסיום.
+                </p>
+              </div>
+            </label>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" onClick={onClose} className="flex-1" disabled={saving}>
+              ביטול
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving || !note.trim()}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white">
+              {saving ? 'שומר…' : 'שמור תקלה'}
+            </Button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
