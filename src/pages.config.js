@@ -37,6 +37,8 @@ const EmailCenter = React.lazy(() => import('./pages/EmailCenter'));
 const NotificationPreferences = React.lazy(() => import('./pages/NotificationPreferences'));
 const ChecklistHub = React.lazy(() => import('./pages/ChecklistHub'));
 const Checklist = React.lazy(() => import('./pages/Checklist'));
+const ChecklistEditor = React.lazy(() => import('./pages/ChecklistEditor'));
+const ChecklistHistory = React.lazy(() => import('./pages/ChecklistHistory'));
 
 export const PAGES = {
     "Accidents": Accidents,
@@ -70,6 +72,8 @@ export const PAGES = {
     "NotificationPreferences": NotificationPreferences,
     "ChecklistHub": ChecklistHub,
     "Checklist": Checklist,
+    "ChecklistEditor": ChecklistEditor,
+    "ChecklistHistory": ChecklistHistory,
 }
 
 export const pagesConfig = {

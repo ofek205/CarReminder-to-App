@@ -167,9 +167,18 @@ export default function ChecklistHub() {
             run={run}
             status={status}
             onOpen={() => navigate(`${createPageUrl('Checklist')}?vehicleId=${vehicleId}&phase=${phase}`)}
-            onEdit={() => navigate(`${createPageUrl('Checklist')}?vehicleId=${vehicleId}&phase=${phase}&edit=1`)}
+            onEdit={() => navigate(`${createPageUrl('ChecklistEditor')}?vehicleId=${vehicleId}&phase=${phase}`)}
           />
         ))}
+      </div>
+
+      {/* Footer actions */}
+      <div className="px-4 mt-6 flex gap-2">
+        <button
+          onClick={() => navigate(`${createPageUrl('ChecklistHistory')}?vehicleId=${vehicleId}`)}
+          className="flex-1 h-10 rounded-xl text-sm font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all">
+          היסטוריה
+        </button>
       </div>
     </div>
   );
