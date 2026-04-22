@@ -192,11 +192,27 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
     toast.success('הפרטים מולאו אוטומטית');
   };
 
+  // Validation rules:
+  //   1. A vehicle MUST be selected so the document is filed against the
+  //      right asset. Admins have complained that loose documents end up
+  //      hard to find.
+  //   2. EITHER a meaningful title OR a specific (non-default) category
+  //      must be filled so the document is categorised in some way.
+  const titleFilled = (form.title || '').trim().length > 0;
+  const categoryPicked = form.document_type && form.document_type !== 'מסמך אחר';
+  const vehicleSelected = !!(form.vehicle_id || vehicleIdParam);
+
+  const validationErrors = [];
+  if (!vehicleSelected)                    validationErrors.push('יש לבחור כלי רכב');
+  if (!titleFilled && !categoryPicked)     validationErrors.push('יש למלא כותרת או לבחור קטגוריה ספציפית');
+
   const handleSave = () => {
+    if (validationErrors.length > 0) return; // button is disabled too, this is a belt-and-suspenders
     onSave(form);
   };
 
-  const canSave = isGuest ? (form.title || form.document_type) : form.file_url;
+  const baseAllow = isGuest ? (form.title || form.document_type) : form.file_url;
+  const canSave = baseAllow && validationErrors.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -329,13 +345,20 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
 
           {/*  Title  */}
           <div>
-            <Label className="text-right block mb-1.5">כותרת / שם המסמך</Label>
+            <Label className="text-right block mb-1.5">
+              כותרת / שם המסמך
+              {!categoryPicked && <span className="text-red-500 mr-1">*</span>}
+            </Label>
             <Input
               dir="rtl"
-              placeholder="לדוגמה: מגדל ביטוח - פוליסה 12345"
+              placeholder="לדוגמה: מגדל ביטוח פוליסה 12345"
               value={form.title}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              className={!titleFilled && !categoryPicked ? 'border-amber-300 bg-amber-50/30' : ''}
             />
+            {!titleFilled && !categoryPicked && (
+              <p className="text-[11px] text-amber-700 mt-1">יש למלא כותרת או לבחור קטגוריה ספציפית למעלה</p>
+            )}
           </div>
 
           {/*  Description  */}
@@ -351,18 +374,26 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             />
           </div>
 
-          {/*  Vehicle selector  */}
+          {/*  Vehicle selector. Required so every doc is filed against a vehicle. */}
           {!vehicleIdParam && vehicles && vehicles.length > 0 && (
             <div>
-              <Label className="text-right block mb-1.5">רכב (אופציונלי)</Label>
+              <Label className="text-right block mb-1.5">
+                רכב <span className="text-red-500 mr-1">*</span>
+              </Label>
               <Select value={form.vehicle_id} onValueChange={v => setForm(f => ({ ...f, vehicle_id: v }))}>
-                <SelectTrigger dir="rtl"><SelectValue placeholder="בחר רכב" /></SelectTrigger>
+                <SelectTrigger dir="rtl"
+                  className={!form.vehicle_id ? 'border-amber-300 bg-amber-50/30' : ''}>
+                  <SelectValue placeholder="בחר רכב לשיוך המסמך" />
+                </SelectTrigger>
                 <SelectContent>
                   {vehicles.map(v => (
                     <SelectItem key={v.id} value={v.id}>{v.nickname || `${v.manufacturer} ${v.model}`}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {!form.vehicle_id && (
+                <p className="text-[11px] text-amber-700 mt-1">כל מסמך חייב להיות משויך לרכב</p>
+              )}
             </div>
           )}
 
@@ -380,7 +411,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
 
           <Button
             onClick={handleSave}
-            disabled={saving || (!isGuest && !form.file_url)}
+            disabled={saving || !canSave}
             className="w-full bg-[#2D5233] hover:bg-[#1E3D24] text-white"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'שמור מסמך'}
