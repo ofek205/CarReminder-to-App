@@ -436,10 +436,10 @@ function NotificationBell() {
           const testWord = isVessel ? 'כושר שייט' : 'טסט';
 
           // 1. טסט / כושר שייט
-          // רכב אספנות = is_vintage OR year >= 20 years old (regardless of category)
+          // רכב אספנות = is_vintage OR year >= 30 years old (regardless of category)
           const vehicleAge = v.year ? now.getFullYear() - Number(v.year) : 0;
-          // כל כלי רכב מעל 20 שנה = אספנות (רכב, אופנוע, משאית, כל דבר חוץ מכלי שייט)
-          const isVintage = !isVessel && (v.is_vintage || vehicleAge >= 20 || v.vehicle_type === 'רכב אספנות');
+          // כל כלי רכב מעל 30 שנה = אספנות (רכב, אופנוע, משאית, כל דבר חוץ מכלי שייט)
+          const isVintage = !isVessel && (v.is_vintage || vehicleAge >= 30 || v.vehicle_type === 'רכב אספנות');
 
           if (v.test_due_date) {
             let nextTestDate = new Date(v.test_due_date);

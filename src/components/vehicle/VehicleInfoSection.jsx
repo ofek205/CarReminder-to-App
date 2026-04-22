@@ -599,7 +599,7 @@ export default function VehicleInfoSection({ vehicle }) {
     <div className="space-y-4" dir="rtl">
 
       {/*  Vintage badge  */}
-      {!vesselMode && (vehicle.is_vintage || (vehicle.year && new Date().getFullYear() - Number(vehicle.year) >= 20) || vehicle.vehicle_type === 'רכב אספנות') && (
+      {!vesselMode && (vehicle.is_vintage || (vehicle.year && new Date().getFullYear() - Number(vehicle.year) >= 30) || vehicle.vehicle_type === 'רכב אספנות') && (
         <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
           style={{ background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', border: '1.5px solid #DDD6FE' }}>
           <span className="text-lg">🏛️</span>

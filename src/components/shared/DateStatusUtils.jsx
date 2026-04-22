@@ -100,10 +100,15 @@ export function usesHours(vehicleOrType, nickname) {
   return false;
 }
 
-/** Returns true if the vehicle is considered vintage (age >= 20 years). */
+// Cars / motorcycles / trucks etc. become "vintage" (רכב אספנות) at 30
+// years old. The threshold is NOT applied to vessels (כלי שייט),
+// which have their own regulatory cycle.
+export const VINTAGE_AGE_YEARS = 30;
+
+/** Returns true if the vehicle is considered vintage. Land vehicles only. */
 export function isVintageVehicle(year) {
   if (!year) return false;
-  return new Date().getFullYear() - Number(year) >= 20;
+  return new Date().getFullYear() - Number(year) >= VINTAGE_AGE_YEARS;
 }
 
 /**

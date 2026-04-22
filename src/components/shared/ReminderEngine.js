@@ -106,7 +106,10 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
     const vName = v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || vLabels.vehicleFallback;
     const isV = isVessel(v.vehicle_type, v.nickname);
     const vehicleAge = v.year ? now.getFullYear() - Number(v.year) : 0;
-    const isVintage = !isV && (v.is_vintage || vehicleAge >= 20);
+    // Vintage threshold: 30 years for every non-vessel type (cars,
+    // motorcycles, trucks, off-road, etc.). Vessels have their own
+    // regulatory cycle and are excluded.
+    const isVintage = !isV && (v.is_vintage || vehicleAge >= 30);
 
     // 1. Test / כושר שייט (with vintage logic)
     if (v.test_due_date) {
