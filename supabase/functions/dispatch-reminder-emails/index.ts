@@ -31,18 +31,48 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+// Shared secret for cron/admin invocations. Generated once; set both here
+// and in the pg_cron job that calls us. Without it, every caller must be
+// an authenticated admin (checked via JWT below).
+const DISPATCH_SECRET = Deno.env.get('DISPATCH_SECRET');
+// Allowed origin for browser-initiated calls (admin EmailCenter UI).
+const ALLOWED_ORIGIN  = Deno.env.get('APP_ORIGIN') || 'https://car-reminder.app';
 
-const corsHeaders: HeadersInit = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+function buildCors(req: Request): HeadersInit {
+  const origin = req.headers.get('origin') || '';
+  const allow  = origin === ALLOWED_ORIGIN ? origin : ALLOWED_ORIGIN;
+  return {
+    'Access-Control-Allow-Origin':  allow,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-dispatch-secret',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary':                         'Origin',
+  };
+}
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+/** Returns true if the caller is allowed to invoke this function. */
+async function authorizeCaller(req: Request, supabaseAdmin: any): Promise<{ ok: boolean; reason?: string }> {
+  // Path A: shared secret header — used by pg_cron and trusted integrations.
+  const headerSecret = req.headers.get('x-dispatch-secret');
+  if (DISPATCH_SECRET && headerSecret && headerSecret === DISPATCH_SECRET) {
+    return { ok: true };
+  }
+  // Path B: authenticated admin JWT from the browser.
+  const authHeader = req.headers.get('authorization') || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '');
+  if (!token) return { ok: false, reason: 'missing authorization' };
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !user) return { ok: false, reason: 'invalid token' };
+  const role = (user.user_metadata as any)?.role;
+  if (role !== 'admin') return { ok: false, reason: 'not an admin' };
+  return { ok: true };
+}
+
+function json(body: unknown, status = 200, req?: Request) {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(req ? buildCors(req) : {}),
+  };
+  return new Response(JSON.stringify(body), { status, headers });
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -269,20 +299,26 @@ async function processTrigger(
 // ── Entry point ────────────────────────────────────────────────────────────
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: buildCors(req) });
 
   if (!RESEND_API_KEY || !SUPABASE_URL || !SERVICE_ROLE) {
-    return json({ error: 'Missing secrets: RESEND_API_KEY / SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY' }, 500);
+    return json({ error: 'Missing secrets: RESEND_API_KEY / SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY' }, 500, req);
+  }
+
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // Authorization gate: either the shared cron secret OR an admin JWT.
+  const auth = await authorizeCaller(req, supabase);
+  if (!auth.ok) {
+    return json({ error: 'unauthorized', reason: auth.reason }, 401, req);
   }
 
   // Parse optional body: { keys?: string[], dryRun?: bool }
   let body: { keys?: string[]; dryRun?: boolean } = {};
   try { body = await req.json(); } catch { /* empty body is fine */ }
   const dryRun = !!body.dryRun;
-
-  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
 
   // 1. Kill switch gate.
   const { data: settings } = await supabase
@@ -291,7 +327,7 @@ serve(async (req) => {
     .eq('id', 1)
     .maybeSingle();
   if (settings?.emails_paused) {
-    return json({ ok: false, paused: true, reason: settings.pause_reason || null, skipped: true });
+    return json({ ok: false, paused: true, reason: settings.pause_reason || null, skipped: true }, 200, req);
   }
 
   // 2. Which triggers to run?
@@ -303,12 +339,12 @@ serve(async (req) => {
       .from('email_triggers')
       .select('notification_key')
       .eq('enabled', true);
-    if (error) return json({ error: error.message }, 500);
+    if (error) return json({ error: error.message }, 500, req);
     triggerKeys = (triggers || []).map(t => t.notification_key);
   }
 
   if (triggerKeys.length === 0) {
-    return json({ ok: true, message: 'No enabled triggers', runs: [] });
+    return json({ ok: true, message: 'No enabled triggers', runs: [] }, 200, req);
   }
 
   // 3. Process each trigger sequentially (Resend rate limit-friendly).
@@ -327,5 +363,5 @@ serve(async (req) => {
     { matched: 0, sent: 0, skipped: 0, errors: 0 },
   );
 
-  return json({ ok: true, dryRun, totals, runs });
+  return json({ ok: true, dryRun, totals, runs }, 200, req);
 });

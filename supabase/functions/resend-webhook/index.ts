@@ -36,8 +36,11 @@ const SUPABASE_URL          = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE          = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const WEBHOOK_SECRET        = Deno.env.get('RESEND_WEBHOOK_SECRET'); // optional
 
+// Resend webhook only receives POSTs from Resend's servers. No browser
+// should reach it, so CORS is minimal. We still set Origin for the
+// infrequent cases where a browser OPTIONS lands.
 const corsHeaders: HeadersInit = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin':  'null',
   'Access-Control-Allow-Headers': 'content-type, svix-id, svix-timestamp, svix-signature',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -53,8 +56,13 @@ function json(body: unknown, status = 200) {
 //   base64(hmac_sha256(secret, svix_id + "." + svix_timestamp + "." + body))
 // Verified against the `svix-signature` header (space-separated list of
 // `v1,base64signature` values).
+//
+// SECURITY: In this hardened version we REQUIRE a secret. Without one
+// configured, the function refuses all requests. Previously a missing
+// secret silently accepted everything, which let any attacker forge
+// email events.
 async function verifySvix(body: string, headers: Headers): Promise<boolean> {
-  if (!WEBHOOK_SECRET) return true;   // enforcement off until secret is set
+  if (!WEBHOOK_SECRET) return false;  // fail closed when unconfigured
   const svixId        = headers.get('svix-id');
   const svixTimestamp = headers.get('svix-timestamp');
   const svixSignature = headers.get('svix-signature');
