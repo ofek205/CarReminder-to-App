@@ -233,11 +233,18 @@ export default function Checklist() {
   /**
    * Persist an issue for the given item. Called by IssueNoteSheet when
    * the user taps Save. Besides updating the checklist item itself, it
-   * optionally creates a corkboard note and/or a vessel_issues row based
-   * on the user's opt-in checkboxes.
+   * optionally creates a corkboard note and/or a vessel_issues row.
    *
-   * Both side-effects are best-effort: a DB hiccup here must not strand
-   * the user mid-checklist. We swallow errors and just toast.
+   * Details that tripped us up in the last build:
+   *   • cork_notes.color expects a keyword ('yellow'/'pink'/'blue'/...),
+   *     not a hex code. Using a hex silently rendered the note invisible
+   *     in CorkBoard's color map.
+   *   • After inserting, we MUST invalidate the query keys that the
+   *     display components actually use, or the user won't see the new
+   *     row until a full page reload. CorkBoard uses ['cork-notes', id],
+   *     VesselIssuesSection uses ['vessel_issues', id].
+   *   • Errors used to be console.warn only; now we surface them via
+   *     toast.error so a silent RLS / missing-column failure is visible.
    */
   const saveIssue = async ({ note, addToCorkboard, addToIssues }) => {
     if (!issueItemId || !accountId) return;
@@ -245,32 +252,34 @@ export default function Checklist() {
     const itemTitle = itemRef?.text || 'תקלה בצ\'ק ליסט';
     const fullNote = (note || '').trim() || '(ללא פירוט)';
 
-    // 1) update the checklist item
     let corkNoteId = null;
     let issueId = null;
+    let corkFailed = false;
+    let issueFailed = false;
 
-    // 2) optional cork note
+    // 1) Optional cork note
     if (addToCorkboard) {
       try {
         const created = await db.cork_notes.create({
           vehicle_id: vehicleId,
           title: `תקלה: ${itemTitle}`,
           content: fullNote,
-          color: '#FEF3C7',
+          color: 'yellow',           // keyword (matches CorkBoard COLORS)
           priority: 'high',
-          category: 'תקלות',
+          category: null,
           is_done: false,
+          rotation: 0,
         });
         corkNoteId = created?.id || null;
+        qc.invalidateQueries({ queryKey: ['cork-notes', vehicleId] });
       } catch (e) {
-        if (import.meta.env.DEV) console.warn('cork note failed:', e?.message);
-        toast.error('פתק הלוח לא נוצר, אבל התקלה נשמרה');
+        corkFailed = true;
+        console.warn('[checklist] cork note failed:', e);
+        toast.error('פתק הלוח לא נוצר: ' + (e?.message || 'שגיאה'));
       }
     }
 
-    // 3) optional vessel_issues row. Mirrors the field list the existing
-    //    VesselIssuesSection writes so the new rows render there without
-    //    a migration (created_date is the display key).
+    // 2) Optional vessel_issues row
     if (addToIssues) {
       try {
         const created = await db.vessel_issues.create({
@@ -284,13 +293,15 @@ export default function Checklist() {
           created_date: new Date().toISOString(),
         });
         issueId = created?.id || null;
+        qc.invalidateQueries({ queryKey: ['vessel_issues', vehicleId] });
       } catch (e) {
-        if (import.meta.env.DEV) console.warn('vessel_issue failed:', e?.message);
-        toast.error('רשומת התקלה בסירה לא נוצרה, אבל התקלה נשמרה');
+        issueFailed = true;
+        console.warn('[checklist] vessel_issue failed:', e);
+        toast.error('רשומת התקלה לא נוצרה: ' + (e?.message || 'שגיאה'));
       }
     }
 
-    // 4) apply to the item in memory + persist the run
+    // 3) Apply to the item in memory + persist the run
     setItems(prev => {
       const next = prev.map(it => it.id === issueItemId
         ? { ...it, status: 'issue', note: fullNote, cork_note_id: corkNoteId, issue_id: issueId }
@@ -300,7 +311,14 @@ export default function Checklist() {
       return next;
     });
     setIssueItemId(null);
-    toast.success('התקלה נשמרה');
+
+    // 4) Final toast — reflect what actually happened
+    if (!corkFailed && !issueFailed) {
+      const parts = ['התקלה נשמרה'];
+      if (addToCorkboard) parts.push('נוסף פתק ללוח');
+      if (addToIssues) parts.push('נוסף לרשימת התקלות');
+      toast.success(parts.join(' · '));
+    }
   };
 
   const handleFinish = async () => {
