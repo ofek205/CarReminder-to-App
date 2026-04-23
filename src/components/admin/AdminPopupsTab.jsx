@@ -93,6 +93,9 @@ export default function AdminPopupsTab() {
       delete copy.id; delete copy.created_at; delete copy.updated_at; delete copy.created_by;
       copy.name = `${popup.name} (עותק)`;
       copy.status = 'draft';
+      // A duplicate of a system popup must lose the lock — otherwise the
+      // new row would inherit is_system=true and be uneditable too.
+      copy.is_system = false;
       const { error } = await supabase.from('admin_popups').insert(copy);
       if (error) throw error;
       toast.success('שוכפל');
@@ -275,18 +278,28 @@ function PopupRow({ popup, stats, onEdit, onToggle, onDuplicate, onDelete }) {
         {popup.updated_at ? new Date(popup.updated_at).toLocaleDateString('he-IL') : '—'}
       </td>
       <td className="px-4 py-3">
-        <div className="flex items-center gap-1">
-          <IconButton title="ערוך" onClick={onEdit}><Pencil className="w-3.5 h-3.5" /></IconButton>
-          <IconButton
-            title={popup.status === 'active' ? 'השהה' : 'הפעל'}
-            onClick={onToggle}>
-            {popup.status === 'active'
-              ? <Pause className="w-3.5 h-3.5" />
-              : <Play  className="w-3.5 h-3.5" />}
-          </IconButton>
-          <IconButton title="שכפל" onClick={onDuplicate}><Copy className="w-3.5 h-3.5" /></IconButton>
-          <IconButton title="מחק" onClick={onDelete} danger><Trash2 className="w-3.5 h-3.5" /></IconButton>
-        </div>
+        {/* System popups: view-only. Code owns their timing/content; the DB
+         * row exists as a catalog + analytics target only. Admin can still
+         * duplicate (to start a new popup seeded from the system layout). */}
+        {popup.is_system ? (
+          <div className="flex items-center gap-1">
+            <IconButton title="צפה בפרטים" onClick={onEdit}><Eye className="w-3.5 h-3.5" /></IconButton>
+            <IconButton title="שכפל (כטיוטה ניתנת לעריכה)" onClick={onDuplicate}><Copy className="w-3.5 h-3.5" /></IconButton>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <IconButton title="ערוך" onClick={onEdit}><Pencil className="w-3.5 h-3.5" /></IconButton>
+            <IconButton
+              title={popup.status === 'active' ? 'השהה' : 'הפעל'}
+              onClick={onToggle}>
+              {popup.status === 'active'
+                ? <Pause className="w-3.5 h-3.5" />
+                : <Play  className="w-3.5 h-3.5" />}
+            </IconButton>
+            <IconButton title="שכפל" onClick={onDuplicate}><Copy className="w-3.5 h-3.5" /></IconButton>
+            <IconButton title="מחק" onClick={onDelete} danger><Trash2 className="w-3.5 h-3.5" /></IconButton>
+          </div>
+        )}
       </td>
     </tr>
   );

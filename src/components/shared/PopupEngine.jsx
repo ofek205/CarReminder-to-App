@@ -50,6 +50,7 @@ export default function PopupEngine({ vehicles = [], mountGate = true }) {
           .from('admin_popups')
           .select('*')
           .eq('status', 'active')
+          .eq('is_system', false)  // system popups are code-driven; the row exists only for admin catalog + analytics
           .order('priority', { ascending: false });
         if (cancelled || error) return;
         setPopups(Array.isArray(data) ? data : []);

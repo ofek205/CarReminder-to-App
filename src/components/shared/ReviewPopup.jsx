@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { hapticFeedback } from "@/lib/capacitor";
 import { C } from "@/lib/designTokens";
+import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";
 
 const TITLE_MAX = 60;
 const BODY_MIN  = 10;
@@ -60,12 +61,22 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
   const [submitting, setSubmitting]   = useState(false);
   const [error, setError]             = useState('');
 
+  // Log a 'shown' event once per open → feeds the admin popup catalog.
+  useEffect(() => {
+    if (open) logSystemPopupEvent(SYSTEM_POPUP_IDS.reviewPrompt, 'shown');
+  }, [open]);
+
   const reset = () => {
     setRating(0); setTitle(''); setBody(''); setVehicleType('רכב');
     setSubmitting(false); setError('');
   };
 
   const handleClose = (result) => {
+    // 'submitted' is the success path; anything else is a dismissal.
+    logSystemPopupEvent(
+      SYSTEM_POPUP_IDS.reviewPrompt,
+      result === 'submitted' ? 'clicked' : 'dismissed'
+    );
     reset();
     onClose?.(result);
   };

@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Car, Wrench, Star, AlertTriangle, Sparkles, ScanLine, MapPin, Bell, Database } from "lucide-react";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
+import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";
 
 /**
  * WelcomePopup. post-login greeting modal.
@@ -18,8 +19,23 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
     ? `טוב שחזרת${firstName ? `, ${firstName}` : ''} 👋`
     : 'ברוך הבא 👋';
 
+  // Log a 'shown' event to admin_popup_events once per open → helps the
+  // admin popup catalog show real impressions for this system popup.
+  useEffect(() => {
+    if (open) logSystemPopupEvent(SYSTEM_POPUP_IDS.welcome, 'shown');
+  }, [open]);
+
+  const handleClose = () => {
+    logSystemPopupEvent(SYSTEM_POPUP_IDS.welcome, 'dismissed');
+    onClose?.();
+  };
+  const handleCta = () => {
+    logSystemPopupEvent(SYSTEM_POPUP_IDS.welcome, 'clicked');
+    onClose?.();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
       <DialogContent
         dir="rtl"
         className="max-w-md w-[calc(100vw-32px)] max-h-[90vh] p-0 overflow-y-auto overflow-x-hidden rounded-3xl border-0 shadow-2xl"
@@ -110,7 +126,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
             </div>
 
             {/* CTA */}
-            <PremiumCta onClick={onClose} label="נמשיך 🚗" />
+            <PremiumCta onClick={handleCta} label="נמשיך 🚗" />
 
             {/* Credit */}
             <p className="text-center text-[11px] text-gray-400 mt-4">פותח על ידי אופק אדלשטיין</p>
@@ -137,7 +153,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
                 body="מספר רישוי אחד, והמפרט המלא נטען מעצמו." />
             </div>
 
-            <PremiumCta onClick={onClose} label="נתחיל 🚗" />
+            <PremiumCta onClick={handleCta} label="נתחיל 🚗" />
 
             <p className="text-center text-[11px] text-gray-400 mt-4">פותח על ידי אופק אדלשטיין</p>
           </div>

@@ -50,6 +50,7 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
   const [form, setForm] = useState(() => popup ? mergeDefaults(popup) : DEFAULTS);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const isSystem = !!popup?.is_system;
 
   // Section expand/collapse. First two open by default (essentials).
   const [open, setOpen] = useState({
@@ -153,23 +154,46 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
           </h2>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleShowNow}
-            title="שלח את הפופ-אפ לסשן הנוכחי שלך (ללא פרסום למשתמשים אחרים)"
-            className="h-9 px-3 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-1.5 border border-amber-100">
-            <Eye className="w-3.5 h-3.5" /> הצג עכשיו לי בלבד
-          </button>
-          <button onClick={() => handleSave('draft')} disabled={saving}
-            className="h-9 px-3 rounded-lg text-xs font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-1.5 disabled:opacity-50">
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} שמור טיוטה
-          </button>
-          <button onClick={() => handleSave('active')} disabled={publishing || !canPublish}
-            title={canPublish ? '' : 'השלם שדות חובה כדי לפרסם'}
-            className="h-9 px-4 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
-            style={{ background: canPublish ? '#2D5233' : '#9CA3AF' }}>
-            {publishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Rocket className="w-3.5 h-3.5" />} פרסם
-          </button>
+          {isSystem ? (
+            <span className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-gray-100 text-gray-500">
+              🔒 פופ-אפ מערכת — צפייה בלבד
+            </span>
+          ) : (
+            <>
+              <button onClick={handleShowNow}
+                title="שלח את הפופ-אפ לסשן הנוכחי שלך (ללא פרסום למשתמשים אחרים)"
+                className="h-9 px-3 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-1.5 border border-amber-100">
+                <Eye className="w-3.5 h-3.5" /> הצג עכשיו לי בלבד
+              </button>
+              <button onClick={() => handleSave('draft')} disabled={saving}
+                className="h-9 px-3 rounded-lg text-xs font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 flex items-center gap-1.5 disabled:opacity-50">
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} שמור טיוטה
+              </button>
+              <button onClick={() => handleSave('active')} disabled={publishing || !canPublish}
+                title={canPublish ? '' : 'השלם שדות חובה כדי לפרסם'}
+                className="h-9 px-4 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                style={{ background: canPublish ? '#2D5233' : '#9CA3AF' }}>
+                {publishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Rocket className="w-3.5 h-3.5" />} פרסם
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* System-popup notice — pins right under the sticky bar. */}
+      {isSystem && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-3">
+          <Eye className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+          <div className="text-xs leading-relaxed text-amber-800">
+            <p className="font-bold">פופ-אפ של המערכת — צפייה בלבד</p>
+            <p className="mt-0.5">
+              התוכן והטיימינג של הפופ-אפ הזה מנוהלים בקוד (לוגיקה דינאמית שלא ניתן לבטא בעורך).
+              הדף הזה מציג את ההגדרות הנוכחיות ומאפשר לעקוב אחר הסטטיסטיקה.
+              אם תרצה גרסה הניתנת לעריכה — לחץ "שכפל" מהרשימה וערוך את העותק.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
