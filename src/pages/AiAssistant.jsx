@@ -427,68 +427,90 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
 
       {/* Vehicle picker + Disclaimer */}
       <div className="px-3 pt-3 pb-1 space-y-2 -mt-3 relative z-20" style={{ background: 'transparent' }}>
+        {/* Vehicle picker — same visual language as PostCreateDialog.
+         *
+         * The old picker was a small chip that users didn't realize was the
+         * key to personalised answers. The new card shows the full value
+         * prop upfront ("קבל תשובה מותאמת לרכב שלך") and flips to a warm,
+         * confirmed state when a vehicle is selected (photo + "ברוך יודע
+         * על N טיפולים אחרונים"). */}
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
           <PopoverTrigger asChild>
-            <button className="w-full flex items-center justify-between px-3 py-3 rounded-2xl transition-all active:scale-[0.99] hover:shadow-md"
-              style={{
-                background: '#fff',
-                border: `1.5px solid ${selectedVehicle ? C.primary + '40' : '#E5E7EB'}`,
-                boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-              }}>
-              <div className="flex items-center gap-2 min-w-0">
-                {selectedVehicle ? (
-                  <>
-                    {(() => {
-                      const { theme } = getVehicleVisual(selectedVehicle);
-                      return (
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: theme.light }}>
-                          <VehicleIcon vehicle={selectedVehicle} className="w-3.5 h-3.5" style={{ color: theme.primary }} />
+            {(() => {
+              const selTheme = selectedVehicle ? getVehicleVisual(selectedVehicle).theme : null;
+              const hasPhoto = !!selectedVehicle?.vehicle_photo;
+              return (
+                <button className="w-full flex items-center justify-between p-3.5 rounded-2xl transition-all active:scale-[0.99] hover:shadow-md"
+                  style={{
+                    background: selectedVehicle ? `linear-gradient(135deg, ${selTheme.light} 0%, #ffffff 100%)` : '#F0FDF4',
+                    border: `2px solid ${selectedVehicle ? selTheme.primary + '55' : C.primary + '40'}`,
+                    boxShadow: selectedVehicle ? `0 2px 12px ${selTheme.primary}15` : `0 2px 12px ${C.primary}12`,
+                  }}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {selectedVehicle ? (
+                      <>
+                        <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center shrink-0"
+                          style={{ background: selTheme.light }}>
+                          {hasPhoto
+                            ? <img src={selectedVehicle.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                            : <VehicleIcon vehicle={selectedVehicle} className="w-6 h-6" style={{ color: selTheme.primary }} />}
                         </div>
-                      );
-                    })()}
-                    <div className="text-right min-w-0">
-                      <p className="text-[11px] font-bold truncate" style={{ color: '#1F2937' }}>
-                        {selectedVehicle.nickname || `${selectedVehicle.manufacturer || ''} ${selectedVehicle.model || ''}`.trim()}
-                      </p>
-                      <p className="text-[9px]" style={{ color: '#9CA3AF' }}>
-                        {selectedVehicle.year ? `${selectedVehicle.year} · ` : ''}
-                        {selectedVehicle.current_km ? `${Number(selectedVehicle.current_km).toLocaleString()} ק"מ · ` : ''}
-                        {maintenanceLogs.length > 0 ? `${maintenanceLogs.length} טיפולים מתועדים` : 'אין היסטוריה'}
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#F3F4F6' }}>
-                      <Sparkles className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[11px] font-bold" style={{ color: '#1F2937' }}>שאלה כללית</p>
-                      <p className="text-[9px]" style={{ color: '#9CA3AF' }}>לחץ לבחירת רכב ספציפי</p>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {selectedVehicle && (
-                  <button onClick={(e) => { e.stopPropagation(); setSelectedVehicleId(null); }}
-                    className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: '#F3F4F6' }}>
-                    <X className="w-3 h-3" style={{ color: '#9CA3AF' }} />
-                  </button>
-                )}
-                <ChevronDown className="w-4 h-4" style={{ color: '#9CA3AF' }} />
-              </div>
-            </button>
+                        <div className="text-right min-w-0">
+                          <p className="text-[14px] font-black truncate" style={{ color: '#111827' }}>
+                            {selectedVehicle.nickname || `${selectedVehicle.manufacturer || ''} ${selectedVehicle.model || ''}`.trim()}
+                          </p>
+                          <p className="text-[11px] font-bold flex items-center gap-1 mt-0.5" style={{ color: selTheme.primary }}>
+                            <Sparkles className="w-3 h-3" />
+                            {maintenanceLogs.length > 0
+                              ? `${expert.firstName} יודע על ${maintenanceLogs.length} טיפולים אחרונים`
+                              : `${expert.firstName} יענה מותאם לרכב הזה`}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                          style={{ background: C.primary, boxShadow: `0 4px 14px ${C.primary}40` }}>
+                          <Sparkles className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[14px] font-black" style={{ color: '#111827' }}>
+                            התייעץ על כלי תחבורה ספציפי
+                          </p>
+                          <p className="text-[11px] font-semibold mt-0.5" style={{ color: C.primary }}>
+                            קבל תשובה מותאמת לרכב שלך
+                            {vehicles.length > 0 ? ` · ${vehicles.length} ${vehicles.length === 1 ? 'כלי זמין' : 'כלים זמינים'}` : ''}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {selectedVehicle && (
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedVehicleId(null); }}
+                        className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-black/5 transition-colors"
+                        style={{ background: 'rgba(0,0,0,0.04)' }}
+                        aria-label="בטל בחירה">
+                        <X className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
+                      </button>
+                    )}
+                    <ChevronDown className={`w-5 h-5 transition-transform ${pickerOpen ? 'rotate-180' : ''}`}
+                      style={{ color: selectedVehicle ? selTheme.primary : C.primary }} />
+                  </div>
+                </button>
+              );
+            })()}
           </PopoverTrigger>
           <PopoverContent align="start" className="w-[calc(100vw-24px)] max-w-sm p-2 rounded-2xl" dir="rtl">
             <div className="space-y-1 max-h-72 overflow-y-auto">
               <button onClick={() => { setSelectedVehicleId(null); setPickerOpen(false); }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-right transition-all hover:bg-gray-50">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#F3F4F6' }}>
-                  <Sparkles className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all hover:bg-gray-50"
+                style={{ background: !selectedVehicle ? '#F3F4F6' : 'transparent' }}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#E5E7EB' }}>
+                  <Sparkles className="w-4 h-4" style={{ color: '#6B7280' }} />
                 </div>
                 <div className="flex-1 text-right">
-                  <p className="text-[12px] font-bold" style={{ color: '#1F2937' }}>שאלה כללית</p>
+                  <p className="text-[13px] font-bold" style={{ color: '#374151' }}>שאלה כללית</p>
                   <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לרכב מסוים</p>
                 </div>
                 {!selectedVehicle && <Check className="w-4 h-4" style={{ color: C.primary }} />}
@@ -497,14 +519,18 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
               {vehicles.map(v => {
                 const { theme } = getVehicleVisual(v);
                 const sel = selectedVehicleId === v.id;
+                const vPhoto = !!v.vehicle_photo;
                 return (
                   <button key={v.id} onClick={() => { setSelectedVehicleId(v.id); setPickerOpen(false); }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-right transition-all hover:bg-gray-50">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: theme.light }}>
-                      <VehicleIcon vehicle={v} className="w-3.5 h-3.5" style={{ color: theme.primary }} />
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all hover:bg-gray-50"
+                    style={{ background: sel ? theme.light : 'transparent', border: sel ? `1.5px solid ${theme.primary}40` : '1.5px solid transparent' }}>
+                    <div className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0" style={{ background: theme.light }}>
+                      {vPhoto
+                        ? <img src={v.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                        : <VehicleIcon vehicle={v} className="w-4 h-4" style={{ color: theme.primary }} />}
                     </div>
                     <div className="flex-1 text-right min-w-0">
-                      <p className="text-[12px] font-bold truncate" style={{ color: '#1F2937' }}>
+                      <p className="text-[13px] font-bold truncate" style={{ color: '#1F2937' }}>
                         {v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim()}
                       </p>
                       <p className="text-[10px]" style={{ color: '#9CA3AF' }}>

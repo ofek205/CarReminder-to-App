@@ -247,89 +247,127 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
         <div className="px-4 py-4 space-y-3 -mt-3 relative z-20">
 
 
-          {/* Vehicle picker. inline expandable (no Popover. works inside Dialog) */}
-          {vehicles && vehicles.length > 0 && (
-            <div dir="rtl">
-              <button type="button" onClick={() => setPickerOpen(o => !o)}
-                className="w-full flex items-center justify-between px-3 py-3 rounded-2xl transition-all active:scale-[0.99]"
-                style={{ background: '#fff', border: `1.5px solid ${selectedVehicle ? T.primary + '40' : '#E5E7EB'}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-                <div className="flex items-center gap-2 min-w-0">
-                  {selectedVehicle ? (() => {
-                    const { theme } = getVehicleVisual(selectedVehicle);
-                    return (
+          {/* Vehicle picker.
+           *
+           * Redesigned to make the value prop visible: users told us they
+           * didn't realize they could link a vehicle and get AI answers
+           * tailored to it. Unselected state is a bordered CTA card with a
+           * sparkle icon, a 2-line value prop, and a subtle animated glow
+           * on the border to draw the eye. Selected state switches to a
+           * calmer "locked in" look with a green check + vehicle photo/icon
+           * and a one-line confirmation ("ברוך יענה מותאם לרכב הזה"). */}
+          {vehicles && vehicles.length > 0 && (() => {
+            const selTheme = selectedVehicle ? getVehicleVisual(selectedVehicle).theme : null;
+            const hasPhoto = !!selectedVehicle?.vehicle_photo;
+            return (
+              <div dir="rtl">
+                <button type="button" onClick={() => setPickerOpen(o => !o)}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl transition-all active:scale-[0.99]"
+                  style={{
+                    background: selectedVehicle ? `linear-gradient(135deg, ${selTheme.light} 0%, #ffffff 100%)` : '#F0FDF4',
+                    border: `2px solid ${selectedVehicle ? selTheme.primary + '55' : T.primary + '40'}`,
+                    boxShadow: selectedVehicle ? `0 2px 12px ${selTheme.primary}15` : `0 2px 12px ${T.primary}12`,
+                  }}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {selectedVehicle ? (
                       <>
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: theme.light }}>
-                          <VehicleIcon vehicle={selectedVehicle} className="w-3.5 h-3.5" style={{ color: theme.primary }} />
+                        {/* Vehicle photo when available, icon fallback */}
+                        <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 ring-2"
+                          style={{ background: selTheme.light, ringColor: selTheme.primary }}>
+                          {hasPhoto
+                            ? <img src={selectedVehicle.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                            : <div className="w-full h-full flex items-center justify-center">
+                                <VehicleIcon vehicle={selectedVehicle} className="w-6 h-6" style={{ color: selTheme.primary }} />
+                              </div>
+                          }
                         </div>
                         <div className="text-right min-w-0">
-                          <p className="text-[11px] font-bold truncate" style={{ color: '#1F2937' }}>
+                          <p className="text-[14px] font-black truncate" style={{ color: '#111827' }}>
                             {selectedVehicle.nickname || `${selectedVehicle.manufacturer || ''} ${selectedVehicle.model || ''}`.trim()}
                           </p>
-                          <p className="text-[9px]" style={{ color: '#9CA3AF' }}>שואל על הרכב הזה</p>
+                          <p className="text-[11px] font-bold flex items-center gap-1 mt-0.5" style={{ color: selTheme.primary }}>
+                            <Sparkles className="w-3 h-3" /> AI יענה מותאם לרכב הזה
+                          </p>
                         </div>
                       </>
-                    );
-                  })() : (
-                    <>
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#F3F4F6' }}>
-                        <Sparkles className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[11px] font-bold" style={{ color: '#1F2937' }}>שאלה כללית</p>
-                        <p className="text-[9px]" style={{ color: '#9CA3AF' }}>או בחר רכב ספציפי</p>
-                      </div>
-                    </>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {selectedVehicle && (
-                    <span onClick={(e) => { e.stopPropagation(); setLinkedVehicleId(''); }}
-                      className="w-6 h-6 rounded-full flex items-center justify-center cursor-pointer" style={{ background: '#F3F4F6' }}>
-                      <X className="w-3 h-3" style={{ color: '#9CA3AF' }} />
-                    </span>
-                  )}
-                  <ChevronDown className={`w-4 h-4 transition-transform ${pickerOpen ? 'rotate-180' : ''}`} style={{ color: '#9CA3AF' }} />
-                </div>
-              </button>
-              {pickerOpen && (
-                <div className="mt-1.5 rounded-2xl border overflow-hidden" style={{ background: '#fff', borderColor: '#E5E7EB' }}>
-                  <div className="max-h-52 overflow-y-auto overscroll-contain p-1.5 space-y-0.5">
-                    <button type="button" onClick={() => { setLinkedVehicleId(''); setPickerOpen(false); }}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-right transition-all active:bg-gray-50">
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#F3F4F6' }}>
-                        <Sparkles className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
-                      </div>
-                      <div className="flex-1 text-right">
-                        <p className="text-[12px] font-bold" style={{ color: '#1F2937' }}>שאלה כללית</p>
-                      </div>
-                      {!selectedVehicle && <Check className="w-4 h-4" style={{ color: T.primary }} />}
-                    </button>
-                    {vehicles.map(v => {
-                      const { theme } = getVehicleVisual(v);
-                      const sel = linkedVehicleId === v.id;
-                      return (
-                        <button type="button" key={v.id} onClick={() => { setLinkedVehicleId(v.id); setPickerOpen(false); }}
-                          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-right transition-all active:bg-gray-50">
-                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: theme.light }}>
-                            <VehicleIcon vehicle={v} className="w-3.5 h-3.5" style={{ color: theme.primary }} />
-                          </div>
-                          <div className="flex-1 text-right min-w-0">
-                            <p className="text-[12px] font-bold truncate" style={{ color: '#1F2937' }}>
-                              {v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim()}
-                            </p>
-                            <p className="text-[10px]" style={{ color: '#9CA3AF' }}>
-                              {[v.manufacturer, v.year].filter(Boolean).join(' · ')}
-                            </p>
-                          </div>
-                          {sel && <Check className="w-4 h-4 shrink-0" style={{ color: theme.primary }} />}
-                        </button>
-                      );
-                    })}
+                    ) : (
+                      <>
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                          style={{ background: T.primary, boxShadow: `0 4px 14px ${T.primary}40` }}>
+                          <Sparkles className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[14px] font-black" style={{ color: '#111827' }}>
+                            התייעץ על כלי תחבורה ספציפי
+                          </p>
+                          <p className="text-[11px] font-semibold mt-0.5" style={{ color: T.primary }}>
+                            קבל תשובה מותאמת לרכב שלך · {vehicles.length} {vehicles.length === 1 ? 'כלי זמין' : 'כלים זמינים'}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {selectedVehicle && (
+                      <span onClick={(e) => { e.stopPropagation(); setLinkedVehicleId(''); }}
+                        className="w-7 h-7 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/5 transition-colors"
+                        style={{ background: 'rgba(0,0,0,0.04)' }}
+                        aria-label="בטל בחירה">
+                        <X className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
+                      </span>
+                    )}
+                    <ChevronDown className={`w-5 h-5 transition-transform ${pickerOpen ? 'rotate-180' : ''}`}
+                      style={{ color: selectedVehicle ? selTheme.primary : T.primary }} />
+                  </div>
+                </button>
+                {pickerOpen && (
+                  <div className="mt-2 rounded-2xl border overflow-hidden" style={{ background: '#fff', borderColor: '#E5E7EB', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}>
+                    <div className="max-h-60 overflow-y-auto overscroll-contain p-2 space-y-1">
+                      <button type="button" onClick={() => { setLinkedVehicleId(''); setPickerOpen(false); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all active:bg-gray-50 hover:bg-gray-50"
+                        style={{ background: !selectedVehicle ? '#F3F4F6' : 'transparent' }}>
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#E5E7EB' }}>
+                          <Sparkles className="w-4 h-4" style={{ color: '#6B7280' }} />
+                        </div>
+                        <div className="flex-1 text-right">
+                          <p className="text-[13px] font-bold" style={{ color: '#374151' }}>שאלה כללית</p>
+                          <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לכלי תחבורה</p>
+                        </div>
+                        {!selectedVehicle && <Check className="w-4 h-4" style={{ color: T.primary }} />}
+                      </button>
+                      {vehicles.length > 0 && <div className="my-1 h-px bg-gray-100" />}
+                      {vehicles.map(v => {
+                        const { theme } = getVehicleVisual(v);
+                        const sel = linkedVehicleId === v.id;
+                        const vPhoto = !!v.vehicle_photo;
+                        return (
+                          <button type="button" key={v.id} onClick={() => { setLinkedVehicleId(v.id); setPickerOpen(false); }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all active:bg-gray-50 hover:bg-gray-50"
+                            style={{ background: sel ? theme.light : 'transparent', border: sel ? `1.5px solid ${theme.primary}40` : '1.5px solid transparent' }}>
+                            <div className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0" style={{ background: theme.light }}>
+                              {vPhoto
+                                ? <img src={v.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                                : <VehicleIcon vehicle={v} className="w-4 h-4" style={{ color: theme.primary }} />}
+                            </div>
+                            <div className="flex-1 text-right min-w-0">
+                              <p className="text-[13px] font-bold truncate" style={{ color: '#1F2937' }}>
+                                {v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim()}
+                              </p>
+                              <p className="text-[10px]" style={{ color: '#9CA3AF' }}>
+                                {[v.manufacturer, v.year].filter(Boolean).join(' · ')}
+                                {v.current_km ? ` · ${Number(v.current_km).toLocaleString()} ק"מ` : ''}
+                              </p>
+                            </div>
+                            {sel && <Check className="w-4 h-4 shrink-0" style={{ color: theme.primary }} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Textarea. prominent, with focus glow */}
           <div className="relative">
