@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Shield, UserPlus, CloudUpload, Lock, Sparkles } from "lucide-react";
+import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";
 
 /**
  * SignUpPromptDialog. softer CTA popup that gently encourages registration
@@ -9,10 +10,21 @@ import { Shield, UserPlus, CloudUpload, Lock, Sparkles } from "lucide-react";
  * Uses the same hero DNA as WelcomePopup but with a cloud-upload tile.
  */
 export default function SignUpPromptDialog({ open, onClose, reason }) {
-  const handleLogin = () => { window.location.href = '/Auth'; };
+  useEffect(() => {
+    if (open) logSystemPopupEvent(SYSTEM_POPUP_IDS.signUpPrompt, 'shown');
+  }, [open]);
+
+  const handleLogin = () => {
+    logSystemPopupEvent(SYSTEM_POPUP_IDS.signUpPrompt, 'clicked');
+    window.location.href = '/Auth';
+  };
+  const handleDismiss = () => {
+    logSystemPopupEvent(SYSTEM_POPUP_IDS.signUpPrompt, 'dismissed');
+    onClose?.();
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleDismiss(); }}>
       <DialogContent
         dir="rtl"
         className="max-w-sm w-[calc(100vw-32px)] max-h-[90vh] p-0 overflow-y-auto overflow-x-hidden rounded-3xl border-0"
@@ -88,7 +100,7 @@ export default function SignUpPromptDialog({ open, onClose, reason }) {
             <UserPlus className="h-5 w-5" strokeWidth={2.3} />
             הרשמה בחינם
           </button>
-          <button onClick={onClose}
+          <button onClick={handleDismiss}
             className="w-full font-bold transition-all hover:bg-gray-50 mt-2"
             style={{ height: 44, borderRadius: 12, color: '#9CA3AF', fontSize: 13 }}>
             המשך כאורח

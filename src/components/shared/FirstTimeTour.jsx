@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useFirstTimeTour from '@/hooks/useFirstTimeTour';
+import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from '@/lib/popups/systemPopups';
 
 /**
  * FirstTimeTour. 4-step contextual tooltip tour for first-time users.
@@ -99,6 +100,26 @@ export default function FirstTimeTour({
   const cardRef = useRef(null);
   const nextBtnRef = useRef(null);
   const touchStartRef = useRef(null); // for swipe detection
+  const loggedShownRef = useRef(false);
+  const loggedResultRef = useRef(false);
+
+  //  Analytics: one 'shown' per tour session, one terminal event per result.
+  useEffect(() => {
+    if (!open) return;
+    if (!loggedShownRef.current) {
+      logSystemPopupEvent(SYSTEM_POPUP_IDS.firstTimeTour, 'shown');
+      loggedShownRef.current = true;
+    }
+  }, [open]);
+  useEffect(() => {
+    // Tour transitioned open → closed. If the user reached the last step
+    // we count it as 'clicked' (completion); otherwise it's a dismissal.
+    if (!open && loggedShownRef.current && !loggedResultRef.current) {
+      const completed = step >= totalSteps - 1;
+      logSystemPopupEvent(SYSTEM_POPUP_IDS.firstTimeTour, completed ? 'clicked' : 'dismissed');
+      loggedResultRef.current = true;
+    }
+  }, [open, step, totalSteps]);
 
   //  Scroll lock while the tour is open 
   // Problem the user hit: with nothing blocking touch on the backdrop,

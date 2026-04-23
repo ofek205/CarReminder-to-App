@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Gauge, Clock } from "lucide-react";
+import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";
 
 /**
  * MileageReminderPopup
@@ -32,7 +33,14 @@ export function dismissMileageReminder() {
 }
 
 export default function MileageReminderPopup({ open, onClose }) {
-  const handleClose = () => { dismissMileageReminder(); onClose?.(); };
+  useEffect(() => {
+    if (open) logSystemPopupEvent(SYSTEM_POPUP_IDS.mileageReminder, 'shown');
+  }, [open]);
+  const handleClose = (intent = 'dismissed') => {
+    logSystemPopupEvent(SYSTEM_POPUP_IDS.mileageReminder, intent);
+    dismissMileageReminder();
+    onClose?.();
+  };
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); }}>
@@ -94,7 +102,7 @@ export default function MileageReminderPopup({ open, onClose }) {
             אפשר לעדכן בכל עת בדף הרכב
           </p>
 
-          <button onClick={handleClose}
+          <button onClick={() => handleClose('clicked')}
             className="w-full text-white font-extrabold transition-all active:translate-y-px mt-5"
             style={{
               height: 52, borderRadius: 16,
@@ -104,7 +112,7 @@ export default function MileageReminderPopup({ open, onClose }) {
             }}>
             אעדכן עכשיו
           </button>
-          <button onClick={handleClose}
+          <button onClick={() => handleClose('dismissed')}
             className="w-full font-bold transition-all hover:bg-gray-50 mt-2"
             style={{ height: 44, borderRadius: 12, color: '#9CA3AF', fontSize: 13 }}>
             תזכיר לי בחודש הבא

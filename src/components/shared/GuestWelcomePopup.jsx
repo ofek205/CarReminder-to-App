@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Car, Bell, Sparkles, MapPin, Database, ScanLine } from "lucide-react";
+import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";
 
 /**
  * GuestWelcomePopup. shown every time a user enters in guest mode.
@@ -9,10 +10,21 @@ import { Car, Bell, Sparkles, MapPin, Database, ScanLine } from "lucide-react";
  * Primary CTA pushes to /Auth; secondary lets the user continue as guest.
  */
 export default function GuestWelcomePopup({ open, onClose }) {
-  const handleSignup = () => { window.location.href = '/Auth'; };
+  useEffect(() => {
+    if (open) logSystemPopupEvent(SYSTEM_POPUP_IDS.guestWelcome, 'shown');
+  }, [open]);
+
+  const handleSignup = () => {
+    logSystemPopupEvent(SYSTEM_POPUP_IDS.guestWelcome, 'clicked');
+    window.location.href = '/Auth';
+  };
+  const handleDismiss = () => {
+    logSystemPopupEvent(SYSTEM_POPUP_IDS.guestWelcome, 'dismissed');
+    onClose?.();
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleDismiss(); }}>
       <DialogContent
         dir="rtl"
         className="max-w-md w-[calc(100vw-32px)] max-h-[90vh] p-0 overflow-y-auto overflow-x-hidden rounded-3xl border-0"
@@ -91,7 +103,7 @@ export default function GuestWelcomePopup({ open, onClose }) {
             }}>
             נרשם בחינם 🚗
           </button>
-          <button onClick={onClose}
+          <button onClick={handleDismiss}
             className="w-full font-bold transition-all hover:bg-gray-50 mt-2"
             style={{ height: 44, borderRadius: 12, color: '#6B7280', fontSize: 14 }}>
             המשך כאורח

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from '@/lib/popups/systemPopups';
 import { db } from '@/lib/supabaseEntities';
 import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -114,6 +115,14 @@ function UrgentBanner({ reminders, vehicles }) {
 
   const BadgeIcon = urgencyConfig.badgeIcon;
 
+  // Log 'shown' each time the banner actually mounts with a real urgent
+  // reminder (not the "no reminders" null-return above). One mount = one
+  // impression. Click-throughs on the CTA are logged inline below.
+  useEffect(() => {
+    logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'shown');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
       style={{ background: urgencyConfig.bannerBg, boxShadow: `0 8px 32px ${urgencyConfig.bannerShadow}` }}>
@@ -137,7 +146,8 @@ function UrgentBanner({ reminders, vehicles }) {
             {vehicleName} &bull; {daysLabel(urgent.days)}
           </Link>
         )}
-        <Link to={createPageUrl('Notifications')}>
+        <Link to={createPageUrl('Notifications')}
+          onClick={() => logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'clicked')}>
           <button className="w-full py-3.5 rounded-2xl font-bold text-base transition-all active:scale-[0.98]"
             style={{ background: T.yellow, color: T.primary }}>
             צפה בתזכורות
