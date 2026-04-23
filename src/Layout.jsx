@@ -15,6 +15,7 @@ import MileageReminderPopup, { shouldShowMileageReminder } from "@/components/sh
 import ReviewManager from "@/components/shared/ReviewManager";
 import ReviewPopup from "@/components/shared/ReviewPopup";
 import useReviewPromptSchedule from "@/hooks/useReviewPromptSchedule";
+import PopupEngine from "@/components/shared/PopupEngine";
 import { SafeComponent } from "@/components/shared/SafeComponent";
 import { GuestProvider, useAuth } from "@/components/shared/GuestContext";
 import { format, parseISO } from 'date-fns';
@@ -1070,6 +1071,16 @@ function LayoutInner({ children }) {
       {isAuthenticated && !isGuest && welcomeState === null && mileageCheckDone && user && (
         <SafeComponent label="ReviewPrompt">
           <ScheduledReviewPrompt user={user} />
+        </SafeComponent>
+      )}
+      {/* Admin-managed popup engine. Mounted once, gated on the same
+       * "welcomeState is clear" sequence so it can't stack on top of the
+       * welcome popup. The engine itself enforces a 15-minute global
+       * throttle + per-popup frequency, so even with many active popups
+       * the user sees at most one at a time. */}
+      {(isAuthenticated || isGuest) && welcomeState === null && mileageCheckDone && (
+        <SafeComponent label="PopupEngine">
+          <PopupEngine />
         </SafeComponent>
       )}
       <AccessibilityPanel open={a11yOpen} onOpenChange={setA11yOpen} />

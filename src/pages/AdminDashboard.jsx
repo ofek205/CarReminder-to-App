@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import PageHeader from '../components/shared/PageHeader';
+import AdminPopupsTab from '../components/admin/AdminPopupsTab';
 import {
   Users, Shield, TrendingUp, Car, Wrench, FileText,
   Star, AlertTriangle, Activity, ArrowDown, ChevronDown, ChevronUp,
@@ -955,6 +956,7 @@ export default function AdminDashboard() {
           {[
             { key: 'stats', label: '📊 סטטיסטיקה' },
             { key: 'users', label: '👥 משתמשים' },
+            { key: 'popups', label: '🔔 פופ-אפים' },
             { key: 'messages', label: '📬 הודעות' },
             { key: 'bugs', label: '🐛 באגים' },
           ].map(t => (
@@ -974,6 +976,7 @@ export default function AdminDashboard() {
 
         {/* Non-stats tabs */}
         {adminTab === 'users' && <AdminUsersTab />}
+        {adminTab === 'popups' && <AdminPopupsTab />}
         {adminTab === 'messages' && <AdminMessagesTab />}
         {adminTab === 'bugs' && <AdminBugsTab />}
 
