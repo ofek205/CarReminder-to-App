@@ -58,11 +58,15 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <!-- USE_EXACT_ALARM — backup for SCHEDULE_EXACT_ALARM. Some OEM
-         builds on Android 13+ auto-grant this for notification-centric
-         apps, keeping alarms exact even when the other permission is
-         revoked by the system. -->
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- NOTE: We previously also declared USE_EXACT_ALARM as a "backup"
+         for SCHEDULE_EXACT_ALARM. Google Play rejects that declaration
+         for reminder/utility apps — USE_EXACT_ALARM is reserved for
+         alarm-clock, calendar, and healthcare categories (see
+         https://developer.android.com/about/versions/14/changes/schedule-exact-alarms).
+         A car-maintenance reminder does not qualify, so the permission
+         was removed. SCHEDULE_EXACT_ALARM alone covers our use case:
+         it is user-grantable and Capacitor LocalNotifications requests
+         it automatically the first time we schedule a reminder. -->
     <!-- Lets us prompt the user to disable Doze battery optimisation for
          the app — otherwise AlarmManager.setExactAndAllowWhileIdle is
          throttled during long idle periods and alarms batch up until
