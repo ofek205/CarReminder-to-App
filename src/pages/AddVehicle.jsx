@@ -129,6 +129,7 @@ export default function AddVehicle() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showGuestSignup, setShowGuestSignup] = useState(false);
   const [existingVehicles, setExistingVehicles] = useState([]);
+  const [vehiclesLoaded, setVehiclesLoaded] = useState(false);
   const [duplicateVehicle, setDuplicateVehicle] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [usageMetric, setUsageMetric] = useState('קילומטרים');
@@ -213,6 +214,8 @@ export default function AddVehicle() {
         }
       } catch (err) {
         console.error('AddVehicle: Failed to load account info', err);
+      } finally {
+        setVehiclesLoaded(true);
       }
     }
     init();
@@ -700,7 +703,10 @@ export default function AddVehicle() {
   // (no existing vehicles). Guests are excluded. tour is for authenticated
   // first-time setup. Storage key is scoped so the dashboard tour and this
   // tour don't share a "seen" flag.
-  const firstVehicleTour = !!isAuthenticated && !isGuest && existingVehicles.length === 0;
+  // Gate on vehiclesLoaded to avoid a race: on mount existingVehicles starts
+  // as [] and the DB fetch is async, so without this guard the tour flashes
+  // for returning users before the real list arrives.
+  const firstVehicleTour = !!isAuthenticated && !isGuest && vehiclesLoaded && existingVehicles.length === 0;
 
   return (
     <div dir="rtl">

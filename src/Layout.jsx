@@ -981,19 +981,23 @@ function LayoutInner({ children }) {
     }
   }, [isLoading, isAuthenticated, isGuest, isPublicRoute, navigate]);
 
-  // Authenticated popup. show once per browser session.
-  // Returning-user detection is based on account age rather than a
-  // per-browser localStorage flag, so that logging in from a new device or
-  // after clearing storage still correctly shows "כיף שחזרת". A user is
-  // considered "first-time" only within the first hour after signup.
+  // Authenticated popup. show at most once per calendar day (local time).
+  // Stored as YYYY-MM-DD in localStorage so subsequent logins on the same day
+  // are silent, and the next login after midnight shows the popup again.
+  // Returning-user detection is based on account age, so first-hour accounts
+  // get the onboarding variant even on subsequent same-day logins.
   useEffect(() => {
     if (!isAuthenticated || !user) return;
-    if (sessionStorage.getItem(`welcome_popup_shown_${user.id}`)) return;
+    const storageKey = `welcome_popup_last_shown_${user.id}`;
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local tz
+    try {
+      if (localStorage.getItem(storageKey) === today) return;
+    } catch {}
     const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
     const ageMs = createdAt ? Date.now() - createdAt : Infinity;
     const isFirstTime = ageMs < 60 * 60 * 1000; // account < 1h old
     setWelcomeState({ isReturning: !isFirstTime, userName: user.full_name || '' });
-    sessionStorage.setItem(`welcome_popup_shown_${user.id}`, '1');
+    try { localStorage.setItem(storageKey, today); } catch {}
   }, [isAuthenticated, user]);
 
   // Mileage reminder. skip for now (database not migrated yet)
@@ -1088,8 +1092,8 @@ function LayoutInner({ children }) {
       </div>
 
       {/* Main content */}
-      <main className={`flex-1 lg:mr-64 ${isGuest ? 'pt-24 lg:pt-10' : 'pt-14 lg:pt-0'} pb-0`}>
-        <div className="max-w-5xl mx-auto p-4 lg:p-8">
+      <main className={`flex-1 min-w-0 lg:mr-64 ${isGuest ? 'pt-24 lg:pt-10' : 'pt-14 lg:pt-0'} pb-0`} style={{ overflowX: 'clip' }}>
+        <div className="max-w-5xl mx-auto p-4 lg:p-8 min-w-0" style={{ overflowX: 'clip' }}>
           {children}
         </div>
         {/* Spacer so content never hides behind fixed BottomNav on mobile.

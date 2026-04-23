@@ -31,7 +31,20 @@ const FILTERS = [
   { key: 'yesterday', label: 'אתמול' },
   { key: 'week',      label: '7 ימים' },
   { key: 'month',     label: '30 ימים' },
+  { key: 'quarter',   label: '90 ימים' },
   { key: 'all',       label: 'הכל' },
+];
+
+// Secondary segment filter. Applies to vehicle-scoped metrics (funnel,
+// active users). Signups / auth / analytics are user-scoped so segment
+// doesn't touch them — we just dim the badge to signal that.
+const SEGMENTS = [
+  { key: 'all',        label: 'הכל' },
+  { key: 'car',        label: 'רכבים' },
+  { key: 'motorcycle', label: 'אופנועים' },
+  { key: 'truck',      label: 'משאיות' },
+  { key: 'vessel',     label: 'כלי שייט' },
+  { key: 'offroad',    label: 'כלי שטח' },
 ];
 
 const TODAY = new Date();
@@ -73,6 +86,7 @@ function daysForFilter(key) {
     case 'yesterday': return 2;
     case 'week':      return 7;
     case 'month':     return 30;
+    case 'quarter':   return 90;
     case 'all':       return 90;    // cap "all" at 90 days for trend charts. unbounded series are unreadable
     default:          return 7;
   }
@@ -84,6 +98,7 @@ function getRangeStart(key) {
     case 'yesterday': return startOfDay(subDays(TODAY, 1));
     case 'week':      return startOfDay(subDays(TODAY, 6));
     case 'month':     return startOfDay(subDays(TODAY, 29));
+    case 'quarter':   return startOfDay(subDays(TODAY, 89));
     case 'all':       return new Date(0);
     default:          return startOfDay(subDays(TODAY, 6));
   }
@@ -279,13 +294,130 @@ function RetentionCard({ label, period, rate, count, total }) {
   );
 }
 
-// 
+// Hero KPI card — bigger than MetricCard, optional delta chip in the corner.
+// Used by the redesigned Stats tab to keep the top of the page to just 4
+// numbers that actually matter (active users, new signups, guest traffic,
+// conversion rate). Anything smaller dilutes the "at a glance" promise.
+function HeroKpi({ icon: Icon, label, value, delta, deltaUnit = '%', deltaLabel, hint, tone = 'blue' }) {
+  const palette = {
+    blue:   { bg: '#EFF6FF', border: '#DBEAFE', icon: '#3B82F6', text: '#1E40AF' },
+    green:  { bg: '#ECFDF5', border: '#D1FAE5', icon: '#10B981', text: '#065F46' },
+    amber:  { bg: '#FFFBEB', border: '#FDE68A', icon: '#F59E0B', text: '#92400E' },
+    purple: { bg: '#FAF5FF', border: '#E9D5FF', icon: '#8B5CF6', text: '#5B21B6' },
+  }[tone] || { bg: '#F8FAFC', border: '#E2E8F0', icon: '#64748B', text: '#1E293B' };
+
+  const hasDelta = delta !== null && delta !== undefined && !isNaN(delta);
+  const up = hasDelta && delta > 0;
+  const down = hasDelta && delta < 0;
+  const deltaColor = up ? '#059669' : down ? '#DC2626' : '#64748B';
+  const deltaArrow = up ? '↑' : down ? '↓' : '·';
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col gap-3"
+      style={{ borderTop: `3px solid ${palette.icon}` }}>
+      <div className="flex items-center justify-between">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+          style={{ background: palette.bg, color: palette.icon }}>
+          <Icon className="w-4.5 h-4.5" />
+        </div>
+        {hasDelta && (
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+            style={{ background: palette.bg, color: deltaColor }}>
+            {deltaArrow} {Math.abs(delta)}{deltaUnit}
+          </span>
+        )}
+      </div>
+      <div>
+        <p className="text-[12px] font-semibold text-gray-500 leading-tight">{label}</p>
+        <p className="text-3xl font-black text-gray-900 mt-1 tabular-nums leading-none">
+          {typeof value === 'number' ? value.toLocaleString() : value}
+        </p>
+        <p className="text-[10px] text-gray-400 mt-1.5 leading-tight">
+          {hasDelta && deltaLabel ? deltaLabel : hint}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Auto-generated insight line. Picks the metric with the biggest absolute
+// movement and writes a one-sentence callout so the admin gets a human
+// takeaway without reading all four KPIs. Keeps the tone direct, no fluff.
+function AutoInsightLine({ insights, retention }) {
+  // Score by magnitude of change, pick the highest-signal story.
+  const candidates = [
+    {
+      key: 'conv',
+      delta: insights.convDelta,
+      tell: insights.convDelta > 0
+        ? `שיעור ההמרה עלה ב־${insights.convDelta} נקודות. התנועה שקיבלת מצליחה יותר להפוך למשתמשים.`
+        : insights.convDelta < 0
+        ? `שיעור ההמרה ירד ב־${Math.abs(insights.convDelta)} נקודות. בדוק מה השתנה בחוויית ההרשמה.`
+        : null,
+    },
+    {
+      key: 'signup',
+      delta: insights.signupDelta,
+      tell: insights.signupDelta >= 50
+        ? `הרשמות זינקו ב־${insights.signupDelta}% מול התקופה הקודמת. משהו עובד — כדאי לזהות מה ולהגביר.`
+        : insights.signupDelta <= -30
+        ? `הרשמות ירדו ב־${Math.abs(insights.signupDelta)}% מול התקופה הקודמת. בדוק מקורות תנועה וחוויית ה־Auth.`
+        : null,
+    },
+    {
+      key: 'retention',
+      delta: 50 - (retention.d7?.rate || 0),
+      tell: (retention.d7?.rate || 0) < 30 && (retention.d7?.total || 0) >= 5
+        ? `רק ${retention.d7.rate}% מהמשתמשים חוזרים תוך שבוע (${retention.d7.count}/${retention.d7.total}). זה הסיפור שחשוב לטפל בו עכשיו.`
+        : null,
+    },
+  ].filter(c => c.tell);
+
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const top = candidates[0];
+
+  return (
+    <div className="mt-3 bg-gradient-to-l from-blue-50 to-purple-50 border border-blue-100 rounded-2xl px-4 py-3 flex items-start gap-3">
+      <span className="text-lg leading-none mt-0.5">💡</span>
+      <p className="text-sm text-gray-700 leading-relaxed">{top.tell}</p>
+    </div>
+  );
+}
+
+// Weakest-step call-out under the funnel. Finds the step with the biggest
+// conversion drop (biggest next/current loss) and names it so the PM knows
+// where to focus. Silent when there's no data to narrate.
+function FunnelWeakestStep({ funnel }) {
+  const eligibleSteps = funnel.filter(s => s.next !== null && s.value > 0 && !s.note);
+  if (eligibleSteps.length === 0) return null;
+  const worst = eligibleSteps.reduce((worst, s) => {
+    const drop = s.value - s.next;
+    return drop > (worst?.drop ?? -1) ? { ...s, drop, dropPct: Math.round((1 - s.next / s.value) * 100) } : worst;
+  }, null);
+  if (!worst || worst.dropPct < 10) return null;
+
+  return (
+    <div className="mt-5 bg-red-50 border border-red-100 rounded-xl px-4 py-3 flex items-start gap-3">
+      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-500" />
+      <div className="flex-1">
+        <p className="text-xs font-bold text-red-700">הנשירה הגדולה ביותר</p>
+        <p className="text-xs text-gray-700 mt-0.5 leading-relaxed">
+          {worst.dropPct}% מהמשתמשים שהגיעו ל"<span className="font-semibold">{worst.step}</span>" לא המשיכו לשלב הבא. זה המקום שישפר הכי הרבה אם תטפל בו.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+//
 // Main Component
-// 
+//
 
 export default function AdminDashboard() {
   const [isAdmin, setIsAdmin]       = useState(null);
   const [filter, setFilter]         = useState('week');
+  const [segment, setSegment]       = useState('all'); // all | car | motorcycle | truck | vessel | offroad
   const [adminTab, setAdminTab]     = useState('stats'); // stats | users | messages | bugs
   const [loading, setLoading]       = useState(false);
   const [fetchError, setFetchError] = useState(false);
@@ -433,6 +565,24 @@ export default function AdminDashboard() {
     return out;
   }, [analyticsData, filter]);
 
+  // Guest vs Signup daily trend. This is the primary chart in the redesigned
+  // stats tab — it answers the two product questions the admin cares about
+  // most: how much organic guest traffic are we getting, and what fraction
+  // of it converts to real accounts. Both series respect the global filter.
+  const guestVsSignupTrend = useMemo(() => {
+    const days = daysForFilter(filter);
+    const out = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = format(subDays(TODAY, i), 'yyyy-MM-dd');
+      const label = format(subDays(TODAY, i), 'dd/MM', { locale: he });
+      const guest  = analyticsData.find(r => r.event === 'guest_session' && r.date === d)?.count || 0;
+      const signup = analyticsData.find(r => r.event === 'auth_signup'   && r.date === d)?.count || 0;
+      const rate = guest > 0 ? Math.round((signup / guest) * 100) : null;
+      out.push({ name: label, 'אורחים': guest, 'הרשמות': signup, 'המרה %': rate });
+    }
+    return out;
+  }, [analyticsData, filter]);
+
   // Conversion: guest→signup ratio per day with a 7-day rolling mean to smooth
   // out weekday noise. Window respects the global filter; minimum 14 days so
   // the rolling average is meaningful even on short ranges.
@@ -556,12 +706,42 @@ export default function AdminDashboard() {
 
   //  Filtered slices (all driven by the global `filter`) 
 
-  const fAcc  = useMemo(() => accounts.filter(a  => inRange(a.created_date,  filter)), [accounts,  filter]);
-  const fVeh  = useMemo(() => vehicles.filter(v  => inRange(v.created_at,    filter)), [vehicles,  filter]);
-  const fMnt  = useMemo(() => maintLogs.filter(m => inRange(m.performed_at,  filter)), [maintLogs, filter]);
-  const fRep  = useMemo(() => repairLogs.filter(r=> inRange(r.occurred_at,   filter)), [repairLogs,filter]);
-  const fDoc  = useMemo(() => documents.filter(d => inRange(d.created_at,    filter)), [documents, filter]);
-  const fRev  = useMemo(() => reviews.filter(r   => inRange(r.created_at,    filter)), [reviews,   filter]);
+  // Segment predicate — maps a vehicle to whether it belongs to the active
+  // segment. Uses the same category helpers the rest of the app uses so the
+  // funnel / KPIs match what the user sees on /Vehicles.
+  const matchesSegment = useCallback((v) => {
+    if (segment === 'all') return true;
+    if (!v) return false;
+    const vt = (v.vehicle_type || '').trim();
+    switch (segment) {
+      case 'vessel':     return /שייט|סירה|יאכטה|אופנוע ים|ג׳ט|גט/.test(vt) || /שייט|סירה|יאכטה/.test(v.nickname || '');
+      case 'motorcycle': return /אופנוע|קטנוע/.test(vt);
+      case 'truck':      return /משאית/.test(vt);
+      case 'offroad':    return /שטח|טרקטורון|באגי/.test(vt);
+      case 'car':        return !/שייט|סירה|יאכטה|אופנוע|קטנוע|משאית|שטח|טרקטורון|באגי/.test(vt);
+      default:           return true;
+    }
+  }, [segment]);
+
+  // Accounts table stores the creation timestamp in `created_at` (verified
+  // against the live DB). Earlier code used `created_date` which is always
+  // undefined — that silently made the whole funnel's step 1 zero. Fall back
+  // to both so older migrated rows still register.
+  const fAcc  = useMemo(() => accounts.filter(a  => inRange(a.created_at || a.created_date, filter)), [accounts, filter]);
+  const fVeh  = useMemo(() => vehicles.filter(v  => inRange(v.created_at, filter) && matchesSegment(v)), [vehicles, filter, matchesSegment]);
+  const fMnt  = useMemo(() => {
+    const vehBySegment = new Set(vehicles.filter(matchesSegment).map(v => v.id));
+    return maintLogs.filter(m => inRange(m.performed_at, filter) && vehBySegment.has(m.vehicle_id));
+  }, [maintLogs, vehicles, filter, matchesSegment]);
+  const fRep  = useMemo(() => {
+    const vehBySegment = new Set(vehicles.filter(matchesSegment).map(v => v.id));
+    return repairLogs.filter(r => inRange(r.occurred_at, filter) && vehBySegment.has(r.vehicle_id));
+  }, [repairLogs, vehicles, filter, matchesSegment]);
+  const fDoc  = useMemo(() => {
+    const vehBySegment = new Set(vehicles.filter(matchesSegment).map(v => v.id));
+    return documents.filter(d => inRange(d.created_at, filter) && (!d.vehicle_id || vehBySegment.has(d.vehicle_id)));
+  }, [documents, vehicles, filter, matchesSegment]);
+  const fRev  = useMemo(() => reviews.filter(r   => inRange(r.created_at, filter)), [reviews, filter]);
 
   //  Cross-reference maps 
 
@@ -797,7 +977,7 @@ export default function AdminDashboard() {
         {adminTab === 'messages' && <AdminMessagesTab />}
         {adminTab === 'bugs' && <AdminBugsTab />}
 
-        {adminTab === 'stats' && <>
+{adminTab === 'stats' && <>
 
         {/* Error banner */}
         {fetchError && (
@@ -812,216 +992,104 @@ export default function AdminDashboard() {
         ) : (
           <>
 
-            {/* 
-                SECTION 1 - KPI CARDS
-             */}
-            <section>
-              <SectionLabel>מדדי ביצוע מרכזיים · {fLabel}</SectionLabel>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                <MetricCard
-                  icon={Users}
-                  label="הרשמות חדשות"
-                  value={fAcc.length.toLocaleString()}
-                  sub={`${accounts.length} סה״כ`}
-                  color={C.blue}
-                />
-                <MetricCard
-                  icon={Car}
-                  label="רכבים נוספו"
-                  value={fVeh.length.toLocaleString()}
-                  sub={`${vehicles.length} סה״כ`}
-                  color={C.green}
-                />
-                <MetricCard
-                  icon={Activity}
-                  label="פעולות בוצעו"
-                  value={totalFActs.toLocaleString()}
-                  sub="טיפול / תיקון / מסמך"
-                  color={C.amber}
-                />
-                <MetricCard
-                  icon={TrendingUp}
-                  label="משתמשים פעילים"
-                  value={activeIds.size.toLocaleString()}
-                  sub="עם פעילות בטווח"
-                  color={C.purple}
-                />
-                <MetricCard
-                  icon={Star}
-                  label="דירוג ממוצע"
-                  value={avgRating ? `${avgRating} ★` : '-'}
-                  sub={`${reviews.length} ביקורות`}
-                  color={C.amber}
-                />
-                <MetricCard
-                  icon={AlertTriangle}
-                  label="התראות פתוחות"
-                  value={totalAlerts.toLocaleString()}
-                  sub="טסט / ביטוח / ציוד"
-                  color={totalAlerts > 0 ? C.red : C.slate}
-                  danger={totalAlerts > 0}
-                />
+            {/* Secondary segment filter (vehicle type). Affects funnel + active-user
+                KPIs that are scoped to vehicle category. Auth / analytics are
+                user-scoped so segment intentionally does not touch them. */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-bold text-gray-400 tracking-wide">סגמנט</span>
+              <div className="flex items-center gap-1 bg-white border border-gray-100 rounded-xl p-1 shadow-sm">
+                {SEGMENTS.map(s => (
+                  <button
+                    key={s.key}
+                    onClick={() => setSegment(s.key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      segment === s.key
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-gray-500 hover:text-gray-800'
+                    }`}>
+                    {s.label}
+                  </button>
+                ))}
               </div>
-            </section>
+            </div>
 
-            {/* 
-                BI. תובנות מרכזיות (auto-generated week-over-week)
-             */}
+            {/* ──────────────────────────────────────────────────────────
+                1. HERO — The 4 numbers that matter, each with a delta
+                ────────────────────────────────────────────────────────── */}
             <section>
-              <SectionLabel>תובנות מרכזיות · {fLabel}</SectionLabel>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <InsightCard
-                  label="הרשמות חדשות השבוע"
-                  value={insights.signup7.toLocaleString()}
-                  delta={insights.signupDelta}
-                  deltaSuffix="% משבוע שעבר"
-                  tone="green"
-                />
-                <InsightCard
-                  label="התחברויות השבוע"
-                  value={insights.login7.toLocaleString()}
-                  delta={insights.loginDelta}
-                  deltaSuffix="% משבוע שעבר"
+              <SectionLabel>מצב המוצר · {fLabel}</SectionLabel>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <HeroKpi
+                  icon={Activity}
+                  label="משתמשים פעילים"
+                  value={activeIds.size}
+                  hint="חשבונות עם פעולה בטווח"
                   tone="blue"
                 />
-                <InsightCard
-                  label="המרה אורחים → רישום"
+                <HeroKpi
+                  icon={Users}
+                  label="הרשמות חדשות"
+                  value={insights.signup7}
+                  delta={insights.signupDelta}
+                  deltaLabel="מול תקופה קודמת"
+                  tone="green"
+                />
+                <HeroKpi
+                  icon={TrendingUp}
+                  label="כניסות אורחים"
+                  value={insights.guest7}
+                  hint="משתמשים ללא הרשמה"
+                  tone="purple"
+                />
+                <HeroKpi
+                  icon={BarChart2}
+                  label="המרה אורח → משתמש"
                   value={`${insights.conv7}%`}
                   delta={insights.convDelta}
-                  deltaSuffix=" נק' אחוז"
-                  tone="purple"
-                  sub={`${insights.guest7.toLocaleString()} אורחים, ${insights.signup7.toLocaleString()} הרשמות`}
-                />
-                <InsightCard
-                  label="התחברויות היום"
-                  value={insights.loginToday.toLocaleString()}
-                  delta={insights.loginYesterday > 0
-                    ? Math.round(((insights.loginToday - insights.loginYesterday) / insights.loginYesterday) * 100)
-                    : null}
-                  deltaSuffix="% מאתמול"
+                  deltaUnit="נק׳"
+                  deltaLabel="מול תקופה קודמת"
                   tone="amber"
-                  sub={`אתמול: ${insights.loginYesterday}`}
                 />
               </div>
-              {insights.topFeature && (
-                <div className="mt-3 bg-gradient-to-l from-purple-50 to-blue-50 border border-purple-100 rounded-2xl px-4 py-3 flex items-center gap-3">
-                  <span className="text-2xl">🔥</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-purple-700">הפיצ'ר הפופולרי השבוע</p>
-                    <p className="text-sm text-gray-700">
-                      <span className="font-bold">{insights.topFeature.page}</span>
-                      {' '}עם {insights.topFeature.count} צפיות
-                    </p>
-                  </div>
-                </div>
-              )}
+              <AutoInsightLine insights={insights} retention={retention} />
             </section>
 
-            {/* 
-                BI. מגמת כניסות ורישומים (respects filter)
-             */}
+            {/* ──────────────────────────────────────────────────────────
+                2. GUEST vs REGISTERED — the headline chart
+                ────────────────────────────────────────────────────────── */}
             <section>
-              <SectionLabel>מגמת כניסות ורישומים · {fLabel}</SectionLabel>
+              <SectionLabel>אורחים מול הרשמות · {fLabel}</SectionLabel>
               <ChartCard>
-                {engagementTrend.every(d => !d['התחברויות'] && !d['הרשמות'])
-                  ? <EmptyChart text="עדיין אין אירועי כניסה בטווח הזה" />
+                {guestVsSignupTrend.every(d => !d['אורחים'] && !d['הרשמות'])
+                  ? <EmptyChart text="עדיין אין תנועה בטווח הזה" />
                   : (
-                    <ResponsiveContainer width="100%" height={240}>
-                      <LineChart data={engagementTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                        <Tooltip content={<BiTooltip />} />
-                        <Legend wrapperStyle={{ fontSize: 11 }} />
-                        <Line type="monotone" dataKey="התחברויות" stroke={C.blue}  strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
-                        <Line type="monotone" dataKey="הרשמות"   stroke={C.green} strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  )
-                }
-                <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
-                  כניסות אורחים עברו לסעיף "אנליטיקס אנונימי" למטה כדי למנוע כפילות.
-                </p>
-              </ChartCard>
-            </section>
-
-            {/* 
-                BI. אחוז המרה אורחים → משתמשים (30 יום, 7-day rolling)
-             */}
-            <section>
-              <SectionLabel>אחוז המרה אורחים → רישום · {fLabel}</SectionLabel>
-              <ChartCard>
-                {conversionTrend.every(d => d['המרה %'] === null)
-                  ? <EmptyChart text="אין מספיק נתונים לחישוב המרה" />
-                  : (
-                    <ResponsiveContainer width="100%" height={240}>
-                      <ComposedChart data={conversionTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <ResponsiveContainer width="100%" height={260}>
+                      <ComposedChart data={guestVsSignupTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                         <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
                         <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                        <YAxis yAxisId="right" orientation="left" tick={{ fontSize: 11, fill: '#A855F7' }} axisLine={false} tickLine={false} unit="%" />
+                        <YAxis yAxisId="right" orientation="left" tick={{ fontSize: 11, fill: '#A855F7' }} axisLine={false} tickLine={false} unit="%" domain={[0, 100]} />
                         <Tooltip content={<BiTooltip />} />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
-                        <Bar yAxisId="left" dataKey="הרשמות" fill={C.green} radius={[4, 4, 0, 0]} />
-                        <Line yAxisId="right" type="monotone" dataKey="המרה %" stroke={C.purple} strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 6 }} />
+                        <Bar yAxisId="left" dataKey="אורחים"  fill={C.purple} radius={[4, 4, 0, 0]} />
+                        <Bar yAxisId="left" dataKey="הרשמות" fill={C.green}  radius={[4, 4, 0, 0]} />
+                        <Line yAxisId="right" type="monotone" dataKey="המרה %" stroke={C.amber} strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
                       </ComposedChart>
                     </ResponsiveContainer>
                   )
                 }
                 <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
-                  קו המרה = ממוצע נע של 7 ימים (חלק מרעשי סופי־שבוע). עלייה עקבית = יחס המרה משתפר.
+                  עמודות סגולות = כניסות אורחים ביום. עמודות ירוקות = הרשמות חדשות באותו יום. קו כתום = אחוז המרה יומי.
                 </p>
               </ChartCard>
             </section>
 
-            {/* 
-                BI. דירוג פיצ'רים (page view events, כל הזמנים)
-             */}
-            <section>
-              <SectionLabel allTime>דירוג פיצ'רים · איפה המשתמשים מבלים</SectionLabel>
-              <ChartCard>
-                {featureRanking.length === 0
-                  ? <EmptyChart text="עדיין אין נתוני page_view (טרקר הופעל זה עתה)" />
-                  : (
-                    <div className="space-y-3">
-                      {featureRanking.map((f, i) => {
-                        const max = featureRanking[0].count || 1;
-                        const pct = Math.round((f.count / max) * 100);
-                        return (
-                          <div key={f.name}>
-                            <div className="flex items-center justify-between text-xs mb-1">
-                              <span className="font-medium text-gray-700 flex items-center gap-1.5">
-                                <span className="text-[10px] font-bold text-gray-400 w-4">#{i + 1}</span>
-                                {f.name}
-                              </span>
-                              <span className="font-bold text-gray-900 tabular-nums">{f.count.toLocaleString()}</span>
-                            </div>
-                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full transition-all duration-500"
-                                style={{ width: `${pct}%`, backgroundColor: CHART_PALETTE[i % CHART_PALETTE.length] }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )
-                }
-                <p className="text-[10px] text-gray-400 mt-4 leading-relaxed">
-                  הצפייה נספרת פעם אחת לכל משתמש בכל פתיחת אפליקציה. פיצ'ר בתחתית הרשימה = מועמד לשיפור UX או להבלטה.
-                </p>
-              </ChartCard>
-            </section>
-
-            {/* 
-                SECTION 2 - FUNNEL
-             */}
+            {/* ──────────────────────────────────────────────────────────
+                3. FUNNEL — activation flow with weakest-step callout
+                ────────────────────────────────────────────────────────── */}
             <section>
               <SectionLabel>משפך הפעלה · {fLabel}</SectionLabel>
               <ChartCard>
-                <p className="text-[11px] text-gray-400 mb-5 leading-relaxed">
-                  קצב ההמרה בין שלבי שימוש מרכזיים - מהרשמה ועד שימוש חוזר.
-                  כל שלב מציג כמה משתמשים הגיעו אליו מתוך הטווח הנבחר.
-                </p>
                 <div className="space-y-4">
                   {funnel.map((step, i) => (
                     <FunnelBar
@@ -1037,94 +1105,40 @@ export default function AdminDashboard() {
                     />
                   ))}
                 </div>
-                <p className="text-[10px] text-gray-400 mt-4 border-t border-gray-50 pt-3">
-                  ✦ "משתמשים חוזרים" = חשבונות שנרשמו לפני הטווח הנבחר ובצעו פעולה במהלכו
+                <FunnelWeakestStep funnel={funnel} />
+                <p className="text-[10px] text-gray-400 mt-3 border-t border-gray-50 pt-3">
+                  ✦ "משתמשים חוזרים" = חשבונות שנרשמו לפני הטווח ופעלו במהלכו.
                 </p>
               </ChartCard>
             </section>
 
-            {/* 
-                SECTION 3 - TIME SERIES
-             */}
-            {showSeries && (
+            {/* ──────────────────────────────────────────────────────────
+                4. FEATURES + RETENTION — side by side
+                ────────────────────────────────────────────────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
               <section>
-                <SectionLabel>מגמות לאורך זמן · {fLabel}</SectionLabel>
+                <SectionLabel allTime>5 פיצ'רים מובילים</SectionLabel>
                 <ChartCard>
-                  <div className="flex items-center gap-4 mb-4 flex-wrap">
-                    {[
-                      { key: 'הרשמות', color: C.blue   },
-                      { key: 'רכבים',  color: C.green  },
-                      { key: 'פעולות', color: C.amber  },
-                    ].map(s => (
-                      <div key={s.key} className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                        <span className="text-xs text-gray-500">{s.key}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {dailySeries.every(d => !d['הרשמות'] && !d['רכבים'] && !d['פעולות'])
-                    ? <EmptyChart />
+                  {featureRanking.length === 0
+                    ? <EmptyChart text="עדיין אין נתוני page_view" />
                     : (
-                      <ResponsiveContainer width="100%" height={220}>
-                        <AreaChart data={dailySeries} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                          <defs>
-                            {[['gradBlue', C.blue], ['gradGreen', C.green], ['gradAmber', C.amber]].map(([id, color]) => (
-                              <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%"   stopColor={color} stopOpacity={0.12} />
-                                <stop offset="100%" stopColor={color} stopOpacity={0}    />
-                              </linearGradient>
-                            ))}
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                          <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                          <Tooltip content={<BiTooltip />} />
-                          <Area type="monotone" dataKey="הרשמות" stroke={C.blue}  strokeWidth={2} fill="url(#gradBlue)"  dot={false} activeDot={{ r: 3 }} />
-                          <Area type="monotone" dataKey="רכבים"  stroke={C.green} strokeWidth={2} fill="url(#gradGreen)" dot={false} activeDot={{ r: 3 }} />
-                          <Area type="monotone" dataKey="פעולות" stroke={C.amber} strokeWidth={2} fill="url(#gradAmber)" dot={false} activeDot={{ r: 3 }} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    )
-                  }
-                </ChartCard>
-              </section>
-            )}
-
-            {/* 
-                SECTION 4 - USER BEHAVIOR
-             */}
-            <div className="grid grid-cols-1 gap-5">
-
-              {/* User behavior */}
-              <section>
-                <SectionLabel>פעולות לפי סוג · {fLabel}</SectionLabel>
-                <ChartCard className="h-full">
-                  {actionRank.every(a => a.count === 0)
-                    ? <EmptyChart text="לא בוצעו פעולות בטווח שנבחר" />
-                    : (
-                      <div className="space-y-4">
-                        {actionRank.map((action, i) => {
-                          const maxCount = actionRank[0].count || 1;
-                          const barW = Math.max(2, Math.round((action.count / maxCount) * 100));
+                      <div className="space-y-3">
+                        {featureRanking.slice(0, 5).map((f, i) => {
+                          const max = featureRanking[0].count || 1;
+                          const pct = Math.round((f.count / max) * 100);
                           return (
-                            <div key={action.name}>
-                              <div className="flex items-center justify-between mb-1.5 text-xs">
-                                <span className="flex items-center gap-1.5 font-medium text-gray-700">
-                                  <span className="text-base leading-none">{action.emoji}</span>
-                                  <span>{action.name}</span>
-                                  {i === 0 && (
-                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-500">
-                                      מוביל
-                                    </span>
-                                  )}
+                            <div key={f.name}>
+                              <div className="flex items-center justify-between text-xs mb-1">
+                                <span className="font-medium text-gray-700 flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold text-gray-400 w-4">#{i + 1}</span>
+                                  {f.name}
                                 </span>
-                                <span className="font-bold text-gray-900 tabular-nums">{action.count}</span>
+                                <span className="font-bold text-gray-900 tabular-nums">{f.count.toLocaleString()}</span>
                               </div>
                               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full rounded-full transition-all duration-500"
-                                  style={{ width: `${barW}%`, backgroundColor: CHART_PALETTE[i] }}
-                                />
+                                <div className="h-full rounded-full transition-all duration-500"
+                                  style={{ width: `${pct}%`, backgroundColor: CHART_PALETTE[i % CHART_PALETTE.length] }} />
                               </div>
                             </div>
                           );
@@ -1132,136 +1146,58 @@ export default function AdminDashboard() {
                       </div>
                     )
                   }
+                  <p className="text-[10px] text-gray-400 mt-4 leading-relaxed">
+                    כל הזמנים. פיצ'רים בתחתית — מועמדים לשיפור או להבלטה.
+                  </p>
                 </ChartCard>
               </section>
 
-              {/* Traffic sources removed. placeholder with no data source
-                  was added noise. Re-introduce when we wire Google Analytics
-                  / Mixpanel / Plausible. See PR for history. */}
+              <section>
+                <SectionLabel allTime>שימור משתמשים</SectionLabel>
+                <div className="grid grid-cols-3 gap-3">
+                  <RetentionCard label="חזרו לאחר" period="יום"     {...retention.d1} />
+                  <RetentionCard label="חזרו לאחר" period="7 ימים"  {...retention.d7} />
+                  <RetentionCard label="חזרו לאחר" period="30 יום"  {...retention.d30} />
+                </div>
+                <p className="text-[10px] text-center text-gray-400 mt-3">
+                  חישוב: פעילות (רכב / טיפול / מסמך) לאחר יום ההרשמה.
+                </p>
+              </section>
+
             </div>
 
-            {/* 
-                SECTION 6 - RETENTION
-             */}
-            <section>
-              <SectionLabel allTime>שימור משתמשים</SectionLabel>
-              <div className="grid grid-cols-3 gap-4">
-                <RetentionCard label="חזרו לאחר" period="יום אחד"   {...retention.d1}  />
-                <RetentionCard label="חזרו לאחר" period="7 ימים"    {...retention.d7}  />
-                <RetentionCard label="חזרו לאחר" period="30 יום"    {...retention.d30} />
-              </div>
-              <p className="text-[10px] text-center text-gray-400 mt-2">
-                שימור מחושב לפי פעילות (רכב / טיפול / מסמך / תיקון) לאחר יום ההרשמה
-              </p>
-            </section>
-
-            {/* 
-                SECTION 7 - TOP USERS TABLE
-             */}
-            <section>
-              <SectionLabel allTime>משתמשים מובילים לפי רכבים</SectionLabel>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                {topUsers.length === 0
-                  ? <EmptyChart text="אין נתוני משתמשים" />
-                  : (
-                    <table className="w-full text-right">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-gray-100">
-                          <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">#</th>
-                          <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide">משתמש</th>
-                          <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide hidden sm:table-cell">תאריך הצטרפות</th>
-                          <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide text-center">רכבים</th>
-                          <th className="px-5 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wide text-center hidden sm:table-cell">פעולות</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {topUsers.map((user, i) => {
-                          const uVehs = a2v[user.id] || [];
-                          const uActs = maintLogs.filter(m => uVehs.some(v => v.id === m.vehicle_id)).length
-                                      + repairLogs.filter(r => uVehs.some(v => v.id === r.vehicle_id)).length
-                                      + documents.filter(d => uVehs.some(v => v.id === d.vehicle_id)).length;
-                          const initials = (user.name || '#')[0].toUpperCase();
-                          const avatarColor = CHART_PALETTE[i % CHART_PALETTE.length];
-                          return (
-                            <tr key={user.id} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-5 py-3 text-xs text-gray-400 font-mono">{i + 1}</td>
-                              <td className="px-5 py-3">
-                                <div className="flex items-center gap-2.5">
-                                  <div
-                                    className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold"
-                                    style={{ backgroundColor: avatarColor }}
-                                  >
-                                    {initials}
-                                  </div>
-                                  <span className="text-sm font-medium text-gray-900">
-                                    {user.name || `חשבון #${String(user.id).slice(-6)}`}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-5 py-3 text-xs text-gray-400 hidden sm:table-cell">
-                                {user.created_date
-                                  ? format(parseISO(user.created_date), 'dd/MM/yyyy')
-                                  : '-'}
-                              </td>
-                              <td className="px-5 py-3 text-center">
-                                <span
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold text-white"
-                                  style={{ backgroundColor: avatarColor }}
-                                >
-                                  {user.vehicleCount}
-                                </span>
-                              </td>
-                              <td className="px-5 py-3 text-center text-xs text-gray-500 font-medium hidden sm:table-cell">
-                                {uActs}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )
-                }
-              </div>
-            </section>
-
-            {/* 
-                ALERTS - collapsible
-             */}
+            {/* ──────────────────────────────────────────────────────────
+                5. ALERTS — collapsible, shown only when > 0
+                ────────────────────────────────────────────────────────── */}
             {totalAlerts > 0 && (
               <section>
-                <SectionLabel allTime>התראות מערכת</SectionLabel>
+                <SectionLabel allTime>דגלים אדומים</SectionLabel>
                 <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
                   <button
                     className="w-full flex items-center justify-between px-5 py-4 hover:bg-amber-50 transition-colors"
-                    onClick={() => setShowAlerts(p => !p)}
-                  >
+                    onClick={() => setShowAlerts(p => !p)}>
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="h-4 w-4 text-amber-500" />
                       <span className="text-sm font-semibold text-amber-700">
                         {totalAlerts} התראות פתוחות
                       </span>
                     </div>
-                    {showAlerts
-                      ? <ChevronUp   className="h-4 w-4 text-amber-400" />
-                      : <ChevronDown className="h-4 w-4 text-amber-400" />
-                    }
+                    {showAlerts ? <ChevronUp className="h-4 w-4 text-amber-400" /> : <ChevronDown className="h-4 w-4 text-amber-400" />}
                   </button>
                   {showAlerts && (
                     <div className="px-5 pb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                       {[
-                        { label: 'טסט פג תוקף',              count: expiredTest.length, color: C.red    },
-                        { label: 'טסט - עד 30 יום',           count: soonTest.length,   color: C.amber  },
-                        { label: 'ביטוח פג תוקף',             count: expiredIns.length, color: C.red    },
-                        { label: 'ביטוח - עד 30 יום',         count: soonIns.length,    color: C.amber  },
-                        { label: '🔴 פירוטכניקה פגה',         count: expiredPyro.length,color: C.red    },
-                        { label: '🧯 מטף כיבוי פג',           count: expiredExt.length, color: C.red    },
-                        { label: '🛟 אסדת הצלה פגה',          count: expiredRaft.length,color: C.red    },
+                        { label: 'טסט פג תוקף',      count: expiredTest.length, color: C.red    },
+                        { label: 'טסט - עד 30 יום',   count: soonTest.length,   color: C.amber  },
+                        { label: 'ביטוח פג תוקף',     count: expiredIns.length, color: C.red    },
+                        { label: 'ביטוח - עד 30 יום', count: soonIns.length,    color: C.amber  },
+                        { label: '🔴 פירוטכניקה פגה', count: expiredPyro.length,color: C.red    },
+                        { label: '🧯 מטף כיבוי פג',   count: expiredExt.length, color: C.red    },
+                        { label: '🛟 אסדת הצלה פגה',  count: expiredRaft.length,color: C.red    },
                       ].filter(a => a.count > 0).map(a => (
-                        <div
-                          key={a.label}
+                        <div key={a.label}
                           className="flex items-center justify-between rounded-xl px-4 py-3 border"
-                          style={{ backgroundColor: a.color + '0D', borderColor: a.color + '30' }}
-                        >
+                          style={{ backgroundColor: a.color + '0D', borderColor: a.color + '30' }}>
                           <span className="text-xs font-medium" style={{ color: a.color }}>{a.label}</span>
                           <span className="text-xl font-bold" style={{ color: a.color }}>{a.count}</span>
                         </div>
@@ -1272,62 +1208,9 @@ export default function AdminDashboard() {
               </section>
             )}
 
-            {/* 
-                SECTION - ANONYMOUS ANALYTICS
-             */}
-            <section>
-              <SectionLabel allTime>אנליטיקס אנונימי</SectionLabel>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                <MetricCard
-                  icon={Users}
-                  label="כניסות אורחים"
-                  value={(analyticsAgg['guest_session'] || 0).toLocaleString()}
-                  sub="סה״כ כניסות ללא הרשמה"
-                  color={C.purple}
-                />
-                <MetricCard
-                  icon={TrendingUp}
-                  label="התחברויות"
-                  value={(analyticsAgg['auth_login'] || 0).toLocaleString()}
-                  sub="כניסות עם חשבון"
-                  color={C.blue}
-                />
-                <MetricCard
-                  icon={Users}
-                  label="הרשמות"
-                  value={(analyticsAgg['auth_signup'] || 0).toLocaleString()}
-                  sub="חשבונות חדשים"
-                  color={C.green}
-                />
-                <MetricCard
-                  icon={Car}
-                  label="רכבים (אורחים)"
-                  value={(analyticsAgg['guest_vehicle_added'] || 0).toLocaleString()}
-                  sub="רכבים שנוספו במצב אורח"
-                  color={C.amber}
-                />
-              </div>
-              <ChartCard title={`כניסות אורחים · ${fLabel}`}>
-                {analyticsRecent.every(d => d['אורחים'] === 0)
-                  ? <EmptyChart text="אין נתוני אורחים עדיין" />
-                  : (
-                    <ResponsiveContainer width="100%" height={180}>
-                      <BarChart data={analyticsRecent} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                        <Tooltip content={<BiTooltip />} />
-                        <Bar dataKey="אורחים" fill={C.purple} radius={[6, 6, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )
-                }
-              </ChartCard>
-            </section>
-
             {/* Footer */}
             <p className="text-[10px] text-center text-gray-300">
-              נתונים בזמן אמת ממסד הנתונים · {format(TODAY, 'HH:mm')}
+              נתונים בזמן אמת · {format(TODAY, 'HH:mm')}
             </p>
 
           </>
