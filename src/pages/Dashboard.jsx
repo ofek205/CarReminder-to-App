@@ -54,6 +54,12 @@ function UrgentBanner({ reminders, vehicles }) {
   const withDays = allReminders
     .map(r => ({ ...r, days: daysUntil(r.date) }))
     .filter(r => r.days !== null)
+    // Product rule: the banner is meant to prompt *action*, not inform about
+    // routine future events. Anything more than 30 days out isn't "coming
+    // soon" — surfacing it in a hero banner 2 months ahead is false urgency.
+    // Keep the item in the detailed list below where the user went looking,
+    // but don't hijack the top of the page for it.
+    .filter(r => r.days <= 30)
     .sort((a, b) => a.days - b.days);
 
   // Show the nearest upcoming reminder
@@ -61,15 +67,17 @@ function UrgentBanner({ reminders, vehicles }) {
   if (!urgent) return null;
 
   const isExpired = urgent.days < 0;
-  const isDanger = urgent.days <= 14; // 0-14 days or expired
+  const isDanger = !isExpired && urgent.days <= 14; // 0-14 days
 
   const urgentVehicle = vehicles?.find(v => v.id === urgent.vehicle_id);
   const isUrgentVessel = isVesselType(urgentVehicle?.vehicle_type, urgentVehicle?.nickname);
   const vehicleName = urgentVehicle?.nickname || urgentVehicle?.manufacturer || '';
   const T = getTheme(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
 
-  // Urgency levels: expired → red, 0-14 → red, 15-30 → amber, 30+ → calm info
-  const isFarAway = urgent.days > 30;
+  // Urgency palette. Kept intentionally narrow now that >30d is filtered out:
+  //   expired (< 0) → red hero + red "פג תוקף!" badge
+  //   danger  (0-14) → themed hero + red "דחוף" badge
+  //   else    (15-30) → themed hero + amber "בקרוב" badge
   const urgencyConfig = isExpired ? {
     badgeBg: '#FEF2F2', badgeColor: '#DC2626', badgeBorder: '#FECACA',
     badgeIcon: AlertTriangle, badgeText: 'פג תוקף!',
@@ -80,11 +88,6 @@ function UrgentBanner({ reminders, vehicles }) {
     badgeIcon: AlertTriangle, badgeText: 'דחוף',
     bannerBg: T.grad,
     bannerShadow: `${T.primary}40`,
-  } : isFarAway ? {
-    badgeBg: T.light, badgeColor: T.primary, badgeBorder: T.border,
-    badgeIcon: Calendar, badgeText: 'תזכורת קרובה',
-    bannerBg: T.grad,
-    bannerShadow: `${T.primary}30`,
   } : {
     badgeBg: '#FFF8E1', badgeColor: '#D97706', badgeBorder: '#FDE68A',
     badgeIcon: Clock, badgeText: 'בקרוב',
@@ -278,7 +281,7 @@ function InfoTile({ icon: Icon, label, value, status }) {
 }
 
 //  Reminder Row (premium) 
-function ReminderRow({ reminder }) {
+function ReminderRow({ reminder, vehicles }) {
   const days = daysUntil(reminder.date);
   const urgency = days !== null && days < 0 ? 'danger' : days !== null && days <= 14 ? 'warn' : 'ok';
   const urgencyColor = { ok: '#3A7D44', warn: '#D97706', danger: '#DC2626' }[urgency];
@@ -286,15 +289,30 @@ function ReminderRow({ reminder }) {
   const icons = { insurance: Shield, test: Calendar, maintenance: Wrench };
   const Icon = icons[reminder.type] || Bell;
 
-  return (
-    <div className="flex items-center gap-3 p-3 mb-2 rounded-2xl transition-all"
+  // Resolve which vehicle this reminder belongs to so the row can (a) show a
+  // recognizable label ("הוויטארה 🚙" beats "טסט שנתי") and (b) deep-link into
+  // that vehicle's detail page. reminder.subtitle is already the nickname/
+  // manufacturer where available; vehicle_type is a useful fallback for
+  // vehicles the user never renamed.
+  const vehicle = vehicles?.find(v => v.id === reminder.vehicle_id);
+  const vehicleLabel = reminder.subtitle
+    || vehicle?.nickname
+    || [vehicle?.manufacturer, vehicle?.model].filter(Boolean).join(' ')
+    || vehicle?.vehicle_type
+    || null;
+
+  const body = (
+    <div className={`flex items-center gap-3 p-3 mb-2 rounded-2xl transition-all ${vehicle ? 'hover:brightness-[0.98] active:scale-[0.99] cursor-pointer' : ''}`}
       style={{ background: urgencyBg }} dir="rtl">
       <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
         style={{ background: urgencyColor, boxShadow: `0 4px 12px ${urgencyColor}40` }}>
         <Icon className="w-5 h-5 text-white" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-bold text-base" style={{ color: C.text }}>{reminder.title}</p>
+        <p className="font-bold text-base truncate" style={{ color: C.text }}>{reminder.title}</p>
+        {vehicleLabel && (
+          <p className="text-xs mt-0.5 font-semibold truncate" style={{ color: C.muted }}>{vehicleLabel}</p>
+        )}
         <p className="text-sm mt-0.5 font-bold" style={{ color: urgencyColor }}>{daysLabel(days)}</p>
       </div>
       <div className="text-left shrink-0">
@@ -302,6 +320,10 @@ function ReminderRow({ reminder }) {
       </div>
     </div>
   );
+
+  return vehicle
+    ? <Link to={`${createPageUrl('VehicleDetail')}?id=${vehicle.id}`}>{body}</Link>
+    : body;
 }
 
 //  Status Summary (authenticated multi-vehicle) 
@@ -890,7 +912,7 @@ export default function Dashboard() {
                 טיפולים קרובים
               </h2>
               <div>
-                {upcomingReminders.map(r => <ReminderRow key={r.id} reminder={r} />)}
+                {upcomingReminders.map(r => <ReminderRow key={r.id} reminder={r} vehicles={vehiclesToShow} />)}
               </div>
             </div>
           )}
@@ -1117,7 +1139,7 @@ export default function Dashboard() {
                   תזכורות קרובות
                 </h2>
                 <div className="rounded-3xl px-4" style={{ background: C.card, border: `1px solid ${C.border}`, boxShadow: '0 2px 16px rgba(45,82,51,0.07)' }}>
-                  {allReminders.slice(0, 6).map(r => <ReminderRow key={r.id} reminder={r} />)}
+                  {allReminders.slice(0, 6).map(r => <ReminderRow key={r.id} reminder={r} vehicles={vehicles} />)}
                 </div>
               </div>
             )}

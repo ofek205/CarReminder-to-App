@@ -681,6 +681,7 @@ export default function VehicleInfoSection({ vehicle }) {
             vehicle.drivetrain && { label: 'כונן', value: vehicle.drivetrain },
             vehicle.total_weight && { label: 'משקל כולל', value: vehicle.total_weight },
             vehicle.tow_capacity && { label: 'כושר גרירה', value: vehicle.tow_capacity },
+            vehicle.has_tow_hitch && { label: 'וו גרירה', value: vehicle.has_tow_hitch },
           ].filter(Boolean) },
           { title: 'בטיחות ונוחות', items: [
             vehicle.doors && { label: 'דלתות', value: vehicle.doors },
@@ -693,7 +694,25 @@ export default function VehicleInfoSection({ vehicle }) {
             vehicle.pollution_group && { label: 'קבוצת זיהום', value: vehicle.pollution_group },
           ].filter(Boolean) },
           { title: 'זיהוי', items: [
-            vehicle.front_tire && { label: 'צמיגים', value: vehicle.front_tire === vehicle.rear_tire ? vehicle.front_tire : `קדמי ${vehicle.front_tire} · אחורי ${vehicle.rear_tire}`, ltr: true },
+            // Tire display logic:
+            //   - Both reported AND identical → single "צמיגים" row (most cars).
+            //   - Both reported AND different → two rows — essential for SUVs,
+            //     trucks, and performance cars where the axles have different
+            //     sizes. Combining them on one line misleads the user when
+            //     ordering parts.
+            //   - Only one reported → show just that one, labeled by position.
+            ...(vehicle.front_tire && vehicle.rear_tire
+              ? (vehicle.front_tire === vehicle.rear_tire
+                  ? [{ label: 'צמיגים', value: vehicle.front_tire, ltr: true }]
+                  : [
+                      { label: 'צמיג קדמי', value: vehicle.front_tire, ltr: true },
+                      { label: 'צמיג אחורי', value: vehicle.rear_tire, ltr: true },
+                    ])
+              : vehicle.front_tire
+                ? [{ label: 'צמיג קדמי', value: vehicle.front_tire, ltr: true }]
+                : vehicle.rear_tire
+                  ? [{ label: 'צמיג אחורי', value: vehicle.rear_tire, ltr: true }]
+                  : []),
             vehicle.vin && { label: 'מספר שלדה (VIN)', value: vehicle.vin, ltr: true },
             vehicle.model_code && { label: 'קוד דגם', value: vehicle.model_code, ltr: true },
           ].filter(Boolean) },

@@ -6,7 +6,7 @@ const FONT_SCALES = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5];
 
 function getDeviceDefault() {
   const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
-  return isMobile ? 0.8 : 1.0;
+  return isMobile ? 0.7 : 0.9;
 }
 
 export function FontScaleProvider({ children }) {

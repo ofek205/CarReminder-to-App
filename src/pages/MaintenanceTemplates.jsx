@@ -191,6 +191,11 @@ function AuthenticatedView() {
           enabled: pref ? pref.enabled : true,
           is_custom: false,
           pref_id: pref?.id || null,
+          // service_size lives on the pref (user classification) if set;
+          // otherwise fall back to the catalog item's hint (useful for the
+          // default oil-change / brake-fluid entries that naturally map to
+          // small/big). Null = unclassified, applies to both.
+          service_size: pref?.service_size ?? item.service_size ?? null,
         });
       }
     }
@@ -207,6 +212,7 @@ function AuthenticatedView() {
         enabled: p.enabled,
         is_custom: true,
         pref_id: p.id,
+        service_size: p.service_size ?? null,
       });
     }
     return out;
@@ -230,14 +236,20 @@ function AuthenticatedView() {
   };
 
   const [search, setSearch] = useState('');
+  // Service-size chip filter: 'all' | 'small' | 'big'. Applied on top of the
+  // vehicle-type + search filters below. 'all' shows everything including
+  // unclassified entries; 'small' / 'big' only show templates explicitly
+  // tagged with that size.
+  const [sizeFilter, setSizeFilter] = useState('all');
   const visibleList = useMemo(() => {
     let list = merged;
     if (vehicleFilter === 'custom') list = list.filter(m => m.is_custom);
     else if (vehicleFilter !== 'all') list = list.filter(m => m.vehicle_type === vehicleFilter);
+    if (sizeFilter !== 'all') list = list.filter(m => m.service_size === sizeFilter);
     const q = search.trim();
     if (q) list = list.filter(m => m.name.includes(q));
     return list;
-  }, [merged, vehicleFilter, search]);
+  }, [merged, vehicleFilter, sizeFilter, search]);
 
   // Group visible items by category so the UI can render section headers.
   // Sort categories by the global MAINTENANCE_CATEGORIES order; custom
@@ -320,6 +332,28 @@ function AuthenticatedView() {
               title="הוסף סוג משלי">
               <Plus className="w-4 h-4" />
             </Button>
+          </div>
+
+          {/* Service-size chip filter — mirrors the "טיפול קטן / טיפול גדול"
+              split the user sees when adding maintenance inside a vehicle. */}
+          <div dir="rtl" className="flex items-center gap-1 mb-4 bg-white border border-gray-100 rounded-xl p-1 w-fit shadow-sm">
+            {[
+              { val: 'all',   label: 'הכל' },
+              { val: 'small', label: 'טיפול קטן' },
+              { val: 'big',   label: 'טיפול גדול' },
+            ].map(opt => (
+              <button
+                key={opt.val}
+                type="button"
+                onClick={() => setSizeFilter(opt.val)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: sizeFilter === opt.val ? C.primary : 'transparent',
+                  color: sizeFilter === opt.val ? '#fff' : C.muted,
+                }}>
+                {opt.label}
+              </button>
+            ))}
           </div>
 
           {/* List. grouped by category */}
@@ -450,11 +484,19 @@ function MaintenanceRow({ item, isLast, userId, lastDoneDate, onEdit, onQueryInv
       className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50 focus:outline-none focus-visible:bg-gray-50 ${isLast ? '' : 'border-b border-gray-100'}`}
       style={{ opacity: item.enabled ? 1 : 0.5 }}>
       <div className="flex-1 min-w-0 text-right">
-        <div className="flex items-center gap-2 mb-0.5">
+        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
           <span className="text-sm font-bold truncate" style={{ color: C.text }}>{item.name}</span>
+          {item.service_size === 'small' && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+              style={{ background: '#DBEAFE', color: '#1E40AF' }}>טיפול קטן</span>
+          )}
+          {item.service_size === 'big' && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+              style={{ background: '#FEF3C7', color: '#92400E' }}>טיפול גדול</span>
+          )}
           {item.is_custom && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
-              style={{ background: '#FEF3C7', color: '#92400E' }}>אישי</span>
+              style={{ background: '#E0E7FF', color: '#3730A3' }}>אישי</span>
           )}
         </div>
         <span className="text-xs text-gray-500 truncate block">
@@ -542,7 +584,7 @@ function EmptyState({ search, onAdd }) {
 
 function MaintenanceEditorSheet({ item, open, onClose, userId }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ interval_months: '', interval_km: '', remind_days_before: 14, enabled: true });
+  const [form, setForm] = useState({ interval_months: '', interval_km: '', remind_days_before: 14, enabled: true, service_size: null });
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -553,6 +595,7 @@ function MaintenanceEditorSheet({ item, open, onClose, userId }) {
       interval_km: item.interval_km ?? '',
       remind_days_before: item.remind_days_before ?? 14,
       enabled: item.enabled,
+      service_size: item.service_size ?? null,
     });
   }, [item?.key]);
 
@@ -572,6 +615,7 @@ function MaintenanceEditorSheet({ item, open, onClose, userId }) {
         interval_km: form.interval_km === '' ? null : Number(form.interval_km),
         remind_days_before: Number(form.remind_days_before) || 14,
         enabled: form.enabled,
+        service_size: form.service_size,
       });
       qc.invalidateQueries({ queryKey: ['maint-prefs', userId] });
       toast.success('נשמר');
@@ -614,6 +658,30 @@ function MaintenanceEditorSheet({ item, open, onClose, userId }) {
         </SheetHeader>
 
         <div className="space-y-4 py-4">
+          {/* Size classification — same split as the per-vehicle add-maintenance flow. */}
+          <div>
+            <label className="text-sm font-medium block mb-1.5" style={{ color: C.muted }}>סיווג</label>
+            <div className="flex gap-2 mt-1.5">
+              {[
+                { val: null,    label: 'ללא' },
+                { val: 'small', label: 'טיפול קטן' },
+                { val: 'big',   label: 'טיפול גדול' },
+              ].map(opt => (
+                <button
+                  key={String(opt.val)}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, service_size: opt.val }))}
+                  className="flex-1 px-3 py-2 rounded-xl text-sm font-bold transition-all"
+                  style={{
+                    background: form.service_size === opt.val ? C.primary : '#fff',
+                    color: form.service_size === opt.val ? '#fff' : C.muted,
+                    border: `1.5px solid ${form.service_size === opt.val ? C.primary : C.border}`,
+                  }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="כל X חודשים" value={form.interval_months}
               onChange={v => setForm(f => ({ ...f, interval_months: v }))}
@@ -670,12 +738,14 @@ function CreateMaintenanceDialog({ open, onClose, userId, vehicleTypes }) {
   const [form, setForm] = useState({
     custom_name: '', vehicle_type: vehicleTypes[0] || '',
     interval_months: 12, interval_km: '', remind_days_before: 14,
+    service_size: null,  // 'small' | 'big' | null (unclassified)
   });
 
   useEffect(() => {
     if (open) setForm({
       custom_name: '', vehicle_type: vehicleTypes[0] || '',
       interval_months: 12, interval_km: '', remind_days_before: 14,
+      service_size: null,
     });
   }, [open]);
 
@@ -692,6 +762,7 @@ function CreateMaintenanceDialog({ open, onClose, userId, vehicleTypes }) {
         interval_months: Number(form.interval_months),
         interval_km: form.interval_km === '' ? null : Number(form.interval_km),
         remind_days_before: Number(form.remind_days_before) || 14,
+        service_size: form.service_size,  // null = unclassified, applies to both
         enabled: true,
       });
       qc.invalidateQueries({ queryKey: ['maint-prefs', userId] });
@@ -718,6 +789,32 @@ function CreateMaintenanceDialog({ open, onClose, userId, vehicleTypes }) {
           <Field label="שם הטיפול" value={form.custom_name}
             onChange={v => setForm(f => ({ ...f, custom_name: v }))}
             placeholder="לדוגמה: החלפת נוזל הידראולי" />
+          {/* Service size classification — matches the "טיפול קטן / טיפול גדול"
+              split in the per-vehicle maintenance flow. Optional: leave null
+              if the template applies to both. */}
+          <div>
+            <label className="text-sm font-medium block mb-1.5" style={{ color: C.muted }}>סיווג</label>
+            <div className="flex gap-2 mt-1.5">
+              {[
+                { val: null,   label: 'ללא סיווג' },
+                { val: 'small', label: 'טיפול קטן' },
+                { val: 'big',   label: 'טיפול גדול' },
+              ].map(opt => (
+                <button
+                  key={String(opt.val)}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, service_size: opt.val }))}
+                  className="flex-1 px-3 py-2 rounded-xl text-sm font-bold transition-all"
+                  style={{
+                    background: form.service_size === opt.val ? C.primary : '#fff',
+                    color: form.service_size === opt.val ? '#fff' : C.muted,
+                    border: `1.5px solid ${form.service_size === opt.val ? C.primary : C.border}`,
+                  }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="כל X חודשים" value={form.interval_months}
               onChange={v => setForm(f => ({ ...f, interval_months: v }))}
@@ -861,7 +958,8 @@ function buildIntervalText(months, km) {
 }
 
 async function upsertPref({ pref_id, user_id, catalog_key, is_custom, custom_name, vehicle_type,
-                           interval_months, interval_km, remind_days_before, enabled, name /* row may pass full item */ }) {
+                           interval_months, interval_km, remind_days_before, enabled, service_size,
+                           name /* row may pass full item */ }) {
   // Allow callers to pass the full row (includes `name`). we ignore
   // extras so handleToggle at the row level can just spread the item.
   const payload = {
@@ -874,6 +972,7 @@ async function upsertPref({ pref_id, user_id, catalog_key, is_custom, custom_nam
     interval_km: interval_km ?? null,
     remind_days_before: remind_days_before ?? 14,
     enabled: enabled === undefined ? true : enabled,
+    service_size: service_size ?? null,
   };
   if (pref_id) return db.maintenance_reminder_prefs.update(pref_id, payload);
   return db.maintenance_reminder_prefs.create(payload);

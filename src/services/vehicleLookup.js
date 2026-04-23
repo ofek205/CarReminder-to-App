@@ -190,6 +190,15 @@ function mapSpecRecord(r) {
   } else if (towUnbraked) {
     specs.tow_capacity = `${towUnbraked} ק"ג (בלי בלמים)`;
   }
+  // Tow hitch ("וו גרירה"): the gov.il spec API doesn't return a dedicated
+  // boolean, but it does report towing capacity fields. The DoT only fills
+  // those when the model is hitch-capable, so presence of either value is
+  // a reliable proxy for "vehicle has a hitch". Absence is ambiguous — the
+  // value might just be missing — so we intentionally never display "לא"
+  // here; the field is shown only when we can say "כן" confidently.
+  if (towBraked || towUnbraked) {
+    specs.has_tow_hitch = 'כן';
+  }
   return specs;
 }
 

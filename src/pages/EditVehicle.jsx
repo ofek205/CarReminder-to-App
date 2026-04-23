@@ -89,6 +89,7 @@ export default function EditVehicle() {
     vehicle_photo: v.vehicle_photo || '',
     last_tire_change_date: v.last_tire_change_date || '',
     km_since_tire_change: v.km_since_tire_change || '',
+    tires_changed_count: v.tires_changed_count || 4,
     fuel_type: v.fuel_type || '',
     is_vintage: v.is_vintage ?? isVintageVehicle(v.year),
     // Vessel safety equipment
@@ -271,7 +272,7 @@ export default function EditVehicle() {
     const DB_COLUMNS = ['vehicle_type','manufacturer','model','year',
       'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
       'current_km','current_engine_hours','vehicle_photo','fuel_type',
-      'last_tire_change_date','km_since_tire_change',
+      'last_tire_change_date','km_since_tire_change','tires_changed_count',
       'flag_country','marina','marina_abroad','engine_manufacturer',
       'pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
       'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
@@ -305,6 +306,9 @@ export default function EditVehicle() {
     if (tireQuestion !== 'yes') {
       data.last_tire_change_date = null;
       data.km_since_tire_change = null;
+      data.tires_changed_count = null;
+    } else if (form.tires_changed_count) {
+      data.tires_changed_count = Number(form.tires_changed_count);
     }
     if (shipyardQuestion !== 'yes') {
       data.last_shipyard_date = null;
@@ -338,7 +342,7 @@ export default function EditVehicle() {
       try {
         const CORE = ['vehicle_type','manufacturer','model','year','nickname','license_plate',
           'test_due_date','insurance_due_date','insurance_company','current_km','current_engine_hours',
-          'vehicle_photo','fuel_type','is_vintage','last_tire_change_date','km_since_tire_change',
+          'vehicle_photo','fuel_type','is_vintage','last_tire_change_date','km_since_tire_change','tires_changed_count',
           'flag_country','marina','marina_abroad','engine_manufacturer',
           'pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
           'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
@@ -738,10 +742,36 @@ export default function EditVehicle() {
                 </button>
               </div>
               {tireQuestion === 'yes' && (
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <div><Label>תאריך החלפה</Label><DateInput value={form.last_tire_change_date} onChange={e => handleChange('last_tire_change_date', e.target.value)} /></div>
-                  <div><Label>ק"מ בעת ההחלפה</Label><Input type="number" dir="ltr" value={form.km_since_tire_change} onChange={e => handleChange('km_since_tire_change', e.target.value)} placeholder="0" /></div>
-                </div>
+                <>
+                  <div className="pt-1">
+                    <Label>כמה צמיגים הוחלפו?</Label>
+                    <div className="flex gap-2 mt-1.5" dir="rtl">
+                      {[
+                        { val: 4, label: 'כל ה-4' },
+                        { val: 2, label: '2 צמיגים' },
+                        { val: 1, label: '1 צמיג' },
+                        { val: 3, label: '3 צמיגים' },
+                      ].map(opt => (
+                        <button
+                          key={opt.val}
+                          type="button"
+                          onClick={() => handleChange('tires_changed_count', opt.val)}
+                          className="flex-1 px-3 py-2 rounded-xl text-sm font-bold transition-all"
+                          style={{
+                            background: Number(form.tires_changed_count) === opt.val ? T.primary : '#fff',
+                            color: Number(form.tires_changed_count) === opt.val ? '#fff' : T.muted,
+                            border: `1.5px solid ${Number(form.tires_changed_count) === opt.val ? T.primary : T.border}`,
+                          }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div><Label>תאריך החלפה</Label><DateInput value={form.last_tire_change_date} onChange={e => handleChange('last_tire_change_date', e.target.value)} /></div>
+                    <div><Label>ק"מ בעת ההחלפה</Label><Input type="number" dir="ltr" value={form.km_since_tire_change} onChange={e => handleChange('km_since_tire_change', e.target.value)} placeholder="0" /></div>
+                  </div>
+                </>
               )}
             </div>
           )}

@@ -158,14 +158,24 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
             return (
             <div key={c.id} className="px-3 py-3">
               {c.is_ai ? (
-                /* AI Comment - special card */
+                /* AI Comment — special amber card.
+                 *
+                 * Display name is ALWAYS derived from the post's domain
+                 * (ברוך for road vehicles, יוסי for vessels) via
+                 * getAiExpertForDomain(), NOT from c.author_name. Older
+                 * code paths stored the post owner's name in that column
+                 * by mistake, which made the AI reply look like the asker
+                 * was replying to themselves. Deriving on render keeps
+                 * legacy rows correct too. */
                 <div className="rounded-xl p-3" style={{ background: '#FFFBEB', borderRight: '3px solid #FBBF24' }}>
                   <div className="flex items-center gap-2 mb-1.5">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
                       style={{ background: '#FEF3C7' }}>
                       <Wrench className="w-3 h-3" style={{ color: '#D97706' }} />
                     </div>
-                    <span className="text-[12px] font-bold" style={{ color: '#92400E' }}>{c.author_name}</span>
+                    <span className="text-[12px] font-bold" style={{ color: '#92400E' }}>
+                      {getAiExpertForDomain(postDomain).communityName}
+                    </span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold"
                       style={{ background: '#FDE68A', color: '#92400E' }}>AI</span>
                     <span className="text-[10px] mr-auto" style={{ color: '#D1B896' }}>{timeAgo(c.created_at)}</span>
