@@ -6,11 +6,17 @@
  * Review prompts — we want feedback without harassing users.
  *
  * Schedule (from account creation):
- *   - Day 10: first prompt.
- *   - Day 30: second prompt (only if the user dismissed the first without
- *             submitting). That's 20 days after the first prompt.
- *   - Every 90 days thereafter: quarterly prompt (only if still no review).
+ *   - Day 10 from signup: first prompt (age-gated).
+ *   - 20 days after the first prompt: second prompt — roughly day 30
+ *     from signup for a user who sees the first prompt on time.
+ *   - Every 90 days after the previous prompt: quarterly nudge.
  *   - If the user submits a review once → never prompt again.
+ *
+ * Critically, the 2nd-prompt and quarterly gates key off sinceLast
+ * (time since last prompt), NOT signup age. That way a user who signed
+ * up 6 months ago and only now sees their first prompt still gets a
+ * real 20-day breather before the second — we don't jump them straight
+ * to prompt #2 just because their account is old.
  *
  * Storage
  *   Key: localStorage['cr_review_schedule_v1']
@@ -28,9 +34,9 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 
 const STORAGE_KEY = 'cr_review_schedule_v1';
-const FIRST_PROMPT_DAY    = 10;   // days after signup
-const SECOND_PROMPT_DAY   = 30;   // days after signup
-const FOLLOWUP_INTERVAL   = 90;   // days between subsequent prompts
+const FIRST_PROMPT_DAY     = 10;   // days after signup — when prompt #1 becomes eligible
+const SECOND_PROMPT_WAIT   = 20;   // days after prompt #1 before prompt #2 (≈ day-30 of signup for on-time users)
+const FOLLOWUP_INTERVAL    = 90;   // days between subsequent prompts (after #2)
 
 function readState() {
   try {
@@ -86,16 +92,19 @@ export default function useReviewPromptSchedule(user) {
     const ageDays = daysBetween(signup, now);
     if (ageDays === null || ageDays < FIRST_PROMPT_DAY) return false;
 
-    // No prompts yet → first prompt is due the moment we cross day 10.
+    // First prompt — eligible the moment account is 10+ days old.
     if (state.promptCount === 0) return true;
 
-    // One prompt already shown → wait until day 30 after signup.
-    if (state.promptCount === 1) return ageDays >= SECOND_PROMPT_DAY;
-
-    // Two or more prompts shown → quarterly based on last prompt, not signup.
+    // Past prompts exist → the cooldown is based on time-since-last, never
+    // on signup age. This prevents a "double pop" right after the user
+    // clicks "לא עכשיו" on the first prompt: even for an old account, we
+    // always wait the full SECOND_PROMPT_WAIT / FOLLOWUP_INTERVAL window.
     const last = state.lastPromptedAt ? new Date(state.lastPromptedAt) : null;
     const sinceLast = daysBetween(last, now);
-    return sinceLast === null ? true : sinceLast >= FOLLOWUP_INTERVAL;
+    if (sinceLast === null) return true; // missing timestamp → safe default: allow
+
+    if (state.promptCount === 1) return sinceLast >= SECOND_PROMPT_WAIT;
+    return sinceLast >= FOLLOWUP_INTERVAL;
   }, [user?.id, user?.created_at, tick]);
 
   // Called when the user dismisses the popup (with or without submitting).
