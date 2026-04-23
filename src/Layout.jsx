@@ -13,6 +13,8 @@ import WelcomePopup from "@/components/shared/WelcomePopup";
 import GuestWelcomePopup from "@/components/shared/GuestWelcomePopup";
 import MileageReminderPopup, { shouldShowMileageReminder } from "@/components/shared/MileageReminderPopup";
 import ReviewManager from "@/components/shared/ReviewManager";
+import ReviewPopup from "@/components/shared/ReviewPopup";
+import useReviewPromptSchedule from "@/hooks/useReviewPromptSchedule";
 import { SafeComponent } from "@/components/shared/SafeComponent";
 import { GuestProvider, useAuth } from "@/components/shared/GuestContext";
 import { format, parseISO } from 'date-fns';
@@ -895,6 +897,23 @@ function NotificationBell() {
   );
 }
 
+// Small wrapper around ReviewPopup that owns the scheduling hook.
+// Lives as its own component so the hook only runs when the guard above
+// actually mounts it — we don't want the schedule evaluated on routes
+// where the user isn't authenticated yet.
+function ScheduledReviewPrompt({ user }) {
+  const { shouldPrompt, markPrompted } = useReviewPromptSchedule(user);
+  return (
+    <ReviewPopup
+      open={shouldPrompt}
+      onClose={markPrompted}
+      userId={user?.id}
+      userEmail={user?.email}
+      userName={user?.user_metadata?.full_name || ''}
+    />
+  );
+}
+
 function LayoutInner({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -1038,6 +1057,21 @@ function LayoutInner({ children }) {
         />
       </SafeComponent>
       {isAuthenticated && mileageCheckDone && <SafeComponent label="ReviewManager"><ReviewManager /></SafeComponent>}
+      {/* Scheduled review prompt.
+       *
+       * Gating (see useReviewPromptSchedule.js):
+       *   day 10  → first prompt
+       *   day 30  → second prompt (only if dismissed without submitting)
+       *   every 90 days after → quarterly nudge (until they submit once)
+       *
+       * Guarded so it can't overlap the welcome popup on fresh logins:
+       * we wait until both welcomeState has cleared AND mileageCheckDone.
+       * That keeps the sequence one-popup-at-a-time. */}
+      {isAuthenticated && !isGuest && welcomeState === null && mileageCheckDone && user && (
+        <SafeComponent label="ReviewPrompt">
+          <ScheduledReviewPrompt user={user} />
+        </SafeComponent>
+      )}
       <AccessibilityPanel open={a11yOpen} onOpenChange={setA11yOpen} />
       <DraggableA11yButton onClick={() => { window.dispatchEvent(new CustomEvent('cr:close-popups')); setA11yOpen(true); }} />
       <div className="min-h-screen bg-white flex">
