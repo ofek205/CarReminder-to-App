@@ -58,7 +58,24 @@ async function callEdgeProxy(body) {
   }
 
   const { supabase } = await import('./supabase');
-  const { data: { session } } = await supabase.auth.getSession();
+  // Get the active session. If the access token is near/past expiry,
+  // proactively refresh it BEFORE sending the request — we saw cases
+  // where the SDK held a technically-expired token and getSession()
+  // returned it verbatim, leading to spurious 401s from the edge
+  // function and a confusing "ההתחברות פגה" message for the user.
+  let { data: { session } } = await supabase.auth.getSession();
+  const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0;
+  const needsRefresh = !expiresAt || (expiresAt - Date.now() < 60_000); // <60s left
+  if (session && needsRefresh) {
+    try {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      if (refreshed?.session) session = refreshed.session;
+    } catch {
+      // Refresh failed. Fall through; we'll throw NO_SESSION below if
+      // there's no usable token at all, or let the edge function
+      // return 401 otherwise so the user sees a single clear error.
+    }
+  }
   const token = session?.access_token;
   if (!token) {
     const e = new Error('יש להתחבר מחדש כדי להשתמש ב-AI');
