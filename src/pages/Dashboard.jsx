@@ -835,15 +835,28 @@ export default function Dashboard() {
     const vehiclesToShow = hasGuestVehicles ? guestVehicles : [DEMO_VEHICLE, DEMO_VESSEL];
     const isShowingDemo = vehiclesToShow.some(v => v._isDemo);
 
-    // Build reminders from vehicle dates
+    // Build reminders from vehicle dates.
+    //
+    // subtitle must identify *the vehicle* so the user can tell which row
+    // belongs to which car. Earlier we were using v.insurance_company for
+    // the insurance subtitle, which printed things like "ליברה" / "הפניקס"
+    // — useful information but confusing next to "חידוש ביטוח" because it
+    // answered the wrong question ("which insurer" instead of "which car").
+    // Unified rule for both reminder types: nickname → "manufacturer model"
+    // → manufacturer alone.
+    const vehicleLabel = v => v.nickname
+      || [v.manufacturer, v.model].filter(Boolean).join(' ')
+      || v.manufacturer
+      || '';
     const reminders = vehiclesToShow.flatMap(v => {
       const vc = getVehicleCategory(v.vehicle_type, v.nickname, v.manufacturer);
       const isV = isVesselType(v.vehicle_type, v.nickname);
       const vtw = isV ? 'כושר שייט' : vc === 'motorcycle' ? 'טסט אופנוע' : vc === 'truck' ? 'טסט משאית' : vc === 'offroad' ? `טסט ${v.vehicle_type || 'כלי שטח'}` : 'טסט שנתי';
       const iw = isV ? 'ביטוח ימי' : 'חידוש ביטוח';
+      const vLabel = vehicleLabel(v);
       return [
-        v.test_due_date      && { id: `${v.id}_test`, vehicle_id: v.id, title: vtw, date: v.test_due_date, type: 'test', subtitle: v.nickname || v.manufacturer },
-        v.insurance_due_date && { id: `${v.id}_ins`,  vehicle_id: v.id, title: iw,  date: v.insurance_due_date, type: 'insurance', subtitle: v.insurance_company || '' },
+        v.test_due_date      && { id: `${v.id}_test`, vehicle_id: v.id, title: vtw, date: v.test_due_date, type: 'test', subtitle: vLabel },
+        v.insurance_due_date && { id: `${v.id}_ins`,  vehicle_id: v.id, title: iw,  date: v.insurance_due_date, type: 'insurance', subtitle: vLabel },
       ].filter(Boolean);
     });
 
@@ -1002,14 +1015,20 @@ export default function Dashboard() {
   };
   const displayedVehicles = sortVehicles(searched);
 
+  // Same vehicle-identification rule as the guest-mode reminders above —
+  // subtitle must identify which vehicle, never the insurance company.
   const allReminders = vehicles.flatMap(v => {
     const vc = getVehicleCategory(v.vehicle_type, v.nickname, v.manufacturer);
     const isV = isVesselType(v.vehicle_type, v.nickname);
     const vtw = isV ? 'כושר שייט' : vc === 'motorcycle' ? 'טסט אופנוע' : vc === 'truck' ? 'טסט משאית' : vc === 'offroad' ? `טסט ${v.vehicle_type || 'כלי שטח'}` : 'טסט שנתי';
     const iw = isV ? 'ביטוח ימי' : 'חידוש ביטוח';
+    const vLabel = v.nickname
+      || [v.manufacturer, v.model].filter(Boolean).join(' ')
+      || v.manufacturer
+      || '';
     return [
-      v.test_due_date      && { id: `${v.id}_test`, vehicle_id: v.id, title: vtw, date: v.test_due_date,      type: 'test',      subtitle: v.nickname || v.manufacturer },
-      v.insurance_due_date && { id: `${v.id}_ins`,  vehicle_id: v.id, title: iw,  date: v.insurance_due_date, type: 'insurance', subtitle: v.insurance_company || '' },
+      v.test_due_date      && { id: `${v.id}_test`, vehicle_id: v.id, title: vtw, date: v.test_due_date,      type: 'test',      subtitle: vLabel },
+      v.insurance_due_date && { id: `${v.id}_ins`,  vehicle_id: v.id, title: iw,  date: v.insurance_due_date, type: 'insurance', subtitle: vLabel },
     ].filter(Boolean);
   }).sort((a, b) => daysUntil(a.date) - daysUntil(b.date));
 
