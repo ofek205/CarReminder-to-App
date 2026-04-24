@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
-import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User } from "lucide-react";
+import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User, Share2 } from "lucide-react";
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import LoadingSpinner from "../components/shared/LoadingSpinner";
@@ -388,6 +388,29 @@ function AuthNotifications() {
   const licenseDays = daysUntil(profileData?.license_expiration_date);
   const licenseAlert = licenseDays !== null && licenseDays <= 30;
 
+  // Generic app notifications (share offered/accepted + future event types).
+  // Fetched from app_notifications — always show unread, plus the most
+  // recent 20 read items so users can still see history.
+  const { data: appNotifs = [] } = useQuery({
+    queryKey: ['app-notifs', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('app_notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  const markAppNotifRead = async (id, nextRead = true) => {
+    await supabase.from('app_notifications').update({ is_read: nextRead }).eq('id', id);
+    queryClient.invalidateQueries({ queryKey: ['app-notifs', user?.id] });
+  };
+
   // Build notifications using UNIFIED engine (same as bell)
   const notifications = useMemo(() => {
     if (!vehicles.length) return [];
@@ -526,6 +549,57 @@ function AuthNotifications() {
           </button>
         </div>
       )}
+
+      {/* App notifications — share offered/accepted, etc. */}
+      {appNotifs.map(an => {
+        const isRead = an.is_read;
+        return (
+          <div key={`app-${an.id}`}
+            className="rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all"
+            style={{
+              background: isRead ? '#FAFAFA' : '#ECFDF5',
+              border: `1.5px solid ${isRead ? '#E5E7EB' : '#A7F3D0'}`,
+              opacity: isRead ? 0.7 : 1,
+            }}
+            dir="rtl">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: isRead ? '#E5E7EB' : '#059669', boxShadow: isRead ? 'none' : '0 3px 10px rgba(5,150,105,0.3)' }}>
+              <Share2 className="w-5 h-5" style={{ color: isRead ? '#6B7280' : '#fff' }} />
+            </div>
+            <button type="button"
+              onClick={async () => {
+                if (!isRead) await markAppNotifRead(an.id, true);
+                // share_offered → go to /JoinInvite is unreachable (we don't
+                // have the token), so nudge the user to their mail/whatsapp.
+                // share_accepted → send inviter to AccountSettings to see new member.
+                if (an.type === 'share_accepted') {
+                  navigate(createPageUrl('AccountSettings'));
+                } else if (an.type === 'share_offered') {
+                  navigate(createPageUrl('AccountSettings'));
+                }
+              }}
+              className="flex-1 min-w-0 text-right">
+              <p className={`text-sm ${isRead ? 'font-medium' : 'font-bold'}`}
+                style={{ color: isRead ? '#6B7280' : '#065F46' }}>
+                {an.title}
+              </p>
+              {an.body && (
+                <p className="text-xs mt-0.5" style={{ color: isRead ? '#9CA3AF' : '#047857' }}>{an.body}</p>
+              )}
+            </button>
+            <button
+              onClick={() => markAppNotifRead(an.id, !isRead)}
+              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/60 transition-all shrink-0"
+              title={isRead ? 'סמן כלא נקרא' : 'סמן כנקרא'}>
+              <div className="w-2.5 h-2.5 rounded-full border-2 transition-all"
+                style={{
+                  background: isRead ? 'transparent' : '#059669',
+                  borderColor: isRead ? '#D1D5DB' : '#059669',
+                }} />
+            </button>
+          </div>
+        );
+      })}
 
       {/* License expiration alert */}
       {licenseAlert && (

@@ -18,7 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
-import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X } from 'lucide-react';
+import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X, Share2 } from 'lucide-react';
 import { differenceInYears, subMonths } from 'date-fns';
 
 export default function NotificationBell() {
@@ -277,6 +277,63 @@ export default function NotificationBell() {
           });
         } catch {}
 
+        // Generic app_notifications (share_offered / share_accepted / …).
+        // Displayed alongside reminders. Marking read clears the row so the
+        // bell count deflates; we never delete — users can still see history
+        // on the full Notifications page.
+        try {
+          const { data: appNotifs, error: anError } = await supabase
+            .from('app_notifications')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('is_read', false)
+            .order('created_at', { ascending: false })
+            .limit(10);
+          if (!anError && appNotifs) {
+            appNotifs.forEach(an => {
+              items.push({
+                id: `app-${an.id}`, vehicleId: null, type: 'app',
+                appType: an.type,                // 'share_offered' | 'share_accepted'
+                label: an.title,
+                name: an.body || '',
+                days: 500, isExpired: false,
+                navTarget: an.type === 'share_accepted' ? 'AccountSettings' : 'AccountSettings',
+                _appNotifId: an.id,
+              });
+            });
+
+            // Fire a device-level local notification for any app_notification
+            // we haven't pinged yet. Key pattern: `app_push_fired_<id>` in
+            // localStorage so a single event only fires once per install,
+            // even if the bell reloads multiple times. No-op on web.
+            try {
+              const { isNative: native } = await import('@/lib/capacitor');
+              if (native) {
+                const { scheduleLocalNotification, requestNotificationPermission, checkNotificationPermission, createNotificationChannel } = await import('@/lib/notificationChannels');
+                let granted = await checkNotificationPermission();
+                if (!granted) granted = await requestNotificationPermission();
+                if (granted) {
+                  await createNotificationChannel();
+                  for (const an of appNotifs) {
+                    const key = `app_push_fired_${an.id}`;
+                    if (localStorage.getItem(key)) continue;
+                    // Fire ~2s from now so the scheduler doesn't drop a past-time
+                    // notification. Good enough for "ping on app open".
+                    await scheduleLocalNotification({
+                      id: `app-${an.id}`,
+                      title: an.title,
+                      body: an.body || '',
+                      scheduleAt: new Date(Date.now() + 2000),
+                      extra: { type: 'app', appType: an.type, appNotifId: an.id },
+                    });
+                    localStorage.setItem(key, '1');
+                  }
+                }
+              }
+            } catch {}
+          }
+        } catch {}
+
         let dismissedIds = [];
         try { dismissedIds = JSON.parse(localStorage.getItem('dismissed_notif_ids') || '[]'); } catch {}
         const dismissedSet = new Set(dismissedIds);
@@ -429,6 +486,12 @@ export default function NotificationBell() {
                             }
                             navigate(createPageUrl('Community'));
                           }
+                          else if (n.type === 'app') {
+                            if (n._appNotifId) {
+                              supabase.from('app_notifications').update({ is_read: true }).eq('id', n._appNotifId).then(() => {});
+                            }
+                            navigate(createPageUrl(n.navTarget || 'AccountSettings'));
+                          }
                           else if (n.vehicleId) {
                             const NOTIF_FIELD_MAP = {
                               test: 'test_due_date', insurance: 'insurance_due_date', mileage: 'current_km',
@@ -455,6 +518,7 @@ export default function NotificationBell() {
                             background: n.type === 'profile' ? '#EEF2FF'
                               : n.type === 'license' ? (n.isExpired ? '#FEF2F2' : '#FFF8E1')
                               : n.type === 'community' ? '#F5F3FF'
+                              : n.type === 'app' ? '#ECFDF5'
                               : n.type === 'seasonal' ? '#F0F9FF'
                               : n.isExpired ? '#FEF2F2'
                               : n.type === 'safety' ? '#FFF7ED'
@@ -469,6 +533,8 @@ export default function NotificationBell() {
                               ? <FileText className="w-4 h-4" style={{ color: n.isExpired ? '#DC2626' : '#D97706' }} />
                             : n.type === 'community'
                               ? <MessageSquare className="w-4 h-4" style={{ color: '#7C3AED' }} />
+                            : n.type === 'app'
+                              ? <Share2 className="w-4 h-4" style={{ color: '#059669' }} />
                             : n.type === 'seasonal'
                               ? <span className="text-sm">{n.id === 'winter-prep' ? '❄️' : '⛵'}</span>
                             : n.isExpired

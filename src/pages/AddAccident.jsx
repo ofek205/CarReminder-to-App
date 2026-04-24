@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import ManufacturerSelector from '@/components/vehicle/ManufacturerSelector';
 import { Camera, Loader2, Search, CheckCircle2, X, ChevronLeft, AlertTriangle, Phone, User, Car, MapPin, FileText, Shield, Calendar, ZoomIn, LocateFixed } from 'lucide-react';
 import { getCurrentPosition } from '@/lib/capacitor';
 import { Link } from 'react-router-dom';
@@ -388,7 +389,7 @@ export default function AddAccident() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div data-field="date">
               <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>תאריך התאונה <span className="text-red-400">*</span></Label>
-              <DateInput value={form.date} onChange={v => { handleChange('date', v); clearError('date'); }} className={`rounded-xl ${errors.date ? 'border-red-400' : ''}`} />
+              <DateInput value={form.date} onChange={e => { handleChange('date', e.target.value); clearError('date'); }} className={`rounded-xl ${errors.date ? 'border-red-400' : ''}`} />
               <FieldError message={errors.date} />
             </div>
             <div>
@@ -453,16 +454,16 @@ export default function AddAccident() {
           </div>
         </div>
 
-        {/*  Other driver section  */}
+        {/*  Offending vehicle section  */}
         <div className="rounded-2xl p-4 space-y-4" style={{ background: '#F5F1EB', border: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-2 mb-1">
-            <User className="w-4 h-4" style={{ color: C.primary }} />
-            <span className="font-bold text-sm" style={{ color: C.text }}>פרטי הנהג השני</span>
+            <Car className="w-4 h-4" style={{ color: C.primary }} />
+            <span className="font-bold text-sm" style={{ color: C.text }}>פרטי הרכב הפוגע</span>
           </div>
 
           {/* Plate lookup - single field that also saves the plate number */}
           <div>
-            <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>מספר רכב של הנהג השני</Label>
+            <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>מספר הרכב הפוגע</Label>
             <div className="flex gap-2">
               <Input
                 value={plateQuery}
@@ -527,11 +528,9 @@ export default function AddAccident() {
           <div className="grid grid-cols-3 gap-3">
             <div>
               <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>יצרן</Label>
-              <Input
-                value={form.other_driver_manufacturer}
-                onChange={e => handleChange('other_driver_manufacturer', e.target.value)}
-                placeholder="יצרן"
-                className={`rounded-xl ${autofillCls('other_driver_manufacturer', autofillFields)}`}
+              <ManufacturerSelector
+                selectedName={form.other_driver_manufacturer}
+                onChange={(_id, name) => handleChange('other_driver_manufacturer', name || '')}
               />
               <AutofillHint name="other_driver_manufacturer" autofillFields={autofillFields} />
             </div>
@@ -547,13 +546,18 @@ export default function AddAccident() {
             </div>
             <div>
               <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>שנה</Label>
-              <Input
-                value={form.other_driver_year}
-                onChange={e => handleChange('other_driver_year', e.target.value)}
-                placeholder="2024"
-                className={`rounded-xl ${autofillCls('other_driver_year', autofillFields)}`}
-                dir="ltr"
-              />
+              <Select
+                value={form.other_driver_year || ''}
+                onValueChange={v => handleChange('other_driver_year', v)}>
+                <SelectTrigger className={`rounded-xl ${autofillCls('other_driver_year', autofillFields)}`}>
+                  <SelectValue placeholder="שנה" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 40 }, (_, i) => new Date().getFullYear() + 1 - i).map(y => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <AutofillHint name="other_driver_year" autofillFields={autofillFields} />
             </div>
           </div>

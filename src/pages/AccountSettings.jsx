@@ -226,7 +226,7 @@ function AuthAccountSettings({ embedded = false }) {
         return;
       }
 
-      await db.invites.create({
+      const createdInvite = await db.invites.create({
         account_id: accountId,
         invited_by_user_id: user.id,
         role_to_assign: inviteRole,
@@ -237,6 +237,18 @@ function AuthAccountSettings({ embedded = false }) {
         status: 'פעיל',
         vehicle_ids: shareAll ? null : selectedVehicleIds,
       });
+
+      // If the invitee already has an account, drop a 'share_offered' row
+      // into their app_notifications so their bell lights up. The RPC
+      // resolves the email→user_id mapping under SECURITY DEFINER and
+      // no-ops if the email isn't registered (they still get the email).
+      if (inviteeEmail && inviteeEmail.includes('@') && createdInvite?.id) {
+        supabase.rpc('notify_invitee_by_email', {
+          p_email: inviteeEmail.trim(),
+          p_invite_id: createdInvite.id,
+          p_role: inviteRole,
+        }).then(() => {}, () => { /* best-effort */ });
+      }
 
       // Always resolve share links to the production domain — WhatsApp
       // previews, Vercel preview URLs, Capacitor `capacitor://localhost`,
@@ -542,7 +554,7 @@ function AuthAccountSettings({ embedded = false }) {
 
       {/* Invite Dialog */}
       <Dialog open={showInvite} onOpenChange={resetInviteDialog}>
-        <DialogContent className="max-w-md mx-4" dir="rtl">
+        <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle className="text-xl font-black">הזמנת חבר חדש</DialogTitle>
           </DialogHeader>

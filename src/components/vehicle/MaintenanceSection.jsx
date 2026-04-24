@@ -190,12 +190,34 @@ export default function MaintenanceSection({ vehicle }) {
       <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: `1.5px solid ${T.border}` }} dir="rtl">
         {/* Header with action buttons */}
         <div className="flex items-center justify-between px-4 py-3" style={{ background: T.light }}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Wrench className="w-4 h-4" style={{ color: T.primary }} />
             <span className="text-sm font-black" style={{ color: T.text }}>טיפולים ותיקונים</span>
-            {logs.length > 0 && (
-              <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: T.primary, color: '#fff' }}>{logs.length}</span>
-            )}
+            {(() => {
+              // Split the combined count into two badges so users can see at
+              // a glance how many are maintenance vs accident-level repairs.
+              // `type === 'תיקון'` is the repair discriminator; every other
+              // value ('טיפול גדול' / 'טיפול קטן' / 'טיפול מנוע' / 'טיפול גוף')
+              // counts as maintenance.
+              const repairCount = logs.filter(l => l.type === 'תיקון').length;
+              const serviceCount = logs.length - repairCount;
+              return (
+                <>
+                  {serviceCount > 0 && (
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ background: T.primary, color: '#fff' }}>
+                      טיפולים · {serviceCount}
+                    </span>
+                  )}
+                  {repairCount > 0 && (
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ background: '#DC2626', color: '#fff' }}>
+                      תיקונים · {repairCount}
+                    </span>
+                  )}
+                </>
+              );
+            })()}
           </div>
           <div className="flex gap-1.5">
             <button onClick={() => openDialog('טיפול')}

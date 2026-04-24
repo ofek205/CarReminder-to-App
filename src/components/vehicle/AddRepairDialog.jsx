@@ -33,6 +33,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
     garage_name: '',
     cost: '',
     is_accident: false,
+    accident_id: '',
   });
 
   const [accidentDetails, setAccidentDetails] = useState({
@@ -72,6 +73,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
         garage_name: repair.garage_name || '',
         cost: repair.cost || '',
         is_accident: repair.is_accident || false,
+        accident_id: repair.accident_id || '',
       });
       
       // Load existing attachments and accident details
@@ -105,6 +107,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
         garage_name: '',
         cost: '',
         is_accident: false,
+        accident_id: '',
       });
       setAccidentDetails({
         other_driver_name: '',
@@ -124,6 +127,15 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
     queryKey: ['repair-types', currentUser?.id],
     queryFn: () => db.repair_types.filter({ owner_user_id: currentUser.id, is_active: true }),
     enabled: !!currentUser?.id,
+  });
+
+  // Accidents for this vehicle — lets the user mark a repair as "follow-up
+  // to the accident on 2026-03-15". We fetch once per vehicle; the list is
+  // tiny (users typically have <5 open accidents per car).
+  const { data: vehicleAccidents = [] } = useQuery({
+    queryKey: ['accidents-for-vehicle', vehicle?.id],
+    queryFn: () => db.accidents.filter({ vehicle_id: vehicle.id }),
+    enabled: !!vehicle?.id,
   });
 
   const saveMutation = useMutation({
@@ -219,6 +231,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
       garage_name: form.garage_name || null,
       cost: form.cost ? Number(form.cost) : null,
       is_accident: form.is_accident,
+      accident_id: form.accident_id || null,
       created_by_user_id: repair?.created_by_user_id || currentUser.id,
     };
 
@@ -362,6 +375,37 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
               onChange={(e) => setForm(prev => ({ ...prev, cost: e.target.value }))}
               placeholder="0"
             />
+          </div>
+
+          {/* Link this repair to an existing accident (optional). Rendered
+              unconditionally so users editing a stale link can always clear
+              it — if we hid the Select when `vehicleAccidents` was empty,
+              a repair pointing at a deleted accident would keep its stale
+              UUID in form state and re-submit it on save (the FK would
+              then reject the write). */}
+          <div>
+            <Label>קשר לתאונה (אופציונלי)</Label>
+            <Select
+              value={form.accident_id || 'none'}
+              onValueChange={(v) => setForm(prev => ({ ...prev, accident_id: v === 'none' ? '' : v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="ללא קשר לתאונה" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">ללא קשר לתאונה</SelectItem>
+                {vehicleAccidents.map(a => {
+                  const dateLabel = a.date
+                    ? new Date(a.date).toLocaleDateString('he-IL')
+                    : 'ללא תאריך';
+                  const locLabel = a.location ? ` · ${a.location}` : '';
+                  return (
+                    <SelectItem key={a.id} value={a.id}>
+                      {dateLabel}{locLabel}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex items-center gap-2 border border-gray-200 rounded-lg p-3">
