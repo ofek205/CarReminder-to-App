@@ -28,16 +28,23 @@ import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
 import AiDateScan from '../components/shared/AiDateScan';
 
+// Accept DB rows (UUID v4) and guest rows (`guest_<uuid>`). Anything else
+// is likely a URL-tampering attempt; refuse early rather than pass a
+// malformed value to Supabase's query builder.
+const UUID_RE = /^(guest_)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function EditVehicle() {
   const urlParams = new URLSearchParams(window.location.search);
-  const vehicleId = urlParams.get('id');
+  const rawId = urlParams.get('id');
+  const vehicleId = rawId && UUID_RE.test(rawId) ? rawId : null;
   const highlightField = urlParams.get('field');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { isGuest, guestVehicles, updateGuestVehicle } = useAuth();
   const { role, isGuest: isGuestRole } = useAccountRole();
 
-  // Guard: no id → friendly fallback instead of loading a form with no target
+  // Guard: no id (or bad format) → friendly fallback instead of loading
+  // a form with no target (or attempting to query with a bogus string).
   if (!vehicleId) {
     return (
       <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
@@ -301,8 +308,12 @@ export default function EditVehicle() {
     // Same pattern for fuel type: if user picked "אחר" and typed a custom
     // value, persist the custom value rather than the placeholder "אחר".
     if (form.fuel_type === 'אחר' && form.fuel_type_other) data.fuel_type = form.fuel_type_other;
-    // Remove empty strings
-    Object.keys(data).forEach(k => { if (data[k] === '') delete data[k]; });
+    // Convert empty strings to null — on the EDIT flow an empty string
+    // means "user cleared this field" and we want the DB to actually clear
+    // the column. The old `delete data[k]` silently dropped the field
+    // from the payload, so Supabase kept the previous value and the user's
+    // clear-action never took effect.
+    Object.keys(data).forEach(k => { if (data[k] === '') data[k] = null; });
     if (tireQuestion !== 'yes') {
       data.last_tire_change_date = null;
       data.km_since_tire_change = null;
@@ -314,7 +325,7 @@ export default function EditVehicle() {
       data.last_shipyard_date = null;
       data.hours_since_shipyard = null;
     }
-    Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
+    Object.keys(data).forEach(k => { if (data[k] === undefined) delete data[k]; });
 
     // Guest vehicle - save locally
     if (isGuestVehicle) {

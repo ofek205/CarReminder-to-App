@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import React, { useState, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import { uploadScanFile, deleteFile } from '@/lib/supabaseStorage';
+import { extractDataFromUploadedFile } from '@/lib/aiExtract';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -36,14 +38,28 @@ export default function DriverLicenseScanDialog({ open, onClose, onSave }) {
     driver_license_number: '',
     license_expiration_date: '',
   });
+  // Orphan-cleanup bookkeeping — same pattern as VesselScanWizard. We
+  // track the storage_path of the uploaded scan and whether the user
+  // committed it via onSave. On dialog close without commit, delete the
+  // blob so we don't pay for abandoned uploads forever.
+  const storagePathRef = useRef(null);
+  const savedRef = useRef(false);
 
   const reset = () => {
     setStep('upload'); setUploading(false); setExtracting(false);
     setFileUrl(''); setFileName(''); setError('');
     setFields({ full_name: '', birth_date: '', driver_license_number: '', license_expiration_date: '' });
+    storagePathRef.current = null;
+    savedRef.current = false;
   };
 
-  const handleClose = () => { reset(); onClose(); };
+  const handleClose = () => {
+    if (storagePathRef.current && !savedRef.current) {
+      deleteFile(storagePathRef.current).catch(() => {});
+    }
+    reset();
+    onClose();
+  };
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
@@ -53,9 +69,17 @@ export default function DriverLicenseScanDialog({ open, onClose, onSave }) {
     setError('');
     setUploading(true);
     setFileName(file.name);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setFileUrl(file_url);
-    setUploading(false);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('no user');
+      const { file_url, storage_path } = await uploadScanFile({ file, userId: user.id });
+      setFileUrl(file_url);
+      storagePathRef.current = storage_path;
+    } catch {
+      setError('שגיאה בהעלאת הקובץ. נסה שנית.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleExtract = async () => {
@@ -74,7 +98,7 @@ export default function DriverLicenseScanDialog({ open, onClose, onSave }) {
       }
     };
 
-    const result = await base44.integrations.Core.ExtractDataFromUploadedFile({ file_url: fileUrl, json_schema: schema });
+    const result = await extractDataFromUploadedFile({ file_url: fileUrl, json_schema: schema });
 
     if (result.status !== 'success' || !result.output) {
       setError('לא הצלחתי לקרוא את הרישיון. ניתן להמשיך עם הזנה ידנית.');
@@ -100,6 +124,9 @@ export default function DriverLicenseScanDialog({ open, onClose, onSave }) {
   };
 
   const handleConfirm = () => {
+    // Mark saved BEFORE handleClose so the orphan-cleanup branch
+    // doesn't delete the image the parent is about to persist.
+    savedRef.current = true;
     onSave({ ...fields, license_image_url: fileUrl });
     handleClose();
   };

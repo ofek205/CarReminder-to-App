@@ -63,11 +63,22 @@ export default function Community() {
     (async () => {
       setSearching(true);
       try {
-        const q = `%${debouncedSearch}%`;
+        // Escape PostgREST ilike wildcards — a user typing "10%" or "foo_bar"
+        // should match the literal characters, not act as a SQL pattern. The
+        // backslash also needs escaping (\\ in the replacement string).
+        // Comma also has to be escaped because we build a comma-separated
+        // .or() expression below; an unescaped comma would inject a second
+        // filter clause. Double-quote wrapping shields the rest of the
+        // special-char surface PostgREST recognizes.
+        const escaped = debouncedSearch
+          .replace(/\\/g, '\\\\')
+          .replace(/%/g, '\\%')
+          .replace(/_/g, '\\_');
+        const q = `%${escaped}%`;
         // Search in posts body + author_name
         const [postsRes, commentsRes] = await Promise.all([
           supabase.from('community_posts').select('id').eq('domain', domain)
-            .or(`body.ilike.${q},author_name.ilike.${q}`).limit(100),
+            .or(`body.ilike."${q}",author_name.ilike."${q}"`).limit(100),
           supabase.from('community_comments').select('post_id').ilike('body', q).limit(100),
         ]);
         if (cancelled) return;

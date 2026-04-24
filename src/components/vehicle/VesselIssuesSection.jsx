@@ -10,6 +10,7 @@ import {
   Search,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { daysUntil } from '@/components/shared/ReminderEngine';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { getTheme } from '@/lib/designTokens';
 
@@ -74,7 +75,10 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
   const StatusIcon = status.icon;
 
   const isDone = issue.status === 'done';
-  const targetDays = issue.target_date ? Math.ceil((new Date(issue.target_date) - new Date()) / 86400000) : null;
+  // Use shared daysUntil (timezone-safe) instead of inline Math.ceil —
+  // the inline version reported "expired yesterday" as "0 (today)" at
+  // UTC↔local-midnight boundaries.
+  const targetDays = daysUntil(issue.target_date);
   const isOverdue = targetDays !== null && targetDays < 0 && !isDone;
 
   const handleAdvice = async () => {

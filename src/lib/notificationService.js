@@ -103,7 +103,14 @@ function computeScheduleTimes(reminder, settings) {
 
   // Overdue. nudge once in ~1 hour, then repeat every N days (capped).
   if (reminder.daysLeft <= 0) {
-    const repeatEvery = Math.max(1, Number(settings.overdue_repeat_every_days) || 3);
+    // Clamp to [1, 30]. A user typing 0, NaN, or negative would otherwise
+    // round up to 1 via Math.max and flood the device with a push every
+    // morning, forever. 30 is an upper bound — longer intervals suggest
+    // the feature is effectively off.
+    const parsed = Number(settings.overdue_repeat_every_days);
+    const repeatEvery = Number.isFinite(parsed) && parsed >= 1
+      ? Math.min(30, Math.floor(parsed))
+      : 3;
     const times = [new Date(now + 60 * 60 * 1000)]; // +1h
     for (let i = 1; i <= MAX_OVERDUE_REPEATS; i++) {
       times.push(morningSlot(i * repeatEvery));
@@ -115,8 +122,19 @@ function computeScheduleTimes(reminder, settings) {
   const daysBefore = daysBeforeFor(reminder.type, settings);
   const triggerInDays = Math.max(0, reminder.daysLeft - daysBefore);
 
-  // Out of horizon → skip; the next app open will reschedule.
-  if (triggerInDays > MAX_SCHEDULE_HORIZON_DAYS) return [];
+  // Out of horizon → schedule at the far edge of our window instead of
+  // silently returning []. The old behavior relied on "the next app open
+  // will reschedule" — but if the user never opens the app between now
+  // and the due date, they miss the reminder entirely. Firing at
+  // MAX_SCHEDULE_HORIZON_DAYS is a safety rail: we'll still recalculate
+  // on every app open, but if the user goes silent, at least *one*
+  // reminder lands in the notification queue.
+  if (triggerInDays > MAX_SCHEDULE_HORIZON_DAYS) {
+    if (import.meta.env?.DEV) {
+      console.log(`[notifSvc] horizon clamped for ${reminder.id}: ${triggerInDays} → ${MAX_SCHEDULE_HORIZON_DAYS}`);
+    }
+    return [morningSlot(MAX_SCHEDULE_HORIZON_DAYS)];
+  }
 
   // If trigger is already due today (daysLeft < daysBefore), fire tomorrow.
   const slot = triggerInDays === 0 ? morningSlot(1) : morningSlot(triggerInDays);

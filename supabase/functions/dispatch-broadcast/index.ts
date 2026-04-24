@@ -33,7 +33,12 @@ const ALLOWED_ORIGIN  = Deno.env.get('APP_ORIGIN') || 'https://car-reminder.app'
 
 function buildCors(req: Request): HeadersInit {
   const origin = req.headers.get('origin') || '';
-  const allow  = origin === ALLOWED_ORIGIN ? origin : ALLOWED_ORIGIN;
+  // Fail-closed: if the caller's origin isn't in the allow-list, return
+  // 'null' so the browser CORS check rejects. The old version echoed
+  // ALLOWED_ORIGIN for every request (even attacker origins), meaning a
+  // stolen JWT from any site on the internet could trigger a broadcast.
+  const allowList = ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
+  const allow  = allowList.includes(origin) ? origin : 'null';
   return {
     'Access-Control-Allow-Origin':  allow,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-dispatch-secret',

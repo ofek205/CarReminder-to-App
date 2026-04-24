@@ -39,6 +39,7 @@ const ChecklistHub = React.lazy(() => import('./pages/ChecklistHub'));
 const Checklist = React.lazy(() => import('./pages/Checklist'));
 const ChecklistEditor = React.lazy(() => import('./pages/ChecklistEditor'));
 const ChecklistHistory = React.lazy(() => import('./pages/ChecklistHistory'));
+const AdminAiSettings = React.lazy(() => import('./pages/AdminAiSettings'));
 
 export const PAGES = {
     "Accidents": Accidents,
@@ -74,6 +75,7 @@ export const PAGES = {
     "Checklist": Checklist,
     "ChecklistEditor": ChecklistEditor,
     "ChecklistHistory": ChecklistHistory,
+    "AdminAiSettings": AdminAiSettings,
 }
 
 export const pagesConfig = {

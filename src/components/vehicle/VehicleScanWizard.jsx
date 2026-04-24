@@ -51,6 +51,12 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
   const [fileUrl, setFileUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  // Cap retries so a bad scan + flaky AI doesn't let the user pound the
+  // "try again" button and burn through the per-minute rate limit on
+  // extract_document. 3 attempts is enough for transient failures; past
+  // that the image is likely genuinely unreadable and the user should
+  // either retake the photo or fill the form manually.
+  const [extractAttempts, setExtractAttempts] = useState(0);
   const [editableFields, setEditableFields] = useState({});
   const [editingField, setEditingField] = useState(null);
   const [compareChecks, setCompareChecks] = useState({});
@@ -75,6 +81,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     setPlateMismatchWarning(false); setSaving(false); setError(''); setDuplicateVehicle(null);
     setCompletion({ nickname: '', current_km: '', current_engine_hours: '', insurance_due_date: '', insurance_company: '' });
     setUsageMetric('קילומטרים');
+    setExtractAttempts(0);
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -94,6 +101,14 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       // PDFs (it preserves non-image files), so documents pass
       // through untouched.
       const ready = await compressImage(file);
+      // base64 inflation is ~4/3 — so > 5.5MB compressed is likely to push
+      // the ai-proxy payload past its 8MB cap. Tell the user instead of
+      // letting the upload silently fail mid-scan.
+      if (ready.size > 5.5 * 1024 * 1024) {
+        setError('הקובץ גדול מדי. צלם תמונה ברזולוציה נמוכה יותר או בחר קובץ קטן יותר.');
+        setUploading(false);
+        return;
+      }
       setUploadedFile(ready);
 
       const reader = new FileReader();
@@ -115,6 +130,11 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
   const handleExtract = async () => {
     if (!fileUrl) { setError('יש להעלות קובץ תחילה'); return; }
     if (mode === 'update' && !selectedVehicleId) { setError('יש לבחור רכב לעדכון'); return; }
+    if (extractAttempts >= 3) {
+      setError('נסיונות הסריקה הסתיימו. השלם ידנית או העלה קובץ חדש.');
+      return;
+    }
+    setExtractAttempts(n => n + 1);
     setExtracting(true);
     setError('');
 
@@ -287,7 +307,8 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     const data = {
       account_id: accountId,
       license_plate: editableFields.license_plate || '',
-      license_plate_normalized: normalizePlate(editableFields.license_plate || ''),
+      // license_plate_normalized is a GENERATED column in Postgres
+      // (derived from license_plate); never write to it directly.
       manufacturer: editableFields.manufacturer || '',
       model: editableFields.model || '',
       vehicle_type: editableFields.vehicle_type || '',
@@ -335,7 +356,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       if (!checked || !editableFields[k]) return;
       if (k === 'license_plate') {
         vehicleUpdate.license_plate = editableFields[k];
-        vehicleUpdate.license_plate_normalized = normalizePlate(editableFields[k]);
+        // license_plate_normalized auto-derives in Postgres.
       } else if (k === 'year') {
         vehicleUpdate.year = Number(editableFields[k]);
       } else {
@@ -491,11 +512,11 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
             {/* Retry button — when the scan came back empty/failed, give
                 the user an inline way to try again with the same file
                 instead of forcing them to back out of the wizard. */}
-            {nonEmptyFields.length === 0 && fileUrl && (
+            {nonEmptyFields.length === 0 && fileUrl && extractAttempts < 3 && (
               <Button variant="outline" className="w-full"
                 onClick={() => { setError(''); handleExtract(); }}
                 disabled={extracting}>
-                {extracting ? <><Loader2 className="h-4 w-4 animate-spin ml-2" /> סורק...</> : 'נסה סריקה שוב'}
+                {extracting ? <><Loader2 className="h-4 w-4 animate-spin ml-2" /> סורק...</> : `נסה סריקה שוב (${3 - extractAttempts} נסיונות)`}
               </Button>
             )}
 

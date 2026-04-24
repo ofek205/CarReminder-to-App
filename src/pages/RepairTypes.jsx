@@ -37,7 +37,7 @@ export default function RepairTypes() {
 
   const { data: repairTypes = [], isLoading } = useQuery({
     queryKey: ['repair-types', userId],
-    queryFn: () => /* TODO: migrate */ [].filter && db.vehicles.filter({ owner_user_id: userId }),
+    queryFn: () => db.repair_types.filter({ owner_user_id: userId }),
     enabled: !!userId,
   });
 
@@ -67,9 +67,9 @@ export default function RepairTypes() {
     };
 
     if (editingType) {
-      await base44.entities.RepairType.update(editingType.id, data);
+      await db.repair_types.update(editingType.id, data);
     } else {
-      await base44.entities.RepairType.create(data);
+      await db.repair_types.create(data);
     }
 
     queryClient.invalidateQueries({ queryKey: ['repair-types'] });
@@ -79,18 +79,18 @@ export default function RepairTypes() {
 
   const handleDelete = async (type) => {
     // Check if there are logs using this type
-    const logs = await /* TODO: migrate */ [].filter && db.vehicles.filter({ repair_type_id: type.id });
+    const logs = await db.repair_logs.filter({ repair_type_id: type.id });
 
     if (logs.length > 0) {
-      // Soft delete
+      // Soft delete — preserves historical log → type name binding
       if (!confirm(`קיימים ${logs.length} תיקונים המשתמשים בסוג זה. הסוג יסומן כלא פעיל ולא יהיה זמין להוספה עתידית. להמשיך?`)) {
         return;
       }
-      await base44.entities.RepairType.update(type.id, { is_active: false });
+      await db.repair_types.update(type.id, { is_active: false });
     } else {
       // Hard delete
       if (!confirm('למחוק סוג תיקון זה? פעולה זו בלתי הפיכה.')) return;
-      await base44.entities.RepairType.delete(type.id);
+      await db.repair_types.delete(type.id);
     }
 
     queryClient.invalidateQueries({ queryKey: ['repair-types'] });

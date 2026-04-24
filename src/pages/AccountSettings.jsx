@@ -238,12 +238,13 @@ function AuthAccountSettings({ embedded = false }) {
         vehicle_ids: shareAll ? null : selectedVehicleIds,
       });
 
-      // Use public production URL for share links (works on WhatsApp, etc.)
-      const PUBLIC_DOMAIN = 'https://car-reminder.app';
-      const origin = (typeof window !== 'undefined' && window.location.origin && window.location.origin.startsWith('http') && !window.location.origin.includes('localhost'))
-        ? window.location.origin
-        : PUBLIC_DOMAIN;
-      const link = `${origin}/JoinInvite?token=${token}`;
+      // Always resolve share links to the production domain — WhatsApp
+      // previews, Vercel preview URLs, Capacitor `capacitor://localhost`,
+      // and the dev server all produce URLs the recipient can't actually
+      // open. The old check only blocked `localhost` and would happily
+      // generate preview-URL invites that break after the PR is merged.
+      const PUBLIC_DOMAIN = import.meta.env.VITE_PUBLIC_APP_URL || 'https://car-reminder.app';
+      const link = `${PUBLIC_DOMAIN}/JoinInvite?token=${token}`;
       setInviteLink(link);
       queryClient.invalidateQueries({ queryKey: ['active-invites'] });
       toast.success('ההזמנה נוצרה בהצלחה');

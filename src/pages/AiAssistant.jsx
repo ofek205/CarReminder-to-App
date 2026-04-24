@@ -12,6 +12,7 @@ import { Send, Wrench, Loader2, Sparkles, Trash2, Car, Ship, AlertTriangle, Chec
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
+import AiProviderBadge from '@/components/shared/AiProviderBadge';
 
 const STORAGE_KEY_PREFIX = 'yossi_chat_';
 const CHAT_EXPIRY_DAYS = 30;
@@ -283,6 +284,10 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
       }));
 
       const json = await aiRequest({
+        // `feature` tells the Edge Function which admin-configured
+        // provider to prefer. Defaults to 'gemini' server-side when no
+        // override is set.
+        feature: 'yossi_chat',
         model: 'llama-3.3-70b-versatile',
         max_tokens: 700,
         system: systemPrompt,
@@ -295,6 +300,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
         content: sanitize(aiText).slice(0, 2500),
         ts: Date.now(),
         vehicleId: selectedVehicleId,
+        provider: json?.provider || null,  // which AI actually answered
       }]);
     } catch (err) {
       console.error('AI chat error:', err?.code, err?.message);
@@ -701,6 +707,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
                     <div className={`flex items-center gap-2 text-[9px] px-2 ${msg.role === 'user' ? 'justify-start flex-row-reverse' : 'justify-start'}`}
                       style={{ color: '#9CA3AF' }}>
                       {msg.ts && <span>{timeFmt(msg.ts)}</span>}
+                      {isAssistant && msg.provider && <AiProviderBadge provider={msg.provider} />}
                       {isAssistant && !msg.error && (
                         <button onClick={() => copyToClipboard(msg.content)}
                           className="flex items-center gap-0.5 p-1 rounded hover:bg-gray-100 transition-all opacity-60 group-hover:opacity-100"

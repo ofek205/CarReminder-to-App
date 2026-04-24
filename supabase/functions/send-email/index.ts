@@ -23,29 +23,38 @@ const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 // Override per-call by passing `from` in the request body.
 const DEFAULT_FROM = 'CarReminder <no-reply@car-reminder.app>';
 
-// CORS — Supabase functions are called from the browser; we need to answer
-// the pre-flight OPTIONS request. Allow any origin here because Supabase
-// itself already gates access via JWT verification (configured in the
-// function settings) for logged-in users.
-const corsHeaders: HeadersInit = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+// CORS — whitelist explicit origins instead of `*`. The JWT gate already
+// blocks unauthenticated callers, but a wildcard origin means any page on
+// the internet with a stolen token can trigger sends. Keep the allow-list
+// narrow; fail-closed on unknown origins (returns 'null' which the browser
+// treats as a CORS failure).
+const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') || 'https://car-reminder.app';
 
-function json(body: unknown, status = 200) {
+function buildCors(req: Request): HeadersInit {
+  const origin = req.headers.get('origin') || '';
+  const allowList = ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
+  const allow = allowList.includes(origin) ? origin : 'null';
+  return {
+    'Access-Control-Allow-Origin':  allow,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
+  };
+}
+
+function json(body: unknown, status = 200, req?: Request) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...(req ? buildCors(req) : {}), 'Content-Type': 'application/json' },
   });
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: buildCors(req) });
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405, req);
 
   if (!RESEND_API_KEY) {
-    return json({ error: 'RESEND_API_KEY secret not configured' }, 500);
+    return json({ error: 'RESEND_API_KEY secret not configured' }, 500, req);
   }
 
   let payload: {
@@ -59,27 +68,27 @@ serve(async (req) => {
   try {
     payload = await req.json();
   } catch {
-    return json({ error: 'Invalid JSON body' }, 400);
+    return json({ error: 'Invalid JSON body' }, 400, req);
   }
 
   const { to, subject, html, text, from, reply_to } = payload;
 
   // Validation — at minimum need a recipient, a subject, and either html or text
   if (!to || (Array.isArray(to) && to.length === 0)) {
-    return json({ error: '`to` is required (string or string[])' }, 400);
+    return json({ error: '`to` is required (string or string[])' }, 400, req);
   }
   if (!subject || typeof subject !== 'string') {
-    return json({ error: '`subject` is required' }, 400);
+    return json({ error: '`subject` is required' }, 400, req);
   }
   if (!html && !text) {
-    return json({ error: 'Either `html` or `text` is required' }, 400);
+    return json({ error: 'Either `html` or `text` is required' }, 400, req);
   }
 
   // Defensive caps to stop a runaway client/script from blowing through the
   // Resend free tier by flooding with huge payloads.
-  if (subject.length > 250) return json({ error: 'subject too long' }, 400);
-  if (html && html.length > 200_000) return json({ error: 'html too long' }, 400);
-  if (text && text.length > 100_000) return json({ error: 'text too long' }, 400);
+  if (subject.length > 250) return json({ error: 'subject too long' }, 400, req);
+  if (html && html.length > 200_000) return json({ error: 'html too long' }, 400, req);
+  if (text && text.length > 100_000) return json({ error: 'text too long' }, 400, req);
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -101,11 +110,11 @@ serve(async (req) => {
     const data = await res.json();
     if (!res.ok) {
       // Resend errors look like { name, message, statusCode }
-      return json({ error: data.message || 'Resend error', details: data }, res.status);
+      return json({ error: data.message || 'Resend error', details: data }, res.status, req);
     }
 
-    return json({ ok: true, id: data.id });
+    return json({ ok: true, id: data.id }, 200, req);
   } catch (e) {
-    return json({ error: (e as Error).message || 'Unknown error' }, 500);
+    return json({ error: (e as Error).message || 'Unknown error' }, 500, req);
   }
 });

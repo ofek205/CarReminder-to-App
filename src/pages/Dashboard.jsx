@@ -509,6 +509,7 @@ function StatusDrilldownDialog({ open, status, rows, onClose }) {
 
 //  Compact Vehicle Row (for multi-vehicle authenticated view) 
 function VehicleRow({ vehicle }) {
+  const navigate = useNavigate();
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
@@ -614,9 +615,17 @@ function VehicleRow({ vehicle }) {
             )}
           </div>
           {hasMissing && (
-            <Link
-              to={`${createPageUrl('EditVehicle')}?id=${vehicle.id}&field=${encodeURIComponent(
-                {
+            // Button (not Link) because this whole row is already wrapped in a
+            // <Link>. Nesting <a> inside <a> is invalid HTML and produces the
+            // validateDOMNesting warning in React. Programmatic navigate keeps
+            // the same behavior; stopPropagation prevents the row's Link from
+            // firing instead.
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                const fieldParam = {
                   'טסט': 'test_due_date',
                   'כושר שייט': 'test_due_date',
                   'ביטוח': 'insurance_due_date',
@@ -625,21 +634,19 @@ function VehicleRow({ vehicle }) {
                   'יצרן': 'manufacturer',
                   'קילומטראז\'': 'current_km',
                   'שעות מנוע': 'current_engine_hours',
-                }[missingFields[0]] || ''
-              )}`}
-              onClick={(e) => e.stopPropagation()}
+                }[missingFields[0]] || '';
+                navigate(`${createPageUrl('EditVehicle')}?id=${vehicle.id}&field=${encodeURIComponent(fieldParam)}`);
+              }}
               className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full hover:bg-orange-100 transition-colors"
               title={`חסר: ${missingFields.join(', ')}. לחץ להשלמה`}
               style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
               <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} aria-hidden="true" />
               <span className="text-[10px] font-bold" style={{ color: '#EA580C' }}>
-                {/* Name the missing field(s). For 1-2 fields list them explicitly
-                    ("חסר: טסט, ביטוח"); for more, fall back to a count. */}
                 {missingFields.length <= 2
                   ? `חסר: ${missingFields.join(', ')}`
                   : `חסרים ${missingFields.length} פרטים: ${missingFields.slice(0, 2).join(', ')}…`}
               </span>
-            </Link>
+            </button>
           )}
         </div>
 
@@ -700,8 +707,23 @@ export default function Dashboard() {
     if (!isAuthenticated || !user) return;
     async function init() {
       try {
-        // Find existing account membership
-        let members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
+        // Find existing account membership. We pull ALL rows first so a
+        // legacy row with status NULL / 'active' / 'ממתין' doesn't send us
+        // down the "create a fresh account" branch — that path hits the
+        // accounts_insert RLS policy or the account_members UNIQUE
+        // constraint and left some users stuck on an infinite loading
+        // spinner (Ilan/Eyal bug). Prefer 'פעיל' if present; otherwise
+        // fall back to any row before creating a new account.
+        const allMembers = await db.account_members.filter({ user_id: user.id });
+        // Skip explicitly-removed rows; prefer active; tie-break by role
+        // so a multi-membership user lands on the בעלים account.
+        const usable = allMembers.filter(m => m.status !== 'הוסר' && m.status !== 'removed');
+        const ROLE_PRIORITY = { 'בעלים': 0, 'מנהל': 1, 'שותף': 2 };
+        const sortByRole = (a, b) => (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9);
+        let members = usable.filter(m => m.status === 'פעיל').sort(sortByRole);
+        if (members.length === 0 && usable.length > 0) {
+          members = [...usable].sort(sortByRole);  // legacy/migration rows
+        }
         let finalAccountId;
         if (members.length > 0) {
           finalAccountId = members[0].account_id;
@@ -742,15 +764,15 @@ export default function Dashboard() {
               }
             } catch {}
           } else {
-            // No migration. create fresh account
-            const account = await db.accounts.create({
-              name: `החשבון של ${user.full_name || 'המשתמש'}`,
-              owner_user_id: user.id,
-            });
-            await db.account_members.create({
-              account_id: account.id, user_id: user.id, role: 'בעלים', status: 'פעיל',
-            });
-            finalAccountId = account.id;
+            // No migration → call the SECURITY DEFINER RPC that creates
+            // account + membership atomically. The old flow did the same
+            // two writes from the client, but the `members_insert_weak`
+            // RLS policy rejects role='בעלים' on direct INSERT, so the
+            // membership write silently failed and the next login created
+            // yet another orphan account (we discovered one user had 69).
+            const { data: ensuredId, error: ensureErr } = await supabase.rpc('ensure_user_account');
+            if (ensureErr) throw ensureErr;
+            finalAccountId = ensuredId;
           }
         }
         setAccountId(finalAccountId);

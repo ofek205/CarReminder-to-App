@@ -50,13 +50,22 @@ export default function JoinInvite() {
         else if (code.includes('invite_expired')) friendly = 'ההזמנה פגה תוקף';
         else if (code.includes('invite_exhausted')) friendly = 'ההזמנה כבר מומשה';
         else if (code.includes('invite_not_active')) friendly = 'ההזמנה אינה פעילה';
+        // invalid_invite_role is raised by the strict-role RPC when a
+        // role-string outside ('מנהל','שותף') is stored on the invite —
+        // typically a mis-configured invite; tell the user to ask the
+        // sender to re-issue.
+        else if (code.includes('invalid_invite_role')) friendly = 'תפקיד לא חוקי בהזמנה. בקש מהשולח ליצור הזמנה חדשה.';
         setStatus('error');
         setMessage(friendly);
         return;
       }
 
+      // Supabase RPC can return an array, a single object, or null
+      // depending on how the return type was declared. Defensively normalize
+      // and then check the shape — an empty/malformed response previously
+      // got past the `!row` guard and crashed downstream at row.role_to_assign.
       const row = Array.isArray(data) ? data[0] : data;
-      if (!row) {
+      if (!row || typeof row !== 'object' || !row.role_to_assign) {
         setStatus('error');
         setMessage('ההזמנה לא נמצאה');
         return;

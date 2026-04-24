@@ -507,8 +507,23 @@ export default function Vehicles() {
   useEffect(() => {
     if (!isAuthenticated || !user) return;
     async function init() {
-      const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-      if (members.length > 0) setAccountId(members[0].account_id);
+      // Fetch ALL membership rows — legacy/migrated accounts can have
+      // status NULL or 'active' instead of 'פעיל'. The old filter
+      // returned 0 and accountId stayed null forever, leaving Ilan /
+      // Eyal and anyone else with a non-standard status stuck on the
+      // loading spinner. Prefer 'פעיל' but accept any row as a fallback.
+      const all = await db.account_members.filter({ user_id: user.id });
+      if (all.length === 0) return;
+      // Skip removed rows; prefer active; tie-break by role priority
+      // (בעלים wins over מנהל wins over שותף) so a multi-membership user
+      // lands on the account they actually own, not one they just view.
+      const usable = all.filter(m => m.status !== 'הוסר' && m.status !== 'removed');
+      if (usable.length === 0) return;
+      const ROLE_PRIORITY = { 'בעלים': 0, 'מנהל': 1, 'שותף': 2 };
+      const sortByRole = (a, b) => (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9);
+      const active = usable.filter(m => m.status === 'פעיל').sort(sortByRole);
+      const inactive = usable.filter(m => m.status !== 'פעיל').sort(sortByRole);
+      setAccountId((active[0] || inactive[0]).account_id);
     }
     init();
   }, [isAuthenticated, user]);

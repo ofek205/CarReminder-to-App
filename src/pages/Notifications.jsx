@@ -10,7 +10,7 @@ import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { ListSkeleton } from "../components/shared/Skeletons";
 import { formatDateHe, getVehicleLabels } from "../components/shared/DateStatusUtils";
 import { useAuth } from "../components/shared/GuestContext";
-import { calcAllReminders } from "../components/shared/ReminderEngine";
+import { calcAllReminders, daysUntil } from "../components/shared/ReminderEngine";
 import { markNotificationRead } from "@/lib/notificationChannels";
 import { C } from '@/lib/designTokens';
 
@@ -382,9 +382,10 @@ function AuthNotifications() {
     setProfileDismissed(true);
   };
 
-  // Check license expiration
-  const licenseExpDate = profileData?.license_expiration_date;
-  const licenseDays = licenseExpDate ? Math.ceil((new Date(licenseExpDate) - new Date()) / 86400000) : null;
+  // Check license expiration — use the shared daysUntil() to avoid the
+  // timezone-truncation bug the inline `Math.ceil((... - now) / 86400000)`
+  // version had (expired-yesterday reported as "today").
+  const licenseDays = daysUntil(profileData?.license_expiration_date);
   const licenseAlert = licenseDays !== null && licenseDays <= 30;
 
   // Build notifications using UNIFIED engine (same as bell)

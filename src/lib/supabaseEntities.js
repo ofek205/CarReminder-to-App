@@ -43,25 +43,41 @@ function sanitizeString(value) {
   return s.trim();
 }
 
+/**
+ * Recursively sanitize any value — strings get the HTML/XSS scrub,
+ * arrays/objects recurse into children, primitives pass through.
+ *
+ * Prevents stored XSS via JSON columns (accident_details, fire_extinguishers,
+ * any future jsonb field). The old implementation only sanitized two levels
+ * deep inside arrays, so `{a: {b: {c: "<script>"}}}` would reach the DB raw.
+ * Recursion limit guards against accidental circular references in dev.
+ */
+function sanitizeDeep(value, depth = 0) {
+  if (depth > 10) return value;            // bounded recursion
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'string') return sanitizeString(value);
+  if (Array.isArray(value)) return value.map(v => sanitizeDeep(v, depth + 1));
+  if (typeof value === 'object') {
+    const clean = {};
+    for (const [k, v] of Object.entries(value)) {
+      // Block prototype pollution vectors on nested object keys.
+      if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+      clean[k] = sanitizeDeep(v, depth + 1);
+    }
+    return clean;
+  }
+  return value;  // number, boolean, bigint, etc.
+}
+
 function sanitizeRow(row) {
   if (!row || typeof row !== 'object') throw new Error('Invalid row data');
   const clean = {};
   for (const [key, value] of Object.entries(row)) {
-    if (!VALID_KEY.test(key)) continue; // skip invalid keys
-    if (typeof value === 'string') {
-      clean[key] = sanitizeString(value);
-    } else if (Array.isArray(value)) {
-      // Sanitize arrays (e.g., fire_extinguishers JSON)
-      clean[key] = value.map(item =>
-        typeof item === 'string' ? sanitizeString(item)
-        : (item && typeof item === 'object') ? Object.fromEntries(
-            Object.entries(item).map(([k, v]) => [k, sanitizeString(v)])
-          )
-        : item
-      );
-    } else {
-      clean[key] = value;
-    }
+    // Fail fast on bad column names instead of silently dropping them.
+    // Silent drops mask real bugs (typos, refactors that renamed a column),
+    // because the caller thinks the row was saved correctly.
+    if (!VALID_KEY.test(key)) throw new Error(`Invalid column name: ${key}`);
+    clean[key] = sanitizeDeep(value);
   }
   return clean;
 }
@@ -152,6 +168,9 @@ export const db = {
   maintenance_logs:   makeEntity('maintenance_logs'),
   maintenance_reminder_prefs: makeEntity('maintenance_reminder_prefs'),
   repair_types:       makeEntity('repair_types'),
+  repair_logs:        makeEntity('repair_logs'),
+  repair_attachments: makeEntity('repair_attachments'),
+  accident_details:   makeEntity('accident_details'),
   vessel_checklists:     makeEntity('vessel_checklists'),
   vessel_checklist_runs: makeEntity('vessel_checklist_runs'),
 };

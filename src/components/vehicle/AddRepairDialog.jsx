@@ -1,7 +1,9 @@
 import { toast } from 'sonner';
-import React, { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
+import { uploadVehicleFile, deleteFile } from '@/lib/supabaseStorage';
+import useAccountRole from '@/hooks/useAccountRole';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,6 +19,7 @@ import FileOrCameraUpload from "@/components/ui/file-or-camera-upload";
 
 export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
   const queryClient = useQueryClient();
+  const { accountId } = useAccountRole();
   const [currentUser, setCurrentUser] = useState(null);
   const [uploading, setUploading] = useState(false);
 
@@ -43,11 +46,16 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
   const [attachments, setAttachments] = useState([]);
   const [newRepairType, setNewRepairType] = useState('');
   const [showNewTypeInput, setShowNewTypeInput] = useState(false);
+  // Flipped to true by onSuccess before onClose so handleOpenChange knows
+  // the upcoming close is a normal save (not a cancel) and skips the
+  // orphan cleanup — without this the RPC's just-written attachments
+  // would be deleted from storage immediately after the save.
+  const justSavedRef = useRef(false);
 
   useEffect(() => {
     async function loadUser() {
-      const user = await base44.auth.me();
-      setCurrentUser(user);
+      const { data } = await supabase.auth.getUser();
+      setCurrentUser(data.user || null);
     }
     loadUser();
   }, []);
@@ -69,10 +77,12 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
       // Load existing attachments and accident details
       if (repair.id) {
         Promise.all([
-          base44.entities.RepairAttachment.filter({ repair_log_id: repair.id }),
-          base44.entities.AccidentDetails.filter({ repair_log_id: repair.id }),
+          db.repair_attachments.filter({ repair_log_id: repair.id }),
+          db.accident_details.filter({ repair_log_id: repair.id }),
         ]).then(([atts, accidents]) => {
-          setAttachments(atts.map(a => ({ id: a.id, file_url: a.file_url, file_type: a.file_type })));
+          setAttachments(atts.map(a => ({
+            id: a.id, file_url: a.file_url, file_type: a.file_type, storage_path: a.storage_path,
+          })));
           if (accidents.length > 0) {
             setAccidentDetails({
               other_driver_name: accidents[0].other_driver_name || '',
@@ -112,81 +122,54 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
   // the user sees/edits at /MaintenanceTemplates → תיקונים tab.
   const { data: repairTypes = [] } = useQuery({
     queryKey: ['repair-types', currentUser?.id],
-    queryFn: () => db.repair_types.filter({ user_id: currentUser.id }),
+    queryFn: () => db.repair_types.filter({ owner_user_id: currentUser.id, is_active: true }),
     enabled: !!currentUser?.id,
   });
 
   const saveMutation = useMutation({
+    // Single atomic RPC — old flow issued up to 5 writes (repair, delete
+    // removed attachments, insert new attachments, upsert accident). A
+    // crash between them left partial state. The RPC wraps everything
+    // in one transaction.
     mutationFn: async (data) => {
-      let repairLog;
-      if (repair?.id) {
-        await base44.entities.RepairLog.update(repair.id, data.repairData);
-        repairLog = { ...repair, ...data.repairData };
-      } else {
-        repairLog = await base44.entities.RepairLog.create(data.repairData);
-      }
+      const repairLog = {
+        ...(repair?.id ? { id: repair.id } : {}),
+        ...data.repairData,
+      };
+      const attachmentsPayload = attachments.map(a => ({
+        ...(a.id ? { id: a.id } : {}),
+        file_url: a.file_url,
+        file_type: a.file_type,
+        storage_path: a.storage_path,
+      }));
+      const accidentPayload = data.repairData.is_accident ? accidentDetails : null;
 
-      // Save attachments
-      const existingAttachmentIds = attachments.filter(a => a.id).map(a => a.id);
-      const currentAttachments = repair?.id ? 
-        await base44.entities.RepairAttachment.filter({ repair_log_id: repair.id }) : [];
-      
-      // Delete removed attachments
-      for (const att of currentAttachments) {
-        if (!existingAttachmentIds.includes(att.id)) {
-          await base44.entities.RepairAttachment.delete(att.id);
-        }
-      }
-
-      // Add new attachments
-      for (const att of attachments) {
-        if (!att.id) {
-          await base44.entities.RepairAttachment.create({
-            repair_log_id: repairLog.id,
-            file_url: att.file_url,
-            file_type: att.file_type,
-          });
-        }
-      }
-
-      // Save accident details
-      if (data.repairData.is_accident) {
-        const existingAccidents = repair?.id ? 
-          await base44.entities.AccidentDetails.filter({ repair_log_id: repair.id }) : [];
-        
-        if (existingAccidents.length > 0) {
-          await base44.entities.AccidentDetails.update(existingAccidents[0].id, {
-            ...accidentDetails,
-            repair_log_id: repairLog.id,
-          });
-        } else {
-          await base44.entities.AccidentDetails.create({
-            ...accidentDetails,
-            repair_log_id: repairLog.id,
-          });
-        }
-      } else if (repair?.id) {
-        // Delete accident details if unchecked
-        const existingAccidents = await base44.entities.AccidentDetails.filter({ repair_log_id: repair.id });
-        for (const acc of existingAccidents) {
-          await base44.entities.AccidentDetails.delete(acc.id);
-        }
-      }
+      const { error } = await supabase.rpc('save_repair_with_children', {
+        p_repair_log: repairLog,
+        p_attachments: attachmentsPayload,
+        p_accident: accidentPayload,
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['repairLogs'] });
+      justSavedRef.current = true;
       onClose();
+    },
+    onError: (err) => {
+      toast.error('שמירה נכשלה: ' + (err?.message || 'שגיאה לא ידועה'));
     },
   });
 
   // Creates a user-owned repair type in Supabase. Same table the
   // /MaintenanceTemplates → תיקונים tab reads from, so a type added
-  // here immediately shows up there too. Duplicate names are surfaced
-  // gracefully (case-insensitive UNIQUE per user).
+  // here immediately shows up there too.
   const createRepairTypeMutation = useMutation({
     mutationFn: async (name) => {
       return db.repair_types.create({
-        user_id: currentUser.id,
+        owner_user_id: currentUser.id,
+        scope: 'user',
+        is_active: true,
         name: name.trim(),
       });
     },
@@ -202,11 +185,20 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
     const file = e.target.files[0];
     if (!file) return;
     const validation = validateUploadFile(file, 'doc', 10);
-    if (!validation.ok) { alert(validation.error); e.target.value = ''; return; }
+    if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
     setUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setAttachments(prev => [...prev, { file_url, file_type: 'אחר' }]);
-    setUploading(false);
+    try {
+      const { file_url, storage_path } = await uploadVehicleFile({
+        file,
+        accountId: vehicle.account_id || accountId,
+        vehicleId: vehicle.id,
+      });
+      setAttachments(prev => [...prev, { file_url, storage_path, file_type: 'אחר' }]);
+    } catch (err) {
+      toast.error('שגיאה בהעלאת הקובץ');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -215,12 +207,15 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
 
     const repairData = {
       vehicle_id: vehicle.id,
+      account_id: vehicle.account_id || accountId,
       repair_type_id: form.repair_type_id === 'other' ? null : form.repair_type_id || null,
       title: form.title,
       occurred_at: form.occurred_at,
       repaired_at: form.repaired_at || null,
       description: form.description || null,
-      repaired_by: form.repaired_by || null,
+      // Default 'אני' client-side; JSONB ->> converts a null value to the
+      // literal string "null", which defeats the server-side coalesce().
+      repaired_by: form.repaired_by || 'אני',
       garage_name: form.garage_name || null,
       cost: form.cost ? Number(form.cost) : null,
       is_accident: form.is_accident,
@@ -230,8 +225,29 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
     saveMutation.mutate({ repairData });
   };
 
+  // Cancel: clean up any files uploaded during this dialog session that
+  // didn't get persisted to a repair_log, otherwise they orphan the
+  // vehicle-files bucket. Skip cleanup if we're closing after a successful
+  // save — those files are now referenced by the DB.
+  const handleOpenChange = (isOpen) => {
+    // Ignore close attempts while a save is in flight — otherwise Esc or
+    // click-outside would delete the just-uploaded files before the RPC
+    // commits, leaving a repair_log row referencing a deleted bucket file.
+    if (!isOpen && saveMutation.isPending) return;
+
+    if (!isOpen && !justSavedRef.current) {
+      attachments.forEach(a => {
+        if (!a.id && a.storage_path) {
+          deleteFile(a.storage_path).catch(() => {});
+        }
+      });
+    }
+    justSavedRef.current = false;
+    onClose(isOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle>{repair ? 'עריכת תיקון' : 'תיקון חדש'}</DialogTitle>
@@ -439,7 +455,9 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
           <div className="sticky bottom-0 bg-white border-t border-gray-100 -mx-6 px-6 py-3 flex gap-2"
             style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}>
             <Button type="submit" disabled={saveMutation.isPending} className="flex-1 bg-amber-600 hover:bg-amber-700">
-              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (repair ? 'עדכן' : 'שמור')}
+              {saveMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> שומר...</>
+              ) : (repair ? 'עדכן' : 'שמור')}
             </Button>
             <Button type="button" variant="outline" onClick={onClose}>ביטול</Button>
           </div>

@@ -4,18 +4,36 @@
  * No React, no side effects - just data in, reminder items out.
  */
 
-import { differenceInDays, parseISO } from 'date-fns';
+import { differenceInDays, differenceInYears, subMonths } from 'date-fns';
 import { getVehicleLabels, isVessel } from './DateStatusUtils';
 
-//  Primitive helpers 
+//  Primitive helpers
 
-/** Days until a date string. Negative means past due. */
+/**
+ * Days until a date string. Negative means past due.
+ *
+ * Expects `dateStr` to be a calendar date ('YYYY-MM-DD' or longer ISO).
+ * Both sides use LOCAL midnight so the math stays stable across
+ * timezones. The old implementation mixed parseISO (UTC midnight for
+ * date-only strings) with local-midnight `today`, which quietly truncated
+ * negative diffs to 0 — e.g. an expired-yesterday cert reported as
+ * "today" for several hours instead of "-1 (expired)".
+ *
+ * NOTE: if you pass a full timestamp like '2025-06-15T22:00:00Z' the
+ * date portion is taken verbatim (no TZ conversion). That's correct for
+ * the date-only DB columns (`test_due_date`, `insurance_due_date` etc.)
+ * and avoids a wrong-day answer at the UTC↔local boundary.
+ */
 export function daysUntil(dateStr) {
   if (!dateStr) return null;
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return differenceInDays(parseISO(dateStr), today);
+    // `new Date('YYYY-MM-DDT00:00:00')` — no trailing Z — is parsed as
+    // local midnight of that date (Date constructor, ES2020 spec).
+    const target = new Date(`${dateStr.slice(0, 10)}T00:00:00`);
+    if (isNaN(target.getTime())) return null;
+    return differenceInDays(target, today);
   } catch {
     return null;
   }
@@ -29,13 +47,35 @@ export function urgencyFromDays(daysLeft) {
   return 'upcoming';
 }
 
-/** Human-readable Hebrew label for days remaining. */
+/** Short Hebrew form for day count with correct singular/plural.
+ *  1 → "יום", 2 → "יומיים", 3+ → "ימים". */
+export function daysWord(n) {
+  const abs = Math.abs(n);
+  if (abs === 1) return 'יום';
+  if (abs === 2) return 'יומיים';
+  return 'ימים';
+}
+
+/** "בעוד N ימים" with correct plural — handles "בעוד יום" (1),
+ *  "בעוד יומיים" (2), "בעוד 3 ימים" (3+). */
+export function inDays(n) {
+  const abs = Math.abs(n);
+  if (abs === 1) return 'בעוד יום';
+  if (abs === 2) return 'בעוד יומיים';
+  return `בעוד ${abs} ימים`;
+}
+
+/** Human-readable Hebrew label for days remaining.
+ *  Uses correct singular/plural so "לפני 1 ימים" becomes "לפני יום"
+ *  (matches RTL tooltip copy users expect). */
 export function daysLabel(daysLeft) {
   if (daysLeft === null || daysLeft === undefined) return '';
-  if (daysLeft < 0) return `פג תוקף לפני ${Math.abs(daysLeft)} ימים`;
   if (daysLeft === 0) return 'פג תוקף היום';
   if (daysLeft === 1) return 'פג תוקף מחר';
-  return `פג תוקף בעוד ${daysLeft} ימים`;
+  if (daysLeft === -1) return 'פג תוקף אתמול';
+  const abs = Math.abs(daysLeft);
+  if (daysLeft < 0) return `פג תוקף לפני ${abs === 2 ? 'יומיים' : `${abs} ${daysWord(abs)}`}`;
+  return `פג תוקף בעוד ${abs === 2 ? 'יומיים' : `${abs} ${daysWord(abs)}`}`;
 }
 
 /** Short label variant. */
@@ -99,7 +139,13 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
 
   const items = [];
   let mileageDates = {};
-  try { mileageDates = JSON.parse(localStorage.getItem('carreminder_mileage_dates') || '{}'); } catch {}
+  try {
+    const parsed = JSON.parse(localStorage.getItem('carreminder_mileage_dates') || '{}');
+    // Defensive: if a previous buggy write put an array/string here, reset.
+    mileageDates = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
+  } catch (err) {
+    if (import.meta.env?.DEV) console.warn('[ReminderEngine] mileage_dates corrupt, resetting:', err?.message);
+  }
 
   vehicles.forEach(v => {
     const vLabels = getVehicleLabels(v.vehicle_type, v.nickname);
@@ -115,8 +161,11 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
     if (v.test_due_date) {
       let nextTestDate = new Date(v.test_due_date);
       if (isVintage && nextTestDate > now) {
-        const halfTest = new Date(nextTestDate);
-        halfTest.setMonth(halfTest.getMonth() - 6);
+        // date-fns subMonths handles month-boundary edge cases
+        // (e.g. 2025-03-31 - 6mo = 2024-09-30, not 2024-10-01 as Date's
+        // naive setMonth can produce when the day doesn't exist in the
+        // target month).
+        const halfTest = subMonths(nextTestDate, 6);
         if (halfTest > now) nextTestDate = halfTest;
       }
       const dl = Math.ceil((nextTestDate - now) / 86400000);
@@ -128,7 +177,7 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
           name: vName, vehicleId: v.id,
           dueDate: v.test_due_date, daysLeft: dl,
           status: urgencyFromDays(dl),
-          label: dl < 0 ? `${vLabels.testWord} פג תוקף!${vintageTag}` : `${vLabels.testWord} בעוד ${dl} ימים${vintageTag}`,
+          label: dl < 0 ? `${vLabels.testWord} פג תוקף!${vintageTag}` : `${vLabels.testWord} ${inDays(dl)}${vintageTag}`,
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }
@@ -145,7 +194,7 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
           name: vName, vehicleId: v.id,
           dueDate: v.insurance_due_date, daysLeft: dl,
           status: urgencyFromDays(dl),
-          label: dl < 0 ? `${iw} פג תוקף!` : `${iw} בעוד ${dl} ימים`,
+          label: dl < 0 ? `${iw} פג תוקף!` : `${iw} ${inDays(dl)}`,
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }
@@ -167,7 +216,7 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
             typeName: word, name: vName, vehicleId: v.id,
             dueDate: v[field], daysLeft: dl,
             status: urgencyFromDays(dl),
-            label: dl < 0 ? `${word} פג תוקף!` : `${word} בעוד ${dl} ימים`,
+            label: dl < 0 ? `${word} פג תוקף!` : `${word} ${inDays(dl)}`,
             linkTo: `VehicleDetail?id=${v.id}`,
           });
         }
@@ -176,9 +225,19 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
 
     // 4. Tires (100K km / 3 years)
     if (!isV && v.current_km && v.last_tire_change_date) {
-      const tireDaysAgo = Math.floor((now - new Date(v.last_tire_change_date)) / 86400000);
-      const tireYears = tireDaysAgo / 365;
-      const kmSinceTire = v.km_since_tire_change ? (v.current_km - Number(v.km_since_tire_change)) : 0;
+      // Use differenceInYears instead of days/365 so leap years don't
+      // off-by-one the exact anniversary. Previously a change on
+      // 2024-02-29 computed as 0.99 years after 361 days, so vehicles
+      // reached the 3-year urgent threshold a day later than expected.
+      const tireYears = differenceInYears(now, new Date(v.last_tire_change_date));
+      const rawStored = Number(v.km_since_tire_change);
+      // Data-integrity guard: the field stores the odometer AT the change,
+      // so a value > current_km is impossible (the car can't have been
+      // driven "backwards"). Treat that as corrupted input and fall back
+      // to 0 rather than emitting a massive negative kmSinceTire that
+      // would flap the 90k/100k thresholds into the wrong direction.
+      const valid = Number.isFinite(rawStored) && rawStored >= 0 && rawStored <= v.current_km;
+      const kmSinceTire = valid ? (v.current_km - rawStored) : 0;
       if (kmSinceTire >= 90000 || tireYears >= 2.75) {
         const urgent = kmSinceTire >= 100000 || tireYears >= 3;
         items.push({
@@ -211,8 +270,7 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
 
     // 6. Shipyard (vessels, 3 years)
     if (isV && v.last_shipyard_date) {
-      const shipDays = Math.floor((now - new Date(v.last_shipyard_date)) / 86400000);
-      const shipYears = shipDays / 365;
+      const shipYears = differenceInYears(now, new Date(v.last_shipyard_date));
       if (shipYears >= 2.75) {
         const urgent = shipYears >= 3;
         items.push({
@@ -227,14 +285,20 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
     }
 
     // 7. Brakes (15+ year vehicles)
+    // Fires for upcoming AND overdue tests — the old guard (td > 0) muted
+    // the alert the moment the test expired, which is the WORST time to
+    // stop reminding the owner that their 15-year-old car still needs a
+    // brakes certificate before the new test. Now it nags until the test
+    // is renewed.
     if (!isV && vehicleAge >= 15 && v.test_due_date) {
       const td = daysUntil(v.test_due_date);
-      if (td !== null && td <= 60 && td > 0) {
+      if (td !== null && td <= 60) {
+        const overdue = td < 0;
         items.push({
           id: `brakes-${v.id}`, type: 'safety', emoji: '🛑',
           typeName: 'בלמים', name: vName, vehicleId: v.id,
           dueDate: v.test_due_date, daysLeft: td,
-          status: 'warn',
+          status: overdue ? 'danger' : 'warn',
           label: `${vLabels.vehicleWord || 'רכב'} ותיק (${vehicleAge} שנים), נדרש אישור בלמים`,
           linkTo: `VehicleDetail?id=${v.id}`,
         });
@@ -307,7 +371,7 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
         vehicleId: doc.vehicle_id || null,
         dueDate: doc.expiry_date, daysLeft: dl,
         status: urgencyFromDays(dl),
-        label: dl < 0 ? `${doc.document_type || 'מסמך'} פג תוקף!` : `${doc.document_type || 'מסמך'} בעוד ${dl} ימים`,
+        label: dl < 0 ? `${doc.document_type || 'מסמך'} פג תוקף!` : `${doc.document_type || 'מסמך'} ${inDays(dl)}`,
         linkTo: doc.vehicle_id ? `Documents?vehicle_id=${doc.vehicle_id}` : 'Documents',
       });
     }

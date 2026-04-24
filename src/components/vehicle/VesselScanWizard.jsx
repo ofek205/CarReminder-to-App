@@ -1,12 +1,14 @@
 /**
  * VesselScanWizard.jsx
  * AI-powered scan wizard for Israeli vessel / yacht license documents.
- * Reuses the same UI structure and base44 extraction pipeline as VehicleScanWizard,
- * but with a vessel-specific schema, field labels, and form mapping.
+ * Uses the ai-proxy Edge Function for Gemini extraction and Supabase
+ * Storage for the uploaded image.
  */
 
-import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import React, { useState, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import { uploadScanFile, deleteFile } from '@/lib/supabaseStorage';
+import { extractDataFromUploadedFile } from '@/lib/aiExtract';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,8 +117,16 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
   const [editingField, setEditingField] = useState(null);
   const [partialWarning, setPartialWarning] = useState(false);
   const [error, setError] = useState('');
+  // Keep the storage path separately so we can delete the file from the
+  // bucket if the user abandons the wizard before confirming extraction.
+  // Without this cleanup, every cancelled scan left an orphan blob in
+  // scans/{uid}/ forever.
+  const storagePathRef = useRef(null);
+  // Set to true when extraction has been accepted — tells the close
+  // handler NOT to delete the file (it's now owned by a real document).
+  const extractedRef = useRef(false);
 
-  //  Reset 
+  //  Reset
   const reset = () => {
     setStep('upload');
     setUploadedFile(null);
@@ -127,9 +137,19 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
     setEditingField(null);
     setPartialWarning(false);
     setError('');
+    storagePathRef.current = null;
+    extractedRef.current = false;
   };
 
-  const handleClose = () => { reset(); onClose(); };
+  const handleClose = () => {
+    // Orphan cleanup: if an upload happened but the user didn't commit
+    // the extraction, delete the file from the bucket.
+    if (storagePathRef.current && !extractedRef.current) {
+      deleteFile(storagePathRef.current).catch(() => {});
+    }
+    reset();
+    onClose();
+  };
 
   //  Upload 
   const handleFileSelect = async (e) => {
@@ -141,8 +161,11 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
     setUploadedFile(file);
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('no user');
+      const { file_url, storage_path } = await uploadScanFile({ file, userId: user.id });
       setFileUrl(file_url);
+      storagePathRef.current = storage_path;
     } catch {
       setError('שגיאה בהעלאת הקובץ. נסה שנית.');
     } finally {
@@ -158,7 +181,7 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
     setPartialWarning(false);
 
     try {
-      const result = await base44.integrations.Core.ExtractDataFromUploadedFile({
+      const result = await extractDataFromUploadedFile({
         file_url: fileUrl,
         json_schema: VESSEL_SCHEMA,
       });
@@ -216,6 +239,10 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
   // React 18 batches both; the LAST setter wins → 'scan' ✓
   const handleConfirm = () => {
     const data = { ...fields, _fileUrl: fileUrl };
+    // Mark extracted so handleClose (about to run) does NOT delete the
+    // uploaded file — the parent now owns it and will either persist the
+    // URL in the document record or re-upload if the user cancels later.
+    extractedRef.current = true;
     handleClose();       // runs onClose → may call setSelectedMethod(null)
     onExtracted(data);   // runs AFTER → setSelectedMethod('scan') wins
   };

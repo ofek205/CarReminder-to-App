@@ -36,28 +36,38 @@ export default function Contact() {
     }
     setSaving(true);
     try {
-      // Try to insert into contact_messages table (if exists)
-      try {
-        await supabase.from('contact_messages').insert({
-          user_id: user?.id || null,
-          name: form.name.trim(),
-          email: form.email.trim(),
-          subject: form.subject.trim() || 'פנייה כללית',
-          message: form.message.trim(),
-          status: 'new',
-        });
-      } catch (err) {
-        // Silently fail if table doesn't exist. fall back to mailto
-        console.warn('Contact message DB insert failed, using mailto fallback:', err?.message);
-        window.location.href = `mailto:support@car-reminder.app?subject=${encodeURIComponent(form.subject || 'פנייה כללית')}&body=${encodeURIComponent(`${form.message}\n\n---\nמאת: ${form.name} (${form.email})`)}`;
+      // supabase-js v2 does NOT throw on DB errors — it returns them in
+      // the response object. We must inspect `error` explicitly; a
+      // try/catch alone would let a missing-table / RLS-denied insert
+      // silently masquerade as success and trigger a false "sent" toast.
+      const { error: insertErr } = await supabase.from('contact_messages').insert({
+        user_id: user?.id || null,
+        name: form.name.trim(),
+        email: form.email.trim(),
+        subject: form.subject.trim() || 'פנייה כללית',
+        message: form.message.trim(),
+        status: 'new',
+      });
+
+      if (insertErr) {
+        // Tell the user rather than falling back to a mailto URL, which
+        // leaks name + email into browser history, referrer headers, and
+        // any analytics pixel the default mail client happens to hit.
+        console.warn('Contact message DB insert failed:', insertErr.message);
+        toast.error('לא הצלחנו לשלוח את הפנייה. נסה שוב מאוחר יותר או שלח למייל support@car-reminder.app');
+        setSaving(false);
+        return;
       }
+
       setSent(true);
       toast.success('ההודעה נשלחה בהצלחה');
       setTimeout(() => {
         setForm({ name: user?.full_name || '', email: user?.email || '', subject: '', message: '' });
         setSent(false);
       }, 3000);
-    } catch (err) {
+    } catch (outerErr) {
+      // Network-level failure (e.g. offline) — supabase-js throws here.
+      console.warn('Contact submit network error:', outerErr?.message);
       toast.error('שגיאה בשליחה');
     } finally {
       setSaving(false);

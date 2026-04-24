@@ -91,7 +91,7 @@ function AuthenticatedView() {
   });
   const { data: repairs = [], isLoading: repairsLoading } = useQuery({
     queryKey: ['repair-types', userId],
-    queryFn: () => db.repair_types.filter({ user_id: userId }),
+    queryFn: () => db.repair_types.filter({ owner_user_id: userId, is_active: true }),
     enabled: !!userId,
   });
   const { data: vehicles = [] } = useQuery({
@@ -852,7 +852,13 @@ function CreateRepairDialog({ open, onClose, userId }) {
     if (!name.trim()) { toast.error('יש להזין שם'); return; }
     setSaving(true);
     try {
-      await db.repair_types.create({ user_id: userId, name: name.trim(), description: description.trim() || null });
+      await db.repair_types.create({
+        owner_user_id: userId,
+        scope: 'user',
+        is_active: true,
+        name: name.trim(),
+        description: description.trim() || null,
+      });
       qc.invalidateQueries({ queryKey: ['repair-types', userId] });
       toast.success('נוסף');
       onClose();

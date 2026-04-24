@@ -40,7 +40,11 @@ const ALLOWED_ORIGIN  = Deno.env.get('APP_ORIGIN') || 'https://car-reminder.app'
 
 function buildCors(req: Request): HeadersInit {
   const origin = req.headers.get('origin') || '';
-  const allow  = origin === ALLOWED_ORIGIN ? origin : ALLOWED_ORIGIN;
+  // Fail-closed: non-matching origin → 'null' so browser blocks the
+  // response. Previously echoed ALLOWED_ORIGIN for every request, which
+  // defeated CORS entirely.
+  const allowList = ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
+  const allow  = allowList.includes(origin) ? origin : 'null';
   return {
     'Access-Control-Allow-Origin':  allow,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-dispatch-secret',

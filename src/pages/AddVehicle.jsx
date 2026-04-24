@@ -147,6 +147,12 @@ export default function AddVehicle() {
   const [autofillFields, setAutofillFields] = useState(new Set());
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const formRef = useRef(null);
+  // Submit guard — synchronous check prevents double-submit in the ~frame
+  // window between button click and `saving` state commit. Without this,
+  // a fast double-tap can fire two creates and race past the client-side
+  // duplicate-plate check (the DB unique index will catch one, but both
+  // clients paid the round-trip and the second sees a confusing error).
+  const submitLockRef = useRef(false);
 
   // Category-mismatch dialog state. opens when gov.il says the plate belongs
   // to a different vehicle class than the one the user picked
@@ -509,7 +515,10 @@ export default function AddVehicle() {
 
   const handleSubmit = async (e) => {
     if (e?.preventDefault) e.preventDefault();
+    if (submitLockRef.current) return; // ignore rapid re-clicks
+    submitLockRef.current = true;
 
+    try {
     setSystemError(null);
     // Plate format validation. Israeli plates are 5-8 digits (possibly with dashes),
     // vessels use an IL- prefix with 3-7 chars after. Allow letters for vessel-only.
@@ -574,15 +583,23 @@ export default function AddVehicle() {
       }
     }
 
+    // Treat '' and undefined as "no value", but respect 0. Using falsy
+    // checks dropped 0 silently, which then made km_baseline=undefined
+    // and broke service-alert math for brand-new vehicles starting at
+    // 0 km (ReminderEngine fell back to `current_km - 0` and fired an
+    // instant "טיפול תקופתי" as soon as the user drove 15k).
+    const hasKm    = form.current_km !== '' && form.current_km !== null && form.current_km !== undefined;
+    const hasHours = form.current_engine_hours !== '' && form.current_engine_hours !== null && form.current_engine_hours !== undefined;
+
     const data = {
       ...form,
       year: form.year ? Number(form.year) : undefined,
-      current_km: form.current_km ? Number(form.current_km) : undefined,
+      current_km: hasKm ? Number(form.current_km) : undefined,
       // km_baseline is set once at creation - used as the counting floor for service alerts
       // when no maintenance log exists yet (prevents counting from 0 on first add).
-      km_baseline: form.current_km ? Number(form.current_km) : undefined,
-      current_engine_hours: form.current_engine_hours ? Number(form.current_engine_hours) : undefined,
-      engine_hours_baseline: form.current_engine_hours ? Number(form.current_engine_hours) : undefined,
+      km_baseline: hasKm ? Number(form.current_km) : undefined,
+      current_engine_hours: hasHours ? Number(form.current_engine_hours) : undefined,
+      engine_hours_baseline: hasHours ? Number(form.current_engine_hours) : undefined,
       km_since_tire_change: form.km_since_tire_change ? Number(form.km_since_tire_change) : undefined,
       tires_changed_count: tireQuestion === 'yes' ? Number(form.tires_changed_count) || 4 : undefined,
       insurance_company: form.insurance_company === 'אחר' ? form.insurance_company_other : form.insurance_company,
@@ -612,7 +629,6 @@ export default function AddVehicle() {
     if (isGuest) {
       // Save vehicle locally first, then prompt registration
       const saved = addGuestVehicle(data);
-      setSaving(false);
       if (saved) {
         hapticFeedback('medium');
         setShowGuestSignup(true);
@@ -626,7 +642,6 @@ export default function AddVehicle() {
     try {
       if (!accountId) {
         toast.error('שגיאה: חשבון לא נמצא. נסה להתנתק ולהתחבר מחדש.');
-        setSaving(false);
         return;
       }
 
@@ -645,28 +660,36 @@ export default function AddVehicle() {
       const cleanData = { account_id: accountId };
       DB_COLUMNS.forEach(k => { if (data[k] !== undefined && data[k] !== null && data[k] !== '') cleanData[k] = data[k]; });
 
-      let savedVehicle;
-      try {
-        savedVehicle = await db.vehicles.create(cleanData);
-      } catch (firstErr) {
-        // Retry with even fewer fields
-        const MINIMAL = ['account_id','vehicle_type','manufacturer','model','year','nickname','license_plate'];
-        const minData = {};
-        MINIMAL.forEach(k => { if (cleanData[k] !== undefined) minData[k] = cleanData[k]; });
-        savedVehicle = await db.vehicles.create(minData);
-      }
+      // Single attempt — the old MINIMAL fallback silently downgraded saves
+      // (e.g. if gov.il enrichment added a field Postgres didn't recognize,
+      // the user got a vehicle without their VIN/spec data AND no warning).
+      // The whole-row insert either works or raises the real error, which
+      // the catch below translates to a friendly Hebrew message.
+      const savedVehicle = await db.vehicles.create(cleanData);
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
 
       try { if (user) await trackUserAction(user.id); } catch {}
       draft.clearDraft();
       hapticFeedback('medium');
-      setSaving(false);
       setShowSuccess(true);
     } catch (err) {
       console.error('Vehicle save error:', err);
       hapticFeedback('heavy');
-      setSystemError('אירעה שגיאה בשמירת הרכב');
+      // Postgres 23505 = unique_violation on vehicles_plate_unique_per_account.
+      // Friendlier message than the generic "save failed" so the user knows
+      // exactly what went wrong.
+      if (err?.code === '23505' || /plate_unique_per_account|duplicate key/i.test(err?.message || '')) {
+        setSystemError('רכב עם מספר הרישוי הזה כבר קיים בחשבון שלך');
+      } else {
+        setSystemError('אירעה שגיאה בשמירת הרכב');
+      }
+    }
+    } finally {
+      // Single point of cleanup — any throw or early return inside this
+      // function releases the lock & clears the spinner, so a flaky
+      // Capacitor plugin or unexpected error can't leave the form stuck.
       setSaving(false);
+      submitLockRef.current = false;
     }
   };
 
@@ -1805,7 +1828,14 @@ export default function AddVehicle() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={saving || (!form?.vehicle_type_id && !form?.vehicle_type)}
+                  // For authenticated users we also gate on vehiclesLoaded
+                  // (so the client-side duplicate-plate check has a real
+                  // list to compare against) and accountId (submit fails
+                  // anyway if missing, but disabling the button avoids the
+                  // flash of "save then error toast").
+                  disabled={saving
+                    || (!form?.vehicle_type_id && !form?.vehicle_type)
+                    || (!isGuest && (!vehiclesLoaded || !accountId))}
                   className="w-full h-14 rounded-2xl font-black text-base transition-all duration-200 active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
                   style={{
                     background: T.grad || T.primary,

@@ -15,10 +15,9 @@
  * Finishing:
  *   setCompletedAt(now), invalidate cache, navigate back to the hub.
  *
- * NOTE: this commit ships the RUNNER skeleton. Issue-note modal and
- * corkboard/vessel_issues integration land in the next commit so that
- * this one stays reviewable. Tapping "תקלה" for now opens a simple
- * prompt() for the note as placeholder.
+ * Flow: "תקלה" → opens the proper IssueNoteDialog (see issueItemId state
+ * below) where the user can attach a note + optionally create a cork
+ * note / vessel_issues entry. No browser prompt() anywhere.
  */
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
@@ -50,15 +49,32 @@ const THEME = {
 
 const SAVE_DEBOUNCE_MS = 1500;
 
-function uid() { return `i_${Math.random().toString(36).slice(2, 10)}`; }
+/** Deterministic per-item id — if the template has its own item.id we
+ *  keep it, otherwise derive one from the section name + text. Same
+ *  inputs always produce the same id, so a user who reloads the page
+ *  mid-run lands on the same snapshot they were editing (no mismatch
+ *  between saved draft.items[i].id and the freshly-built i). */
+function itemIdFor(sectionName, text, fallbackIndex) {
+  if (text && sectionName) {
+    // Short stable hash of "section|text" — collisions are harmless
+    // within a single template (different sections produce different
+    // prefixes; different texts within a section are rare).
+    let h = 5381;
+    const seed = `${sectionName}|${text}`;
+    for (let i = 0; i < seed.length; i++) h = ((h << 5) + h + seed.charCodeAt(i)) | 0;
+    return `i_${Math.abs(h).toString(36)}`;
+  }
+  return `i_${fallbackIndex}`;
+}
 
 /** Build a fresh items[] snapshot from a template.items.sections shape. */
 function buildSnapshotFromTemplate(template) {
   const snapshot = [];
+  let idx = 0;
   for (const section of template?.items?.sections || []) {
     for (const it of section.items || []) {
       snapshot.push({
-        id: uid(),
+        id: it.id || itemIdFor(section.name, it.text, idx++),
         section: section.name,
         text: it.text || '',
         status: 'pending',
@@ -107,6 +123,11 @@ export default function Checklist() {
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const saveTimerRef = useRef(null);
+  // True between a scheduleSave() and the row being written. We use it on
+  // beforeunload to decide whether to prompt — without this flag we'd
+  // either spam users with "leave site?" even after everything saved, or
+  // lose data because the debounced fetch aborts mid-unload.
+  const hasUnsavedChangesRef = useRef(false);
 
   // Issue-sheet state. which item is having its issue captured
   const [issueItemId, setIssueItemId] = useState(null);
@@ -188,9 +209,11 @@ export default function Checklist() {
     if (!runId) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSaving(true);
+    hasUnsavedChangesRef.current = true;
     saveTimerRef.current = setTimeout(async () => {
       try {
         await db.vessel_checklist_runs.update(runId, { items: nextItems });
+        hasUnsavedChangesRef.current = false;
       } catch (e) {
         if (import.meta.env.DEV) console.warn('[Checklist save] failed:', e?.message);
       } finally {
@@ -199,21 +222,56 @@ export default function Checklist() {
     }, SAVE_DEBOUNCE_MS);
   }, [runId]);
 
-  // Save on tab-hide (immediate, not debounced)
+  // Keep latest runId + items in refs so the listener effect + unmount
+  // flush don't need to recreate on every keystroke (which would fight
+  // the debounce).
+  const latestRunIdRef = useRef(null);
+  const latestItemsRef = useRef(null);
+  useEffect(() => { latestRunIdRef.current = runId; }, [runId]);
+  useEffect(() => { latestItemsRef.current = items; }, [items]);
+
+  // Save on tab-hide (immediate, not debounced).
+  // Three layers of protection:
+  //   1. visibilitychange — fires reliably on mobile tab-switch BEFORE the
+  //      tab actually closes, giving the fetch time to complete.
+  //   2. beforeunload → flushNow — initiates the save as the user leaves.
+  //      Browsers may abort async fetches after beforeunload, but on desktop
+  //      the save usually makes it out.
+  //   3. beforeunload → confirm prompt — only if there are still unsaved
+  //      changes when the user tries to leave. Buys time for (2) to finish
+  //      and prevents silent data loss on flaky networks.
+  //   4. unmount flush — catches React Router navigations (which don't
+  //      fire beforeunload) so switching pages within the debounce window
+  //      still saves.
   useEffect(() => {
     const flushNow = async () => {
-      if (!runId || !items) return;
+      const rid = latestRunIdRef.current;
+      const it  = latestItemsRef.current;
+      if (!rid || !it) return;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      try { await db.vessel_checklist_runs.update(runId, { items }); } catch {}
+      try {
+        await db.vessel_checklist_runs.update(rid, { items: it });
+        hasUnsavedChangesRef.current = false;
+      } catch {}
+    };
+    const onBeforeUnload = (e) => {
+      flushNow();
+      if (hasUnsavedChangesRef.current) {
+        // Modern browsers ignore the message text but still show a prompt
+        // when preventDefault() is called + returnValue is set.
+        e.preventDefault();
+        e.returnValue = '';
+      }
     };
     const onVis = () => { if (document.visibilityState === 'hidden') flushNow(); };
-    window.addEventListener('beforeunload', flushNow);
+    window.addEventListener('beforeunload', onBeforeUnload);
     document.addEventListener('visibilitychange', onVis);
     return () => {
-      window.removeEventListener('beforeunload', flushNow);
+      flushNow();
+      window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [runId, items]);
+  }, []);  // Empty deps — listeners register once, read latest state via refs.
 
   const setItemStatus = (itemId, nextStatus, note = null) => {
     setItems(prev => {

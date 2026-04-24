@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '../components/shared/GuestContext';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -61,65 +60,20 @@ export default function DeleteAccount() {
     setReauthPending(false);
     setStep('deleting');
     try {
-      const userId = user.id;
-      const members = await db.account_members.filter({ user_id: userId, status: 'פעיל' });
+      // Single atomic server-side call. The old client-side loop had two
+      // problems: (a) `.eq('vehicle_id', vehicles.map(...))` silently did
+      // nothing when passed an array, leaving cork_notes orphaned; and
+      // (b) running ~20 DELETEs serially with no transaction meant a
+      // mid-flight failure could leave partial state. The RPC does
+      // everything in one BEGIN/COMMIT and returns counts.
+      const { error: rpcErr } = await supabase.rpc('delete_my_account', { mode });
+      if (rpcErr) throw rpcErr;
 
-      if (mode === 'data') {
-        // Delete user data only (vehicles, documents, notes, etc.) - keep account
-        for (const member of members) {
-          const accountId = member.account_id;
-          // Delete vehicles (cascade will handle related data)
-          const vehicles = await db.vehicles.filter({ account_id: accountId });
-          for (const v of vehicles) {
-            try { await db.vehicles.delete(v.id); } catch {}
-          }
-          // Delete cork notes, community posts
-          try {
-            await supabase.from('cork_notes').delete().eq('vehicle_id', vehicles.map(v => v.id));
-            await supabase.from('community_posts').delete().eq('user_id', userId);
-            await supabase.from('community_comments').delete().eq('user_id', userId);
-            await supabase.from('community_likes').delete().eq('user_id', userId);
-            await supabase.from('community_reactions').delete().eq('user_id', userId);
-            await supabase.from('community_saved').delete().eq('user_id', userId);
-          } catch {}
-          // Delete user profile
-          try { await supabase.from('user_profiles').delete().eq('user_id', userId); } catch {}
-        }
-        // Clear localStorage
-        localStorage.clear();
-        setStep('done');
-      } else {
-        // Delete entire account
-        // Delete all data first
-        for (const member of members) {
-          const accountId = member.account_id;
-          const vehicles = await db.vehicles.filter({ account_id: accountId });
-          for (const v of vehicles) {
-            try { await db.vehicles.delete(v.id); } catch {}
-          }
-          // Delete account membership
-          try { await db.account_members.delete(member.id); } catch {}
-          // Try to delete the account itself (only if owner)
-          if (member.role === 'בעלים') {
-            try { await db.accounts.delete(accountId); } catch {}
-          }
-        }
-        // Delete community data
-        try {
-          await supabase.from('community_posts').delete().eq('user_id', userId);
-          await supabase.from('community_comments').delete().eq('user_id', userId);
-          await supabase.from('community_likes').delete().eq('user_id', userId);
-          await supabase.from('community_reactions').delete().eq('user_id', userId);
-          await supabase.from('community_saved').delete().eq('user_id', userId);
-          await supabase.from('user_profiles').delete().eq('user_id', userId);
-          await supabase.from('community_notifications').delete().eq('user_id', userId);
-        } catch {}
-        // Clear localStorage
-        localStorage.clear();
-        // Sign out
+      localStorage.clear();
+      if (mode === 'account') {
         await supabase.auth.signOut();
-        setStep('done');
       }
+      setStep('done');
     } catch (err) {
       console.error('Delete error:', err);
       setError('אירעה שגיאה. נסה שוב או פנה לתמיכה.');

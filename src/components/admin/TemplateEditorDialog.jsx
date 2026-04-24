@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import DOMPurify from 'dompurify';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,43 @@ import { validateTemplate, extractPlaceholders } from '@/lib/emailValidate';
 import { renderFromTemplateObject } from '@/lib/emailRender';
 import { toast } from 'sonner';
 import VersionHistoryDialog from './VersionHistoryDialog';
+
+/**
+ * Sanitize admin-authored email HTML before it's dropped into the preview
+ * iframe. `sandbox=""` already blocks script execution, but it doesn't
+ * stop `<img>` or `background-image: url(...)` beacons from hitting
+ * third-party servers when the iframe renders, leaking admin session
+ * info via the Referer header. DOMPurify strips dangerous attributes and
+ * any external URLs the template renderer didn't explicitly approve.
+ *
+ * We keep style + inline styles (the template system relies on them) and
+ * common email tags. FORCE_BODY ensures we always get a full document so
+ * the iframe's srcDoc isn't an empty string when input is partial.
+ */
+const PREVIEW_SANITIZER_CONFIG = {
+  FORCE_BODY: true,
+  ALLOWED_TAGS: [
+    'html','head','body','title','meta','style',
+    'div','span','p','br','hr','h1','h2','h3','h4','h5','h6',
+    'a','img','strong','em','b','i','u','s',
+    'table','thead','tbody','tfoot','tr','td','th',
+    'ul','ol','li','blockquote','pre','code',
+    'center','font',
+  ],
+  ALLOWED_ATTR: [
+    'href','src','alt','title','style','class','id','dir','lang','width','height',
+    'align','valign','bgcolor','cellpadding','cellspacing','border','role','type',
+    'target','rel',
+  ],
+  // Allow data: URLs for inline images (embedded logos) but not javascript:
+  ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|data:image\/(?:png|jpe?g|gif|webp|svg\+xml);base64,)/i,
+  WHOLE_DOCUMENT: true,
+};
+
+function sanitizePreviewHtml(html) {
+  if (typeof html !== 'string' || !html) return '';
+  return DOMPurify.sanitize(html, PREVIEW_SANITIZER_CONFIG);
+}
 
 /**
  * TemplateEditorDialog. full editor for a single notification's template.
@@ -105,14 +143,19 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
   };
 
   const handlePublish = async () => {
-    // If the draft has unsaved edits, save them first.
     const v = validateTemplate(draft);
     if (!v.ok) { toast.error(`לא ניתן לפרסם. נמצאו ${v.errors.length} שגיאות במשתנים.`); return; }
     try {
-      if (existingTemplate && JSON.stringify(draft) !== JSON.stringify(existingTemplate)) {
-        await save.mutateAsync(draft);
-      }
-      await publish.mutateAsync({ templateId: existingTemplate.id, notificationKey: notification.key });
+      // Always save the draft before publishing. The old JSON.stringify
+      // dirty-check was key-order-dependent (object with same content but
+      // different key order looked "changed" and also looked "clean" in
+      // other cases). save mutation returns the freshly-persisted row so
+      // we can use its id — no risk of publishing a stale existingTemplate
+      // id after the row was recreated.
+      const saved = await save.mutateAsync(draft);
+      const idToPublish = saved?.id || existingTemplate?.id;
+      if (!idToPublish) throw new Error('לא ניתן לזהות את התבנית לפרסום');
+      await publish.mutateAsync({ templateId: idToPublish, notificationKey: notification.key });
       toast.success('פורסם! מעכשיו המיילים יוצאים עם הגרסה הזו.');
       onClose?.();
     } catch (e) {
@@ -287,7 +330,7 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
                       <iframe
                         title="email preview"
                         sandbox=""
-                        srcDoc={preview?.html || ''}
+                        srcDoc={sanitizePreviewHtml(preview?.html || '')}
                         style={{
                           width: previewMode === 'mobile' ? 375 : '100%',
                           maxWidth: 640,

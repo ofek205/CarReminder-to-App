@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/supabaseEntities';
+import { uploadVehicleFile, deleteFile } from '@/lib/supabaseStorage';
+import useAccountRole from '@/hooks/useAccountRole';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -31,21 +34,22 @@ export default function RepairsSection({ vehicle }) {
   const [uploadingFiles, setUploadingFiles] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const queryClient = useQueryClient();
+  const { accountId } = useAccountRole();
 
   const { data: user } = useQuery({
     queryKey: ['current-user'],
-    queryFn: () => base44.auth.me(),
+    queryFn: async () => (await supabase.auth.getUser()).data.user,
   });
 
   const { data: repairTypes = [] } = useQuery({
     queryKey: ['repair-types', user?.id],
-    queryFn: () => base44.entities.RepairType.filter({ owner_user_id: user.id, is_active: true }),
+    queryFn: () => db.repair_types.filter({ owner_user_id: user.id, is_active: true }),
     enabled: !!user?.id,
   });
 
   const { data: repairLogs = [] } = useQuery({
     queryKey: ['repair-logs', vehicle.id],
-    queryFn: () => base44.entities.RepairLog.filter({ vehicle_id: vehicle.id }),
+    queryFn: () => db.repair_logs.filter({ vehicle_id: vehicle.id }),
   });
 
   const filteredTypes = searchValue
@@ -91,12 +95,19 @@ export default function RepairsSection({ vehicle }) {
     const files = Array.from(e.target.files);
     for (const file of files) {
       const validation = validateUploadFile(file, 'doc', 10);
-      if (!validation.ok) { alert(validation.error); continue; }
+      if (!validation.ok) { toast.error(validation.error); continue; }
       // If the upload is an image, compress client-side before sending
       // to cut both upload time and storage egress.
       const payload = file.type?.startsWith('image/') ? await compressImage(file) : file;
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: payload });
-      setUploadingFiles(prev => [...prev, { file_url, file_type: 'אחר', fileName: payload.name || file.name }]);
+      const { file_url, storage_path } = await uploadVehicleFile({
+        file: payload,
+        accountId: vehicle.account_id || accountId,
+        vehicleId: vehicle.id,
+      });
+      setUploadingFiles(prev => [
+        ...prev,
+        { file_url, storage_path, file_type: 'אחר', fileName: payload.name || file.name },
+      ]);
     }
   };
 
@@ -111,57 +122,72 @@ export default function RepairsSection({ vehicle }) {
     }
 
     setSaving(true);
-    const repairData = {
+
+    // One atomic server call. Old code did 3-5 separate writes (repair,
+    // attachments loop, accident upsert). A mid-flight network drop used
+    // to leave orphan attachments or a repair_log with no accident row.
+    // The RPC wraps everything in BEGIN/COMMIT on the server side.
+    const repairLog = {
+      ...(repairForm.id ? { id: repairForm.id } : {}),
       vehicle_id: vehicle.id,
-      repair_type_id: selectedRepairType?.id,
+      account_id: vehicle.account_id || accountId,
+      repair_type_id: selectedRepairType?.id || null,
       title: repairForm.title,
       occurred_at: repairForm.occurred_at,
-      repaired_at: repairForm.repaired_at || undefined,
-      description: repairForm.description || undefined,
-      repaired_by: repairForm.repaired_by,
-      garage_name: repairForm.garage_name || undefined,
-      cost: repairForm.cost ? Number(repairForm.cost) : undefined,
-      created_by_user_id: user.id,
-      is_accident: repairForm.is_accident,
+      repaired_at: repairForm.repaired_at || null,
+      description: repairForm.description || null,
+      repaired_by: repairForm.repaired_by || 'אני',
+      garage_name: repairForm.garage_name || null,
+      cost: repairForm.cost ? Number(repairForm.cost) : null,
+      is_accident: !!repairForm.is_accident,
     };
-    Object.keys(repairData).forEach(k => { if (repairData[k] === undefined || repairData[k] === '') delete repairData[k]; });
 
-    let repairLogId;
-    if (repairForm.id) {
-      await base44.entities.RepairLog.update(repairForm.id, repairData);
-      repairLogId = repairForm.id;
-    } else {
-      const newLog = await base44.entities.RepairLog.create(repairData);
-      repairLogId = newLog.id;
-    }
+    const attachments = uploadingFiles.map(f => ({
+      file_url: f.file_url,
+      file_type: f.file_type,
+      storage_path: f.storage_path,
+    }));
 
-    // Save attachments
-    for (const file of uploadingFiles) {
-      await base44.entities.RepairAttachment.create({
-        repair_log_id: repairLogId,
-        file_url: file.file_url,
-        file_type: file.file_type,
-      });
-    }
+    const accident = repairForm.is_accident && Object.keys(repairForm.accident_details || {}).length > 0
+      ? repairForm.accident_details
+      : null;
 
-    // Save accident details if applicable
-    if (repairForm.is_accident && Object.keys(repairForm.accident_details).length > 0) {
-      const existingAccident = await base44.entities.AccidentDetails.filter({ repair_log_id: repairLogId });
-      const accidentData = {
-        repair_log_id: repairLogId,
-        ...repairForm.accident_details,
-      };
-      if (existingAccident.length > 0) {
-        await base44.entities.AccidentDetails.update(existingAccident[0].id, accidentData);
-      } else {
-        await base44.entities.AccidentDetails.create(accidentData);
-      }
+    const { error } = await supabase.rpc('save_repair_with_children', {
+      p_repair_log: repairLog,
+      p_attachments: attachments,
+      p_accident: accident,
+    });
+    if (error) {
+      setSaving(false);
+      toast.error('שמירה נכשלה: ' + error.message);
+      return;
     }
 
     queryClient.invalidateQueries({ queryKey: ['repair-logs', vehicle.id] });
+    // Clear files BEFORE closing the dialog so the onOpenChange cleanup
+    // doesn't delete files that were just persisted by the RPC.
+    setUploadingFiles([]);
     setShowRepairDialog(false);
     setSaving(false);
     toast.success(repairForm.id ? 'תיקון עודכן בהצלחה' : 'תיקון נוסף בהצלחה');
+  };
+
+  // If the user cancels the dialog after uploading files but before hitting
+  // save, those files are sitting in the vehicle-files bucket with nothing
+  // in the DB pointing at them. Delete them on close to avoid paying for
+  // orphan storage forever.
+  const handleDialogOpenChange = (open) => {
+    // Block close while a save is in flight — a racing Esc would delete
+    // the in-flight attachment files before the RPC commits.
+    if (!open && saving) return;
+
+    if (!open && uploadingFiles.length > 0) {
+      uploadingFiles.forEach(f => {
+        if (f.storage_path) deleteFile(f.storage_path).catch(() => {});
+      });
+      setUploadingFiles([]);
+    }
+    setShowRepairDialog(open);
   };
 
   const handleDeleteRepair = (logId) => {
@@ -171,15 +197,9 @@ export default function RepairsSection({ vehicle }) {
   const confirmDeleteRepair = async () => {
     const logId = deleteTarget;
     setDeleteTarget(null);
-    const attachments = await base44.entities.RepairAttachment.filter({ repair_log_id: logId });
-    for (const att of attachments) {
-      await base44.entities.RepairAttachment.delete(att.id);
-    }
-    const accidentDetails = await base44.entities.AccidentDetails.filter({ repair_log_id: logId });
-    for (const acc of accidentDetails) {
-      await base44.entities.AccidentDetails.delete(acc.id);
-    }
-    await base44.entities.RepairLog.delete(logId);
+    // FK ON DELETE CASCADE on repair_attachments.repair_log_id and
+    // accident_details.repair_log_id takes care of children atomically.
+    await db.repair_logs.delete(logId);
     queryClient.invalidateQueries({ queryKey: ['repair-logs', vehicle.id] });
     toast.success('הפריט נמחק בהצלחה');
   };
@@ -289,7 +309,7 @@ export default function RepairsSection({ vehicle }) {
         </div>
       </Card>
 
-      <Dialog open={showRepairDialog} onOpenChange={setShowRepairDialog}>
+      <Dialog open={showRepairDialog} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle>{repairForm.id ? 'עריכת' : 'הוספת'} תיקון</DialogTitle>

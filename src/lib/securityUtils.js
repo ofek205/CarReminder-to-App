@@ -9,11 +9,13 @@
  * Only URLs from these domains are allowed to be opened.
  */
 const TRUSTED_FILE_DOMAINS = [
-  'base44.com',
+  'supabase.co',          // Supabase Storage signed URLs
+  'supabase.in',          // Supabase EU region
   'amazonaws.com',
   'cloudfront.net',
   'storage.googleapis.com',
   'blob.core.windows.net',
+  'base44.com',           // legacy — pre-migration attachments may still use these
 ];
 
 /**

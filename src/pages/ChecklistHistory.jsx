@@ -74,7 +74,15 @@ export default function ChecklistHistory() {
   }, [templates]);
 
   const completedRuns = useMemo(() =>
-    runs.filter(r => !!r.completed_at && (phaseFilter === 'all' || r.phase === phaseFilter)),
+    // Custom templates have r.phase=null (system phases are 'pre'/'during'/'post').
+    // Treat null as 'custom' so the filter actually surfaces them — the old
+    // `r.phase === phaseFilter` silently hid every custom-template run.
+    runs.filter(r => {
+      if (!r.completed_at) return false;
+      if (phaseFilter === 'all') return true;
+      const phaseKey = r.phase || 'custom';
+      return phaseKey === phaseFilter;
+    }),
     [runs, phaseFilter]
   );
 

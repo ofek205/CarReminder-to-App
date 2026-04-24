@@ -54,10 +54,17 @@ function buildCors(req: Request): HeadersInit {
   // Only echo the caller's origin if it's in the whitelist. Otherwise
   // advertise the first allowed origin, which will trigger a browser
   // CORS failure for unauthorised callers instead of silently succeeding.
-  const allow = allowList.includes(origin) ? origin : (allowList[0] || 'null');
+  // Fail-closed: unauthorised origins get 'null' so the browser's CORS check
+  // rejects. (The old `allowList[0]` fallback still echoed an allowed
+  // origin, letting unauthorised callers see headers they shouldn't.)
+  const allow = allowList.includes(origin) ? origin : 'null';
   return {
     'Access-Control-Allow-Origin':  allow,
-    'Access-Control-Allow-Headers': 'authorization, content-type',
+    // supabase-js invoke() attaches apikey + x-client-info on every call;
+    // without them in the allow-list the browser blocks the preflight and
+    // the invoke() helper returns "Failed to send a request" even though
+    // the function is up. authorization + content-type cover raw fetch too.
+    'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin',
   };
@@ -85,9 +92,12 @@ async function callGemini(body: any) {
       }
     }
   }
-  const res = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
+  // Send the API key in the x-goog-api-key header, not the URL — query
+  // strings are logged by Supabase edge runtimes, CDNs, and browser
+  // referrer headers, which leaks the key every time a request is made.
+  const res = await fetch(GEMINI_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY! },
     body: JSON.stringify({
       contents: [{ parts }],
       generationConfig: { maxOutputTokens: body.max_tokens || 400, temperature: 0.7 },
@@ -126,6 +136,110 @@ async function callGroq(body: any) {
   return { content: [{ type: 'text', text }], provider: 'groq' };
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// extract_document: fetch file → base64 → Gemini with schema-guided prompt.
+// Returns Base44-compatible shape: { status: 'success'|'error', output?, details? }
+// ──────────────────────────────────────────────────────────────────────────
+async function fetchAsBase64(url: string): Promise<{ data: string; mime: string }> {
+  // 10s timeout so a hung storage fetch can't pin the function.
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10_000);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`file fetch failed: ${res.status}`);
+    const mime = res.headers.get('content-type')?.split(';')[0] || 'application/octet-stream';
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf.byteLength > 6 * 1024 * 1024) throw new Error('file too large (>6MB)');
+    // Chunked base64 encode — btoa on huge strings blows the stack in Deno.
+    let bin = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < buf.length; i += CHUNK) {
+      bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + CHUNK)) as any);
+    }
+    return { data: btoa(bin), mime };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function extractJsonFromText(text: string): any {
+  if (!text) return null;
+  // Strip ```json ... ``` fences if the model wrapped the answer.
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const candidate = (fenced ? fenced[1] : text).trim();
+  // Fallback: first {...} block.
+  const braced = candidate.match(/\{[\s\S]*\}/);
+  const raw = braced ? braced[0] : candidate;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+async function extractDocument(body: any, req: Request): Promise<Response> {
+  if (!GEMINI_KEY) return json({ status: 'error', details: 'No AI provider configured' }, 503, req);
+
+  const { file_url, file_base64, file_mime, json_schema, instructions } = body;
+  if (!json_schema) return json({ status: 'error', details: 'Missing json_schema' }, 400, req);
+  if (!file_url && !file_base64) return json({ status: 'error', details: 'Missing file_url or file_base64' }, 400, req);
+
+  let data: string;
+  let mime: string;
+  try {
+    if (file_base64) {
+      data = file_base64;
+      mime = file_mime || 'application/octet-stream';
+    } else {
+      const fetched = await fetchAsBase64(file_url);
+      data = fetched.data;
+      mime = fetched.mime;
+    }
+  } catch (e) {
+    return json({ status: 'error', details: `Fetch failed: ${(e as Error).message}` }, 400, req);
+  }
+
+  const schemaText = typeof json_schema === 'string' ? json_schema : JSON.stringify(json_schema);
+  const prompt =
+    (instructions ? instructions + '\n\n' : '') +
+    'Extract the following fields from the attached document.\n' +
+    'Return ONLY a single JSON object matching this schema (no prose, no markdown fences).\n' +
+    'Omit fields you cannot determine from the document.\n' +
+    'Dates: prefer ISO 8601 (YYYY-MM-DD) if possible.\n\n' +
+    'Schema:\n' + schemaText;
+
+  // Send the API key in the x-goog-api-key header, not the URL — query
+  // strings are logged by Supabase edge runtimes, CDNs, and browser
+  // referrer headers, which leaks the key every time a request is made.
+  const res = await fetch(GEMINI_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY! },
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          { text: prompt },
+          { inline_data: { mime_type: mime, data } },
+        ],
+      }],
+      generationConfig: {
+        maxOutputTokens: 1024,
+        temperature: 0.1,
+        responseMimeType: 'application/json',
+      },
+    }),
+  }).catch(() => null);
+
+  if (!res || !res.ok) {
+    const detail = res ? await res.text().catch(() => '') : 'network error';
+    return json({ status: 'error', details: `AI call failed: ${detail.slice(0, 200)}` }, 502, req);
+  }
+
+  const j = await res.json().catch(() => ({}));
+  const text: string = j?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const parsed = extractJsonFromText(text);
+  if (!parsed || typeof parsed !== 'object') {
+    return json({ status: 'error', details: 'Could not parse AI response as JSON', raw: text.slice(0, 500) }, 200, req);
+  }
+
+  return json({ status: 'success', output: parsed, provider: 'gemini' }, 200, req);
+}
+
 async function callClaude(body: any) {
   if (!ANTHROPIC_KEY) return null;
   const res = await fetch(ANTHROPIC_URL, {
@@ -158,20 +272,6 @@ serve(async (req) => {
   const { data: { user }, error: authErr } = await supabase.auth.getUser(authHeader.slice(7));
   if (authErr || !user) return json({ error: 'Invalid token' }, 401, req);
 
-  // Soft per-user rate limit. Fails open if table isn't present.
-  try {
-    // rate_limit_check(kind, max_per_min) buckets by kind+auth.uid().
-    // The JWT was attached above, so auth.uid() inside the RPC resolves
-    // to the caller when we invoke it with the user's token — but we're
-    // using the service role client here, so pass user id via a distinct
-    // bucket name to keep counters separated.
-    const { data: allowed } = await supabase.rpc('rate_limit_check', {
-      kind:        `ai_proxy:${user.id}`,
-      max_per_min: 10,
-    });
-    if (allowed === false) return json({ error: 'Rate limit exceeded' }, 429, req);
-  } catch { /* table missing → skip */ }
-
   let body: any;
   try { body = await req.json(); } catch { return json({ error: 'Invalid JSON' }, 400, req); }
 
@@ -179,21 +279,81 @@ serve(async (req) => {
   const approxSize = JSON.stringify(body).length;
   if (approxSize > 8 * 1024 * 1024) return json({ error: 'Payload too large' }, 413, req);
 
+  // ─────────────────────────────────────────────────────────────────────
+  // Mode: extract_document
+  // Replaces base44.integrations.Core.ExtractDataFromUploadedFile.
+  // Fetches a signed URL, sends the bytes to Gemini with a schema-guided
+  // prompt, returns { status: 'success', output: {...} } on success.
+  // Uses a separate rate-limit bucket (30/min) because scan wizards
+  // sometimes burst 2-3 pages back-to-back.
+  // ─────────────────────────────────────────────────────────────────────
+  if (body?.mode === 'extract_document') {
+    const { data: allowed, error: rlErr } = await supabase.rpc('rate_limit_check', {
+      kind:        `extract_document:${user.id}`,
+      max_per_min: 30,
+    });
+    if (rlErr) {
+      // Surface rate-limit misconfiguration in logs so we notice instead
+      // of silently letting unlimited traffic through.
+      console.error('rate_limit_check failed (extract_document):', rlErr.message);
+    }
+    if (allowed === false) return json({ status: 'error', details: 'Rate limit exceeded' }, 429, req);
+
+    return extractDocument(body, req);
+  }
+
+  // Default mode: Claude-format chat. Use the smaller rate limit.
+  {
+    const { data: allowed, error: rlErr } = await supabase.rpc('rate_limit_check', {
+      kind:        `ai_proxy:${user.id}`,
+      max_per_min: 10,
+    });
+    if (rlErr) {
+      console.error('rate_limit_check failed (ai_proxy):', rlErr.message);
+    }
+    if (allowed === false) return json({ error: 'Rate limit exceeded' }, 429, req);
+  }
+
   const hasImages = (body.messages || []).some((m: any) =>
     Array.isArray(m.content) && m.content.some((p: any) => p.type === 'image' || p.type === 'document')
   );
 
-  // Text-only: try Groq first (fastest, free). Vision: straight to Gemini.
-  if (!hasImages) {
-    const groq = await callGroq(body).catch(() => null);
-    if (groq) return json(groq, 200, req);
+  // Look up the admin's chosen provider for this feature. The client can
+  // pass `feature` in the body ('community_expert', 'yossi_chat',
+  // 'scan_extraction'); falls back to 'auto' if the feature isn't known
+  // or the RPC errors. 'auto' = the legacy priority ladder below.
+  let preferred: string = 'auto';
+  if (typeof body?.feature === 'string' && body.feature.length < 40) {
+    try {
+      const { data: pref } = await supabase.rpc('get_ai_provider', { p_feature: body.feature });
+      if (typeof pref === 'string' && ['gemini', 'groq', 'claude', 'auto'].includes(pref)) {
+        preferred = pref;
+      }
+    } catch { /* fall back to auto */ }
   }
 
-  const gemini = await callGemini(body).catch(() => null);
-  if (gemini) return json(gemini, 200, req);
+  // Resolve by preference. Each call falls back to auto-ladder on failure
+  // so an admin who chose a provider that's temporarily down still gets a
+  // response. Every returned payload now includes `provider` so the client
+  // can render a "Powered by X" badge.
+  const tryGemini = async () => (await callGemini(body).catch(() => null));
+  const tryGroq   = async () => (await callGroq(body).catch(() => null));
+  const tryClaude = async () => (await callClaude(body).catch(() => null));
 
-  const claude = await callClaude(body).catch(() => null);
-  if (claude) return json(claude, 200, req);
+  if (preferred === 'gemini') {
+    const r = await tryGemini(); if (r) return json(r, 200, req);
+  } else if (preferred === 'groq' && !hasImages) {
+    const r = await tryGroq(); if (r) return json(r, 200, req);
+  } else if (preferred === 'claude') {
+    const r = await tryClaude(); if (r) return json(r, 200, req);
+  }
+
+  // Auto / fallback ladder: text → Groq (fastest); vision → Gemini first.
+  if (!hasImages) {
+    const groq = await tryGroq(); if (groq) return json(groq, 200, req);
+  }
+  const gemini = await tryGemini(); if (gemini) return json(gemini, 200, req);
+  const claude = await tryClaude(); if (claude) return json(claude, 200, req);
 
   return json({ error: 'No AI provider available' }, 503, req);
 });

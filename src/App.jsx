@@ -1,5 +1,4 @@
 import React from 'react'
-import { Toaster } from "@/components/ui/toaster"
 import { Toaster as SonnerToaster } from "sonner"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -37,11 +36,40 @@ const LayoutWrapper = ({ children, currentPageName }) => {
   );
 };
 
-//  Error Boundary. catches unhandled errors (e.g. Base44 SDK crashes) 
+// Detect the "stale chunk" error thrown when the browser tries to load
+// a lazy module whose hash changed (new deploy landed / Vite HMR
+// regenerated the module). The fix is a hard reload — the old bundle
+// references the old chunk, the new bundle will resolve correctly.
+const STALE_CHUNK_RE = /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError/i;
+
+//  Error Boundary. catches unhandled renders / throws
 class AppErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, errorMsg: '' }; }
   static getDerivedStateFromError(err) { return { hasError: true, errorMsg: err?.message || String(err) }; }
-  componentDidCatch(err, info) { console.error('AppErrorBoundary caught:', err, info?.componentStack); }
+  componentDidCatch(err, info) {
+    console.error('AppErrorBoundary caught:', err, info?.componentStack);
+
+    // Stale-chunk errors after a deploy: auto-reload once (guard with a
+    // session flag so we don't loop if something else is persistently
+    // broken). The user sees a brief flash of the error screen and then
+    // the page refreshes into the working build.
+    if (STALE_CHUNK_RE.test(err?.message || '')) {
+      try {
+        if (!sessionStorage.getItem('cr:stale-chunk-reload')) {
+          sessionStorage.setItem('cr:stale-chunk-reload', '1');
+          window.location.reload();
+          return;
+        }
+      } catch {}
+    }
+
+    // Send to crashReporter so the Admin → Bugs tab + app_errors table
+    // see it too. Dynamic import so the reporter doesn't inflate the
+    // critical path; fire-and-forget (it already swallows its own errors).
+    import('./lib/crashReporter.js')
+      .then(m => m.reportError('react_render', err, { stack: info?.componentStack }))
+      .catch(() => {});
+  }
   render() {
     if (this.state.hasError) {
       return (
@@ -97,9 +125,11 @@ function App() {
             </Routes>
             </PinGate>
           </Router>
-          <Toaster />
         </QueryClientProvider>
       </AppErrorBoundary>
+      {/* sonner is the ONLY toast renderer — the old shadcn Toaster was
+          mounted but received no toasts (every caller uses sonner's toast())
+          so it was pure dead code + 3 unused npm deps. */}
       <SonnerToaster position="top-center" dir="rtl" richColors theme="light" />
     </div>
   )

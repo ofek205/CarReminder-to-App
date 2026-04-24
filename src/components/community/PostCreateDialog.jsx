@@ -60,9 +60,13 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
         // Extract meaningful keywords (> 2 chars, not stop words)
         const words = body.trim().split(/\s+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
         if (words.length === 0) { setSimilarPosts([]); return; }
-        // Use top 3 keywords
-        const keywords = words.slice(0, 3);
-        const orFilter = keywords.map(k => `body.ilike.%${k}%`).join(',');
+        // Use top 3 keywords. Escape ilike wildcards AND commas — our words
+        // came from a user-typed body, so "50%", "foo,bar", and backslashes
+        // could otherwise either broaden the match unexpectedly or break the
+        // comma-delimited .or() expression entirely.
+        const escape = s => s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+        const keywords = words.slice(0, 3).map(escape);
+        const orFilter = keywords.map(k => `body.ilike."%${k}%"`).join(',');
         const { data } = await supabase.from('community_posts').select('id, body, author_name, created_at, is_anonymous, anonymous_number')
           .eq('domain', domain).or(orFilter).order('created_at', { ascending: false }).limit(3);
         setSimilarPosts(data || []);

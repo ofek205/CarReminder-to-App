@@ -61,6 +61,26 @@ export function GuestProvider({ children }) {
     } catch { return []; }
   };
 
+  /**
+   * localStorage.setItem wrapped to handle QuotaExceededError (~5MB cap).
+   * Without this, guest writes would silently fail once the user accumulates
+   * enough vehicles/documents, and the app would act like the save succeeded
+   * while the new row lives only in React state until reload.
+   */
+  const safeSetItem = (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (err) {
+      if (err?.name === 'QuotaExceededError' || (err?.code && /quota/i.test(err.code))) {
+        toast.error('נגמר האחסון המקומי. הירשם כדי לשמור את הרכבים בחשבון ולא לאבד אותם.');
+      } else {
+        toast.error('שמירה מקומית נכשלה');
+      }
+      return false;
+    }
+  };
+
   const [guestVehicles, setGuestVehicles] = useState(() => safeLoadArray(STORAGE_KEY));
   const [guestDocuments, setGuestDocuments] = useState(() => safeLoadArray(DOCS_KEY));
 
@@ -91,14 +111,20 @@ export function GuestProvider({ children }) {
 
       migrationRunRef.current = true;
 
-      // Get account_id for the authenticated user
-      const members = await db.account_members.filter({ user_id: authenticatedUser.id, status: 'פעיל' });
+      // Get account_id for the authenticated user.
+      // New user might not have account_members yet (trigger race), so we
+      // retry — but cap the attempts so a misconfigured DB doesn't loop
+      // forever and pin the CPU.
+      let members = await db.account_members.filter({ user_id: authenticatedUser.id, status: 'פעיל' });
+      let attempts = 0;
+      while (members.length === 0 && attempts < 3) {
+        await new Promise(r => setTimeout(r, 2000 + attempts * 1000));
+        members = await db.account_members.filter({ user_id: authenticatedUser.id, status: 'פעיל' });
+        attempts++;
+      }
       if (members.length === 0) {
-        // New user might not have account_members yet. retry after short delay
-        setTimeout(() => {
-          migrationRunRef.current = false;
-          migrateGuestDataIfNeeded(authenticatedUser);
-        }, 3000);
+        console.warn('Guest migration: no account_members after 3 retries, aborting');
+        migrationRunRef.current = false;
         return;
       }
       const accountId = members[0].account_id;
@@ -230,7 +256,7 @@ export function GuestProvider({ children }) {
         return addingVessel ? !demoIsVessel : demoIsVessel; // remove only the matching demo
       });
       const updated = [...filtered, vehicle];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      safeSetItem(STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
     return vehicle;
@@ -239,7 +265,7 @@ export function GuestProvider({ children }) {
   const updateGuestVehicle = (id, changes) => {
     setGuestVehicles(prev => {
       const updated = prev.map(v => v.id === id ? { ...v, ...changes } : v);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      safeSetItem(STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
   };
@@ -247,7 +273,7 @@ export function GuestProvider({ children }) {
   const removeGuestVehicle = (id) => {
     setGuestVehicles(prev => {
       const updated = prev.filter(v => v.id !== id);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      safeSetItem(STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
   };
@@ -288,7 +314,7 @@ export function GuestProvider({ children }) {
     const doc = { ...cleanData, id: `guest_doc_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
     setGuestDocuments(prev => {
       const updated = [...prev, doc];
-      localStorage.setItem(DOCS_KEY, JSON.stringify(updated));
+      safeSetItem(DOCS_KEY, JSON.stringify(updated));
       return updated;
     });
     return doc;
@@ -297,7 +323,7 @@ export function GuestProvider({ children }) {
   const removeGuestDocument = (id) => {
     setGuestDocuments(prev => {
       const updated = prev.filter(d => d.id !== id);
-      localStorage.setItem(DOCS_KEY, JSON.stringify(updated));
+      safeSetItem(DOCS_KEY, JSON.stringify(updated));
       return updated;
     });
   };
@@ -311,7 +337,7 @@ export function GuestProvider({ children }) {
     const accident = { ...cleanData, id: `guest_accident_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
     setGuestAccidents(prev => {
       const updated = [...prev, accident];
-      localStorage.setItem(ACCIDENTS_KEY, JSON.stringify(updated));
+      safeSetItem(ACCIDENTS_KEY, JSON.stringify(updated));
       return updated;
     });
     return accident;
@@ -320,7 +346,7 @@ export function GuestProvider({ children }) {
   const updateGuestAccident = (id, changes) => {
     setGuestAccidents(prev => {
       const updated = prev.map(a => a.id === id ? { ...a, ...changes } : a);
-      localStorage.setItem(ACCIDENTS_KEY, JSON.stringify(updated));
+      safeSetItem(ACCIDENTS_KEY, JSON.stringify(updated));
       return updated;
     });
   };
@@ -328,7 +354,7 @@ export function GuestProvider({ children }) {
   const removeGuestAccident = (id) => {
     setGuestAccidents(prev => {
       const updated = prev.filter(a => a.id !== id);
-      localStorage.setItem(ACCIDENTS_KEY, JSON.stringify(updated));
+      safeSetItem(ACCIDENTS_KEY, JSON.stringify(updated));
       return updated;
     });
   };
@@ -342,7 +368,7 @@ export function GuestProvider({ children }) {
     const issue = { ...cleanData, id: `guest_issue_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
     setGuestVesselIssues(prev => {
       const updated = [...prev, issue];
-      localStorage.setItem(VESSEL_ISSUES_KEY, JSON.stringify(updated));
+      safeSetItem(VESSEL_ISSUES_KEY, JSON.stringify(updated));
       return updated;
     });
     return issue;
@@ -351,7 +377,7 @@ export function GuestProvider({ children }) {
   const updateGuestVesselIssue = (id, changes) => {
     setGuestVesselIssues(prev => {
       const updated = prev.map(i => i.id === id ? { ...i, ...changes } : i);
-      localStorage.setItem(VESSEL_ISSUES_KEY, JSON.stringify(updated));
+      safeSetItem(VESSEL_ISSUES_KEY, JSON.stringify(updated));
       return updated;
     });
   };
@@ -359,7 +385,7 @@ export function GuestProvider({ children }) {
   const removeGuestVesselIssue = (id) => {
     setGuestVesselIssues(prev => {
       const updated = prev.filter(i => i.id !== id);
-      localStorage.setItem(VESSEL_ISSUES_KEY, JSON.stringify(updated));
+      safeSetItem(VESSEL_ISSUES_KEY, JSON.stringify(updated));
       return updated;
     });
   };
@@ -370,7 +396,7 @@ export function GuestProvider({ children }) {
     const note = { ...noteData, id: `guest_note_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
     setGuestCorkNotes(prev => {
       const updated = [...prev, note].slice(0, 100);
-      localStorage.setItem(CORK_NOTES_KEY, JSON.stringify(updated));
+      safeSetItem(CORK_NOTES_KEY, JSON.stringify(updated));
       return updated;
     });
     return note;
@@ -379,7 +405,7 @@ export function GuestProvider({ children }) {
   const updateGuestCorkNote = (id, changes) => {
     setGuestCorkNotes(prev => {
       const updated = prev.map(n => n.id === id ? { ...n, ...changes } : n);
-      localStorage.setItem(CORK_NOTES_KEY, JSON.stringify(updated));
+      safeSetItem(CORK_NOTES_KEY, JSON.stringify(updated));
       return updated;
     });
   };
@@ -387,7 +413,7 @@ export function GuestProvider({ children }) {
   const removeGuestCorkNote = (id) => {
     setGuestCorkNotes(prev => {
       const updated = prev.filter(n => n.id !== id);
-      localStorage.setItem(CORK_NOTES_KEY, JSON.stringify(updated));
+      safeSetItem(CORK_NOTES_KEY, JSON.stringify(updated));
       return updated;
     });
   };
@@ -397,7 +423,7 @@ export function GuestProvider({ children }) {
   const updateGuestReminderSettings = (changes) => {
     setGuestReminderSettings(prev => {
       const updated = { ...prev, ...changes };
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+      safeSetItem(SETTINGS_KEY, JSON.stringify(updated));
       return updated;
     });
   };
@@ -416,7 +442,7 @@ export function GuestProvider({ children }) {
   //  Demo 
 
   const dismissDemo = () => {
-    localStorage.setItem(DEMO_DISMISSED_KEY, 'true');
+    safeSetItem(DEMO_DISMISSED_KEY, 'true');
     setIsDemoDismissed(true);
   };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { MessageCircle, Car, Ship, Bike, Truck, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2, Flag, Ban, MoreHorizontal, Wrench, Pencil, X as XIcon, Check as CheckIcon } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { getVehicleCategory } from '@/lib/designTokens';
@@ -27,7 +27,18 @@ const AVATAR_GRADIENTS = [
   'linear-gradient(135deg, #0369A1, #38BDF8)',
 ];
 
-function Avatar({ name, size = 40, isAnonymous = false, anonymousNumber = null }) {
+// Stable string hash (DJB2) → [0, AVATAR_GRADIENTS.length). Keeps a user's
+// avatar colour consistent across renders, devices, and sessions — name-
+// length was non-deterministic for truncated/null names and made the
+// same user flicker colours mid-thread.
+function avatarHash(seed) {
+  const s = String(seed || '?');
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function Avatar({ name, userId, size = 40, isAnonymous = false, anonymousNumber = null }) {
   if (isAnonymous) {
     return (
       <div className="rounded-full flex items-center justify-center font-bold shrink-0"
@@ -37,7 +48,9 @@ function Avatar({ name, size = 40, isAnonymous = false, anonymousNumber = null }
     );
   }
   const letters = (name || '??').split(' ').map(w => w[0]).join('').slice(0, 2);
-  const grad = AVATAR_GRADIENTS[(name || '').length % AVATAR_GRADIENTS.length];
+  // Prefer user_id (stable) when available; fall back to the display name
+  // for AI / system comments that have no user_id.
+  const grad = AVATAR_GRADIENTS[avatarHash(userId || name) % AVATAR_GRADIENTS.length];
   return (
     <div className="rounded-full flex items-center justify-center font-bold text-white shrink-0"
       style={{ width: size, height: size, background: grad, fontSize: size * 0.35 }}>{letters}</div>
@@ -75,65 +88,131 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   const canInteract = !isGuest && !!user;
   const isAdmin = useIsAdmin();
 
-  const liked = interactions?.liked || false;
-  const likeCount = interactions?.likeCount || 0;
-  const saved = interactions?.saved || false;
-  const myReaction = interactions?.myReaction || null;
+  const serverLiked = interactions?.liked || false;
+  const serverLikeCount = interactions?.likeCount || 0;
+  const serverSaved = interactions?.saved || false;
+  const serverMyReaction = interactions?.myReaction || null;
   const reactionCounts = interactions?.reactionCounts || {};
+
+  // Optimistic overrides — null means "defer to server state". Set these
+  // the moment the user clicks so the UI reflects the intended next state
+  // immediately (no ~200ms lag on slow networks). Cleared after the
+  // invalidated query refetches and serverLiked/serverSaved catch up.
+  //
+  // A `pending` ref ALSO blocks rapid re-clicks synchronously — without it
+  // a double-tap fires two inserts before React can disable the button,
+  // landing duplicate rows in community_likes.
+  const [optLiked, setOptLiked] = useState(null);
+  const [optSaved, setOptSaved] = useState(null);
+  const [optReaction, setOptReaction] = useState(null);   // null = defer, false = "cleared", 'emoji' = override
+  // Single shared lock across like/reaction/save — these handlers write to
+  // overlapping rows (community_likes + community_reactions), so three
+  // separate locks would let a racing click cause out-of-order writes and
+  // an inconsistent final state.
+  const interactionPendingRef = useRef(false);
+
+  const liked = optLiked !== null ? optLiked : serverLiked;
+  const saved = optSaved !== null ? optSaved : serverSaved;
+  const myReaction = optReaction !== null ? (optReaction === false ? null : optReaction) : serverMyReaction;
+  // Derived count reflects the optimistic like delta.
+  const likeCount = serverLikeCount
+    + (optLiked === true && !serverLiked ? 1 : 0)
+    + (optLiked === false && serverLiked ? -1 : 0);
   const myChoice = myReaction || (liked ? '👍' : null);
 
   const handleQuickLike = async () => {
-    if (!canInteract) return;
+    if (!canInteract || interactionPendingRef.current) return;
+    interactionPendingRef.current = true;
+    const prevLiked = liked;
+    setOptLiked(!prevLiked);
     try {
-      if (liked) {
+      if (prevLiked) {
         const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
         if (data) await supabase.from('community_likes').delete().eq('id', data.id);
       } else {
         if (myReaction) {
           const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
           if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
+          setOptReaction(false);
         }
         await supabase.from('community_likes').insert({ user_id: user.id, post_id: post.id });
       }
-      queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
-    } catch (e) { console.error('Like error:', e); }
+      await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
+      setOptLiked(null);
+      setOptReaction(null);
+    } catch (e) {
+      console.error('Like error:', e);
+      setOptLiked(null);  // roll back to server truth
+      toast.error('שגיאה בעדכון לייק');
+    } finally {
+      interactionPendingRef.current = false;
+    }
   };
 
   const handleReaction = async (emoji) => {
-    if (!canInteract) return;
+    if (!canInteract || interactionPendingRef.current) return;
+    interactionPendingRef.current = true;
     setShowEmojis(false);
+    const prevReaction = myReaction;
+    const prevLiked = liked;
+    const toggling = prevReaction === emoji;
+    setOptReaction(toggling ? false : emoji);
+    if (prevLiked) setOptLiked(false);
     try {
-      if (liked) {
+      if (prevLiked) {
         const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
         if (data) await supabase.from('community_likes').delete().eq('id', data.id);
       }
-      if (myReaction === emoji) {
+      if (toggling) {
         const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
         if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
-      } else if (myReaction) {
+      } else if (prevReaction) {
         await supabase.from('community_reactions').update({ emoji }).eq('user_id', user.id).eq('post_id', post.id);
       } else {
         await supabase.from('community_reactions').insert({ user_id: user.id, post_id: post.id, emoji });
       }
-      queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
-    } catch (e) { console.error('Reaction error:', e); }
+      await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
+      setOptReaction(null);
+      setOptLiked(null);
+    } catch (e) {
+      console.error('Reaction error:', e);
+      setOptReaction(null);
+      setOptLiked(null);
+      toast.error('שגיאה בעדכון התגובה');
+    } finally {
+      interactionPendingRef.current = false;
+    }
   };
 
   const handleSave = async () => {
-    if (!canInteract) return;
+    if (!canInteract || interactionPendingRef.current) return;
+    interactionPendingRef.current = true;
+    const prevSaved = saved;
+    setOptSaved(!prevSaved);
     try {
-      if (saved) {
-        const { data } = await supabase.from('community_saved').select('id').eq('user_id', user.id).eq('post_id', post.id).single();
+      if (prevSaved) {
+        const { data } = await supabase.from('community_saved').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
         if (data) await supabase.from('community_saved').delete().eq('id', data.id);
       } else {
         await supabase.from('community_saved').insert({ user_id: user.id, post_id: post.id });
       }
-      queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
-    } catch (e) { console.error('Save error:', e); }
+      await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
+      setOptSaved(null);
+    } catch (e) {
+      console.error('Save error:', e);
+      setOptSaved(null);  // roll back
+      toast.error('שגיאה בשמירה');
+    } finally {
+      interactionPendingRef.current = false;
+    }
   };
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/Community?post=${post.id}`;
+    // Always share the production URL — window.location.origin on Vercel
+    // previews / Capacitor / localhost produces links the recipient can't
+    // open (same reasoning as AccountSettings invite link fix).
+    const baseUrl = import.meta.env.VITE_PUBLIC_APP_URL || 'https://car-reminder.app';
+    const url = `${baseUrl}/Community?post=${post.id}`;
     const text = post.body?.slice(0, 100) + '...';
     if (navigator.share) {
       try { await navigator.share({ title: 'CarReminder - קהילה', text, url }); } catch {}
@@ -186,7 +265,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
 
       {/* Header */}
       <div className="flex items-start gap-3 px-4 pt-4 pb-2">
-        <Avatar name={post.author_name} size={40} isAnonymous={post.is_anonymous} anonymousNumber={post.anonymous_number} />
+        <Avatar name={post.author_name} userId={post.user_id} size={40} isAnonymous={post.is_anonymous} anonymousNumber={post.anonymous_number} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-sm font-bold" style={{ color: '#1F2937' }}>
@@ -236,7 +315,14 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
                   </DropdownMenuItem>
                   {isAdmin && (
                     <DropdownMenuItem onClick={() => {
-                      if (!confirm(`לחסום את ${post.author_name}? לא יראו את הפוסטים שלו.`)) return;
+                      // Strip non-letter/digit/space chars from author_name before
+                      // interpolating into confirm() — a crafted name containing
+                      // quotes/backticks/newlines could otherwise corrupt the
+                      // dialog text or look like a different post. confirm()
+                      // renders as plain text (no XSS), but the visible message
+                      // can still be spoofed without this sanitize.
+                      const safeName = String(post.author_name || '').replace(/[^\p{L}\p{N} .\-#]/gu, '').slice(0, 60) || 'משתמש';
+                      if (!confirm(`לחסום את ${safeName}? לא יראו את הפוסטים שלו.`)) return;
                       try {
                         const blocked = JSON.parse(localStorage.getItem('blocked_users') || '[]');
                         if (!blocked.includes(post.user_id)) { blocked.push(post.user_id); localStorage.setItem('blocked_users', JSON.stringify(blocked)); }

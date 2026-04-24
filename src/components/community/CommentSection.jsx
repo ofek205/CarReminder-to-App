@@ -54,28 +54,21 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
       if (!user) return;
       const realName = user.user_metadata?.full_name || user.email || 'משתמש';
 
-      let authorName = realName;
-      let anonymousNumber = null;
-
-      if (anonymous) {
-        try {
-          const { data: numData } = await supabase.rpc('get_anonymous_number', {
-            p_post_id: postId,
-            p_user_id: user.id,
-          });
-          anonymousNumber = numData || 2;
-        } catch {
-          anonymousNumber = 2; // Fallback if RPC fails
-        }
-        authorName = `אנונימי #${anonymousNumber}`;
-      }
-
       const userMessage = text.trim();
-      await db.community_comments.create({
-        post_id: postId, user_id: user.id, author_name: authorName, body: userMessage, is_ai: false,
-        is_anonymous: anonymous,
-        anonymous_number: anonymousNumber,
+
+      // Single atomic RPC: anonymous-number assignment + comment insert
+      // happen in one transaction with an advisory lock per post. Replaces
+      // the two-step "get_anonymous_number + db.community_comments.create"
+      // that let two concurrent anonymous commenters grab the same number.
+      const { data: result, error: rpcErr } = await supabase.rpc('post_comment', {
+        p_post_id: postId,
+        p_body: userMessage,
+        p_is_anonymous: !!anonymous,
+        p_author_name: anonymous ? null : realName,
       });
+      if (rpcErr) throw rpcErr;
+
+      const authorName = result?.author_name || (anonymous ? 'אנונימי' : realName);
       if (postOwnerId && postOwnerId !== user.id) {
         try {
           await db.community_notifications.create({ user_id: postOwnerId, post_id: postId, commenter_name: authorName });
@@ -96,11 +89,17 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
             const expert = getAiExpertForDomain(postDomain);
             const isVessel = expert.domain === 'vessel';
             const systemPrompt = `אתה ${expert.fullName}, ${expert.role}. זו שיחת המשך בפורום. ענה ספציפית לשאלת ההמשך של השואל בקצרה (2-4 משפטים). היה חם ואישי.`;
-            const conversationHistory = comments
+            // Read from the fresh query cache — `comments` in closure is
+            // captured at render time, BEFORE the user's comment was
+            // inserted, so the AI used to miss the latest turn.
+            const freshComments = queryClient.getQueryData(['community_comments', postId]) || comments;
+            const conversationHistory = freshComments
               .filter(c => c.is_ai || c.user_id === postOwnerId)
               .slice(-4)
               .map(c => `${c.is_ai ? expert.firstName : 'השואל'}: ${c.body}`).join('\n');
             const json = await aiRequest({
+              // Admin-configurable provider (community_expert feature).
+              feature: 'community_expert',
               model: 'claude-sonnet-4-20250514',
               max_tokens: 400,
               system: systemPrompt,
@@ -154,7 +153,12 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
       ) : (
         <div className="divide-y" style={{ borderColor: '#F0F0F0' }}>
           {comments.map(c => {
-            const grad = AVATAR_GRADIENTS[(c.author_name || '').length % AVATAR_GRADIENTS.length];
+            // DJB2 hash on user_id (stable) — name-length hashing flickered
+            // the colour whenever a nickname was truncated or anonymized.
+            const hashSeed = c.user_id || c.author_name || '?';
+            let h = 5381;
+            for (let i = 0; i < hashSeed.length; i++) h = ((h << 5) + h + hashSeed.charCodeAt(i)) | 0;
+            const grad = AVATAR_GRADIENTS[Math.abs(h) % AVATAR_GRADIENTS.length];
             return (
             <div key={c.id} className="px-3 py-3">
               {c.is_ai ? (

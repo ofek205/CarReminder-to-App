@@ -55,6 +55,10 @@ export default function SendTestDialog({ notification, open, onClose }) {
   const [recipient, setRecipient] = useState('');
   const [varsJson, setVarsJson] = useState('{}');
   const [sending, setSending] = useState(false);
+  // Tracks the timestamp of the last successful send so rapid re-clicks
+  // (admin hammering the button while debugging a template) are gated to
+  // 1 per 3 seconds. Saves Resend quota and catches accidental duplicates.
+  const [cooldownUntil, setCooldownUntil] = useState(0);
   const [result, setResult] = useState(null); // { ok, msg, id? }
 
   const [adminCtx, setAdminCtx] = useState({});
@@ -111,6 +115,12 @@ export default function SendTestDialog({ notification, open, onClose }) {
       return;
     }
 
+    if (Date.now() < cooldownUntil) {
+      const wait = Math.ceil((cooldownUntil - Date.now()) / 1000);
+      setResult({ ok: false, msg: `נסה שוב בעוד ${wait} שניות` });
+      return;
+    }
+
     setSending(true);
     try {
       const rendered = renderFromTemplateObject(template, parsedVars);
@@ -123,6 +133,7 @@ export default function SendTestDialog({ notification, open, onClose }) {
         replyTo: rendered.replyTo || undefined,
       });
       setResult({ ok: true, msg: `נשלח ל-${recipient}`, id: res?.id });
+      setCooldownUntil(Date.now() + 3000);
       toast.success(`מייל בדיקה נשלח ל-${recipient}`);
     } catch (e) {
       setResult({ ok: false, msg: e.message || 'שליחה נכשלה' });
