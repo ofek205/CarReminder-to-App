@@ -219,22 +219,29 @@ export async function aiRequest(body) {
     const result = await callEdgeProxy(body);
     if (result) return result;
   } catch (err) {
-    // Rate-limit / auth / timeout errors bubble up with their
-    // specific codes so the UI can react intelligently (e.g. offer
-    // a retry after 60s for rate limits, a "log in again" prompt
-    // for UNAUTHORIZED).
+    // Any error with a `.code` was raised by callEdgeProxy with a
+    // user-meaningful message and should propagate verbatim. Examples:
+    //   PROVIDER_UNAVAILABLE → "Groq זמנית לא זמין. אדמין יכול לבחור..."
+    //   RATE_LIMIT           → "חרגת ממגבלת קריאות ה-AI..."
+    //   UNAUTHORIZED         → "ההתחברות פגה..."
+    //   TIMEOUT              → "התשובה מהשרת מאחרת..."
+    //   NETWORK / HTTP_xxx   → specific network/server diagnostics
+    //
+    // Previous version only re-threw 4 codes and swallowed the rest,
+    // turning every transient 503/timeout into a generic "AI לא זמין"
+    // — which hid the real reason from the user (e.g., "Groq is down,
+    // pick another provider"). We now propagate any coded error and
+    // keep the dev-fallback path only as a last resort for *uncoded*
+    // failures (truly unexpected exceptions).
     if (err?.code) {
-      // Dev fallback only for provider/network issues — user-facing
-      // errors like RATE_LIMIT / UNAUTHORIZED shouldn't be masked.
-      const hardFails = new Set([
-        'RATE_LIMIT', 'UNAUTHORIZED', 'NO_SESSION', 'NO_SUPABASE_URL',
-      ]);
-      if (hardFails.has(err.code)) throw err;
+      if (import.meta.env.DEV) console.warn('[aiRequest] coded failure:', err.code, err.message);
+      throw err;
     }
-    if (import.meta.env.DEV) console.warn('ai-proxy edge function failed:', err?.code, err?.message);
+    if (import.meta.env.DEV) console.warn('ai-proxy edge function failed (no code):', err?.message);
   }
 
-  // Dev offline fallback
+  // Dev offline fallback. Only reached when callEdgeProxy threw an
+  // uncoded error (very rare — JSON parse failure, fetch internals).
   if (!import.meta.env.PROD) {
     try {
       const claudeResult = await callClaudeDev(body);

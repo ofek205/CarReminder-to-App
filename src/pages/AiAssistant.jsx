@@ -132,11 +132,27 @@ export default function AiAssistant() {
     })();
   }, [selectedVehicleId]);
 
-  // Auto-scroll on new message
+  // Auto-scroll on new message.
+  // The previous version set scrollTop synchronously inside the effect,
+  // which fired before the browser had painted the new message bubble.
+  // Markdown content (badges, tool results, multi-line replies) often
+  // grows the container *after* the effect runs, so the scroll landed
+  // on a still-stale scrollHeight and the new bubble stayed off-screen.
+  // Two animation frames + smooth behavior covers paint timing and
+  // gives the user a visible motion cue that a new message arrived.
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (!scrollRef.current) return;
+    let cancelled = false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (cancelled || !scrollRef.current) return;
+        scrollRef.current.scrollTo({
+          top: scrollRef.current.scrollHeight,
+          behavior: 'smooth',
+        });
+      });
+    });
+    return () => { cancelled = true; };
   }, [messages, sending]);
 
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
