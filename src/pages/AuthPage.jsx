@@ -143,33 +143,40 @@ export default function AuthPage() {
     setError('');
 
     if (isNative) {
-      // Native: open OAuth in system browser, then listen for app resume
+      // Native: PKCE OAuth flow.
+      // The redirect target MUST be our custom scheme (registered in
+      // AndroidManifest.xml) — `window.location.origin` on Capacitor is
+      // `http://localhost`, which the system browser cannot return to
+      // the app. The previous code did exactly that, leaving Google to
+      // redirect to a localhost page outside the app and the PKCE code
+      // never being exchanged → user had to tap "Sign in" twice.
+      //
+      // The actual code-for-session swap happens in capacitor.js
+      // `initDeepLinks` once Android delivers `appUrlOpen`, and the
+      // GuestContext auth listener navigates to /Dashboard. We just
+      // kick off the OAuth handshake here and surface errors.
       try {
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider,
           options: {
-            redirectTo: window.location.origin + '/Dashboard',
+            redirectTo: 'carreminder://auth/callback',
             skipBrowserRedirect: true,
           },
         });
         if (error) { setError(error.message); setOauthLoading(''); return; }
 
-        // Open the auth URL in the system browser
+        // Custom Tabs (windowName: '_blank') keeps the OAuth flow inside
+        // the app shell rather than launching a separate Chrome tab —
+        // matches the WhatsApp/Gmail UX expectation.
         const { Browser } = await import('@capacitor/browser');
-        await Browser.open({ url: data.url, windowName: '_system' });
+        await Browser.open({ url: data.url, windowName: '_blank' });
 
-        // When user returns to app, check if session exists
-        const { App } = await import('@capacitor/app');
-        const listener = await App.addListener('appStateChange', async ({ isActive }) => {
-          if (isActive) {
-            listener.remove();
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-              navigate(createPageUrl('Dashboard'), { replace: true });
-            }
-            setOauthLoading('');
-          }
-        });
+        // No appStateChange polling: initDeepLinks handles the deep-link
+        // delivery + code exchange + navigation. We clear the loading
+        // spinner once the deep link arrives (covered by the navigation
+        // unmounting this page); for the cancel-flow we drop the spinner
+        // after a generous timeout so the user can retry.
+        setTimeout(() => setOauthLoading(''), 60_000);
       } catch (e) {
         setError(e.message || 'שגיאה בהתחברות');
         setOauthLoading('');
@@ -214,7 +221,13 @@ export default function AuthPage() {
     // When the user unchecks "remember me", mark the session as
     // tab-scoped. A Layout-level listener reads this flag and signs the
     // user out when the tab/app is closed (see initSessionKeepAlive).
-    try { sessionStorage.setItem('cr_session_scope', rememberMe ? 'persistent' : 'tab'); } catch {}
+    // Native apps ignore the "remember me" toggle entirely — sessions
+    // are indefinite there per PM-defined acceptance criteria — so we
+    // skip the write to keep sessionStorage clean and avoid future
+    // dev confusion about whether the value is authoritative on native.
+    if (!isNative) {
+      try { sessionStorage.setItem('cr_session_scope', rememberMe ? 'persistent' : 'tab'); } catch {}
+    }
     try {
       if (mode === 'reset') {
         if (!email.trim()) { setError('יש להזין כתובת אימייל'); setLoading(false); return; }

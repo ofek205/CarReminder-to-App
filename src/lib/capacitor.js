@@ -260,15 +260,22 @@ export async function initSessionKeepAlive() {
   try {
     const { supabase } = await import('./supabase');
 
-    // "Remember me = off" signout-on-close. When the user unchecked the
-    // box on AuthPage, sessionStorage['cr_session_scope'] === 'tab'. That
-    // key dies with the tab, so on pagehide we sign the user out so the
-    // next visit (native relaunch or new tab) needs fresh credentials.
-    if (typeof window !== 'undefined') {
+    // "Remember me = off" signout-on-close. WEB ONLY. On Android Capacitor,
+    // pagehide / beforeunload fire every time the user backgrounds the app
+    // (locks screen, switches apps, even pulls down the notification
+    // shade), and the WebView dispatches them aggressively. The previous
+    // version invoked supabase.auth.signOut() on those events, which
+    // logged users out on every minimization — the symptom that "the app
+    // doesn't keep me logged in like WhatsApp does."
+    //
+    // Native session lifetime is now indefinite (until manual logout or
+    // server-side revocation), matching the PM-defined acceptance
+    // criteria. The "remember me" toggle still works on web, where
+    // pagehide actually correlates with closing the tab.
+    if (typeof window !== 'undefined' && !isNative) {
       const signOutIfTabScoped = () => {
         try {
           if (sessionStorage.getItem('cr_session_scope') === 'tab') {
-            // Fire-and-forget; the tab is about to close.
             supabase.auth.signOut().catch(() => {});
           }
         } catch {}
@@ -332,7 +339,7 @@ export async function initDeepLinks(navigate) {
   try {
     const { App } = await import('@capacitor/app');
     // Listener fires for both "cold" (app closed) and "warm" (app open) opens.
-    App.addListener('appUrlOpen', ({ url }) => {
+    App.addListener('appUrlOpen', async ({ url }) => {
       if (!url) return;
       try {
         const u = new URL(url);
@@ -341,6 +348,47 @@ export async function initDeepLinks(navigate) {
                 || u.hostname === 'car-reminder.app'
                 || u.hostname === 'www.car-reminder.app';
         if (!ok) return;
+
+        // ── OAuth callback handling ──────────────────────────────────
+        // PKCE flow: Google sends us back with `?code=...` (and a
+        // `state` param). Supabase needs the full URL passed to
+        // exchangeCodeForSession() to mint an actual session — without
+        // this call, getSession() returns null on the first attempt and
+        // the user has to retry (the user-reported "double sign-in"
+        // bug).
+        //
+        // We narrow detection to our custom scheme + auth host/path
+        // explicitly. Matching just on `?code=` would also fire on
+        // legitimate https deep links that happen to carry a `code`
+        // query param (e.g. share links with an unrelated tracker
+        // value), and exchangeCodeForSession would throw on those.
+        const isAuthCallback =
+          u.protocol === 'carreminder:'
+          && (u.hostname === 'auth' || u.pathname.startsWith('/auth'))
+          && u.searchParams.get('code') != null;
+
+        if (isAuthCallback) {
+          try {
+            const { supabase } = await import('./supabase');
+            await supabase.auth.exchangeCodeForSession(url);
+            // Defensive: ensure the session is actually visible in the
+            // SDK cache before we navigate. Without this, on a cold-
+            // start race GuestContext could read a stale null and bounce
+            // back to AuthPage for a frame.
+            await supabase.auth.getSession();
+            // Close the Custom Tabs / system browser if it stayed open.
+            try {
+              const { Browser } = await import('@capacitor/browser');
+              await Browser.close();
+            } catch {}
+            if (typeof navigate === 'function') navigate('/Dashboard');
+            else window.location.href = '/Dashboard';
+          } catch (e) {
+            console.warn('OAuth code exchange failed:', e?.message);
+          }
+          return;
+        }
+
         // carreminder://vehicle/abc → /VehicleDetail?id=abc
         let path = u.pathname + (u.search || '');
         if (u.protocol === 'carreminder:') {
