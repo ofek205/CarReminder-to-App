@@ -316,7 +316,12 @@ serve(async (req) => {
   // can't enumerate the deployment's secrets.
   // ─────────────────────────────────────────────────────────────────────
   if (body?.action === 'providers_status') {
-    const { data: isAdminFlag } = await supabase.rpc('is_admin');
+    // The 0-arg `is_admin()` reads `auth.uid()` from the JWT context,
+    // but our `supabase` client uses the service role and therefore has
+    // no JWT context — `auth.uid()` returns null → is_admin returns
+    // false → admins were getting 403. Switch to the `is_admin(uuid)`
+    // overload and pass the user id we already validated above.
+    const { data: isAdminFlag } = await supabase.rpc('is_admin', { uid: user.id });
     if (isAdminFlag !== true) return json({ error: 'admin_required' }, 403, req);
     return json({
       providers: {
