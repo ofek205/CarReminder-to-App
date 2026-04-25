@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); cmd=$(printf '%s' \"$input\" | tr -d '\\n' | sed -n 's/.*\"command\"[[:space:]]*:[[:space:]]*\"\\(\\([^\"\\\\]\\|\\\\.\\)*\\)\".*/\\1/p'); if ! printf '%s' \"$cmd\" | grep -qE '(^|[;&|`][[:space:]]*|\\$\\([[:space:]]*)git[[:space:]]+(commit|push)([[:space:]]|$)'; then exit 0; fi; TOKEN=/tmp/cardocs-gatekeeper-approved; if [ -f \"$TOKEN\" ]; then TS=$(cat \"$TOKEN\" 2>/dev/null); NOW=$(date +%s); AGE=$((NOW - ${TS:-0})); if [ \"$AGE\" -ge 0 ] && [ \"$AGE\" -lt 600 ]; then rm -f \"$TOKEN\"; exit 0; fi; rm -f \"$TOKEN\"; fi; printf '\\n=== BLOCKED by commit-gatekeeper ===\\n\\nNo fresh APPROVED gatekeeper review found.\\n\\nBefore retrying this git commit/push, you MUST:\\n  1. Invoke the commit-gatekeeper skill (Skill tool)\\n  2. Run the full 10-stage review on the staged diff\\n  3. Output the mandatory final-format verdict\\n  4. Only if APPROVED, write the token:\\n       date +%%s > /tmp/cardocs-gatekeeper-approved\\n  5. Then retry the git command (token is single-use, valid 10 min)\\n\\nחסום על ידי שומר הסף - הרץ את סקיל commit-gatekeeper, הפק חוות דעת APPROVED וכתוב את האסימון לפני הקומיט/פוש.\\n' >&2; exit 2"
+          }
+        ]
+      }
+    ]
+  }
+}
