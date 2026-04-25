@@ -280,6 +280,25 @@ serve(async (req) => {
   if (approxSize > 8 * 1024 * 1024) return json({ error: 'Payload too large' }, 413, req);
 
   // ─────────────────────────────────────────────────────────────────────
+  // Mode: providers_status (admin-only meta call)
+  // Returns which provider keys are configured so /AdminAiSettings can
+  // grey out options that won't actually work. We never return the keys
+  // themselves — only booleans. Gated by is_admin() RPC so non-admins
+  // can't enumerate the deployment's secrets.
+  // ─────────────────────────────────────────────────────────────────────
+  if (body?.action === 'providers_status') {
+    const { data: isAdminFlag } = await supabase.rpc('is_admin');
+    if (isAdminFlag !== true) return json({ error: 'admin_required' }, 403, req);
+    return json({
+      providers: {
+        gemini: !!GEMINI_KEY,
+        groq:   !!GROQ_KEY,
+        claude: !!ANTHROPIC_KEY,
+      },
+    }, 200, req);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
   // Mode: extract_document
   // Replaces base44.integrations.Core.ExtractDataFromUploadedFile.
   // Fetches a signed URL, sends the bytes to Gemini with a schema-guided

@@ -47,25 +47,51 @@ export default function AdminAiSettings() {
   const [settings, setSettings] = useState({}); // { feature: provider }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);   // feature key currently saving
+  // Which provider keys are actually present in Supabase Edge secrets.
+  // `null` while loading; populated by the providers_status meta-call.
+  // 'auto' is always available (it's a routing strategy, not a key).
+  const [available, setAvailable] = useState(null);
 
   useEffect(() => {
     if (isAdmin !== true) return;
     (async () => {
-      const { data, error } = await supabase.from('ai_provider_settings')
-        .select('feature, preferred_provider');
-      if (error) {
-        toast.error('טעינת ההגדרות נכשלה: ' + error.message);
+      // Load both in parallel — saved selections + which keys exist on
+      // the server. The latter goes through the ai-proxy Edge Function's
+      // `action: 'providers_status'` admin-only branch so we never see
+      // the keys themselves, only booleans.
+      const [settingsRes, statusRes] = await Promise.all([
+        supabase.from('ai_provider_settings').select('feature, preferred_provider'),
+        supabase.functions.invoke('ai-proxy', { body: { action: 'providers_status' } }),
+      ]);
+
+      if (settingsRes.error) {
+        toast.error('טעינת ההגדרות נכשלה: ' + settingsRes.error.message);
         setLoading(false);
         return;
       }
       const map = {};
-      (data || []).forEach(r => { map[r.feature] = r.preferred_provider; });
-      // Fill missing keys with the server default so the UI isn't blank.
+      (settingsRes.data || []).forEach(r => { map[r.feature] = r.preferred_provider; });
       FEATURES.forEach(f => { if (!map[f.key]) map[f.key] = 'gemini'; });
       setSettings(map);
+
+      // Failure here is non-fatal — we just won't grey out unavailable
+      // providers (the original behavior). Surface a soft warning.
+      if (statusRes.error) {
+        if (import.meta.env.DEV) console.warn('[AdminAiSettings] providers_status failed:', statusRes.error.message);
+      } else if (statusRes.data?.providers) {
+        setAvailable(statusRes.data.providers);
+      }
+
       setLoading(false);
     })();
   }, [isAdmin]);
+
+  // 'auto' is always available; physical providers depend on secrets.
+  const isProviderAvailable = (key) => {
+    if (key === 'auto') return true;
+    if (!available) return true; // unknown → don't disable
+    return !!available[key];
+  };
 
   const update = async (feature, provider) => {
     setSaving(feature);
@@ -125,20 +151,31 @@ export default function AdminAiSettings() {
                 {PROVIDERS.map(p => {
                   const selected = settings[feature.key] === p.key;
                   const isSaving = saving === feature.key;
+                  const unavailable = !isProviderAvailable(p.key);
+                  const disabled = isSaving || unavailable;
+                  // Note: a provider can be both `selected` (was chosen
+                  // before its key was rotated/removed) AND `unavailable`.
+                  // We show it as selected but with the "לא מוגדר" hint
+                  // so the admin sees the broken state and can re-pick.
                   return (
                     <button
                       key={p.key}
-                      onClick={() => !selected && !isSaving && update(feature.key, p.key)}
-                      disabled={isSaving}
+                      onClick={() => !selected && !disabled && update(feature.key, p.key)}
+                      disabled={disabled}
                       className={`relative px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                         selected
                           ? 'bg-[#2D5233] text-white shadow-sm'
                           : 'bg-gray-50 text-[#374151] hover:bg-gray-100'
-                      } ${isSaving && !selected ? 'opacity-40 cursor-not-allowed' : ''}`}
-                      title={p.hint}
+                      } ${disabled && !selected ? 'opacity-40 cursor-not-allowed' : ''}`}
+                      title={unavailable ? `${p.label} — אין מפתח API מוגדר ב־Supabase secrets` : p.hint}
                     >
                       {selected && <Check className="w-3.5 h-3.5 absolute top-1.5 right-1.5" />}
                       {p.label}
+                      {unavailable && (
+                        <span className="block text-[9px] font-bold mt-0.5 opacity-70">
+                          לא מוגדר
+                        </span>
+                      )}
                     </button>
                   );
                 })}
