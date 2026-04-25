@@ -189,23 +189,57 @@ export function GuestProvider({ children }) {
   };
 
   useEffect(() => {
+    // ensure_user_account is idempotent: returns the existing account
+    // for already-provisioned users, atomically creates one for first-
+    // timers. Calling it from the single auth chokepoint here means
+    // every page (Vehicles, AddVehicle, Dashboard, Layout, …) finds
+    // an account_members row by the time it queries — no more
+    // infinite-skeleton state for users who land on a non-Dashboard
+    // route after sign-up. The server-side trigger
+    // (supabase-new-user-bootstrap.sql) is the primary defense; this
+    // client call is the safety net for already-existing users who
+    // signed up before the trigger landed.
+    //
+    // 5s timeout: a stalled RPC must not pin users on the loading
+    // screen indefinitely. Pages tolerate missing membership (will
+    // refetch once it arrives), so we'd rather flip authState and
+    // recover than block the entire app on a slow round-trip.
+    const provisionIfNeeded = async () => {
+      try {
+        await Promise.race([
+          supabase.rpc('ensure_user_account'),
+          new Promise(resolve => setTimeout(resolve, 5000)),
+        ]);
+      } catch { /* fall through; pages will surface the error */ }
+    };
+
     // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setUser(normalizeUser(session.user));
+        await provisionIfNeeded();
         setAuthState('authenticated');
       } else {
         setAuthState('guest');
       }
     });
 
-    // Listen for auth state changes (login, logout, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Listen for auth state changes. Provisioning runs only on the
+    // events where it can actually matter (first sign-in / restored
+    // session). Skipping TOKEN_REFRESHED / USER_UPDATED avoids one
+    // RPC round-trip per hour per active user — cheap on its own,
+    // but unnecessary noise.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         const newUser = normalizeUser(session.user);
         setUser(newUser);
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          // Provision before flipping authState so pages mounting on
+          // 'authenticated' find a membership row on first query.
+          await provisionIfNeeded();
+        }
         setAuthState('authenticated');
-        // Migrate guest data after login/signup
+        // Migrate guest data after login/signup (non-blocking).
         migrateGuestDataIfNeeded(newUser);
       } else {
         setUser(null);
