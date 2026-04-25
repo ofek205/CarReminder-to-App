@@ -58,47 +58,86 @@ async function callEdgeProxy(body) {
   }
 
   const { supabase } = await import('./supabase');
-  // Get the active session. If the access token is near/past expiry,
-  // proactively refresh it BEFORE sending the request — we saw cases
-  // where the SDK held a technically-expired token and getSession()
-  // returned it verbatim, leading to spurious 401s from the edge
-  // function and a confusing "ההתחברות פגה" message for the user.
-  let { data: { session } } = await supabase.auth.getSession();
-  const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0;
-  const needsRefresh = !expiresAt || (expiresAt - Date.now() < 60_000); // <60s left
-  if (session && needsRefresh) {
-    try {
-      const { data: refreshed } = await supabase.auth.refreshSession();
-      if (refreshed?.session) session = refreshed.session;
-    } catch {
-      // Refresh failed. Fall through; we'll throw NO_SESSION below if
-      // there's no usable token at all, or let the edge function
-      // return 401 otherwise so the user sees a single clear error.
+
+  // Resolve a fresh access token. Two-stage strategy:
+  //   1. Proactive refresh: if <120s remain on the cached token, refresh
+  //      before sending. Window is wider than 60s to absorb device clock
+  //      skew — Capacitor PWAs on Android occasionally drift a minute+
+  //      from real time, which used to make us send a "valid" token that
+  //      Supabase had already expired.
+  //   2. On 401 from the edge function, refresh + retry once. The 401
+  //      really means "Supabase couldn't validate this JWT", which is
+  //      almost always a token race we can recover from in one round-trip.
+  // If refresh itself errors with no usable session, we throw NO_SESSION
+  // immediately rather than swallowing — the user is genuinely logged out.
+  const resolveToken = async ({ forceRefresh = false } = {}) => {
+    let { data: { session } } = await supabase.auth.getSession();
+    const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0;
+    const needsRefresh = forceRefresh || !expiresAt || (expiresAt - Date.now() < 120_000);
+    if (session && needsRefresh) {
+      try {
+        const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+        if (refreshErr) {
+          if (import.meta.env.DEV) console.warn('[aiProxy] refreshSession error:', refreshErr.message);
+          // Surface only when there's no usable token at all — a stale
+          // token + a recoverable refresh error shouldn't kick the user
+          // out; the edge function will tell us via 401 if it's truly bad.
+          if (!session?.access_token) throw refreshErr;
+        }
+        if (refreshed?.session) session = refreshed.session;
+      } catch (err) {
+        if (import.meta.env.DEV) console.warn('[aiProxy] refresh threw:', err?.message);
+        if (!session?.access_token) throw err;
+      }
     }
-  }
-  const token = session?.access_token;
+    return session?.access_token || null;
+  };
+
+  let token = await resolveToken();
   if (!token) {
     const e = new Error('יש להתחבר מחדש כדי להשתמש ב-AI');
     e.code = 'NO_SESSION';
     throw e;
   }
 
-  let res;
-  try {
-    res = await fetchWithTimeout(`${supabaseUrl}/functions/v1/ai-proxy`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    // TIMEOUT or network error. Bubble up with a helpful code.
-    if (err?.code === 'TIMEOUT') throw err;
-    const e = new Error('שגיאת רשת בפנייה ל-AI. בדוק חיבור לאינטרנט.');
-    e.code = 'NETWORK';
-    throw e;
+  const sendOnce = async (bearer) => {
+    try {
+      return await fetchWithTimeout(`${supabaseUrl}/functions/v1/ai-proxy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${bearer}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      if (err?.code === 'TIMEOUT') throw err;
+      const e = new Error('שגיאת רשת בפנייה ל-AI. בדוק חיבור לאינטרנט.');
+      e.code = 'NETWORK';
+      throw e;
+    }
+  };
+
+  let res = await sendOnce(token);
+
+  // Single-shot 401 recovery: force-refresh and retry. Avoids the spurious
+  // "ההתחברות פגה" toast users were seeing when the only real problem was
+  // a token that expired during the request itself.
+  if (res.status === 401) {
+    if (import.meta.env.DEV) {
+      let detail = '';
+      try { detail = (await res.clone().json())?.error || ''; } catch {}
+      console.warn('[aiProxy] 401 from edge, attempting refresh+retry. detail:', detail);
+    }
+    try {
+      const fresh = await resolveToken({ forceRefresh: true });
+      if (fresh && fresh !== token) {
+        token = fresh;
+        res = await sendOnce(token);
+      }
+    } catch {
+      // Refresh failed for real → fall through to the 401 throw below.
+    }
   }
 
   if (res.status === 429) {
@@ -112,11 +151,22 @@ async function callEdgeProxy(body) {
     throw e;
   }
   if (res.status === 503) {
-    // Edge function returns 503 when no AI provider is configured / all
-    // providers failed. That typically means GEMINI_API_KEY isn't set
-    // or is invalid. Surface a distinct message so deploys with missing
-    // secrets are obvious.
-    const e = new Error('שירות ה-AI עומס או לא מוגדר. נסה שוב בעוד כמה דקות.');
+    // Edge function returns 503 when the admin-pinned provider failed
+    // (strict mode) or when every provider in the auto-ladder bombed.
+    // The body now includes `{ provider: 'gemini' | 'groq' | 'claude' }`
+    // when a single provider is pinned, so we surface that specifically
+    // — admins shipping a misconfigured GEMINI_API_KEY shouldn't get
+    // the same generic toast as a real Gemini outage.
+    let providerTag = '';
+    try {
+      const data = await res.clone().json();
+      const map = { gemini: 'Gemini', groq: 'Groq', claude: 'Claude' };
+      if (data?.provider && map[data.provider]) providerTag = map[data.provider];
+    } catch {}
+    const msg = providerTag
+      ? `${providerTag} זמנית לא זמין. אדמין יכול לבחור ספק אחר בהגדרות AI, או נסה שוב בעוד כמה דקות.`
+      : 'שירות ה-AI עומס או לא מוגדר. נסה שוב בעוד כמה דקות.';
+    const e = new Error(msg);
     e.code = 'PROVIDER_UNAVAILABLE';
     throw e;
   }

@@ -332,23 +332,39 @@ serve(async (req) => {
     } catch { /* fall back to auto */ }
   }
 
-  // Resolve by preference. Each call falls back to auto-ladder on failure
-  // so an admin who chose a provider that's temporarily down still gets a
-  // response. Every returned payload now includes `provider` so the client
-  // can render a "Powered by X" badge.
-  const tryGemini = async () => (await callGemini(body).catch(() => null));
-  const tryGroq   = async () => (await callGroq(body).catch(() => null));
-  const tryClaude = async () => (await callClaude(body).catch(() => null));
+  // Resolve by preference. Behavior change vs. earlier versions:
+  // an explicit admin selection ('gemini' / 'groq' / 'claude') is now
+  // *strict* — if that provider fails we return 503 with the provider
+  // tagged, so the client can display "Gemini זמנית לא זמין" instead
+  // of silently demoting every chat to Groq the moment Gemini hits a
+  // 429. The old fall-through made the badge lie ("admin picked Gemini
+  // but I'm seeing Groq?").
+  //
+  // Only `preferred === 'auto'` triggers the legacy ladder.
+  const tryGemini = async () => (await callGemini(body).catch((e) => { console.warn('[ai-proxy] gemini failed:', e?.message); return null; }));
+  const tryGroq   = async () => (await callGroq(body).catch((e)   => { console.warn('[ai-proxy] groq failed:',   e?.message); return null; }));
+  const tryClaude = async () => (await callClaude(body).catch((e) => { console.warn('[ai-proxy] claude failed:', e?.message); return null; }));
 
   if (preferred === 'gemini') {
     const r = await tryGemini(); if (r) return json(r, 200, req);
-  } else if (preferred === 'groq' && !hasImages) {
+    return json({ error: 'Gemini provider unavailable', provider: 'gemini' }, 503, req);
+  }
+  if (preferred === 'groq') {
+    if (hasImages) {
+      // Groq doesn't support vision today — make the constraint explicit
+      // so the admin sees a real error and can pick another provider.
+      return json({ error: 'Groq does not support image input', provider: 'groq' }, 503, req);
+    }
     const r = await tryGroq(); if (r) return json(r, 200, req);
-  } else if (preferred === 'claude') {
+    return json({ error: 'Groq provider unavailable', provider: 'groq' }, 503, req);
+  }
+  if (preferred === 'claude') {
     const r = await tryClaude(); if (r) return json(r, 200, req);
+    return json({ error: 'Claude provider unavailable', provider: 'claude' }, 503, req);
   }
 
-  // Auto / fallback ladder: text → Groq (fastest); vision → Gemini first.
+  // preferred === 'auto' (or unknown). Legacy ladder: text → Groq (fastest);
+  // vision → Gemini first. Each leg falls back on failure.
   if (!hasImages) {
     const groq = await tryGroq(); if (groq) return json(groq, 200, req);
   }
