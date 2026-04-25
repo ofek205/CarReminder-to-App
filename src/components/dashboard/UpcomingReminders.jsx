@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Card } from '@/components/ui/card';
 import { Bell, ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react';
-import { calcReminders, daysLabel, daysLabelShort } from '../shared/ReminderEngine';
+import { calcReminders, daysLabel } from '../shared/ReminderEngine';
 import { formatDateHe } from '../shared/DateStatusUtils';
 import { useAuth } from '../shared/GuestContext';
 

@@ -22,7 +22,7 @@
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { db } from '@/lib/supabaseEntities';
 import { PHASE_LABELS } from '@/lib/checklistTemplates';

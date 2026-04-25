@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,13 @@ import { ROLE_INFO } from '@/lib/permissions';
 export default function JoinInvite() {
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
+  // type=vehicle → per-vehicle share invite (new flow). Anything else
+  // (or missing) routes through the legacy account-level redeem flow.
+  // We default to 'account' rather than 'vehicle' so older invite
+  // links still work after this change.
+  const inviteType = urlParams.get('type') === 'vehicle' ? 'vehicle' : 'account';
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState('loading'); // loading, success, error, needsAuth
   const [message, setMessage] = useState('');
   const [assignedRole, setAssignedRole] = useState('');
@@ -35,6 +42,45 @@ export default function JoinInvite() {
       return;
     }
 
+    // ── Vehicle-share flow ──────────────────────────────────────────
+    // The new ShareVehicleDialog generates links of the shape
+    //   /JoinInvite?token=<hex>&type=vehicle
+    // and the underlying token lives in vehicle_shares.invite_token.
+    // accept_vehicle_share expects the token (or share_id); it
+    // validates email-match server-side, fires share_accepted
+    // notification, and grants access via vehicle_shares.status='accepted'.
+    if (inviteType === 'vehicle') {
+      try {
+        const { data, error } = await supabase.rpc('accept_vehicle_share', { p_token: token });
+        if (error) {
+          const code = String(error.message || '').toLowerCase();
+          let friendly = 'אירעה שגיאה באישור השיתוף.';
+          if (code.includes('share_not_found')) friendly = 'הזמנת השיתוף לא נמצאה';
+          else if (code.includes('share_not_pending')) friendly = 'הזמנת השיתוף כבר אושרה או בוטלה';
+          else if (code.includes('share_email_mismatch')) friendly = 'ההזמנה הזו נשלחה למייל אחר. התחבר/י עם המייל שאליו היא נשלחה.';
+          else if (code.includes('share_expired')) friendly = 'הזמנת השיתוף פגה (אחרי 7 ימים)';
+          else if (code.includes('not_authenticated')) friendly = 'יש להתחבר מחדש';
+          setStatus('error');
+          setMessage(friendly);
+          return;
+        }
+        setAssignedRole(data?.role === 'editor' ? 'מנהל' : 'שותף');
+        // Invalidate the cached vehicles list so the newly-shared
+        // vehicle is visible the moment the user clicks "למסך הבית".
+        // Without this they'd see the dashboard from cache and have to
+        // pull-to-refresh to see the new card.
+        queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+        setStatus('success');
+        setMessage('השיתוף אושר! הרכב התווסף לרשימה שלך');
+      } catch (e) {
+        if (import.meta.env.DEV) console.error('Vehicle share accept error:', e);
+        setStatus('error');
+        setMessage('אירעה שגיאה. נסה שוב.');
+      }
+      return;
+    }
+
+    // ── Legacy account-level invite flow (unchanged) ────────────────
     try {
       // All validation, role-safety, expiry, max-uses checks, and the
       // membership insert run atomically inside the SECURITY DEFINER RPC.

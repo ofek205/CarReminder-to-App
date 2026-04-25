@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronsUpDown, Check, Plus, Car, Truck, Bus, Ship, Star, Bike, Loader2, Mountain } from "lucide-react";
+import { ChevronsUpDown, Check, Car, Truck, Ship, Star, Bike, Mountain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getTheme } from '@/lib/designTokens';
 

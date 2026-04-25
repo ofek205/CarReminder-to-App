@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { useFontScale } from "./FontScaleProvider";
-import { Type, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
   Popover,

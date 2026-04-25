@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
-import { Send, Wrench, Loader2, Heart, Flag, UserX } from 'lucide-react';
+import { Send, Wrench, Loader2, Flag, UserX } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';

@@ -11,7 +11,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { formatDateHe } from '../shared/DateStatusUtils';
-import { Plus, Check, ChevronDown, ChevronUp, Trash2, AlertCircle, Clock, Calendar } from 'lucide-react';
+import { Plus, Check, ChevronDown, ChevronUp, Trash2, AlertCircle, Calendar } from 'lucide-react';
 
 //  Category chips per vehicle type 
 const CATEGORIES = {

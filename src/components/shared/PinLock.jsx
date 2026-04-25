@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Lock, Delete, ShieldCheck, LogOut } from 'lucide-react';
+import { Delete } from 'lucide-react';
 import { toast } from 'sonner';
 import { tryUnlock, clearPin, isPinEnabled, isStillUnlocked, setPin, lockNow } from '@/lib/pinLock';
 import { hapticFeedback } from '@/lib/capacitor';

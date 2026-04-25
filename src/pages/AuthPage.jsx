@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import { isNative } from '@/lib/capacitor';
 import logo from '@/assets/logo.png';
-import { ChevronLeft, Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 
 //  Design tokens 
 const C = {

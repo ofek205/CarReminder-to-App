@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
@@ -9,8 +9,7 @@ import { ListSkeleton } from '../components/shared/Skeletons';
 import SignUpPromptDialog from '../components/shared/SignUpPromptDialog';
 import PostCard from '../components/community/PostCard';
 import PostCreateDialog from '../components/community/PostCreateDialog';
-import { Input } from '@/components/ui/input';
-import { Search, Plus, Ship, Car, MessageSquare, PenLine, Users, X, Loader2 } from 'lucide-react';
+import { Search, Ship, Car, MessageSquare, PenLine, Users, X, Loader2 } from 'lucide-react';
 
 const marine = { primary: '#0C7B93', light: '#E0F7FA', border: '#B2EBF2', text: '#0A3D4D', muted: '#6B9EA8', grad: 'linear-gradient(135deg, #065A6E 0%, #0C7B93 100%)' };
 

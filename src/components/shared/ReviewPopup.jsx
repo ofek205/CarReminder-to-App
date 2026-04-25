@@ -10,7 +10,6 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { hapticFeedback } from "@/lib/capacitor";
-import { C } from "@/lib/designTokens";
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";
 
 const TITLE_MAX = 60;

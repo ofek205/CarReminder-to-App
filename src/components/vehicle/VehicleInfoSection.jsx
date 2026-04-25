@@ -3,11 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "../shared/StatusBadge";
-import { getDateStatus, formatDateHe, getVehicleTypeIcon, usesKm, usesHours, isVessel, isOffroad, getVehicleLabels } from "../shared/DateStatusUtils";
+import { getDateStatus, formatDateHe, isVessel, isOffroad, getVehicleLabels } from "../shared/DateStatusUtils";
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES } from "../vehicle/VehicleTypeSelector";
 import { COUNTRIES } from "../vehicle/CountryFlagSelect";
-import { Gauge, Clock, Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Fuel, Info, Hash, Tag, Palette, Building2, Cog, Anchor, MapPin, Edit, ExternalLink, Camera, Loader2, Upload, AlertTriangle } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Cog, ExternalLink, Camera, Loader2, Upload, AlertTriangle } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { db } from '@/lib/supabaseEntities';
 import { Link } from 'react-router-dom';
@@ -285,7 +284,6 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
   );
 }
 import { getTheme } from '@/lib/designTokens';
-import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { toast } from "sonner";
 

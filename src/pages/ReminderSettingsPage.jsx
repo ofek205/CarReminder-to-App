@@ -1,16 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, Mail, Bell, Smartphone, Calendar, Shield, Wrench, FileText, Anchor, MessageCircle, Send } from "lucide-react";
+import { Loader2, Save, Mail, Bell, Smartphone, MessageCircle, Send } from "lucide-react";
 import { sendTestNotification } from "@/lib/notificationService";
-import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";

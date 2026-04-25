@@ -4,8 +4,7 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Plus, Search, Copy, Trash2, Play, Pause, Pencil, Eye,
-  ArrowUp, ArrowDown, RefreshCw, Loader2,
+  Plus, Search, Copy, Trash2, Play, Pause, Pencil, Eye, RefreshCw, Loader2,
 } from 'lucide-react';
 import ConfirmDeleteDialog from '@/components/shared/ConfirmDeleteDialog';
 import AdminPopupEditor from '@/components/admin/AdminPopupEditor';

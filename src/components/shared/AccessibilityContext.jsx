@@ -137,7 +137,7 @@ export function AccessibilityProvider({ children }) {
       applyClasses(defaultSettings);
       styleRef.current?.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Sync settings → HTML classes + inline filter + localStorage.

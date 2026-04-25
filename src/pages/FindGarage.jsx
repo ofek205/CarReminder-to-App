@@ -3,7 +3,7 @@ import { C } from '@/lib/designTokens';
 import { isVesselType } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { db } from '@/lib/supabaseEntities';
-import { MapPin, Navigation, Wrench, Search, Loader2, AlertCircle, MapPinOff, Phone, Star, Filter, ArrowUpDown, ExternalLink, Anchor, Ship, Package, Settings, LocateFixed } from 'lucide-react';
+import { MapPin, Navigation, Wrench, Search, Loader2, MapPinOff, Phone, Star, ArrowUpDown, Anchor, Ship, Package, Settings, LocateFixed } from 'lucide-react';
 import { getCurrentPosition } from '@/lib/capacitor';
 
 // Brand SVG marks. used on the directions buttons. Kept inline to avoid extra assets.

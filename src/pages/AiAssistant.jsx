@@ -8,7 +8,7 @@ import { C, getVehicleVisual } from '@/lib/designTokens';
 import VehicleIcon from '../components/shared/VehicleIcon';
 import { isVessel, getDateStatus } from '../components/shared/DateStatusUtils';
 import { getAiExpert } from '@/lib/aiExpert';
-import { Send, Wrench, Loader2, Sparkles, Trash2, Car, Ship, AlertTriangle, Check, ChevronDown, X, Copy, RotateCcw, Info } from 'lucide-react';
+import { Send, Wrench, Loader2, Sparkles, Trash2, AlertTriangle, Check, ChevronDown, X, Copy, RotateCcw, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';

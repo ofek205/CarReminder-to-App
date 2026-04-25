@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Camera, X, Loader2, Image as ImageIcon, User, HelpCircle, Car, Ship, ChevronDown, Check, Sparkles, MessageSquare, ArrowLeft } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';

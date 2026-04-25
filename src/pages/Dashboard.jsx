@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from '@/lib/popups/systemPopups';
 import { db } from '@/lib/supabaseEntities';
+import { supabase } from '@/lib/supabase';
 import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
-import { Plus, Car, FileText, User, Home, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, AlertCircle, ArrowUpDown, Search, X } from "lucide-react";
+import { Plus, Car, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, AlertCircle, ArrowUpDown, Search, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -16,7 +17,7 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { useAuth } from "../components/shared/GuestContext";
 import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
-import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_REMINDERS, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VESSEL_ISSUES, DEMO_DOCUMENTS, DEMO_VESSEL_DOCUMENTS } from "../components/shared/demoVehicleData";
+import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VESSEL_ISSUES, DEMO_DOCUMENTS, DEMO_VESSEL_DOCUMENTS } from "../components/shared/demoVehicleData";
 import { format, parseISO } from 'date-fns';
 import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import CompleteProfileScreen, { isProfileSkipActive } from '../components/shared/CompleteProfileScreen';
@@ -25,7 +26,6 @@ import FirstTimeTour from '../components/shared/FirstTimeTour';
 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 function getVehicleIcon(vt, nn, mfr) { return ICON_MAP[getVehicleCategory(vt, nn, mfr)] || Car; }
-import { he } from 'date-fns/locale';
 
 //  Helper: format date nicely 
 function fmtDate(dateStr) {
@@ -120,7 +120,7 @@ function UrgentBanner({ reminders, vehicles }) {
   // impression. Click-throughs on the CTA are logged inline below.
   useEffect(() => {
     logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'shown');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
 
   return (
@@ -832,11 +832,20 @@ export default function Dashboard() {
     init();
   }, [isAuthenticated, user]);
 
+  // my_vehicles_v = owned ∪ accepted-shared rows. The legacy
+  // account-scoped filter excluded vehicles shared with the user via
+  // vehicle_shares, so sharees would see an empty Dashboard even after
+  // accepting an invite. The view also exposes is_shared_with_me +
+  // share_role columns so card components can render the indicator.
   const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery({
-    queryKey: ['vehicles', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
-    enabled: !!accountId,
-    staleTime: 2 * 60 * 1000, // 2 minutes cache
+    queryKey: ['my-vehicles', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('my_vehicles_v').select('*');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !!accountId,
+    staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: true,
   });
 

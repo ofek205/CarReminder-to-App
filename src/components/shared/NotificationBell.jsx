@@ -18,8 +18,9 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
-import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X, Share2 } from 'lucide-react';
+import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X } from 'lucide-react';
 import { differenceInYears, subMonths } from 'date-fns';
+import { configForType as appConfigForType } from '@/lib/appNotificationConfig';
 
 export default function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
@@ -291,13 +292,18 @@ export default function NotificationBell() {
             .limit(10);
           if (!anError && appNotifs) {
             appNotifs.forEach(an => {
+              // Resolve href via the shared config so a new type gets
+              // the right target/icon by adding one row to the map —
+              // no edits in the bell or page click handlers.
+              const cfg = appConfigForType(an.type);
+              const href = cfg.buildHref(an.data || {});
               items.push({
                 id: `app-${an.id}`, vehicleId: null, type: 'app',
-                appType: an.type,                // 'share_offered' | 'share_accepted'
+                appType: an.type,
                 label: an.title,
                 name: an.body || '',
                 days: 500, isExpired: false,
-                navTarget: an.type === 'share_accepted' ? 'AccountSettings' : 'AccountSettings',
+                navHref: href,                            // resolved string or null
                 _appNotifId: an.id,
               });
             });
@@ -490,7 +496,12 @@ export default function NotificationBell() {
                             if (n._appNotifId) {
                               supabase.from('app_notifications').update({ is_read: true }).eq('id', n._appNotifId).then(() => {});
                             }
-                            navigate(createPageUrl(n.navTarget || 'AccountSettings'));
+                            // navHref is pre-resolved to an absolute path
+                            // by appNotificationConfig.buildHref(). Some
+                            // types (e.g. share_deleted) deliberately
+                            // produce null — for those we just mark-read
+                            // and stay where the user is.
+                            if (n.navHref) navigate(n.navHref);
                           }
                           else if (n.vehicleId) {
                             const NOTIF_FIELD_MAP = {
@@ -518,7 +529,10 @@ export default function NotificationBell() {
                             background: n.type === 'profile' ? '#EEF2FF'
                               : n.type === 'license' ? (n.isExpired ? '#FEF2F2' : '#FFF8E1')
                               : n.type === 'community' ? '#F5F3FF'
-                              : n.type === 'app' ? '#ECFDF5'
+                              // Per-app-type bg color from the shared
+                              // config so each share/vehicle_change
+                              // type gets its own visual signature.
+                              : n.type === 'app' ? appConfigForType(n.appType).bg
                               : n.type === 'seasonal' ? '#F0F9FF'
                               : n.isExpired ? '#FEF2F2'
                               : n.type === 'safety' ? '#FFF7ED'
@@ -534,7 +548,12 @@ export default function NotificationBell() {
                             : n.type === 'community'
                               ? <MessageSquare className="w-4 h-4" style={{ color: '#7C3AED' }} />
                             : n.type === 'app'
-                              ? <Share2 className="w-4 h-4" style={{ color: '#059669' }} />
+                              ? (() => {
+                                  // Per-app-type icon + color via config map.
+                                  const cfg = appConfigForType(n.appType);
+                                  const Icon = cfg.icon;
+                                  return <Icon className="w-4 h-4" style={{ color: cfg.iconColor }} />;
+                                })()
                             : n.type === 'seasonal'
                               ? <span className="text-sm">{n.id === 'winter-prep' ? '❄️' : '⛵'}</span>
                             : n.isExpired

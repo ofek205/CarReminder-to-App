@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 // ReviewManager is temporarily disabled during Base44→Supabase migration.
 // The review entities (UserReviewSettings, Review) need to be created in Supabase first.
 

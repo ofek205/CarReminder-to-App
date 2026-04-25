@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Gauge, Clock, RefreshCw, Check, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { usesKm, usesHours } from '../shared/DateStatusUtils';
 import { useAuth } from '../shared/GuestContext';

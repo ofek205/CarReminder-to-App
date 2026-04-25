@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, ChevronRight, Loader2, Shield, Clock, AlertCircle, FileText } from 'lucide-react';
+import { Mail, Shield, Clock, AlertCircle, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import PageHeader from '@/components/shared/PageHeader';

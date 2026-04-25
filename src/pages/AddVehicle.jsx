@@ -33,12 +33,9 @@ import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectWithClear } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
-import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft, Car } from "lucide-react";
+import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft } from "lucide-react";
 import { lookupVehicleByPlate } from "../services/vehicleLookup";
-import PageHeader from "../components/shared/PageHeader";
-import { normalizePlate, isVintageVehicle, isVessel, getVehicleLabels } from "../components/shared/DateStatusUtils";
-import { cn } from "@/lib/utils";
+import { normalizePlate, isVintageVehicle, isVessel } from "../components/shared/DateStatusUtils";
 import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { trackUserAction } from "../components/shared/ReviewManager";
@@ -57,7 +54,6 @@ import AiDateScan from '../components/shared/AiDateScan';
 import useFormDraft from '@/hooks/useFormDraft';
 import useFormValidation from '@/hooks/useFormValidation';
 import FieldError from '../components/shared/FieldError';
-import SystemErrorBanner from '../components/shared/SystemErrorBanner';
 
 const EMPTY_FORM = {
   vehicle_type_id: '',

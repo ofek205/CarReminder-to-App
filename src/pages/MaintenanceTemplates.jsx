@@ -30,10 +30,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/shared/PageHeader";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
-import { Plus, Wrench, Settings, Trash2, Loader2, Check, Search, X } from "lucide-react";
+import { Plus, Wrench, Settings, Trash2, Loader2, Check, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/shared/GuestContext";
-import { MAINTENANCE_CATALOG, MAINTENANCE_CATEGORIES, getCatalogForVehicleType } from "@/components/shared/MaintenanceCatalog";
+import { MAINTENANCE_CATEGORIES, getCatalogForVehicleType } from "@/components/shared/MaintenanceCatalog";
 import { C } from '@/lib/designTokens';
 
 // 

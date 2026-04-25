@@ -5,21 +5,15 @@ import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
 import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine } from "lucide-react";
-import { Link } from 'react-router-dom';
-import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
-import { normalizePlate, usesKm, usesHours, isVintageVehicle, isVessel, isOffroad, getVehicleLabels } from "../components/shared/DateStatusUtils";
-import { getCatalogForVehicleType } from "../components/shared/MaintenanceCatalog";
-import VehicleTypeSelector, { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
+import { normalizePlate, isVintageVehicle, isOffroad } from "../components/shared/DateStatusUtils";
+import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
-import { trackUserAction } from "../components/shared/ReviewManager";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
 import { C, getTheme, isVesselType } from '@/lib/designTokens';
@@ -344,7 +338,14 @@ export default function EditVehicle() {
       // cached data. Without this, users see "I saved but it didn't update".
       await queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
       await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      await queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
       await queryClient.invalidateQueries({ queryKey: ['documents'] });
+      // Notify shared parties about the edit. Server-side no-op when
+      // the vehicle isn't shared. Summary names how many fields changed
+      // so the recipient knows whether to take a closer look.
+      const fieldCount = Object.keys(data || {}).length;
+      const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
+      notifyVehicleChange(vehicleId, 'vehicle_updated', `${fieldCount === 1 ? 'עודכן שדה' : `עודכנו ${fieldCount} שדות`} ברכב`);
       toast.success(vesselMode ? 'פרטי כלי השייט עודכנו בהצלחה' : 'פרטי הרכב עודכנו בהצלחה');
       navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true });
     } catch (firstErr) {

@@ -10,12 +10,20 @@
  *   - accountId: string | null
  *   - isLoading: boolean
  */
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 
 export default function useAccountRole() {
   const { user, isGuest, authState } = useAuth();
+  const queryClient = useQueryClient();
+  // Tracks whether we've already issued an auto-heal call for this
+  // user this session. ensure_user_account is idempotent but we don't
+  // want to hammer the RPC if it's truly broken — one auto-retry is
+  // enough to recover from a transient miss.
+  const healedRef = useRef(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['account-role', user?.id],
@@ -49,6 +57,27 @@ export default function useAccountRole() {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
+  // Auto-heal: if the user is authenticated and the membership query
+  // resolved with no row, call the SECURITY DEFINER RPC to provision
+  // them and refetch. This is the third defense layer (after the
+  // signup trigger and the GuestContext provision call) — it catches
+  // users whose initial provisioning didn't land for any reason and
+  // would otherwise be stuck on infinite skeletons until they hit
+  // /Dashboard. Runs at most once per session per user.
+  useEffect(() => {
+    if (isGuest || !user?.id) return;
+    if (isLoading) return;
+    if (data?.accountId) return;          // already provisioned — nothing to do
+    if (healedRef.current) return;         // already attempted this session
+    healedRef.current = true;
+    (async () => {
+      try {
+        await supabase.rpc('ensure_user_account');
+        queryClient.invalidateQueries({ queryKey: ['account-role', user.id] });
+      } catch { /* page-level UI surfaces stuck state via the soft-fail banner */ }
+    })();
+  }, [user?.id, isGuest, isLoading, data?.accountId, queryClient]);
+
   if (isGuest || authState === 'guest') {
     return { role: null, accountId: null, isLoading: false, isGuest: true };
   }
@@ -57,6 +86,10 @@ export default function useAccountRole() {
     role: data?.role ?? null,
     accountId: data?.accountId ?? null,
     isLoading: authState === 'loading' || isLoading,
+    // True when auth resolved + query resolved + still no membership.
+    // Page components use this to switch from infinite skeleton to a
+    // visible "we're still setting up your account, retry?" banner.
+    needsProvisioning: authState === 'authenticated' && !isLoading && !data?.accountId && healedRef.current,
     isGuest: false,
   };
 }

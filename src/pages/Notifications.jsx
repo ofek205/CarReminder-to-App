@@ -2,16 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button } from "@/components/ui/button";
-import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User, Share2 } from "lucide-react";
+import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User } from "lucide-react";
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import LoadingSpinner from "../components/shared/LoadingSpinner";
+import { configForType as appConfigForType } from '@/lib/appNotificationConfig';
 import { ListSkeleton } from "../components/shared/Skeletons";
-import { formatDateHe, getVehicleLabels } from "../components/shared/DateStatusUtils";
+import { formatDateHe } from "../components/shared/DateStatusUtils";
 import { useAuth } from "../components/shared/GuestContext";
 import { calcAllReminders, daysUntil } from "../components/shared/ReminderEngine";
-import { markNotificationRead } from "@/lib/notificationChannels";
 import { C } from '@/lib/designTokens';
 
 const TYPE_CONFIG = {
@@ -550,41 +548,46 @@ function AuthNotifications() {
         </div>
       )}
 
-      {/* App notifications — share offered/accepted, etc. */}
+      {/* App notifications — typed via appNotificationConfig.
+          Each row uses the icon + bg + nav target defined for its
+          `type` in the shared config, so adding a new server-side
+          notification type shows up here automatically. */}
       {appNotifs.map(an => {
         const isRead = an.is_read;
+        const cfg = appConfigForType(an.type);
+        const Icon = cfg.icon;
+        const href = cfg.buildHref(an.data || {});
         return (
           <div key={`app-${an.id}`}
             className="rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all"
             style={{
-              background: isRead ? '#FAFAFA' : '#ECFDF5',
-              border: `1.5px solid ${isRead ? '#E5E7EB' : '#A7F3D0'}`,
+              background: isRead ? '#FAFAFA' : cfg.bg,
+              border: `1.5px solid ${isRead ? '#E5E7EB' : cfg.iconColor + '40'}`,
               opacity: isRead ? 0.7 : 1,
             }}
             dir="rtl">
             <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: isRead ? '#E5E7EB' : '#059669', boxShadow: isRead ? 'none' : '0 3px 10px rgba(5,150,105,0.3)' }}>
-              <Share2 className="w-5 h-5" style={{ color: isRead ? '#6B7280' : '#fff' }} />
+              style={{
+                background: isRead ? '#E5E7EB' : cfg.iconBg,
+                boxShadow: isRead ? 'none' : `0 3px 10px ${cfg.iconColor}30`,
+              }}>
+              <Icon className="w-5 h-5" style={{ color: isRead ? '#6B7280' : '#fff' }} />
             </div>
             <button type="button"
               onClick={async () => {
                 if (!isRead) await markAppNotifRead(an.id, true);
-                // share_offered → go to /JoinInvite is unreachable (we don't
-                // have the token), so nudge the user to their mail/whatsapp.
-                // share_accepted → send inviter to AccountSettings to see new member.
-                if (an.type === 'share_accepted') {
-                  navigate(createPageUrl('AccountSettings'));
-                } else if (an.type === 'share_offered') {
-                  navigate(createPageUrl('AccountSettings'));
-                }
+                // The config decides where each notification routes —
+                // share_deleted intentionally returns null (vehicle is
+                // already gone), so we just mark-read and stay put.
+                if (href) navigate(href);
               }}
               className="flex-1 min-w-0 text-right">
               <p className={`text-sm ${isRead ? 'font-medium' : 'font-bold'}`}
-                style={{ color: isRead ? '#6B7280' : '#065F46' }}>
+                style={{ color: isRead ? '#6B7280' : cfg.iconColor }}>
                 {an.title}
               </p>
               {an.body && (
-                <p className="text-xs mt-0.5" style={{ color: isRead ? '#9CA3AF' : '#047857' }}>{an.body}</p>
+                <p className="text-xs mt-0.5" style={{ color: isRead ? '#9CA3AF' : cfg.iconColor + 'CC' }}>{an.body}</p>
               )}
             </button>
             <button
@@ -593,8 +596,8 @@ function AuthNotifications() {
               title={isRead ? 'סמן כלא נקרא' : 'סמן כנקרא'}>
               <div className="w-2.5 h-2.5 rounded-full border-2 transition-all"
                 style={{
-                  background: isRead ? 'transparent' : '#059669',
-                  borderColor: isRead ? '#D1D5DB' : '#059669',
+                  background: isRead ? 'transparent' : cfg.iconColor,
+                  borderColor: isRead ? '#D1D5DB' : cfg.iconColor,
                 }} />
             </button>
           </div>

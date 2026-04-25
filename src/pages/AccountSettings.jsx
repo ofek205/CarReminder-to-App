@@ -3,16 +3,15 @@ import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Users, UserPlus, Copy, Trash2, Crown, Shield, User, Loader2, Share2, MessageCircle, Check, Link2, ChevronLeft, Eye, Car, ChevronDown, ChevronUp, Mail, Send } from "lucide-react";
+import { Users, UserPlus, Copy, Trash2, Crown, Shield, User, Loader2, Share2, Check, Link2, Eye, Car, ChevronDown, ChevronUp, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from "@/hooks/useAccountRole";
-import { canManage, canDelete, isOwner, ROLE_INFO } from "@/lib/permissions";
+import { canManage, isOwner, ROLE_INFO } from "@/lib/permissions";
 import { isNative } from "@/lib/capacitor";
 import { C } from '@/lib/designTokens';
 

@@ -3,7 +3,6 @@ import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 
 function MultiSelect({ label, options, selected, onChange }) {
   const [open, setOpen] = useState(false);

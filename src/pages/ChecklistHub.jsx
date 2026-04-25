@@ -37,7 +37,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
-import FirstTimeTour from '@/components/shared/FirstTimeTour';
 
 // Mini tour shown on the first visit to /ChecklistHub for a vessel.
 // Vessel palette to match the rest of the marine UI. Three short steps.
@@ -147,7 +146,7 @@ export default function ChecklistHub() {
       }
       qc.invalidateQueries({ queryKey: ['vessel_checklist_runs', vehicleId] });
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [runs.length]);
 
   /**

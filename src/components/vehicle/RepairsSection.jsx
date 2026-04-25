@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Wrench, Plus, Edit, Trash2, ChevronsUpDown, Check, Upload, X, AlertTriangle } from "lucide-react";
+import { Wrench, Plus, Edit, Trash2, ChevronsUpDown, Check, X, AlertTriangle } from "lucide-react";
 import FileOrCameraUpload from "@/components/ui/file-or-camera-upload";
 import { formatDateHe } from "../shared/DateStatusUtils";
 import { Badge } from "@/components/ui/badge";

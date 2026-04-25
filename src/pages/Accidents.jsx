@@ -7,7 +7,7 @@ import { createPageUrl } from '@/utils';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { useAuth } from '../components/shared/GuestContext';
 import { C, getTheme } from '@/lib/designTokens';
-import { isVessel, getVehicleLabels } from '../components/shared/DateStatusUtils';
+import { getVehicleLabels } from '../components/shared/DateStatusUtils';
 import { DEMO_ACCIDENTS, DEMO_VEHICLE } from '../components/shared/demoVehicleData';
 import { format, parseISO } from 'date-fns';
 

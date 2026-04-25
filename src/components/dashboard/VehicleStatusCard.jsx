@@ -5,9 +5,9 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import StatusBadge from "../shared/StatusBadge";
 import { getDateStatus, getVehicleTypeIcon, usesKm, getVehicleLabels, isVessel } from "../shared/DateStatusUtils";
-import { getCatalogForVehicleType, getMaintenanceStatus } from "../shared/MaintenanceCatalog";
+import { getCatalogForVehicleType } from "../shared/MaintenanceCatalog";
 import { getTheme } from '@/lib/designTokens';
-import { ChevronRight, Gauge, Clock, Wrench } from "lucide-react";
+import { ChevronRight, Gauge, Clock } from "lucide-react";
 
 function getNextMaintenanceInfo(vehicle, maintenanceLogs, allTemplates) {
   const catalog = getCatalogForVehicleType(vehicle.vehicle_type);

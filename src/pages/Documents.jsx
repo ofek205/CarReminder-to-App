@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
-import { openFileUrlSafely, isSafeFileUrl } from '@/lib/securityUtils';
+import { openFileUrlSafely } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,10 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, FileText, Upload, Trash2, Eye, Download, Loader2, Sparkles, CheckCircle2, X, Lock, ChevronDown, ChevronUp, Camera } from "lucide-react";
+import { Plus, FileText, Upload, Trash2, Eye, Download, Loader2, Sparkles, CheckCircle2, X, ChevronDown, ChevronUp, Camera } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import PageHeader from "../components/shared/PageHeader";
-import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { ListSkeleton } from "../components/shared/Skeletons";
 import { hapticFeedback } from "@/lib/capacitor";
 import { compressImage } from "@/lib/imageCompress";
@@ -954,6 +953,20 @@ function AuthDocuments({ vehicleIdParam }) {
       if (userId) await trackUserAction(userId);
       await queryClient.invalidateQueries({ queryKey: ['documents'] });
       await queryClient.refetchQueries({ queryKey: ['documents', accountId, vehicleIdParam] });
+      // Notify shared parties — fire-and-forget. The RPC short-circuits
+      // for unshared vehicles. Vehicle id resolution: the form may set
+      // its own `vehicle_id` (when adding from Documents page filter),
+      // otherwise fall back to the URL param.
+      try {
+        const targetVehicleId = data?.vehicle_id || vehicleIdParam;
+        if (targetVehicleId) {
+          const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
+          const summary = data?.title
+            ? `נוסף מסמך: ${data.document_type || 'מסמך'} — ${data.title}`
+            : `נוסף מסמך: ${data?.document_type || 'מסמך'}`;
+          notifyVehicleChange(targetVehicleId, 'document_added', summary);
+        }
+      } catch { /* never block the save toast */ }
       setShowAdd(false);
       hapticFeedback('medium');
       toast.success('מסמך נוסף בהצלחה');

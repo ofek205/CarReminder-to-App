@@ -5,7 +5,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import { getVesselAdvice } from '@/lib/aiAdvice';
 import VesselIssueDialog from './VesselIssueDialog';
 import {
-  Anchor, Plus, Pencil, Trash2, Check, Clock, AlertTriangle,
+  Anchor, Plus, Pencil, Trash2, Clock, AlertTriangle,
   CheckCircle, Calendar, ChevronDown, ChevronUp, Sparkles, Loader2,
   Search,
 } from 'lucide-react';

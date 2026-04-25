@@ -102,14 +102,14 @@ export default function PopupEngine({ vehicles = [], mountGate = true }) {
     return () => clearTimeout(t);
   // We intentionally depend on just `isAuthenticated` + `popups` so the
   // engine only fires login once per session even if user object updates.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [isAuthenticated, popups.length]);
 
   //  Trigger: page_view
   useEffect(() => {
     if (!isAuthenticated && !isGuest) return;
     fireEvent({ kind: 'page_view', path: location.pathname });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [location.pathname, popups.length]);
 
   //  Trigger: after_delay (ticks every 1s, fires matcher for each elapsed popup)
@@ -120,7 +120,7 @@ export default function PopupEngine({ vehicles = [], mountGate = true }) {
       fireEvent({ kind: 'delay_tick', elapsedMs });
     }, 1000);
     return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [isAuthenticated, isGuest, popups.length]);
 
   //  Trigger: manual (custom browser event)

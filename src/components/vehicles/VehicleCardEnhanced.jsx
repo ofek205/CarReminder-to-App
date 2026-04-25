@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
-import { Car, Ship, Bike, Truck, ChevronLeft, Gauge, Clock, Calendar, Shield, MoreVertical, Edit, FileText, AlertCircle, RefreshCw, Check, X } from 'lucide-react';
+import { Car, Ship, Bike, Truck, ChevronLeft, Gauge, Clock, MoreVertical, Edit, FileText, AlertCircle, RefreshCw, Check, X } from 'lucide-react';
 import { getTheme, getVehicleCategory, C } from '@/lib/designTokens';
 import VehicleIcon from '../shared/VehicleIcon';
 import { getDateStatus, usesKm, usesHours, getVehicleLabels, isVessel } from '../shared/DateStatusUtils';
@@ -240,12 +240,25 @@ function VehicleCardEnhanced({ vehicle }) {
             {/* Name row */}
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-extrabold text-base truncate" style={{ color: C.text }}>{name}</h3>
                   {vehicle._isDemo && (
                     <span className="text-xs font-black px-2 py-0.5 rounded-full shrink-0"
                       style={{ background: '#FFBF00', color: '#92400E' }}>
                       לדוגמה
+                    </span>
+                  )}
+                  {/* Sharing badge: shown when this card represents a
+                      vehicle the user is involved in sharing — either
+                      they own it and have shared it, or they are the
+                      recipient. The flag comes from my_vehicles_v which
+                      replaced the legacy account-scoped query in
+                      Dashboard / Vehicles. Pure indicator (no click) on
+                      cards; the VehicleDetail page hosts the modal. */}
+                  {vehicle.is_shared_with_me && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0"
+                      style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}>
+                      שותפ/ה איתי
                     </span>
                   )}
                 </div>

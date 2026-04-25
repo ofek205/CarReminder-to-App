@@ -1,9 +1,8 @@
 import { toast } from 'sonner';
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
-import { Wrench, Plus, Calendar, Trash2, AlertTriangle, Settings, Camera, Image, X, Sparkles, Loader2, Edit } from 'lucide-react';
+import { Wrench, Plus, Trash2, AlertTriangle, Settings, Camera, Image, X, Sparkles, Loader2, Edit } from 'lucide-react';
 import { getTheme } from '@/lib/designTokens';
 import { isVessel as checkVessel } from '../shared/DateStatusUtils';
 import { Anchor } from 'lucide-react';
@@ -15,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { formatDateHe } from '../shared/DateStatusUtils';
 import { compressImage } from '@/lib/imageCompress';
+import { notifyVehicleChange } from '@/lib/notifyVehicleChange';
 
 export default function MaintenanceSection({ vehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
@@ -165,6 +165,10 @@ export default function MaintenanceSection({ vehicle }) {
         await supabase.from('maintenance_logs').insert(row);
       }
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
+      // Notify other shared parties. Server-side no-op when the vehicle
+      // isn't shared, so we skip a round-trip and let the RPC decide.
+      const action = editingId ? `${dialogType}_updated` : `${dialogType}_added`;
+      notifyVehicleChange(vehicle.id, action, `${row.type}: ${row.title}`);
       setEditingId(null);
       setDialogOpen(false);
     } catch (err) {

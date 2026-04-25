@@ -48,7 +48,7 @@ export default function Settings() {
       next.set('tab', active);
       setParams(next, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [active]);
 
   const current = TABS.find(t => t.key === active) || TABS[0];

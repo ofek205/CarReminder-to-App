@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Car, Wrench, Star, AlertTriangle, Sparkles, ScanLine, MapPin, Bell, Database } from "lucide-react";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";

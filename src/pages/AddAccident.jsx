@@ -9,7 +9,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ManufacturerSelector from '@/components/vehicle/ManufacturerSelector';
-import { Camera, Loader2, Search, CheckCircle2, X, ChevronLeft, AlertTriangle, Phone, User, Car, MapPin, FileText, Shield, Calendar, ZoomIn, LocateFixed } from 'lucide-react';
+import { Camera, Loader2, Search, CheckCircle2, X, AlertTriangle, Car, FileText, Shield, Calendar, ZoomIn, LocateFixed } from 'lucide-react';
 import { getCurrentPosition } from '@/lib/capacitor';
 import { Link } from 'react-router-dom';
 import { lookupVehicleByPlate } from '../services/vehicleLookup';

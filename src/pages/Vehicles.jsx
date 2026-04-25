@@ -1,22 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
-import { Plus, Car, Ship, Bike, Truck, Star, Mountain, Search, SlidersHorizontal, X, CheckCircle, Clock, AlertTriangle, ArrowUpDown, ChevronDown, ChevronUp } from 'lucide-react';
-import { C, getTheme, getVehicleCategory, isOffroadType } from '@/lib/designTokens';
-import { isVessel, isOffroad, getVehicleLabels } from '../components/shared/DateStatusUtils';
+import { Plus, Car, Ship, Bike, Truck, Star, Mountain, Search, X, CheckCircle, Clock, AlertTriangle, ArrowUpDown } from 'lucide-react';
+import { C, getTheme, getVehicleCategory } from '@/lib/designTokens';
+import { isVessel, isOffroad } from '../components/shared/DateStatusUtils';
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import PageHeader from '../components/shared/PageHeader';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { ListSkeleton } from '../components/shared/Skeletons';
-import { SafeComponent } from '../components/shared/SafeComponent';
-import GuestVehicleCard from '../components/dashboard/GuestVehicleCard';
 import VehicleCardEnhanced from '../components/vehicles/VehicleCardEnhanced';
 import SignUpPromptDialog from '../components/shared/SignUpPromptDialog';
 import { useAuth } from '../components/shared/GuestContext';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 //  Helpers 
@@ -504,6 +501,10 @@ export default function Vehicles() {
   const [accountId, setAccountId] = useState(null);
   const [showSignUp, setShowSignUp] = useState(false);
 
+  // True only after we attempted ensure_user_account once during this
+  // mount. Prevents an infinite RPC loop if the heal also fails.
+  const provisionedRef = useRef(false);
+
   useEffect(() => {
     if (!isAuthenticated || !user) return;
     async function init() {
@@ -513,7 +514,32 @@ export default function Vehicles() {
       // Eyal and anyone else with a non-standard status stuck on the
       // loading spinner. Prefer 'פעיל' but accept any row as a fallback.
       const all = await db.account_members.filter({ user_id: user.id });
-      if (all.length === 0) return;
+      if (all.length === 0) {
+        // Self-heal: brand-new user landed here directly without going
+        // through Dashboard's provisioning, OR the bootstrap trigger
+        // silently failed. Call the SECURITY DEFINER RPC once and
+        // retry the membership read. This is the page-level safety
+        // net beyond the trigger + GuestContext layers.
+        if (!provisionedRef.current) {
+          provisionedRef.current = true;
+          try {
+            const { supabase } = await import('@/lib/supabase');
+            await supabase.rpc('ensure_user_account');
+            const retried = await db.account_members.filter({ user_id: user.id });
+            if (retried.length > 0) {
+              const usable = retried.filter(m => m.status !== 'הוסר' && m.status !== 'removed');
+              if (usable.length > 0) {
+                const ROLE_PRIORITY = { 'בעלים': 0, 'מנהל': 1, 'שותף': 2 };
+                const sortByRole = (a, b) => (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9);
+                const active = usable.filter(m => m.status === 'פעיל').sort(sortByRole);
+                const inactive = usable.filter(m => m.status !== 'פעיל').sort(sortByRole);
+                setAccountId((active[0] || inactive[0]).account_id);
+              }
+            }
+          } catch { /* fall through; the page will sit at empty-state */ }
+        }
+        return;
+      }
       // Skip removed rows; prefer active; tie-break by role priority
       // (בעלים wins over מנהל wins over שותף) so a multi-membership user
       // lands on the account they actually own, not one they just view.
@@ -529,12 +555,22 @@ export default function Vehicles() {
   }, [isAuthenticated, user]);
 
   const queryClient = useQueryClient();
+  // my_vehicles_v returns owned ∪ accepted-shared rows for auth.uid().
+  // Replaces the previous account-scoped filter so users see vehicles
+  // shared WITH them (via vehicle_shares) alongside their own. The
+  // view exposes is_shared_with_me + share_role + share_owner_user_id
+  // so the UI can render a "shared with me" badge.
   const { data: vehicles = [], isLoading } = useQuery({
-    queryKey: ['vehicles', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
-    enabled: !!accountId,
+    queryKey: ['my-vehicles', user?.id],
+    queryFn: async () => {
+      const { supabase } = await import('@/lib/supabase');
+      const { data, error } = await supabase.from('my_vehicles_v').select('*');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id && !!accountId,
     refetchOnMount: 'always',
-    staleTime: 2 * 60 * 1000, // 2 minutes cache
+    staleTime: 2 * 60 * 1000,
   });
 
   // Pull-to-refresh. re-fetches the vehicles list.

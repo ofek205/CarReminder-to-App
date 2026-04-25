@@ -1,14 +1,17 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
+import { supabase } from '@/lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell } from "lucide-react";
+import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2 } from "lucide-react";
+import ShareVehicleDialog from "@/components/sharing/ShareVehicleDialog";
+import SharedIndicator from "@/components/sharing/SharedIndicator";
+import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
+import { toast } from "sonner";
 import { getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
-import FirstTimeTour from "../components/shared/FirstTimeTour";
 
 // First-time walkthrough of the vehicle detail page (cars/motorcycles/etc).
 // Fires once per user the first time they open any non-vessel vehicle.
@@ -63,7 +66,7 @@ import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from '@/hooks/useAccountRole';
 import { canEdit, canDelete, isViewOnly } from '@/lib/permissions';
 import { daysUntil } from '../components/shared/ReminderEngine';
-import { getDateStatus, formatDateHe, getVehicleLabels } from '../components/shared/DateStatusUtils';
+import { getDateStatus, getVehicleLabels } from '../components/shared/DateStatusUtils';
 import StatusBadge from '../components/shared/StatusBadge';
 import LicensePlate from '../components/shared/LicensePlate';
 
@@ -463,19 +466,87 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
 
   const vehicleIsOwned = vehicle && accountIds.length > 0 && accountIds.includes(vehicle.account_id);
 
+  // Sharing state — driven by `vehicle_shares` rows for THIS vehicle.
+  // shareCount = accepted shares the owner has granted (drives the
+  //              "👥 N" pill on the owner's view).
+  // mySharedAccess = the row where the current user is the recipient
+  //                  (drives the "משותף איתי" pill + leave button).
+  const { data: shareInfo } = useQuery({
+    queryKey: ['vehicle-share-info', vehicleId, user?.id],
+    queryFn: async () => {
+      if (!vehicleId) return { shareCount: 0, mySharedAccess: null };
+      // The vshare_select RLS policy only returns rows where the caller
+      // is either the owner or the recipient — safe to query directly.
+      const { data, error } = await supabase
+        .from('vehicle_shares')
+        .select('id, status, role, shared_with_user_id, owner_user_id')
+        .eq('vehicle_id', vehicleId);
+      if (error) return { shareCount: 0, mySharedAccess: null };
+      const accepted = (data || []).filter(r => r.status === 'accepted');
+      const mine = accepted.find(r => r.shared_with_user_id === user?.id);
+      return { shareCount: accepted.length, mySharedAccess: mine || null };
+    },
+    enabled: !!vehicleId && !!user?.id,
+    staleTime: 30 * 1000,
+  });
+  const shareCount = shareInfo?.shareCount ?? 0;
+  const isSharedWithMe = !!shareInfo?.mySharedAccess;
+
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [accessModalOpen, setAccessModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Two delete paths:
+  //   * Owner of an unshared vehicle → straight delete (current behavior)
+  //   * Owner of a shared vehicle → DB call with mode='both' which
+  //     notifies all recipients before cascade-deleting the row
+  //   * Recipient of a shared vehicle → mode='self_leave' which just
+  //     revokes their own access, leaving the vehicle intact for owner
   const handleDelete = async () => {
-    if (!vehicleIsOwned) return;
-    // TODO: migrate MaintenanceLog, Document, VehicleMaintenancePlan to Supabase
-    // For now, just delete the vehicle
-    await db.vehicles.delete(vehicleId);
-    queryClient.invalidateQueries({ queryKey: ['vehicles'] });
-    navigate(createPageUrl('Dashboard'));
+    setDeleting(true);
+    try {
+      if (vehicleIsOwned) {
+        if (shareCount > 0) {
+          // Routes through the SECURITY DEFINER RPC so all recipients
+          // get a 'share_deleted' notification before we drop the row.
+          const { error } = await supabase.rpc('delete_vehicle_with_share_choice', {
+            p_vehicle_id: vehicleId,
+            p_mode: 'both',
+          });
+          if (error) throw error;
+        } else {
+          await db.vehicles.delete(vehicleId);
+        }
+        toast.success('הרכב נמחק');
+      } else if (isSharedWithMe) {
+        // Sharee leaves the share — vehicle stays with the owner.
+        const { error } = await supabase.rpc('delete_vehicle_with_share_choice', {
+          p_vehicle_id: vehicleId,
+          p_mode: 'self_leave',
+        });
+        if (error) throw error;
+        toast.success('הוסרת מהשיתוף');
+      } else {
+        toast.error('אין הרשאה למחוק');
+        setDeleting(false);
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+      navigate(createPageUrl('Dashboard'));
+    } catch (e) {
+      toast.error(`שגיאה במחיקה: ${e?.message || 'נסה שוב'}`);
+      setDeleting(false);
+    }
   };
 
   if (isLoading || accountIds.length === 0) return <LoadingSpinner />;
 
-  // Vehicle loaded but doesn't belong to user's accounts - access denied
-  if (!vehicle || !vehicleIsOwned) {
+  // Vehicle loaded but neither owned nor shared-with-me → access denied.
+  // RLS already enforces this server-side; the client check is a faster
+  // fail-fast and a friendlier error than rendering an empty page when
+  // the underlying queries return null.
+  if (!vehicle || (!vehicleIsOwned && !isSharedWithMe)) {
     return (
       <div className="text-center py-20 text-gray-500" dir="rtl">
         <p className="text-lg font-medium">הרכב לא נמצא</p>
@@ -515,13 +586,42 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           </div>
         </Link>
 
-        {/* License plate. top-left identity chip (separated from the yellow
-            "edit" CTA at the bottom to avoid yellow-on-yellow clash) */}
-        {vehicle.license_plate && !isVessel && (
-          <div className="absolute top-4 left-4 z-20">
+        {/* Top-left stack: license plate + share controls.
+            Owner of a non-shared vehicle    → ShareButton only
+            Owner of a shared vehicle        → ShareButton + indicator pill
+                                                (pill opens VehicleAccessModal)
+            Recipient ("shared with me")     → indicator pill only — opens
+                                                modal with the "leave share"
+                                                action.
+            The pill always reflects the current count fetched via the
+            useQuery above; clicks are intercepted (stopPropagation on the
+            button) so they don't bubble through the hero gradient. */}
+        <div className="absolute top-4 left-4 z-20 flex flex-col items-start gap-2">
+          {vehicle.license_plate && !isVessel && (
             <LicensePlate value={vehicle.license_plate} size="sm" showCopy />
+          )}
+          <div className="flex items-center gap-2">
+            {vehicleIsOwned && !isViewOnly(role) && (
+              <button
+                type="button"
+                onClick={() => setShareDialogOpen(true)}
+                className="w-9 h-9 rounded-2xl flex items-center justify-center backdrop-blur-sm transition-all active:scale-95"
+                style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}
+                aria-label="שתף את הרכב"
+                title="שיתוף">
+                <Share2 className="w-4 h-4" />
+              </button>
+            )}
+            {(shareCount > 0 || isSharedWithMe) && (
+              <SharedIndicator
+                shareCount={shareCount}
+                isSharedWithMe={isSharedWithMe}
+                size="md"
+                onClick={() => setAccessModalOpen(true)}
+              />
+            )}
           </div>
-        )}
+        </div>
 
         {/* No-photo vehicle icon */}
         {!hasPhoto && (
@@ -567,7 +667,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             <FileText className="h-4 w-4" />
           </button>
         </Link>
-        {canDelete(role) && (
+        {(canDelete(role) || isSharedWithMe) && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
@@ -577,19 +677,49 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             </AlertDialogTrigger>
             <AlertDialogContent dir="rtl">
               <AlertDialogHeader>
-                <AlertDialogTitle>מחיקת {isVessel ? 'כלי שייט' : 'רכב'}</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {isSharedWithMe
+                    ? 'יציאה מהשיתוף'
+                    : shareCount > 0
+                      ? `מחיקת ה${isVessel ? 'כלי שייט' : 'רכב'} המשותף`
+                      : `מחיקת ${isVessel ? 'כלי שייט' : 'רכב'}`}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  פעולה זו תמחק את ה{isVessel ? 'כלי שייט' : 'רכב'} וכל המידע המשויך אליו. לא ניתן לבטל פעולה זו.
+                  {isSharedWithMe ? (
+                    <>הרכב יוסר מהרשימה שלך. הבעלים והמשתתפים האחרים ימשיכו לראות אותו כרגיל.</>
+                  ) : shareCount > 0 ? (
+                    <>
+                      הרכב משותף עם עוד <strong>{shareCount}</strong> משתמשים. המחיקה תסיר אותו ואת כל המידע מכולם, וכולם יקבלו על כך התראה. הפעולה אינה הפיכה.
+                    </>
+                  ) : (
+                    <>פעולה זו תמחק את ה{isVessel ? 'כלי שייט' : 'רכב'} וכל המידע המשויך אליו. הפעולה אינה הפיכה.</>
+                  )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className="flex-row-reverse gap-2">
-                <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">מחק</AlertDialogAction>
-                <AlertDialogCancel>ביטול</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700">
+                  {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : (isSharedWithMe ? 'יציאה מהשיתוף' : 'מחק')}
+                </AlertDialogAction>
+                <AlertDialogCancel disabled={deleting}>ביטול</AlertDialogCancel>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         )}
       </div>
+
+      {/* Sharing dialogs — rendered once at the top level so the share
+          button + indicator above can open them without prop-drilling. */}
+      <ShareVehicleDialog
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        vehicle={vehicle}
+      />
+      <VehicleAccessModal
+        open={accessModalOpen}
+        onOpenChange={setAccessModalOpen}
+        vehicle={vehicle}
+        isOwner={vehicleIsOwned}
+      />
 
       {/* Tool-tip tours intentionally disabled on this page. Reaching
           VehicleDetail implies the user already has at least one vehicle,

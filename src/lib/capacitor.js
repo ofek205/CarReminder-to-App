@@ -370,11 +370,25 @@ export async function initDeepLinks(navigate) {
         if (isAuthCallback) {
           try {
             const { supabase } = await import('./supabase');
-            await supabase.auth.exchangeCodeForSession(url);
-            // Defensive: ensure the session is actually visible in the
-            // SDK cache before we navigate. Without this, on a cold-
-            // start race GuestContext could read a stale null and bounce
-            // back to AuthPage for a frame.
+            // exchangeCodeForSession expects the bare auth code string,
+            // not the full URL. The previous version passed `url` and
+            // Supabase rejected it as an invalid code — the call returned
+            // `{ error }` which we never inspected, so the session was
+            // never minted-AND-persisted via the configured native
+            // storage adapter. The user-visible symptom: Google SSO
+            // appeared to log in (some path created an in-memory session)
+            // but on next launch the storage was empty and the user had
+            // to sign in again. Email/password worked because that flow
+            // uses _saveSession directly via signInWithPassword.
+            const authCode = u.searchParams.get('code');
+            const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(authCode);
+            if (exchangeErr) {
+              console.warn('exchangeCodeForSession error:', exchangeErr.message);
+              throw exchangeErr;
+            }
+            // Defensive read so the SDK cache is warm before we navigate
+            // and pages start querying. Storage write already happened
+            // inside exchangeCodeForSession.
             await supabase.auth.getSession();
             // Close the Custom Tabs / system browser if it stayed open.
             try {

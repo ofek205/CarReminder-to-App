@@ -2,20 +2,16 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
-import PageHeader from '../components/shared/PageHeader';
 import AdminPopupsTab from '../components/admin/AdminPopupsTab';
 import {
-  Users, Shield, TrendingUp, Car, Wrench, FileText,
-  Star, AlertTriangle, Activity, ArrowDown, ChevronDown, ChevronUp,
-  RefreshCw, BarChart2, Trash2, Download, Copy, Mail, Check, AlertCircle,
+  Users, Shield, TrendingUp, AlertTriangle, Activity, ArrowDown, ChevronDown, ChevronUp,
+  RefreshCw, BarChart2, Trash2, Download, Copy, AlertCircle,
   UserCog, ShieldCheck,
 } from 'lucide-react';
 import ConfirmDeleteDialog from '../components/shared/ConfirmDeleteDialog';
 import { toast } from 'sonner';
-import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid,
-  LineChart, Line, ComposedChart, Legend,
+import { Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid, Line, ComposedChart, Legend,
 } from 'recharts';
 import {
   format, subDays, startOfDay, parseISO, isValid,
