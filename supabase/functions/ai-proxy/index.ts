@@ -44,7 +44,14 @@ const ANTHROPIC_KEY    = Deno.env.get('ANTHROPIC_API_KEY');
 // as dispatch-reminder-emails.
 const ALLOWED_ORIGIN   = Deno.env.get('ALLOWED_ORIGIN') || 'https://car-reminder.app';
 
-const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+// Switched from gemini-2.0-flash to gemini-1.5-flash after the
+// project's 2.0-flash daily quota started getting exhausted under
+// real user load. Both are flash-tier (low-latency), 1.5-flash has
+// a separate free-tier bucket (15 RPM, 1M TPM, 1500 RPD) and no
+// billing requirement. To upgrade back to 2.0/2.5 later, swap the
+// model name here and either enable billing on the Google Cloud
+// project or accept tighter daily limits.
+const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 const GROQ_URL      = 'https://api.groq.com/openai/v1/chat/completions';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
