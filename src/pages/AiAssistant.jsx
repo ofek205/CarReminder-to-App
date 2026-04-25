@@ -337,7 +337,12 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
         case 'NO_SESSION':
           userMsg = 'ההתחברות פגה. התחבר מחדש ונסה שוב.'; break;
         case 'PROVIDER_UNAVAILABLE':
-          userMsg = 'שירות AI לא מוגדר. צור קשר עם המנהל.'; break;
+          // The proxy already builds a provider-specific message
+          // ("Groq זמנית לא זמין. אדמין יכול לבחור ספק אחר...") with
+          // an actionable next step. Hardcoding 'לא מוגדר' here threw
+          // that away and left the user with a non-actionable line.
+          userMsg = err?.message || 'שירות AI לא זמין כרגע. נסה שוב בעוד רגע.';
+          break;
         case 'AI_UNAVAILABLE':
           userMsg = 'שירות AI לא זמין כרגע. נסה שוב בעוד רגע.'; break;
         default: {

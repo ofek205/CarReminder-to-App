@@ -78,7 +78,10 @@ function json(body: unknown, status = 200, req?: Request) {
 }
 
 async function callGemini(body: any) {
-  if (!GEMINI_KEY) return null;
+  if (!GEMINI_KEY) {
+    console.warn('[ai-proxy] gemini: no key configured');
+    return null;
+  }
   const parts: any[] = [];
   if (body.system) parts.push({ text: body.system + '\n\n' });
   for (const msg of (body.messages || [])) {
@@ -103,9 +106,26 @@ async function callGemini(body: any) {
       generationConfig: { maxOutputTokens: body.max_tokens || 400, temperature: 0.7 },
     }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    // Log the status + a short excerpt of the body so we can debug
+    // recurring outages from the Supabase Edge Function logs. Common
+    // failure modes: 429 (free-tier quota), 403 (key invalid / API
+    // disabled in the project), 503 (transient cold-start), 400 (bad
+    // request shape after a model schema change).
+    let bodyExcerpt = '';
+    try { bodyExcerpt = (await res.text()).slice(0, 200); } catch {}
+    console.warn(`[ai-proxy] gemini ${res.status}: ${bodyExcerpt}`);
+    return null;
+  }
   const j = await res.json();
   const text = j?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!text) {
+    // Empty completions are the silent killer — Gemini returns 200 with
+    // no candidates when safety filters block the prompt. Log so we
+    // notice instead of treating it as success.
+    console.warn('[ai-proxy] gemini: empty completion (safety block?)');
+    return null;
+  }
   return { content: [{ type: 'text', text }], provider: 'gemini' };
 }
 
@@ -130,9 +150,18 @@ async function callGroq(body: any) {
       temperature: 0.7,
     }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    let bodyExcerpt = '';
+    try { bodyExcerpt = (await res.text()).slice(0, 200); } catch {}
+    console.warn(`[ai-proxy] groq ${res.status}: ${bodyExcerpt}`);
+    return null;
+  }
   const j = await res.json();
   const text = j?.choices?.[0]?.message?.content || '';
+  if (!text) {
+    console.warn('[ai-proxy] groq: empty completion');
+    return null;
+  }
   return { content: [{ type: 'text', text }], provider: 'groq' };
 }
 
