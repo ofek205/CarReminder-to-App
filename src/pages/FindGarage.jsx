@@ -163,7 +163,10 @@ function classifyType(tags, isMarine = false) {
   if (!tags) return isMarine ? 'boat_repair' : 'garage';
   // Marine types
   if (isMarine) {
-    if (tags.leisure === 'marina' || tags.seamark?.type === 'harbour') return 'marina';
+    // OSM serializes `seamark:type` as a flat key — `tags.seamark?.type`
+    // (the old code) was always undefined and silently classified every
+    // harbour as boat_repair. Use the bracket access.
+    if (tags.leisure === 'marina' || tags['seamark:type'] === 'harbour') return 'marina';
     if (tags.shop === 'boat' || tags.shop === 'ship_chandler' || tags.shop === 'fishing' ||
         (tags.name && /ציוד ימי|ימאות|דיג|ship/.test(tags.name))) return 'marine_parts';
     return 'boat_repair';
@@ -171,8 +174,37 @@ function classifyType(tags, isMarine = false) {
   // Car types
   if (tags.shop === 'tyres' || tags.craft === 'tyre' || (tags.name && /פנצ[רי]/.test(tags.name))) return 'tire';
   if (tags.shop === 'car_parts') return 'parts';
-  if (tags.craft === 'mechanic') return 'mechanic';
+  // 'craft=mechanic' is intentionally NOT a primary signal — in OSM that
+  // tag covers general mechanics (industrial / non-vehicle) and brings
+  // in unrelated results. We only keep it if combined with car_repair.
   return 'garage';
+}
+
+// Pick a human-friendly display name from an OSM tag bag. Hebrew-first,
+// then English, then brand/operator. Returns null when there's nothing
+// recognisable — callers drop those entries instead of showing "מוסך"
+// as a name (which made every unnamed POI look like a real result).
+function pickDisplayName(tags) {
+  if (!tags) return null;
+  const heChar = /[\u0590-\u05FF]/;
+  const candidates = [
+    tags['name:he'],
+    tags.name,                 // OSM `name` is supposed to be primary local language
+    tags['name:en'],
+    tags['official_name'],
+    tags['alt_name'],
+    tags.brand,
+    tags.operator,
+  ];
+  // Prefer the first candidate that has Hebrew characters.
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim() && heChar.test(c)) return c.trim();
+  }
+  // No Hebrew → take the first non-empty candidate at all.
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c.trim();
+  }
+  return null;
 }
 
 const RADIUS_MIN = 1000;
@@ -291,7 +323,27 @@ export default function FindGarage() {
   //   Key: rounded lat/lng (1km grid) + radius + vessel flag
   //   TTL: 24h. garages don't appear/disappear often; users can pull-to-refresh
   //   Strategy: on hit, render cached results instantly + fetch in background
-  const CACHE_VERSION = 'fg_v1';
+  // Bumped to v2 when we tightened the Overpass query (drop craft=mechanic,
+  // require name, include ways/relations). Old v1 payloads contained
+  // unnamed/off-topic entries that the new code would now filter out — but
+  // we render straight from the cached array, so without a version bump
+  // users would keep seeing yesterday's bad results until TTL expiry.
+  const CACHE_VERSION = 'fg_v2';
+
+  // Sweep stale v1 cache rows once per mount. localStorage on iOS
+  // WebView has a tight quota — if we only bumped the key prefix without
+  // cleaning, every v1 payload would sit there until the user clears
+  // app data. Single linear scan, runs only on this page.
+  useEffect(() => {
+    try {
+      const stale = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('fg_v1:')) stale.push(k);
+      }
+      stale.forEach(k => localStorage.removeItem(k));
+    } catch { /* no-op: quota errors / private mode */ }
+  }, []);
   const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   const cacheKey = (lat, lng, r, hasV) => {
     // Round to ~0.01° (~1km) so minor GPS drift doesn't miss the cache
@@ -329,12 +381,45 @@ export default function FindGarage() {
 
     try {
 
-      // Car query
-      const carQuery = `[out:json][timeout:15];(node["shop"="car_repair"](around:${r},${lat},${lng});node["craft"="mechanic"](around:${r},${lat},${lng});node["shop"="car_parts"](around:${r},${lat},${lng});node["shop"="tyres"](around:${r},${lat},${lng});node["craft"="tyre"](around:${r},${lat},${lng}););out body;`;
+      // Car query — design notes:
+      //   * `nwr` (node+way+relation) catches large garages mapped as
+      //     polygons that the old `node`-only filter missed.
+      //   * `out center tags;` returns each entity's center point in
+      //     `el.center.{lat,lon}` for ways/relations, alongside `el.lat`
+      //     for nodes. The JS accessor below handles both.
+      //   * `["name"]` filters at the OSM level — saves bandwidth and
+      //     drops noise. Unnamed entries can't be displayed usefully
+      //     anyway and were the cause of the duplicate-"מוסך" bug.
+      //   * Removed `craft=mechanic` and `craft=tyre` (too broad — they
+      //     cover industrial mechanics / tyre-makers, not vehicle service).
+      //   * Added `service:vehicle:*` namespace (modern OSM convention
+      //     for gas stations / dealerships that also do repair).
+      // Name-presence filter. `["name"]` matches only the bare `name`
+      // key, which would silently exclude Israeli POIs that only have
+      // `name:he`. The regex matches either key with any non-empty
+      // value — `pickDisplayName` will still prefer Hebrew at render.
+      const nameAny = `[~"^name(:he)?$"~"."]`;
 
-      // Marine query (only if user has vessels)
+      const carQuery = `[out:json][timeout:25];(`
+        + `nwr["shop"="car_repair"]${nameAny}(around:${r},${lat},${lng});`
+        + `nwr["shop"="tyres"]${nameAny}(around:${r},${lat},${lng});`
+        + `nwr["shop"="car_parts"]${nameAny}(around:${r},${lat},${lng});`
+        + `nwr["service:vehicle:car_repair"="yes"]${nameAny}(around:${r},${lat},${lng});`
+        + `nwr["service:vehicle:tyres"="yes"]${nameAny}(around:${r},${lat},${lng});`
+        + `nwr["service:vehicle:body_repair"="yes"]${nameAny}(around:${r},${lat},${lng});`
+        + `);out center tags;`;
+
+      // Marine query (only if user has vessels). Same hardening: nwr,
+      // require name (Hebrew or default), out center tags;.
       const marineQuery = hasVessel
-        ? `[out:json][timeout:15];(node["leisure"="marina"](around:${r},${lat},${lng});node["shop"="boat"](around:${r},${lat},${lng});node["shop"="ship_chandler"](around:${r},${lat},${lng});node["craft"="boatbuilder"](around:${r},${lat},${lng});node["seamark:type"="harbour"](around:${r},${lat},${lng});node["shop"="fishing"](around:${r},${lat},${lng}););out body;`
+        ? `[out:json][timeout:25];(`
+          + `nwr["leisure"="marina"]${nameAny}(around:${r},${lat},${lng});`
+          + `nwr["shop"="boat"]${nameAny}(around:${r},${lat},${lng});`
+          + `nwr["shop"="ship_chandler"]${nameAny}(around:${r},${lat},${lng});`
+          + `nwr["craft"="boatbuilder"]${nameAny}(around:${r},${lat},${lng});`
+          + `nwr["seamark:type"="harbour"]${nameAny}(around:${r},${lat},${lng});`
+          + `nwr["shop"="fishing"]${nameAny}(around:${r},${lat},${lng});`
+          + `);out center tags;`
         : null;
 
       const hdrs = { 'Content-Type': 'application/x-www-form-urlencoded' };
@@ -370,35 +455,57 @@ export default function FindGarage() {
         return;
       }
 
-      // Process car results
-      const carResults = (carData.elements || []).map((el) => {
-        const dist = haversineDistance(lat, lng, el.lat, el.lon);
-        const typeKey = classifyType(el.tags, false);
-        return {
-          id: el.id,
-          name: el.tags?.name || el.tags?.['name:he'] || ALL_TYPE_CONFIG[typeKey].label,
-          lat: el.lat, lon: el.lon, distance: dist,
-          address: [el.tags?.['addr:street'], el.tags?.['addr:housenumber'], el.tags?.['addr:city']].filter(Boolean).join(' ') || '',
-          phone: el.tags?.phone || el.tags?.['contact:phone'] || '',
-          typeKey,
-          openingHours: el.tags?.opening_hours || '',
-        };
+      // Skip entries that look closed/abandoned. OSM uses lifecycle
+      // prefixes (`disused:shop=car_repair`) on the *key* side; if any
+      // such key is present the place isn't actively operating.
+      const isLive = (tags) => {
+        if (!tags) return false;
+        const dead = ['disused:', 'abandoned:', 'was:', 'closed:'];
+        for (const k of Object.keys(tags)) {
+          if (dead.some(p => k.startsWith(p))) return false;
+        }
+        return true;
+      };
+
+      // `el.center.{lat,lon}` is provided by `out center;` for ways and
+      // relations; nodes still have top-level `el.lat / el.lon`. We try
+      // node first to keep the fast path fast.
+      const coordsOf = (el) => ({
+        lat: el.lat ?? el.center?.lat ?? null,
+        lon: el.lon ?? el.center?.lon ?? null,
       });
 
-      // Process marine results
-      const marineResults = marineData ? (marineData.elements || []).map((el) => {
-        const dist = haversineDistance(lat, lng, el.lat, el.lon);
-        const typeKey = classifyType(el.tags, true);
+      const toRow = (el, isMarine) => {
+        const { lat: eLat, lon: eLon } = coordsOf(el);
+        if (eLat == null || eLon == null) return null;
+        if (!isLive(el.tags)) return null;
+        const displayName = pickDisplayName(el.tags);
+        // Hard requirement: drop entries with no usable name. The old
+        // fallback to the type label ("מוסך") produced rows of identical
+        // names and was the user-visible shape of this bug.
+        if (!displayName) return null;
+        const typeKey = classifyType(el.tags, isMarine);
         return {
-          id: el.id,
-          name: el.tags?.name || el.tags?.['name:he'] || ALL_TYPE_CONFIG[typeKey].label,
-          lat: el.lat, lon: el.lon, distance: dist,
+          id: `${el.type || 'n'}-${el.id}`,
+          name: displayName,
+          lat: eLat, lon: eLon,
+          distance: haversineDistance(lat, lng, eLat, eLon),
           address: [el.tags?.['addr:street'], el.tags?.['addr:housenumber'], el.tags?.['addr:city']].filter(Boolean).join(' ') || '',
           phone: el.tags?.phone || el.tags?.['contact:phone'] || '',
           typeKey,
           openingHours: el.tags?.opening_hours || '',
         };
-      }) : [];
+      };
+
+      // Process car results
+      const carResults = (carData.elements || [])
+        .map(el => toRow(el, false))
+        .filter(Boolean);
+
+      // Process marine results
+      const marineResults = marineData
+        ? (marineData.elements || []).map(el => toRow(el, true)).filter(Boolean)
+        : [];
 
       // Merge, deduplicate by id, sort
       const seenIds = new Set();
