@@ -34,10 +34,14 @@ const FEATURES = [
   },
 ];
 
+// Claude intentionally omitted: ANTHROPIC_API_KEY is paid-only and not
+// configured for this deployment. The Edge Function still accepts 'claude'
+// as a value (back-compat for older saved settings) — we just don't offer
+// it as a fresh choice. If a feature is currently set to 'claude' the UI
+// auto-corrects it to 'gemini' on load.
 const PROVIDERS = [
   { key: 'gemini', label: 'Gemini',  hint: 'Google — מהיר, תומך טקסט + תמונה (מומלץ כברירת מחדל)' },
   { key: 'groq',   label: 'Groq',    hint: 'Meta Llama — טקסט בלבד, הכי מהיר' },
-  { key: 'claude', label: 'Claude',  hint: 'Anthropic — איכות גבוהה, איטי יותר' },
   { key: 'auto',   label: 'אוטומטי', hint: 'המערכת תבחר לפי זמינות וסוג הבקשה (טקסט→Groq, תמונה→Gemini)' },
 ];
 
@@ -72,6 +76,10 @@ export default function AdminAiSettings() {
       const map = {};
       (settingsRes.data || []).forEach(r => { map[r.feature] = r.preferred_provider; });
       FEATURES.forEach(f => { if (!map[f.key]) map[f.key] = 'gemini'; });
+      // Stale 'claude' from before the option was retired → display as
+      // 'gemini' so the user sees a coherent choice. Doesn't write back
+      // to the DB; on the next intentional change the new value is saved.
+      Object.keys(map).forEach(k => { if (map[k] === 'claude') map[k] = 'gemini'; });
       setSettings(map);
 
       // Failure here is non-fatal — we just won't grey out unavailable
@@ -147,7 +155,7 @@ export default function AdminAiSettings() {
                 <h3 className="font-bold text-base text-[#1F2937]">{feature.title}</h3>
                 <p className="text-xs text-gray-500 mt-1">{feature.description}</p>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {PROVIDERS.map(p => {
                   const selected = settings[feature.key] === p.key;
                   const isSaving = saving === feature.key;
