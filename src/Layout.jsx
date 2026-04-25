@@ -233,8 +233,14 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
         )}
       </div>
 
-      {/* Navigation - scrollable */}
-      <nav className={`flex-1 overflow-y-auto p-2 space-y-0.5 ${isMobile ? 'pb-4' : ''}`} dir="rtl">
+      {/* Navigation - scrollable.
+          `min-h-0` is the key bit: flex children default to min-height: auto,
+          which means a `flex-1` element refuses to shrink below the height
+          of its own content. With ~13 nav items + dividers, on shorter
+          windows the nav grew taller than its container and the bottom
+          items (admin section, footer) clipped offscreen with no scroll.
+          min-h-0 unblocks flex-shrink so overflow-y-auto can kick in. */}
+      <nav className={`flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5 ${isMobile ? 'pb-4' : ''}`} dir="rtl">
         {visibleItems.map((item, i) => {
           if (item.divider) {
             return (
