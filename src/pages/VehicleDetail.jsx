@@ -625,22 +625,26 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           )}
           <div className="flex items-center gap-2">
             {vehicleIsOwned && !isViewOnly(role) && (
-              <>
+              // Share-controls cluster. Both buttons share the same
+              // amber/gold palette so they read as a single sharing
+              // module rather than two unrelated affordances. The
+              // share button is the *primary* action (filled amber,
+              // white icon), the "i" is *secondary* (light amber,
+              // dark icon) — same family, clear hierarchy.
+              <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-2xl backdrop-blur-md"
+                style={{ background: 'rgba(255,255,255,0.92)', boxShadow: '0 4px 14px rgba(180,83,9,0.18)' }}>
                 <button
                   type="button"
                   onClick={() => setShareDialogOpen(true)}
-                  className="w-9 h-9 rounded-2xl flex items-center justify-center backdrop-blur-sm transition-all active:scale-95"
-                  style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}
+                  className="h-8 px-2.5 rounded-xl flex items-center gap-1.5 transition-all active:scale-95"
+                  style={{ background: '#F59E0B', color: '#fff', boxShadow: '0 2px 6px rgba(245,158,11,0.35)' }}
                   aria-label="שתף את הרכב"
-                  title="שיתוף">
-                  <Share2 className="w-4 h-4" />
+                  title="שיתוף הרכב">
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span className="text-xs font-bold">שיתוף</span>
                 </button>
-                {/* Gold "i" — opens the sharing explainer dialog. Sits
-                    inline with the share button so users discover the
-                    feature explanation right where they're about to
-                    use it. Same component as on AccountSettings. */}
                 <SharingHelpButton size="sm" />
-              </>
+              </div>
             )}
             {(shareCount > 0 || isSharedWithMe) && (
               <SharedIndicator

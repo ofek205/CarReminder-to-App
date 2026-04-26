@@ -24,6 +24,10 @@ import CompleteProfileScreen, { isProfileSkipActive } from '../components/shared
 import LicensePlate from '../components/shared/LicensePlate';
 import FirstTimeTour from '../components/shared/FirstTimeTour';
 import SharedIndicator from '@/components/sharing/SharedIndicator';
+import { Share2 } from 'lucide-react';
+// Lazy-loaded — only mounts on first card-share-tap so we don't pull
+// the dialog + its 9 RPC bindings into the dashboard's first paint.
+const ShareVehicleDialog = React.lazy(() => import('@/components/sharing/ShareVehicleDialog'));
 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 function getVehicleIcon(vt, nn, mfr) { return ICON_MAP[getVehicleCategory(vt, nn, mfr)] || Car; }
@@ -159,11 +163,18 @@ function UrgentBanner({ reminders, vehicles }) {
   );
 }
 
-//  Hero Vehicle Card (premium design - photo background) 
+//  Hero Vehicle Card (premium design - photo background)
 function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
+  // Share dialog state. lifted into each card so the dialog mounts
+  // on demand (lazy import above keeps it out of the first paint).
+  // Owner-only — sharees can't re-share, demo/guest cards have no
+  // real DB row to share against. The button is hidden in those
+  // cases so the affordance never lies about what it does.
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const canShare = !isDemo && !isGuestVehicle && !vehicle.is_shared_with_me;
 
   const testDays    = daysUntil(vehicle.test_due_date);
   const insDays     = daysUntil(vehicle.insurance_due_date);
@@ -181,6 +192,7 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
   const hasPhoto = !!vehicle.vehicle_photo;
 
   return (
+    <>
     <Link to={detailUrl}>
       <div className="rounded-3xl overflow-hidden mb-5"
         style={{ boxShadow: `0 8px 32px ${T.primary}25` }}>
@@ -225,19 +237,40 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
             </div>
           )}
 
-          {/* Share state pill — owner with active shares OR a vehicle
-              that's been shared with the current user. Mirrors the
-              indicator on Vehicles.jsx and VehicleDetail so the
-              sharing surface is visible on the home screen too.
-              No onClick — the whole card is already a Link to
-              VehicleDetail where the full access modal lives. */}
-          {!isDemo && !isGuestVehicle && (vehicle.share_count > 0 || vehicle.is_shared_with_me) && (
-            <div className="absolute top-4 left-4 z-10">
-              <SharedIndicator
-                shareCount={vehicle.share_count || 0}
-                isSharedWithMe={!!vehicle.is_shared_with_me}
-                size="sm"
-              />
+          {/* Share controls cluster (top-left).
+              - Share button: owner-only, primary amber CTA. Tapping
+                opens the share dialog without navigating into the
+                vehicle detail page (preventDefault + stopPropagation
+                to stop the wrapping <Link>).
+              - SharedIndicator pill: shown beneath when the vehicle
+                already has accepted shares OR is shared *with* the
+                current user. Same component as VehicleDetail so the
+                visual language stays consistent. */}
+          {(canShare || vehicle.share_count > 0 || vehicle.is_shared_with_me) && (
+            <div className="absolute top-4 left-4 z-10 flex flex-col items-start gap-1.5">
+              {canShare && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShareDialogOpen(true);
+                  }}
+                  className="h-8 px-2.5 rounded-xl flex items-center gap-1.5 transition-all active:scale-95 backdrop-blur-md"
+                  style={{ background: '#F59E0B', color: '#fff', boxShadow: '0 4px 12px rgba(245,158,11,0.45)' }}
+                  aria-label="שתף את כלי התחבורה"
+                  title="שיתוף">
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span className="text-xs font-bold">שיתוף</span>
+                </button>
+              )}
+              {(vehicle.share_count > 0 || vehicle.is_shared_with_me) && (
+                <SharedIndicator
+                  shareCount={vehicle.share_count || 0}
+                  isSharedWithMe={!!vehicle.is_shared_with_me}
+                  size="sm"
+                />
+              )}
             </div>
           )}
 
@@ -280,10 +313,27 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
         </div>
       </div>
     </Link>
+    {/* Share dialog. RENDERED OUTSIDE the <Link> on purpose: even
+        though Radix Dialog portals to document.body, React's synthetic
+        events still bubble through the React tree — so a click inside
+        the dialog (or its backdrop) would otherwise propagate to the
+        wrapping Link and navigate the user away. Sibling-of-Link
+        keeps the click semantics clean. Lazy-loaded so the dialog +
+        its 9 RPC bindings only download after first share-tap. */}
+    {shareDialogOpen && (
+      <React.Suspense fallback={null}>
+        <ShareVehicleDialog
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          vehicle={vehicle}
+        />
+      </React.Suspense>
+    )}
+    </>
   );
 }
 
-//  Info Tile (premium) 
+//  Info Tile (premium)
 function InfoTile({ icon: Icon, label, value, status }) {
   const isOk = status === 'ok';
   const isWarn = status === 'warn';
