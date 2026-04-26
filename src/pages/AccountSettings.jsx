@@ -15,6 +15,7 @@ import { canManage, isOwner, ROLE_INFO } from "@/lib/permissions";
 import { isNative } from "@/lib/capacitor";
 import { C } from '@/lib/designTokens';
 import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
+import SharingHelpButton from "@/components/sharing/SharingHelpButton";
 
 //  WhatsApp icon 
 const WhatsAppIcon = () => (
@@ -431,10 +432,13 @@ function AuthAccountSettings({ embedded = false }) {
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
                 <Users className="w-6 h-6 text-white" />
               </div>
-              <div>
-                <h1 className="font-black text-xl text-white">החשבון שלי</h1>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1 className="font-black text-xl text-white">החשבון שלי</h1>
+                  <SharingHelpButton size="sm" />
+                </div>
                 <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
-                  {members.length} {members.length === 1 ? 'חבר' : 'חברים'} &bull; {myRole}
+                  {members.length} {members.length === 1 ? 'חבר' : 'חברים'} &bull; {ROLE_INFO[myRole]?.label || myRole}
                 </p>
               </div>
             </div>
@@ -517,7 +521,10 @@ function AuthAccountSettings({ embedded = false }) {
           AND sharee-leave flows. */}
       {(sharedByMe.length > 0 || sharedWithMe.length > 0) && (
         <div className="mb-6 space-y-4">
-          <h2 className="font-bold text-base text-gray-900">רכבים משותפים</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-bold text-base text-gray-900">רכבים משותפים</h2>
+            <SharingHelpButton size="sm" />
+          </div>
 
           {sharedByMe.length > 0 && (
             <div className="space-y-2">
