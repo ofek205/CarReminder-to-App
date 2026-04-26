@@ -14,6 +14,7 @@ import useAccountRole from "@/hooks/useAccountRole";
 import { canManage, isOwner, ROLE_INFO } from "@/lib/permissions";
 import { isNative } from "@/lib/capacitor";
 import { C } from '@/lib/designTokens';
+import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
 
 //  WhatsApp icon 
 const WhatsAppIcon = () => (
@@ -118,7 +119,7 @@ function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChang
                     borderColor: active ? rInfo.color : '#E5E7EB',
                     opacity: changingRole ? 0.5 : 1,
                   }}>
-                  {r === 'מנהל' ? 'מנהל (עריכה)' : 'שותף (צפייה)'}
+                  {r === 'מנהל' ? 'שותף עורך' : 'שותף צופה'}
                 </button>
               );
             })}
@@ -185,7 +186,29 @@ function AuthAccountSettings({ embedded = false }) {
   const [linkCopied, setLinkCopied] = useState(false);
   const [shareAll, setShareAll] = useState(true); // true = all vehicles, false = specific
   const [selectedVehicleIds, setSelectedVehicleIds] = useState([]);
+  // Vehicle access modal — opened when the user taps a row in the
+  // per-vehicle shares section. Same modal as on VehicleDetail / Cards.
+  const [accessModalVehicle, setAccessModalVehicle] = useState(null);
   const queryClient = useQueryClient();
+
+  // Per-vehicle shares feed for this page. Pulls from my_vehicles_v
+  // (already exposes share_count + is_shared_with_me) and splits the
+  // result into "vehicles I'm sharing" vs "vehicles shared with me".
+  // Account-level membership (from account_members) and per-vehicle
+  // shares (from vehicle_shares) are presented side-by-side here so
+  // the user has one place to see + manage every sharing relation.
+  const { data: myVehicles = [] } = useQuery({
+    queryKey: ['my-vehicles', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('my_vehicles_v').select('*');
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!user?.id,
+    staleTime: 30 * 1000,
+  });
+  const sharedByMe   = myVehicles.filter(v => !v.is_shared_with_me && (v.share_count || 0) > 0);
+  const sharedWithMe = myVehicles.filter(v => v.is_shared_with_me);
 
   // Fetch vehicles for selection
   const { data: vehicles = [] } = useQuery({
@@ -486,6 +509,81 @@ function AuthAccountSettings({ embedded = false }) {
         ))}
       </div>
 
+      {/* Per-vehicle shares — synced from my_vehicles_v. Rendered as
+          two stacks (sharing-out + shared-with-me) only when each has
+          rows, so a fresh user with no vehicle shares just sees the
+          familiar account-level list above. Tapping a row opens the
+          shared VehicleAccessModal which already handles owner-revoke
+          AND sharee-leave flows. */}
+      {(sharedByMe.length > 0 || sharedWithMe.length > 0) && (
+        <div className="mb-6 space-y-4">
+          <h2 className="font-bold text-base text-gray-900">רכבים משותפים</h2>
+
+          {sharedByMe.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-gray-500">רכבים ששיתפתי ({sharedByMe.length})</p>
+              {sharedByMe.map(v => {
+                const vName = v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'רכב';
+                return (
+                  <button key={v.id} type="button" onClick={() => setAccessModalVehicle(v)}
+                    className="w-full rounded-2xl p-3 text-right flex items-center gap-3 transition-all active:scale-[0.99]"
+                    style={{ background: '#fff', border: '1.5px solid #BAE6FD' }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: '#E0F2FE' }}>
+                      <Car className="w-5 h-5" style={{ color: '#075985' }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm truncate" style={{ color: '#1F2937' }}>{vName}</p>
+                      <p className="text-[11px]" style={{ color: '#075985' }}>
+                        משותף עם {v.share_count} {v.share_count === 1 ? 'משתמש' : 'משתמשים'}
+                      </p>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {sharedWithMe.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-gray-500">רכבים שמשותפים איתי ({sharedWithMe.length})</p>
+              {sharedWithMe.map(v => {
+                const vName = v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'רכב';
+                const roleLabel = v.share_role === 'editor' ? 'שותף עורך' : 'שותף צופה';
+                return (
+                  <button key={v.id} type="button" onClick={() => setAccessModalVehicle(v)}
+                    className="w-full rounded-2xl p-3 text-right flex items-center gap-3 transition-all active:scale-[0.99]"
+                    style={{ background: '#fff', border: '1.5px solid #FDE68A' }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: '#FEF3C7' }}>
+                      <Car className="w-5 h-5" style={{ color: '#92400E' }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm truncate" style={{ color: '#1F2937' }}>{vName}</p>
+                      <p className="text-[11px]" style={{ color: '#92400E' }}>{roleLabel}</p>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal driven by the per-vehicle shares list above. Same
+          component used on VehicleDetail / Cards — owner sees revoke
+          list, sharee sees the leave-share button. */}
+      {accessModalVehicle && (
+        <VehicleAccessModal
+          open={!!accessModalVehicle}
+          onOpenChange={(o) => { if (!o) setAccessModalVehicle(null); }}
+          vehicle={accessModalVehicle}
+          isOwner={!accessModalVehicle.is_shared_with_me}
+        />
+      )}
+
       {/* Active invites. collapsed by default, the row count alone tells
           the user whether they have pending invites out in the wild, and
           tapping expands the full list. */}
@@ -563,8 +661,8 @@ function AuthAccountSettings({ embedded = false }) {
               <label className="block text-sm font-bold text-gray-700 mb-2">בחר רמת הרשאה</label>
               <div className="space-y-2.5">
                 {[
-                  { value: 'מנהל', icon: Shield, title: 'מנהל - עריכה מלאה', desc: 'הוספה, עריכה ומחיקה של רכבים, טיפולים ומסמכים. לא יכול לנהל משתמשים.' },
-                  { value: 'שותף', icon: Eye, title: 'שותף - צפייה בלבד', desc: 'יכול לראות את הרכבים והנתונים, אבל לא לערוך או למחוק.' },
+                  { value: 'מנהל', icon: Shield, title: 'שותף עורך', desc: 'מוסיף, עורך ומעדכן רכבים, טיפולים ומסמכים. אי אפשר למחוק רכב או לנהל חברים.' },
+                  { value: 'שותף', icon: Eye,    title: 'שותף צופה', desc: 'רואה את הרכבים והנתונים, ללא הרשאת עריכה או מחיקה.' },
                 ].map(opt => {
                   const active = inviteRole === opt.value;
                   const info = ROLE_INFO[opt.value];

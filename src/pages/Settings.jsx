@@ -32,7 +32,7 @@ import ReminderSettingsPage from './ReminderSettingsPage';
 
 const TABS = [
   { key: 'profile', label: 'פרופיל',   icon: User,  subtitle: 'פרטים אישיים ורישיון נהיגה' },
-  { key: 'account', label: 'חשבון',    icon: Users, subtitle: 'חברים, תפקידים והזמנות' },
+  { key: 'account', label: 'חשבון משותף', icon: Users, subtitle: 'חברים, רכבים משותפים והזמנות' },
   { key: 'alerts',  label: 'התראות',   icon: Bell,  subtitle: 'מה ומתי לקבל תזכורות' },
 ];
 
