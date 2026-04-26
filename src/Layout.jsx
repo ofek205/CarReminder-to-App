@@ -554,6 +554,20 @@ function LayoutInner({ children }) {
         <NavContent currentPath={location.pathname} hasVessel={hasVessel} />
       </aside>
 
+      {/* Desktop notification bell — fixed top-left, parallel to the
+          right-side sidebar. The same NotificationBell component renders
+          its own dropdown panel; we just need to anchor it on the
+          opposite corner from the sidebar so the bell + bell-popover
+          don't overlap. Hidden on mobile because the mobile top bar
+          below has its own bell already. */}
+      {isAuthenticated && (
+        <div className="hidden lg:block fixed top-4 left-4 z-40">
+          <React.Suspense fallback={<div className="w-10 h-10" />}>
+            <NotificationBell />
+          </React.Suspense>
+        </div>
+      )}
+
       {/* Mobile top bar */}
       <div className="lg:hidden fixed inset-x-0 top-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', zIndex: 9998 }}>
         {isGuest && <GuestBanner />}
