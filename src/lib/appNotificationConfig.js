@@ -10,7 +10,7 @@
  * this module is purely visual / navigational.
  */
 
-import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell } from 'lucide-react';
+import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare } from 'lucide-react';
 
 // Build a deep-link href from the row's `data` jsonb. Each function is
 // pure so callers can resolve the href without state. When a type
@@ -83,6 +83,22 @@ export const APP_NOTIF_CONFIG = {
     iconColor: '#4338CA',
     iconBg: '#4338CA',
     buildHref: hrefForVehicleDetail,
+  },
+  community_comment: {
+    // Reused for any community thread reply on the user's own post.
+    // Purple matches the existing "תגובות בקהילה" chrome elsewhere
+    // in the app (CommentSection accent, post-comment chip).
+    icon: MessageSquare,
+    bg: '#F5F3FF',
+    iconColor: '#7C3AED',
+    iconBg: '#7C3AED',
+    // Deep-link straight to the post via ?post=<id>. The Community
+    // page reads that param on mount, scrolls to the matching card,
+    // and gives it a brief highlight ring so the user lands exactly
+    // where the comment is — no scrolling around to find their post.
+    buildHref: (data) => data?.post_id
+      ? `/Community?post=${encodeURIComponent(data.post_id)}`
+      : '/Community',
   },
   // Fallback for any new type we haven't classified yet — the row
   // still renders but with neutral chrome.

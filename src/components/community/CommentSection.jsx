@@ -71,7 +71,25 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
       const authorName = result?.author_name || (anonymous ? 'אנונימי' : realName);
       if (postOwnerId && postOwnerId !== user.id) {
         try {
-          await db.community_notifications.create({ user_id: postOwnerId, post_id: postId, commenter_name: authorName });
+          // Write to app_notifications (the canonical realtime-enabled
+          // notifications table) so the post owner gets:
+          //   - Bell badge that updates instantly via realtime
+          //   - Native local notification on Capacitor (free, via the
+          //     existing useSharedVehicleRealtime hook)
+          //   - "Yossi הגיב/ה על הפוסט שלך" with deep-link straight to
+          //     the post via /Community?post=<id> (handled by
+          //     appNotificationConfig + Community page scroll-to-post)
+          // The legacy community_notifications path used to write here
+          // but had no realtime push and routed users to the generic
+          // /Community page — they had to scroll to find their post.
+          const bodySnippet = (userMessage || '').slice(0, 120);
+          await supabase.from('app_notifications').insert({
+            user_id: postOwnerId,
+            type: 'community_comment',
+            title: `${authorName} הגיב/ה על הפוסט שלך`,
+            body: bodySnippet,
+            data: { post_id: postId, commenter_name: authorName },
+          });
         } catch {}
       }
       setText('');

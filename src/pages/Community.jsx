@@ -27,6 +27,15 @@ export default function Community() {
   const [hasVessel, setHasVessel] = useState(false);
   const [userVehicles, setUserVehicles] = useState([]);
   const searchInputRef = useRef(null);
+  // Post id to focus when arriving via the "Yossi commented on your
+  // post" notification deep link (/Community?post=<id>). null = no
+  // focus; the URL param is read once on mount and held until the
+  // matching <PostCard> renders so we can scroll-into-view + briefly
+  // ring it. Cleared after the highlight so refresh doesn't re-pulse.
+  const [highlightPostId, setHighlightPostId] = useState(() => {
+    try { return new URL(window.location.href).searchParams.get('post') || null; }
+    catch { return null; }
+  });
 
   const T = domain === 'vessel' ? marine : C;
   const canInteract = isAuthenticated && !isGuest;
@@ -328,8 +337,31 @@ export default function Community() {
           )
         ) : (
           <div className="space-y-3">
-            {filteredPosts.map((post, i) => (
-              <div key={post.id} className="card-animate" style={{ animationDelay: `${Math.min(i * 60, 300)}ms` }}>
+            {filteredPosts.map((post, i) => {
+              const isHighlighted = post.id === highlightPostId;
+              return (
+              <div key={post.id}
+                id={`post-${post.id}`}
+                ref={isHighlighted ? (el) => {
+                  // Scroll the targeted post into view + brief
+                  // ring-flash so the user sees exactly where the
+                  // comment landed. Setting the state to null after
+                  // the ring fades stops it from re-triggering on
+                  // unrelated re-renders.
+                  if (!el) return;
+                  setTimeout(() => {
+                    try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+                  }, 80);
+                  setTimeout(() => setHighlightPostId(null), 2200);
+                } : undefined}
+                className="card-animate"
+                style={{
+                  animationDelay: `${Math.min(i * 60, 300)}ms`,
+                  outline: isHighlighted ? '3px solid #7C3AED' : 'none',
+                  outlineOffset: isHighlighted ? '4px' : 0,
+                  borderRadius: 16,
+                  transition: 'outline-color 0.4s ease',
+                }}>
               <PostCard post={post} T={T} canComment={canInteract}
                 commentCount={commentCounts[post.id] || 0}
                 vehicle={post.linked_vehicle_id ? vehicleMap[post.linked_vehicle_id] : null}
@@ -338,7 +370,8 @@ export default function Community() {
                 searchQuery={debouncedSearch}
               />
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
