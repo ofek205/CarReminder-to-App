@@ -63,6 +63,23 @@ export default function VehicleAccessModal({
     staleTime: 30 * 1000,
   });
 
+  // Sharee-only: who shared this vehicle with me? Drives the
+  // "השיתוף ממוצע מ-{name}" line in the sharee block. Cross-user name
+  // lookup needs an RPC because user_profiles RLS only exposes the
+  // caller's own row. Returns null silently if the RPC isn't deployed
+  // or the caller lacks access — UI just falls back to the generic
+  // copy in that case.
+  const { data: ownerName = null } = useQuery({
+    queryKey: ['vehicle-owner-name', vehicle?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_vehicle_owner_name', { p_vehicle_id: vehicle.id });
+      if (error) return null;
+      return data || null;
+    },
+    enabled: !!vehicle?.id && !isOwner && open,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const handleRevoke = async () => {
     if (!confirmRevoke) return;
     setWorking(true);
@@ -120,7 +137,14 @@ export default function VehicleAccessModal({
               <div className="rounded-2xl p-4" style={{ background: '#FEF3C7', border: '1.5px solid #FDE68A' }}>
                 <p className="text-sm font-bold" style={{ color: '#92400E' }}>הרכב הזה שותף איתך</p>
                 <p className="text-xs mt-1" style={{ color: '#B45309' }}>
-                  הבעלים שיתף/ה אותו איתך, ואפשר לעזוב את השיתוף מתי שרוצים.
+                  {/* Show the owner's full name when we have it — closes
+                      the "who shared this with me?" question before any
+                      destructive action. Falls back to the gendered
+                      generic phrasing if the RPC returned null (RPC not
+                      yet deployed, or caller doesn't have access). */}
+                  {ownerName
+                    ? <><strong>{ownerName}</strong> שיתף/ה איתך את הרכב, ואפשר לעזוב את השיתוף מתי שרוצים.</>
+                    : <>הבעלים שיתף/ה אותו איתך, ואפשר לעזוב את השיתוף מתי שרוצים.</>}
                 </p>
               </div>
               <Button
