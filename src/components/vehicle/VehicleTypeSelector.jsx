@@ -130,7 +130,13 @@ export const VEHICLE_CATEGORIES = [
     keywords: ['שטח', "ג'יפ", 'טרקטורון', 'באגי', 'RZR'],
     dbName: 'כלי שטח',
     usageMetric: 'קילומטרים',
-    methods: ['scan', 'manual'],
+    // 'plate' added so jeeps (which carry standard IL license plates and
+    // are queryable via gov.il) can use the auto-fill flow. ATVs / buggies
+    // typically aren't on the registry, so the lookup may return empty —
+    // the user can still type a plate manually and proceed; the
+    // type-mismatch check is already disabled for this category in
+    // AddVehicle.expectedTypesForCategory().
+    methods: ['plate', 'scan', 'manual'],
     hasSubcategories: true,
   },
   {

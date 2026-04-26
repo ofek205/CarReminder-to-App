@@ -919,7 +919,13 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-2">
             {lastRefreshed && (
-              <span className="text-[10px] text-gray-400 hidden sm:inline" title={lastRefreshed.toLocaleString('he-IL')}>
+              // Was `hidden sm:inline` — admin reported it's useful on
+              // mobile too (knowing when the last refresh happened). The
+              // pill shrinks to fit; falls back to short relative form on
+              // narrow screens via formatRelative ("עכשיו" / "לפני 3 דק")
+              // which is already short enough to share the row with the
+              // refresh button.
+              <span className="text-[10px] text-gray-400 whitespace-nowrap" title={lastRefreshed.toLocaleString('he-IL')}>
                 עודכן {formatRelative(lastRefreshed)}
               </span>
             )}

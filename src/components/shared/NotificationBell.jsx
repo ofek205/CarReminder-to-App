@@ -429,9 +429,31 @@ export default function NotificationBell() {
     return () => window.removeEventListener('cr:close-popups', onClosePopups);
   }, []);
 
+  // Browser-back closes the popover instead of navigating away from
+  // the current page. Without this, users who hit "back" expecting the
+  // popover to dismiss were getting kicked out of the app to the auth
+  // page (or whichever route happened to be one entry deeper in
+  // history). We push a sentinel state when opening, and consume it
+  // on popstate. The flag also lets us programmatically pop the entry
+  // when the popover is closed by clicking outside / a link, so
+  // history stays clean.
+  useEffect(() => {
+    if (!popupOpen) return;
+    const onPop = () => setPopupOpen(false);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [popupOpen]);
+
   const toggleBell = () => {
     const next = !popupOpen;
-    if (next) window.dispatchEvent(new CustomEvent('cr:close-popups'));
+    if (next) {
+      window.dispatchEvent(new CustomEvent('cr:close-popups'));
+      try { window.history.pushState({ crBellOpen: true }, ''); } catch {}
+    } else if (window.history.state?.crBellOpen) {
+      // User tapped the bell again to close — pop our sentinel so we
+      // don't leak history entries.
+      try { window.history.back(); return; } catch {}
+    }
     setPopupOpen(next);
   };
 
