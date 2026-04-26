@@ -18,9 +18,25 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
-import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X } from 'lucide-react';
-import { differenceInYears, subMonths } from 'date-fns';
+import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X, Clock } from 'lucide-react';
+import { differenceInYears, subMonths, formatDistanceToNow } from 'date-fns';
+import { he as heLocale } from 'date-fns/locale';
 import { configForType as appConfigForType } from '@/lib/appNotificationConfig';
+
+// Hebrew "X ago" label for an ISO timestamp. Returns null for
+// missing/invalid input so callers can omit the row entirely.
+// addSuffix: true → date-fns prefixes "לפני" automatically with
+// the Hebrew locale, so "5 minutes ago" → "לפני 5 דקות". Wrapped
+// in try/catch because clock skew on the device can yield
+// negative diffs, which formatDistanceToNow throws on.
+function formatRelativeTime(isoString) {
+  if (!isoString) return null;
+  try {
+    const d = new Date(isoString);
+    if (Number.isNaN(d.getTime())) return null;
+    return formatDistanceToNow(d, { addSuffix: true, locale: heLocale });
+  } catch { return null; }
+}
 
 export default function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
@@ -292,11 +308,11 @@ export default function NotificationBell() {
           }
         }
 
-        items.sort((a, b) => {
-          if (a.isExpired && !b.isExpired) return -1;
-          if (!a.isExpired && b.isExpired) return 1;
-          return a.days - b.days;
-        });
+        // Defer sorting to setNotifications below — we need to mix in
+        // community + app_notifications (which carry real createdAt
+        // timestamps) and the legacy profile/license rows from prev,
+        // and only THEN apply a single unified sort. Sorting here would
+        // be a partial sort that the trailing pushes invalidate.
 
         try {
           const { data: communityNotifs, error: cnError } = await supabase
@@ -314,6 +330,9 @@ export default function NotificationBell() {
               days: 500, isExpired: false,
               navTarget: 'Community',
               _communityNotifId: cn.id,
+              // Real arrival timestamp — used by the chronological sort
+              // and by the "לפני N דקות" label on each row.
+              createdAt: cn.created_at,
             });
           });
         } catch {}
@@ -345,6 +364,10 @@ export default function NotificationBell() {
                 days: 500, isExpired: false,
                 navHref: href,                            // resolved string or null
                 _appNotifId: an.id,
+                // Real arrival timestamp from the DB row. Drives both
+                // chronological sort (newest first) and the visible
+                // "לפני N דקות" label.
+                createdAt: an.created_at,
               });
             });
 
@@ -387,6 +410,26 @@ export default function NotificationBell() {
         setNotifications(prev => {
           const profileNotifs = prev.filter(n => n.id === 'profile-incomplete' || n.id === 'license-expiry');
           const filtered = [...profileNotifs, ...items].filter(n => !dismissedSet.has(n.id));
+          // Chronological-first sort:
+          //   1. Items with a real createdAt (DB-backed: shares,
+          //      vehicle-change events, community replies) — newest
+          //      arrival on top. This is what the user sees as
+          //      "התראה חדשה" — must lead.
+          //   2. Items WITHOUT createdAt (synthetic reminders:
+          //      profile/license/expiry/mileage/seasonal) — these
+          //      are derived from data state, not arrival events;
+          //      they fall below the dated section, ordered by
+          //      urgency (expired first, then by days remaining).
+          filtered.sort((a, b) => {
+            const aHas = !!a.createdAt;
+            const bHas = !!b.createdAt;
+            if (aHas && bHas) return new Date(b.createdAt) - new Date(a.createdAt);
+            if (aHas) return -1;
+            if (bHas) return 1;
+            if (a.isExpired && !b.isExpired) return -1;
+            if (!a.isExpired && b.isExpired) return 1;
+            return (a.days ?? 0) - (b.days ?? 0);
+          });
           return filtered;
         });
       } catch (err) {
@@ -643,6 +686,22 @@ export default function NotificationBell() {
                             {n.label}
                           </p>
                           <p className="text-[10px] truncate" style={{ color: '#9CA3AF' }}>{n.name}</p>
+                          {/* Relative-time row for DB-backed notifications
+                              (shares, vehicle-change events, community
+                              replies). Synthetic reminders return null
+                              from the helper and the row collapses to
+                              nothing — no empty space, layout stays
+                              tight on rows that don't have a real
+                              arrival timestamp. */}
+                          {n.createdAt && (() => {
+                            const rel = formatRelativeTime(n.createdAt);
+                            return rel ? (
+                              <p className="text-[10px] flex items-center gap-1 mt-0.5" style={{ color: '#9CA3AF' }}>
+                                <Clock className="w-2.5 h-2.5 shrink-0" />
+                                <span>{rel}</span>
+                              </p>
+                            ) : null;
+                          })()}
                         </div>
                       </button>
                       <div className="flex items-center gap-0.5 shrink-0">
