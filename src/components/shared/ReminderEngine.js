@@ -200,6 +200,26 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
       }
     }
 
+    // 2b. Inspection report ("תסקיר") — periodic safety certificate.
+    // Optional everywhere; fires only when the user filled the date.
+    // Reuses the test-window `threshold` so inspection reminders show
+    // up alongside the equivalent טסט reminders without needing a
+    // separate setting.
+    if (v.inspection_report_expiry_date) {
+      const dl = daysUntil(v.inspection_report_expiry_date);
+      if (dl !== null && dl <= threshold) {
+        items.push({
+          id: `inspect-${v.id}`, type: 'inspection', emoji: '📑',
+          typeName: 'תסקיר',
+          name: vName, vehicleId: v.id,
+          dueDate: v.inspection_report_expiry_date, daysLeft: dl,
+          status: urgencyFromDays(dl),
+          label: dl < 0 ? 'תסקיר פג תוקף!' : `תסקיר ${inDays(dl)}`,
+          linkTo: `VehicleDetail?id=${v.id}`,
+        });
+      }
+    }
+
     // 3. Vessel safety equipment
     if (isV) {
       const safetyItems = [

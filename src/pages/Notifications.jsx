@@ -25,6 +25,7 @@ const TYPE_CONFIG = {
   'פירוטכניקה': { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
   'מטף כיבוי':  { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
   'אסדת הצלה':  { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
+  'תסקיר':       { icon: FileText,  bg: '#FEF3C7', color: '#92400E', border: '#FDE68A' },
 };
 
 // Map notification id prefix to EditVehicle field
@@ -32,6 +33,7 @@ const NOTIF_TO_FIELD = {
   test: 'test_due_date', ins: 'insurance_due_date',
   pyro: 'pyrotechnics_expiry_date', ext: 'fire_extinguisher_expiry_date', raft: 'life_raft_expiry_date',
   mileage: 'current_km',
+  inspect: 'inspection_report_expiry_date',
 };
 
 function getNotifEditUrl(notif) {
@@ -304,6 +306,7 @@ function GuestNotifications() {
 const REMINDER_TYPE_FALLBACK = {
   test: 'טסט',
   insurance: 'ביטוח',
+  inspection: 'תסקיר',
   maintenance: 'טיפול',
   safety: 'טיפול',
   document: 'מסמך',

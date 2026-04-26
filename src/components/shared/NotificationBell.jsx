@@ -135,7 +135,7 @@ export default function NotificationBell() {
           // expiry dates the bell renders
           'test_due_date', 'insurance_due_date',
           'pyrotechnics_expiry_date', 'fire_extinguisher_expiry_date',
-          'life_raft_expiry_date',
+          'life_raft_expiry_date', 'inspection_report_expiry_date',
           // mileage-driven reminders (tires, service, "no update" warning)
           'current_km', 'current_engine_hours',
           'last_tire_change_date', 'km_since_tire_change',
@@ -186,6 +186,19 @@ export default function NotificationBell() {
               addNotif(`test-${v.id}`, v.id, 'test',
                 testDays < 0 ? `${testWord} פג תוקף!${vintageLabel}` : `${testWord} בעוד ${testDays} ימים${vintageLabel}`,
                 name, testDays, 'VehicleDetail');
+            }
+          }
+
+          // Inspection report ("תסקיר") — optional periodic safety
+          // certificate. Only shows when the user has filled the date
+          // and it's within the same threshold window the test uses
+          // (no separate setting — same urgency model as טסט).
+          if (v.inspection_report_expiry_date) {
+            const insp = daysTo(v.inspection_report_expiry_date);
+            if (insp !== null && insp <= threshold) {
+              addNotif(`inspect-${v.id}`, v.id, 'inspection',
+                insp < 0 ? 'תסקיר פג תוקף!' : `תסקיר בעוד ${insp} ימים`,
+                name, insp, 'VehicleDetail');
             }
           }
 
@@ -618,7 +631,10 @@ export default function NotificationBell() {
                           }
                           else if (n.vehicleId) {
                             const NOTIF_FIELD_MAP = {
-                              test: 'test_due_date', insurance: 'insurance_due_date', mileage: 'current_km',
+                              test: 'test_due_date',
+                              insurance: 'insurance_due_date',
+                              inspection: 'inspection_report_expiry_date',
+                              mileage: 'current_km',
                             };
                             const SAFETY_FIELD_MAP = {
                               pyro: 'pyrotechnics_expiry_date', ext: 'fire_extinguisher_expiry_date', raft: 'life_raft_expiry_date',

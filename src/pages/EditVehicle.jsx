@@ -110,6 +110,9 @@ export default function EditVehicle() {
     offroad_equipment: v.offroad_equipment || [],
     offroad_usage_type: v.offroad_usage_type || '',
     last_offroad_service_date: v.last_offroad_service_date || '',
+    // Periodic inspection report ("תסקיר") — optional; mainly for
+    // construction equipment but exposed for any non-vessel.
+    inspection_report_expiry_date: v.inspection_report_expiry_date || '',
     // Technical spec (from gov API)
     model_code: v.model_code || '',
     trim_level: v.trim_level || '',
@@ -281,7 +284,8 @@ export default function EditVehicle() {
       'model_code','trim_level','vin','pollution_group','vehicle_class','safety_rating',
       'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
       'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
-      'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
+      'offroad_equipment','offroad_usage_type','last_offroad_service_date',
+      'inspection_report_expiry_date'];
 
     const data = {};
     DB_COLUMNS.forEach(k => { if (form[k] !== undefined && form[k] !== null) data[k] = form[k]; });
@@ -568,6 +572,24 @@ export default function EditVehicle() {
               <DateInput value={form.insurance_due_date} onChange={e => handleChange('insurance_due_date', e.target.value)} />
             </div>
           </div>
+
+          {/* תסקיר — periodic inspection certificate. Hidden for
+              vessels (they have כושר שייט). Optional everywhere else;
+              relevant primarily for construction equipment but exposed
+              for any non-vessel since forklifts/lifts under different
+              top-level categories also legally require it. */}
+          {!vesselMode && (
+            <div data-field="inspection_report_expiry_date" className="rounded-xl p-1 -m-1 transition-all">
+              <Label>תסקיר (אופציונלי)</Label>
+              <DateInput
+                value={form.inspection_report_expiry_date}
+                onChange={e => handleChange('inspection_report_expiry_date', e.target.value)}
+              />
+              <p className="text-[11px] text-gray-500 mt-1">
+                תוקף תסקיר תקינות תקופתי. תקבל/י התראה לפני שהוא פג.
+              </p>
+            </div>
+          )}
 
           {/* ק"מ/שעות + חברת ביטוח - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
