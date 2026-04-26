@@ -406,6 +406,11 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
           });
         }
         queryClient.invalidateQueries({ queryKey: ['cork-notes', vehicle.id] });
+        // Fan out to other shared parties. Server short-circuits when
+        // the vehicle isn't shared, so the round-trip is the cost.
+        const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
+        notifyVehicleChange(vehicle.id, noteData.id ? 'note_updated' : 'note_added',
+          noteData.id ? `עודכן פתק: ${noteData.title || 'פתק'}` : `נוסף פתק: ${noteData.title || 'פתק חדש'}`);
       } catch (e) {
         toast.error('שגיאה בשמירת הפתק');
         console.error(e);
@@ -420,6 +425,8 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
       try {
         await db.cork_notes.delete(noteId);
         queryClient.invalidateQueries({ queryKey: ['cork-notes', vehicle.id] });
+        const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
+        notifyVehicleChange(vehicle.id, 'note_deleted', 'נמחק פתק מלוח הפתקים');
       } catch {
         toast.error('שגיאה במחיקה');
       }

@@ -169,6 +169,8 @@ export default function TasksSection({ vehicle }) {
         const { supabase } = await import('@/lib/supabase');
         await supabase.from('cork_notes').insert(dbTask);
         queryClient.invalidateQueries({ queryKey: ['tasks-v2', vehicle.id] });
+        const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
+        notifyVehicleChange(vehicle.id, 'task_added', `נוספה משימה: ${dbTask.title}`);
       } catch (err) { toast.error('שגיאה: ' + (err?.message || 'נסה שוב')); return; }
     }
     setDialogOpen(false);
@@ -182,6 +184,9 @@ export default function TasksSection({ vehicle }) {
         const { supabase } = await import('@/lib/supabase');
         await supabase.from('cork_notes').update({ is_done: done }).eq('id', id);
         queryClient.invalidateQueries({ queryKey: ['tasks-v2', vehicle.id] });
+        const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
+        notifyVehicleChange(vehicle.id, done ? 'task_completed' : 'task_reopened',
+          done ? 'משימה סומנה כבוצעה' : 'משימה נפתחה מחדש');
       } catch {}
     }
   };

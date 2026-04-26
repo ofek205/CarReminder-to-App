@@ -45,9 +45,14 @@ export default function NotificationBell() {
     const handler = () => setRefreshKey(k => k + 1);
     window.addEventListener('userProfileUpdated', handler);
     window.addEventListener('profileSaved', handler);
+    // Fired by useSharedVehicleRealtime when a new app_notifications
+    // row arrives via Supabase realtime — bumps the bell so the new
+    // share/vehicle-change/etc lights up without a manual refresh.
+    window.addEventListener('cr:notifications-changed', handler);
     return () => {
       window.removeEventListener('userProfileUpdated', handler);
       window.removeEventListener('profileSaved', handler);
+      window.removeEventListener('cr:notifications-changed', handler);
     };
   }, []);
 

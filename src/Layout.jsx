@@ -21,6 +21,7 @@ import { AccessibilityProvider } from "@/components/shared/AccessibilityContext"
 import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
 import useIsAdmin from "@/hooks/useIsAdmin";
+import useSharedVehicleRealtime from "@/hooks/useSharedVehicleRealtime";
 // Lazy-load the 568-line bell + its useEffect-heavy data fetching. It
 // renders only for authenticated users, so deferring it keeps the
 // initial bundle smaller and avoids parsing notification logic for
@@ -399,6 +400,14 @@ function LayoutInner({ children }) {
   const [mileageCheckDone, setMileageCheckDone] = useState(false);
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles } = useAuth();
   const [hasVessel, setHasVessel] = useState(false);
+
+  // Real-time sync between participants of a shared vehicle. The hook
+  // self-gates on `isGuest`/`!user` so it's a no-op for guests; when
+  // mounted by an authenticated user it subscribes to their app
+  // notifications + their vehicle_shares rows and invalidates the
+  // affected query caches the moment a peer makes a change. Without
+  // this, the recipient would only see edits after manual refresh.
+  useSharedVehicleRealtime();
 
   // Side menu stays open across navigation. BottomNav is lifted above the
   // sheet so the user can route between tabs while the drawer is visible.
