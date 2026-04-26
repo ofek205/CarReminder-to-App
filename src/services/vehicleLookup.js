@@ -14,6 +14,15 @@ const HEAVY_RESOURCE_ID = 'cd3acc5c-03c3-4c89-9c54-d40f93c0d790';
 // — which is the closest the platform has to a "next test" date for
 // this category.
 const CME_RESOURCE_ID = '58dc4654-16b1-42ed-8170-98fadec153ea';
+// "כלי רכב שירדו מהכביש ובסטטוס ביטול סופי" — vehicles that were
+// permanently cancelled. ~1.16M records. Same schema as the active
+// private-car registry plus a `bitul_dt` cancellation date. Probed
+// LAST in the lookup chain so a plate that's still active won't
+// hit a stale "off-road" record. When a plate ONLY shows up here,
+// we still return the data so the user can add the vehicle
+// (vintage / keepsake / etc.) — but flag it so the UI can warn
+// before silently filling the form.
+const INACTIVE_RESOURCE_ID = '851ecab1-0622-4dbe-a6c7-f950cf82abf9';
 import { isNative } from '@/lib/capacitor';
 
 // In dev browser, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
@@ -464,9 +473,10 @@ export async function lookupVehicleByPlate(plate) {
   //     CME is even tried. Skipping straight to CME (which uses an
   //     exact-match `filters` on mispar_tzama) avoids that.
   //
-  //   • 7-8 digits → Standard cascade: car → moto → heavy → cme.
-  //     Most users hit this path; CME stays as a final fallback for
-  //     the rare overlap.
+  //   • 7-8 digits → Standard cascade: car → moto → heavy → cme →
+  //     inactive (off-road). The inactive registry is tried LAST so
+  //     a plate that's still active never hits a stale cancelled
+  //     record by accident.
   let records = null;
   let source = null;
   const isShort = clean.length < 7;
@@ -487,6 +497,15 @@ export async function lookupVehicleByPlate(plate) {
     records = await fetchCmeApi(clean);
     if (records) source = 'cme';
   }
+  // Last-resort tier — the off-road / cancelled-status registry.
+  // Only probed for full-length plates because short numbers belong
+  // to the CME namespace (already tried above). Same fulltext q=
+  // mechanic as the active-registry tiers, schema mirrors the
+  // private-car dataset plus `bitul_dt`.
+  if (!records && !isShort) {
+    records = await fetchGovApi(INACTIVE_RESOURCE_ID, clean);
+    if (records) source = 'inactive';
+  }
 
   if (!records) return null;
 
@@ -497,18 +516,32 @@ export async function lookupVehicleByPlate(plate) {
   );
   const record = exact ?? records[0];
 
-  // Pick the matching mapper.
-  const fields = source === 'moto'  ? mapMotoRecord(record)
-              : source === 'heavy' ? mapHeavyRecord(record)
-              : source === 'cme'   ? mapCmeRecord(record)
-              : mapRecord(record);
+  // Pick the matching mapper. The `inactive` (off-road / cancelled)
+  // dataset uses the same private-car schema, so mapRecord is reused;
+  // the cancellation date is appended after.
+  const fields = source === 'moto'     ? mapMotoRecord(record)
+              : source === 'heavy'    ? mapHeavyRecord(record)
+              : source === 'cme'      ? mapCmeRecord(record)
+              : mapRecord(record); // 'car' OR 'inactive'
 
-  // Detailed specs lookup. The דגמי רכב table actually does carry
-  // some heavy-vehicle entries, so we call it for cars AND heavies
-  // when we have the tozeret_cd. Motorcycles already have specs
-  // inline. CME has its own complete record so no second call.
-  // Specs are merged non-destructively — never overwrite a value
-  // the registration record already provided.
+  // Inactive-registry hit → tag the result so AddVehicle can warn the
+  // user before silently populating the form. We still return the data
+  // (vintage / keepsake owners might legitimately want to track an
+  // off-road vehicle) — the warning is informational, not blocking.
+  if (source === 'inactive') {
+    fields._isInactive = true;
+    if (record.bitul_dt) {
+      fields._cancellationDate = safeDate(record.bitul_dt) || null;
+    }
+  }
+
+  // Detailed specs lookup. The דגמי רכב table carries entries for
+  // cars, heavies, and even some inactive/cancelled rows (the model
+  // table is mostly model-not-status keyed), so we call it whenever
+  // tozeret_cd is present. Motorcycles already have specs inline.
+  // CME has its own complete record so no second call. Specs are
+  // merged non-destructively — never overwrite a value the
+  // registration record already provided.
   if (source !== 'moto' && source !== 'cme' && fields._tozeret_cd) {
     const specs = await fetchDetailedSpecs(fields._tozeret_cd, fields._degem_cd, fields.year);
     if (specs) {
@@ -540,7 +573,9 @@ export async function lookupVehicleByPlate(plate) {
     else if (tk === 'M2' || tk === 'M3') detectedType = 'bus';
     else                         detectedType = 'truck';
   } else {
-    // Private-car dataset.
+    // Private-car dataset OR inactive-vehicle dataset (same schema).
+    // The inactive dataset uses sug_rechev_nm instead of sug_degem
+    // for vehicle classification — fall back to it when present.
     const sugDegem = String(record.sug_degem || '').toUpperCase();
     if      (sugDegem === 'K') detectedType = 'truck';
     else if (sugDegem === 'A') detectedType = 'bus';

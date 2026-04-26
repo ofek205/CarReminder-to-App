@@ -528,6 +528,24 @@ export default function AddVehicle() {
         return;
       }
 
+      // Off-road / cancelled vehicle warning. The lookup found the
+      // plate ONLY in the inactive registry — meaning the vehicle was
+      // permanently removed from the road. We still populate the form
+      // (vintage / keepsake owners might legitimately want to track
+      // it) but surface a persistent toast so the user knows what they
+      // just imported. Toast.warning auto-dismisses after the default
+      // window; the duration is bumped so it survives the 1-2 seconds
+      // it takes the user to scan the autofilled fields.
+      if (fields._isInactive) {
+        const dateLine = fields._cancellationDate
+          ? ` (תאריך ביטול: ${fields._cancellationDate})`
+          : '';
+        toast.warning(
+          `שים לב: רכב זה ירד מהכביש ובסטטוס ביטול סופי${dateLine}. הפרטים מולאו לצורך מעקב, אך הרכב לא רשום פעיל.`,
+          { duration: 8000 }
+        );
+      }
+
       // No mismatch. apply fields directly
       applyLookupToForm(fields, buildUpdatesFromFields(fields));
     } catch (_) {
