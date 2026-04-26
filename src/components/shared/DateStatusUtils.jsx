@@ -41,7 +41,29 @@ export function normalizePlate(plate) {
 const OFFROAD_TYPES = new Set([
   'כלי שטח', "ג'יפ שטח", 'טרקטורון', 'אופנוע שטח', 'RZR', 'מיול', 'באגי חולות',
 ]);
-const OFFROAD_HOURS_TYPES = new Set(['RZR', 'מיול']);
+// Always-hours types: read engine hours, never km. Includes the
+// off-road toys that physically use a Hobbs meter (RZR / מיול) AND the
+// full כלי צמ"ה family (forklifts, excavators, loaders, rollers,
+// cranes, drillers, telehandlers) — heavy equipment is hour-metered
+// even on wheeled chassis. Tractors are agricultural equipment that
+// also use engine hours operationally.
+const OFFROAD_HOURS_TYPES = new Set([
+  'RZR', 'מיול',
+  // CME (כלי צמ"ה) — every subtype from CME_SUBCATEGORIES
+  'מחפר', 'מחפר זחלי', 'מחפר אופני', 'מיני מחפר', 'מחפרון',
+  'דחפור', 'דחפור זחלי',
+  'שופל', 'מעמיס אופני', 'מעמיס זחלי', 'מיני מעמיס',
+  'בובקט',
+  'טליהנדלר', 'מלגזה', 'מלגזת שטח',
+  'מפלסת',
+  'מכבש', 'מכבש אספלט', 'מכבש קרקע',
+  'מערבל בטון', 'משאבת בטון',
+  'מנוף', 'מנוף נייד', 'מנוף זחלי',
+  'מקדח קרקע', 'ציוד קידוח',
+  'רכב צמ"ה',
+  // Tractors & similar agri equipment
+  'טרקטור', 'מחרשה',
+]);
 
 /** Returns true if this vehicle type is an off-road vehicle. */
 export function isOffroad(vehicleType) {

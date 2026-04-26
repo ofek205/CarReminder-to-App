@@ -6,7 +6,7 @@ import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
-import { Plus, Car, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, AlertCircle, ArrowUpDown, Search, X } from "lucide-react";
+import { Plus, Car, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, Mountain, AlertCircle, ArrowUpDown, Search, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -17,6 +17,7 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { useAuth } from "../components/shared/GuestContext";
 import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
+import { usesHours, usesKm } from "../components/shared/DateStatusUtils";
 import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VESSEL_ISSUES, DEMO_DOCUMENTS, DEMO_VESSEL_DOCUMENTS } from "../components/shared/demoVehicleData";
 import { format, parseISO } from 'date-fns';
 import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
@@ -29,7 +30,10 @@ import { Share2 } from 'lucide-react';
 // the dialog + its 9 RPC bindings into the dashboard's first paint.
 const ShareVehicleDialog = React.lazy(() => import('@/components/sharing/ShareVehicleDialog'));
 
-const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
+// Icon per high-level category. cme uses Wrench (mirrors VehicleTypeSelector
+// + Vehicles.jsx), offroad uses Mountain, special falls back to Car. Anything
+// missing here ends up with Car too — defensive fallback.
+const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car, cme: Wrench, offroad: Mountain };
 function getVehicleIcon(vt, nn, mfr) { return ICON_MAP[getVehicleCategory(vt, nn, mfr)] || Car; }
 
 //  Helper: format date nicely 
@@ -606,6 +610,13 @@ function VehicleRow({ vehicle }) {
   if (vehicle.year) subtitleParts.push(vehicle.year);
   const subtitle = subtitleParts.join(' · ');
 
+  // Hours vs km — usesHours covers vessels, RZR/מיול AND every CME
+  // subtype (forklifts, excavators, rollers, tractors). Without this
+  // a Hyster forklift was flaring "חסר: קילומטראז'" because the only
+  // hours-mode branch was isVessel.
+  const isHoursVehicle = usesHours(vehicle);
+  const isKmVehicle    = usesKm(vehicle);
+
   // Missing fields. reduced list: only the fields that matter for reminders.
   // Cosmetic gaps (photo / fuel type / insurance company) are no longer flagged
   // here because every card lacking a photo was flaring the warning banner and
@@ -616,8 +627,8 @@ function VehicleRow({ vehicle }) {
   if (!vehicle.insurance_due_date) missingFields.push(isVessel ? 'ביטוח ימי' : 'ביטוח');
   if (!vehicle.license_plate) missingFields.push('מספר רישוי');
   if (!vehicle.manufacturer) missingFields.push('יצרן');
-  if (!isVessel && !vehicle.current_km) missingFields.push('קילומטראז\'');
-  if (isVessel && !vehicle.current_engine_hours) missingFields.push('שעות מנוע');
+  if (isKmVehicle    && !vehicle.current_km)            missingFields.push("קילומטראז'");
+  if (isHoursVehicle && !vehicle.current_engine_hours)  missingFields.push('שעות מנוע');
   const hasMissing = missingFields.length > 0 && !vehicle._isDemo;
 
   // Status badges
@@ -664,7 +675,7 @@ function VehicleRow({ vehicle }) {
           <h3 className="font-extrabold text-base truncate" style={{ color: T.text }}>{name}</h3>
           <p className="text-sm mt-0.5 truncate font-medium" style={{ color: T.muted }}>{subtitle}</p>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            {isVessel ? (
+            {isHoursVehicle ? (
               vehicle.current_engine_hours && (
                 <p className="text-xs" style={{ color: T.muted }}>
                   {Number(vehicle.current_engine_hours).toLocaleString()} שעות מנוע
