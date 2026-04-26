@@ -480,7 +480,17 @@ export default function AdminDashboard() {
       setReviews(revs    || []);
       setDocuments(docs  || []);
 
-      const ana = await db.analytics.list().catch(() => []);
+      // Cap analytics fetch — the table can grow into 10K+ rows in
+      // mature deployments. The aggregations below only need the most
+      // recent slice (we group by date/event); 5K rows ≈ months of
+      // events for a small project. If the admin needs deeper history,
+      // export from Supabase directly.
+      // Order by `date` (not created_at): analytics rows are upserted
+      // — the existing row's `count` is incremented in place, so
+      // `created_at` is the FIRST-seen timestamp and goes stale fast.
+      // Ordering by `date` matches what every aggregation below does
+      // (group by r.date) and keeps "today's bucket" in the top slice.
+      const ana = await db.analytics.list({ limit: 5000, order: { column: 'date', ascending: false } }).catch(() => []);
       setAnalyticsData(ana || []);
       setLastRefreshed(new Date());
     } catch {
@@ -493,14 +503,19 @@ export default function AdminDashboard() {
   // Initial + explicit-admin-change fetch (full loading state).
   useEffect(() => { refetchData({ silent: false }); }, [refetchData]);
 
-  // Background refresh triggers. window focus + 60s interval. Both use
-  // silent mode so widgets don't flash; only the "updated N min ago"
-  // timestamp changes.
+  // Background refresh triggers. window focus + 5-minute interval.
+  // Both use silent mode so widgets don't flash; only the
+  // "updated N min ago" timestamp changes.
+  // Egress note: was 60s, but the full 6-entity fetch is ~50-150 KB
+  // each cycle (3-9 MB/hour for an idle admin tab) — and the data
+  // doesn't change minute-to-minute on a small site. Window focus
+  // still pulls fresh data, and the manual refresh button is right
+  // there if an admin needs sub-5-minute precision.
   useEffect(() => {
     if (isAdmin !== true) return;
     const onFocus = () => refetchData({ silent: true });
     window.addEventListener('focus', onFocus);
-    const timer = setInterval(onFocus, 60_000);
+    const timer = setInterval(onFocus, 5 * 60_000);
     return () => {
       window.removeEventListener('focus', onFocus);
       clearInterval(timer);

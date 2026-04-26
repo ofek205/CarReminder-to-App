@@ -862,7 +862,14 @@ export default function Dashboard() {
       return data || [];
     },
     enabled: !!user?.id && !!accountId,
-    staleTime: 2 * 60 * 1000,
+    // Bumped from 2 min → 10 min. Real changes invalidate the cache
+    // immediately via useSharedVehicleRealtime (it listens on
+    // vehicle_shares + app_notifications and invalidates 'my-vehicles'
+    // on every event), so the staleTime only governs how often the
+    // cache is treated as stale on tab refocus / background refetches.
+    // 10 min cuts background refetches by 5× while real-time freshness
+    // stays exact for actual edits.
+    staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: true,
   });
 

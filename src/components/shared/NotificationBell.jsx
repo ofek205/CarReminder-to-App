@@ -42,7 +42,19 @@ export default function NotificationBell() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handler = () => setRefreshKey(k => k + 1);
+    // Debounced refetch trigger. Three different events feed this
+    // pipeline (profile saves, custom dispatches, realtime
+    // notifications) and they often fire back-to-back — a profile
+    // save dispatches both userProfileUpdated AND profileSaved, and a
+    // realtime burst can deliver several share-changed events in one
+    // tick. Without this, the bell's full 4-table fetch cascade
+    // (~30-50KB) ran 3-5× in a single second. 300ms collapses the
+    // burst into one refetch while still feeling instant.
+    let timer = null;
+    const handler = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setRefreshKey(k => k + 1), 300);
+    };
     window.addEventListener('userProfileUpdated', handler);
     window.addEventListener('profileSaved', handler);
     // Fired by useSharedVehicleRealtime when a new app_notifications
@@ -50,6 +62,7 @@ export default function NotificationBell() {
     // share/vehicle-change/etc lights up without a manual refresh.
     window.addEventListener('cr:notifications-changed', handler);
     return () => {
+      if (timer) clearTimeout(timer);
       window.removeEventListener('userProfileUpdated', handler);
       window.removeEventListener('profileSaved', handler);
       window.removeEventListener('cr:notifications-changed', handler);
@@ -94,7 +107,29 @@ export default function NotificationBell() {
         });
 
         if (membersResult.length === 0) return;
-        const vehicles = await db.vehicles.filter({ account_id: membersResult[0].account_id });
+        // Bell only reads dates and labels off each vehicle — never
+        // photos, notes, or any base64 column. Restricting to the
+        // exact 11 columns used below shaves the per-vehicle payload
+        // from ~50-200 KB (because of vehicle_photo) to a few hundred
+        // bytes. Multiplied across an account's vehicles + every
+        // refresh, this is the bell's biggest single egress win.
+        const BELL_COLS = [
+          'id', 'nickname', 'manufacturer', 'year', 'vehicle_type',
+          'is_vintage',
+          // expiry dates the bell renders
+          'test_due_date', 'insurance_due_date',
+          'pyrotechnics_expiry_date', 'fire_extinguisher_expiry_date',
+          'life_raft_expiry_date',
+          // mileage-driven reminders (tires, service, "no update" warning)
+          'current_km', 'current_engine_hours',
+          'last_tire_change_date', 'km_since_tire_change',
+          'km_baseline', 'last_shipyard_date',
+          'km_update_date', 'engine_hours_update_date',
+        ].join(',');
+        const vehicles = await db.vehicles.filter(
+          { account_id: membersResult[0].account_id },
+          { select: BELL_COLS },
+        );
         const threshold = (settingsResult.length > 0 && settingsResult[0].remind_test_days_before) || 14;
 
         let mileageDates = {};
