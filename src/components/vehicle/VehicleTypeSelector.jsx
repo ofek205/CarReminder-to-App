@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronsUpDown, Check, Car, Truck, Ship, Star, Bike, Mountain } from "lucide-react";
+import { ChevronsUpDown, Check, Car, Truck, Ship, Star, Bike, Mountain, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getTheme } from '@/lib/designTokens';
 
@@ -21,17 +21,66 @@ export const MOTO_SUBCATEGORIES = [
   { label: 'אופנוע שטח',  dbName: 'אופנוע שטח',   usageMetric: 'קילומטרים' },
 ];
 
-//  Sub-categories for "מיוחדים" (ללא כלי שטח - יש להם קטגוריה נפרדת) 
+//  Sub-categories for "מיוחדים"
+//  מלגזה ורכב צמ"ה הועברו לקטגוריה החדשה "כלי צמ"ה". טרקטור ומחרשה
+//  נשארים כאן כי הם בעיקר חקלאות (לא ציוד מכני הנדסי).
 export const SPECIAL_SUBCATEGORIES = [
   { label: 'רכב אספנות',                   dbName: 'רכב אספנות',                    usageMetric: 'קילומטרים' },
   { label: 'טרקטור',                        dbName: 'טרקטור',                         usageMetric: 'שעות מנוע'  },
   { label: 'רכבים תפעוליים',               dbName: 'רכב תפעולי',                    usageMetric: 'קילומטרים' },
   { label: 'נגררים, גרורים ונתמכים',       dbName: 'נגרר',                           usageMetric: 'ללא'        },
-  { label: 'מלגזה',                         dbName: 'מלגזה',                          usageMetric: 'שעות מנוע'  },
-  { label: 'רכב צמ"ה',                      dbName: 'רכב צמ"ה',                       usageMetric: 'שעות מנוע'  },
   { label: 'קראוונים ממונעים ונגררים',     dbName: 'קרוואן',                         usageMetric: 'קילומטרים' },
   { label: 'מחרשה',                         dbName: 'מחרשה',                          usageMetric: 'שעות מנוע'  },
   { label: 'אוטובוס ומיניבוס',             dbName: 'אוטובוס',                        usageMetric: 'קילומטרים' },
+];
+
+//  Sub-categories for "כלי צמ"ה" (Construction Machinery)
+//  26 subtypes grouped by family (excavators / bulldozers / loaders /
+//  forklifts / rollers / concrete / cranes / drilling). Labels are
+//  pure types — the parent category name "כלי צמ"ה" is already shown
+//  in the breadcrumb above the chips, so prefixing every chip with
+//  "צמ"ה - " was redundant. label === dbName here keeps the chips
+//  scannable and matches what the user sees later on the vehicle
+//  detail card.
+//  All items meter by 'שעות מנוע' — heavy equipment is hour-based
+//  even on wheeled chassis (loaders, telehandlers, mobile cranes).
+export const CME_SUBCATEGORIES = [
+  // Excavators
+  { label: 'מחפר',          dbName: 'מחפר',          usageMetric: 'שעות מנוע' },
+  { label: 'מחפר זחלי',     dbName: 'מחפר זחלי',     usageMetric: 'שעות מנוע' },
+  { label: 'מחפר אופני',    dbName: 'מחפר אופני',    usageMetric: 'שעות מנוע' },
+  { label: 'מיני מחפר',     dbName: 'מיני מחפר',     usageMetric: 'שעות מנוע' },
+  { label: 'מחפרון',         dbName: 'מחפרון',         usageMetric: 'שעות מנוע' },
+  // Bulldozers
+  { label: 'דחפור',         dbName: 'דחפור',         usageMetric: 'שעות מנוע' },
+  { label: 'דחפור זחלי',    dbName: 'דחפור זחלי',    usageMetric: 'שעות מנוע' },
+  // Loaders
+  { label: 'שופל',          dbName: 'שופל',          usageMetric: 'שעות מנוע' },
+  { label: 'מעמיס אופני',   dbName: 'מעמיס אופני',   usageMetric: 'שעות מנוע' },
+  { label: 'מעמיס זחלי',    dbName: 'מעמיס זחלי',    usageMetric: 'שעות מנוע' },
+  { label: 'מיני מעמיס',    dbName: 'מיני מעמיס',    usageMetric: 'שעות מנוע' },
+  // Skid steer
+  { label: 'בובקט',         dbName: 'בובקט',         usageMetric: 'שעות מנוע' },
+  // Telehandlers / forklifts
+  { label: 'טליהנדלר',      dbName: 'טליהנדלר',      usageMetric: 'שעות מנוע' },
+  { label: 'מלגזה',         dbName: 'מלגזה',         usageMetric: 'שעות מנוע' },
+  { label: 'מלגזת שטח',     dbName: 'מלגזת שטח',     usageMetric: 'שעות מנוע' },
+  // Graders
+  { label: 'מפלסת',         dbName: 'מפלסת',         usageMetric: 'שעות מנוע' },
+  // Compactors / rollers
+  { label: 'מכבש',          dbName: 'מכבש',          usageMetric: 'שעות מנוע' },
+  { label: 'מכבש אספלט',    dbName: 'מכבש אספלט',    usageMetric: 'שעות מנוע' },
+  { label: 'מכבש קרקע',     dbName: 'מכבש קרקע',     usageMetric: 'שעות מנוע' },
+  // Concrete
+  { label: 'מערבל בטון',    dbName: 'מערבל בטון',    usageMetric: 'שעות מנוע' },
+  { label: 'משאבת בטון',    dbName: 'משאבת בטון',    usageMetric: 'שעות מנוע' },
+  // Cranes
+  { label: 'מנוף',          dbName: 'מנוף',          usageMetric: 'שעות מנוע' },
+  { label: 'מנוף נייד',     dbName: 'מנוף נייד',     usageMetric: 'שעות מנוע' },
+  { label: 'מנוף זחלי',     dbName: 'מנוף זחלי',     usageMetric: 'שעות מנוע' },
+  // Drilling
+  { label: 'מקדח קרקע',     dbName: 'מקדח קרקע',     usageMetric: 'שעות מנוע' },
+  { label: 'ציוד קידוח',    dbName: 'ציוד קידוח',    usageMetric: 'שעות מנוע' },
 ];
 
 //  Sub-categories for "כלי שטח" (כולל אופנוע שטח וטרקטורון) 
@@ -77,6 +126,45 @@ export const MANUFACTURERS_BY_SUBCATEGORY = {
   'טרקטורון':     ['Can-Am', 'Yamaha', 'Honda', 'Polaris', 'Kawasaki', 'Suzuki', 'CFMOTO', 'Arctic Cat', 'Linhai'],
   'טרקטור':       ['John Deere', 'New Holland', 'Case IH', 'Massey Ferguson', 'Kubota', 'Fendt', 'Deutz-Fahr', 'Claas', 'Valtra', 'Mahindra', 'Landini'],
   'מלגזה':        ['Toyota', 'Linde', 'Jungheinrich', 'Crown', 'Hyster', 'Yale', 'Komatsu', 'Mitsubishi', 'Nissan', 'Clark'],
+  // ── כלי צמ"ה manufacturers (per subtype) ────────────────────────
+  // Sourced from Israeli rental-fleet roster + global market leaders
+  // for each segment. Lists are intentionally short (8-12) so the
+  // dropdown stays scannable; there's always a free-text fallback.
+  // Excavators
+  'מחפר':         ['Caterpillar', 'Komatsu', 'Hitachi', 'Volvo', 'Hyundai', 'Doosan', 'JCB', 'Liebherr', 'Case', 'Kobelco'],
+  'מחפר זחלי':    ['Caterpillar', 'Komatsu', 'Hitachi', 'Volvo', 'Hyundai', 'Doosan', 'Liebherr', 'Kobelco', 'Sany', 'XCMG'],
+  'מחפר אופני':   ['Caterpillar', 'Volvo', 'Hitachi', 'Hyundai', 'Atlas', 'Liebherr', 'JCB', 'Case', 'Doosan', 'Mecalac'],
+  'מיני מחפר':    ['Yanmar', 'Bobcat', 'Caterpillar', 'Komatsu', 'Kubota', 'Takeuchi', 'JCB', 'Volvo', 'Hitachi', 'Wacker Neuson'],
+  'מחפרון':        ['JCB', 'Caterpillar', 'Case', 'New Holland', 'Komatsu', 'Volvo', 'Mecalac', 'Hidromek'],
+  // Bulldozers
+  'דחפור':         ['Caterpillar', 'Komatsu', 'John Deere', 'Case', 'Liebherr', 'Dressta', 'Shantui', 'XCMG'],
+  'דחפור זחלי':    ['Caterpillar', 'Komatsu', 'John Deere', 'Case', 'Liebherr', 'Dressta', 'Shantui'],
+  // Loaders
+  'שופל':          ['Caterpillar', 'Volvo', 'Komatsu', 'Case', 'JCB', 'Hyundai', 'Doosan', 'Liebherr', 'New Holland', 'XCMG'],
+  'מעמיס אופני':   ['Caterpillar', 'Volvo', 'Komatsu', 'Case', 'JCB', 'Hyundai', 'Doosan', 'Liebherr', 'New Holland'],
+  'מעמיס זחלי':    ['Caterpillar', 'Komatsu', 'Liebherr', 'John Deere', 'Case'],
+  'מיני מעמיס':    ['Bobcat', 'Caterpillar', 'Case', 'Kubota', 'JCB', 'Volvo', 'Wacker Neuson', 'Takeuchi', 'New Holland'],
+  // Skid steer
+  'בובקט':         ['Bobcat', 'Caterpillar', 'Case', 'Kubota', 'JCB', 'Volvo', 'Wacker Neuson', 'New Holland'],
+  // Telehandlers / forklifts
+  'טליהנדלר':      ['JCB', 'Manitou', 'Bobcat', 'Genie', 'Caterpillar', 'Merlo', 'Magni', 'Haulotte', 'Dieci'],
+  'מלגזת שטח':     ['JCB', 'Manitou', 'Caterpillar', 'Bobcat', 'Toyota', 'Hyster'],
+  // Graders
+  'מפלסת':         ['Caterpillar', 'Komatsu', 'John Deere', 'Volvo', 'XCMG', 'Sany', 'New Holland', 'Case'],
+  // Compactors / rollers
+  'מכבש':          ['Bomag', 'Hamm', 'Dynapac', 'Caterpillar', 'Volvo', 'Wirtgen', 'JCB', 'Ammann', 'Wacker Neuson'],
+  'מכבש אספלט':    ['Bomag', 'Hamm', 'Dynapac', 'Caterpillar', 'Volvo', 'Wirtgen', 'Ammann'],
+  'מכבש קרקע':     ['Bomag', 'Hamm', 'Dynapac', 'Caterpillar', 'Volvo', 'Ammann', 'Wacker Neuson', 'Sakai'],
+  // Concrete
+  'מערבל בטון':    ['Mercedes-Benz', 'Volvo', 'Iveco', 'MAN', 'Scania', 'Renault', 'DAF', 'Putzmeister', 'Liebherr'],
+  'משאבת בטון':    ['Putzmeister', 'Schwing', 'Sany', 'Zoomlion', 'CIFA', 'Liebherr', 'KCP'],
+  // Cranes
+  'מנוף':          ['Liebherr', 'Tadano', 'Grove', 'Manitowoc', 'Terex', 'Demag', 'Sany', 'XCMG', 'Kobelco', 'Link-Belt'],
+  'מנוף נייד':     ['Liebherr', 'Tadano', 'Grove', 'Demag', 'Terex', 'Sany', 'XCMG', 'Kato'],
+  'מנוף זחלי':     ['Liebherr', 'Manitowoc', 'Kobelco', 'Sany', 'XCMG', 'Hitachi', 'Terex', 'Link-Belt'],
+  // Drilling
+  'מקדח קרקע':     ['Soilmec', 'Bauer', 'Casagrande', 'Liebherr', 'IMT', 'Atlas Copco', 'Sandvik'],
+  'ציוד קידוח':    ['Soilmec', 'Bauer', 'Casagrande', 'Liebherr', 'IMT', 'Atlas Copco', 'Sandvik', 'Epiroc'],
   'אוטובוס':      ['Volvo', 'Mercedes-Benz', 'MAN', 'Scania', 'Iveco', 'Isuzu', 'Temsa', 'Otokar', 'Yutong', 'King Long'],
   'קרוואן':       ['Knaus', 'Hobby', 'Adria', 'Airstream', 'Bürstner', 'Weinsberg', 'Bailey', 'Trigano', 'Caravelair'],
   'רכב אספנות':   ['Ferrari', 'Porsche', 'Jaguar', 'Ford', 'Chevrolet', 'Mercedes-Benz', 'Aston Martin', 'Lamborghini', 'Alfa Romeo', 'BMW', 'Triumph', 'MG'],
@@ -145,7 +233,27 @@ export const VEHICLE_CATEGORIES = [
     keywords: ['מיוחד', 'טרקטור', 'קלנוע', 'אחר'],
     dbName: 'רכב מיוחד',
     usageMetric: 'קילומטרים',
-    methods: ['scan', 'manual'],
+    // 'plate' added once the heavy-vehicle gov.il API was wired in
+    // (resource cd3acc5c-…). Trailers (גרור), buses (אוטובוס), tractors
+    // (טרקטור), forklifts (מלגזה) and motor caravans all carry standard
+    // IL plates and are now queryable via lookupVehicleByPlate's heavy
+    // tier. If a particular subtype isn't in the registry the lookup
+    // simply returns null and the user falls through to manual entry —
+    // identical to the כלי שטח flow.
+    methods: ['plate', 'scan', 'manual'],
+    hasSubcategories: true,
+  },
+  {
+    label: 'כלי צמ"ה',
+    icon: Wrench,
+    keywords: ['צמ"ה', 'מלגזה', 'מחפר', 'מכבש', 'יעה', 'טלסקופי', 'הייסטר', 'בולדוזר', 'ציוד מכני הנדסי'],
+    dbName: 'רכב צמ"ה',
+    usageMetric: 'שעות מנוע',
+    // Plate lookup tries the heavy gov.il dataset first; some
+    // forklifts/loaders carry standard IL plates. Off-registry
+    // machines (yard-only equipment) fall through to manual entry
+    // — same pattern as the מיוחדים tier.
+    methods: ['plate', 'scan', 'manual'],
     hasSubcategories: true,
   },
 ];

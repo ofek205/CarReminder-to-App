@@ -1,6 +1,19 @@
-const RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';           // רכב 4 גלגלים
+const RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';           // רכב 4 גלגלים (פרטי / מסחרי קל)
 const MOTO_RESOURCE_ID = 'bf9df4e2-d90d-4c0a-a400-19e15af8e95f';   // אופנועים + דו גלגליים
 const SPECS_RESOURCE_ID = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';  // מאגר דגמי רכב. מפרט טכני
+// "כלי רכב מעל 3 וחצי טון וכלי רכב חסרי קוד דגם" — heavy vehicles
+// (N2/N3 trucks, O1-O4 trailers, some buses) which the private-car
+// dataset deliberately excludes. Same data.gov.il datastore_search
+// endpoint, different schema: no tokef_dt (test expiry), no misgeret,
+// has tkina_EU (EU class) + kvutzat_sug_rechev (Hebrew group label).
+const HEAVY_RESOURCE_ID = 'cd3acc5c-03c3-4c89-9c54-d40f93c0d790';
+// "כלי צמ"ה" (construction machinery) registry — forklifts, excavators,
+// loaders, rollers etc. Unique schema: plate field is `mispar_tzama`
+// (NOT mispar_rechev), often only 4-7 digits, and it carries a real
+// `tokef_date` we can use to auto-fill the inspection report expiry
+// — which is the closest the platform has to a "next test" date for
+// this category.
+const CME_RESOURCE_ID = '58dc4654-16b1-42ed-8170-98fadec153ea';
 import { isNative } from '@/lib/capacitor';
 
 // In dev browser, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
@@ -9,16 +22,22 @@ const API_BASE = (import.meta.env.DEV && !isNative)
   ? '/gov-api/api/3/action/datastore_search'
   : 'https://data.gov.il/api/3/action/datastore_search';
 
-//  Input validation 
-/** Israeli plate: 7-8 digits, optionally separated by dashes */
-const PLATE_REGEX = /^[\d\-]{7,11}$/;
+//  Input validation
+/**
+ * Israeli plates are 7-8 digits (optionally dash-separated). Construction
+ * machinery (כלי צמ"ה) plates use a separate registry with shorter
+ * numbers — sometimes as few as 4 digits. We accept 4-8 net digits so
+ * both flows pass the same validator; the CME-tier API call only fires
+ * when the regular 7-8-digit lookups all miss.
+ */
+const PLATE_REGEX = /^[\d\-]{4,11}$/;
 
 function validatePlateInput(plate) {
   if (typeof plate !== 'string') throw new Error('invalid_input');
   const stripped = plate.replace(/[\s]/g, '');
   if (!PLATE_REGEX.test(stripped)) throw new Error('invalid_plate_format');
   const digits = stripped.replace(/\D/g, '');
-  if (digits.length < 7 || digits.length > 8) throw new Error('invalid_plate_length');
+  if (digits.length < 4 || digits.length > 8) throw new Error('invalid_plate_length');
   return digits;
 }
 
@@ -158,6 +177,185 @@ function mapMotoRecord(r) {
 }
 
 /**
+ * Map a raw heavy-vehicle record (trucks, trailers, buses >3.5t) to
+ * sanitized form fields. Same datastore_search endpoint, different
+ * schema than the private-car API.
+ *
+ * Notable absences:
+ *   - tokef_dt (test/license expiry) — heavy vehicles run on a
+ *     different test cadence (typically every 6 months) and the
+ *     dataset doesn't carry it. User must enter test_due_date by hand.
+ *   - misgeret (VIN as letters) — heavy uses mispar_shilda (digits).
+ *   - safety_rating, pollution_group — not in the heavy dataset.
+ *
+ * tkina_EU (EU classification) drives type detection:
+ *   N1 = light goods ≤3.5t (rare in this dataset)
+ *   N2 = medium goods 3.5-12t   →  truck
+ *   N3 = heavy goods >12t       →  truck
+ *   O1-O4 = trailers            →  trailer
+ *   M2/M3 = bus 9+/heavy        →  bus
+ */
+function mapHeavyRecord(r) {
+  const fields = {};
+
+  if (r.mispar_rechev) fields.license_plate = formatPlate(r.mispar_rechev);
+  if (r.tozeret_nm)    fields.manufacturer  = safeStr(r.tozeret_nm, 60);
+  if (r.degem_nm)      fields.model         = safeStr(r.degem_nm, 60);
+  if (r.shnat_yitzur)  fields.year          = safeYear(r.shnat_yitzur);
+  if (r.sug_delek_nm)  fields.fuel_type     = safeStr(r.sug_delek_nm, 40);
+  if (r.tozeret_eretz_nm) fields.country_of_origin = safeStr(r.tozeret_eretz_nm, 40);
+  if (r.moed_aliya_lakvish) fields.first_registration_date = safeDate(r.moed_aliya_lakvish);
+
+  // Tires — same field names as private cars, kept inline.
+  if (r.zmig_kidmi) fields.front_tire = safeStr(r.zmig_kidmi, 40);
+  if (r.zmig_ahori) fields.rear_tire  = safeStr(r.zmig_ahori, 40);
+
+  // Engine
+  if (r.degem_manoa)  fields.engine_model = safeStr(r.degem_manoa, 60);
+  if (r.mispar_manoa) fields.engine_number = safeStr(String(r.mispar_manoa), 40);
+  if (r.nefach_manoa && Number(r.nefach_manoa) > 0) {
+    fields.engine_cc = safeNum(r.nefach_manoa) + ' סמ"ק';
+  }
+
+  // Drivetrain (4X2, 4X4, 6X2, 6X4, 8X4 …) — characteristic of heavies
+  if (r.hanaa_nm && r.hanaa_nm !== 'לא ידוע קוד') {
+    fields.drivetrain = safeStr(r.hanaa_nm, 30);
+  }
+
+  // Weights — heavy-specific richness
+  if (r.mishkal_kolel) fields.total_weight = safeNum(r.mishkal_kolel) + ' ק"ג';
+  if (r.mishkal_azmi)  fields.empty_weight = safeNum(r.mishkal_azmi) + ' ק"ג';
+  if (r.mishkal_mitan_harama) fields.payload_capacity = safeNum(r.mishkal_mitan_harama) + ' ק"ג';
+
+  // Seats — driver-side seats are reported separately on heavies
+  if (r.mispar_mekomot)              fields.seats = safeNum(r.mispar_mekomot);
+  else if (r.mispar_mekomot_leyd_nahag) fields.seats = safeNum(r.mispar_mekomot_leyd_nahag);
+
+  // VIN-equivalent
+  if (r.mispar_shilda) fields.vin = safeStr(String(r.mispar_shilda), 30);
+
+  // Tow hitch text. The heavy dataset writes "יש וו גרירה" / "אין"
+  // verbatim; surface as a yes/no tow hitch flag for the form.
+  if (r.grira_nm && r.grira_nm.includes('יש')) {
+    fields.has_tow_hitch = 'כן';
+  }
+
+  // Vehicle class — prefer the Hebrew group label when present
+  // (it's already user-friendly: "משאית" / "גרור" / "אוטובוס"),
+  // otherwise fall back to mapping the EU class.
+  if (r.kvutzat_sug_rechev) {
+    fields.vehicle_class = safeStr(r.kvutzat_sug_rechev, 30);
+  } else if (r.tkina_EU) {
+    const tk = String(r.tkina_EU).toUpperCase();
+    if (tk.startsWith('N')) fields.vehicle_class = 'משאית';
+    else if (tk.startsWith('O')) fields.vehicle_class = 'גרור';
+    else if (tk.startsWith('M')) fields.vehicle_class = 'אוטובוס';
+  }
+  if (r.tkina_EU) fields.eu_class = safeStr(String(r.tkina_EU).toUpperCase(), 8);
+
+  // Save tozeret_cd for the optional specs lookup
+  if (r.tozeret_cd) fields._tozeret_cd = String(r.tozeret_cd);
+
+  return fields;
+}
+
+/**
+ * Map a raw construction-machinery (כלי צמ"ה) record to sanitized form
+ * fields. The CME registry is a completely separate dataset from the
+ * road-vehicle ones:
+ *
+ *   - Plate field is `mispar_tzama` (not mispar_rechev), and the
+ *     numbering is its own namespace — frequently 4-7 digits.
+ *   - Manufacturer is in English (`shilda_totzar_en_nm`) without a
+ *     Hebrew counterpart, so we accept it as-is.
+ *   - Critically, the dataset carries a real `tokef_date` (license/
+ *     inspection validity). Maps cleanly to inspection_report_expiry_date,
+ *     which is exactly the field the user asked for in the form.
+ *   - `kosher_harama_ton` (lifting capacity, tons) is the headline spec
+ *     for forklifts/cranes/telehandlers — surface as a top-level field.
+ */
+function mapCmeRecord(r) {
+  const fields = {};
+
+  if (r.mispar_tzama)         fields.license_plate = safeStr(String(r.mispar_tzama), 12);
+  if (r.shilda_totzar_en_nm)  fields.manufacturer  = safeStr(r.shilda_totzar_en_nm, 60);
+  if (r.degem_nm)             fields.model         = safeStr(r.degem_nm, 60);
+  if (r.shnat_yitzur)         fields.year          = safeYear(r.shnat_yitzur);
+  if (r.mispar_shilda)        fields.vin           = safeStr(String(r.mispar_shilda), 30);
+
+  // Equipment subtype — "מלגזה מנוע שריפה", "מחפר זחל", etc. Use as
+  // vehicle_class so it surfaces in the technical-spec section.
+  if (r.sug_tzama_nm)         fields.vehicle_class = safeStr(r.sug_tzama_nm, 60);
+
+  // Propulsion / fuel
+  if (r.hanaa_nm)             fields.fuel_type     = safeStr(r.hanaa_nm, 30);
+
+  // Horsepower (always reported in HP)
+  if (r.koah_sus && Number(r.koah_sus) > 0) {
+    fields.horsepower = safeNum(r.koah_sus) + ' כ"ס';
+  }
+
+  // Weights — the CME registry uses tons, convert to kg for parity
+  // with the rest of the app's UI which formats weights with ק"ג.
+  if (r.mishkal_kolel_ton && Number(r.mishkal_kolel_ton) > 0) {
+    fields.total_weight = String(Math.round(Number(r.mishkal_kolel_ton) * 1000)) + ' ק"ג';
+  } else if (r.mishkal_ton && Number(r.mishkal_ton) > 0) {
+    fields.total_weight = String(Math.round(Number(r.mishkal_ton) * 1000)) + ' ק"ג';
+  }
+
+  // Lifting capacity — stored as a tow_capacity-style string so the
+  // existing form/UI treats it consistently. Heavy-equipment lift
+  // capacity is the headline spec for forklifts/telehandlers/cranes,
+  // and surfacing it in tow_capacity keeps it visible in the technical
+  // specs section without adding a new DB column.
+  if (r.kosher_harama_ton && Number(r.kosher_harama_ton) > 0) {
+    fields.tow_capacity = String(Math.round(Number(r.kosher_harama_ton) * 1000)) + ' ק"ג (כושר הרמה)';
+  }
+
+  // Registration date — the registry stores it as "YYYY-MM-DD HH:MM:SS"
+  if (r.rishum_date) {
+    fields.first_registration_date = safeDate(r.rishum_date);
+  }
+
+  // tokef_date is the standard test/registration expiry for CME —
+  // equivalent to tokef_dt on the private-car dataset. Maps to
+  // test_due_date so the existing reminder pipeline + form label
+  // ("תאריך טסט") work without special-casing CME. The dedicated
+  // תסקיר field stays optional and is filled manually by the user
+  // for any additional periodic-inspection certificate they hold.
+  if (r.tokef_date) {
+    fields.test_due_date = safeDate(r.tokef_date);
+  }
+
+  return fields;
+}
+
+/**
+ * Fetch a single CME record by exact mispar_tzama match. Different
+ * pattern from fetchGovApi (q=fulltext) because mispar_tzama is
+ * numeric and we want a precise hit, not "any record whose any field
+ * happens to contain '1002'".
+ */
+async function fetchCmeApi(plateDigits) {
+  const filters = JSON.stringify({ mispar_tzama: Number(plateDigits) });
+  const url = `${API_BASE}?resource_id=${encodeURIComponent(CME_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.success || !json.result?.records?.length) return null;
+    return json.result.records;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') throw new Error('הבקשה לשרת הממשלתי ארכה יותר מדי. נסה שנית.');
+    return null;
+  }
+}
+
+/**
  * Map a raw specs record (from דגמי רכב API) to tech spec fields.
  */
 function mapSpecRecord(r) {
@@ -256,28 +454,62 @@ async function fetchGovApi(resourceId, query) {
 export async function lookupVehicleByPlate(plate) {
   const clean = validatePlateInput(plate);
 
-  // Try car API first (4+ wheels)
-  let records = await fetchGovApi(RESOURCE_ID, clean);
-  let isMoto = false;
+  // Source priority — chosen by plate length so we don't fuzz-match
+  // short CME numbers against the road-vehicle datasets:
+  //
+  //   • 4-6 digits → CME ONLY. The car / moto / heavy datasets use a
+  //     fulltext q= search; a 4-digit string like "1002" would
+  //     happily match any record where "1002" appears in any column
+  //     (year, partial VIN, etc.) and return a spurious hit before
+  //     CME is even tried. Skipping straight to CME (which uses an
+  //     exact-match `filters` on mispar_tzama) avoids that.
+  //
+  //   • 7-8 digits → Standard cascade: car → moto → heavy → cme.
+  //     Most users hit this path; CME stays as a final fallback for
+  //     the rare overlap.
+  let records = null;
+  let source = null;
+  const isShort = clean.length < 7;
 
+  if (!isShort) {
+    records = await fetchGovApi(RESOURCE_ID, clean);
+    if (records) source = 'car';
+    if (!records) {
+      records = await fetchGovApi(MOTO_RESOURCE_ID, clean);
+      if (records) source = 'moto';
+    }
+    if (!records) {
+      records = await fetchGovApi(HEAVY_RESOURCE_ID, clean);
+      if (records) source = 'heavy';
+    }
+  }
   if (!records) {
-    // Try motorcycle/two-wheeler API
-    records = await fetchGovApi(MOTO_RESOURCE_ID, clean);
-    isMoto = true;
+    records = await fetchCmeApi(clean);
+    if (records) source = 'cme';
   }
 
   if (!records) return null;
 
+  // CME records key on mispar_tzama, all other tiers on mispar_rechev.
+  const plateField = source === 'cme' ? 'mispar_tzama' : 'mispar_rechev';
   const exact = records.find(
-    r => String(r.mispar_rechev).replace(/\D/g, '') === clean
+    r => String(r[plateField]).replace(/\D/g, '') === clean
   );
   const record = exact ?? records[0];
 
-  // Use the appropriate mapper
-  const fields = isMoto ? mapMotoRecord(record) : mapRecord(record);
+  // Pick the matching mapper.
+  const fields = source === 'moto'  ? mapMotoRecord(record)
+              : source === 'heavy' ? mapHeavyRecord(record)
+              : source === 'cme'   ? mapCmeRecord(record)
+              : mapRecord(record);
 
-  // For cars: fetch detailed specs from the second API (motorcycles already have specs inline)
-  if (!isMoto) {
+  // Detailed specs lookup. The דגמי רכב table actually does carry
+  // some heavy-vehicle entries, so we call it for cars AND heavies
+  // when we have the tozeret_cd. Motorcycles already have specs
+  // inline. CME has its own complete record so no second call.
+  // Specs are merged non-destructively — never overwrite a value
+  // the registration record already provided.
+  if (source !== 'moto' && source !== 'cme' && fields._tozeret_cd) {
     const specs = await fetchDetailedSpecs(fields._tozeret_cd, fields._degem_cd, fields.year);
     if (specs) {
       Object.entries(specs).forEach(([k, v]) => {
@@ -292,14 +524,29 @@ export async function lookupVehicleByPlate(plate) {
 
   // Expose the detected type so callers can warn the user when the
   // selected category doesn't match what the Ministry of Transport says.
-  // Heuristic for subclass: sug_degem === 'K' → truck (משאית), 'A' → bus, 'T' → trailer
-  let detectedType = isMoto ? 'motorcycle' : 'car';
-  if (!isMoto) {
+  let detectedType;
+  if (source === 'cme') {
+    // Anything from the CME registry — forklifts, excavators, loaders,
+    // rollers, telehandlers — falls under "כלי צמ"ה" in the UI's
+    // top-level category list. Subtype refinement (sug_tzama_nm)
+    // already lives inside fields.vehicle_class for the form.
+    detectedType = 'cme';
+  } else if (source === 'moto') {
+    detectedType = 'motorcycle';
+  } else if (source === 'heavy') {
+    // Heavy dataset uses tkina_EU instead of sug_degem.
+    const tk = String(record.tkina_EU || '').toUpperCase();
+    if (tk.startsWith('O'))      detectedType = 'trailer';
+    else if (tk === 'M2' || tk === 'M3') detectedType = 'bus';
+    else                         detectedType = 'truck';
+  } else {
+    // Private-car dataset.
     const sugDegem = String(record.sug_degem || '').toUpperCase();
-    if (sugDegem === 'K') detectedType = 'truck';
+    if      (sugDegem === 'K') detectedType = 'truck';
     else if (sugDegem === 'A') detectedType = 'bus';
     else if (sugDegem === 'T') detectedType = 'trailer';
     else if (sugDegem === 'M') detectedType = 'commercial';
+    else                       detectedType = 'car';
   }
   fields._detectedType = detectedType;
   fields._detectedTypeLabel = {
@@ -309,6 +556,7 @@ export async function lookupVehicleByPlate(plate) {
     truck: 'משאית',
     bus: 'אוטובוס',
     trailer: 'גרור',
+    cme: 'כלי צמ"ה',
   }[detectedType] || 'רכב';
 
   return fields;

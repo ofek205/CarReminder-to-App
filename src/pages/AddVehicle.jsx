@@ -36,7 +36,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectWi
 import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft } from "lucide-react";
 import { lookupVehicleByPlate } from "../services/vehicleLookup";
 import { normalizePlate, isVintageVehicle, isVessel } from "../components/shared/DateStatusUtils";
-import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
+import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, CME_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { trackUserAction } from "../components/shared/ReviewManager";
 import VehicleScanWizard from "../components/vehicle/VehicleScanWizard";
@@ -94,6 +94,12 @@ const EMPTY_FORM = {
   offroad_equipment: [],
   offroad_usage_type: '',
   last_offroad_service_date: '',
+  // Periodic inspection report ("תסקיר") — primarily for כלי צמ"ה
+  // (forklifts, excavators, rollers) which require a periodic
+  // safety-inspection certificate. Optional everywhere; when set,
+  // ReminderEngine + NotificationBell surface an expiry warning
+  // alongside the test/insurance reminders.
+  inspection_report_expiry_date: '',
 };
 
 // Autofill visual helper - renders "מולא אוטומטית" hint if field was autofilled
@@ -183,6 +189,7 @@ export default function AddVehicle() {
           cat.label === 'כלי שייט' ? BOAT_SUBCATEGORIES :
           cat.label === 'אופנועים' ? MOTO_SUBCATEGORIES :
           cat.label === 'כלי שטח' ? OFFROAD_SUBCATEGORIES :
+          cat.label === 'כלי צמ"ה' ? CME_SUBCATEGORIES :
           SPECIAL_SUBCATEGORIES;
         const sub = list.find(s => s.dbName === e.subcategoryDbName) || null;
         setSelectedSubcategory(sub);
@@ -364,6 +371,7 @@ export default function AddVehicle() {
       case 'פרטיים ומסחריים': return ['car', 'commercial'];
       case 'אופנועים':        return ['motorcycle'];
       case 'משאיות':           return ['truck', 'commercial'];
+      case 'כלי צמ"ה':        return ['cme'];
       case 'כלי שטח':         return null; // gov.il can't classify reliably. skip
       case 'מיוחדים':          return null; // same. skip for special subcategories
       default: return null;
@@ -375,6 +383,18 @@ export default function AddVehicle() {
     switch (type) {
       case 'motorcycle': return VEHICLE_CATEGORIES.find(c => c.label === 'אופנועים');
       case 'truck':      return VEHICLE_CATEGORIES.find(c => c.label === 'משאיות');
+      // Construction machinery has its own top-level category. The
+      // CME-registry source returns vehicle_class (e.g. "מלגזה מנוע
+      // שריפה") so the user can still pick the precise subtype from
+      // CME_SUBCATEGORIES on the next step.
+      case 'cme':        return VEHICLE_CATEGORIES.find(c => c.label === 'כלי צמ"ה');
+      // Trailers and buses both live in the "מיוחדים" bucket together
+      // with tractors, forklifts and operational vehicles. The heavy
+      // gov.il API distinguishes them via tkina_EU; we route all three
+      // to the same UI category so the user can pick the precise
+      // subtype (גרור / אוטובוס / וכו') from the subcategory list.
+      case 'trailer':
+      case 'bus':        return VEHICLE_CATEGORIES.find(c => c.label === 'מיוחדים');
       case 'car':
       case 'commercial': return VEHICLE_CATEGORIES.find(c => c.label === 'פרטיים ומסחריים');
       default: return null;
@@ -436,6 +456,12 @@ export default function AddVehicle() {
     co2: fields.co2 || '',
     green_index: fields.green_index || '',
     tow_capacity: fields.tow_capacity || '',
+    // Inspection report ("תסקיר") — the CME registry's tokef_date
+    // pre-fills this so users adding a forklift/excavator by plate
+    // get the periodic-inspection reminder configured automatically.
+    // Other tiers don't return it and the empty default leaves the
+    // existing value alone.
+    inspection_report_expiry_date: fields.inspection_report_expiry_date || '',
   });
 
   // Apply lookup result to the form + UI state
@@ -516,17 +542,22 @@ export default function AddVehicle() {
 
     try {
     setSystemError(null);
-    // Plate format validation. Israeli plates are 5-8 digits (possibly with dashes),
-    // vessels use an IL- prefix with 3-7 chars after. Allow letters for vessel-only.
+    // Plate format validation. Standard IL plates are 7-8 digits.
+    // CME (construction machinery) plates use a separate registry
+    // and can be as short as 4 digits (mispar_tzama). Vessels use
+    // an IL- prefix with letters allowed.
+    // We accept 4-8 digits across non-vessel categories so a
+    // forklift owner with plate "1002" can still save — matches the
+    // floor the gov.il lookup validator uses.
     const plateFormat = isVesselCategory
       ? (v) => !v || /^[A-Z0-9\-]{3,15}$/i.test((v || '').trim())
-      : (v) => !v || /^[\d\-\s]{5,12}$/.test((v || '').trim());
+      : (v) => !v || /^[\d\-\s]{4,12}$/.test((v || '').trim());
     // vehicle_type is required by the backend
     if (!validate(form, {
       vehicle_type: { custom: [v => v && v.trim() !== '', 'יש לבחור סוג כלי רכב'] },
       license_plate: {
         required: 'יש להזין מספר רישוי',
-        custom: [plateFormat, isVesselCategory ? 'מספר זיהוי לא תקין (אותיות/ספרות בלבד)' : 'מספר רישוי לא תקין (5-8 ספרות)'],
+        custom: [plateFormat, isVesselCategory ? 'מספר זיהוי לא תקין (אותיות/ספרות בלבד)' : 'מספר רישוי לא תקין (4-8 ספרות)'],
       },
     })) return;
 
@@ -652,7 +683,8 @@ export default function AddVehicle() {
         'model_code','trim_level','vin','pollution_group','vehicle_class','safety_rating',
         'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
         'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
-        'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
+        'offroad_equipment','offroad_usage_type','last_offroad_service_date',
+        'inspection_report_expiry_date'];
       const cleanData = { account_id: accountId };
       DB_COLUMNS.forEach(k => { if (data[k] !== undefined && data[k] !== null && data[k] !== '') cleanData[k] = data[k]; });
 
@@ -1023,7 +1055,9 @@ export default function AddVehicle() {
                     ? BOAT_SUBCATEGORIES
                     : selectedCategory.label === 'כלי שטח'
                       ? OFFROAD_SUBCATEGORIES
-                      : SPECIAL_SUBCATEGORIES),
+                      : selectedCategory.label === 'כלי צמ"ה'
+                        ? CME_SUBCATEGORIES
+                        : SPECIAL_SUBCATEGORIES),
                 ...(customSubcategories[selectedCategory.label] || []),
               ].map(sub => {
                 const active = selectedSubcategory?.label === sub.label;
@@ -1483,6 +1517,26 @@ export default function AddVehicle() {
                       />
                     </div>
                   </div>
+
+                  {/* Inspection report ("תסקיר") — optional date.
+                      Promoted into the form for any non-vessel category
+                      since forklifts, telehandlers, excavators and other
+                      construction equipment legally require a periodic
+                      inspection certificate. Hidden for vessels (they
+                      have their own כושר שייט slot above). NULL = no
+                      reminder fires, so leaving blank is fine. */}
+                  {!isVesselCategory && (
+                    <div>
+                      <Label>תסקיר (אופציונלי)</Label>
+                      <DateInput
+                        value={form.inspection_report_expiry_date}
+                        onChange={e => handleChange('inspection_report_expiry_date', e.target.value)}
+                      />
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        תוקף תסקיר תקינות תקופתי. תקבל/י התראה לפני שהוא פג.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
