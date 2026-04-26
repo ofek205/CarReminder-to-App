@@ -226,18 +226,73 @@ export async function initKeyboard() {
   }
 }
 
-//  App (back button) 
+//  App (back button)
+//
+// Native Android back-button strategy:
+//   1. If any in-app overlay is open (bell popover, modal, sheet,
+//      popup), the global `cr:android-back` event lets it consume the
+//      press by calling preventDefault() on the dispatched event.
+//      Pieces like NotificationBell already register popstate
+//      listeners; this adds a non-history fast-path for them.
+//   2. If the current route is one of the "root" tabs (Dashboard,
+//      Vehicles, etc.), pressing back exits the app — same UX as
+//      stock Android home apps.
+//   3. Anything else: navigate one step back. If WebView history is
+//      empty (cold start straight into a sub-route), fall back to
+//      Dashboard so the user can never end up on a dead "white" page
+//      with no way home.
+//
+// The previous version trusted Capacitor's `canGoBack` flag for
+// step 3, but in practice React Router replace-navigations and
+// remembered-route restorations could leave canGoBack=false on a
+// page where the user clearly had history — producing surprise
+// jumps to the home screen.
+const ROOT_PATHS = new Set([
+  '/', '/Dashboard',
+  '/Vehicles', '/Documents', '/FindGarage', '/Accidents', '/AiAssistant',
+]);
+
+function dispatchAndroidBack() {
+  // Custom event so any open overlay (popover, modal) can call
+  // preventDefault() to "consume" the press.
+  const ev = new CustomEvent('cr:android-back', { cancelable: true });
+  window.dispatchEvent(ev);
+  return ev.defaultPrevented;
+}
+
 export async function initBackButton(onBackButton) {
   if (!isNative) return;
   try {
     const { App } = await import('@capacitor/app');
-    App.addListener('backButton', ({ canGoBack }) => {
-      if (canGoBack) {
+    App.addListener('backButton', () => {
+      // 1. Let an open overlay swallow the press first.
+      if (dispatchAndroidBack()) return;
+
+      const path = window.location.pathname;
+      // 2. Root tab → exit the app. Matches user expectation that
+      //    "back from home closes the app."
+      if (ROOT_PATHS.has(path)) {
+        if (onBackButton) onBackButton();
+        else App.exitApp();
+        return;
+      }
+      // 3. Sub-route → step back. Use the WebView's history.
+      //    history.length is unreliable on Capacitor (always >= 1 even
+      //    on cold start), but a back call on a single-entry history
+      //    is a no-op rather than a crash, so we accept the trade-off
+      //    and follow up with a Dashboard fallback if nothing happens.
+      try {
+        const before = window.location.pathname;
         window.history.back();
-      } else if (onBackButton) {
-        onBackButton();
-      } else {
-        App.exitApp();
+        // If we landed on the same path within a tick, the back was
+        // a no-op — push the user to Dashboard so they're never stuck.
+        setTimeout(() => {
+          if (window.location.pathname === before) {
+            window.location.href = '/Dashboard';
+          }
+        }, 100);
+      } catch {
+        window.location.href = '/Dashboard';
       }
     });
   } catch (e) {

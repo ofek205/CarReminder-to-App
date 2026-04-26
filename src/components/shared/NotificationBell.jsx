@@ -429,19 +429,27 @@ export default function NotificationBell() {
     return () => window.removeEventListener('cr:close-popups', onClosePopups);
   }, []);
 
-  // Browser-back closes the popover instead of navigating away from
-  // the current page. Without this, users who hit "back" expecting the
-  // popover to dismiss were getting kicked out of the app to the auth
-  // page (or whichever route happened to be one entry deeper in
-  // history). We push a sentinel state when opening, and consume it
-  // on popstate. The flag also lets us programmatically pop the entry
-  // when the popover is closed by clicking outside / a link, so
-  // history stays clean.
+  // Browser-back / Android-back closes the popover instead of navigating
+  // away from the current page. Two listeners:
+  //   * popstate — covers web browser back + the historic native back
+  //     button when initBackButton calls history.back().
+  //   * cr:android-back — fast-path for the new native handler in
+  //     capacitor.js that emits this event before invoking history.
+  //     We preventDefault to tell the handler "we consumed the press"
+  //     so it doesn't continue and pop the route.
   useEffect(() => {
     if (!popupOpen) return;
     const onPop = () => setPopupOpen(false);
+    const onAndroidBack = (ev) => {
+      ev.preventDefault();
+      setPopupOpen(false);
+    };
     window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    window.addEventListener('cr:android-back', onAndroidBack);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('cr:android-back', onAndroidBack);
+    };
   }, [popupOpen]);
 
   const toggleBell = () => {
