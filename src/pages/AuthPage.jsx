@@ -195,6 +195,36 @@ export default function AuthPage() {
   // Basic email validation. before hitting Supabase
   const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim());
 
+  // Web origin for email redirect targets. On native (Capacitor) the
+  // page is served from `https://localhost`, which is NOT in the
+  // Supabase Auth redirect-URL allowlist — so passing it as `redirectTo`
+  // makes Supabase reject the request with "Error sending recovery
+  // email" *before* the SMTP send. Production web URL works for both
+  // surfaces: native users open the recovery link in the system
+  // browser, complete the password change there, and sign in on the
+  // app after.
+  const getEmailRedirectBase = () => isNative
+    ? 'https://car-reminder.app'
+    : window.location.origin;
+
+  // Map common Supabase auth errors to user-friendly Hebrew. Anything
+  // unrecognized falls through to a generic Hebrew message rather than
+  // surfacing raw English text.
+  const localizeAuthError = (msg) => {
+    const m = (msg || '').toLowerCase();
+    if (m.includes('rate limit') || m.includes('too many') || m.includes('for security purposes'))
+      return 'נשלחו יותר מדי אימיילים. נסה/י שוב בעוד מספר דקות.';
+    if (m.includes('redirect') && (m.includes('not allowed') || m.includes('invalid')))
+      return 'שגיאת תצורה זמנית. אם הבעיה ממשיכה, פנה/י לתמיכה.';
+    if (m.includes('user not found') || m.includes('not registered') || m.includes('no user'))
+      return 'לא נמצא משתמש עם האימייל הזה.';
+    if (m.includes('invalid login credentials')) return 'אימייל או סיסמה שגויים';
+    if (m.includes('already registered')) return 'האימייל הזה כבר רשום. נסה להתחבר.';
+    if (m.includes('network') || m.includes('fetch'))
+      return 'בעיית רשת. בדוק/י את החיבור ונסה/י שוב.';
+    return 'שליחת האימייל נכשלה. נסה/י שוב או פנה/י לתמיכה.';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -232,10 +262,13 @@ export default function AuthPage() {
       if (mode === 'reset') {
         if (!email.trim()) { setError('יש להזין כתובת אימייל'); setLoading(false); return; }
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin + '/Auth?mode=update-password',
+          redirectTo: getEmailRedirectBase() + '/Auth?mode=update-password',
         });
         if (error) {
-          setError(error.message);
+          // Log the raw message so we can diagnose new failure modes
+          // from Sentry/console without exposing the user to English.
+          console.warn('resetPasswordForEmail error:', error.message);
+          setError(localizeAuthError(error.message));
         } else {
           setSuccess('נשלח אימייל לאיפוס סיסמה. בדוק את תיבת הדואר שלך.');
           setTimeout(() => setMode('login'), 3000);
@@ -286,10 +319,18 @@ export default function AuthPage() {
         if (password.length < 6) { setError('הסיסמה חייבת להכיל לפחות 6 תווים'); setLoading(false); return; }
         const { error } = await supabase.auth.signUp({
           email, password,
-          options: { data: { full_name: fullName } },
+          options: {
+            data: { full_name: fullName },
+            // Same native-vs-web branching as resetPasswordForEmail —
+            // see getEmailRedirectBase() above. Without this, the
+            // signup confirmation email on native fails the same way
+            // the recovery email did.
+            emailRedirectTo: getEmailRedirectBase() + '/Auth',
+          },
         });
         if (error) {
-          setError(error.message.includes('already registered') ? 'האימייל הזה כבר רשום. נסה להתחבר.' : error.message);
+          console.warn('signUp error:', error.message);
+          setError(localizeAuthError(error.message));
         } else {
           setSuccess('נשלח אימייל אימות. אנא אשר ואז התחבר.');
           import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_SIGNUP));
