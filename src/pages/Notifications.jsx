@@ -325,6 +325,14 @@ function remindersToNotifs(reminders) {
 function AuthNotifications() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  // useNavigate was missing here — the app-notification onClick below
+  // called navigate(href) against undefined, throwing a silent
+  // ReferenceError inside the handler. Result: clicking a share /
+  // vehicle-change card on this page did nothing, while the same
+  // cards in NotificationBell worked because the bell already had
+  // its own useNavigate. Profile / license cards above use <Link>
+  // so they were unaffected — only app_notifications regressed.
+  const navigate = useNavigate();
 
   // Fetch vehicles
   const { data: accountData } = useQuery({
