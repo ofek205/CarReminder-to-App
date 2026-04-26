@@ -228,6 +228,25 @@ export const VEHICLE_CATEGORIES = [
     hasSubcategories: true,
   },
   {
+    label: 'כלי צמ"ה',
+    icon: Wrench,
+    keywords: ['צמ"ה', 'מלגזה', 'מחפר', 'מכבש', 'יעה', 'טלסקופי', 'הייסטר', 'בולדוזר', 'ציוד מכני הנדסי'],
+    dbName: 'רכב צמ"ה',
+    usageMetric: 'שעות מנוע',
+    // Plate lookup tries the heavy gov.il dataset first; some
+    // forklifts/loaders carry standard IL plates. Off-registry
+    // machines (yard-only equipment) fall through to manual entry
+    // — same pattern as the מיוחדים tier.
+    methods: ['plate', 'scan', 'manual'],
+    hasSubcategories: true,
+  },
+  {
+    // "מיוחדים" lives last on purpose — it's the catch-all bucket
+    // for everything that didn't fit a primary category (collectors,
+    // tractors, trailers, buses, plows, motor caravans). Keeping it
+    // last in the chip grid makes it read as "didn't find what you
+    // need above? try here", rather than competing with the precise
+    // categories for a tap.
     label: 'מיוחדים',
     icon: Star,
     keywords: ['מיוחד', 'טרקטור', 'קלנוע', 'אחר'],
@@ -240,19 +259,6 @@ export const VEHICLE_CATEGORIES = [
     // tier. If a particular subtype isn't in the registry the lookup
     // simply returns null and the user falls through to manual entry —
     // identical to the כלי שטח flow.
-    methods: ['plate', 'scan', 'manual'],
-    hasSubcategories: true,
-  },
-  {
-    label: 'כלי צמ"ה',
-    icon: Wrench,
-    keywords: ['צמ"ה', 'מלגזה', 'מחפר', 'מכבש', 'יעה', 'טלסקופי', 'הייסטר', 'בולדוזר', 'ציוד מכני הנדסי'],
-    dbName: 'רכב צמ"ה',
-    usageMetric: 'שעות מנוע',
-    // Plate lookup tries the heavy gov.il dataset first; some
-    // forklifts/loaders carry standard IL plates. Off-registry
-    // machines (yard-only equipment) fall through to manual entry
-    // — same pattern as the מיוחדים tier.
     methods: ['plate', 'scan', 'manual'],
     hasSubcategories: true,
   },
