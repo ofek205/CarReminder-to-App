@@ -105,11 +105,33 @@ export function isVesselType(vehicleType, nickname) {
  *        const iconName = getVehicleIconName(vehicle.vehicle_type, vehicle.nickname);
  * Then use a map to render the actual icon component.
  */
-const MOTO_KEYWORDS = ['אופנוע', 'קטנוע', 'moto', 'bike', 'scooter', 'אופנוע כביש', 'אופנוע שטח'];
+const MOTO_KEYWORDS = ['קטנוע', 'moto', 'bike', 'scooter'];
+const MOTO_EXACT = new Set(['אופנוע כביש', 'אופנוע שטח', 'קטנוע']);
 const MOTO_MANUFACTURERS = ['sym', 'kymco', 'vespa', 'piaggio', 'yamaha moto', 'honda moto', 'ktm', 'bmw motorrad', 'harley', 'ducati', 'kawasaki', 'suzuki moto', 'aprilia', 'triumph', 'royal enfield'];
-const TRUCK_KEYWORDS = ['משאית', 'truck', 'מלגזה', 'טרקטור'];
+const TRUCK_KEYWORDS = ['משאית', 'truck'];
 const TRUCK_MANUFACTURERS = ['man', 'scania', 'volvo trucks', 'daf', 'iveco', 'mercedes trucks'];
 const OFFROAD_EXACT = new Set(["כלי שטח", "ג'יפ שטח", 'טרקטורון', 'אופנוע שטח', 'RZR', 'מיול', 'באגי חולות']);
+// כלי צמ"ה (Construction Machinery). Mirrors CME_SUBCATEGORIES dbName
+// list in VehicleTypeSelector.jsx + the legacy 'רכב צמ"ה' that pre-CME
+// rows might still carry. Anything in this set categorises as 'cme'.
+const CME_EXACT = new Set([
+  'מחפר', 'מחפר זחלי', 'מחפר אופני', 'מיני מחפר', 'מחפרון',
+  'דחפור', 'דחפור זחלי',
+  'שופל', 'מעמיס אופני', 'מעמיס זחלי', 'מיני מעמיס',
+  'בובקט',
+  'טליהנדלר', 'מלגזה', 'מלגזת שטח',
+  'מפלסת',
+  'מכבש', 'מכבש אספלט', 'מכבש קרקע',
+  'מערבל בטון', 'משאבת בטון',
+  'מנוף', 'מנוף נייד', 'מנוף זחלי',
+  'מקדח קרקע', 'ציוד קידוח',
+  'רכב צמ"ה',  // legacy umbrella label
+]);
+// Special / catch-all bucket: items that don't fit any precise category.
+const SPECIAL_EXACT = new Set([
+  'רכב מיוחד', 'רכב אספנות', 'טרקטור', 'נגרר', 'קרוואן',
+  'אוטובוס', 'מחרשה', 'רכב תפעולי',
+]);
 
 export function isOffroadType(vehicleType) {
   return OFFROAD_EXACT.has(vehicleType);
@@ -162,9 +184,22 @@ export function getVehicleVisual(vehicle) {
 
 export function getVehicleCategory(vehicleType, nickname, manufacturer) {
   const combined = `${vehicleType || ''} ${nickname || ''} ${manufacturer || ''}`.toLowerCase();
+  // Vessel FIRST so "אופנוע ים" doesn't get caught by the motorcycle
+  // keyword check below.
   if (checkVesselFull(vehicleType, nickname, manufacturer)) return 'vessel';
-  // Off-road check FIRST. so "טרקטורון" isn't matched as "טרקטור" (tractor/truck)
+  // Off-road exact check before any keyword matching, so "טרקטורון"
+  // isn't conflated with "טרקטור" and "RZR" doesn't fall through to car.
   if (OFFROAD_EXACT.has(vehicleType)) return 'offroad';
+  // CME exact check before truck keywords (otherwise "מלגזה" would
+  // hit truck's keyword list, even though it's actually CME now).
+  if (CME_EXACT.has(vehicleType)) return 'cme';
+  // Special / catch-all category — trailers, vintage, agricultural
+  // tractors, buses. Tractors deliberately NOT in CME (they're more
+  // agriculture than construction in our taxonomy).
+  if (SPECIAL_EXACT.has(vehicleType)) return 'special';
+  // Motorcycle — exact list first, then keywords/manufacturers as a
+  // softer fallback (e.g. user-typed manufacturer matches Honda, KTM…)
+  if (MOTO_EXACT.has(vehicleType)) return 'motorcycle';
   if (MOTO_KEYWORDS.some(kw => combined.includes(kw))) return 'motorcycle';
   if (MOTO_MANUFACTURERS.some(m => combined.includes(m))) return 'motorcycle';
   if (TRUCK_KEYWORDS.some(kw => combined.includes(kw))) return 'truck';

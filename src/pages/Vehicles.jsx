@@ -3,7 +3,7 @@ import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
-import { Plus, Car, Ship, Bike, Truck, Star, Mountain, Search, X, CheckCircle, Clock, AlertTriangle, ArrowUpDown } from 'lucide-react';
+import { Plus, Car, Ship, Bike, Truck, Star, Mountain, Wrench, Search, X, CheckCircle, Clock, AlertTriangle, ArrowUpDown } from 'lucide-react';
 import { C, getTheme, getVehicleCategory } from '@/lib/designTokens';
 import { isVessel, isOffroad } from '../components/shared/DateStatusUtils';
 import { Link, useLocation } from 'react-router-dom';
@@ -37,19 +37,43 @@ const DUAL_CATEGORY_TYPES = {
   'אופנוע שטח': ['motorcycle', 'offroad'],
 };
 
+// CME (כלי צמ"ה) types — must be checked BEFORE the legacy "special"
+// fallback so מלגזה / טליהנדלר / מחפר variants land on the right tab
+// instead of the catch-all. Mirrors CME_EXACT in designTokens.js.
+const CME_TYPES = new Set([
+  'מחפר', 'מחפר זחלי', 'מחפר אופני', 'מיני מחפר', 'מחפרון',
+  'דחפור', 'דחפור זחלי',
+  'שופל', 'מעמיס אופני', 'מעמיס זחלי', 'מיני מעמיס',
+  'בובקט',
+  'טליהנדלר', 'מלגזה', 'מלגזת שטח',
+  'מפלסת',
+  'מכבש', 'מכבש אספלט', 'מכבש קרקע',
+  'מערבל בטון', 'משאבת בטון',
+  'מנוף', 'מנוף נייד', 'מנוף זחלי',
+  'מקדח קרקע', 'ציוד קידוח',
+  'רכב צמ"ה',
+]);
+
 function getCategory(vehicle) {
   // Check for dual-category types first. primary category is the first one
   if (DUAL_CATEGORY_TYPES[vehicle.vehicle_type]) return DUAL_CATEGORY_TYPES[vehicle.vehicle_type][0];
   if (isOffroad(vehicle.vehicle_type)) return 'offroad';
   if (isVessel(vehicle.vehicle_type, vehicle.nickname)) return 'vessel';
+  // CME check before generic getVehicleCategory so "מלגזה" / "טליהנדלר"
+  // (which the keyword-based truck check would otherwise grab via the
+  // legacy 'מלגזה' truck keyword) end up on the כלי צמ"ה tab.
+  if (CME_TYPES.has(vehicle.vehicle_type)) return 'cme';
   const cat = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   if (cat === 'motorcycle') return 'motorcycle';
   if (cat === 'truck') return 'truck';
-  // Check for special types
+  if (cat === 'cme') return 'cme';
+  // Check for special types — tractors, trailers, vintage, etc. Note
+  // that מלגזה / רכב צמ"ה are intentionally NOT here anymore (they
+  // moved to the CME bucket above).
   if (vehicle.vehicle_type === 'רכב מיוחד' || vehicle.vehicle_type === 'רכב אספנות'
-    || vehicle.vehicle_type === 'טרקטור' || vehicle.vehicle_type === 'מלגזה'
+    || vehicle.vehicle_type === 'טרקטור'
     || vehicle.vehicle_type === 'נגרר' || vehicle.vehicle_type === 'קרוואן'
-    || vehicle.vehicle_type === 'אוטובוס' || vehicle.vehicle_type === 'רכב צמ"ה'
+    || vehicle.vehicle_type === 'אוטובוס'
     || vehicle.vehicle_type === 'מחרשה' || vehicle.vehicle_type === 'רכב תפעולי') return 'special';
   return 'car';
 }
@@ -60,15 +84,18 @@ function matchesCategory(vehicle, categoryTab) {
   return getCategory(vehicle) === categoryTab;
 }
 
-//  Category Tabs Config 
+//  Category Tabs Config — order matches the chip grid on AddVehicle so
+//  users see the same hierarchy on both screens. "מיוחדים" is the
+//  catch-all and stays last.
 const CATEGORY_TABS = [
-  { key: 'all',        label: 'הכל',       icon: null,     color: C.primary },
-  { key: 'car',        label: 'רכבים',     icon: Car,      color: C.primary },
-  { key: 'motorcycle', label: 'אופנועים',  icon: Bike,     color: C.primary },
-  { key: 'truck',      label: 'משאיות',    icon: Truck,    color: C.primary },
-  { key: 'vessel',     label: 'כלי שייט',  icon: Ship,     color: '#0C7B93' },
-  { key: 'offroad',    label: 'כלי שטח',   icon: Mountain, color: C.primary },
-  { key: 'special',    label: 'מיוחדים',   icon: Star,     color: C.warn },
+  { key: 'all',        label: 'הכל',        icon: null,     color: C.primary },
+  { key: 'car',        label: 'רכבים',      icon: Car,      color: C.primary },
+  { key: 'motorcycle', label: 'אופנועים',   icon: Bike,     color: C.primary },
+  { key: 'truck',      label: 'משאיות',     icon: Truck,    color: C.primary },
+  { key: 'vessel',     label: 'כלי שייט',   icon: Ship,     color: '#0C7B93' },
+  { key: 'offroad',    label: 'כלי שטח',    icon: Mountain, color: C.primary },
+  { key: 'cme',        label: 'כלי צמ"ה',   icon: Wrench,   color: C.primary },
+  { key: 'special',    label: 'מיוחדים',    icon: Star,     color: C.warn },
 ];
 
 //  Sort Options 
@@ -294,7 +321,7 @@ function VehiclesContent({ vehicles, isLoading }) {
   }, [vehicleMeta, filteredByPage.length]);
 
   const categoryCounts = useMemo(() => {
-    const c = { all: filteredByPage.length, car: 0, motorcycle: 0, truck: 0, vessel: 0, offroad: 0, special: 0 };
+    const c = { all: filteredByPage.length, car: 0, motorcycle: 0, truck: 0, vessel: 0, offroad: 0, cme: 0, special: 0 };
     vehicleMeta.forEach(m => {
       // Dual-category types count in all their categories
       const dualCats = DUAL_CATEGORY_TYPES[m.vehicle.vehicle_type];
