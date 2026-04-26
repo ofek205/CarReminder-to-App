@@ -1362,15 +1362,44 @@ function AdminUsersTab() {
 
   const doDelete = async () => {
     if (!pendingDelete) return;
+    // We need the auth user_id, not just the account_id. The previous
+    // RPC `admin_delete_account` only emptied `accounts` and left the
+    // auth.users row intact — so the user could still log in and the
+    // email stayed reserved. The Edge Function below removes the auth
+    // user; ON DELETE CASCADE on owner_user_id then takes the rest.
+    if (!pendingDelete.owner_user_id) {
+      toast.error('לא נמצא בעלים לחשבון. נסה לרענן.');
+      return;
+    }
     setDeleting(true);
     try {
-      const { error } = await supabase.rpc('admin_delete_account', { p_account_id: pendingDelete.id });
-      if (error) throw error;
-      toast.success('החשבון נמחק');
+      const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+        body: { user_id: pendingDelete.owner_user_id },
+      });
+      if (error) {
+        // Try to surface the real reason from the function's body so
+        // "forbidden" / "cannot_delete_self" land as actionable Hebrew.
+        let detail = error.message;
+        try {
+          if (error.context?.json) {
+            const body = await error.context.json();
+            detail = body?.error || body?.detail || detail;
+          }
+        } catch { /* keep generic */ }
+        throw new Error(detail);
+      }
+      if (data?.already_deleted) toast.success('החשבון כבר היה מחוק');
+      else toast.success('החשבון נמחק');
       setPendingDelete(null);
       setRefreshKey(k => k + 1);
     } catch (e) {
-      toast.error('שגיאה במחיקה: ' + (e?.message || 'unknown'));
+      const m = (e?.message || '').toLowerCase();
+      const friendly =
+        m.includes('cannot_delete_self') ? 'אי אפשר למחוק את עצמך'
+        : m.includes('forbidden')        ? 'אין הרשאה לפעולה'
+        : m.includes('unauthenticated')  ? 'יש להתחבר מחדש'
+        : 'שגיאה במחיקה: ' + (e?.message || 'unknown');
+      toast.error(friendly);
     } finally {
       setDeleting(false);
     }
