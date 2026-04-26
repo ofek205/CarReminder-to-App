@@ -40,26 +40,47 @@ const LayoutWrapper = ({ children, currentPageName }) => {
 // a lazy module whose hash changed (new deploy landed / Vite HMR
 // regenerated the module). The fix is a hard reload — the old bundle
 // references the old chunk, the new bundle will resolve correctly.
-const STALE_CHUNK_RE = /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError/i;
+const STALE_CHUNK_RE = /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError|error loading dynamically imported module/i;
+// Time to suppress retry-on-reload after we just attempted one. If a
+// reload happens AND the chunk still fails 30s later, something else
+// is genuinely broken (CDN outage, persistent network problem) — at
+// that point we stop auto-reloading and show the manual recovery UI.
+// 30s is enough to cover normal redeploy + edge-cache propagation.
+const STALE_RELOAD_TTL_MS = 30 * 1000;
 
 //  Error Boundary. catches unhandled renders / throws
 class AppErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { hasError: false, errorMsg: '' }; }
-  static getDerivedStateFromError(err) { return { hasError: true, errorMsg: err?.message || String(err) }; }
+  constructor(props) { super(props); this.state = { hasError: false, errorMsg: '', isStaleChunk: false }; }
+  static getDerivedStateFromError(err) {
+    const msg = err?.message || String(err);
+    const isStaleChunk = STALE_CHUNK_RE.test(msg);
+    // For stale-chunk errors we render a calm "מתעדכן..." overlay
+    // instead of the alarming "משהו השתבש" screen, since the
+    // followup auto-reload almost always fixes it transparently.
+    return { hasError: true, errorMsg: msg, isStaleChunk };
+  }
   componentDidCatch(err, info) {
     console.error('AppErrorBoundary caught:', err, info?.componentStack);
 
-    // Stale-chunk errors after a deploy: auto-reload once (guard with a
-    // session flag so we don't loop if something else is persistently
-    // broken). The user sees a brief flash of the error screen and then
-    // the page refreshes into the working build.
+    // Stale-chunk errors after a deploy: auto-reload, but with a TTL
+    // guard so we don't loop forever if something else is persistently
+    // broken. Old code stored a permanent session flag, so a single
+    // failed reload would block ALL subsequent auto-fixes for the
+    // entire session — exactly the case the user reported.
     if (STALE_CHUNK_RE.test(err?.message || '')) {
       try {
-        if (!sessionStorage.getItem('cr:stale-chunk-reload')) {
-          sessionStorage.setItem('cr:stale-chunk-reload', '1');
+        const lastAt = Number(sessionStorage.getItem('cr:stale-chunk-reload-at') || 0);
+        const since = Date.now() - lastAt;
+        if (since > STALE_RELOAD_TTL_MS) {
+          sessionStorage.setItem('cr:stale-chunk-reload-at', String(Date.now()));
           window.location.reload();
           return;
         }
+        // Just reloaded < 30s ago and still hit it — fall through to
+        // the manual-retry UI. setState here keeps the user from
+        // staring at the "מתעדכן..." screen forever; we promote the
+        // recovery affordance to "lol something's wrong, click here".
+        this.setState({ isStaleChunk: false });
       } catch {}
     }
 
@@ -72,6 +93,20 @@ class AppErrorBoundary extends React.Component {
   }
   render() {
     if (this.state.hasError) {
+      // Stale-chunk auto-recovery view. No alarming "משהו השתבש".
+      // The reload triggered in componentDidCatch will replace this
+      // screen within a beat; if for some reason it doesn't (rare),
+      // the manual button is still here.
+      if (this.state.isStaleChunk) {
+        return (
+          <div dir="rtl" style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 44, height: 44, border: '3px solid #D8E5D9', borderTopColor: '#2D5233', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 20 }} />
+            <p style={{ fontSize: 16, fontWeight: 700, color: '#1F2937', marginBottom: 6 }}>מעדכן לגרסה חדשה...</p>
+            <p style={{ fontSize: 13, color: '#6B7280' }}>שנייה אחת</p>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        );
+      }
       return (
         <div dir="rtl" style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui' }}>
           <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>משהו השתבש 😕</h2>
