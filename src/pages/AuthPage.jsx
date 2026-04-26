@@ -96,11 +96,20 @@ export default function AuthPage() {
   //                            Supabase has already consumed the recovery
   //                            token into a session by the time we mount,
   //                            so we just need the user to pick a new pwd.
+  //   verify-email           — user just signed up and a 6-digit OTP was
+  //                            emailed to them. They enter it here to
+  //                            finalise the account. Persisted across
+  //                            tab refreshes via sessionStorage so the
+  //                            user can close + return without losing
+  //                            context.
   const [mode, setMode] = useState(() => {
     try {
       const u = new URL(window.location.href);
       const m = u.searchParams.get('mode');
       if (m === 'update-password') return 'update-password';
+      if (m === 'verify-email') return 'verify-email';
+      // Resume a pending verification if the tab was refreshed.
+      if (sessionStorage.getItem('cr_pending_verify_email')) return 'verify-email';
     } catch {}
     return 'login';
   });
@@ -118,6 +127,18 @@ export default function AuthPage() {
   const [rememberMe, setRememberMe] = useState(() => {
     try { return localStorage.getItem('cr_remember_me_v1') !== '0'; } catch { return true; }
   });
+  // Email-verification state.
+  // pendingEmail: the address signUp() was just called with. We need it
+  //   for verifyOtp + resend; the form's `email` field can be cleared
+  //   independently, so we keep this separate. Persisted in sessionStorage
+  //   so a tab refresh during verification doesn't strand the user.
+  const [pendingEmail, setPendingEmail] = useState(() => {
+    try { return sessionStorage.getItem('cr_pending_verify_email') || ''; } catch { return ''; }
+  });
+  const [verificationCode, setVerificationCode] = useState('');
+  // Cooldown after a resend so we don't fire-hose Resend (and Supabase's
+  // own 60s/email limit). Counts down to 0; button re-enables at 0.
+  const [resendCooldown, setResendCooldown] = useState(0);
   const formRef = useRef(null);
 
   // Auto-redirect logged-in users away from /Auth — UNLESS they're
@@ -146,6 +167,14 @@ export default function AuthPage() {
     });
     return () => data.subscription.unsubscribe();
   }, []);
+
+  // Resend-cooldown ticker. Counts the cooldown second-by-second so the
+  // "שלח קוד שוב" button shows live remaining time and re-enables at 0.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown(s => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   // Auto-focus first input when form opens
   useEffect(() => {
@@ -218,6 +247,42 @@ export default function AuthPage() {
   // Basic email validation. before hitting Supabase
   const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim());
 
+  // Re-send the signup OTP. Same email, fresh token. Cooldown UI
+  // (resendCooldown countdown) prevents spam-tapping; Supabase enforces
+  // its own 60s/email rate limit server-side as a backstop.
+  const handleResendCode = async () => {
+    if (!pendingEmail || resendCooldown > 0) return;
+    setError('');
+    setSuccess('');
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: pendingEmail,
+        options: { emailRedirectTo: getEmailRedirectBase() + '/Auth' },
+      });
+      if (error) {
+        console.warn('resend signup OTP error:', error.message);
+        setError(localizeAuthError(error.message));
+      } else {
+        setSuccess('קוד חדש נשלח לאימייל שלך');
+        setResendCooldown(60);
+      }
+    } catch {
+      setError('שליחה חוזרת נכשלה. נסה/י שוב.');
+    }
+  };
+
+  // Cancel verification + return to signup with a fresh form. Used by
+  // the "wrong email?" link on the verify screen.
+  const handleAbortVerification = () => {
+    try { sessionStorage.removeItem('cr_pending_verify_email'); } catch {}
+    setPendingEmail('');
+    setVerificationCode('');
+    setError('');
+    setSuccess('');
+    setMode('signup');
+  };
+
   // Web origin for email redirect targets. On native (Capacitor) the
   // page is served from `https://localhost`, which is NOT in the
   // Supabase Auth redirect-URL allowlist — so passing it as `redirectTo`
@@ -282,6 +347,43 @@ export default function AuthPage() {
       try { sessionStorage.setItem('cr_session_scope', rememberMe ? 'persistent' : 'tab'); } catch {}
     }
     try {
+      if (mode === 'verify-email') {
+        // 6-digit OTP verification. Supabase's verifyOtp({type:'signup'})
+        // both confirms the email and creates a real session, so a
+        // successful call drops us straight into Dashboard via the
+        // isAuthenticated useEffect above. No manual navigate needed.
+        const code = (verificationCode || '').trim();
+        if (!/^\d{6}$/.test(code)) {
+          setError('הזן/י קוד בן 6 ספרות');
+          setLoading(false);
+          return;
+        }
+        if (!pendingEmail) {
+          setError('פג תוקף תהליך האימות. יש להתחיל מחדש.');
+          setMode('signup');
+          setLoading(false);
+          return;
+        }
+        const { error } = await supabase.auth.verifyOtp({
+          email: pendingEmail,
+          token: code,
+          type: 'signup',
+        });
+        if (error) {
+          console.warn('verifyOtp error:', error.message);
+          const m = (error.message || '').toLowerCase();
+          if (m.includes('expired') || m.includes('invalid') || m.includes('token'))
+            setError('הקוד שגוי או שפג תוקפו. נסה/י שוב או שלח/י קוד חדש.');
+          else
+            setError(localizeAuthError(error.message));
+        } else {
+          try { sessionStorage.removeItem('cr_pending_verify_email'); } catch {}
+          setSuccess('האימייל אומת! מעביר לאפליקציה...');
+          import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_SIGNUP));
+        }
+        setLoading(false);
+        return;
+      }
       if (mode === 'reset') {
         if (!email.trim()) { setError('יש להזין כתובת אימייל'); setLoading(false); return; }
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -355,9 +457,16 @@ export default function AuthPage() {
           console.warn('signUp error:', error.message);
           setError(localizeAuthError(error.message));
         } else {
-          setSuccess('נשלח אימייל אימות. אנא אשר ואז התחבר.');
-          import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_SIGNUP));
-          setMode('login');
+          // Persist pendingEmail across refresh and switch to the OTP
+          // entry screen. Don't track AUTH_SIGNUP here — that fires on
+          // verifyOtp success so the funnel reflects fully-confirmed
+          // accounts, not abandoned-mid-verification ones.
+          try { sessionStorage.setItem('cr_pending_verify_email', email); } catch {}
+          setPendingEmail(email);
+          setVerificationCode('');
+          setResendCooldown(60);
+          setSuccess('שלחנו אליך קוד אימות. בדוק/י את האימייל.');
+          setMode('verify-email');
         }
       }
     } catch {
@@ -514,14 +623,25 @@ export default function AuthPage() {
             <div ref={formRef} className="w-full rounded-3xl p-6"
               style={{ background: C.card, boxShadow: '0 4px 32px rgba(45,82,51,0.10)', border: `1px solid ${C.border}` }}>
 
-              {/* Mode toggle — hidden in the recovery-landing flow; the
-                  user arrives here from an email link and should not be
-                  able to switch modes until the new password is set. */}
+              {/* Header — three branches:
+                  • update-password: arrived from a recovery link, hide tabs
+                  • verify-email:    show "we sent you a code" header
+                  • everything else: normal login/signup/reset tab toggle */}
               {mode === 'update-password' ? (
                 <div className="text-center mb-6">
                   <h2 className="text-lg font-black" style={{ color: C.greenDark }}>בחירת סיסמה חדשה</h2>
                   <p className="text-xs mt-1" style={{ color: C.muted }}>
                     לפחות 8 תווים, עם אות וספרה.
+                  </p>
+                </div>
+              ) : mode === 'verify-email' ? (
+                <div className="text-center mb-6">
+                  <h2 className="text-lg font-black" style={{ color: C.greenDark }}>אימות האימייל</h2>
+                  <p className="text-xs mt-2 leading-relaxed" style={{ color: C.muted }}>
+                    שלחנו קוד בן 6 ספרות אל
+                  </p>
+                  <p className="text-sm font-bold mt-1" dir="ltr" style={{ color: C.text }}>
+                    {pendingEmail}
                   </p>
                 </div>
               ) : (
@@ -542,6 +662,42 @@ export default function AuthPage() {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+                {mode === 'verify-email' && (
+                  <>
+                    {/* 6-digit OTP input. inputMode=numeric brings up the
+                        digit keyboard on mobile; pattern + maxLength keep
+                        accidental letters/long pastes from polluting the
+                        token. autoComplete="one-time-code" lets iOS/Android
+                        offer the just-arrived SMS/email code as a suggest. */}
+                    <div>
+                      <label className="text-xs font-bold mb-1.5 block" style={{ color: C.text }}>
+                        קוד אימות
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        value={verificationCode}
+                        onChange={e => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="123456"
+                        autoComplete="one-time-code"
+                        autoFocus
+                        dir="ltr"
+                        className="w-full text-center text-2xl font-black tracking-[0.5em] py-4 rounded-2xl outline-none transition-all"
+                        style={{
+                          background: '#FAFDF6',
+                          border: `2px solid ${verificationCode.length === 6 ? C.green : C.border}`,
+                          color: C.greenDark,
+                          letterSpacing: '0.5em',
+                        }}
+                      />
+                      <p className="text-[11px] mt-2 text-center" style={{ color: C.muted }}>
+                        הקוד תקף ל-60 דקות
+                      </p>
+                    </div>
+                  </>
+                )}
                 {mode === 'signup' && (
                   <AuthInput
                     icon={User}
@@ -555,7 +711,7 @@ export default function AuthPage() {
                   />
                 )}
 
-                {mode !== 'update-password' && (
+                {mode !== 'update-password' && mode !== 'verify-email' && (
                   <AuthInput
                     icon={Mail}
                     label="אימייל"
@@ -569,7 +725,7 @@ export default function AuthPage() {
                   />
                 )}
 
-                {(mode !== 'reset') && (
+                {(mode !== 'reset' && mode !== 'verify-email') && (
                   <AuthInput
                     icon={Lock}
                     label={mode === 'update-password' ? 'סיסמה חדשה' : 'סיסמה'}
@@ -644,7 +800,11 @@ export default function AuthPage() {
                       <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       <span>רגע...</span>
                     </span>
-                  ) : mode === 'login' ? 'כניסה' : mode === 'signup' ? 'הרשמה' : 'שלח קישור איפוס'}
+                  ) : mode === 'login' ? 'כניסה'
+                    : mode === 'signup' ? 'הרשמה'
+                    : mode === 'verify-email' ? 'אימות'
+                    : mode === 'update-password' ? 'עדכון סיסמה'
+                    : 'שלח קישור איפוס'}
                 </button>
 
                 {mode === 'reset' && (
@@ -654,21 +814,51 @@ export default function AuthPage() {
                     חזרה להתחברות
                   </button>
                 )}
+
+                {mode === 'verify-email' && (
+                  <div className="flex flex-col items-center gap-2 mt-2">
+                    {/* Resend with live cooldown countdown. The button is
+                        visually muted (not just disabled) during cooldown
+                        so users understand the wait is intentional, not a
+                        broken link. */}
+                    <button type="button"
+                      onClick={handleResendCode}
+                      disabled={resendCooldown > 0}
+                      className="text-xs font-bold py-2 px-3 transition-colors"
+                      style={{
+                        color: resendCooldown > 0 ? C.muted : C.green,
+                        cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer',
+                      }}>
+                      {resendCooldown > 0
+                        ? `שלח קוד חדש (${resendCooldown})`
+                        : 'לא קיבלת? שלח קוד חדש'}
+                    </button>
+                    <button type="button"
+                      onClick={handleAbortVerification}
+                      className="text-xs font-bold py-1.5 px-3 transition-colors"
+                      style={{ color: C.muted }}>
+                      אימייל שגוי? התחל מחדש
+                    </button>
+                  </div>
+                )}
               </form>
 
-              {/* Separator + Google in form */}
-              <div className="flex items-center gap-4 py-4 mt-2">
-                <div className="flex-1 h-px" style={{ background: C.border }} />
-                <span className="text-xs font-bold" style={{ color: C.muted }}>או</span>
-                <div className="flex-1 h-px" style={{ background: C.border }} />
-              </div>
+              {/* Separator + Google in form. hidden during verify-email
+                  to keep the OTP screen focused on a single action. */}
+              {mode !== 'verify-email' && (<>
+                <div className="flex items-center gap-4 py-4 mt-2">
+                  <div className="flex-1 h-px" style={{ background: C.border }} />
+                  <span className="text-xs font-bold" style={{ color: C.muted }}>או</span>
+                  <div className="flex-1 h-px" style={{ background: C.border }} />
+                </div>
 
-              <button onClick={() => handleOAuth('google')} disabled={oauthLoading === 'google'}
-                className="w-full py-3.5 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-3"
-                style={{ background: '#fff', color: C.text, border: `1.5px solid ${C.border}` }}>
-                <GoogleIcon />
-                <span>{oauthLoading === 'google' ? 'מתחבר...' : 'המשך עם Google'}</span>
-              </button>
+                <button onClick={() => handleOAuth('google')} disabled={oauthLoading === 'google'}
+                  className="w-full py-3.5 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-3"
+                  style={{ background: '#fff', color: C.text, border: `1.5px solid ${C.border}` }}>
+                  <GoogleIcon />
+                  <span>{oauthLoading === 'google' ? 'מתחבר...' : 'המשך עם Google'}</span>
+                </button>
+              </>)}
             </div>
 
             {/* Trust signal */}
