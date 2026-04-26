@@ -23,6 +23,7 @@ import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designToken
 import CompleteProfileScreen, { isProfileSkipActive } from '../components/shared/CompleteProfileScreen';
 import LicensePlate from '../components/shared/LicensePlate';
 import FirstTimeTour from '../components/shared/FirstTimeTour';
+import SharedIndicator from '@/components/sharing/SharedIndicator';
 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 function getVehicleIcon(vt, nn, mfr) { return ICON_MAP[getVehicleCategory(vt, nn, mfr)] || Car; }
@@ -221,6 +222,22 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
                 }>
                 {isDemo ? '👀 לדוגמה' : '💾 שמור זמנית'}
               </span>
+            </div>
+          )}
+
+          {/* Share state pill — owner with active shares OR a vehicle
+              that's been shared with the current user. Mirrors the
+              indicator on Vehicles.jsx and VehicleDetail so the
+              sharing surface is visible on the home screen too.
+              No onClick — the whole card is already a Link to
+              VehicleDetail where the full access modal lives. */}
+          {!isDemo && !isGuestVehicle && (vehicle.share_count > 0 || vehicle.is_shared_with_me) && (
+            <div className="absolute top-4 left-4 z-10">
+              <SharedIndicator
+                shareCount={vehicle.share_count || 0}
+                isSharedWithMe={!!vehicle.is_shared_with_me}
+                size="sm"
+              />
             </div>
           )}
 

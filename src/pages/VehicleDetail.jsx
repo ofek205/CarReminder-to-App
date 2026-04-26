@@ -6,6 +6,7 @@ import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft,
 import ShareVehicleDialog from "@/components/sharing/ShareVehicleDialog";
 import SharedIndicator from "@/components/sharing/SharedIndicator";
 import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
+import SharingHelpButton from "@/components/sharing/SharingHelpButton";
 import { toast } from "sonner";
 import { getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import { Link, useNavigate } from "react-router-dom";
@@ -624,15 +625,22 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           )}
           <div className="flex items-center gap-2">
             {vehicleIsOwned && !isViewOnly(role) && (
-              <button
-                type="button"
-                onClick={() => setShareDialogOpen(true)}
-                className="w-9 h-9 rounded-2xl flex items-center justify-center backdrop-blur-sm transition-all active:scale-95"
-                style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}
-                aria-label="שתף את הרכב"
-                title="שיתוף">
-                <Share2 className="w-4 h-4" />
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShareDialogOpen(true)}
+                  className="w-9 h-9 rounded-2xl flex items-center justify-center backdrop-blur-sm transition-all active:scale-95"
+                  style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}
+                  aria-label="שתף את הרכב"
+                  title="שיתוף">
+                  <Share2 className="w-4 h-4" />
+                </button>
+                {/* Gold "i" — opens the sharing explainer dialog. Sits
+                    inline with the share button so users discover the
+                    feature explanation right where they're about to
+                    use it. Same component as on AccountSettings. */}
+                <SharingHelpButton size="sm" />
+              </>
             )}
             {(shareCount > 0 || isSharedWithMe) && (
               <SharedIndicator
