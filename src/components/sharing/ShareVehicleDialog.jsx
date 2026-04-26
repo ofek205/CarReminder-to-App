@@ -20,13 +20,15 @@
  *   - 7-day TTL on pending invites
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Copy, Mail, Check, Eye, Edit, Share2 } from 'lucide-react';
+import { Loader2, Copy, Mail, Check, Eye, Edit, Share2, Clock, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
+import { useAuth } from '@/components/shared/GuestContext';
+import { getRecentShareEmails, rememberShareEmail } from '@/lib/recentShareEmails';
 
 // WhatsApp icon — kept inline so we don't add an asset dependency.
 const WhatsAppIcon = ({ size = 16 }) => (
@@ -71,11 +73,28 @@ const ERROR_COPY = {
 };
 
 export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
+  const { user } = useAuth();
   const [role, setRole] = useState('editor');
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [shareResult, setShareResult] = useState(null); // { invite_token, expires_at }
+  const [shareResult, setShareResult] = useState(null); // { invite_token, expires_at, recipient_existing_user }
   const [copied, setCopied] = useState(false);
+  // List of emails the current user has shared with before — read once
+  // when the dialog opens. We don't refresh during the open lifetime
+  // (the user wouldn't expect a chip to appear/disappear mid-flow).
+  const [recents, setRecents] = useState([]);
+
+  useEffect(() => {
+    if (open) setRecents(getRecentShareEmails(user?.id));
+  }, [open, user?.id]);
+
+  // Filter recents by what the user has typed so far. Helps when
+  // they remember the start of a name and want quick narrowing.
+  const filteredRecents = useMemo(() => {
+    const q = email.trim().toLowerCase();
+    if (!q) return recents;
+    return recents.filter(r => r.email.includes(q));
+  }, [recents, email]);
 
   const reset = () => {
     setRole('editor');
@@ -119,6 +138,10 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
       }
       setShareResult(data);
       toast.success('ההזמנה נשלחה');
+
+      // Cache for the next share. Stored locally per-user — see
+      // src/lib/recentShareEmails.js for rationale.
+      rememberShareEmail(user?.id, cleanEmail);
 
       // Background email send via existing Resend pipeline. Best-effort —
       // even if the email fails, the in-app notification + the share
@@ -239,6 +262,35 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
               <p className="text-[11px] text-gray-400 mt-1.5">
                 ההזמנה בתוקף ל-7 ימים. אם המייל רשום אצלנו, תישלח גם התראה באפליקציה.
               </p>
+
+              {/* Recent contacts — shown only when there are any AND
+                  what the user typed (or hasn't typed) doesn't already
+                  match the only candidate. Tap a chip to fill the
+                  input; saves a re-typing cycle for repeat sharees. */}
+              {filteredRecents.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[10px] font-bold text-gray-500 mb-1.5 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    נמענים אחרונים
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {filteredRecents.slice(0, 5).map(r => (
+                      <button
+                        key={r.email}
+                        type="button"
+                        onClick={() => setEmail(r.email)}
+                        className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all active:scale-95"
+                        style={{
+                          background: email === r.email ? C.light : '#F9FAFB',
+                          color: email === r.email ? C.primary : '#374151',
+                          border: `1px solid ${email === r.email ? C.primary + '60' : '#E5E7EB'}`,
+                        }}>
+                        {r.email}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <Button
@@ -257,17 +309,37 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
         ) : (
           //  Step 2: success — show link + share buttons
           <div className="space-y-4 pt-2">
-            <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: '#E8F5E9', border: '1.5px solid #A5D6A7' }}>
-              <Check className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#2E7D32' }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold" style={{ color: '#1B5E20' }}>ההזמנה בדרך</p>
-                <p className="text-xs mt-0.5" style={{ color: '#2E7D32' }}>
-                  {shareResult.recipient_existing_user
-                    ? 'ההתראה תגיע אליו באפליקציה ובמייל'
-                    : 'שלחנו מייל עם קישור להצטרפות'}
-                </p>
+            {/* Success banner — copy switches based on whether the
+                recipient already has an account. The "needs to register"
+                case is called out explicitly so the owner knows to
+                expect a registration delay before the recipient can
+                accept. Without this hint, owners reported "I shared with
+                X 30 minutes ago, why isn't it showing up on their side?"
+                — answer: X hasn't created an account yet. */}
+            {shareResult.recipient_existing_user ? (
+              <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: '#E8F5E9', border: '1.5px solid #A5D6A7' }}>
+                <Check className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#2E7D32' }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold" style={{ color: '#1B5E20' }}>ההזמנה בדרך</p>
+                  <p className="text-xs mt-0.5 leading-relaxed" style={{ color: '#2E7D32' }}>
+                    המייל רשום אצלנו — ההתראה תגיע אליו גם באפליקציה וגם במייל.
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: '#FFF8E1', border: '1.5px solid #FDE68A' }}>
+                <UserPlus className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#B45309' }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold" style={{ color: '#92400E' }}>המייל הזה לא רשום אצלנו עדיין</p>
+                  <p className="text-xs mt-1 leading-relaxed" style={{ color: '#B45309' }}>
+                    שלחנו מייל עם קישור הצטרפות. <strong>הוא יצטרך להירשם תחילה</strong> (עם אותה כתובת מייל) — אחרי ההרשמה ההזמנה תחכה לו ויוכל לאשר אותה.
+                  </p>
+                  <p className="text-[11px] mt-1.5" style={{ color: '#B45309' }}>
+                    אפשר גם לשלוח את הקישור למטה ב־WhatsApp/מייל ידנית כדי לזרז.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Share link box. The token is 64 chars + URL — far wider than
                 the dialog. The earlier `truncate` produced an ellipsised
