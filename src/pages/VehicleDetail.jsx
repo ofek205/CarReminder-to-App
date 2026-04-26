@@ -61,6 +61,7 @@ import VehicleInfoSection from "../components/vehicle/VehicleInfoSection";
 import MaintenanceSection from "../components/vehicle/MaintenanceSection";
 import VesselIssuesSection from "../components/vehicle/VesselIssuesSection";
 import CorkBoard from "../components/vehicle/CorkBoard";
+import GuestVesselChecklistsPreview from "../components/vehicle/GuestVesselChecklistsPreview";
 import { SafeComponent } from "../components/shared/SafeComponent";
 import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from '@/hooks/useAccountRole';
@@ -320,6 +321,18 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
 
         {/* Inline documents */}
         <DocumentsPreview vehicleId={vehicleId} documents={guestDocuments} T={T} />
+
+        {/* Vessel-only: read-only preview of the pre/engine/post
+            checklists. The auth flow surfaces a real entry card
+            that opens /ChecklistHub; for guests we render a static
+            preview so they can see what the feature looks like
+            without needing real DB rows. Footer CTA prompts signup
+            to "activate" the checklists. */}
+        {isVessel && (
+          <SafeComponent label="GuestVesselChecklistsPreview">
+            <GuestVesselChecklistsPreview />
+          </SafeComponent>
+        )}
 
         <SafeComponent label="CorkBoard">
           <CorkBoard vehicle={vehicle} isGuest />
