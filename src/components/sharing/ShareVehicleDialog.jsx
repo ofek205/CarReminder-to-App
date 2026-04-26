@@ -269,15 +269,31 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
               </div>
             </div>
 
-            {/* Share link box */}
-            <div>
+            {/* Share link box. The token is 64 chars + URL — far wider than
+                the dialog. The earlier `truncate` produced an ellipsised
+                strip that pushed the dialog past viewport on mobile (the
+                native min-content of a single-token URL forced the parent
+                wider than max-w-md). `break-all` keeps the URL on multiple
+                lines inside the box, so the dialog itself never overflows
+                horizontally. The Copy button stays the primary action; we
+                hide the Copy button label and rely on the icon. */}
+            <div className="min-w-0">
               <label className="block text-sm font-bold text-gray-700 mb-2">קישור הזמנה</label>
-              <div className="flex gap-2">
-                <div className="flex-1 min-w-0 rounded-xl border px-3 py-2.5 text-xs font-mono truncate" dir="ltr"
-                  style={{ background: '#F9FAFB', borderColor: '#E5E7EB', color: '#374151' }}>
+              <div className="flex gap-2 items-stretch">
+                <div className="flex-1 min-w-0 rounded-xl border px-3 py-2 text-[10px] font-mono break-all leading-relaxed"
+                  dir="ltr"
+                  style={{
+                    background: '#F9FAFB',
+                    borderColor: '#E5E7EB',
+                    color: '#374151',
+                    maxHeight: '64px',
+                    overflowY: 'auto',
+                  }}>
                   {inviteLink}
                 </div>
-                <Button onClick={copyLink} variant="outline" size="sm" className="shrink-0 rounded-xl px-3">
+                <Button onClick={copyLink} variant="outline" size="sm"
+                  className="shrink-0 rounded-xl px-3"
+                  aria-label={copied ? 'הועתק' : 'העתק קישור'}>
                   {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                 </Button>
               </div>

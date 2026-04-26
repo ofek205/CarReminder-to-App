@@ -38,7 +38,7 @@ begin
   if v_existing_active is not null then raise exception 'share_already_exists'; end if;
 
   select id into v_recipient_uid from auth.users where lower(email) = v_email_norm limit 1;
-  v_token := encode(gen_random_bytes(32), 'hex');
+  v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
 
   insert into public.vehicle_shares (vehicle_id, owner_user_id, shared_with_email, shared_with_user_id, role, invite_token)
   values (p_vehicle_id, uid, v_email_norm, v_recipient_uid, p_role, v_token)

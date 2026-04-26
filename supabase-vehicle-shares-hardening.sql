@@ -228,7 +228,13 @@ begin
   if v_existing_active is not null then raise exception 'share_already_exists'; end if;
 
   select id into v_recipient_uid from auth.users where lower(email) = v_email_norm limit 1;
-  v_token := encode(gen_random_bytes(32), 'hex');
+  -- gen_random_uuid() is native in Postgres 13+, no pgcrypto required.
+  -- Concatenated x2 minus dashes = 64 hex chars (256 bits of randomness),
+  -- same security level as encode(gen_random_bytes(32), 'hex'). Avoids
+  -- the gen_random_bytes-not-found error on Supabase deployments where
+  -- pgcrypto sits in the `extensions` schema (not in the function's
+  -- `set search_path = public`).
+  v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
 
   insert into public.vehicle_shares (vehicle_id, owner_user_id, shared_with_email, shared_with_user_id, role, invite_token)
   values (p_vehicle_id, uid, v_email_norm, v_recipient_uid, p_role, v_token)

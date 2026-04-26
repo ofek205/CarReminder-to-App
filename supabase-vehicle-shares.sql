@@ -284,7 +284,7 @@ begin
     from auth.users where lower(email) = v_email_norm limit 1;
 
   -- Build invite token (32 bytes hex).
-  v_token := encode(gen_random_bytes(32), 'hex');
+  v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
 
   insert into public.vehicle_shares (
     vehicle_id, owner_user_id, shared_with_email, shared_with_user_id,
