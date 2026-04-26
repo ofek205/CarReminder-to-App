@@ -3,7 +3,8 @@ import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
-import { Car, Ship, Bike, Truck, ChevronLeft, Gauge, Clock, MoreVertical, Edit, FileText, AlertCircle, RefreshCw, Check, X } from 'lucide-react';
+import { Car, Ship, Bike, Truck, ChevronLeft, Gauge, Clock, MoreVertical, Edit, FileText, AlertCircle, RefreshCw, Check, X, Users } from 'lucide-react';
+import VehicleAccessModal from '@/components/sharing/VehicleAccessModal';
 import { getTheme, getVehicleCategory, C } from '@/lib/designTokens';
 import VehicleIcon from '../shared/VehicleIcon';
 import { getDateStatus, usesKm, usesHours, getVehicleLabels, isVessel } from '../shared/DateStatusUtils';
@@ -155,6 +156,11 @@ function QuickMileageInput({ vehicle, T, isKm, onClose }) {
 function VehicleCardEnhanced({ vehicle }) {
   const navigate = useNavigate();
   const { isGuest } = useAuth();
+  // Drives the "with whom is this shared" small popover/modal triggered
+  // by clicking the share badge on the card. Reuses VehicleAccessModal
+  // so the flow on cards matches the flow on VehicleDetail (same
+  // revoke/leave logic, same copy).
+  const [accessModalOpen, setAccessModalOpen] = useState(false);
   const category = getVehicleCategory(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const labels = getVehicleLabels(vehicle.vehicle_type, vehicle.nickname);
@@ -248,19 +254,37 @@ function VehicleCardEnhanced({ vehicle }) {
                       לדוגמה
                     </span>
                   )}
-                  {/* Sharing badge: shown when this card represents a
-                      vehicle the user is involved in sharing — either
-                      they own it and have shared it, or they are the
-                      recipient. The flag comes from my_vehicles_v which
-                      replaced the legacy account-scoped query in
-                      Dashboard / Vehicles. Pure indicator (no click) on
-                      cards; the VehicleDetail page hosts the modal. */}
-                  {vehicle.is_shared_with_me && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0"
-                      style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}>
+                  {/* Sharing badges from my_vehicles_v.
+                      - Recipient (is_shared_with_me): "שותפ/ה איתי"
+                      - Owner with active shares (share_count > 0): "שותף עם N"
+                      Both are clickable — they open VehicleAccessModal,
+                      which renders the right list/actions per role
+                      (owner sees + revokes participants; sharee sees
+                      a leave-share button). stopPropagation so the
+                      click doesn't bubble into the card's main link.
+                      Mutually exclusive: a row can be owned-or-shared,
+                      never both. */}
+                  {vehicle.is_shared_with_me ? (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAccessModalOpen(true); }}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0 transition-all active:scale-95"
+                      style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
+                      aria-label="פרטי השיתוף">
+                      <Users className="w-3 h-3" />
                       שותפ/ה איתי
-                    </span>
-                  )}
+                    </button>
+                  ) : vehicle.share_count > 0 ? (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAccessModalOpen(true); }}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0 transition-all active:scale-95"
+                      style={{ background: '#E0F2FE', color: '#075985', border: '1px solid #BAE6FD' }}
+                      aria-label="ראה עם מי משותף">
+                      <Users className="w-3 h-3" />
+                      שותף עם {vehicle.share_count}
+                    </button>
+                  ) : null}
                 </div>
                 {subtitle && <p className="text-xs mt-0.5 truncate font-medium" style={{ color: C.muted }}>{subtitle}</p>}
               </div>
@@ -349,6 +373,16 @@ function VehicleCardEnhanced({ vehicle }) {
 
       {/* Spacer when no update open */}
       {!updateOpen && <div className="mb-3" />}
+
+      {/* "Who has access" modal — opened by clicking the share badge.
+          isOwner derived from the same flag the badge uses, so a sharee
+          gets the leave-share path and an owner gets the revoke list. */}
+      <VehicleAccessModal
+        open={accessModalOpen}
+        onOpenChange={setAccessModalOpen}
+        vehicle={vehicle}
+        isOwner={!vehicle.is_shared_with_me}
+      />
     </div>
   );
 }
@@ -366,5 +400,9 @@ export default React.memo(VehicleCardEnhanced, (prev, next) => {
     a.current_km === b.current_km &&
     a.current_engine_hours === b.current_engine_hours &&
     a.vehicle_photo === b.vehicle_photo &&
-    a.license_plate === b.license_plate;
+    a.license_plate === b.license_plate &&
+    // Sharing fields from my_vehicles_v — re-render the badge when the
+    // owner adds/removes a sharee or a recipient leaves.
+    a.share_count === b.share_count &&
+    a.is_shared_with_me === b.is_shared_with_me;
 });

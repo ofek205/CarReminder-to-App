@@ -404,18 +404,27 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
     init();
   }, []);
 
+  // Vehicle query goes through my_vehicles_v so sharees (recipients of
+  // accepted vehicle_shares) can open the page too. The previous version
+  // looped account_ids the user belongs to and did `vehicles.filter({id,
+  // account_id})` — which never matched a vehicle the user doesn't own,
+  // so accepted sharees got an "אין לך גישה לרכב זה" screen.
+  // my_vehicles_v RLS already restricts rows to (owned ∪ accepted-shared),
+  // so this is the right entry point for both modes.
   const { data: vehicles = [], isLoading } = useQuery({
-    queryKey: ['vehicle', vehicleId, accountIds.join(',')],
+    queryKey: ['vehicle', vehicleId, user?.id],
     queryFn: async () => {
-      for (const accountId of accountIds) {
-        const results = await db.vehicles.filter({ id: vehicleId, account_id: accountId });
-        if (results.length > 0) return results;
-      }
-      return [];
+      const { data, error } = await supabase
+        .from('my_vehicles_v')
+        .select('*')
+        .eq('id', vehicleId)
+        .limit(1);
+      if (error) throw error;
+      return data || [];
     },
-    enabled: !!vehicleId && accountIds.length > 0,
-    refetchOnMount: 'always', // Always fetch fresh data when navigating to this page
-    staleTime: 2 * 60 * 1000, // 2 minutes cache
+    enabled: !!vehicleId && !!user?.id,
+    refetchOnMount: 'always',
+    staleTime: 2 * 60 * 1000,
   });
 
   const vehicle = vehicles[0];

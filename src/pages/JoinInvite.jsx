@@ -21,6 +21,10 @@ export default function JoinInvite() {
   const [status, setStatus] = useState('loading'); // loading, success, error, needsAuth
   const [message, setMessage] = useState('');
   const [assignedRole, setAssignedRole] = useState('');
+  // Vehicle-share flow context for the success screen — set from the
+  // RPC return so we can render "X שיתף איתך את Y" instead of the
+  // generic "השיתוף אושר".
+  const [shareContext, setShareContext] = useState(null); // { vehicle_id, vehicle_label, inviter_name, role }
 
   useEffect(() => {
     join();
@@ -65,13 +69,17 @@ export default function JoinInvite() {
           return;
         }
         setAssignedRole(data?.role === 'editor' ? 'מנהל' : 'שותף');
+        setShareContext({
+          vehicle_id:    data?.vehicle_id || null,
+          vehicle_label: data?.vehicle_label || 'הרכב',
+          inviter_name:  data?.inviter_name  || 'משתמש',
+          role:          data?.role          || 'viewer',
+        });
         // Invalidate the cached vehicles list so the newly-shared
         // vehicle is visible the moment the user clicks "למסך הבית".
-        // Without this they'd see the dashboard from cache and have to
-        // pull-to-refresh to see the new card.
         queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
         setStatus('success');
-        setMessage('השיתוף אושר! הרכב התווסף לרשימה שלך');
+        setMessage('');                    // success render uses shareContext, not the generic message
       } catch (e) {
         if (import.meta.env.DEV) console.error('Vehicle share accept error:', e);
         setStatus('error');
@@ -181,7 +189,15 @@ export default function JoinInvite() {
           </div>
         )}
 
-        {/* Success */}
+        {/* Success.
+            Two flavors:
+              * Vehicle-share flow (shareContext set): personalized — names
+                the inviter, the vehicle, and explains in plain Hebrew
+                what the granted permission lets you do. Adds a CTA
+                straight to the vehicle page so the user immediately
+                sees what they got access to.
+              * Account-level flow (legacy): the original generic
+                message, kept for back-compat. */}
         {status === 'success' && (
           <div className="rounded-3xl p-8 text-center space-y-5"
             style={{ background: '#FFFFFF', boxShadow: '0 8px 40px rgba(0,0,0,0.08)' }}>
@@ -189,19 +205,57 @@ export default function JoinInvite() {
               style={{ background: '#E8F5E9' }}>
               <CheckCircle className="h-10 w-10 text-green-600" />
             </div>
-            <h2 className="font-black text-xl text-gray-900">{message}</h2>
-            {roleInfo && (
-              <div className="rounded-2xl p-4 inline-block" style={{ background: roleInfo.bg }}>
-                <p className="text-sm font-bold" style={{ color: roleInfo.color }}>
-                  הצטרפת כ{roleInfo.label} - {roleInfo.description}
-                </p>
-              </div>
+
+            {shareContext ? (
+              <>
+                <div className="space-y-2">
+                  <h2 className="font-black text-xl text-gray-900">השיתוף אושר</h2>
+                  <p className="text-base text-gray-700 leading-relaxed">
+                    <strong>{shareContext.inviter_name}</strong>
+                    {' '}שיתף/ה איתך את <strong>{shareContext.vehicle_label}</strong>
+                  </p>
+                </div>
+                <div className="rounded-2xl p-4 text-right" style={{ background: shareContext.role === 'editor' ? '#E8F5E9' : '#E3F2FD' }}>
+                  <p className="text-sm font-bold mb-1" style={{ color: shareContext.role === 'editor' ? '#2D5233' : '#1565C0' }}>
+                    {shareContext.role === 'editor' ? 'הרשאת עורך' : 'הרשאת צופה'}
+                  </p>
+                  <p className="text-xs leading-relaxed" style={{ color: '#374151' }}>
+                    {shareContext.role === 'editor'
+                      ? 'אפשר להוסיף ולערוך טיפולים, מסמכים ופרטים. אי אפשר למחוק את הרכב או לשתף עם אחרים.'
+                      : 'אפשר לראות הכל — טיפולים, מסמכים ופרטים. בלי הרשאת עריכה.'}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {shareContext.vehicle_id && (
+                    <Button onClick={() => navigate(`${createPageUrl('VehicleDetail')}?id=${shareContext.vehicle_id}`)}
+                      className="w-full h-14 rounded-2xl font-bold text-base gap-2"
+                      style={{ background: C.grad, color: 'white', boxShadow: `0 6px 24px ${C.primary}40` }}>
+                      פתח את הרכב
+                    </Button>
+                  )}
+                  <Button onClick={() => navigate(createPageUrl('Dashboard'))}
+                    variant="outline" className="w-full h-12 rounded-2xl font-bold text-sm">
+                    למסך הבית
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="font-black text-xl text-gray-900">{message}</h2>
+                {roleInfo && (
+                  <div className="rounded-2xl p-4 inline-block" style={{ background: roleInfo.bg }}>
+                    <p className="text-sm font-bold" style={{ color: roleInfo.color }}>
+                      הצטרפת כ{roleInfo.label} - {roleInfo.description}
+                    </p>
+                  </div>
+                )}
+                <Button onClick={() => navigate(createPageUrl('Dashboard'))}
+                  className="w-full h-14 rounded-2xl font-bold text-base gap-2"
+                  style={{ background: C.grad, color: 'white', boxShadow: `0 6px 24px ${C.primary}40` }}>
+                  למסך הבית
+                </Button>
+              </>
             )}
-            <Button onClick={() => navigate(createPageUrl('Dashboard'))}
-              className="w-full h-14 rounded-2xl font-bold text-base gap-2"
-              style={{ background: C.grad, color: 'white', boxShadow: `0 6px 24px ${C.primary}40` }}>
-              למסך הבית
-            </Button>
           </div>
         )}
 
