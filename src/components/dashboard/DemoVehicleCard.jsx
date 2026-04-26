@@ -88,7 +88,7 @@ export default function DemoVehicleCard({ onAddVehicleClick }) {
             className="text-[#2D5233] border-[#2D5233] gap-2 text-xs hover:bg-[#E8F2EA]"
           >
             <Plus className="h-3.5 w-3.5" />
-            הוסף את הרכב שלך
+            הוסף את כלי התחבורה שלך
           </Button>
         </Link>
       </div>

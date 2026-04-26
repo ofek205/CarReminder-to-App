@@ -327,7 +327,7 @@ export default function DemoVehicleDetail() {
         <span className="text-lg">👀</span>
         <div className="flex-1">
           <p className="text-sm font-black" style={{ color: '#92400E' }}>רכב לדוגמה</p>
-          <p className="text-xs" style={{ color: '#B45309' }}>כך ייראה ניהול הרכב שלך - הוסף את הרכב האמיתי שלך כדי להתחיל</p>
+          <p className="text-xs" style={{ color: '#B45309' }}>כך ייראה הניהול שלך - הוסף את כלי התחבורה האמיתי שלך כדי להתחיל</p>
         </div>
       </div>
 
@@ -345,13 +345,13 @@ export default function DemoVehicleDetail() {
           <div dir="rtl">
             <p className="font-semibold text-gray-900">מוכן להתחיל?</p>
             <p className="text-sm text-gray-500 mt-1">
-              הוסף את הרכב שלך וקבל תמונה מלאה של הטסט, הביטוח והטיפולים - הכל במקום אחד.
+              הוסף את כלי התחבורה שלך וקבל תמונה מלאה של הבדיקות, הביטוח והטיפולים - הכל במקום אחד.
             </p>
           </div>
           <Link to={createPageUrl('AddVehicle')}>
             <Button className="bg-[#2D5233] hover:bg-[#1E3D24] text-white gap-2 shadow-md mt-1">
               <Plus className="h-4 w-4" />
-              הוסף את הרכב שלך
+              הוסף את כלי התחבורה שלך
             </Button>
           </Link>
         </Card>

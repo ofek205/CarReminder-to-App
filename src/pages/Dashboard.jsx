@@ -956,7 +956,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-black" style={{ color: '#92400E' }}>אלו רכבים לדוגמה בלבד</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>כך ייראה המסך שלך - הוסף את הרכב האמיתי שלך</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>כך ייראה המסך שלך - הוסף את כלי התחבורה האמיתי שלך</p>
                 </div>
               </div>
             </div>
@@ -971,7 +971,7 @@ export default function Dashboard() {
           <Link to={createPageUrl('AddVehicle')} data-tour="add-vehicle">
             <button className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-6 transition-all active:scale-[0.98]"
               style={{ background: C.yellow, color: C.greenDark }}>
-              הוספת רכב חדש
+              הוספת כלי תחבורה חדש
               <Plus className="w-4 h-4" />
             </button>
           </Link>
@@ -1178,12 +1178,12 @@ export default function Dashboard() {
         {vehicles.length === 0 ? (
           <div className="text-center py-16">
             <Car className="w-16 h-16 mx-auto mb-4" style={{ color: C.muted }} />
-            <p className="font-bold text-lg mb-1" style={{ color: C.text }}>אין רכבים עדיין</p>
-            <p className="text-sm mb-6" style={{ color: C.muted }}>הוסף את הרכב הראשון שלך</p>
+            <p className="font-bold text-lg mb-1" style={{ color: C.text }}>אין כלי תחבורה עדיין</p>
+            <p className="text-sm mb-6" style={{ color: C.muted }}>הוסף את כלי התחבורה הראשון שלך</p>
             <Link to={createPageUrl('AddVehicle')} data-tour="add-vehicle">
               <button className="px-8 py-3 rounded-2xl font-bold"
                 style={{ background: C.yellow, color: C.greenDark }}>
-                הוסף רכב
+                הוסף כלי תחבורה
               </button>
             </Link>
           </div>
@@ -1204,7 +1204,7 @@ export default function Dashboard() {
             <Link to={createPageUrl('AddVehicle')} data-tour="add-vehicle">
               <button className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 mb-6 transition-all active:scale-[0.98]"
                 style={{ background: C.yellow, color: C.greenDark }}>
-                הוספת רכב חדש
+                הוספת כלי תחבורה חדש
                 <Plus className="w-4 h-4" />
               </button>
             </Link>

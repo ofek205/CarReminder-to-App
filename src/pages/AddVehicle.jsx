@@ -713,7 +713,7 @@ export default function AddVehicle() {
     return (
       <div dir="rtl" className="flex flex-col items-center justify-center py-20 text-center">
         <div className="rounded-2xl p-6 max-w-sm" style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }}>
-          <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה להוסיף רכב</p>
+          <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה להוסיף כלי תחבורה</p>
           <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר, תצוגה בלבד</p>
           <button onClick={() => navigate(-1)} className="px-6 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563EB' }}>חזרה</button>
         </div>
@@ -940,7 +940,7 @@ export default function AddVehicle() {
               </div>
             </Link>
             <div>
-              <h1 className="text-lg font-black text-white">הוספת כלי רכב</h1>
+              <h1 className="text-lg font-black text-white">הוספת כלי תחבורה</h1>
               <p className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>בחר סוג ומלא פרטים</p>
             </div>
           </div>
