@@ -483,6 +483,16 @@ function AuthUserProfile({ embedded = false }) {
             מחיקת חשבון ונתונים
           </Link>
         </div>
+
+        {/* Version footer — sourced from package.json via the
+            __APP_VERSION__ define in vite.config.js. Rendered as a
+            quiet trailing line, not as a card, because it's a "what
+            am I running?" reference and shouldn't compete with
+            actionable items above. Updates automatically on the next
+            build whenever `version` is bumped in package.json. */}
+        <p className="text-center text-[11px] mt-4 mb-2" style={{ color: '#9CA3AF' }}>
+          CarReminder &middot; גרסה {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—'}
+        </p>
       </div>
     </div>
   );

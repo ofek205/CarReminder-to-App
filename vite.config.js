@@ -1,8 +1,20 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import path from 'path'
+import { readFileSync } from 'fs'
+
+// Read package.json once at build time and inline `version` as a
+// global (`__APP_VERSION__`) so the UI can render "גרסה 2.7.2" in the
+// settings screen without hardcoding it in a second place. Bumping
+// `version` in package.json updates the value automatically on the
+// next build — single source of truth, same string the Play Store
+// release pipeline reads.
+const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   server: {
     proxy: {
       '/gov-api': {
