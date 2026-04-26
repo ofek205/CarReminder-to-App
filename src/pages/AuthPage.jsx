@@ -120,9 +120,32 @@ export default function AuthPage() {
   });
   const formRef = useRef(null);
 
+  // Auto-redirect logged-in users away from /Auth — UNLESS they're
+  // mid password-recovery. Critical security fix: when a user clicks
+  // a recovery email link, Supabase mints a (scoped) session as part
+  // of the verify step. Without the `mode !== 'update-password'`
+  // guard the user gets auto-redirected to /Dashboard and never sees
+  // the new-password form, effectively turning the recovery link into
+  // a one-click login. Anyone with access to the inbox would silently
+  // log in without ever proving they know (or set) a password.
   useEffect(() => {
-    if (isAuthenticated) navigate(createPageUrl('Dashboard'), { replace: true });
-  }, [isAuthenticated, navigate]);
+    if (isAuthenticated && mode !== 'update-password') {
+      navigate(createPageUrl('Dashboard'), { replace: true });
+    }
+  }, [isAuthenticated, mode, navigate]);
+
+  // Belt-and-suspenders: Supabase fires PASSWORD_RECOVERY when the
+  // recovery token has just been exchanged for a session. We force
+  // update-password mode here too, so even if the URL got stripped of
+  // ?mode=update-password (some email clients rewrite query params,
+  // some web previewers strip them, etc.) the user still lands on the
+  // password form rather than getting silently logged in.
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setMode('update-password');
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
 
   // Auto-focus first input when form opens
   useEffect(() => {
