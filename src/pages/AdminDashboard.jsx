@@ -1278,20 +1278,29 @@ function AdminUsersTab() {
         setRpcMissing(false);
         setLastRefreshed(new Date());
         setUsers(
-          (data || []).map(r => ({
-            id: r.account_id,
-            name: r.account_name,
-            created_at: r.account_created_at,
-            owner_user_id: r.owner_user_id,
-            email: r.owner_email,
-            owner_name: r.owner_name,
-            role: r.owner_role || 'user',
-            memberCount: r.member_count || 0,
-            vehicleCount: r.vehicle_count || 0,
-            documentCount: r.document_count || 0,
-            last_sign_in_at: r.last_sign_in_at,
-            email_confirmed_at: r.email_confirmed_at,
-          }))
+          (data || []).map(r => {
+            const total = r.vehicle_count || 0;
+            const vessels = r.vessel_count || 0;
+            // Cars = total minus vessels. SQL returns total + vessels
+            // separately; subtracting client-side avoids a second
+            // server-side count on the same rows.
+            return {
+              id: r.account_id,
+              name: r.account_name,
+              created_at: r.account_created_at,
+              owner_user_id: r.owner_user_id,
+              email: r.owner_email,
+              owner_name: r.owner_name,
+              role: r.owner_role || 'user',
+              memberCount: r.member_count || 0,
+              vehicleCount: total,                 // total (kept for back-compat copy)
+              carCount:     Math.max(0, total - vessels),
+              vesselCount:  vessels,
+              documentCount: r.document_count || 0,
+              last_sign_in_at: r.last_sign_in_at,
+              email_confirmed_at: r.email_confirmed_at,
+            };
+          })
         );
       } catch (e) {
         if (cancelled) return;
@@ -1305,21 +1314,31 @@ function AdminUsersTab() {
             db.documents.list().catch(() => []),
           ]);
           if (cancelled) return;
+          // Vessel detection mirrors isVesselType()/isVesselVeh() and the
+          // RPC's IN list. Keeping it inline (vs. importing) so this
+          // fallback path stays self-contained.
+          const VESSEL_TYPES = new Set(['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי']);
           setUsers(
-            accounts.map(a => ({
-              id: a.id,
-              name: a.name,
-              created_at: a.created_at,
-              owner_user_id: null,
-              email: null,
-              owner_name: '',
-              role: 'user',
-              memberCount: members.filter(m => m.account_id === a.id).length,
-              vehicleCount: vehicles.filter(v => v.account_id === a.id).length,
-              documentCount: documents.filter(d => d.account_id === a.id).length,
-              last_sign_in_at: null,
-              email_confirmed_at: null,
-            }))
+            accounts.map(a => {
+              const acctVeh = vehicles.filter(v => v.account_id === a.id);
+              const vessels = acctVeh.filter(v => VESSEL_TYPES.has(v.vehicle_type)).length;
+              return {
+                id: a.id,
+                name: a.name,
+                created_at: a.created_at,
+                owner_user_id: null,
+                email: null,
+                owner_name: '',
+                role: 'user',
+                memberCount: members.filter(m => m.account_id === a.id).length,
+                vehicleCount: acctVeh.length,
+                carCount:     Math.max(0, acctVeh.length - vessels),
+                vesselCount:  vessels,
+                documentCount: documents.filter(d => d.account_id === a.id).length,
+                last_sign_in_at: null,
+                email_confirmed_at: null,
+              };
+            })
           );
         } catch {
           setUsers([]);
@@ -1352,7 +1371,8 @@ function AdminUsersTab() {
     const mul = sortDir === 'asc' ? 1 : -1;
     arr.sort((a, b) => {
       switch (sortKey) {
-        case 'vehicles':  return mul * ((a.vehicleCount || 0) - (b.vehicleCount || 0));
+        case 'vehicles':  return mul * ((a.carCount || 0) - (b.carCount || 0));
+        case 'vessels':   return mul * ((a.vesselCount || 0) - (b.vesselCount || 0));
         case 'lastLogin': return mul * (new Date(a.last_sign_in_at || 0) - new Date(b.last_sign_in_at || 0));
         case 'name':      return mul * String(a.name || '').localeCompare(String(b.name || ''), 'he');
         case 'created':
@@ -1377,42 +1397,37 @@ function AdminUsersTab() {
 
   const doDelete = async () => {
     if (!pendingDelete) return;
-    // We need the auth user_id, not just the account_id. The previous
-    // RPC `admin_delete_account` only emptied `accounts` and left the
-    // auth.users row intact — so the user could still log in and the
-    // email stayed reserved. The Edge Function below removes the auth
-    // user; ON DELETE CASCADE on owner_user_id then takes the rest.
+    // The previous Edge-Function path required a deploy step the user
+    // never wanted to manage. Replaced with a SECURITY DEFINER SQL
+    // RPC (`admin_delete_user_full`) that runs as the postgres role,
+    // checks is_current_user_admin() + self-delete, then deletes
+    // straight from auth.users — every domain table FK's that with
+    // ON DELETE CASCADE so accounts/vehicles/documents/shares all
+    // disappear in one transaction. No HTTP, no service-role key in
+    // transit, just one round-trip.
     if (!pendingDelete.owner_user_id) {
       toast.error('לא נמצא בעלים לחשבון. נסה לרענן.');
       return;
     }
     setDeleting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('admin-delete-user', {
-        body: { user_id: pendingDelete.owner_user_id },
+      const { error } = await supabase.rpc('admin_delete_user_full', {
+        p_user_id: pendingDelete.owner_user_id,
       });
-      if (error) {
-        // Try to surface the real reason from the function's body so
-        // "forbidden" / "cannot_delete_self" land as actionable Hebrew.
-        let detail = error.message;
-        try {
-          if (error.context?.json) {
-            const body = await error.context.json();
-            detail = body?.error || body?.detail || detail;
-          }
-        } catch { /* keep generic */ }
-        throw new Error(detail);
-      }
-      if (data?.already_deleted) toast.success('החשבון כבר היה מחוק');
-      else toast.success('החשבון נמחק');
+      if (error) throw error;
+      toast.success('החשבון נמחק');
       setPendingDelete(null);
       setRefreshKey(k => k + 1);
     } catch (e) {
+      // The SQL function raises with stable error codes via SQLSTATE,
+      // and the message text is the literal we threw ('forbidden',
+      // 'cannot_delete_self', 'invalid_user_id'). Map to Hebrew so
+      // admins see something actionable instead of raw psql wording.
       const m = (e?.message || '').toLowerCase();
       const friendly =
         m.includes('cannot_delete_self') ? 'אי אפשר למחוק את עצמך'
         : m.includes('forbidden')        ? 'אין הרשאה לפעולה'
-        : m.includes('unauthenticated')  ? 'יש להתחבר מחדש'
+        : m.includes('invalid_user_id')  ? 'מזהה משתמש לא תקין'
         : 'שגיאה במחיקה: ' + (e?.message || 'unknown');
       toast.error(friendly);
     } finally {
@@ -1438,12 +1453,13 @@ function AdminUsersTab() {
   };
 
   const exportCsv = () => {
-    const header = ['שם חשבון', 'אימייל', 'תפקיד', 'רכבים', 'מסמכים', 'חברים', 'התחברות אחרונה', 'נוצר', 'אומת', 'ID'];
+    const header = ['שם חשבון', 'אימייל', 'תפקיד', 'רכבים', 'כלי שייט', 'מסמכים', 'חברים', 'התחברות אחרונה', 'נוצר', 'אומת', 'ID'];
     const rows = filtered.map(u => [
       u.name || '',
       u.email || '',
       u.role || '',
-      u.vehicleCount,
+      u.carCount ?? 0,
+      u.vesselCount ?? 0,
       u.documentCount,
       u.memberCount,
       u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), 'yyyy-MM-dd HH:mm') : '',
@@ -1471,7 +1487,10 @@ function AdminUsersTab() {
     const day = 24 * 60 * 60 * 1000;
     return {
       total: users.length,
-      withVehicle: users.filter(u => u.vehicleCount > 0).length,
+      // Owners with at least one car (excludes vessel-only accounts).
+      withCar:    users.filter(u => (u.carCount    || 0) > 0).length,
+      // Owners with at least one vessel (the boating segment).
+      withVessel: users.filter(u => (u.vesselCount || 0) > 0).length,
       activeLast7d: users.filter(u => u.last_sign_in_at && now - new Date(u.last_sign_in_at).getTime() < 7 * day).length,
       unverified: users.filter(u => u.email && !u.email_confirmed_at).length,
       admins: users.filter(u => u.role === 'admin').length,
@@ -1502,9 +1521,10 @@ function AdminUsersTab() {
       )}
 
       {/* Stat pills */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
         <StatPill label="חשבונות" value={stats.total} tone="blue" />
-        <StatPill label="עם רכב" value={stats.withVehicle} tone="green" />
+        <StatPill label="עם רכב" value={stats.withCar} tone="green" />
+        <StatPill label="עם כלי שייט" value={stats.withVessel} tone="emerald" />
         <StatPill label="פעילים (7 ימים)" value={stats.activeLast7d} tone="emerald" />
         <StatPill label="לא אומתו" value={stats.unverified} tone="amber" />
         <StatPill label="אדמינים" value={stats.admins} tone="purple" />
@@ -1547,6 +1567,8 @@ function AdminUsersTab() {
             <option value="lastLogin:desc">התחברות אחרונה: חדש לישן</option>
             <option value="vehicles:desc">רכבים: הרבה למעט</option>
             <option value="vehicles:asc">רכבים: מעט להרבה</option>
+            <option value="vessels:desc">כלי שייט: הרבה למעט</option>
+            <option value="vessels:asc">כלי שייט: מעט להרבה</option>
             <option value="name:asc">שם: א עד ת</option>
           </select>
         </div>
@@ -1576,8 +1598,9 @@ function AdminUsersTab() {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-3 text-[11px] text-gray-500 mb-2">
-                <span><span className="font-bold text-gray-700">{u.vehicleCount}</span> רכבים</span>
+              <div className="flex items-center gap-3 text-[11px] text-gray-500 mb-2 flex-wrap">
+                <span><span className="font-bold text-gray-700">{u.carCount ?? 0}</span> רכבים</span>
+                <span><span className="font-bold text-gray-700">{u.vesselCount ?? 0}</span> כלי שייט</span>
                 <span><span className="font-bold text-gray-700">{u.documentCount}</span> מסמכים</span>
                 <span><span className="font-bold text-gray-700">{u.memberCount}</span> חברים</span>
               </div>
@@ -1617,6 +1640,7 @@ function AdminUsersTab() {
                 <th className="text-right py-2 px-2">אימייל</th>
                 <th className="text-right py-2 px-2">תפקיד</th>
                 <SortHead label="רכבים" k="vehicles" />
+                <SortHead label="כלי שייט" k="vessels" />
                 <th className="text-right py-2 px-2">מסמכים</th>
                 <th className="text-right py-2 px-2">חברים</th>
                 <SortHead label="התחברות אחרונה" k="lastLogin" />
@@ -1648,7 +1672,8 @@ function AdminUsersTab() {
                       </span>
                     ) : <span className="text-gray-400 text-[10px]">משתמש</span>}
                   </td>
-                  <td className="py-2 px-2 font-bold">{u.vehicleCount}</td>
+                  <td className="py-2 px-2 font-bold">{u.carCount ?? 0}</td>
+                  <td className="py-2 px-2 font-bold">{u.vesselCount ?? 0}</td>
                   <td className="py-2 px-2">{u.documentCount}</td>
                   <td className="py-2 px-2">{u.memberCount}</td>
                   <td className="py-2 px-2 text-gray-500">
@@ -1702,7 +1727,7 @@ function AdminUsersTab() {
         open={!!pendingDelete}
         title="מחיקת חשבון"
         description={pendingDelete
-          ? `פעולה זו תמחק את חשבון "${pendingDelete.name || 'ללא שם'}" וכל הנתונים שלו (${pendingDelete.vehicleCount} רכבים, ${pendingDelete.documentCount} מסמכים). לא ניתן לשחזר.`
+          ? `פעולה זו תמחק את חשבון "${pendingDelete.name || 'ללא שם'}" וכל הנתונים שלו (${pendingDelete.carCount ?? 0} רכבים, ${pendingDelete.vesselCount ?? 0} כלי שייט, ${pendingDelete.documentCount} מסמכים). לא ניתן לשחזר.`
           : ''}
         onConfirm={doDelete}
         onCancel={() => !deleting && setPendingDelete(null)}
