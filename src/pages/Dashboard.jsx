@@ -74,6 +74,18 @@ function UrgentBanner({ reminders, vehicles }) {
 
   // Show the nearest upcoming reminder
   const urgent = withDays[0];
+
+  // Log 'shown' once per mount when an urgent reminder exists. Has to be
+  // declared BEFORE the early-return so rules-of-hooks stays happy —
+  // the body is gated on `urgent` so it's a no-op when the banner is
+  // not actually rendered.
+  useEffect(() => {
+    if (urgent) {
+      logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'shown');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- log once per mount
+  }, []);
+
   if (!urgent) return null;
 
   const isExpired = urgent.days < 0;
@@ -124,13 +136,10 @@ function UrgentBanner({ reminders, vehicles }) {
 
   const BadgeIcon = urgencyConfig.badgeIcon;
 
-  // Log 'shown' each time the banner actually mounts with a real urgent
-  // reminder (not the "no reminders" null-return above). One mount = one
-  // impression. Click-throughs on the CTA are logged inline below.
-  useEffect(() => {
-    logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'shown');
-   
-  }, []);
+  // (urgentBanner 'shown' impression is logged near the top of the
+  // function, BEFORE the `if (!urgent) return null;` guard, so React's
+  // rules-of-hooks stays satisfied. The body of that effect is gated
+  // on `urgent` so it's a no-op when there's nothing to render.)
 
   return (
     <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
