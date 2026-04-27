@@ -20,6 +20,7 @@ import { GuestProvider, useAuth } from "@/components/shared/GuestContext";
 import { AccessibilityProvider } from "@/components/shared/AccessibilityContext";
 import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
+import StagingBanner from "@/components/shared/StagingBanner";
 import useIsAdmin from "@/hooks/useIsAdmin";
 import useSharedVehicleRealtime from "@/hooks/useSharedVehicleRealtime";
 // Lazy-load the 568-line bell + its useEffect-heavy data fetching. It
@@ -517,6 +518,7 @@ function LayoutInner({ children }) {
 
   return (
     <div>
+      <StagingBanner />
       <SafeComponent label="GuestWelcomePopup">
         <GuestWelcomePopup open={isGuest && !guestPopupClosed} onClose={() => { setGuestPopupClosed(true); sessionStorage.setItem('guest_popup_closed', '1'); }} />
       </SafeComponent>

@@ -1,0 +1,43 @@
+# Production gates — runs on every PR that targets `main`.
+#
+# Mechanical checks only (build + lint). Cognitive gates (code-review,
+# QA mental walkthrough, gatekeeper) live in CLAUDE.md and run inside a
+# Claude session, before the PR is opened.
+#
+# A failure here blocks the merge button in GitHub UI when branch
+# protection is enabled (Settings → Branches → main → "Require status
+# checks to pass before merging" → select "build" and "lint").
+
+name: Production gates
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      # Lint must be clean for a production merge — see CLAUDE.md
+      # ("חוב lint קיים — חוק --no-verify"). Bypass is permitted only on
+      # pushes to the `staging` branch, never on PRs into `main`.
+      - run: npm run lint
