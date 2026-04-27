@@ -18,7 +18,7 @@ import { supabase } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Eye, Edit, Clock, UserMinus, LogOut, Shield, RefreshCw, Plus } from 'lucide-react';
+import { Loader2, Users, Eye, Edit, Clock, UserMinus, LogOut, RefreshCw, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
 import ShareVehicleDialog from './ShareVehicleDialog';

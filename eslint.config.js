@@ -5,6 +5,23 @@ import pluginReactHooks from "eslint-plugin-react-hooks";
 import pluginUnusedImports from "eslint-plugin-unused-imports";
 
 export default [
+  // Top-level ignore. Lint never walks into these directories at all,
+  // even when invoked as `eslint .`. The android/ios build outputs in
+  // particular contain Capacitor's bundled native-bridge.js whose own
+  // eslint-disable comments reference rule names (e.g. @typescript-
+  // eslint/no-unused-vars) that aren't installed in our config.
+  {
+    ignores: [
+      "node_modules/**",
+      "dist/**",
+      "build/**",
+      "android/**",
+      "ios/**",
+      ".vercel/**",
+      ".vite/**",
+      "supabase/.temp/**",
+    ],
+  },
   {
     files: [
       "src/components/**/*.{js,mjs,cjs,jsx}",
