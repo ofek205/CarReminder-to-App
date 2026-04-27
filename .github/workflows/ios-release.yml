@@ -38,8 +38,10 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Select latest Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.app
+      - name: Show Xcode version (use runner default)
+        run: |
+          xcodebuild -version
+          echo "Active developer dir: $(xcode-select -p)"
 
       - name: Install dependencies
         run: npm ci
