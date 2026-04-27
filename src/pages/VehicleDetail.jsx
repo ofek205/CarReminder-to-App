@@ -68,7 +68,7 @@ import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from '@/hooks/useAccountRole';
 import { canEdit, canDelete, isViewOnly } from '@/lib/permissions';
 import { daysUntil } from '../components/shared/ReminderEngine';
-import { getDateStatus, getVehicleLabels } from '../components/shared/DateStatusUtils';
+import { getDateStatus, getVehicleLabels, usesHours } from '../components/shared/DateStatusUtils';
 import StatusBadge from '../components/shared/StatusBadge';
 import LicensePlate from '../components/shared/LicensePlate';
 
@@ -80,6 +80,10 @@ function RemindersPreview({ vehicle, T }) {
   const items = [
     vehicle.test_due_date && { icon: Calendar, label: labels.testWord, date: vehicle.test_due_date, status: getDateStatus(vehicle.test_due_date) },
     vehicle.insurance_due_date && { icon: Shield, label: labels.insuranceWord || 'ביטוח', date: vehicle.insurance_due_date, status: getDateStatus(vehicle.insurance_due_date) },
+    // Periodic inspection certificate (תסקיר). Optional everywhere;
+    // surfaces here only when set. Mainly relevant for CME (forklifts,
+    // excavators, telehandlers) but exposed for any vehicle.
+    vehicle.inspection_report_expiry_date && { icon: FileText, label: 'תסקיר', date: vehicle.inspection_report_expiry_date, status: getDateStatus(vehicle.inspection_report_expiry_date) },
   ].filter(Boolean);
 
   if (items.length === 0) return null;
@@ -173,8 +177,18 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
   };
 
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
+  // usesHours covers vessels, off-road toys (RZR / מיול), every CME
+  // subtype (forklifts, excavators, loaders…) and tractors. Used for
+  // the stats bar + reminders below so a forklift shows "שעות מנוע"
+  // instead of the misleading "קילומטראז׳: -" the bare isVessel check
+  // was rendering.
+  const isHoursVehicle = usesHours(vehicle);
   const testDays = daysUntil(vehicle.test_due_date);
   const insDays = daysUntil(vehicle.insurance_due_date);
+  // Inspection report ("תסקיר") expiry — surfaced in the dates row
+  // for any non-vessel vehicle with an inspection date set. Vessels
+  // have כושר שייט instead so we hide it for them.
+  const inspectionDays = daysUntil(vehicle.inspection_report_expiry_date);
   const needsAction = (testDays !== null && testDays <= 60) || (insDays !== null && insDays <= 60);
   const statusBadge = needsAction
     ? { label: 'תחזוקה נדרשת', bg: T.yellow, color: T.primary }
@@ -244,7 +258,12 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
         {/* Stats bar - like Dashboard */}
         <div className="grid grid-cols-3" style={{ background: '#fff' }}>
           {[
-            { label: isVessel ? 'שעות מנוע' : 'קילומטראז\'', value: isVessel ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '-') : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '-') },
+            // Hours vs km — driven by usesHours() so the row reads correctly
+            // for forklifts / excavators / rollers / tractors / RZRs / vessels.
+            { label: isHoursVehicle ? 'שעות מנוע' : 'קילומטראז\'',
+              value: isHoursVehicle
+                ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '-')
+                : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '-') },
             { label: 'שנת ייצור', value: vehicle.year || '-' },
             { label: isVessel ? 'כושר שייט' : 'טסט', value: testDays !== null ? daysLabel(testDays) : '-' },
           ].map((stat, i) => (

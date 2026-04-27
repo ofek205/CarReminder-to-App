@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine } from "lucide-react";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
-import { normalizePlate, isVintageVehicle, isOffroad } from "../components/shared/DateStatusUtils";
+import { normalizePlate, isVintageVehicle, isOffroad, usesHours } from "../components/shared/DateStatusUtils";
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { toast } from "sonner";
@@ -167,7 +167,13 @@ export default function EditVehicle() {
 
         // TODO: migrate VehicleType to Supabase
         if (v.vehicle_type) {
-          setUsageMetric(v.vehicle_type === 'כלי שייט' ? 'שעות מנוע' : 'קילומטרים');
+          // usesHours covers vessels, off-road toys (RZR / מיול),
+          // every CME subtype (forklifts, excavators, rollers, cranes…),
+          // and tractors. Hardcoding 'כלי שייט' here used to leave
+          // forklifts editing into a "קילומטראז׳" input bound to
+          // current_km, while their actual current_engine_hours value
+          // sat invisible and uneditable on the form.
+          setUsageMetric(usesHours(v) ? 'שעות מנוע' : 'קילומטרים');
         }
 
         setForm(buildForm(v));
