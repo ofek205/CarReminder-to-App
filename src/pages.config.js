@@ -3,11 +3,21 @@
  * Heavy pages are lazy-loaded to reduce initial bundle size.
  */
 import React from 'react';
+// Dashboard stays eager: it's the landing route. Lazy-loading it would
+// flash the suspense spinner on every fresh tab/PWA launch.
 import Dashboard from './pages/Dashboard';
-import AuthPage from './pages/AuthPage';
-import VehicleDetail from './pages/VehicleDetail';
-import Vehicles from './pages/Vehicles';
 import __Layout from './Layout.jsx';
+
+// AuthPage / Vehicles / VehicleDetail used to be eager too, which dragged
+// ~2300 lines of page code (and their lucide-react / form / supabase
+// imports) into the entry chunk before the user saw anything. Authed
+// users on Dashboard have to download 870 lines of AuthPage they will
+// never see; logged-out users have to download Vehicles + VehicleDetail.
+// Splitting these into lazy chunks shrinks the initial bundle so the
+// landing render (Dashboard) starts paint earlier.
+const AuthPage = React.lazy(() => import('./pages/AuthPage'));
+const Vehicles = React.lazy(() => import('./pages/Vehicles'));
+const VehicleDetail = React.lazy(() => import('./pages/VehicleDetail'));
 
 // Lazy-loaded pages. loaded on demand when navigated to
 const Community = React.lazy(() => import('./pages/Community'));
