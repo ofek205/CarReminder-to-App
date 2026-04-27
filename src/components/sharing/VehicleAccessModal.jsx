@@ -18,7 +18,7 @@ import { supabase } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Eye, Edit, Clock, UserMinus, LogOut, RefreshCw, Plus } from 'lucide-react';
+import { Loader2, Users, Eye, Edit, Edit3, Clock, Trash2, LogOut, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
 import ShareVehicleDialog from './ShareVehicleDialog';
@@ -216,26 +216,26 @@ export default function VehicleAccessModal({
                 </div>
               ) : (
                 <>
+                  {/* Header strip: simple share count + always-visible
+                      invite CTA. The previous "X מתוך 3 (המקסימום)"
+                      copy advertised the cap to every owner — Ofek
+                      asked we drop it: most owners never approach the
+                      ceiling. The 3-share cap is still enforced
+                      server-side; a 4th attempt surfaces a friendly
+                      Hebrew toast from ShareVehicleDialog. */}
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-bold text-gray-500">
-                      {shares.length} מתוך 3 שיתופים (המקסימום)
+                      {shares.length === 1 ? 'שיתוף אחד' : `${shares.length} שיתופים`}
                     </p>
-                    {/* Invite-another-user button. Lifted into the
-                        access modal so the owner can both manage AND
-                        invite from one place — used to require closing
-                        this modal and finding the share button on the
-                        vehicle detail page. Hidden when the cap is
-                        reached. */}
-                    {shares.length < 3 && (
-                      <button
-                        onClick={() => setShowShareDialog(true)}
-                        className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all active:scale-95"
-                        style={{ background: '#F59E0B', color: '#fff', boxShadow: '0 2px 6px rgba(245,158,11,0.35)' }}>
-                        <Plus className="w-3.5 h-3.5" />
-                        הזמן עוד משתמש
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setShowShareDialog(true)}
+                      className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all active:scale-95"
+                      style={{ background: '#F59E0B', color: '#fff', boxShadow: '0 2px 6px rgba(245,158,11,0.35)' }}>
+                      <Plus className="w-3.5 h-3.5" />
+                      הזמן עוד משתמש
+                    </button>
                   </div>
+
                   {shares.map(s => {
                     const roleMeta = ROLE_META[s.role] || ROLE_META['שותף'];
                     const statusMeta = STATUS_META[s.status] || STATUS_META.pending;
@@ -244,61 +244,78 @@ export default function VehicleAccessModal({
                     // shares (pending = not yet using the role; if owner
                     // wants to change it before acceptance they can
                     // revoke + re-invite at the new role). Pending
-                    // shares show the badge as static.
+                    // shares show the role as a static label.
                     const canEditRole = s.status === 'accepted' && roleMeta.other;
                     return (
-                      <div key={s.id} className="rounded-2xl p-3 flex items-center gap-3"
+                      // One full card per sharee. Three vertical zones:
+                      //   1. avatar + name/email + status badge
+                      //   2. role line + "שנה הרשאה" button (text+icon)
+                      //   3. "הסר את השיתוף" full-width destructive button
+                      // Every action is a TEXT-LABELED button (icon alone
+                      // was the source of confusion — the older user
+                      // could not tell the eye / refresh icons were
+                      // tappable controls).
+                      <div key={s.id} className="rounded-2xl p-4"
                         style={{ background: '#FFF', border: '1.5px solid #E5E7EB' }}>
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                          style={{ background: roleMeta.bg }}>
-                          <RoleIcon className="w-5 h-5" style={{ color: roleMeta.color }} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-sm truncate" style={{ color: '#1F2937' }}>{s.shared_with_name}</p>
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            {/* Role badge — clickable when editable.
-                                The hover ring + RefreshCw icon signal
-                                "tap to swap roles" without occupying
-                                separate space, keeping the row tight. */}
-                            {canEditRole ? (
-                              <button
-                                onClick={() => setConfirmRoleChange({
-                                  share_id:     s.id,
-                                  name:         s.shared_with_name,
-                                  currentRole:  s.role,
-                                  currentLabel: roleMeta.label,
-                                  newRole:      roleMeta.other,
-                                  newLabel:     roleMeta.otherLabel,
-                                })}
-                                className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 transition-all hover:brightness-95 active:scale-95"
-                                style={{ background: roleMeta.bg, color: roleMeta.color, border: `1px dashed ${roleMeta.color}55` }}
-                                title="לחץ לשינוי הרשאה">
-                                <RefreshCw className="w-2.5 h-2.5" />
-                                {roleMeta.label}
-                              </button>
-                            ) : (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                                style={{ background: roleMeta.bg, color: roleMeta.color }}>
-                                {roleMeta.label}
-                              </span>
-                            )}
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
-                              style={{ background: statusMeta.bg, color: statusMeta.color }}>
-                              {s.status === 'pending' && <Clock className="w-2.5 h-2.5" />}
-                              {statusMeta.label}
-                            </span>
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                            style={{ background: roleMeta.bg }}>
+                            <RoleIcon className="w-5 h-5" style={{ color: roleMeta.color }} />
                           </div>
-                          {s.shared_with_email && s.shared_with_email !== s.shared_with_name && (
-                            <p className="text-[11px] text-gray-400 mt-1 truncate" dir="ltr">{s.shared_with_email}</p>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm truncate" style={{ color: '#1F2937' }}>{s.shared_with_name}</p>
+                            {s.shared_with_email && s.shared_with_email !== s.shared_with_name && (
+                              <p className="text-[11px] text-gray-400 mt-0.5 truncate" dir="ltr">{s.shared_with_email}</p>
+                            )}
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0"
+                            style={{ background: statusMeta.bg, color: statusMeta.color }}>
+                            {s.status === 'pending' && <Clock className="w-2.5 h-2.5" />}
+                            {statusMeta.label}
+                          </span>
+                        </div>
+
+                        {/* Role line + change button. Reads top-to-bottom
+                            in plain Hebrew: "הרשאה: <role label>" with
+                            a tappable "שנה הרשאה" pill on the same row.
+                            The pill carries an Edit3 pencil icon AND
+                            the word "שנה" — never icon alone. */}
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <span className="text-xs">
+                            <span className="text-gray-500">הרשאה: </span>
+                            <strong style={{ color: roleMeta.color }}>{roleMeta.label}</strong>
+                          </span>
+                          {canEditRole && (
+                            <button
+                              onClick={() => setConfirmRoleChange({
+                                share_id:     s.id,
+                                name:         s.shared_with_name,
+                                currentRole:  s.role,
+                                currentLabel: roleMeta.label,
+                                newRole:      roleMeta.other,
+                                newLabel:     roleMeta.otherLabel,
+                              })}
+                              className="text-xs font-bold px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 transition-all hover:brightness-95 active:scale-95"
+                              style={{ background: '#F0FDF4', color: C.primary, border: `1px solid #BBF7D0` }}>
+                              <Edit3 className="w-3.5 h-3.5" />
+                              שנה הרשאה
+                            </button>
                           )}
                         </div>
+
+                        {/* Destructive remove. Full width so it's
+                            unambiguous and reachable on mobile, with
+                            both the trash icon AND the words
+                            "הסר את השיתוף" — Ofek's UX ask was for the
+                            non-tech user to recognize this immediately
+                            without inferring meaning from an icon. */}
                         <button
                           onClick={() => setConfirmRevoke({ share_id: s.id, name: s.shared_with_name })}
-                          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-95"
-                          style={{ background: '#FEF2F2', color: '#DC2626' }}
-                          aria-label={`בטל שיתוף עם ${s.shared_with_name}`}
-                          title="בטל שיתוף">
-                          <UserMinus className="w-4 h-4" />
+                          className="mt-3 w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                          style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}
+                          aria-label={`הסר את השיתוף עם ${s.shared_with_name}`}>
+                          <Trash2 className="w-4 h-4" />
+                          הסר את השיתוף
                         </button>
                       </div>
                     );
