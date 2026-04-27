@@ -150,7 +150,70 @@ export default function useSharedVehicleRealtime() {
       )
       .subscribe();
 
+    // ── Resume-from-background reconnect ──────────────────────────────
+    // Reported bug: a customer shared a vehicle, an update was made on
+    // one device, the second device did NOT reflect the change and got
+    // no notification. Mobile-only. Root cause: when an Android/iOS app
+    // is backgrounded, the OS may quietly close the WebSocket the
+    // realtime client uses; on resume the channel object still exists
+    // but no events flow until we re-subscribe. The hook used to
+    // subscribe once on mount and trust the connection forever.
+    //
+    // Fix: on Capacitor `appStateChange` → active=true (or browser
+    // online/visibilitychange → visible), tear down both channels,
+    // re-subscribe, and force-invalidate the cached views the user is
+    // most likely staring at. Same pattern keeps web users covered if
+    // their laptop was asleep.
+    const reconnect = () => {
+      try { supabase.removeChannel(notifChannel); } catch {}
+      try { supabase.removeChannel(sharesChannel); } catch {}
+      // Re-subscribing in place is the simplest path: the original
+      // builders are closures over user.id + queryClient, so we just
+      // re-run the effect by bumping a ref. But because we're inside
+      // the cleanup closure, we instead trigger a remount via a
+      // queryClient invalidation that React Query treats as a
+      // soft-refresh. The next focus tick will pull fresh data; the
+      // realtime listener for *future* events resubscribes via the
+      // cleanup→re-effect cycle when the route changes. To force the
+      // realtime listener back NOW without a full remount, we
+      // invalidate the channels and re-subscribe inline:
+      try {
+        notifChannel.subscribe();
+        sharesChannel.subscribe();
+      } catch { /* if already removed, this no-ops */ }
+      // Hot caches the user is most likely watching. Fresh data
+      // arrives even if the realtime resubscribe is still settling.
+      queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['app-notifs', user.id] });
+      try { window.dispatchEvent(new CustomEvent('cr:notifications-changed')); } catch {}
+    };
+
+    // Web fallbacks — both fire when the tab regains focus / the
+    // network comes back. Cheap to wire and works for desktop laptops
+    // that slept, mobile browsers that suspended the tab, etc.
+    const onVisibility = () => { if (document.visibilityState === 'visible') reconnect(); };
+    const onOnline = () => reconnect();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onOnline);
+
+    // Native (Capacitor) — App.addListener is the canonical resume
+    // hook. Dynamic import keeps the dependency lazy on web.
+    let appResumeHandle = null;
+    if (isNative) {
+      (async () => {
+        try {
+          const { App } = await import('@capacitor/app');
+          appResumeHandle = await App.addListener('appStateChange', ({ isActive }) => {
+            if (isActive) reconnect();
+          });
+        } catch { /* @capacitor/app not available — fall through */ }
+      })();
+    }
+
     return () => {
+      try { document.removeEventListener('visibilitychange', onVisibility); } catch {}
+      try { window.removeEventListener('online', onOnline); } catch {}
+      try { appResumeHandle && appResumeHandle.remove && appResumeHandle.remove(); } catch {}
       try { supabase.removeChannel(notifChannel); } catch {}
       try { supabase.removeChannel(sharesChannel); } catch {}
     };
