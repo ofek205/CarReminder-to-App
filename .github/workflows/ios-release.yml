@@ -95,6 +95,23 @@ jobs:
           p12-file-base64: ${{ secrets.IOS_DIST_CERT_BASE64 }}
           p12-password:    ${{ secrets.IOS_DIST_CERT_PASSWORD }}
 
+      - name: Decode API key for download-provisioning-profiles
+        id: api_key_pem
+        env:
+          API_KEY_B64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          # The download-provisioning-profiles action expects the raw .p8
+          # PEM contents as a string, not a base64 encoding. Decode the
+          # secret here, mask the decoded value in logs, and expose it
+          # as a step output for the next step to consume.
+          DECODED=$(echo -n "$API_KEY_B64" | base64 --decode)
+          echo "::add-mask::$DECODED"
+          {
+            echo 'pem<<APPLE_KEY_EOF'
+            echo "$DECODED"
+            echo 'APPLE_KEY_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Download App Store provisioning profile
         uses: apple-actions/download-provisioning-profiles@v3
         with:
@@ -102,7 +119,7 @@ jobs:
           profile-type:        IOS_APP_STORE
           issuer-id:           ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           api-key-id:          ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          api-private-key:     ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          api-private-key:     ${{ steps.api_key_pem.outputs.pem }}
 
       - name: Decode App Store Connect API key (for altool upload)
         env:
