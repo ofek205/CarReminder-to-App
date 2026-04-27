@@ -91,6 +91,9 @@ jobs:
             -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
             -authenticationKeyID ${API_KEY_ID} \
             -authenticationKeyIssuerID ${API_ISSUER_ID} \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM=L36CBSRNZT \
             archive
 
       - name: Export IPA
