@@ -18,13 +18,19 @@ import { supabase } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Eye, Edit, Clock, UserMinus, LogOut } from 'lucide-react';
+import { Loader2, Users, Eye, Edit, Clock, UserMinus, LogOut, Shield, RefreshCw, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
+import ShareVehicleDialog from './ShareVehicleDialog';
 
+// Role metadata — keyed by the DB-stored Hebrew strings the
+// list_vehicle_shares RPC actually returns (not the legacy
+// 'editor'/'viewer' strings). 'מנהל' = editor (can edit), 'שותף' =
+// viewer (read-only). Falls back to viewer if the role string is
+// unexpected so the badge never renders blank.
 const ROLE_META = {
-  editor: { label: 'עורך',  Icon: Edit, color: '#2D5233', bg: '#E8F5E9' },
-  viewer: { label: 'צופה',  Icon: Eye,  color: '#1565C0', bg: '#E3F2FD' },
+  'מנהל': { label: 'שותף עורך',  Icon: Edit, color: '#2D5233', bg: '#E8F5E9', other: 'שותף',  otherLabel: 'שותף צופה' },
+  'שותף': { label: 'שותף צופה',  Icon: Eye,  color: '#1565C0', bg: '#E3F2FD', other: 'מנהל',  otherLabel: 'שותף עורך' },
 };
 
 const STATUS_META = {
@@ -44,6 +50,16 @@ export default function VehicleAccessModal({
   const queryClient = useQueryClient();
   const [confirmRevoke, setConfirmRevoke] = useState(null); // { share_id, name }
   const [confirmLeave, setConfirmLeave] = useState(false);
+  // Role-change confirm. { share_id, name, currentRole, currentLabel,
+  // newRole, newLabel } — drives the "switch X to viewer/editor?"
+  // alert. Owner-only path; sharee can't change roles.
+  const [confirmRoleChange, setConfirmRoleChange] = useState(null);
+  // Inline "share with another user" — opens the same ShareVehicleDialog
+  // used elsewhere in the app, so the owner can invite from inside the
+  // access modal without bouncing back to the vehicle detail screen.
+  // Lazy-mounted on first click to avoid pulling the dialog's deps
+  // into the modal's first paint.
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const [working, setWorking] = useState(false);
 
   const vehicleName = vehicle?.nickname
@@ -98,6 +114,35 @@ export default function VehicleAccessModal({
       queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
     } catch (e) {
       toast.error(`שגיאה בביטול: ${e?.message || 'נסה שוב'}`);
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleRoleChange = async () => {
+    if (!confirmRoleChange) return;
+    setWorking(true);
+    try {
+      const { error } = await supabase.rpc('update_vehicle_share_role', {
+        p_share_id: confirmRoleChange.share_id,
+        p_role:     confirmRoleChange.newRole,
+      });
+      if (error) throw error;
+      toast.success(`ההרשאה של ${confirmRoleChange.name} עודכנה ל${confirmRoleChange.newLabel}`);
+      setConfirmRoleChange(null);
+      // Refetch share list. The recipient's app_notification + bell ping
+      // is handled server-side inside the RPC, so realtime kicks in for
+      // them without further client work here.
+      queryClient.invalidateQueries({ queryKey: ['vehicle-shares', vehicle.id] });
+      queryClient.invalidateQueries({ queryKey: ['vehicle-share-info', vehicle.id] });
+    } catch (e) {
+      const msg = e?.message || '';
+      const friendly =
+        msg.includes('forbidden')         ? 'רק הבעלים יכול לשנות הרשאות'
+        : msg.includes('share_not_active') ? 'אפשר לשנות הרשאה רק על שיתוף פעיל'
+        : msg.includes('share_not_found')  ? 'השיתוף כבר לא קיים'
+        : `שגיאה בעדכון: ${msg || 'נסה שוב'}`;
+      toast.error(friendly);
     } finally {
       setWorking(false);
     }
@@ -171,13 +216,36 @@ export default function VehicleAccessModal({
                 </div>
               ) : (
                 <>
-                  <p className="text-xs font-bold text-gray-500">
-                    {shares.length} מתוך 3 שיתופים (המקסימום)
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold text-gray-500">
+                      {shares.length} מתוך 3 שיתופים (המקסימום)
+                    </p>
+                    {/* Invite-another-user button. Lifted into the
+                        access modal so the owner can both manage AND
+                        invite from one place — used to require closing
+                        this modal and finding the share button on the
+                        vehicle detail page. Hidden when the cap is
+                        reached. */}
+                    {shares.length < 3 && (
+                      <button
+                        onClick={() => setShowShareDialog(true)}
+                        className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all active:scale-95"
+                        style={{ background: '#F59E0B', color: '#fff', boxShadow: '0 2px 6px rgba(245,158,11,0.35)' }}>
+                        <Plus className="w-3.5 h-3.5" />
+                        הזמן עוד משתמש
+                      </button>
+                    )}
+                  </div>
                   {shares.map(s => {
-                    const roleMeta = ROLE_META[s.role] || ROLE_META.viewer;
+                    const roleMeta = ROLE_META[s.role] || ROLE_META['שותף'];
                     const statusMeta = STATUS_META[s.status] || STATUS_META.pending;
                     const RoleIcon = roleMeta.Icon;
+                    // Role-edit guard — only meaningful for accepted
+                    // shares (pending = not yet using the role; if owner
+                    // wants to change it before acceptance they can
+                    // revoke + re-invite at the new role). Pending
+                    // shares show the badge as static.
+                    const canEditRole = s.status === 'accepted' && roleMeta.other;
                     return (
                       <div key={s.id} className="rounded-2xl p-3 flex items-center gap-3"
                         style={{ background: '#FFF', border: '1.5px solid #E5E7EB' }}>
@@ -188,10 +256,32 @@ export default function VehicleAccessModal({
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-sm truncate" style={{ color: '#1F2937' }}>{s.shared_with_name}</p>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                              style={{ background: roleMeta.bg, color: roleMeta.color }}>
-                              {roleMeta.label}
-                            </span>
+                            {/* Role badge — clickable when editable.
+                                The hover ring + RefreshCw icon signal
+                                "tap to swap roles" without occupying
+                                separate space, keeping the row tight. */}
+                            {canEditRole ? (
+                              <button
+                                onClick={() => setConfirmRoleChange({
+                                  share_id:     s.id,
+                                  name:         s.shared_with_name,
+                                  currentRole:  s.role,
+                                  currentLabel: roleMeta.label,
+                                  newRole:      roleMeta.other,
+                                  newLabel:     roleMeta.otherLabel,
+                                })}
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 transition-all hover:brightness-95 active:scale-95"
+                                style={{ background: roleMeta.bg, color: roleMeta.color, border: `1px dashed ${roleMeta.color}55` }}
+                                title="לחץ לשינוי הרשאה">
+                                <RefreshCw className="w-2.5 h-2.5" />
+                                {roleMeta.label}
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                style={{ background: roleMeta.bg, color: roleMeta.color }}>
+                                {roleMeta.label}
+                              </span>
+                            )}
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1"
                               style={{ background: statusMeta.bg, color: statusMeta.color }}>
                               {s.status === 'pending' && <Clock className="w-2.5 h-2.5" />}
@@ -255,6 +345,56 @@ export default function VehicleAccessModal({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Role-change confirm — same alert pattern as revoke/leave so
+          the user gets the same visual rhythm. The action is reversible
+          (one click swaps it back) so the dialog is a confirm-then-go
+          rather than a destructive-warning. */}
+      <AlertDialog open={!!confirmRoleChange} onOpenChange={(o) => !o && setConfirmRoleChange(null)}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              לשנות את ההרשאה של {confirmRoleChange?.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              ההרשאה תשתנה מ־<strong>{confirmRoleChange?.currentLabel}</strong>
+              {' '}ל־<strong>{confirmRoleChange?.newLabel}</strong>.
+              {' '}
+              {confirmRoleChange?.newRole === 'מנהל'
+                ? 'הוא יוכל להוסיף ולעדכן הכל חוץ ממחיקת הרכב.'
+                : 'הוא יוכל רק לצפות, לא לערוך.'}
+              {' '}תקבל/י התראה על השינוי.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex gap-2 justify-end">
+            <AlertDialogCancel disabled={working}>חזרה</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRoleChange} disabled={working}
+              style={{ background: C.primary }}>
+              {working ? <Loader2 className="w-4 h-4 animate-spin" /> : 'אישור השינוי'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Inline ShareVehicleDialog — opened by "הזמן עוד משתמש".
+          Lazy-mounted so the modal's first paint stays light. The
+          dialog's onOpenChange closes both itself AND drops back to
+          the access modal afterwards. */}
+      {showShareDialog && (
+        <ShareVehicleDialog
+          open={showShareDialog}
+          onOpenChange={(o) => {
+            setShowShareDialog(o);
+            if (!o) {
+              // Refresh the share list — the user may have just added
+              // someone new and expects to see them in the list.
+              queryClient.invalidateQueries({ queryKey: ['vehicle-shares', vehicle?.id] });
+              queryClient.invalidateQueries({ queryKey: ['vehicle-share-info', vehicle?.id] });
+            }
+          }}
+          vehicle={vehicle}
+        />
+      )}
     </>
   );
 }

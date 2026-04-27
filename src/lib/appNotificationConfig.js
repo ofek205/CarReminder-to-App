@@ -84,6 +84,17 @@ export const APP_NOTIF_CONFIG = {
     iconBg: '#4338CA',
     buildHref: hrefForVehicleDetail,
   },
+  share_role_changed: {
+    // Owner changed the recipient's role on a shared vehicle. Same
+    // indigo as vehicle_change — both are "the owner did something
+    // and you should know" notifications. Routes to the vehicle so
+    // the recipient can see what they now have access to.
+    icon: Edit3,
+    bg: '#EEF2FF',
+    iconColor: '#4338CA',
+    iconBg: '#4338CA',
+    buildHref: hrefForVehicleDetail,
+  },
   community_comment: {
     // Reused for any community thread reply on the user's own post.
     // Purple matches the existing "תגובות בקהילה" chrome elsewhere

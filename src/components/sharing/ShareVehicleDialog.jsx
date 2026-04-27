@@ -24,7 +24,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Copy, Mail, Check, Eye, Edit, Share2, Clock, UserPlus } from 'lucide-react';
+import { Loader2, Copy, Check, Eye, Edit, Share2, Clock, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -181,12 +181,11 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
-  const openEmailClient = () => {
-    const vName = vehicle?.nickname || `${vehicle?.manufacturer || ''} ${vehicle?.model || ''}`.trim() || 'הרכב';
-    const subject = `שיתוף רכב: ${vName}`;
-    const body = `שיתפתי איתך את ${vName} ב-CarReminder.\n\nאשר/י את השיתוף בקישור:\n${inviteLink}\n\nהקישור תקף ל-7 ימים.`;
-    window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  };
+  // openEmailClient was the manual "open mailto:" handler the success
+  // state used to expose. Removed because share emails are sent
+  // automatically on submit and a second manual button confused users
+  // ("did the email actually go out, do I need to click this?").
+  // WhatsApp + Copy still cover the unregistered-recipient flow.
 
   const vehicleName = vehicle?.nickname
     || `${vehicle?.manufacturer || ''} ${vehicle?.model || ''}`.trim()
@@ -317,12 +316,21 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                 X 30 minutes ago, why isn't it showing up on their side?"
                 — answer: X hasn't created an account yet. */}
             {shareResult.recipient_existing_user ? (
+              // Registered recipient → email goes out automatically + a
+              // realtime app_notification + bell ping fires for them.
+              // No manual share buttons needed; just confirm and close.
+              // Showing the recipient's name closes the loop ("did it
+              // really go to that person?").
               <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: '#E8F5E9', border: '1.5px solid #A5D6A7' }}>
                 <Check className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#2E7D32' }} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold" style={{ color: '#1B5E20' }}>ההזמנה בדרך</p>
+                  <p className="text-sm font-bold" style={{ color: '#1B5E20' }}>
+                    {shareResult.recipient_name
+                      ? <>ההזמנה נשלחה ל־<strong>{shareResult.recipient_name}</strong></>
+                      : 'ההזמנה נשלחה'}
+                  </p>
                   <p className="text-xs mt-0.5 leading-relaxed" style={{ color: '#2E7D32' }}>
-                    המייל רשום אצלנו — ההתראה תגיע אליו גם באפליקציה וגם במייל.
+                    מייל נשלח אוטומטית. ההתראה תופיע גם בפעמון שלו באפליקציה.
                   </p>
                 </div>
               </div>
@@ -335,55 +343,53 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                     שלחנו מייל עם קישור הצטרפות. <strong>הוא יצטרך להירשם תחילה</strong> (עם אותה כתובת מייל) — אחרי ההרשמה ההזמנה תחכה לו ויוכל לאשר אותה.
                   </p>
                   <p className="text-[11px] mt-1.5" style={{ color: '#B45309' }}>
-                    אפשר גם לשלוח את הקישור למטה ב־WhatsApp/מייל ידנית כדי לזרז.
+                    אפשר גם לשתף את הקישור ב־WhatsApp או להעתיק כדי לזרז.
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Share link box. The token is 64 chars + URL — far wider than
-                the dialog. The earlier `truncate` produced an ellipsised
-                strip that pushed the dialog past viewport on mobile (the
-                native min-content of a single-token URL forced the parent
-                wider than max-w-md). `break-all` keeps the URL on multiple
-                lines inside the box, so the dialog itself never overflows
-                horizontally. The Copy button stays the primary action; we
-                hide the Copy button label and rely on the icon. */}
-            <div className="min-w-0">
-              <label className="block text-sm font-bold text-gray-700 mb-2">קישור הזמנה</label>
-              <div className="flex gap-2 items-stretch">
-                <div className="flex-1 min-w-0 rounded-xl border px-3 py-2 text-[10px] font-mono break-all leading-relaxed"
-                  dir="ltr"
-                  style={{
-                    background: '#F9FAFB',
-                    borderColor: '#E5E7EB',
-                    color: '#374151',
-                    maxHeight: '64px',
-                    overflowY: 'auto',
-                  }}>
-                  {inviteLink}
+            {/* Link + manual-share channels. Shown ONLY when the
+                recipient isn't registered yet — registered users get
+                everything via the auto-email + realtime path and don't
+                need the link surface. Removing it for the registered
+                case keeps the success state focused. */}
+            {!shareResult.recipient_existing_user && (
+              <>
+                <div className="min-w-0">
+                  <label className="block text-sm font-bold text-gray-700 mb-2">קישור הזמנה</label>
+                  <div className="flex gap-2 items-stretch">
+                    <div className="flex-1 min-w-0 rounded-xl border px-3 py-2 text-[10px] font-mono break-all leading-relaxed"
+                      dir="ltr"
+                      style={{
+                        background: '#F9FAFB',
+                        borderColor: '#E5E7EB',
+                        color: '#374151',
+                        maxHeight: '64px',
+                        overflowY: 'auto',
+                      }}>
+                      {inviteLink}
+                    </div>
+                    <Button onClick={copyLink} variant="outline" size="sm"
+                      className="shrink-0 rounded-xl px-3"
+                      aria-label={copied ? 'הועתק' : 'העתק קישור'}>
+                      {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
                 </div>
-                <Button onClick={copyLink} variant="outline" size="sm"
-                  className="shrink-0 rounded-xl px-3"
-                  aria-label={copied ? 'הועתק' : 'העתק קישור'}>
-                  {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
-            </div>
 
-            {/* Channel buttons */}
-            <div className="grid grid-cols-2 gap-2">
-              <Button onClick={openWhatsApp} variant="outline" className="rounded-2xl h-12 gap-2 text-sm font-bold"
-                style={{ color: '#25D366', borderColor: '#25D36640' }}>
-                <WhatsAppIcon size={18} />
-                WhatsApp
-              </Button>
-              <Button onClick={openEmailClient} variant="outline" className="rounded-2xl h-12 gap-2 text-sm font-bold"
-                style={{ color: '#1565C0', borderColor: '#1565C040' }}>
-                <Mail className="w-4 h-4" />
-                מייל
-              </Button>
-            </div>
+                {/* WhatsApp only — the dedicated "Email" channel button
+                    was removed because the email is sent automatically
+                    on submit (line 149 in submit()); a second manual
+                    button confused users into thinking they needed to
+                    click it for the email to actually go out. */}
+                <Button onClick={openWhatsApp} variant="outline" className="w-full rounded-2xl h-12 gap-2 text-sm font-bold"
+                  style={{ color: '#25D366', borderColor: '#25D36640' }}>
+                  <WhatsAppIcon size={18} />
+                  שתף ב־WhatsApp
+                </Button>
+              </>
+            )}
 
             <Button onClick={() => handleClose(false)} variant="ghost" className="w-full rounded-2xl">
               סגירה
