@@ -56,7 +56,7 @@ jobs:
         working-directory: ios/App
         run: |
           xcodebuild -resolvePackageDependencies \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -scheme App
 
       - name: Bump build number
@@ -82,7 +82,7 @@ jobs:
           API_ISSUER_ID:  ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           xcodebuild \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -scheme App \
             -configuration Release \
             -archivePath $RUNNER_TEMP/App.xcarchive \
