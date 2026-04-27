@@ -2,6 +2,17 @@
 .env
 .env.*
 
+# App Store binary assets — generated from the running dev server,
+# uploaded to App Store Connect manually. Keep the metadata.md and
+# generator scripts in git; skip the heavy PNGs.
+app-store/*.png
+app-store/final/
+apple-icon-*.png
+
+# App Store Connect API key — never commit
+.apple-review-creds
+AuthKey_*.p8
+
 # Logs
 logs
 *.log

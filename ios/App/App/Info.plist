@@ -5,7 +5,20 @@
     <key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>he</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>he</string>
+		<string>en</string>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>האפליקציה משתמשת במצלמה כדי לסרוק רישיון רכב, פוליסת ביטוח ומסמכים נוספים — כך פרטי הרכב מתמלאים אוטומטית בלי הקלדה ידנית.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>האפליקציה צריכה גישה לתמונות כדי לטעון מסמכים שכבר צילמת ולשמור תמונות של רכבים ותיקונים.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>האפליקציה שומרת לאלבום שלך תמונות של מסמכים סרוקים וקבלות, כדי שיהיו זמינות גם מחוץ לאפליקציה.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>האפליקציה מציגה מוסכים, חנויות חלקים ותחנות בקרבת מיקומך הנוכחי. המיקום אינו נשמר בשרת.</string>
 	<key>CFBundleDisplayName</key>
         <string>CarReminders</string>
 	<key>CFBundleExecutable</key>
@@ -30,13 +43,11 @@
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
