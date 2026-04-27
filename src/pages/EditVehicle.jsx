@@ -37,27 +37,9 @@ export default function EditVehicle() {
   const { isGuest, guestVehicles, updateGuestVehicle } = useAuth();
   const { role, isGuest: isGuestRole } = useAccountRole();
 
-  // Guard: no id (or bad format) → friendly fallback instead of loading
-  // a form with no target (or attempting to query with a bogus string).
-  if (!vehicleId) {
-    return (
-      <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
-        <div className="max-w-sm w-full text-center">
-          <div className="text-7xl mb-4" role="img" aria-hidden="true">✏️</div>
-          <h1 className="text-xl font-black mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב לעריכה</h1>
-          <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
-            בחר רכב מהרשימה כדי לערוך אותו.
-          </p>
-          <button
-            onClick={() => navigate('/Vehicles')}
-            className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-            style={{ background: 'linear-gradient(135deg, #2D5233 0%, #4B7A53 100%)', color: '#fff' }}>
-            חזרה לרשימת הרכבים
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Guard for the bad-id case is rendered DOWN BELOW, after every hook
+  // is declared. Returning here would skip useState/useEffect on the
+  // bad-id render and break React's hook ordering invariant.
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -136,6 +118,10 @@ export default function EditVehicle() {
   });
 
   useEffect(() => {
+    // No vehicleId means we'll render the "no vehicle picked" fallback
+    // below — skip the load entirely so we don't fire a Supabase query
+    // with id=null and surface a confusing toast on the fallback page.
+    if (!vehicleId) { setLoading(false); return; }
     async function load() {
       try {
       // Guest vehicle - load from local state
@@ -405,6 +391,29 @@ export default function EditVehicle() {
       }
     }
   };
+
+  // No id (or bad format) → friendly fallback instead of loading a form
+  // with no target. Hosted here, after every hook, so we don't violate
+  // rules-of-hooks.
+  if (!vehicleId) {
+    return (
+      <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
+        <div className="max-w-sm w-full text-center">
+          <div className="text-7xl mb-4" role="img" aria-hidden="true">✏️</div>
+          <h1 className="text-xl font-black mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב לעריכה</h1>
+          <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
+            בחר רכב מהרשימה כדי לערוך אותו.
+          </p>
+          <button
+            onClick={() => navigate('/Vehicles')}
+            className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+            style={{ background: 'linear-gradient(135deg, #2D5233 0%, #4B7A53 100%)', color: '#fff' }}>
+            חזרה לרשימת הרכבים
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || !form) return <LoadingSpinner />;
 

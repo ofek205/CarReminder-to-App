@@ -522,9 +522,16 @@ function VehiclesContent({ vehicles, isLoading }) {
 // 
 
 export default function Vehicles() {
+  // useAuth() can transiently return null during the very first render
+  // before GuestProvider has resolved. Read the fields defensively so
+  // the hooks below run unconditionally — moving the `if (!auth)`
+  // gate to after every hook keeps rules-of-hooks happy.
   const auth = useAuth();
-  if (!auth) return <LoadingSpinner />;
-  const { isAuthenticated, isGuest, isLoading: authLoading, user, guestVehicles } = auth;
+  const isAuthenticated = auth?.isAuthenticated;
+  const isGuest = auth?.isGuest;
+  const authLoading = auth?.isLoading;
+  const user = auth?.user;
+  const guestVehicles = auth?.guestVehicles;
   const [accountId, setAccountId] = useState(null);
   const [showSignUp, setShowSignUp] = useState(false);
 
@@ -606,7 +613,7 @@ export default function Vehicles() {
     await new Promise(r => setTimeout(r, 500));
   });
 
-  if (authLoading) return <LoadingSpinner />;
+  if (!auth || authLoading) return <LoadingSpinner />;
 
   //  Guest mode 
   if (isGuest) {

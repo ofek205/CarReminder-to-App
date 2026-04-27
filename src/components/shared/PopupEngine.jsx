@@ -153,7 +153,8 @@ export default function PopupEngine({ vehicles = [], mountGate = true }) {
       logEvent(id, 'clicked', user?.id);
       // Side effects based on primary CTA action
       if (meta?.action === 'navigate' && meta.target) {
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        // Defer the navigate to a microtask so the popup overlay's
+        // exit animation isn't preempted by React Router's URL change.
         Promise.resolve().then(() => navigate(meta.target));
       } else if (meta?.action === 'external' && meta.target) {
         try { window.open(meta.target, '_blank', 'noopener'); } catch {}

@@ -7,8 +7,9 @@ import IOSInstallModal from "../shared/IOSInstallModal";
 import { isNative } from "@/lib/capacitor";
 
 export default function InstallCard() {
-  // Don't show install CTA inside native app
-  if (isNative) return null;
+  // Hooks must run before any early-return so React's hook ordering
+  // stays stable across renders. Both gating conditions (`isNative`
+  // and `hidden`) are evaluated AFTER the hook block.
   const { install } = usePWAInstall();
   const [showIOSModal, setShowIOSModal] = useState(false);
   const [hidden, setHidden] = useState(false);
@@ -25,7 +26,9 @@ export default function InstallCard() {
     if (!installed) setShowIOSModal(true);
   };
 
-  if (hidden) return null;
+  // Don't show install CTA inside native app, or after the user has
+  // snoozed it via the Dashboard "snooze" button.
+  if (isNative || hidden) return null;
 
   return (
     <>
