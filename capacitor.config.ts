@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.carreminder.app',
+  appId: 'com.carreminders.app',
   appName: 'CarReminder',
   webDir: 'dist',
   // Allow loading from Supabase and external APIs

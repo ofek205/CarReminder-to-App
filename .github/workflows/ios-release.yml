@@ -52,28 +52,49 @@ jobs:
       - name: Sync Capacitor → iOS
         run: npx cap sync ios
 
+      - name: Verify web bundle was synced
+        run: |
+          test -f ios/App/App/public/index.html \
+            || (echo "ERROR: ios/App/App/public/index.html missing — cap sync did not copy the web bundle."; exit 1)
+          echo "Web bundle present: $(ls -la ios/App/App/public/index.html)"
+
       - name: Resolve Swift packages
         working-directory: ios/App
         run: |
           xcodebuild -resolvePackageDependencies \
             -project App.xcodeproj \
-            -scheme App
+            -scheme App \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
 
-      - name: Bump build number
-        if: ${{ inputs.build_number != '' }}
+      - name: Set unique build number (per CI run)
         working-directory: ios/App
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          USER_BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ inputs.build_number }}" App/Info.plist || true
-          xcrun agvtool new-version -all "${{ inputs.build_number }}"
+          # Use the user-supplied build_number if given, otherwise derive
+          # one from the GitHub run_number offset by 100 so we never
+          # collide with the existing build 24 already declared in the
+          # project. App Store Connect rejects duplicate build numbers.
+          if [ -n "$USER_BUILD_NUMBER" ]; then
+            NEW_BUILD="$USER_BUILD_NUMBER"
+          else
+            NEW_BUILD=$((100 + RUN_NUMBER))
+          fi
+          echo "Setting build number to $NEW_BUILD"
+          xcrun agvtool new-version -all "$NEW_BUILD"
 
       - name: Decode App Store Connect API key
         env:
           API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           API_KEY_ID:     ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
         run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo -n "$API_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8
+          # altool also looks here on some older Xcode versions
           mkdir -p ~/private_keys
-          echo -n "$API_KEY_BASE64" | base64 --decode > ~/private_keys/AuthKey_${API_KEY_ID}.p8
-          ls -la ~/private_keys/
+          cp ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8 ~/private_keys/
 
       - name: Archive (xcodebuild)
         working-directory: ios/App
@@ -88,9 +109,11 @@ jobs:
             -archivePath $RUNNER_TEMP/App.xcarchive \
             -destination 'generic/platform=iOS' \
             -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8 \
             -authenticationKeyID ${API_KEY_ID} \
             -authenticationKeyIssuerID ${API_ISSUER_ID} \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
             archive
 
       - name: Export IPA
@@ -105,7 +128,7 @@ jobs:
             -exportOptionsPlist ExportOptions.plist \
             -exportPath $RUNNER_TEMP/export \
             -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8 \
             -authenticationKeyID ${API_KEY_ID} \
             -authenticationKeyIssuerID ${API_ISSUER_ID}
 
@@ -124,4 +147,6 @@ jobs:
 
       - name: Cleanup API key
         if: always()
-        run: rm -f ~/private_keys/*.p8
+        run: |
+          rm -f ~/private_keys/*.p8
+          rm -f ~/.appstoreconnect/private_keys/*.p8
