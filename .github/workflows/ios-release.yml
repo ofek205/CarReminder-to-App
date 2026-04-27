@@ -1,11 +1,15 @@
 name: iOS Release
 
 # Builds the iOS app on a free GitHub-hosted macOS runner and uploads
-# it to App Store Connect (TestFlight). Authentication uses an
-# App Store Connect API key stored in repository secrets — no
-# certificates or provisioning profiles need to be exported from a
-# Mac, because xcodebuild's `-allowProvisioningUpdates` flag tells
-# Apple's signing service to issue them on demand.
+# it to App Store Connect (TestFlight). Uses MANUAL signing — a
+# Distribution certificate (.p12) and an App Store provisioning
+# profile are imported into the runner keychain at build time.
+#
+# This replaces the previous automatic-signing flow. Automatic
+# signing during `xcodebuild archive` unconditionally tries to also
+# issue an iOS Development profile, which Apple's service refuses
+# for Individual accounts that have no devices registered. Manual
+# signing skips that step entirely.
 #
 # Trigger: manually from the Actions tab. Optionally bump the build
 # number via the `build_number` input.
@@ -14,6 +18,10 @@ name: iOS Release
 #   APP_STORE_CONNECT_API_KEY_ID       — 10-char Key ID
 #   APP_STORE_CONNECT_ISSUER_ID        — UUID Issuer ID
 #   APP_STORE_CONNECT_API_KEY_BASE64   — base64 of the .p8 key file
+#   IOS_DIST_CERT_BASE64               — base64 of the Apple Distribution .p12
+#   IOS_DIST_CERT_PASSWORD             — export password for the .p12
+#   IOS_PROFILE_NAME                   — exact name of the App Store provisioning profile
+#                                        (must match PROVISIONING_PROFILE_SPECIFIER in pbxproj)
 
 on:
   workflow_dispatch:
@@ -73,10 +81,6 @@ jobs:
           RUN_NUMBER: ${{ github.run_number }}
           USER_BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
-          # Use the user-supplied build_number if given, otherwise derive
-          # one from the GitHub run_number offset by 100 so we never
-          # collide with the existing build 24 already declared in the
-          # project. App Store Connect rejects duplicate build numbers.
           if [ -n "$USER_BUILD_NUMBER" ]; then
             NEW_BUILD="$USER_BUILD_NUMBER"
           else
@@ -85,22 +89,35 @@ jobs:
           echo "Setting build number to $NEW_BUILD"
           xcrun agvtool new-version -all "$NEW_BUILD"
 
-      - name: Decode App Store Connect API key
+      - name: Import Apple Distribution certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.IOS_DIST_CERT_BASE64 }}
+          p12-password:    ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+
+      - name: Download App Store provisioning profile
+        uses: apple-actions/download-provisioning-profiles@v3
+        with:
+          bundle-id:           com.carreminders.app
+          profile-type:        IOS_APP_STORE
+          issuer-id:           ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id:          ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          api-private-key:     ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+
+      - name: Decode App Store Connect API key (for altool upload)
         env:
           API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           API_KEY_ID:     ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
         run: |
           mkdir -p ~/.appstoreconnect/private_keys
           echo -n "$API_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8
-          # altool also looks here on some older Xcode versions
           mkdir -p ~/private_keys
           cp ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8 ~/private_keys/
 
-      - name: Archive (xcodebuild)
+      - name: Archive (xcodebuild, manual signing)
         working-directory: ios/App
         env:
-          API_KEY_ID:     ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          API_ISSUER_ID:  ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          PROFILE_NAME: ${{ secrets.IOS_PROFILE_NAME }}
         run: |
           xcodebuild \
             -project App.xcodeproj \
@@ -108,29 +125,22 @@ jobs:
             -configuration Release \
             -archivePath $RUNNER_TEMP/App.xcarchive \
             -destination 'generic/platform=iOS' \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8 \
-            -authenticationKeyID ${API_KEY_ID} \
-            -authenticationKeyIssuerID ${API_ISSUER_ID} \
             -skipPackagePluginValidation \
             -skipMacroValidation \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM=L36CBSRNZT \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             archive
 
       - name: Export IPA
         working-directory: ios/App
-        env:
-          API_KEY_ID:     ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          API_ISSUER_ID:  ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           xcodebuild \
             -exportArchive \
             -archivePath $RUNNER_TEMP/App.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
-            -exportPath $RUNNER_TEMP/export \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8 \
-            -authenticationKeyID ${API_KEY_ID} \
-            -authenticationKeyIssuerID ${API_ISSUER_ID}
+            -exportPath $RUNNER_TEMP/export
 
       - name: Upload to App Store Connect
         env:
