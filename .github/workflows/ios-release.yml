@@ -1,0 +1,125 @@
+name: iOS Release
+
+# Builds the iOS app on a free GitHub-hosted macOS runner and uploads
+# it to App Store Connect (TestFlight). Authentication uses an
+# App Store Connect API key stored in repository secrets — no
+# certificates or provisioning profiles need to be exported from a
+# Mac, because xcodebuild's `-allowProvisioningUpdates` flag tells
+# Apple's signing service to issue them on demand.
+#
+# Trigger: manually from the Actions tab. Optionally bump the build
+# number via the `build_number` input.
+#
+# Secrets required (Settings → Secrets and variables → Actions):
+#   APP_STORE_CONNECT_API_KEY_ID       — 10-char Key ID
+#   APP_STORE_CONNECT_ISSUER_ID        — UUID Issuer ID
+#   APP_STORE_CONNECT_API_KEY_BASE64   — base64 of the .p8 key file
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'Build number (leave blank to auto-increment from current)'
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Select latest Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.app
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        run: npm run build
+
+      - name: Sync Capacitor → iOS
+        run: npx cap sync ios
+
+      - name: Resolve Swift packages
+        working-directory: ios/App
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -workspace App.xcworkspace \
+            -scheme App
+
+      - name: Bump build number
+        if: ${{ inputs.build_number != '' }}
+        working-directory: ios/App
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ inputs.build_number }}" App/Info.plist || true
+          xcrun agvtool new-version -all "${{ inputs.build_number }}"
+
+      - name: Decode App Store Connect API key
+        env:
+          API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          API_KEY_ID:     ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+        run: |
+          mkdir -p ~/private_keys
+          echo -n "$API_KEY_BASE64" | base64 --decode > ~/private_keys/AuthKey_${API_KEY_ID}.p8
+          ls -la ~/private_keys/
+
+      - name: Archive (xcodebuild)
+        working-directory: ios/App
+        env:
+          API_KEY_ID:     ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID:  ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -archivePath $RUNNER_TEMP/App.xcarchive \
+            -destination 'generic/platform=iOS' \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
+            -authenticationKeyID ${API_KEY_ID} \
+            -authenticationKeyIssuerID ${API_ISSUER_ID} \
+            archive
+
+      - name: Export IPA
+        working-directory: ios/App
+        env:
+          API_KEY_ID:     ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID:  ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild \
+            -exportArchive \
+            -archivePath $RUNNER_TEMP/App.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath $RUNNER_TEMP/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
+            -authenticationKeyID ${API_KEY_ID} \
+            -authenticationKeyIssuerID ${API_ISSUER_ID}
+
+      - name: Upload to App Store Connect
+        env:
+          API_KEY_ID:     ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID:  ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          IPA_PATH=$(ls $RUNNER_TEMP/export/*.ipa | head -1)
+          echo "Uploading $IPA_PATH"
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA_PATH" \
+            --apiKey ${API_KEY_ID} \
+            --apiIssuer ${API_ISSUER_ID}
+
+      - name: Cleanup API key
+        if: always()
+        run: rm -f ~/private_keys/*.p8
