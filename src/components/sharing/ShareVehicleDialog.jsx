@@ -24,7 +24,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Copy, Check, Eye, Edit, Share2, Clock, UserPlus } from 'lucide-react';
+import { Loader2, Copy, Check, Eye, Edit, Share2, Clock, UserPlus, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
