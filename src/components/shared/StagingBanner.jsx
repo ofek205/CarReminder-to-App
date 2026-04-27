@@ -7,12 +7,10 @@
  * the component returns `null` so users see nothing — same DOM as before
  * the banner existed.
  *
- * Position is fixed at the top of the viewport and the banner pushes
- * nothing else around (it overlays). This is deliberate: the app's
- * existing chrome already handles `safe-area-inset-top` and we don't
- * want to fight it. The banner's own height is small enough that even
- * if it covers a sliver of the header, RTL Hebrew copy and the close
- * affordance are easy to read.
+ * Sticky-top banner: stays glued to the top of the viewport on scroll
+ * AND occupies real layout space, so the header / hero card below
+ * never gets covered. The earlier `position:fixed` version overlapped
+ * the page chrome and clipped the first ~28px of every screen.
  */
 import React from 'react';
 
@@ -32,10 +30,8 @@ export default function StagingBanner() {
       aria-live="polite"
       dir="rtl"
       style={{
-        position: 'fixed',
+        position: 'sticky',
         top: 0,
-        insetInlineStart: 0,
-        insetInlineEnd: 0,
         zIndex: 9999,
         background: 'linear-gradient(90deg,#FACC15 0%,#F59E0B 100%)',
         color: '#1F2937',
@@ -45,7 +41,6 @@ export default function StagingBanner() {
         fontWeight: 600,
         letterSpacing: '0.02em',
         boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-        pointerEvents: 'none',
       }}
     >
       סביבת טסטים — staging — שינויים נשמרים במסד האמיתי
