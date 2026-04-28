@@ -33,7 +33,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
 
     steps:
@@ -46,10 +46,14 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Show Xcode version (use runner default)
+      - name: Select Xcode 16
+        # SPM mixed-language targets (Swift + ObjC in the same target) are only
+        # supported by Swift 6 / Xcode 16. Capacitor's iOS source is naturally
+        # mixed; without Xcode 16 the Archive step fails on
+        # "contains mixed language source files; feature not supported".
         run: |
+          sudo xcode-select -s /Applications/Xcode_16.app
           xcodebuild -version
-          echo "Active developer dir: $(xcode-select -p)"
 
       - name: Install dependencies
         run: npm ci
