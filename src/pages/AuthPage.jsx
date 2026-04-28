@@ -134,7 +134,7 @@ export default function AuthPage() {
       // treat it as a recovery and open the new-password form. The
       // marker's TTL means a stale tab won't trap a different user.
       if (u.searchParams.get('code')) {
-        const at = Number(sessionStorage.getItem('cr_pending_recovery_at') || 0);
+        const at = Number(localStorage.getItem('cr_pending_recovery_at') || 0);
         const TEN_MIN = 10 * 60 * 1000;
         if (at && (Date.now() - at) < TEN_MIN) return 'update-password';
       }
@@ -468,8 +468,13 @@ export default function AuthPage() {
           // so the AuthPage init can age it out (10 min TTL) instead of
           // trapping a future visitor.
           try {
-            sessionStorage.setItem('cr_pending_recovery_at', String(Date.now()));
-            sessionStorage.setItem('cr_pending_recovery_email', email.trim());
+            // localStorage (not sessionStorage) because email clients
+            // open the recovery link in a new browser tab, which has its
+            // own sessionStorage namespace. localStorage is shared across
+            // all tabs of the same origin so the return trip can read
+            // the marker.
+            localStorage.setItem('cr_pending_recovery_at', String(Date.now()));
+            localStorage.setItem('cr_pending_recovery_email', email.trim());
           } catch {}
           setSuccess('נשלח אימייל לאיפוס סיסמה. בדוק את תיבת הדואר שלך.');
           setTimeout(() => setMode('login'), 3000);
@@ -491,8 +496,8 @@ export default function AuthPage() {
           // Clear the recovery-flow marker so a future tab on the same
           // browser doesn't get re-trapped into update-password mode.
           try {
-            sessionStorage.removeItem('cr_pending_recovery_at');
-            sessionStorage.removeItem('cr_pending_recovery_email');
+            localStorage.removeItem('cr_pending_recovery_at');
+            localStorage.removeItem('cr_pending_recovery_email');
           } catch {}
           setSuccess('הסיסמה עודכנה. מעביר לאפליקציה...');
           setTimeout(() => { window.location.href = '/'; }, 1200);
