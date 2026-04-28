@@ -166,7 +166,7 @@ function RequestCard({ req, onApprove, onDeny }) {
             {req.email}
           </p>
           <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
-            <Clock className="h-3 w-3" /> הוגשה ב־ {fmtDate(req.created_at)}
+            <Clock className="h-3 w-3" /> תאריך הגשה: {fmtDate(req.created_at)}
           </p>
         </div>
       </div>
@@ -234,7 +234,7 @@ function ResolveDialog({ request, mode, onClose, onResolved }) {
   const submit = async (e) => {
     e.preventDefault();
     if (!isApprove && !note.trim()) {
-      toast.error('יש להזין סיבת דחייה — המבקש יראה אותה');
+      toast.error('יש להזין סיבת דחייה. המבקש יראה אותה');
       return;
     }
     setSubmitting(true);
@@ -259,7 +259,7 @@ function ResolveDialog({ request, mode, onClose, onResolved }) {
       const msg = err?.message || '';
       if      (msg.includes('forbidden_not_admin'))    toast.error('אין לך הרשאת אדמין');
       else if (msg.includes('request_not_found'))      toast.error('הבקשה לא נמצאה');
-      else if (msg.includes('request_already_resolved')) toast.error('הבקשה כבר טופלה — רענן את הדף');
+      else if (msg.includes('request_already_resolved')) toast.error('הבקשה כבר טופלה. רענן את הדף');
       else                                               toast.error('הפעולה נכשלה. נסה שוב.');
       // eslint-disable-next-line no-console
       console.error('resolve request failed:', err);

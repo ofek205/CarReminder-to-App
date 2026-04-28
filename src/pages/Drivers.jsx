@@ -105,8 +105,8 @@ export default function Drivers() {
 
   const vehicleLabel = (id) => {
     const v = vehicleById[id];
-    if (!v) return '—';
-    return v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim() || '—';
+    if (!v) return 'רכב לא ידוע';
+    return v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'רכב ללא שם';
   };
 
   if (authLoading || roleLoading) {
@@ -285,9 +285,9 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
               onChange={(e) => setRole(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
             >
-              <option value="driver">נהג — רואה את הרכב שלו ומסלולים שלו בלבד</option>
-              <option value="שותף">צופה — רואה הכל בקריאה בלבד</option>
-              <option value="מנהל">מנהל — מנהל את הצי, נהגים ומסלולים</option>
+              <option value="driver">נהג. רואה את הרכב שלו ומסלולים שלו בלבד</option>
+              <option value="שותף">צופה. רואה הכל בקריאה בלבד</option>
+              <option value="מנהל">מנהל. אחראי על צי, נהגים ומסלולים</option>
             </select>
           </div>
 
@@ -332,7 +332,7 @@ function MemberRow({ member, assignments, vehicleLabel, onAssign }) {
           {member.joined_at && (
             <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
               <Calendar className="h-3 w-3" />
-              הצטרף ב־ {fmtDate(member.joined_at)}
+              תאריך הצטרפות: {fmtDate(member.joined_at)}
             </p>
           )}
 
@@ -445,7 +445,7 @@ function AssignVehicleDialog({ driver, vehicles, accountId, existingAssignments,
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
             />
             <p className="text-[10px] text-gray-400 mt-1">
-              ללא תאריך — השיוך נשאר פתוח עד שתסיים אותו ידנית.
+              ללא תאריך, השיוך נשאר פתוח עד שתסיים אותו ידנית.
             </p>
           </div>
 

@@ -54,11 +54,11 @@ function statusReason(v) {
   const insD  = daysUntil(v.insurance_due_date);
   const out = [];
   if (testD !== null) {
-    if (testD < 0)    out.push(`טסט פג ב־ ${Math.abs(testD)} ימים`);
+    if (testD < 0)    out.push(`טסט פג לפני ${Math.abs(testD)} ימים`);
     else if (testD <= 60) out.push(`טסט בעוד ${testD} ימים`);
   }
   if (insD !== null) {
-    if (insD < 0)    out.push(`ביטוח פג ב־ ${Math.abs(insD)} ימים`);
+    if (insD < 0)    out.push(`ביטוח פג לפני ${Math.abs(insD)} ימים`);
     else if (insD <= 60) out.push(`ביטוח בעוד ${insD} ימים`);
   }
   return out.join(' · ');
@@ -143,7 +143,7 @@ export default function Fleet() {
   const driverLabel = (vid) => {
     const ids = driversByVehicle[vid] || [];
     if (ids.length === 0) return null;
-    if (ids.length === 1) return memberById[ids[0]]?.display_name || '—';
+    if (ids.length === 1) return memberById[ids[0]]?.display_name || 'נהג לא ידוע';
     return `${ids.length} נהגים`;
   };
 

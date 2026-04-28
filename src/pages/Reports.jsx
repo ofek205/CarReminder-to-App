@@ -126,8 +126,8 @@ export default function Reports() {
   // Filtered + sorted derived data.
   const vehicleLabel = (id) => {
     const v = vehicles.find(x => x.id === id);
-    if (!v) return id?.slice(0, 8) || '—';
-    return v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim() || '—';
+    if (!v) return 'רכב לא ידוע';
+    return v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'רכב ללא שם';
   };
 
   const filteredVehicles = useMemo(() => {
@@ -206,7 +206,7 @@ export default function Reports() {
         <SummaryCard
           icon={<Truck className="h-4 w-4" />}
           label="הרכב היקר ביותר"
-          value={mostExpensiveVehicle ? fmtMoney(mostExpensiveVehicle.total) : '—'}
+          value={mostExpensiveVehicle ? fmtMoney(mostExpensiveVehicle.total) : 'אין נתונים'}
           sub={mostExpensiveVehicle ? vehicleLabel(mostExpensiveVehicle.vehicle_id) : 'אין נתונים'}
           tone="orange"
         />

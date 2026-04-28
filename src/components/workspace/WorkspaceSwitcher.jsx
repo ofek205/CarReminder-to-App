@@ -10,7 +10,7 @@
  * notification bell.
  */
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Briefcase, User as UserIcon, Check, ChevronDown, Plus } from 'lucide-react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
@@ -26,6 +26,7 @@ function workspaceLabel(m) {
 
 export default function WorkspaceSwitcher() {
   const { memberships, activeWorkspaceId, activeWorkspace, switchTo, isGuest } = useWorkspace();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -91,7 +92,15 @@ export default function WorkspaceSwitcher() {
                       aria-selected={isActive}
                       onClick={async () => {
                         setOpen(false);
-                        if (!isActive) await switchTo(m.account_id);
+                        if (!isActive) {
+                          const ok = await switchTo(m.account_id);
+                          if (ok) {
+                            // Land on the home page of the new workspace.
+                            // Personal stays on Dashboard; business is
+                            // redirected by Dashboard.jsx to BusinessDashboard.
+                            navigate(createPageUrl('Dashboard'));
+                          }
+                        }
                       }}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 text-right transition-colors ${
                         isActive ? 'bg-[#E8F2EA]' : 'hover:bg-gray-50 active:bg-gray-100'

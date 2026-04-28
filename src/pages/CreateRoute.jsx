@@ -150,7 +150,7 @@ export default function CreateRoute() {
 
         <Field label="שיוך לנהג">
           <select value={driverUserId} onChange={(e) => setDriverUserId(e.target.value)} className={inputCls}>
-            <option value="">ללא שיוך — אפשר לשייך אחר כך</option>
+            <option value="">ללא שיוך, אפשר לשייך אחר כך</option>
             {members.map(m => (
               <option key={m.user_id} value={m.user_id}>
                 {m.user_id.slice(0, 8)} · {m.role}

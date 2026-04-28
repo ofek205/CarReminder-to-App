@@ -311,7 +311,7 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
         <div className="mt-2 space-y-2">
           <textarea
             value={noteText} onChange={(e) => setNoteText(e.target.value)}
-            placeholder="הערה לתחנה — מה קרה, מה צריך לדעת..." rows={3}
+            placeholder="הערה לתחנה. מה קרה, מה צריך לדעת" rows={3}
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-xs"
           />
           <div className="flex gap-2">
@@ -331,7 +331,7 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
         <div className="mt-2 space-y-2">
           <textarea
             value={issueText} onChange={(e) => setIssueText(e.target.value)}
-            placeholder="תאר את התקלה — שער נעול, אין מענה, רכב פגום..." rows={3}
+            placeholder="תאר את התקלה. שער נעול, אין מענה, רכב פגום" rows={3}
             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-xs"
           />
           <div className="flex gap-2">

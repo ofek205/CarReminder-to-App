@@ -405,8 +405,8 @@ function buildAttentionItems({ overdueVehicles, openIssues, monthDeltaPct }) {
     items.push({
       icon: TrendingUp,
       iconCls: 'text-orange-700',
-      text: `הוצאות החודש גבוהות ב־ ${monthDeltaPct}% מהחודש שעבר`,
-      sub: 'בדוק לפי קטגוריה — דלק, תיקונים או אחר',
+      text: `הוצאות החודש גבוהות ב ${monthDeltaPct}% מהחודש שעבר`,
+      sub: 'בדוק לפי קטגוריה: דלק, תיקונים או אחר',
       to: createPageUrl('Reports'),
     });
   }

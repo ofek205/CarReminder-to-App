@@ -144,7 +144,7 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
       return;
     }
     if (isRequest && !reason.trim()) {
-      toast.error('יש להזין סיבה לבקשה — האדמין צריך הקשר כדי לאשר');
+      toast.error('יש להזין סיבה לבקשה. האדמין צריך הקשר כדי לאשר');
       return;
     }
 
@@ -177,7 +177,7 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
       if      (code.includes('name_required'))               toast.error('שם החשבון העסקי חובה');
       else if (code.includes('name_too_long'))               toast.error(`שם ארוך מדי (עד ${MAX_NAME} תווים)`);
       else if (code.includes('not_authenticated'))           toast.error('פג תוקף ההתחברות. התחבר מחדש ונסה שוב.');
-      else if (code.includes('business_workspace_limit_reached')) toast.error('כבר יש לך חשבון עסקי. נסה לרענן את הדף — נציג לך את טופס הבקשה.');
+      else if (code.includes('business_workspace_limit_reached')) toast.error('כבר יש לך חשבון עסקי. רענן את הדף ותקבל את טופס הבקשה.');
       else if (code.includes('no_existing_business_workspace'))   toast.error('עוד אין לך חשבון עסקי. השתמש בטופס הרגיל.');
       else if (code.includes('pending_request_exists'))           toast.error('כבר יש לך בקשה ממתינה. אי אפשר להגיש שתיים בו זמנית.');
       else                                                         toast.error('הפעולה נכשלה. נסה שוב, או פנה לתמיכה.');
@@ -272,7 +272,7 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
-              placeholder="לדוגמה: סניף שני בעיר אחרת, פעילות נפרדת לחברה־בת, או צרכים אחרים"
+              placeholder="לדוגמה: סניף שני בעיר אחרת, פעילות נפרדת לחברת בת, או צרכים אחרים"
               className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30 focus:border-[#2D5233]"
               required
             />
@@ -281,7 +281,7 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
 
         {!isRequest && (
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-[11px] text-blue-900 leading-relaxed">
-            תיווצר סביבת עבודה נפרדת לחלוטין. הרכבים האישיים שלך נשארים פרטיים — הם לא יופיעו בחשבון העסקי, ולהיפך.
+            תיווצר סביבת עבודה נפרדת לחלוטין. הרכבים האישיים שלך נשארים פרטיים. הם לא יופיעו בחשבון העסקי, ולהיפך.
           </div>
         )}
 
@@ -324,7 +324,7 @@ function PendingState({ request }) {
         {request.business_meta?.contact_email && (
           <Detail label="אימייל ליצירת קשר" value={request.business_meta.contact_email} />
         )}
-        <Detail label="סיבה" value={request.reason || '—'} multiline />
+        <Detail label="סיבה" value={request.reason || 'לא צוינה'} multiline />
         <Detail label="הוגשה" value={fmtDate(request.created_at)} />
       </div>
     </div>

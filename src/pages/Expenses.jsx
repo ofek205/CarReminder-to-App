@@ -106,8 +106,8 @@ export default function Expenses() {
 
   const vehicleLabel = (id) => {
     const v = vehicles.find(x => x.id === id);
-    if (!v) return id?.slice(0, 8) || '—';
-    return v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim() || '—';
+    if (!v) return 'רכב לא ידוע';
+    return v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'רכב ללא שם';
   };
 
   return (
@@ -132,7 +132,7 @@ export default function Expenses() {
         <Empty
           icon={<Receipt className="h-10 w-10 text-gray-300" />}
           title="עוד אין הוצאות בחשבון"
-          text="הוסף הוצאה ראשונה — דלק, ביטוח או כל עלות אחרת. הסכומים יופיעו אוטומטית בדוחות."
+          text="הוסף הוצאה ראשונה: דלק, ביטוח או כל עלות אחרת. הסכומים יופיעו אוטומטית בדוחות."
           embedded
         />
       ) : (

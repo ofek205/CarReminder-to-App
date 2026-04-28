@@ -40,7 +40,7 @@ function statusBadge(label, days) {
     return { text: `${label}: לא הוזן`, cls: 'bg-gray-100 text-gray-500', Icon: Clock };
   }
   if (days < 0) {
-    return { text: `${label} פג ב־ ${Math.abs(days)} ימים`, cls: 'bg-red-100 text-red-700', Icon: AlertCircle };
+    return { text: `${label} פג לפני ${Math.abs(days)} ימים`, cls: 'bg-red-100 text-red-700', Icon: AlertCircle };
   }
   if (days <= 30) {
     return { text: `${label} בעוד ${days} ימים`, cls: 'bg-yellow-100 text-yellow-700', Icon: AlertTriangle };
@@ -48,7 +48,7 @@ function statusBadge(label, days) {
   return { text: `${label} תקין`, cls: 'bg-green-100 text-green-700', Icon: CheckCircle };
 }
 
-const fmtKm = (n) => n != null ? Number(n).toLocaleString('he-IL') : '—';
+const fmtKm = (n) => n != null ? Number(n).toLocaleString('he-IL') : 'לא הוזן';
 
 // ---------- main page ------------------------------------------------
 
