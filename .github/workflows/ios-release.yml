@@ -60,6 +60,15 @@ jobs:
       - name: Sync Capacitor → iOS
         run: npx cap sync ios
 
+      - name: Re-patch Capacitor SPM to use local source
+        # cap sync regenerates ios/App/CapApp-SPM/Package.swift from a template
+        # that points at the broken capacitor-swift-pm GitHub binary xcframework.
+        # This rewrites that dependency back to the local @capacitor/ios source
+        # (whose Package.swift wrapper was set up by postinstall). Required;
+        # without it Archive fails on call.reject / bridge.webView / 1-arg
+        # getString — public-extension symbols stripped from the binary.
+        run: node scripts/setup-capacitor-spm.cjs
+
       - name: Verify web bundle was synced
         run: |
           test -f ios/App/App/public/index.html \
