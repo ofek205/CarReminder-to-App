@@ -33,7 +33,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-14
     timeout-minutes: 45
 
     steps:
@@ -46,14 +46,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Select Xcode 16
-        # SPM mixed-language targets (Swift + ObjC in the same target) are only
-        # supported by Swift 6 / Xcode 16. Capacitor's iOS source is naturally
-        # mixed; without Xcode 16 the Archive step fails on
-        # "contains mixed language source files; feature not supported".
-        run: |
-          sudo xcode-select -s /Applications/Xcode_16.app
-          xcodebuild -version
+      - name: Show Xcode version
+        run: xcodebuild -version
 
       - name: Install dependencies
         run: npm ci
@@ -64,29 +58,19 @@ jobs:
       - name: Sync Capacitor → iOS
         run: npx cap sync ios
 
-      - name: Re-patch Capacitor SPM to use local source
-        # cap sync regenerates ios/App/CapApp-SPM/Package.swift from a template
-        # that points at the broken capacitor-swift-pm GitHub binary xcframework.
-        # This rewrites that dependency back to the local @capacitor/ios source
-        # (whose Package.swift wrapper was set up by postinstall). Required;
-        # without it Archive fails on call.reject / bridge.webView / 1-arg
-        # getString — public-extension symbols stripped from the binary.
-        run: node scripts/setup-capacitor-spm.cjs
-
       - name: Verify web bundle was synced
         run: |
           test -f ios/App/App/public/index.html \
             || (echo "ERROR: ios/App/App/public/index.html missing — cap sync did not copy the web bundle."; exit 1)
           echo "Web bundle present: $(ls -la ios/App/App/public/index.html)"
 
-      - name: Resolve Swift packages
+      - name: Install CocoaPods dependencies
+        # Compiles Capacitor + plugins from local source via CocoaPods. SPM
+        # cannot handle Capacitor's mixed Swift+ObjC target on Xcode 15.x, and
+        # the upstream binary xcframework drops public-extension symbols, so
+        # CocoaPods is the only working integration on this stack.
         working-directory: ios/App
-        run: |
-          xcodebuild -resolvePackageDependencies \
-            -project App.xcodeproj \
-            -scheme App \
-            -skipPackagePluginValidation \
-            -skipMacroValidation
+        run: pod install --repo-update
 
       - name: Set unique build number (per CI run)
         working-directory: ios/App
@@ -146,26 +130,19 @@ jobs:
 
       - name: Archive (xcodebuild, manual signing)
         working-directory: ios/App
-        # Manual-signing settings (CODE_SIGN_STYLE=Manual, identity, team,
-        # profile name) live in App.xcodeproj/project.pbxproj on the App
-        # target's Release configuration. We deliberately do NOT pass them
-        # via xcodebuild command-line build settings, because xcodebuild
-        # would then apply them globally — to every target in the build
-        # graph, including the local Capacitor SPM packages. SPM library
-        # targets don't accept provisioning profiles and the build would
-        # fail with `capacitor-swift-pm_Capacitor does not support
-        # provisioning profiles, but provisioning profile *** has been
-        # manually specified`. Trusting the per-target pbxproj settings
-        # confines manual signing to the App target only.
+        # CocoaPods generates App.xcworkspace; archiving must use the
+        # workspace, not the bare project, so the Pods target is linked.
+        # Manual-signing settings live in pbxproj on the App target's
+        # Release configuration; we don't pass them via cmdline so they
+        # only apply to App, not to the auto-generated Pods targets
+        # (which don't accept provisioning profiles).
         run: |
           xcodebuild \
-            -project App.xcodeproj \
+            -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -archivePath $RUNNER_TEMP/App.xcarchive \
             -destination 'generic/platform=iOS' \
-            -skipPackagePluginValidation \
-            -skipMacroValidation \
             archive
 
       - name: Export IPA

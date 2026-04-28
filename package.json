@@ -15,7 +15,7 @@
     "cap:run": "npx cap run android",
     "build:android": "vite build && npx cap sync android",
     "build:icons": "npx @capacitor/assets generate --android",
-    "postinstall": "(git config core.hooksPath .githooks 2>/dev/null || true) && node scripts/setup-capacitor-spm.cjs"
+    "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",
