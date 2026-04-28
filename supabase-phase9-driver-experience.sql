@@ -51,7 +51,16 @@ begin
     limit 1;
 
   if existing_status = 'פעיל' then
-    raise exception 'already_member';
+    -- Active member with possibly a different role: allow the manager
+    -- to "re-add" with a new role and treat it as a role change rather
+    -- than a hard error. The previous "already_member" raise blocked
+    -- the only path a manager had to fix a wrong role (we have no
+    -- separate change-role RPC yet).
+    update public.account_members
+       set role = p_role
+     where account_id = p_account_id
+       and user_id    = target_user_id
+    returning id into member_id;
   elsif existing_status is not null then
     update public.account_members
        set role      = p_role,
@@ -78,6 +87,40 @@ begin
       'role',    p_role
     )
   );
+
+  -- Notify the added/updated user. Without this the new member has no
+  -- in-app signal that anything happened — the workspace switcher just
+  -- silently grows a new entry the next time they open the app, and a
+  -- driver in particular has no idea they're expected to be one.
+  declare
+    v_account_name text;
+    v_role_label   text;
+  begin
+    select coalesce(name, 'חשבון עסקי') into v_account_name
+      from public.accounts
+     where id = p_account_id;
+
+    v_role_label := case p_role
+      when 'driver'  then 'נהג'
+      when 'מנהל'    then 'מנהל'
+      when 'שותף'    then 'צופה'
+      when 'בעלים'   then 'בעלים'
+      else p_role
+    end;
+
+    insert into public.app_notifications (user_id, type, title, body, data)
+    values (
+      target_user_id,
+      'workspace_member_added',
+      'הוספת לחשבון עסקי',
+      format('הצטרפת לחשבון "%s" בתפקיד %s', v_account_name, v_role_label),
+      jsonb_build_object(
+        'account_id',   p_account_id,
+        'account_name', v_account_name,
+        'role',         p_role
+      )
+    );
+  end;
 
   return member_id;
 end;
