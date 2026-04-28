@@ -6,7 +6,7 @@ import { aiRequest } from '@/lib/aiProxy';
 import { hapticFeedback } from '@/lib/capacitor';
 import { C, getVehicleVisual } from '@/lib/designTokens';
 import VehicleIcon from '../components/shared/VehicleIcon';
-import { isVessel, getDateStatus } from '../components/shared/DateStatusUtils';
+import { isVessel, getDateStatus, getVehicleLabels } from '../components/shared/DateStatusUtils';
 import { getAiExpert } from '@/lib/aiExpert';
 import { Send, Wrench, Loader2, Sparkles, Trash2, AlertTriangle, Check, ChevronDown, X, Copy, RotateCcw, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,7 @@ const MIN_LEN = 2;
 const MAX_LEN = 800;
 const MIN_INTERVAL_MS = 1500; // rate limit between sends
 
-const SUGGESTED_PROMPTS_GENERAL = [
+const SUGGESTED_PROMPTS_GENERAL_CAR = [
   'מה חשוב לבדוק לפני קניית רכב יד שניה?',
   'מה המחיר הממוצע להחלפת בלמים?',
   'איך מטפלים בנורית check engine?',
@@ -31,12 +31,29 @@ const SUGGESTED_PROMPTS_GENERAL = [
   'מהן בעיות נפוצות ברכבי 2018-2020?',
 ];
 
-const SUGGESTED_PROMPTS_VEHICLE = [
+const SUGGESTED_PROMPTS_GENERAL_VESSEL = [
+  'מה חשוב לבדוק לפני קניית כלי שייט יד שנייה?',
+  'מתי להחליף שמן במנוע ימי?',
+  'מה לבדוק לפני יציאה לים?',
+  'איזה ציוד בטיחות חובה בסירה?',
+  'איך מכינים כלי שייט לכושר שייט?',
+  'תקלות נפוצות במנועים חוץ-ימיים',
+];
+
+const SUGGESTED_PROMPTS_VEHICLE_CAR = [
   'מה הטיפולים הקרובים שצריך לעשות?',
   'איזה בעיות נפוצות יש לדגם הזה?',
   'מתי כדאי להחליף צמיגים?',
   'מה המחיר המוערך לטיפול הבא?',
   'יש לי רעש מוזר, מה זה יכול להיות?',
+];
+
+const SUGGESTED_PROMPTS_VEHICLE_VESSEL = [
+  'מה הטיפולים הקרובים שצריך לעשות?',
+  'איזה תקלות נפוצות יש בכלי הזה?',
+  'מתי כדאי לעלות למספנה?',
+  'מה המחיר המוערך לטיפול הבא?',
+  'יש לי רעש/רעידה במנוע, מה זה יכול להיות?',
 ];
 
 // Sanitize message text. strip HTML, control chars
@@ -163,9 +180,12 @@ export default function AiAssistant() {
     const v = selectedVehicle;
     const lines = [];
 
-    // Identity
-    const vName = v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'הרכב';
-    lines.push(`### רכב הנדון: ${vName}`);
+    // Identity. Header uses the vehicle-type-aware noun so the model
+    // sees "כלי שייט הנדון" / "מלגזה הנדונה" instead of always "רכב",
+    // matching the in-page UI labels.
+    const ctxLabels = getVehicleLabels(v.vehicle_type, v.nickname);
+    const vName = v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim() || ctxLabels.vehicleFallback;
+    lines.push(`### ${ctxLabels.vehicleWord} הנדון: ${vName}`);
 
     // Specs
     const specs = [];
@@ -428,10 +448,22 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
 
   const charsLeft = MAX_LEN - input.length;
   const isInputValid = input.trim().length >= MIN_LEN && input.length <= MAX_LEN;
-  const allSuggestedPrompts = selectedVehicle ? SUGGESTED_PROMPTS_VEHICLE : SUGGESTED_PROMPTS_GENERAL;
+  // Vessel-aware suggestions: when יוסי is on, use the marine prompt set so
+  // the chip row doesn't ask "תקלות ברכבי 2018-2020" while the user is
+  // looking at a sailboat. Mirrored split for both general & per-vehicle
+  // prompt buckets.
+  const isVesselExpert = expert.domain === 'vessel';
+  const generalPrompts = isVesselExpert ? SUGGESTED_PROMPTS_GENERAL_VESSEL : SUGGESTED_PROMPTS_GENERAL_CAR;
+  const vehiclePrompts = isVesselExpert ? SUGGESTED_PROMPTS_VEHICLE_VESSEL : SUGGESTED_PROMPTS_VEHICLE_CAR;
+  const allSuggestedPrompts = selectedVehicle ? vehiclePrompts : generalPrompts;
   // The expert identity for the currently-selected vehicle (or the default ברוך
   // for a general question). Used for every place in the UI that names the AI.
   const expert = getAiExpert(selectedVehicle);
+  // Context-aware noun for "this vehicle" — vessel/forklift/tractor users
+  // were seeing "רכב" everywhere on this page, which jarred. labels.vehicleWord
+  // returns the right Hebrew (כלי שייט / מלגזה / טרקטורון / רכב) per type.
+  const labels = getVehicleLabels(selectedVehicle?.vehicle_type, selectedVehicle?.nickname);
+  const itemNoun = selectedVehicle ? labels.vehicleWord : 'רכב';
   const [showAllPrompts, setShowAllPrompts] = useState(false);
   const suggestedPrompts = showAllPrompts ? allSuggestedPrompts : allSuggestedPrompts.slice(0, 3);
 
@@ -524,7 +556,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                             <Sparkles className="w-3 h-3" />
                             {maintenanceLogs.length > 0
                               ? `${expert.firstName} יודע על ${maintenanceLogs.length} טיפולים אחרונים`
-                              : `${expert.firstName} יענה מותאם לרכב הזה`}
+                              : `${expert.firstName} יענה מותאם ל${itemNoun} הזה`}
                           </p>
                         </div>
                       </>
@@ -539,7 +571,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                             התייעץ על כלי תחבורה ספציפי
                           </p>
                           <p className="text-[11px] font-semibold mt-0.5" style={{ color: C.primary }}>
-                            קבל תשובה מותאמת לרכב שלך
+                            קבל תשובה מותאמת לכלי הרכב/הצי שלך
                             {vehicles.length > 0 ? ` · ${vehicles.length} ${vehicles.length === 1 ? 'כלי זמין' : 'כלים זמינים'}` : ''}
                           </p>
                         </div>
@@ -572,7 +604,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                 </div>
                 <div className="flex-1 text-right">
                   <p className="text-[13px] font-bold" style={{ color: '#374151' }}>שאלה כללית</p>
-                  <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לרכב מסוים</p>
+                  <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לכלי תחבורה מסוים</p>
                 </div>
                 {!selectedVehicle && <Check className="w-4 h-4" style={{ color: C.primary }} />}
               </button>
@@ -605,7 +637,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                 );
               })}
               {vehicles.length === 0 && (
-                <p className="text-[11px] text-center py-3" style={{ color: '#9CA3AF' }}>אין רכבים שמורים</p>
+                <p className="text-[11px] text-center py-3" style={{ color: '#9CA3AF' }}>אין כלי תחבורה שמורים</p>
               )}
             </div>
           </PopoverContent>
@@ -634,7 +666,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
             <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#92400E' }} />
           </div>
           <p className="text-[10px] leading-relaxed font-medium" style={{ color: '#78350F' }}>
-            <span className="font-bold">לתשומת לב:</span> התשובות לצורך התרשמות בלבד. AI עלול לטעות - מומלץ להתייעץ עם מוסך מוסמך.
+            <span className="font-bold">לתשומת לב:</span> התשובות לצורך התרשמות בלבד. AI עלול לטעות - מומלץ להתייעץ עם {expert.domain === 'vessel' ? 'טכנאי כלי שייט / מספנה מוסמכת' : 'מוסך מוסמך'}.
           </p>
         </div>
       </div>
@@ -682,8 +714,8 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <p className="text-[11px] font-bold leading-tight" style={{ color: '#3730A3' }}>
-                  רוצה תשובה ספציפית לרכב שלך?<br />
-                  <span className="font-medium" style={{ color: '#6366F1' }}>בחר רכב מהרשימה למעלה</span>
+                  רוצה תשובה ספציפית לכלי שלך?<br />
+                  <span className="font-medium" style={{ color: '#6366F1' }}>בחר מהרשימה למעלה</span>
                 </p>
               </div>
             )}
@@ -692,7 +724,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
               <div className="flex items-center gap-2 mb-2 px-1">
                 <Sparkles className="w-3.5 h-3.5" style={{ color: C.primary }} />
                 <p className="text-[11px] font-black" style={{ color: '#1F2937' }}>
-                  {selectedVehicle ? `הצעות לרכב הזה:` : 'הצעות לשאלה:'}
+                  {selectedVehicle ? `הצעות ל${itemNoun} הזה:` : 'הצעות לשאלה:'}
                 </p>
               </div>
               {suggestedPrompts.map((p, i) => (
@@ -826,7 +858,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={selectedVehicle
               ? `שאל את ${expert.firstName} על ${selectedVehicle.nickname || selectedVehicle.manufacturer}...`
-              : `שאל את ${expert.firstName} על הרכב שלך...`}
+              : `שאל את ${expert.firstName} על ${expert.domain === 'vessel' ? 'כלי השייט' : 'הרכב'} שלך...`}
             disabled={sending}
             maxLength={MAX_LEN}
             className="flex-1 h-11 rounded-full px-4 text-[13px] focus-visible:ring-2 focus-visible:ring-offset-0 transition-all"
