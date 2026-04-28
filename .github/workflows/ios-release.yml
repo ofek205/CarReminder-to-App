@@ -142,8 +142,17 @@ jobs:
 
       - name: Archive (xcodebuild, manual signing)
         working-directory: ios/App
-        env:
-          PROFILE_NAME: ${{ secrets.IOS_PROFILE_NAME }}
+        # Manual-signing settings (CODE_SIGN_STYLE=Manual, identity, team,
+        # profile name) live in App.xcodeproj/project.pbxproj on the App
+        # target's Release configuration. We deliberately do NOT pass them
+        # via xcodebuild command-line build settings, because xcodebuild
+        # would then apply them globally — to every target in the build
+        # graph, including the local Capacitor SPM packages. SPM library
+        # targets don't accept provisioning profiles and the build would
+        # fail with `capacitor-swift-pm_Capacitor does not support
+        # provisioning profiles, but provisioning profile *** has been
+        # manually specified`. Trusting the per-target pbxproj settings
+        # confines manual signing to the App target only.
         run: |
           xcodebuild \
             -project App.xcodeproj \
@@ -153,10 +162,6 @@ jobs:
             -destination 'generic/platform=iOS' \
             -skipPackagePluginValidation \
             -skipMacroValidation \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM=L36CBSRNZT \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             archive
 
       - name: Export IPA
