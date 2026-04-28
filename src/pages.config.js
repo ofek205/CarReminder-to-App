@@ -60,6 +60,7 @@ const Reports           = React.lazy(() => import('./pages/Reports'));
 const Drivers           = React.lazy(() => import('./pages/Drivers'));
 const AdminBusinessRequests = React.lazy(() => import('./pages/AdminBusinessRequests'));
 const Fleet                 = React.lazy(() => import('./pages/Fleet'));
+const BusinessDashboard     = React.lazy(() => import('./pages/BusinessDashboard'));
 
 export const PAGES = {
     "Accidents": Accidents,
@@ -106,6 +107,7 @@ export const PAGES = {
     "Drivers":      Drivers,
     "AdminBusinessRequests": AdminBusinessRequests,
     "Fleet":        Fleet,
+    "BusinessDashboard": BusinessDashboard,
 }
 
 export const pagesConfig = {

@@ -66,6 +66,7 @@ const navItems = [
   //  further gate by workspace role. routes-list page itself handles
   //  the manager-vs-driver mode switch internally.
   { divider: true, title: 'תפעול', businessOnly: true },
+  { name: 'BusinessDashboard',     label: 'דשבורד עסקי',        icon: LayoutDashboard, guestAllowed: false, businessOnly: true },
   { name: 'Fleet',                 label: 'צי הרכבים',          icon: Truck,           guestAllowed: false, businessOnly: true },
   { name: 'Routes',                label: 'מסלולים ומשימות',   icon: MapPin,          guestAllowed: false, businessOnly: true },
   { name: 'Drivers',               label: 'נהגים',              icon: Users,           guestAllowed: false, businessOnly: true },
