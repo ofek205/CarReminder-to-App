@@ -12,7 +12,7 @@
  * them. Reports.jsx aggregates BOTH sources together.
  */
 import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import {
   Plus, Trash2, Pencil, Loader2, Briefcase, Receipt, X,
 } from 'lucide-react';
@@ -43,22 +43,35 @@ export default function Expenses() {
 
   const [editing, setEditing]     = useState(null); // null | {} (new) | row (edit)
 
-  const { data: expenses = [], isLoading } = useQuery({
+  // Phase 9 step 7 — keyset pagination on created_at, 30 rows per page.
+  // expense_date can repeat across rows so cursor uses created_at which
+  // is monotonic. Display order is still expense_date desc → created_at desc
+  // for natural reading.
+  const PAGE_SIZE = 30;
+  const {
+    data: expensePages, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['expenses', accountId],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    enabled: !!accountId && isManager && isBusiness,
+    initialPageParam: null,
+    queryFn: async ({ pageParam }) => {
+      let q = supabase
         .from('vehicle_expenses')
         .select('*')
         .eq('account_id', accountId)
         .order('expense_date', { ascending: false })
         .order('created_at',   { ascending: false })
-        .limit(200);
+        .limit(PAGE_SIZE);
+      if (pageParam) q = q.lt('created_at', pageParam);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
-    enabled: !!accountId && isManager && isBusiness,
+    getNextPageParam: (lastPage) =>
+      lastPage.length < PAGE_SIZE ? undefined : lastPage[lastPage.length - 1]?.created_at,
     staleTime: 30 * 1000,
   });
+  const expenses = (expensePages?.pages || []).flat();
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ['expenses-vehicle-picker', accountId],
@@ -164,6 +177,20 @@ export default function Expenses() {
             </li>
           ))}
         </ul>
+      )}
+
+      {expenses.length > 0 && hasNextPage && (
+        <button
+          type="button"
+          disabled={isFetchingNextPage}
+          onClick={() => fetchNextPage()}
+          className="w-full mt-3 py-2.5 rounded-xl bg-gray-100 text-xs font-bold text-gray-700 disabled:opacity-60"
+        >
+          {isFetchingNextPage ? 'טוען...' : 'טען עוד הוצאות'}
+        </button>
+      )}
+      {expenses.length > 0 && !hasNextPage && expenses.length >= PAGE_SIZE && (
+        <p className="text-center text-[10px] text-gray-400 mt-3">סוף הרשימה</p>
       )}
 
       {editing && (

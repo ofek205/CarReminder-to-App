@@ -14,7 +14,7 @@
  */
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import {
   Plus, Briefcase, Calendar, Truck, ChevronLeft, AlertCircle,
   CheckCircle2, Play, Clock,
@@ -51,8 +51,41 @@ export default function Routes() {
   const enabled = !!accountId && isAuthenticated && isBusiness;
   const driverOnly = canDriveRoutes && !canManageRoutes;
 
-  const { data: routes = [], isLoading } = useQuery({
-    queryKey: ['routes', accountId],
+  // Manager view paginates with keyset on created_at (30 per page).
+  // Driver view fetches all visible routes (RLS scopes to own routes —
+  // bounded naturally) so grouping into Active / Today / Future / Done
+  // can be done across the full set.
+  const PAGE_SIZE = 30;
+  const useManagerPaginated = enabled && !driverOnly;
+
+  const {
+    data: routePages, isLoading: managerLoading,
+    hasNextPage, fetchNextPage, isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['routes-paged', accountId],
+    enabled: useManagerPaginated,
+    initialPageParam: null,
+    queryFn: async ({ pageParam }) => {
+      let q = supabase
+        .from('routes')
+        .select('id, title, status, scheduled_for, vehicle_id, assigned_driver_user_id, created_at')
+        .eq('account_id', accountId)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE);
+      if (pageParam) q = q.lt('created_at', pageParam);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+    getNextPageParam: (lastPage) =>
+      lastPage.length < PAGE_SIZE ? undefined : lastPage[lastPage.length - 1]?.created_at,
+    staleTime: 60 * 1000,
+  });
+
+  // Driver view — unbounded, RLS-scoped fetch.
+  const { data: driverRoutes = [], isLoading: driverLoading } = useQuery({
+    queryKey: ['routes-driver', accountId],
+    enabled: enabled && driverOnly,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('routes')
@@ -63,9 +96,13 @@ export default function Routes() {
       if (error) throw error;
       return data || [];
     },
-    enabled,
     staleTime: 60 * 1000,
   });
+
+  const routes = driverOnly
+    ? driverRoutes
+    : (routePages?.pages || []).flat();
+  const isLoading = driverOnly ? driverLoading : managerLoading;
 
   // Driver view shows progress per route, so we fetch stops too.
   // Done client-side to avoid yet another database view migration.
@@ -183,48 +220,64 @@ export default function Routes() {
           embedded
         />
       ) : (
-        <div className="space-y-2">
-          {routes.map(r => {
-            const status = STATUS_LABEL[r.status] || STATUS_LABEL.pending;
-            const stats  = stopsByRoute[r.id];
-            return (
-              <Link
-                key={r.id}
-                to={createPageUrl('RouteDetail') + '?id=' + r.id}
-                className="block bg-white border border-gray-100 rounded-xl p-3 active:bg-gray-50"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-900 truncate">{r.title}</p>
-                    <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-1">
-                      {r.scheduled_for && (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {fmtDate(r.scheduled_for)}
-                        </span>
-                      )}
-                      {vehicleLabel(r.vehicle_id) && (
-                        <span className="flex items-center gap-1">
-                          <Truck className="h-3 w-3" />
-                          {vehicleLabel(r.vehicle_id)}
-                        </span>
-                      )}
-                      {stats && (
-                        <span className="text-gray-400">
-                          {stats.completed}/{stats.total} תחנות
-                        </span>
-                      )}
+        <>
+          <div className="space-y-2">
+            {routes.map(r => {
+              const status = STATUS_LABEL[r.status] || STATUS_LABEL.pending;
+              const stats  = stopsByRoute[r.id];
+              return (
+                <Link
+                  key={r.id}
+                  to={createPageUrl('RouteDetail') + '?id=' + r.id}
+                  className="block bg-white border border-gray-100 rounded-xl p-3 active:bg-gray-50"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">{r.title}</p>
+                      <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-1">
+                        {r.scheduled_for && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {fmtDate(r.scheduled_for)}
+                          </span>
+                        )}
+                        {vehicleLabel(r.vehicle_id) && (
+                          <span className="flex items-center gap-1">
+                            <Truck className="h-3 w-3" />
+                            {vehicleLabel(r.vehicle_id)}
+                          </span>
+                        )}
+                        {stats && (
+                          <span className="text-gray-400">
+                            {stats.completed}/{stats.total} תחנות
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${status.cls}`}>
+                      {status.label}
+                    </span>
+                    <ChevronLeft className="h-4 w-4 text-gray-300 shrink-0 mt-0.5" />
                   </div>
-                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${status.cls}`}>
-                    {status.label}
-                  </span>
-                  <ChevronLeft className="h-4 w-4 text-gray-300 shrink-0 mt-0.5" />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          {hasNextPage && (
+            <button
+              type="button"
+              disabled={isFetchingNextPage}
+              onClick={() => fetchNextPage()}
+              className="w-full mt-3 py-2.5 rounded-xl bg-gray-100 text-xs font-bold text-gray-700 disabled:opacity-60"
+            >
+              {isFetchingNextPage ? 'טוען...' : 'טען עוד מסלולים'}
+            </button>
+          )}
+          {!hasNextPage && routes.length >= PAGE_SIZE && (
+            <p className="text-center text-[10px] text-gray-400 mt-3">סוף הרשימה</p>
+          )}
+        </>
       )}
     </div>
   );
