@@ -55,9 +55,25 @@ const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1beta/models/g
 const GROQ_URL      = 'https://api.groq.com/openai/v1/chat/completions';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
+// Capacitor on Android serves the app from https://localhost (and on
+// iOS from capacitor://localhost). Without these in the allow-list, the
+// app's WebView fetch fails the CORS preflight and the user sees a
+// generic "no internet" toast even though the device is online and
+// every other Supabase call works. Hardcoded here (not via env) so the
+// native app is always allowed regardless of project config drift.
+const CAPACITOR_ORIGINS = [
+  'https://localhost',
+  'http://localhost',
+  'capacitor://localhost',
+  'ionic://localhost',
+];
+
 function buildCors(req: Request): HeadersInit {
   const origin = req.headers.get('origin') || '';
-  const allowList = ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
+  const allowList = [
+    ...ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean),
+    ...CAPACITOR_ORIGINS,
+  ];
   // Only echo the caller's origin if it's in the whitelist. Otherwise
   // advertise the first allowed origin, which will trigger a browser
   // CORS failure for unauthorised callers instead of silently succeeding.
