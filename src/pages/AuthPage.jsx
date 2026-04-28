@@ -141,6 +141,33 @@ export default function AuthPage() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const formRef = useRef(null);
 
+  // "We arrived from an auth email link, hold off the auto-redirect
+  // until we know which kind." Recovery emails land us on /Auth with
+  // either ?code=… (PKCE) or an access_token fragment (legacy implicit).
+  // Both make Supabase fire a SIGNED_IN event before PASSWORD_RECOVERY,
+  // so a naive isAuthenticated → redirect-to-Dashboard race silently
+  // logs the user in without the password form.
+  // Cleared once PASSWORD_RECOVERY fires (mode flips to update-password)
+  // or after a short fallback so a legitimate already-logged-in visitor
+  // who landed on /Auth doesn't get stuck.
+  const [holdForRecovery, setHoldForRecovery] = useState(() => {
+    try {
+      const u = new URL(window.location.href);
+      if (u.searchParams.get('code')) return true;
+      const hash = (u.hash || '').replace(/^#/, '');
+      if (hash) {
+        const hp = new URLSearchParams(hash);
+        if (hp.get('access_token') || hp.get('type') === 'recovery') return true;
+      }
+    } catch {}
+    return false;
+  });
+  useEffect(() => {
+    if (!holdForRecovery) return;
+    const t = setTimeout(() => setHoldForRecovery(false), 800);
+    return () => clearTimeout(t);
+  }, [holdForRecovery]);
+
   // Auto-redirect logged-in users away from /Auth — UNLESS they're
   // mid password-recovery. Critical security fix: when a user clicks
   // a recovery email link, Supabase mints a (scoped) session as part
@@ -150,10 +177,10 @@ export default function AuthPage() {
   // a one-click login. Anyone with access to the inbox would silently
   // log in without ever proving they know (or set) a password.
   useEffect(() => {
-    if (isAuthenticated && mode !== 'update-password') {
+    if (isAuthenticated && mode !== 'update-password' && !holdForRecovery) {
       navigate(createPageUrl('Dashboard'), { replace: true });
     }
-  }, [isAuthenticated, mode, navigate]);
+  }, [isAuthenticated, mode, navigate, holdForRecovery]);
 
   // Belt-and-suspenders: Supabase fires PASSWORD_RECOVERY when the
   // recovery token has just been exchanged for a session. We force
@@ -163,7 +190,13 @@ export default function AuthPage() {
   // password form rather than getting silently logged in.
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') setMode('update-password');
+      if (event === 'PASSWORD_RECOVERY') {
+        setMode('update-password');
+        // Recovery confirmed — release the redirect-hold so the rest of
+        // the page (and the dependent effects) stop waiting on the
+        // fallback timeout.
+        setHoldForRecovery(false);
+      }
     });
     return () => data.subscription.unsubscribe();
   }, []);
