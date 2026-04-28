@@ -191,7 +191,7 @@ export default function Reports() {
   return (
     <div dir="rtl" className="max-w-4xl mx-auto py-2">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-gray-900">דוחות</h1>
+        <h1 className="text-xl font-bold text-gray-900">דוחות וניתוחים</h1>
         <p className="text-xs text-gray-500">סקירה כספית ותפעולית של הצי. הנתונים מתעדכנים אוטומטית.</p>
       </div>
 

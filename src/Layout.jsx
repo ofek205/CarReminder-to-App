@@ -65,11 +65,12 @@ const navItems = [
   //  workspaces (private users see nothing). managerOnly / driverAllowed
   //  further gate by workspace role. routes-list page itself handles
   //  the manager-vs-driver mode switch internally.
-  { divider: true, title: 'תפעול עסקי', businessOnly: true },
-  { name: 'Routes',                label: 'מסלולים',          icon: MapPin,          guestAllowed: false, businessOnly: true },
+  { divider: true, title: 'תפעול', businessOnly: true },
+  { name: 'Routes',                label: 'מסלולים ומשימות',   icon: MapPin,          guestAllowed: false, businessOnly: true },
+  { divider: true, title: 'אנליטיקה', businessOnly: true },
   { name: 'ActivityLog',           label: 'יומן פעילות',       icon: FileText,        guestAllowed: false, businessOnly: true },
-  { name: 'Expenses',              label: 'הוצאות',            icon: Receipt,         guestAllowed: false, businessOnly: true },
-  { name: 'Reports',               label: 'דוחות',             icon: TrendingUp,      guestAllowed: false, businessOnly: true },
+  { name: 'Reports',               label: 'דוחות וניתוחים',     icon: TrendingUp,      guestAllowed: false, businessOnly: true },
+  { name: 'Expenses',              label: 'הוצאות תפעול',      icon: Receipt,         guestAllowed: false, businessOnly: true },
   { divider: true, title: 'ניהול אדמין', adminOnly: true },
   { name: 'AdminDashboard',        label: 'לוח ניהול',        icon: ShieldCheck,     guestAllowed: false, adminOnly: true },
   { name: 'EmailCenter',           label: 'ניהול מיילים',      icon: Mail,            guestAllowed: false, adminOnly: true },

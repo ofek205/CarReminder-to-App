@@ -19,10 +19,10 @@ import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { createPageUrl } from '@/utils';
 
 const STATUS_LABEL = {
-  pending:     { label: 'ממתין',    cls: 'bg-gray-100  text-gray-700' },
-  in_progress: { label: 'בביצוע',   cls: 'bg-blue-100  text-blue-700' },
-  completed:   { label: 'הושלם',    cls: 'bg-green-100 text-green-700' },
-  cancelled:   { label: 'בוטל',     cls: 'bg-red-100   text-red-700' },
+  pending:     { label: 'מתוזמן',  cls: 'bg-gray-100  text-gray-700' },
+  in_progress: { label: 'בביצוע',  cls: 'bg-blue-100  text-blue-700' },
+  completed:   { label: 'הושלם',   cls: 'bg-green-100 text-green-700' },
+  cancelled:   { label: 'בוטל',    cls: 'bg-red-100   text-red-700' },
 };
 
 export default function Routes() {
@@ -79,10 +79,10 @@ export default function Routes() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-gray-900">
-            {canManageRoutes ? 'מסלולים' : 'המסלולים שלי'}
+            {canManageRoutes ? 'ניהול מסלולים' : 'המשימות שלי'}
           </h1>
           <p className="text-xs text-gray-500">
-            {canManageRoutes ? 'ניהול מסלולים בחשבון העסקי' : 'מסלולים שהוקצו לך'}
+            {canManageRoutes ? 'תכנון, שיוך ומעקב אחרי מסלולי הצי' : 'מסלולים שהוקצו לך לביצוע'}
           </p>
         </div>
         {canManageRoutes && (

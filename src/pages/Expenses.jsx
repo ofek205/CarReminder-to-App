@@ -101,8 +101,8 @@ export default function Expenses() {
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">הוצאות</h1>
-          <p className="text-xs text-gray-500">דלק, ביטוח ועלויות תפעוליות לרכבי הצי</p>
+          <h1 className="text-xl font-bold text-gray-900">הוצאות תפעול</h1>
+          <p className="text-xs text-gray-500">דלק, ביטוח ועלויות תפעוליות נוספות של הצי</p>
         </div>
         <button
           type="button"

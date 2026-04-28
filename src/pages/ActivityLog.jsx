@@ -33,19 +33,22 @@ const PAGE_SIZE = 30;
 // generic icon and the raw action string — defensive against future
 // log types added before this map is updated.
 const ACTION_META = {
-  'workspace.create':       { label: 'נוצר חשבון עסקי',  icon: Briefcase,    cls: 'text-purple-600 bg-purple-50' },
-  'driver.assign':          { label: 'נהג הוקצה לרכב',  icon: UserIcon,     cls: 'text-blue-600 bg-blue-50' },
-  'route.create':           { label: 'נוצר מסלול',       icon: Plus,         cls: 'text-green-600 bg-green-50' },
-  'route.start':            { label: 'מסלול החל',        icon: Truck,        cls: 'text-blue-600 bg-blue-50' },
-  'route.complete':         { label: 'מסלול הושלם',      icon: CheckCircle2, cls: 'text-green-700 bg-green-50' },
-  'route.reopen':           { label: 'מסלול נפתח מחדש',  icon: ChevronLeft,  cls: 'text-yellow-700 bg-yellow-50' },
-  'stop.complete':          { label: 'תחנה הושלמה',      icon: CheckCircle2, cls: 'text-green-700 bg-green-50' },
-  'stop.skip':              { label: 'תחנה דולגה',        icon: ChevronLeft,  cls: 'text-yellow-700 bg-yellow-50' },
-  'stop.issue':             { label: 'תקלה בתחנה',       icon: AlertTriangle, cls: 'text-red-700 bg-red-50' },
-  'stop.reopen':            { label: 'תחנה נפתחה מחדש',  icon: ChevronLeft,  cls: 'text-gray-600 bg-gray-100' },
-  'stop.note_added':        { label: 'הערה נוספה לתחנה', icon: MessageSquare, cls: 'text-gray-700 bg-gray-100' },
-  'stop.photo_added':       { label: 'תמונה נוספה לתחנה', icon: ImageIcon,    cls: 'text-gray-700 bg-gray-100' },
-  'stop.issue_documented':  { label: 'תקלה תועדה',       icon: AlertTriangle, cls: 'text-red-700 bg-red-50' },
+  'workspace.create':       { label: 'נוצרה סביבת עבודה עסקית', icon: Briefcase,    cls: 'text-purple-600 bg-purple-50' },
+  'driver.assign':          { label: 'נהג שויך לרכב',          icon: UserIcon,     cls: 'text-blue-600 bg-blue-50' },
+  'route.create':           { label: 'נוצר מסלול',              icon: Plus,         cls: 'text-green-600 bg-green-50' },
+  'route.start':            { label: 'מסלול יצא לדרך',          icon: Truck,        cls: 'text-blue-600 bg-blue-50' },
+  'route.complete':         { label: 'מסלול הושלם',             icon: CheckCircle2, cls: 'text-green-700 bg-green-50' },
+  'route.reopen':           { label: 'מסלול נפתח מחדש',         icon: ChevronLeft,  cls: 'text-yellow-700 bg-yellow-50' },
+  'stop.complete':          { label: 'תחנה הושלמה',             icon: CheckCircle2, cls: 'text-green-700 bg-green-50' },
+  'stop.skip':              { label: 'תחנה דולגה',               icon: ChevronLeft,  cls: 'text-yellow-700 bg-yellow-50' },
+  'stop.issue':             { label: 'תקלה דווחה בתחנה',        icon: AlertTriangle, cls: 'text-red-700 bg-red-50' },
+  'stop.reopen':            { label: 'תחנה נפתחה מחדש',         icon: ChevronLeft,  cls: 'text-gray-600 bg-gray-100' },
+  'stop.note_added':        { label: 'נוספה הערה לתחנה',        icon: MessageSquare, cls: 'text-gray-700 bg-gray-100' },
+  'stop.photo_added':       { label: 'נוספה תמונה לתחנה',       icon: ImageIcon,    cls: 'text-gray-700 bg-gray-100' },
+  'stop.issue_documented':  { label: 'תיעוד תקלה',              icon: AlertTriangle, cls: 'text-red-700 bg-red-50' },
+  'expense.add':            { label: 'נרשמה הוצאה',             icon: Plus,         cls: 'text-blue-600 bg-blue-50' },
+  'expense.update':         { label: 'הוצאה עודכנה',            icon: MessageSquare, cls: 'text-gray-700 bg-gray-100' },
+  'expense.delete':         { label: 'הוצאה נמחקה',             icon: AlertTriangle, cls: 'text-red-700 bg-red-50' },
 };
 function metaFor(action) {
   return ACTION_META[action] || { label: action, icon: FileText, cls: 'text-gray-700 bg-gray-100' };

@@ -29,16 +29,16 @@ import { useAuth } from '@/components/shared/GuestContext';
 // ("מסלול"), the stop is feminine ("תחנה") — that's why the same
 // status code maps to different forms.
 const ROUTE_STATUS_PILL = {
-  pending:     { label: 'ממתין',  cls: 'bg-gray-100  text-gray-700' },
+  pending:     { label: 'מתוזמן', cls: 'bg-gray-100  text-gray-700' },
   in_progress: { label: 'בביצוע', cls: 'bg-blue-100  text-blue-700' },
   completed:   { label: 'הושלם',  cls: 'bg-green-100 text-green-700' },
   cancelled:   { label: 'בוטל',   cls: 'bg-red-100   text-red-700' },
 };
 const STOP_STATUS_PILL = {
-  pending:   { label: 'ממתינה', cls: 'bg-gray-100   text-gray-700' },
-  completed: { label: 'הושלמה', cls: 'bg-green-100  text-green-700' },
-  skipped:   { label: 'דולגה',  cls: 'bg-yellow-100 text-yellow-700' },
-  issue:     { label: 'תקלה',   cls: 'bg-red-100    text-red-700' },
+  pending:   { label: 'מתוזמנת',     cls: 'bg-gray-100   text-gray-700' },
+  completed: { label: 'הושלמה',      cls: 'bg-green-100  text-green-700' },
+  skipped:   { label: 'דולגה',       cls: 'bg-yellow-100 text-yellow-700' },
+  issue:     { label: 'תקלה מדווחת', cls: 'bg-red-100    text-red-700' },
 };
 
 const routePill = (status) => ROUTE_STATUS_PILL[status] || ROUTE_STATUS_PILL.pending;
@@ -290,19 +290,19 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
             type="button" disabled={busy}
             onClick={() => callStopRpc('completed', null)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
-            <CheckCircle2 className="h-3.5 w-3.5" /> סמן הושלם
+            <CheckCircle2 className="h-3.5 w-3.5" /> סמן הושלמה
           </button>
           <button
             type="button" disabled={busy}
             onClick={() => setIssueOpen(o => !o)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
-            <AlertTriangle className="h-3.5 w-3.5" /> דווח תקלה
+            <AlertTriangle className="h-3.5 w-3.5" /> דווח על תקלה
           </button>
           <button
             type="button" disabled={busy}
             onClick={() => setNoteOpen(o => !o)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
-            <MessageSquarePlus className="h-3.5 w-3.5" /> הוסף הערה
+            <MessageSquarePlus className="h-3.5 w-3.5" /> כתוב הערה
           </button>
         </div>
       )}
