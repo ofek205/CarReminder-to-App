@@ -210,7 +210,11 @@ let package = Package(
             sources: ["src"],
             publicHeadersPath: "include",
             cSettings: [
-                .headerSearchPath("include")
+                // Two search paths so both <Cordova/Foo.h> (resolved
+                // from include/) and "Foo.h" sibling-style imports inside
+                // the .m files (resolved from include/Cordova/) work.
+                .headerSearchPath("include"),
+                .headerSearchPath("include/Cordova")
             ]
         ),
         .target(
@@ -221,6 +225,7 @@ let package = Package(
             publicHeadersPath: "include",
             cSettings: [
                 .headerSearchPath("include"),
+                .headerSearchPath("include/Capacitor"),
                 .define("CAPACITOR_SWIFT_PM_LOCAL", to: "1")
             ]
         ),
