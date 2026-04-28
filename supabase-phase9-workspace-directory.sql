@@ -29,11 +29,16 @@ set search_path = public
 stable
 as $$
 begin
+  -- Alias the table so the user_id column is unambiguous against the
+  -- function's OUT parameter of the same name. Newer PostgreSQL/PL/pgSQL
+  -- builds raise 42702 here without the alias because the OUT parameter
+  -- shadows the column in the EXISTS subquery, which broke the entire
+  -- Drivers / Fleet / BusinessDashboard directory in production.
   if not exists (
-    select 1 from public.account_members
-     where account_id = p_account_id
-       and user_id    = auth.uid()
-       and status     = 'פעיל'
+    select 1 from public.account_members am
+     where am.account_id = p_account_id
+       and am.user_id    = auth.uid()
+       and am.status     = 'פעיל'
   ) then
     raise exception 'forbidden_not_member';
   end if;
