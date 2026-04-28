@@ -33,7 +33,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
 
     steps:
@@ -46,13 +46,20 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Select Xcode 16 (iOS 18 SDK)
-        # App Store Connect requires apps built with iOS 18 SDK or later,
-        # which ships in Xcode 16. The macos-14 runner ships with Xcode 15.4
-        # by default; explicitly switch to the Xcode 16 install that's also
-        # available there.
+      - name: Select latest Xcode 16
+        # App Store Connect rejects iOS 17.5 SDK builds; need iOS 18 SDK,
+        # which ships in Xcode 16. macos-15 has multiple Xcode 16.x installs
+        # under /Applications/Xcode_16*.app — pick the highest version that
+        # exists rather than hardcoding a path.
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.app
+          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE_PATH" ]; then
+            echo "ERROR: no Xcode 16.x found under /Applications. Available:"
+            ls -d /Applications/Xcode*.app 2>/dev/null
+            exit 1
+          fi
+          echo "Selecting $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
 
       - name: Install dependencies
