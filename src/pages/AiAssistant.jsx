@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import AiProviderBadge from '@/components/shared/AiProviderBadge';
+import useAccountRole from '@/hooks/useAccountRole';
 
 const STORAGE_KEY_PREFIX = 'yossi_chat_';
 const CHAT_EXPIRY_DAYS = 30;
@@ -58,6 +59,7 @@ function timeFmt(ts) {
 
 export default function AiAssistant() {
   const { user, isAuthenticated } = useAuth();
+  const { accountId: activeAccountId } = useAccountRole();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -102,19 +104,18 @@ export default function AiAssistant() {
     } catch {}
   }, [messages, user?.id]);
 
-  // Load user vehicles
+  // Phase 3: vehicles for the active workspace.
   useEffect(() => {
     if (!isAuthenticated || !user) return;
+    if (!activeAccountId) { setVehicles([]); setHasVessel(false); return; }
     (async () => {
       try {
-        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-        if (members.length === 0) return;
-        const vs = await db.vehicles.filter({ account_id: members[0].account_id });
+        const vs = await db.vehicles.filter({ account_id: activeAccountId });
         setVehicles(vs || []);
         setHasVessel((vs || []).some(v => isVessel(v.vehicle_type, v.nickname)));
       } catch {}
     })();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, activeAccountId]);
 
   // Load maintenance logs for selected vehicle
   useEffect(() => {
