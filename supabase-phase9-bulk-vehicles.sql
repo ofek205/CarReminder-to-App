@@ -70,13 +70,20 @@ begin
     end if;
 
     -- Clean: drop empty-string values + system columns the caller
-    -- shouldn't override. Then force account_id and license_plate
-    -- from validated parameters.
+    -- shouldn't override + non-primitive values. MoT-derived fields are
+    -- all scalars (string/number/boolean); array/object columns like
+    -- offroad_equipment, fire_extinguishers are user-managed via the
+    -- manual form, never populated from registry. Stripping
+    -- non-primitives here is a defensive guard so a stale client that
+    -- still forwards them cannot break the insert with a type-mismatch
+    -- error (e.g. text vs text[]). Then force account_id and
+    -- license_plate from validated parameters.
     select coalesce(jsonb_object_agg(key, value), '{}'::jsonb)
       into v_clean
       from jsonb_each(v_record)
       where value is not null
         and value <> '""'::jsonb
+        and jsonb_typeof(value) in ('string', 'number', 'boolean')
         and key not in ('id', 'created_at', 'updated_at', 'account_id', 'license_plate');
 
     v_clean := v_clean
@@ -84,11 +91,19 @@ begin
       || jsonb_build_object('license_plate', v_plate);
 
     begin
-      -- Let PostgreSQL coerce types using the vehicles row type as
-      -- the schema source of truth.
-      insert into public.vehicles
-      select (jsonb_populate_record(null::public.vehicles, v_clean)).*
-      returning id into new_id;
+      -- Build a dynamic INSERT listing only the columns present in
+      -- v_clean. We can't INSERT the full row from jsonb_populate_record
+      -- because the vehicles table has generated columns (e.g.
+      -- license_plate_normalized) that reject any explicit value, even
+      -- the NULL that populate_record would emit. Selecting individual
+      -- keys from the jsonb_populate_record result side-steps that.
+      execute format(
+        'insert into public.vehicles (%s) select %s from jsonb_populate_record(null::public.vehicles, $1) r returning id',
+        (select string_agg(quote_ident(key), ', ') from jsonb_object_keys(v_clean) as key),
+        (select string_agg('r.' || quote_ident(key), ', ') from jsonb_object_keys(v_clean) as key)
+      )
+      using v_clean
+      into new_id;
 
       added_count := added_count + 1;
       added := added || jsonb_build_object('id', new_id, 'plate', v_plate);

@@ -261,6 +261,18 @@ with combined as (
          coalesce(occurred_at, created_at::date) as dt
     from public.repair_logs
    where coalesce(cost, 0) > 0
+  union all
+  -- Maintenance logs (טיפולים) carry their own cost field that the
+  -- private flow already exposes in MaintenanceSection. Without this
+  -- branch managers added oil changes / filter swaps with a price
+  -- and saw nothing in Reports. account_id is derived from the
+  -- parent vehicle because the legacy insert path doesn't set it.
+  select v.account_id, m.vehicle_id, 'repair'::text as category,
+         coalesce(m.cost, 0)::numeric           as amount,
+         coalesce(m.date::date, m.created_at::date) as dt
+    from public.maintenance_logs m
+    join public.vehicles v on v.id = m.vehicle_id
+   where coalesce(m.cost, 0) > 0
 )
 select
   account_id,
@@ -292,6 +304,14 @@ with combined as (
          coalesce(cost, 0)::numeric as amount
     from public.repair_logs
    where coalesce(cost, 0) > 0
+  union all
+  select v.account_id,
+         coalesce(m.date::date, m.created_at::date) as dt,
+         'repair'::text as category,
+         coalesce(m.cost, 0)::numeric as amount
+    from public.maintenance_logs m
+    join public.vehicles v on v.id = m.vehicle_id
+   where coalesce(m.cost, 0) > 0
 )
 select
   account_id,

@@ -108,6 +108,26 @@ export default function AuthPage() {
       const m = u.searchParams.get('mode');
       if (m === 'update-password') return 'update-password';
       if (m === 'verify-email') return 'verify-email';
+      // Recovery emails sometimes arrive with the marker in the URL
+      // fragment (#type=recovery / #access_token=...) instead of the
+      // query string — Supabase's default recovery template, certain
+      // mail providers, and some PWA shell rewrites strip ?mode= but
+      // leave the fragment intact. If we don't catch that here the
+      // initial mode stays "login", isAuthenticated flips true once
+      // Supabase exchanges the token, and the auto-redirect ships the
+      // user to Dashboard before PASSWORD_RECOVERY fires — leaving
+      // them with no way to set a new password. Reading the fragment
+      // upfront keeps us in update-password mode from the first render.
+      const hash = (window.location.hash || '').replace(/^#/, '');
+      if (hash) {
+        const hp = new URLSearchParams(hash);
+        const t  = hp.get('type');
+        if (t === 'recovery') return 'update-password';
+        if (hp.get('access_token') && (t === 'recovery' || u.searchParams.get('type') === 'recovery')) {
+          return 'update-password';
+        }
+      }
+      if (u.searchParams.get('type') === 'recovery') return 'update-password';
       // Resume a pending verification if the tab was refreshed.
       if (sessionStorage.getItem('cr_pending_verify_email')) return 'verify-email';
     } catch {}

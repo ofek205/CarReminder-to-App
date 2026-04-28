@@ -95,10 +95,15 @@ export default function WorkspaceSwitcher() {
                         if (!isActive) {
                           const ok = await switchTo(m.account_id);
                           if (ok) {
-                            // Land on the home page of the new workspace.
-                            // Personal stays on Dashboard; business is
-                            // redirected by Dashboard.jsx to BusinessDashboard.
-                            navigate(createPageUrl('Dashboard'));
+                            // Navigate straight to the workspace home so we
+                            // don't depend on Dashboard.jsx detecting the
+                            // type change and redirecting. That indirect
+                            // path was unreliable when the user was already
+                            // on Dashboard (URL no-op + state-update race).
+                            const target = m.account_type === 'business'
+                              ? 'BusinessDashboard'
+                              : 'Dashboard';
+                            navigate(createPageUrl(target), { replace: true });
                           }
                         }
                       }}

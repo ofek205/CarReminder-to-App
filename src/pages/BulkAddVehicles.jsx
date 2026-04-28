@@ -15,7 +15,7 @@
  */
 import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Upload, FileSpreadsheet, ClipboardList, ArrowLeft, ArrowRight, Loader2,
   CheckCircle2, AlertTriangle, X, Copy, FileWarning, Briefcase,
@@ -94,6 +94,7 @@ export default function BulkAddVehicles() {
   const { accountId } = useAccountRole();
   const { isBusiness, canManageRoutes, isLoading: roleLoading } = useWorkspaceRole();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [step, setStep]     = useState('input'); // 'input' | 'review' | 'result'
   const [plates, setPlates] = useState([]);      // array of normalized plate strings
@@ -188,6 +189,16 @@ export default function BulkAddVehicles() {
         notFoundPlates: rows.filter(r => r.status === 'not_found').map(r => r.plate),
       });
       setStep('result');
+      // Invalidate the cached vehicle lists so the Fleet table, dashboards
+      // and the in-page duplicate check (existingPlates) all reflect the
+      // newly added vehicles immediately. Without this, "ייבא עוד" right
+      // after a successful import would let the user re-submit the same
+      // plates because the dedupe Set is still the pre-import snapshot.
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles-list'] });
+      queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['bulk-add-existing-plates', accountId] });
       toast.success(`${data.added_count} רכבים נוספו לצי`);
     } catch (err) {
       const msg = err?.message || '';

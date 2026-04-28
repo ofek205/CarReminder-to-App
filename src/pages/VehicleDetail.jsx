@@ -575,6 +575,8 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
       }
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
       queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles-list'] });
+      queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
       navigate(createPageUrl('Dashboard'));
     } catch (e) {
       toast.error(`שגיאה במחיקה: ${e?.message || 'נסה שוב'}`);

@@ -717,7 +717,16 @@ export default function AddVehicle() {
       // The whole-row insert either works or raises the real error, which
       // the catch below translates to a friendly Hebrew message.
       const savedVehicle = await db.vehicles.create(cleanData);
+      // Invalidate every list that could show this new vehicle. Each
+      // page picked its own queryKey ('my-vehicles' / 'fleet-vehicles' /
+      // 'vehicles-list' / 'vehicles'), so a single key here would only
+      // refresh some of them and the user would see a stale list until
+      // a hard reload. Keep this list in sync with grep
+      // 'queryKey: \[.(my-vehicles|vehicles|fleet)' in src/.
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles-list'] });
+      queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
 
       try { if (user) await trackUserAction(user.id); } catch {}
       draft.clearDraft();
