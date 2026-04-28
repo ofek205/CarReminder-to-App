@@ -19,7 +19,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase, UserPlus, Truck, Loader2, Plus, X,
-  Crown, Shield, Eye, User as UserIcon, Calendar,
+  Crown, Shield, Eye, User as UserIcon, Calendar, Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -46,6 +46,7 @@ export default function Drivers() {
   const queryClient = useQueryClient();
 
   const [assigning, setAssigning] = useState(null); // null | { user_id, display_name }
+  const [adding,    setAdding]    = useState(false);
 
   // Member directory — names via the SECURITY DEFINER RPC.
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -138,14 +139,22 @@ export default function Drivers() {
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
-      <div className="flex items-center justify-between mb-4">
-        <div>
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <div className="min-w-0">
           <h1 className="text-xl font-bold text-gray-900">נהגים וחברי הסביבה</h1>
-          <p className="text-xs text-gray-500">ניהול תפקידים והקצאת רכבים לנהגים</p>
+          <p className="text-xs text-gray-500 truncate">
+            ניהול תפקידים והקצאת רכבים לנהגים
+            <span className="text-gray-400">{` · ${members.length} ${members.length === 1 ? 'חבר' : 'חברים'}`}</span>
+          </p>
         </div>
-        <div className="text-[10px] text-gray-400">
-          {members.length} {members.length === 1 ? 'חבר' : 'חברים'}
-        </div>
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98]"
+        >
+          <UserPlus className="h-4 w-4" />
+          הוסף נהג
+        </button>
       </div>
 
       {membersLoading ? (
@@ -154,7 +163,7 @@ export default function Drivers() {
         <Empty
           icon={<UserPlus className="h-10 w-10 text-gray-300" />}
           title="עוד אין חברים בסביבה"
-          text="הזמנת חברים תיוסף בקרוב. בינתיים ניתן להוסיף חבר ידנית דרך התמיכה."
+          text='הוסף נהג קיים לפי כתובת אימייל. הנהג חייב להיות רשום באפליקציה.'
           embedded
         />
       ) : (
@@ -184,6 +193,119 @@ export default function Drivers() {
           }}
         />
       )}
+
+      {adding && (
+        <AddMemberDialog
+          accountId={accountId}
+          onClose={() => setAdding(false)}
+          onAdded={async () => {
+            await queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
+            setAdding(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+function AddMemberDialog({ accountId, onClose, onAdded }) {
+  const [email, setEmail] = useState('');
+  const [role,  setRole]  = useState('driver');
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const cleanEmail = email.trim();
+    if (!cleanEmail) { toast.error('יש להזין אימייל'); return; }
+
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.rpc('add_workspace_member_by_email', {
+        p_account_id: accountId,
+        p_email:      cleanEmail,
+        p_role:       role,
+      });
+      if (error) throw error;
+      toast.success('החבר נוסף לחשבון בהצלחה');
+      onAdded?.();
+    } catch (err) {
+      const msg = err?.message || '';
+      if      (msg.includes('forbidden_not_manager')) toast.error('אין לך הרשאת מנהל');
+      else if (msg.includes('email_required'))        toast.error('יש להזין אימייל');
+      else if (msg.includes('user_not_registered'))   toast.error('אין משתמש רשום עם האימייל הזה. שלח לו קישור להרשמה לאפליקציה ונסה שוב.');
+      else if (msg.includes('already_member'))        toast.error('המשתמש כבר חבר בחשבון הזה');
+      else if (msg.includes('invalid_role'))          toast.error('תפקיד לא תקין');
+      else                                             toast.error('הוספת החבר נכשלה. נסה שוב.');
+      // eslint-disable-next-line no-console
+      console.error('add_workspace_member_by_email failed:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div dir="rtl" className="fixed inset-0 z-[10000] bg-black/40 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-bold text-gray-900">הוסף חבר לחשבון</h2>
+          <button onClick={onClose} aria-label="סגור" className="p-1.5 hover:bg-gray-100 rounded-lg">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          המשתמש חייב להיות רשום באפליקציה. בקש ממנו להירשם דרך CarReminder ואז הזן כאן את האימייל.
+        </p>
+
+        <form onSubmit={submit} className="space-y-3">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">
+              אימייל המשתמש <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Mail className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="driver@example.com"
+                className="w-full pr-10 pl-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">
+              תפקיד <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
+            >
+              <option value="driver">נהג — רואה את הרכב שלו ומסלולים שלו בלבד</option>
+              <option value="שותף">צופה — רואה הכל בקריאה בלבד</option>
+              <option value="מנהל">מנהל — מנהל את הצי, נהגים ומסלולים</option>
+            </select>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-2.5 text-[11px] text-blue-900 leading-relaxed">
+            לאחר ההוספה, המשתמש יראה את החשבון העסקי במחליף הסביבות שלו בכניסה הבאה לאפליקציה.
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting || !email.trim()}
+            className="w-full py-2.5 rounded-xl font-bold text-sm bg-[#2D5233] text-white flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60"
+          >
+            {submitting
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> מוסיף...</>
+              : <><UserPlus className="h-4 w-4" /> הוסף לחשבון</>}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -67,14 +67,15 @@ const navItems = [
   //  further gate by workspace role. routes-list page itself handles
   //  the manager-vs-driver mode switch internally.
   { divider: true, title: 'תפעול', businessOnly: true },
-  { name: 'BusinessDashboard',     label: 'דשבורד עסקי',        icon: LayoutDashboard, guestAllowed: false, businessOnly: true },
-  { name: 'Fleet',                 label: 'צי הרכבים',          icon: Truck,           guestAllowed: false, businessOnly: true },
+  { name: 'BusinessDashboard',     label: 'דשבורד עסקי',        icon: LayoutDashboard, guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'MyVehicles',            label: 'הרכבים שלי',         icon: Truck,           guestAllowed: false, businessOnly: true, driverOnly: true },
+  { name: 'Fleet',                 label: 'צי הרכבים',          icon: Truck,           guestAllowed: false, businessOnly: true, managerOnly: true },
   { name: 'Routes',                label: 'מסלולים ומשימות',   icon: MapPin,          guestAllowed: false, businessOnly: true },
-  { name: 'Drivers',               label: 'נהגים',              icon: Users,           guestAllowed: false, businessOnly: true },
+  { name: 'Drivers',               label: 'נהגים',              icon: Users,           guestAllowed: false, businessOnly: true, managerOnly: true },
   { divider: true, title: 'אנליטיקה', businessOnly: true },
   { name: 'ActivityLog',           label: 'יומן פעילות',       icon: FileText,        guestAllowed: false, businessOnly: true },
-  { name: 'Reports',               label: 'דוחות וניתוחים',     icon: TrendingUp,      guestAllowed: false, businessOnly: true },
-  { name: 'Expenses',              label: 'הוצאות תפעול',      icon: Receipt,         guestAllowed: false, businessOnly: true },
+  { name: 'Reports',               label: 'דוחות וניתוחים',     icon: TrendingUp,      guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'Expenses',              label: 'הוצאות תפעול',      icon: Receipt,         guestAllowed: false, businessOnly: true, managerOnly: true },
   { divider: true, title: 'ניהול אדמין', adminOnly: true },
   { name: 'AdminDashboard',        label: 'לוח ניהול',        icon: ShieldCheck,     guestAllowed: false, adminOnly: true },
   { name: 'EmailCenter',           label: 'ניהול מיילים',      icon: Mail,            guestAllowed: false, adminOnly: true },
@@ -198,10 +199,12 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
       (!item.businessOnly || (isBusiness && businessAccess))
     ) : (
       (isAuthenticated || item.guestAllowed) &&
-      (!item.adminOnly    || isAdmin) &&
-      (!item.businessOnly || (isBusiness && businessAccess)) &&
-      (!item.ownerOnly    || isOwner) &&
-      (!item.vesselOnly   || hasVessel) &&
+      (!item.adminOnly     || isAdmin) &&
+      (!item.businessOnly  || (isBusiness && businessAccess)) &&
+      (!item.managerOnly   || canManageRoutes) &&
+      (!item.driverOnly    || canDriveRoutes) &&
+      (!item.ownerOnly     || isOwner) &&
+      (!item.vesselOnly    || hasVessel) &&
       // Driver in business workspace — hide items the manager flagged.
       !(isBusiness && isDriver && item.driverHidesIfFlag && businessMeta?.[item.driverHidesIfFlag]) &&
       (!isMobile || !BOTTOM_NAV_PATHS.has(item.name))
