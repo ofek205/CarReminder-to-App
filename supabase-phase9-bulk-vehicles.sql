@@ -102,7 +102,7 @@ begin
         v_record->>'engine_manufacturer',
         nullif(v_record->>'pyrotechnics_expiry_date', '')::date,
         nullif(v_record->>'fire_extinguisher_expiry_date', '')::date,
-        nullif(v_record->>'fire_extinguishers', '')::int,
+        v_record->'fire_extinguishers',
         nullif(v_record->>'life_raft_expiry_date', '')::date,
         nullif(v_record->>'last_shipyard_date', '')::date,
         nullif(v_record->>'hours_since_shipyard', '')::numeric,
