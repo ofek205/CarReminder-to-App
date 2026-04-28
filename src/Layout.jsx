@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Wrench, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Wrench, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -17,6 +17,9 @@ import useReviewPromptSchedule from "@/hooks/useReviewPromptSchedule";
 import PopupEngine from "@/components/shared/PopupEngine";
 import { SafeComponent } from "@/components/shared/SafeComponent";
 import { GuestProvider, useAuth } from "@/components/shared/GuestContext";
+import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
+import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
+import useWorkspaceRole from "@/hooks/useWorkspaceRole";
 import { AccessibilityProvider } from "@/components/shared/AccessibilityContext";
 import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
@@ -42,30 +45,42 @@ const navItems = [
   { name: 'MaintenanceTemplates',  label: 'טיפולים ותיקונים', icon: Wrench,          guestAllowed: true },
   { name: 'Documents',             label: 'מסמכים',           icon: FileText,        guestAllowed: true },
   { name: 'Accidents',             label: 'תאונות',           icon: AlertTriangle,   guestAllowed: true },
-  //  קהילה 
+  //  קהילה
   { divider: true, title: 'קהילה' },
-  { name: 'Community',             label: 'קהילה וייעוץ',    icon: Users,           guestAllowed: true },
-  { name: 'AiAssistant',           label: 'התייעצות עם מומחה AI', icon: Sparkles,    guestAllowed: true },
+  { name: 'Community',             label: 'קהילה וייעוץ',    icon: Users,           guestAllowed: true, driverHidesIfFlag: 'driver_hide_community' },
+  { name: 'AiAssistant',           label: 'התייעצות עם מומחה AI', icon: Sparkles,    guestAllowed: true, driverHidesIfFlag: 'driver_hide_ai' },
   //  כלים 
   { divider: true, title: 'כלים' },
   { name: 'FindGarage',            label: 'מצא מוסך',        icon: MapPin,          guestAllowed: true },
-  //  חשבון 
+  //  חשבון
   { divider: true, title: 'חשבון' },
   // Unified Settings hub replaces three separate entries (אזור אישי /
   // שיתוף חשבון / הגדרות תזכורות). The old routes still work as
   // deep-link targets (e.g. from push notifications), they just aren't
   // surfaced in the menu any more.
   { name: 'Settings',              label: 'הגדרות',           icon: Settings,        guestAllowed: true },
+  { name: 'BusinessSettings',      label: 'הגדרות החשבון העסקי', icon: Briefcase,    guestAllowed: false, businessOnly: true, ownerOnly: true },
   { name: 'AdminReviews',          label: 'חוות דעת',         icon: Star,            guestAllowed: true },
   { name: 'Contact',               label: 'צור קשר',          icon: MessageSquare,   guestAllowed: true },
-  //  ניהול אדמין — visible only when useIsAdmin() resolves true. The
-  //  adminOnly flag is already honored by the menu renderer further down
-  //  in this file; the divider title is only shown when at least one
-  //  admin item is about to render (see filter logic below).
+  //  Phase 6 — B2B Routes & Tasks. businessOnly hides for personal
+  //  workspaces (private users see nothing). managerOnly / driverAllowed
+  //  further gate by workspace role. routes-list page itself handles
+  //  the manager-vs-driver mode switch internally.
+  { divider: true, title: 'תפעול', businessOnly: true },
+  { name: 'BusinessDashboard',     label: 'דשבורד עסקי',        icon: LayoutDashboard, guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'MyVehicles',            label: 'הרכבים שלי',         icon: Truck,           guestAllowed: false, businessOnly: true, driverOnly: true },
+  { name: 'Fleet',                 label: 'צי הרכבים',          icon: Truck,           guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'Routes',                label: 'מסלולים ומשימות',   icon: MapPin,          guestAllowed: false, businessOnly: true },
+  { name: 'Drivers',               label: 'נהגים',              icon: Users,           guestAllowed: false, businessOnly: true, managerOnly: true },
+  { divider: true, title: 'אנליטיקה', businessOnly: true },
+  { name: 'ActivityLog',           label: 'יומן פעילות',       icon: FileText,        guestAllowed: false, businessOnly: true },
+  { name: 'Reports',               label: 'דוחות וניתוחים',     icon: TrendingUp,      guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'Expenses',              label: 'הוצאות תפעול',      icon: Receipt,         guestAllowed: false, businessOnly: true, managerOnly: true },
   { divider: true, title: 'ניהול אדמין', adminOnly: true },
   { name: 'AdminDashboard',        label: 'לוח ניהול',        icon: ShieldCheck,     guestAllowed: false, adminOnly: true },
   { name: 'EmailCenter',           label: 'ניהול מיילים',      icon: Mail,            guestAllowed: false, adminOnly: true },
   { name: 'AdminAiSettings',       label: 'הגדרות AI',         icon: Sparkles,        guestAllowed: false, adminOnly: true },
+  { name: 'AdminBusinessRequests', label: 'בקשות חשבון עסקי',  icon: Briefcase,       guestAllowed: false, adminOnly: true },
 ];
 
 
@@ -170,16 +185,28 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   // for users the page would block, or vice-versa.
   const adminCheck = useIsAdmin();
   const isAdmin = adminCheck === true;
+  // Phase 6 — workspace-aware nav gating. isBusiness becomes true only
+  // when the active workspace is a business workspace; private users
+  // never see businessOnly items.
+  // Phase 9 step 8 — owners-only items + driver-hide flags driven by
+  // accounts.business_meta toggles set in /BusinessSettings.
+  const { isBusiness, isDriver, isOwner, canManageRoutes, canDriveRoutes, businessMeta } = useWorkspaceRole();
+  const businessAccess = canManageRoutes || canDriveRoutes;
   // On mobile, hide items that are already in the bottom nav
   const visibleItems = navItems.filter(item =>
-    // Dividers with adminOnly=true disappear for non-admins so we don't
-    // render an empty "ניהול אדמין" header. Regular dividers always pass
-    // this stage; the orphan-divider pass below removes ones with nothing
-    // after them.
-    (item.divider ? (!item.adminOnly || isAdmin) : (
+    (item.divider ? (
+      (!item.adminOnly    || isAdmin) &&
+      (!item.businessOnly || (isBusiness && businessAccess))
+    ) : (
       (isAuthenticated || item.guestAllowed) &&
-      (!item.adminOnly || isAdmin) &&
-      (!item.vesselOnly || hasVessel) &&
+      (!item.adminOnly     || isAdmin) &&
+      (!item.businessOnly  || (isBusiness && businessAccess)) &&
+      (!item.managerOnly   || canManageRoutes) &&
+      (!item.driverOnly    || canDriveRoutes) &&
+      (!item.ownerOnly     || isOwner) &&
+      (!item.vesselOnly    || hasVessel) &&
+      // Driver in business workspace — hide items the manager flagged.
+      !(isBusiness && isDriver && item.driverHidesIfFlag && businessMeta?.[item.driverHidesIfFlag]) &&
       (!isMobile || !BOTTOM_NAV_PATHS.has(item.name))
     ))
   // Remove dividers that have no items after them (orphan dividers)
@@ -620,6 +647,7 @@ function LayoutInner({ children }) {
             <span className="text-sm font-bold text-gray-900">CarReminder</span>
           </Link>
           <div className="flex-1" />
+          {isAuthenticated && <WorkspaceSwitcher />}
           {isAuthenticated && (
             <React.Suspense fallback={<div className="w-10 h-10" />}>
               <NotificationBell />
@@ -654,7 +682,9 @@ export default function Layout({ children }) {
     <AccessibilityProvider>
       <FontScaleProvider>
         <GuestProvider>
-          <LayoutInner>{children}</LayoutInner>
+          <WorkspaceProvider>
+            <LayoutInner>{children}</LayoutInner>
+          </WorkspaceProvider>
         </GuestProvider>
       </FontScaleProvider>
     </AccessibilityProvider>

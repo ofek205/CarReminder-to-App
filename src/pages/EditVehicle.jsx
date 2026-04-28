@@ -335,6 +335,8 @@ export default function EditVehicle() {
       await queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
       await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
       await queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+      await queryClient.invalidateQueries({ queryKey: ['vehicles-list'] });
+      await queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
       await queryClient.invalidateQueries({ queryKey: ['documents'] });
       // Notify shared parties about the edit. Server-side no-op when
       // the vehicle isn't shared. Summary names how many fields changed
@@ -375,6 +377,9 @@ export default function EditVehicle() {
         // Same cache invalidation as the happy path above
         await queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
         await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+        await queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+        await queryClient.invalidateQueries({ queryKey: ['vehicles-list'] });
+        await queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
         await queryClient.invalidateQueries({ queryKey: ['documents'] });
         navigate(createPageUrl(`VehicleDetail?id=${vehicleId}`), { replace: true });
       } catch (retryErr) {

@@ -6,13 +6,14 @@ import { aiRequest } from '@/lib/aiProxy';
 import { hapticFeedback } from '@/lib/capacitor';
 import { C, getVehicleVisual } from '@/lib/designTokens';
 import VehicleIcon from '../components/shared/VehicleIcon';
-import { isVessel, getDateStatus } from '../components/shared/DateStatusUtils';
+import { isVessel, getDateStatus, getVehicleLabels } from '../components/shared/DateStatusUtils';
 import { getAiExpert } from '@/lib/aiExpert';
 import { Send, Wrench, Loader2, Sparkles, Trash2, AlertTriangle, Check, ChevronDown, X, Copy, RotateCcw, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import AiProviderBadge from '@/components/shared/AiProviderBadge';
+import useAccountRole from '@/hooks/useAccountRole';
 
 const STORAGE_KEY_PREFIX = 'yossi_chat_';
 const CHAT_EXPIRY_DAYS = 30;
@@ -21,7 +22,7 @@ const MIN_LEN = 2;
 const MAX_LEN = 800;
 const MIN_INTERVAL_MS = 1500; // rate limit between sends
 
-const SUGGESTED_PROMPTS_GENERAL = [
+const SUGGESTED_PROMPTS_GENERAL_CAR = [
   'מה חשוב לבדוק לפני קניית רכב יד שניה?',
   'מה המחיר הממוצע להחלפת בלמים?',
   'איך מטפלים בנורית check engine?',
@@ -30,12 +31,29 @@ const SUGGESTED_PROMPTS_GENERAL = [
   'מהן בעיות נפוצות ברכבי 2018-2020?',
 ];
 
-const SUGGESTED_PROMPTS_VEHICLE = [
+const SUGGESTED_PROMPTS_GENERAL_VESSEL = [
+  'מה חשוב לבדוק לפני קניית כלי שייט יד שנייה?',
+  'מתי להחליף שמן במנוע ימי?',
+  'מה לבדוק לפני יציאה לים?',
+  'איזה ציוד בטיחות חובה בסירה?',
+  'איך מכינים כלי שייט לכושר שייט?',
+  'תקלות נפוצות במנועים חוץ-ימיים',
+];
+
+const SUGGESTED_PROMPTS_VEHICLE_CAR = [
   'מה הטיפולים הקרובים שצריך לעשות?',
   'איזה בעיות נפוצות יש לדגם הזה?',
   'מתי כדאי להחליף צמיגים?',
   'מה המחיר המוערך לטיפול הבא?',
   'יש לי רעש מוזר, מה זה יכול להיות?',
+];
+
+const SUGGESTED_PROMPTS_VEHICLE_VESSEL = [
+  'מה הטיפולים הקרובים שצריך לעשות?',
+  'איזה תקלות נפוצות יש בכלי הזה?',
+  'מתי כדאי לעלות למספנה?',
+  'מה המחיר המוערך לטיפול הבא?',
+  'יש לי רעש/רעידה במנוע, מה זה יכול להיות?',
 ];
 
 // Sanitize message text. strip HTML, control chars
@@ -58,6 +76,7 @@ function timeFmt(ts) {
 
 export default function AiAssistant() {
   const { user, isAuthenticated } = useAuth();
+  const { accountId: activeAccountId } = useAccountRole();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -102,19 +121,18 @@ export default function AiAssistant() {
     } catch {}
   }, [messages, user?.id]);
 
-  // Load user vehicles
+  // Phase 3: vehicles for the active workspace.
   useEffect(() => {
     if (!isAuthenticated || !user) return;
+    if (!activeAccountId) { setVehicles([]); setHasVessel(false); return; }
     (async () => {
       try {
-        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-        if (members.length === 0) return;
-        const vs = await db.vehicles.filter({ account_id: members[0].account_id });
+        const vs = await db.vehicles.filter({ account_id: activeAccountId });
         setVehicles(vs || []);
         setHasVessel((vs || []).some(v => isVessel(v.vehicle_type, v.nickname)));
       } catch {}
     })();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, activeAccountId]);
 
   // Load maintenance logs for selected vehicle
   useEffect(() => {
@@ -162,9 +180,12 @@ export default function AiAssistant() {
     const v = selectedVehicle;
     const lines = [];
 
-    // Identity
-    const vName = v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'הרכב';
-    lines.push(`### רכב הנדון: ${vName}`);
+    // Identity. Header uses the vehicle-type-aware noun so the model
+    // sees "כלי שייט הנדון" / "מלגזה הנדונה" instead of always "רכב",
+    // matching the in-page UI labels.
+    const ctxLabels = getVehicleLabels(v.vehicle_type, v.nickname);
+    const vName = v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim() || ctxLabels.vehicleFallback;
+    lines.push(`### ${ctxLabels.vehicleWord} הנדון: ${vName}`);
 
     // Specs
     const specs = [];
@@ -265,32 +286,65 @@ export default function AiAssistant() {
       // Pick the expert that matches the selected vehicle (vessel → יוסי, else → ברוך).
       // With no vehicle selected, default to ברוך (the app is car-first).
       const expert = getAiExpert(selectedVehicle);
-      const expertise = expert.domain === 'vessel'
-        ? 'אתה מכיר לעומק את כל סוגי הסירות, מנועים ימיים (Yanmar, Mercury, Volvo Penta, Yamaha), מערכות חשמל ימיות, ציוד בטיחות, ואת כל המרינות בישראל'
+      const isVesselExpert = expert.domain === 'vessel';
+      // Branch the whole prompt — not just the expertise paragraph —
+      // because the diagnostic examples and rules are domain-specific
+      // (a vessel doesn't have "בלימה" or "קילומטראז'", and the right
+      // place to send the user is a שירות שייט / מספנה, not a מוסך).
+      // Without this split, יוסי still spoke car at the user.
+      const expertise = isVesselExpert
+        ? 'אתה מכיר לעומק את כל סוגי כלי השייט (מפרשיות, סירות מנוע, אופנועי ים, סירות גומי, סקי-ג\'ט), מנועים ימיים (Yanmar, Mercury, Volvo Penta, Yamaha, Suzuki Marine, Honda Marine), מערכות חשמל ימיות, ציוד בטיחות ימי, מערכות הנעה (תוך-ימי / חוץ-ימי / סטרן-דרייב), ואת המרינות והמספנות בישראל'
         : 'אתה מכיר לעומק את כל דגמי הרכב הנפוצים בישראל, בעיות ידועות לפי דגם ושנה, ומחירי תיקון ישראליים';
-      const systemPrompt = `אתה ${expert.fullName}, ${expert.role}. ${expertise}.
 
-## אופן עבודה, כמו מוסכניק אמיתי:
-כשמגיעה שאלה על **בעיה, תסמין, תקלה, רעש, נורית אזהרה, דלף, ריח, רעידה**, אל תענה מיד. תחילה שאל **2-3 שאלות ממוקדות** שיעזרו לך לאבחן בדיוק, כמו שאתה שואל לקוח שנכנס למוסך. לאחר שתקבל תשובות, תן אבחון מפורט ומדויק.
+      const vesselExamples = `דוגמאות לשאלות טובות לכלי שייט:
+- "מתי זה קורה - בהתנעת המנוע, בנסיעה, בעצירה, בעת השטה במהירות גבוהה?"
+- "הרעש/התקלה מהיכן - מנוע, מערכת ההיגוי, גוף הסירה, הפרופלור?"
+- "באיזה תנאי ים זה קורה - שקט, גלי, פתוח?"
+- "מתי בוצעה ההעלאה האחרונה למספנה / טיפול אחרון?"
+- "כמה שעות מנוע יש כיום? מתי הוחלף שמן?"
+- "האם השרשרת/עוגן/ציוד הבטיחות במצב תקין?"`;
 
-דוגמאות לשאלות טובות:
+      const carExamples = `דוגמאות לשאלות טובות:
 - "מתי זה קורה - בהתנעה, בנסיעה, בבלימה?"
 - "הרעש מגיע מאיזה כיוון - קדמי/אחורי/ימין/שמאל?"
 - "כמה זמן זה קורה? האם זה מתגבר?"
 - "יש אורות אזהרה שנדלקו יחד עם זה?"
-- "האם הרכב ביצע לאחרונה טיפול?"
+- "האם הרכב ביצע לאחרונה טיפול?"`;
+
+      const itemWord     = isVesselExpert ? 'כלי השייט' : 'הרכב';
+      const itemWordRef  = isVesselExpert ? 'כלי השייט שצוין למטה' : 'הרכב שצוין למטה';
+      const usageMetric  = isVesselExpert ? 'שעות המנוע' : 'הקילומטראז';
+      const fallbackPlace = isVesselExpert
+        ? 'מומלץ לבדוק עם טכנאי כלי שייט מוסמך / מספנה'
+        : 'מומלץ לבדוק במוסך';
+      const finalDisclaimer = isVesselExpert
+        ? 'התשובה לצורך התרשמות בלבד - מומלץ להתייעץ עם טכנאי כלי שייט / מספנה מוסמכת'
+        : 'התשובה לצורך התרשמות בלבד - מומלץ להתייעץ עם מוסך מוסמך';
+      const workStyleLabel = isVesselExpert
+        ? 'אופן עבודה, כמו טכנאי כלי שייט מנוסה'
+        : 'אופן עבודה, כמו מוסכניק אמיתי';
+      const workStyleScene = isVesselExpert
+        ? 'כשהבעלים מתאר תקלה במספנה'
+        : 'כשאתה שואל לקוח שנכנס למוסך';
+
+      const systemPrompt = `אתה ${expert.fullName}, ${expert.role}. ${expertise}.
+
+## ${workStyleLabel}:
+כשמגיעה שאלה על **בעיה, תסמין, תקלה, רעש, נורית אזהרה, דלף, ריח, רעידה**, אל תענה מיד. תחילה שאל **2-3 שאלות ממוקדות** שיעזרו לך לאבחן בדיוק, כמו ${workStyleScene}. לאחר שתקבל תשובות, תן אבחון מפורט ומדויק.
+
+${isVesselExpert ? vesselExamples : carExamples}
 
 לשאלות **כלליות/אינפורמטיביות** (מחיר, תדירות, מידע כללי, "מתי להחליף X"), ענה ישירות ללא שאלות הכנה.
 
 ## כללי תשובה:
 - ענה בעברית בלבד, בטון ידידותי וברור
-- ${selectedVehicle ? 'התשובה צריכה להתייחס *ספציפית* לרכב שצוין למטה' : 'השאלה כללית - ענה תשובה כללית בלי להתייחס לרכב מסוים'}
+- ${selectedVehicle ? `התשובה צריכה להתייחס *ספציפית* ל${itemWordRef}` : `השאלה כללית - ענה תשובה כללית בלי להתייחס ל${itemWord} מסוים`}
 ${selectedVehicle ? `- חשוב: היסטוריית הטיפולים מצורפת. **אל תמליץ** על טיפולים שכבר בוצעו לאחרונה (פחות מ-6 חודשים)` : ''}
-${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם הרכב בקילומטראז' נמוך/בינוני/גבוה` : ''}
+${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${usageMetric} נמוך/בינוני/גבוה` : ''}
 - ציין טווח מחירים ישראלי ריאלי לתיקון בשקלים (₪)
 - הבדל בין דחוף (בטיחותי) לבין משהו שיכול לחכות
-- אל תמציא עובדות - אם אינך בטוח, אמור "מומלץ לבדוק במוסך"
-- בסוף כל תשובה רגישה (אבחון/המלצת תיקון/הערכת מחיר) הוסף שורה: "התשובה לצורך התרשמות בלבד - מומלץ להתייעץ עם מוסך מוסמך"
+- אל תמציא עובדות - אם אינך בטוח, אמור "${fallbackPlace}"
+- בסוף כל תשובה רגישה (אבחון/המלצת תיקון/הערכת מחיר) הוסף שורה: "${finalDisclaimer}"
 - כשאתה שואל שאלות הכנה: אורך 2-4 שאלות קצרות בלבד. כשאתה עונה לאחר קבלת המידע: 2-5 משפטים, ברורה ופרקטית${vehicleContext}`;
 
       // Conversation history (last 6 messages, excluding errors/retries)
@@ -394,10 +448,22 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
 
   const charsLeft = MAX_LEN - input.length;
   const isInputValid = input.trim().length >= MIN_LEN && input.length <= MAX_LEN;
-  const allSuggestedPrompts = selectedVehicle ? SUGGESTED_PROMPTS_VEHICLE : SUGGESTED_PROMPTS_GENERAL;
+  // Vessel-aware suggestions: when יוסי is on, use the marine prompt set so
+  // the chip row doesn't ask "תקלות ברכבי 2018-2020" while the user is
+  // looking at a sailboat. Mirrored split for both general & per-vehicle
+  // prompt buckets.
+  const isVesselExpert = expert.domain === 'vessel';
+  const generalPrompts = isVesselExpert ? SUGGESTED_PROMPTS_GENERAL_VESSEL : SUGGESTED_PROMPTS_GENERAL_CAR;
+  const vehiclePrompts = isVesselExpert ? SUGGESTED_PROMPTS_VEHICLE_VESSEL : SUGGESTED_PROMPTS_VEHICLE_CAR;
+  const allSuggestedPrompts = selectedVehicle ? vehiclePrompts : generalPrompts;
   // The expert identity for the currently-selected vehicle (or the default ברוך
   // for a general question). Used for every place in the UI that names the AI.
   const expert = getAiExpert(selectedVehicle);
+  // Context-aware noun for "this vehicle" — vessel/forklift/tractor users
+  // were seeing "רכב" everywhere on this page, which jarred. labels.vehicleWord
+  // returns the right Hebrew (כלי שייט / מלגזה / טרקטורון / רכב) per type.
+  const labels = getVehicleLabels(selectedVehicle?.vehicle_type, selectedVehicle?.nickname);
+  const itemNoun = selectedVehicle ? labels.vehicleWord : 'רכב';
   const [showAllPrompts, setShowAllPrompts] = useState(false);
   const suggestedPrompts = showAllPrompts ? allSuggestedPrompts : allSuggestedPrompts.slice(0, 3);
 
@@ -490,7 +556,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
                             <Sparkles className="w-3 h-3" />
                             {maintenanceLogs.length > 0
                               ? `${expert.firstName} יודע על ${maintenanceLogs.length} טיפולים אחרונים`
-                              : `${expert.firstName} יענה מותאם לרכב הזה`}
+                              : `${expert.firstName} יענה מותאם ל${itemNoun} הזה`}
                           </p>
                         </div>
                       </>
@@ -505,7 +571,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
                             התייעץ על כלי תחבורה ספציפי
                           </p>
                           <p className="text-[11px] font-semibold mt-0.5" style={{ color: C.primary }}>
-                            קבל תשובה מותאמת לרכב שלך
+                            קבל תשובה מותאמת לכלי הרכב/הצי שלך
                             {vehicles.length > 0 ? ` · ${vehicles.length} ${vehicles.length === 1 ? 'כלי זמין' : 'כלים זמינים'}` : ''}
                           </p>
                         </div>
@@ -538,7 +604,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
                 </div>
                 <div className="flex-1 text-right">
                   <p className="text-[13px] font-bold" style={{ color: '#374151' }}>שאלה כללית</p>
-                  <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לרכב מסוים</p>
+                  <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לכלי תחבורה מסוים</p>
                 </div>
                 {!selectedVehicle && <Check className="w-4 h-4" style={{ color: C.primary }} />}
               </button>
@@ -571,7 +637,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
                 );
               })}
               {vehicles.length === 0 && (
-                <p className="text-[11px] text-center py-3" style={{ color: '#9CA3AF' }}>אין רכבים שמורים</p>
+                <p className="text-[11px] text-center py-3" style={{ color: '#9CA3AF' }}>אין כלי תחבורה שמורים</p>
               )}
             </div>
           </PopoverContent>
@@ -600,7 +666,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
             <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#92400E' }} />
           </div>
           <p className="text-[10px] leading-relaxed font-medium" style={{ color: '#78350F' }}>
-            <span className="font-bold">לתשומת לב:</span> התשובות לצורך התרשמות בלבד. AI עלול לטעות - מומלץ להתייעץ עם מוסך מוסמך.
+            <span className="font-bold">לתשומת לב:</span> התשובות לצורך התרשמות בלבד. AI עלול לטעות - מומלץ להתייעץ עם {expert.domain === 'vessel' ? 'טכנאי כלי שייט / מספנה מוסמכת' : 'מוסך מוסמך'}.
           </p>
         </div>
       </div>
@@ -648,8 +714,8 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <p className="text-[11px] font-bold leading-tight" style={{ color: '#3730A3' }}>
-                  רוצה תשובה ספציפית לרכב שלך?<br />
-                  <span className="font-medium" style={{ color: '#6366F1' }}>בחר רכב מהרשימה למעלה</span>
+                  רוצה תשובה ספציפית לכלי שלך?<br />
+                  <span className="font-medium" style={{ color: '#6366F1' }}>בחר מהרשימה למעלה</span>
                 </p>
               </div>
             )}
@@ -658,7 +724,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
               <div className="flex items-center gap-2 mb-2 px-1">
                 <Sparkles className="w-3.5 h-3.5" style={{ color: C.primary }} />
                 <p className="text-[11px] font-black" style={{ color: '#1F2937' }}>
-                  {selectedVehicle ? `הצעות לרכב הזה:` : 'הצעות לשאלה:'}
+                  {selectedVehicle ? `הצעות ל${itemNoun} הזה:` : 'הצעות לשאלה:'}
                 </p>
               </div>
               {suggestedPrompts.map((p, i) => (
@@ -792,7 +858,7 @@ ${selectedVehicle ? `- התייחס לקילומטראז' הנוכחי - האם 
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={selectedVehicle
               ? `שאל את ${expert.firstName} על ${selectedVehicle.nickname || selectedVehicle.manufacturer}...`
-              : `שאל את ${expert.firstName} על הרכב שלך...`}
+              : `שאל את ${expert.firstName} על ${expert.domain === 'vessel' ? 'כלי השייט' : 'הרכב'} שלך...`}
             disabled={sending}
             maxLength={MAX_LEN}
             className="flex-1 h-11 rounded-full px-4 text-[13px] focus-visible:ring-2 focus-visible:ring-offset-0 transition-all"

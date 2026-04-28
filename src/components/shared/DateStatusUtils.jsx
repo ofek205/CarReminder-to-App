@@ -133,22 +133,34 @@ export function isVintageVehicle(year) {
   return new Date().getFullYear() - Number(year) >= VINTAGE_AGE_YEARS;
 }
 
+// Heavy / industrial equipment subtypes (forklifts, excavators, telehandlers,
+// graders, etc.) — they all hour-meter and the user thinks of them as
+// "כלי הנדסי" / "כלי צמ"ה" not "רכב". Reuses the OFFROAD_HOURS_TYPES set so
+// adding a new CME subtype in one place propagates everywhere.
+const CME_TYPES = new Set([
+  'מחפר', 'מחפר זחלי', 'מחפר אופני', 'מיני מחפר', 'מחפרון',
+  'דחפור', 'דחפור זחלי',
+  'שופל', 'מעמיס אופני', 'מעמיס זחלי', 'מיני מעמיס',
+  'בובקט',
+  'טליהנדלר', 'מלגזה', 'מלגזת שטח',
+  'מפלסת',
+  'מכבש', 'מכבש אספלט', 'מכבש קרקע',
+  'מערבל בטון', 'משאבת בטון',
+  'מנוף', 'מנוף נייד', 'מנוף זחלי',
+  'מקדח קרקע', 'ציוד קידוח',
+  'רכב צמ"ה',
+  'טרקטור', 'מחרשה',
+]);
+
+export function isCme(vehicleType) {
+  return CME_TYPES.has(vehicleType);
+}
+
 /**
  * Returns context-aware labels based on vehicle type.
- * For vessels: uses "כלי שייט" / "כושר שייט" instead of "רכב" / "טסט".
+ * Branches: vessel / offroad / cme (forklift family) / default.
  */
 export function getVehicleLabels(vehicleType, nickname) {
-  if (isOffroad(vehicleType)) {
-    return {
-      vehicleWord:    'כלי שטח',
-      testWord:       'טסט',
-      testDateLabel:  'תאריך טסט',
-      testNextLabel:  'תאריך טסט הבא',
-      testExpiredMsg: 'הטסט עבר את תאריך התוקף',
-      insuranceWord:  'ביטוח',
-      vehicleFallback:'כלי שטח',
-    };
-  }
   if (isVessel(vehicleType, nickname)) {
     return {
       vehicleWord:    'כלי שייט',      // replaces "רכב"
@@ -158,6 +170,32 @@ export function getVehicleLabels(vehicleType, nickname) {
       testExpiredMsg: 'כושר השייט פג תוקף',
       insuranceWord:  'ביטוח ימי',     // replaces "ביטוח"
       vehicleFallback:'כלי שייט',      // fallback name when no nickname
+    };
+  }
+  if (isCme(vehicleType)) {
+    // Subtype itself reads natural ("מלגזה", "טרקטור") so use it directly.
+    return {
+      vehicleWord:    vehicleType,
+      testWord:       'טסט',
+      testDateLabel:  'תאריך טסט',
+      testNextLabel:  'תאריך טסט הבא',
+      testExpiredMsg: 'הטסט עבר את תאריך התוקף',
+      insuranceWord:  'ביטוח',
+      vehicleFallback: vehicleType,
+    };
+  }
+  if (isOffroad(vehicleType)) {
+    // Offroad: use the specific subtype if it isn't the generic
+    // "כלי שטח" — "טרקטורון" reads better than "כלי שטח".
+    const word = (vehicleType && vehicleType !== 'כלי שטח') ? vehicleType : 'כלי שטח';
+    return {
+      vehicleWord:    word,
+      testWord:       'טסט',
+      testDateLabel:  'תאריך טסט',
+      testNextLabel:  'תאריך טסט הבא',
+      testExpiredMsg: 'הטסט עבר את תאריך התוקף',
+      insuranceWord:  'ביטוח',
+      vehicleFallback:word,
     };
   }
   return {

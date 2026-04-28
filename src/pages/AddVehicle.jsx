@@ -209,27 +209,32 @@ export default function AddVehicle() {
   const [showOffroadSection, setShowOffroadSection] = useState(false);
   const T = isVesselCategory ? getTheme('כלי שייט') : defaultC;
 
+  // Phase 4: account scope follows the active workspace, not "first
+  // membership". When the user is on their personal workspace, this
+  // resolves to the same accountId as before — private flow unchanged.
+  // When on a business workspace, MoT lookup + vehicle save land in
+  // the business workspace.
+  const { accountId: activeAccountId } = useAccountRole();
+
   useEffect(() => {
     if (!isAuthenticated || !user) return;
-    async function init() {
-      setUserId(user.id);
+    setUserId(user.id);
+    if (!activeAccountId) {
+      // Memberships still loading — skeleton until activeAccountId resolves.
+      return;
+    }
+    setAccountId(activeAccountId);
+    (async () => {
       try {
-        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-        if (members.length > 0) {
-          setAccountId(members[0].account_id);
-          const vs = await db.vehicles.filter({ account_id: members[0].account_id });
-          setExistingVehicles(vs);
-        } else {
-          console.warn('AddVehicle: No active account_members found for user', user.id);
-        }
+        const vs = await db.vehicles.filter({ account_id: activeAccountId });
+        setExistingVehicles(vs);
       } catch (err) {
-        console.error('AddVehicle: Failed to load account info', err);
+        console.error('AddVehicle: Failed to load existing vehicles', err);
       } finally {
         setVehiclesLoaded(true);
       }
-    }
-    init();
-  }, [isAuthenticated, user]);
+    })();
+  }, [isAuthenticated, user, activeAccountId]);
 
   const resetAll = () => {
     setForm({ ...EMPTY_FORM });
@@ -712,7 +717,16 @@ export default function AddVehicle() {
       // The whole-row insert either works or raises the real error, which
       // the catch below translates to a friendly Hebrew message.
       const savedVehicle = await db.vehicles.create(cleanData);
+      // Invalidate every list that could show this new vehicle. Each
+      // page picked its own queryKey ('my-vehicles' / 'fleet-vehicles' /
+      // 'vehicles-list' / 'vehicles'), so a single key here would only
+      // refresh some of them and the user would see a stale list until
+      // a hard reload. Keep this list in sync with grep
+      // 'queryKey: \[.(my-vehicles|vehicles|fleet)' in src/.
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles-list'] });
+      queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
 
       try { if (user) await trackUserAction(user.id); } catch {}
       draft.clearDraft();
