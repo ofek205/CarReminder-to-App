@@ -112,8 +112,24 @@ async function callEdgeProxy(body) {
       });
     } catch (err) {
       if (err?.code === 'TIMEOUT') throw err;
-      const e = new Error('שגיאת רשת בפנייה ל-AI. בדוק חיבור לאינטרנט.');
-      e.code = 'NETWORK';
+      // Differentiate "user is offline" from "the call failed for other
+      // reasons." Previously every fetch rejection was tagged NETWORK
+      // and the user saw "אין חיבור לאינטרנט" even when the box was
+      // online and the actual problem was a CORS-blocked or
+      // not-deployed Edge Function. navigator.onLine is the only signal
+      // the browser exposes that's directly tied to the OS network
+      // stack — when it's true, fetch threw for some other reason.
+      const online = typeof navigator === 'undefined' ? true : navigator.onLine;
+      if (!online) {
+        const e = new Error('אין חיבור לאינטרנט. בדוק את הרשת ונסה שוב.');
+        e.code = 'NETWORK';
+        throw e;
+      }
+      const e = new Error('שירות ה-AI לא זמין כרגע. נסה שוב בעוד רגע.');
+      e.code = 'AI_UNAVAILABLE';
+      e.cause = err;
+      // eslint-disable-next-line no-console
+      console.error('[aiProxy] fetch failed while online:', err?.name, err?.message);
       throw e;
     }
   };
