@@ -169,16 +169,18 @@ let package = Package(
             ]
         ),
         // Single mixed-language target. Requires Xcode 16 / Swift 6.
+        // SPM Target initializer parameter order is fixed:
+        //   name, dependencies, path, exclude, sources, resources,
+        //   publicHeadersPath, cSettings, …
         .target(
             name: "Capacitor",
             dependencies: ["Cordova"],
             path: "_spm/Capacitor",
-            exclude: [],
-            publicHeadersPath: "include",
             resources: [
                 .copy("assets/native-bridge.js"),
                 .copy("PrivacyInfo.xcprivacy")
             ],
+            publicHeadersPath: "include",
             cSettings: [
                 .headerSearchPath("include"),
                 .headerSearchPath("include/Capacitor"),
