@@ -2,6 +2,8 @@
 /*
  * Workaround: build Capacitor from local source via SPM.
  *
+ * Why this exists
+ * ---------------
  * The official capacitor-swift-pm 8.x binary xcframework drops public-extension
  * methods from its Swift module interface (call.reject, call.getString(_:),
  * bridge.webView, bridge.viewController, UIColor.capacitor.color(fromHex:), …).
@@ -10,16 +12,37 @@
  * parameter #2 in call` errors.
  *
  * The full source — with the public extensions intact — already lives in
- * node_modules/@capacitor/ios/. This script:
- *   1. Writes a Swift Package manifest into node_modules/@capacitor/ios/ that
- *      exposes Capacitor and Cordova as SPM library products built from that
- *      local source.
- *   2. Rewrites ios/App/CapApp-SPM/Package.swift so its `capacitor-swift-pm`
- *      dependency uses that local path instead of the broken GitHub binary.
+ * node_modules/@capacitor/ios/. We replace the broken binary dependency with
+ * a local SPM build of that source.
  *
- * Both steps are idempotent. Runs as `postinstall` (after npm ci wipes
- * node_modules) and again from CI after `npx cap sync ios` (which regenerates
- * CapApp-SPM/Package.swift).
+ * Why the prep step
+ * -----------------
+ * SPM in Xcode 15.4 does not support mixed-language targets (Swift + ObjC in
+ * the same target). The Capacitor folder ships with .swift, .h and .m files
+ * side by side, so we have to split it into two targets:
+ *
+ *     Capacitor/Capacitor/   →   _spm/CapacitorObjC/include/  (.h files)
+ *                                _spm/CapacitorObjC/          (.m files)
+ *                                _spm/Capacitor/              (.swift files,
+ *                                                              with `import
+ *                                                              CapacitorObjC`
+ *                                                              injected)
+ *
+ * Each swift file in Capacitor source uses ObjC types defined in the same
+ * folder (CAPPlugin, CAPPluginCall, CAPBridgeViewController …). After the
+ * split, those types live in a different module (CapacitorObjC), so the swift
+ * files need an explicit `import CapacitorObjC` to compile. We inject that
+ * line near the top of each copied .swift file (after the leading comment
+ * block / the first `import` statement).
+ *
+ * The `Capacitor` swift target also gets a generated `_CapacitorReexports.swift`
+ * file containing `@_exported import CapacitorObjC` so that plugins doing
+ * `import Capacitor` keep seeing the ObjC types as if Capacitor were a single
+ * module.
+ *
+ * Idempotent — runs as `postinstall` (after npm ci wipes node_modules) and
+ * again from CI right after `npx cap sync ios` (which regenerates
+ * CapApp-SPM/Package.swift back to the broken GitHub URL).
  */
 
 const fs = require('fs');
@@ -30,7 +53,97 @@ const capIos = path.join(repoRoot, 'node_modules', '@capacitor', 'ios');
 const wrapperManifest = path.join(capIos, 'Package.swift');
 const capAppSpm = path.join(repoRoot, 'ios', 'App', 'CapApp-SPM', 'Package.swift');
 
-function writeWrapperManifest() {
+const capacitorSrcDir = path.join(capIos, 'Capacitor', 'Capacitor');
+const prepRoot = path.join(capIos, '_spm');
+const prepObjC = path.join(prepRoot, 'CapacitorObjC');
+const prepObjCInclude = path.join(prepObjC, 'include');
+const prepSwift = path.join(prepRoot, 'Capacitor');
+
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
+}
+
+function rmDirSafe(p) {
+  if (fs.existsSync(p)) {
+    fs.rmSync(p, { recursive: true, force: true });
+  }
+}
+
+function injectImport(swiftSource) {
+  if (swiftSource.includes('import CapacitorObjC')) {
+    return swiftSource;
+  }
+  // Insert `import CapacitorObjC` right after the first `import` line we find.
+  // Most files start with `import Foundation` or similar; this preserves the
+  // header comment block.
+  const lines = swiftSource.split(/\r?\n/);
+  let inserted = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*import\s+\w+/.test(lines[i])) {
+      lines.splice(i + 1, 0, 'import CapacitorObjC');
+      inserted = true;
+      break;
+    }
+  }
+  if (!inserted) {
+    // No existing import — prepend at the top.
+    lines.unshift('import CapacitorObjC');
+  }
+  return lines.join('\n');
+}
+
+function prepareCapacitorSplit() {
+  if (!fs.existsSync(capacitorSrcDir)) {
+    console.log('[capacitor-spm] Capacitor source folder missing — skipping prep.');
+    return false;
+  }
+
+  rmDirSafe(prepRoot);
+  ensureDir(prepObjCInclude);
+  ensureDir(prepSwift);
+
+  const entries = fs.readdirSync(capacitorSrcDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const src = path.join(capacitorSrcDir, entry.name);
+
+    if (entry.isDirectory()) {
+      // Resources / nested folders: copy verbatim into the swift target so
+      // resource declarations in Package.swift can reach them.
+      if (entry.name === 'assets') {
+        fs.cpSync(src, path.join(prepSwift, entry.name), { recursive: true });
+      }
+      continue;
+    }
+
+    const lower = entry.name.toLowerCase();
+    if (lower.endsWith('.h')) {
+      fs.copyFileSync(src, path.join(prepObjCInclude, entry.name));
+    } else if (lower.endsWith('.m')) {
+      fs.copyFileSync(src, path.join(prepObjC, entry.name));
+    } else if (lower.endsWith('.swift')) {
+      const content = fs.readFileSync(src, 'utf8');
+      fs.writeFileSync(path.join(prepSwift, entry.name), injectImport(content));
+    } else if (lower === 'capacitor.modulemap' || lower === 'info.plist') {
+      // Skip — we generate our own structure.
+    } else if (entry.name === 'PrivacyInfo.xcprivacy') {
+      fs.copyFileSync(src, path.join(prepSwift, entry.name));
+    }
+  }
+
+  // Re-export bridge: lets plugins keep doing `import Capacitor` and still see
+  // ObjC-defined types like CAPPlugin / CAPPluginCall.
+  const reexports = `// Auto-generated by scripts/setup-capacitor-spm.cjs.
+// Re-exports the ObjC half of Capacitor so consumers of the Capacitor module
+// continue to see CAPPlugin, CAPPluginCall, and friends without needing a
+// separate import.
+@_exported import CapacitorObjC
+`;
+  fs.writeFileSync(path.join(prepSwift, '_CapacitorReexports.swift'), reexports);
+
+  return true;
+}
+
+function writeWrapperManifest(prepared) {
   if (!fs.existsSync(capIos)) {
     console.log('[capacitor-spm] @capacitor/ios not installed yet — skipping wrapper manifest.');
     return;
@@ -41,13 +154,17 @@ function writeWrapperManifest() {
 // Wraps the local @capacitor/ios source as an SPM package so iOS Archive
 // builds against complete public APIs (the upstream binary xcframework drops
 // public-extension methods from its swiftinterface).
+//
+// Capacitor ships .swift + .h + .m in one folder; SPM in Xcode 15.4 does not
+// support mixed-language targets, so the postinstall script splits the
+// Capacitor source into a Swift target and an ObjC target under _spm/.
 import PackageDescription
 
 let package = Package(
     name: "capacitor-swift-pm",
     platforms: [.iOS(.v15)],
     products: [
-        .library(name: "Capacitor", targets: ["Capacitor"]),
+        .library(name: "Capacitor", targets: ["Capacitor", "CapacitorObjC"]),
         .library(name: "Cordova", targets: ["Cordova"])
     ],
     targets: [
@@ -63,25 +180,30 @@ let package = Package(
             publicHeadersPath: "Classes/Public"
         ),
         .target(
-            name: "Capacitor",
+            name: "CapacitorObjC",
             dependencies: ["Cordova"],
-            path: "Capacitor/Capacitor",
-            exclude: [
-                "Info.plist",
-                "Capacitor.modulemap"
-            ],
+            path: "_spm/CapacitorObjC",
+            publicHeadersPath: "include",
+            cSettings: [
+                .headerSearchPath("include"),
+                .define("CAPACITOR_SWIFT_PM_LOCAL", to: "1")
+            ]
+        ),
+        .target(
+            name: "Capacitor",
+            dependencies: ["CapacitorObjC", "Cordova"],
+            path: "_spm/Capacitor",
             resources: [
                 .copy("assets/native-bridge.js"),
                 .copy("PrivacyInfo.xcprivacy")
-            ],
-            publicHeadersPath: "."
+            ]
         )
     ]
 )
 `;
 
   const existing = fs.existsSync(wrapperManifest) ? fs.readFileSync(wrapperManifest, 'utf8') : null;
-  if (existing === manifest) {
+  if (existing === manifest && prepared) {
     console.log('[capacitor-spm] Wrapper manifest already up-to-date:', wrapperManifest);
     return;
   }
@@ -111,5 +233,6 @@ function patchCapAppSpm() {
   console.log('[capacitor-spm] Patched CapApp-SPM/Package.swift to use local path.');
 }
 
-writeWrapperManifest();
+const prepared = prepareCapacitorSplit();
+writeWrapperManifest(prepared);
 patchCapAppSpm();
