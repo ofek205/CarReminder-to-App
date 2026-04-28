@@ -198,9 +198,20 @@ export default function Drivers() {
         <AddMemberDialog
           accountId={accountId}
           onClose={() => setAdding(false)}
-          onAdded={async () => {
+          onAdded={async (added) => {
             await queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
             setAdding(false);
+            // Driver who was just added gets a chained "assign vehicle now?"
+            // step. We only chain for the driver role — viewers/managers
+            // don't drive vehicles, so the assignment dialog would just be
+            // friction. The directory refetch above gives us the user_id
+            // we need to drive the assignment dialog.
+            if (added?.role === 'driver' && added?.user_id) {
+              setAssigning({
+                user_id: added.user_id,
+                display_name: added.display_name || added.email,
+              });
+            }
           }}
         />
       )}
@@ -228,8 +239,23 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
         p_role:       role,
       });
       if (error) throw error;
+      // Refetch the directory and look up the user_id we just added by
+      // email. The RPC only returns the membership row id; the parent
+      // dialog needs user_id + display_name to chain into the
+      // assign-vehicle step. Doing the lookup here keeps the contract
+      // for onAdded simple — caller gets either everything or nothing.
+      let added = { role, email: cleanEmail };
+      try {
+        const { data: dir } = await supabase.rpc('workspace_members_directory', {
+          p_account_id: accountId,
+        });
+        const match = (dir || []).find(m => (m.email || '').toLowerCase() === cleanEmail.toLowerCase());
+        if (match) {
+          added = { ...added, user_id: match.user_id, display_name: match.display_name };
+        }
+      } catch { /* fall through with email only */ }
       toast.success('החבר נוסף לחשבון בהצלחה');
-      onAdded?.();
+      onAdded?.(added);
     } catch (err) {
       const msg = err?.message || '';
       if      (msg.includes('forbidden_not_manager')) toast.error('אין לך הרשאת מנהל');
@@ -367,6 +393,12 @@ function MemberRow({ member, assignments, vehicleLabel, onAssign }) {
 
 function AssignVehicleDialog({ driver, vehicles, accountId, existingAssignments, onClose, onAssigned }) {
   const [vehicleId, setVehicleId] = useState('');
+  // Assignment kind: 'permanent' (no end date) or 'temporary' (date required).
+  // Defaults to permanent because that matches the most common business
+  // case (a driver gets a company car indefinitely). Temporary covers
+  // pool/loaner scenarios where the manager wants the assignment to
+  // auto-expire.
+  const [kind, setKind]           = useState('permanent');
   const [validTo, setValidTo]     = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -378,6 +410,10 @@ function AssignVehicleDialog({ driver, vehicles, accountId, existingAssignments,
   const submit = async (e) => {
     e.preventDefault();
     if (!vehicleId) { toast.error('יש לבחור רכב'); return; }
+    if (kind === 'temporary' && !validTo) {
+      toast.error('בחר תאריך סיום לשיוך הזמני');
+      return;
+    }
     setSubmitting(true);
     try {
       const { error } = await supabase.rpc('assign_driver', {
@@ -385,7 +421,7 @@ function AssignVehicleDialog({ driver, vehicles, accountId, existingAssignments,
         p_vehicle_id:     vehicleId,
         p_driver_user_id: driver.user_id,
         p_valid_from:     new Date().toISOString(),
-        p_valid_to:       validTo || null,
+        p_valid_to:       kind === 'temporary' ? validTo : null,
       });
       if (error) throw error;
       toast.success(`הרכב שויך ל-${driver.display_name}`);
@@ -437,17 +473,52 @@ function AssignVehicleDialog({ driver, vehicles, accountId, existingAssignments,
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">תוקף עד (לא חובה)</label>
-            <input
-              type="date"
-              value={validTo}
-              onChange={(e) => setValidTo(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
-            />
-            <p className="text-[10px] text-gray-400 mt-1">
-              ללא תאריך, השיוך נשאר פתוח עד שתסיים אותו ידנית.
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">סוג השיוך</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setKind('permanent')}
+                className={`py-2 rounded-lg text-xs font-bold border transition-all ${
+                  kind === 'permanent'
+                    ? 'bg-[#E8F2EA] border-[#2D5233] text-[#2D5233]'
+                    : 'bg-white border-gray-200 text-gray-600'
+                }`}
+              >
+                קבוע
+              </button>
+              <button
+                type="button"
+                onClick={() => setKind('temporary')}
+                className={`py-2 rounded-lg text-xs font-bold border transition-all ${
+                  kind === 'temporary'
+                    ? 'bg-[#E8F2EA] border-[#2D5233] text-[#2D5233]'
+                    : 'bg-white border-gray-200 text-gray-600'
+                }`}
+              >
+                זמני
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1.5">
+              {kind === 'permanent'
+                ? 'הנהג ימשיך להיות משויך לרכב עד שתבטל ידנית.'
+                : 'השיוך יסתיים אוטומטית בתאריך שתבחר.'}
             </p>
           </div>
+
+          {kind === 'temporary' && (
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">
+                תאריך סיום <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={validTo}
+                onChange={(e) => setValidTo(e.target.value)}
+                min={new Date().toISOString().slice(0, 10)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
+              />
+            </div>
+          )}
 
           <button
             type="submit"

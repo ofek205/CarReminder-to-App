@@ -66,6 +66,7 @@ import GuestVesselChecklistsPreview from "../components/vehicle/GuestVesselCheck
 import { SafeComponent } from "../components/shared/SafeComponent";
 import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from '@/hooks/useAccountRole';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { canEdit, canDelete, isViewOnly } from '@/lib/permissions';
 import { daysUntil } from '../components/shared/ReminderEngine';
 import { getDateStatus, getVehicleLabels, usesHours } from '../components/shared/DateStatusUtils';
@@ -426,6 +427,11 @@ export default function VehicleDetail() {
 function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   const { user } = useAuth();
   const { role } = useAccountRole();
+  // The vehicle-share workflow is a personal-account concept (one user
+  // sharing their car with family/friends). In a business workspace
+  // sharing is replaced by driver assignments, so we hide the share
+  // controls here and the manager uses the Drivers page instead.
+  const { isBusiness } = useWorkspaceRole();
   const [accountIds, setAccountIds] = useState([]);
 
   useEffect(() => {
@@ -645,7 +651,25 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             <LicensePlate value={vehicle.license_plate} size="sm" showCopy />
           )}
           <div className="flex items-center gap-2">
-            {vehicleIsOwned && !isViewOnly(role) && (
+            {vehicleIsOwned && !isViewOnly(role) && isBusiness && (
+              // Business swap-in for the share cluster: there is no
+              // "share with email" in a fleet workspace, so we surface
+              // the equivalent action a manager actually wants from
+              // here — assigning a driver. Routes back to the Drivers
+              // page so the manager picks the driver from the workspace
+              // directory rather than free-text email entry.
+              <Link
+                to={createPageUrl('Drivers')}
+                className="h-9 px-3 rounded-2xl flex items-center gap-1.5 transition-all active:scale-95"
+                style={{ background: '#2D5233', color: '#fff', boxShadow: '0 2px 6px rgba(45,82,51,0.35)' }}
+                aria-label="שייך נהג לרכב"
+                title="שייך נהג"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span className="text-xs font-bold">שייך נהג</span>
+              </Link>
+            )}
+            {vehicleIsOwned && !isViewOnly(role) && !isBusiness && (
               // Share-controls cluster. Both buttons share the same
               // amber/gold palette so they read as a single sharing
               // module rather than two unrelated affordances. The
@@ -667,7 +691,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
                 <SharingHelpButton size="sm" />
               </div>
             )}
-            {(shareCount > 0 || isSharedWithMe) && (
+            {!isBusiness && (shareCount > 0 || isSharedWithMe) && (
               <SharedIndicator
                 shareCount={shareCount}
                 isSharedWithMe={isSharedWithMe}
