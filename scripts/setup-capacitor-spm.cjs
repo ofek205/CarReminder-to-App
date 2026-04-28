@@ -233,6 +233,35 @@ function patchCapAppSpm() {
   console.log('[capacitor-spm] Patched CapApp-SPM/Package.swift to use local path.');
 }
 
+function patchPluginPackageSwifts() {
+  // Each @capacitor/<plugin>/Package.swift declares its own dependency on
+  // capacitor-swift-pm via the GitHub URL. With our root package using a local
+  // path, SPM ends up resolving BOTH packages and bails on:
+  //   multiple targets named 'Capacitor' in: 'capacitor-swift-pm', 'ios'
+  // Rewrite each plugin's reference to use the local path too. Plugin folders
+  // live at node_modules/@capacitor/<plugin>/, so the relative path to
+  // @capacitor/ios is just "../ios".
+  const pluginsDir = path.join(repoRoot, 'node_modules', '@capacitor');
+  if (!fs.existsSync(pluginsDir)) return;
+
+  const githubLine = /\.package\(\s*url:\s*"https:\/\/github\.com\/ionic-team\/capacitor-swift-pm\.git"\s*,[^)]*\)/;
+  const localLine = '.package(name: "capacitor-swift-pm", path: "../ios")';
+
+  const skip = new Set(['cli', 'core', 'ios', 'android', 'assets', 'docgen']);
+  for (const entry of fs.readdirSync(pluginsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || skip.has(entry.name)) continue;
+    const pluginPkg = path.join(pluginsDir, entry.name, 'Package.swift');
+    if (!fs.existsSync(pluginPkg)) continue;
+
+    let content = fs.readFileSync(pluginPkg, 'utf8');
+    if (!githubLine.test(content)) continue;
+    content = content.replace(githubLine, localLine);
+    fs.writeFileSync(pluginPkg, content);
+    console.log(`[capacitor-spm] Patched ${entry.name}/Package.swift to use local @capacitor/ios.`);
+  }
+}
+
 const prepared = prepareCapacitorSplit();
 writeWrapperManifest(prepared);
 patchCapAppSpm();
+patchPluginPackageSwifts();
