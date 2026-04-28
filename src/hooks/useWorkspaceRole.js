@@ -26,6 +26,13 @@ export default function useWorkspaceRole() {
   const isDriver   = role === 'driver';
   const isBusiness = activeWorkspace?.account_type === 'business';
 
+  // Phase 9 step 8: business_meta exposes per-workspace toggles like
+  // driver_hide_community / driver_hide_ai that the manager can flip
+  // in /BusinessSettings. Layout reads this to hide nav items for
+  // driver-role members when the manager has chosen to do so.
+  const businessMeta = activeWorkspace?.business_meta || null;
+  const isOwner = role === 'בעלים';
+
   return {
     role,
     isLoading,
@@ -33,7 +40,9 @@ export default function useWorkspaceRole() {
     isManager,
     isViewer,
     isDriver,
+    isOwner,
     isBusiness,
+    businessMeta,
     canManageRoutes: isManager && isBusiness,
     canDriveRoutes:  isDriver  && isBusiness,
   };

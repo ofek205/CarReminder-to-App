@@ -45,20 +45,21 @@ const navItems = [
   { name: 'MaintenanceTemplates',  label: 'טיפולים ותיקונים', icon: Wrench,          guestAllowed: true },
   { name: 'Documents',             label: 'מסמכים',           icon: FileText,        guestAllowed: true },
   { name: 'Accidents',             label: 'תאונות',           icon: AlertTriangle,   guestAllowed: true },
-  //  קהילה 
+  //  קהילה
   { divider: true, title: 'קהילה' },
-  { name: 'Community',             label: 'קהילה וייעוץ',    icon: Users,           guestAllowed: true },
-  { name: 'AiAssistant',           label: 'התייעצות עם מומחה AI', icon: Sparkles,    guestAllowed: true },
+  { name: 'Community',             label: 'קהילה וייעוץ',    icon: Users,           guestAllowed: true, driverHidesIfFlag: 'driver_hide_community' },
+  { name: 'AiAssistant',           label: 'התייעצות עם מומחה AI', icon: Sparkles,    guestAllowed: true, driverHidesIfFlag: 'driver_hide_ai' },
   //  כלים 
   { divider: true, title: 'כלים' },
   { name: 'FindGarage',            label: 'מצא מוסך',        icon: MapPin,          guestAllowed: true },
-  //  חשבון 
+  //  חשבון
   { divider: true, title: 'חשבון' },
   // Unified Settings hub replaces three separate entries (אזור אישי /
   // שיתוף חשבון / הגדרות תזכורות). The old routes still work as
   // deep-link targets (e.g. from push notifications), they just aren't
   // surfaced in the menu any more.
   { name: 'Settings',              label: 'הגדרות',           icon: Settings,        guestAllowed: true },
+  { name: 'BusinessSettings',      label: 'הגדרות החשבון העסקי', icon: Briefcase,    guestAllowed: false, businessOnly: true, ownerOnly: true },
   { name: 'AdminReviews',          label: 'חוות דעת',         icon: Star,            guestAllowed: true },
   { name: 'Contact',               label: 'צור קשר',          icon: MessageSquare,   guestAllowed: true },
   //  Phase 6 — B2B Routes & Tasks. businessOnly hides for personal
@@ -186,7 +187,9 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   // Phase 6 — workspace-aware nav gating. isBusiness becomes true only
   // when the active workspace is a business workspace; private users
   // never see businessOnly items.
-  const { isBusiness, canManageRoutes, canDriveRoutes } = useWorkspaceRole();
+  // Phase 9 step 8 — owners-only items + driver-hide flags driven by
+  // accounts.business_meta toggles set in /BusinessSettings.
+  const { isBusiness, isDriver, isOwner, canManageRoutes, canDriveRoutes, businessMeta } = useWorkspaceRole();
   const businessAccess = canManageRoutes || canDriveRoutes;
   // On mobile, hide items that are already in the bottom nav
   const visibleItems = navItems.filter(item =>
@@ -197,7 +200,10 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
       (isAuthenticated || item.guestAllowed) &&
       (!item.adminOnly    || isAdmin) &&
       (!item.businessOnly || (isBusiness && businessAccess)) &&
+      (!item.ownerOnly    || isOwner) &&
       (!item.vesselOnly   || hasVessel) &&
+      // Driver in business workspace — hide items the manager flagged.
+      !(isBusiness && isDriver && item.driverHidesIfFlag && businessMeta?.[item.driverHidesIfFlag]) &&
       (!isMobile || !BOTTOM_NAV_PATHS.has(item.name))
     ))
   // Remove dividers that have no items after them (orphan dividers)
