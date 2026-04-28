@@ -54,10 +54,19 @@ const wrapperManifest = path.join(capIos, 'Package.swift');
 const capAppSpm = path.join(repoRoot, 'ios', 'App', 'CapApp-SPM', 'Package.swift');
 
 const capacitorSrcDir = path.join(capIos, 'Capacitor', 'Capacitor');
+const cordovaSrcDir = path.join(capIos, 'CapacitorCordova', 'CapacitorCordova');
 const prepRoot = path.join(capIos, '_spm');
+// CapacitorObjC: ObjC half of Capacitor. The original sources `#import
+// <Capacitor/Foo.h>`, so place public headers under include/Capacitor/.
 const prepObjC = path.join(prepRoot, 'CapacitorObjC');
-const prepObjCInclude = path.join(prepObjC, 'include');
+const prepObjCInclude = path.join(prepObjC, 'include', 'Capacitor');
+const prepObjCSrc = path.join(prepObjC, 'src');
 const prepSwift = path.join(prepRoot, 'Capacitor');
+// Cordova: ObjC-only. Sources `#import <Cordova/Foo.h>`, so headers under
+// include/Cordova/.
+const prepCordova = path.join(prepRoot, 'Cordova');
+const prepCordovaInclude = path.join(prepCordova, 'include', 'Cordova');
+const prepCordovaSrc = path.join(prepCordova, 'src');
 
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
@@ -100,10 +109,14 @@ function prepareCapacitorSplit() {
 
   rmDirSafe(prepRoot);
   ensureDir(prepObjCInclude);
+  ensureDir(prepObjCSrc);
+  ensureDir(prepCordovaInclude);
+  ensureDir(prepCordovaSrc);
   ensureDir(prepSwift);
 
-  const entries = fs.readdirSync(capacitorSrcDir, { withFileTypes: true });
-  for (const entry of entries) {
+  // ---- Capacitor (mixed-language) → split into CapacitorObjC + Capacitor (Swift)
+  const capEntries = fs.readdirSync(capacitorSrcDir, { withFileTypes: true });
+  for (const entry of capEntries) {
     const src = path.join(capacitorSrcDir, entry.name);
 
     if (entry.isDirectory()) {
@@ -119,7 +132,7 @@ function prepareCapacitorSplit() {
     if (lower.endsWith('.h')) {
       fs.copyFileSync(src, path.join(prepObjCInclude, entry.name));
     } else if (lower.endsWith('.m')) {
-      fs.copyFileSync(src, path.join(prepObjC, entry.name));
+      fs.copyFileSync(src, path.join(prepObjCSrc, entry.name));
     } else if (lower.endsWith('.swift')) {
       const content = fs.readFileSync(src, 'utf8');
       fs.writeFileSync(path.join(prepSwift, entry.name), injectImport(content));
@@ -139,6 +152,29 @@ function prepareCapacitorSplit() {
 @_exported import CapacitorObjC
 `;
   fs.writeFileSync(path.join(prepSwift, '_CapacitorReexports.swift'), reexports);
+
+  // ---- Cordova (ObjC-only) → flatten Classes/ + Classes/Public/ into
+  //      include/Cordova (headers) and src (m files). The shipped sources
+  //      `#import <Cordova/Foo.h>`, so the headers must live under a
+  //      "Cordova" subdirectory of an include path.
+  if (fs.existsSync(cordovaSrcDir)) {
+    function walkCordova(dir) {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const src = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walkCordova(src);
+          continue;
+        }
+        const lower = entry.name.toLowerCase();
+        if (lower.endsWith('.h')) {
+          fs.copyFileSync(src, path.join(prepCordovaInclude, entry.name));
+        } else if (lower.endsWith('.m')) {
+          fs.copyFileSync(src, path.join(prepCordovaSrc, entry.name));
+        }
+      }
+    }
+    walkCordova(cordovaSrcDir);
+  }
 
   return true;
 }
@@ -170,19 +206,18 @@ let package = Package(
     targets: [
         .target(
             name: "Cordova",
-            path: "CapacitorCordova/CapacitorCordova",
-            exclude: [
-                "Info.plist",
-                "PrivacyInfo.xcprivacy",
-                "CapacitorCordova.modulemap"
-            ],
-            sources: ["Classes"],
-            publicHeadersPath: "Classes/Public"
+            path: "_spm/Cordova",
+            sources: ["src"],
+            publicHeadersPath: "include",
+            cSettings: [
+                .headerSearchPath("include")
+            ]
         ),
         .target(
             name: "CapacitorObjC",
             dependencies: ["Cordova"],
             path: "_spm/CapacitorObjC",
+            sources: ["src"],
             publicHeadersPath: "include",
             cSettings: [
                 .headerSearchPath("include"),
