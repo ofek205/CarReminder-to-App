@@ -98,7 +98,7 @@ begin
         nullif(v_record->>'tires_changed_count', '')::int,
         v_record->>'flag_country',
         v_record->>'marina',
-        v_record->>'marina_abroad',
+        nullif(v_record->>'marina_abroad', '')::boolean,
         v_record->>'engine_manufacturer',
         nullif(v_record->>'pyrotechnics_expiry_date', '')::date,
         nullif(v_record->>'fire_extinguisher_expiry_date', '')::date,

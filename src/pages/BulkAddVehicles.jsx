@@ -656,7 +656,9 @@ function CopyPlatesButton({ plates }) {
 // ---------- Step 3: Result ------------------------------------------
 
 function ResultStep({ result, onDone, onRestart }) {
-  const [showErrors, setShowErrors] = useState(false);
+  // Errors expand by default when present, so the user sees the cause
+  // without an extra click.
+  const [showErrors, setShowErrors] = useState(true);
   if (!result) return null;
   const { added_count = 0, skipped_count = 0, error_count = 0, errors = [], notFoundPlates = [] } = result;
 
