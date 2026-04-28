@@ -108,6 +108,37 @@ export default function AuthPage() {
       const m = u.searchParams.get('mode');
       if (m === 'update-password') return 'update-password';
       if (m === 'verify-email') return 'verify-email';
+      // Recovery emails sometimes arrive with the marker in the URL
+      // fragment (#type=recovery / #access_token=...) instead of the
+      // query string — Supabase's default recovery template, certain
+      // mail providers, and some PWA shell rewrites strip ?mode= but
+      // leave the fragment intact.
+      const hash = (window.location.hash || '').replace(/^#/, '');
+      if (hash) {
+        const hp = new URLSearchParams(hash);
+        const t  = hp.get('type');
+        if (t === 'recovery') return 'update-password';
+        if (hp.get('access_token') && (t === 'recovery' || u.searchParams.get('type') === 'recovery')) {
+          return 'update-password';
+        }
+      }
+      if (u.searchParams.get('type') === 'recovery') return 'update-password';
+
+      // PKCE flow + recovery: Supabase redirects the user back to
+      // /Auth?code=... and exchangeCodeForSession only fires SIGNED_IN
+      // — never PASSWORD_RECOVERY. Without a hint the page can't tell
+      // the recovery callback apart from a signup-confirm or oauth
+      // callback. We solve this by writing a sessionStorage marker the
+      // moment the user submits the reset form (see resetPasswordForEmail
+      // call below). If we see ?code= here AND that marker is fresh,
+      // treat it as a recovery and open the new-password form. The
+      // marker's TTL means a stale tab won't trap a different user.
+      if (u.searchParams.get('code')) {
+        const at = Number(sessionStorage.getItem('cr_pending_recovery_at') || 0);
+        const TEN_MIN = 10 * 60 * 1000;
+        if (at && (Date.now() - at) < TEN_MIN) return 'update-password';
+      }
+
       // Resume a pending verification if the tab was refreshed.
       if (sessionStorage.getItem('cr_pending_verify_email')) return 'verify-email';
     } catch {}
@@ -428,6 +459,18 @@ export default function AuthPage() {
           console.warn('resetPasswordForEmail error:', error.message);
           setError(localizeAuthError(error.message));
         } else {
+          // Drop a session-scoped marker so the return trip can recognise
+          // this tab/device as the one that asked for the reset. PKCE
+          // recovery hits us as /Auth?code=... and Supabase fires
+          // SIGNED_IN (not PASSWORD_RECOVERY), so without a marker we
+          // can't tell a recovery callback apart from a signup-confirm
+          // or any other code-bearing redirect. Stored with a timestamp
+          // so the AuthPage init can age it out (10 min TTL) instead of
+          // trapping a future visitor.
+          try {
+            sessionStorage.setItem('cr_pending_recovery_at', String(Date.now()));
+            sessionStorage.setItem('cr_pending_recovery_email', email.trim());
+          } catch {}
           setSuccess('נשלח אימייל לאיפוס סיסמה. בדוק את תיבת הדואר שלך.');
           setTimeout(() => setMode('login'), 3000);
         }
@@ -445,6 +488,12 @@ export default function AuthPage() {
         if (error) {
           setError(error.message || 'עדכון הסיסמה נכשל');
         } else {
+          // Clear the recovery-flow marker so a future tab on the same
+          // browser doesn't get re-trapped into update-password mode.
+          try {
+            sessionStorage.removeItem('cr_pending_recovery_at');
+            sessionStorage.removeItem('cr_pending_recovery_email');
+          } catch {}
           setSuccess('הסיסמה עודכנה. מעביר לאפליקציה...');
           setTimeout(() => { window.location.href = '/'; }, 1200);
         }
