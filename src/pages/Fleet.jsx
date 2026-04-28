@@ -21,7 +21,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Search, Plus, ChevronLeft, Truck, Briefcase, X,
+  Search, Plus, ChevronLeft, Truck, Briefcase, X, Upload,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
@@ -255,13 +255,22 @@ export default function Fleet() {
             {counts.unassigned > 0  && <span className="text-gray-600">{` · ${counts.unassigned} ללא נהג`}</span>}
           </p>
         </div>
-        <Link
-          to={createPageUrl('AddVehicle')}
-          className="flex items-center gap-1 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98]"
-        >
-          <Plus className="h-4 w-4" />
-          הוסף רכב
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            to={createPageUrl('BulkAddVehicles')}
+            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-xs font-bold active:scale-[0.98] hover:border-gray-300"
+          >
+            <Upload className="h-4 w-4" />
+            ייבוא מרובה
+          </Link>
+          <Link
+            to={createPageUrl('AddVehicle')}
+            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98]"
+          >
+            <Plus className="h-4 w-4" />
+            הוסף רכב
+          </Link>
+        </div>
       </div>
 
       {/* Search */}
