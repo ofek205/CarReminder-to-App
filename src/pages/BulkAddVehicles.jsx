@@ -656,6 +656,7 @@ function CopyPlatesButton({ plates }) {
 // ---------- Step 3: Result ------------------------------------------
 
 function ResultStep({ result, onDone, onRestart }) {
+  const [showErrors, setShowErrors] = useState(false);
   if (!result) return null;
   const { added_count = 0, skipped_count = 0, error_count = 0, errors = [], notFoundPlates = [] } = result;
 
@@ -680,7 +681,31 @@ function ResultStep({ result, onDone, onRestart }) {
             {error_count > 0 && (
               <li className="flex items-start gap-2">
                 <X className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                <span><span className="font-bold">{error_count}</span> נכשלו עם שגיאה. נסה שוב או הוסף ידנית.</span>
+                <div className="flex-1 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowErrors(s => !s)}
+                    className="text-right w-full"
+                  >
+                    <span className="font-bold">{error_count}</span> נכשלו עם שגיאה.{' '}
+                    <span className="text-[#2D5233] font-bold">{showErrors ? 'הסתר פרטים' : 'הצג פרטים'}</span>
+                  </button>
+                  {showErrors && errors.length > 0 && (
+                    <ul className="mt-2 space-y-1 bg-red-50 rounded-lg p-2 text-[10px]">
+                      {errors.slice(0, 50).map((e, i) => (
+                        <li key={i} className="text-red-900 break-all">
+                          <span className="font-mono font-bold">{e.plate || 'ללא מספר'}</span>
+                          <span className="text-red-700">{`: ${e.reason || 'שגיאה לא מזוהה'}`}</span>
+                        </li>
+                      ))}
+                      {errors.length > 50 && (
+                        <li className="text-red-700 text-center pt-1">
+                          ... עוד {errors.length - 50} שגיאות
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                </div>
               </li>
             )}
             {notFoundPlates.length > 0 && (
