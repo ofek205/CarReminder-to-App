@@ -762,23 +762,21 @@ function ResultStep({ result, onDone, onRestart }) {
 
 // ---------- Sanitize MoT data ----------------------------------------
 
-// The MoT lookup returns ALL fields it could resolve. We only forward
-// the columns the bulk_add_vehicles RPC knows. Mirror of DB_COLUMNS in
-// AddVehicle.jsx so behavior is identical.
+// Whitelist of MoT fields safe to forward to bulk_add_vehicles.
+// Excludes fields with non-scalar DB types (text[], jsonb objects)
+// that are user-managed via the manual form and not provided by MoT
+// in a useful way. Bulk import covers the registry-derived fields;
+// user can edit each vehicle later for manual fields.
 const ALLOWED_COLUMNS = new Set([
   'vehicle_type','manufacturer','model','year','nickname',
   'test_due_date','insurance_due_date','insurance_company',
-  'current_km','current_engine_hours','vehicle_photo','fuel_type','is_vintage',
-  'last_tire_change_date','km_since_tire_change','tires_changed_count',
-  'flag_country','marina','marina_abroad','engine_manufacturer',
-  'pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
-  'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
+  'current_km','current_engine_hours','fuel_type',
+  'flag_country','engine_manufacturer',
   'front_tire','rear_tire','engine_model','color','last_test_date',
   'first_registration_date','ownership','model_code','trim_level','vin',
   'pollution_group','vehicle_class','safety_rating','horsepower','engine_cc',
   'drivetrain','total_weight','doors','seats','airbags','transmission',
   'body_type','country_of_origin','co2','green_index','tow_capacity',
-  'offroad_equipment','offroad_usage_type','last_offroad_service_date',
   'inspection_report_expiry_date',
 ]);
 
@@ -788,6 +786,12 @@ function sanitizeFromMoT(data) {
   for (const [k, v] of Object.entries(data)) {
     if (!ALLOWED_COLUMNS.has(k)) continue;
     if (v === undefined || v === null || v === '') continue;
+    // Only forward scalar primitives (string / number / boolean).
+    // Arrays and objects are dropped — they belong to user-managed
+    // form sections (e.g. offroad_equipment checkboxes) that aren't
+    // populated from the MoT registry.
+    if (Array.isArray(v)) continue;
+    if (typeof v === 'object') continue;
     out[k] = v;
   }
   return out;
