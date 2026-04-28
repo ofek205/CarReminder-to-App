@@ -67,6 +67,7 @@ const navItems = [
   //  the manager-vs-driver mode switch internally.
   { divider: true, title: 'תפעול', businessOnly: true },
   { name: 'Routes',                label: 'מסלולים ומשימות',   icon: MapPin,          guestAllowed: false, businessOnly: true },
+  { name: 'Drivers',               label: 'נהגים',              icon: Users,           guestAllowed: false, businessOnly: true },
   { divider: true, title: 'אנליטיקה', businessOnly: true },
   { name: 'ActivityLog',           label: 'יומן פעילות',       icon: FileText,        guestAllowed: false, businessOnly: true },
   { name: 'Reports',               label: 'דוחות וניתוחים',     icon: TrendingUp,      guestAllowed: false, businessOnly: true },
