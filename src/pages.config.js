@@ -50,20 +50,6 @@ const Checklist = React.lazy(() => import('./pages/Checklist'));
 const ChecklistEditor = React.lazy(() => import('./pages/ChecklistEditor'));
 const ChecklistHistory = React.lazy(() => import('./pages/ChecklistHistory'));
 const AdminAiSettings = React.lazy(() => import('./pages/AdminAiSettings'));
-const CreateBusinessWorkspace = React.lazy(() => import('./pages/CreateBusinessWorkspace'));
-const Routes_           = React.lazy(() => import('./pages/Routes'));
-const CreateRoute       = React.lazy(() => import('./pages/CreateRoute'));
-const RouteDetail       = React.lazy(() => import('./pages/RouteDetail'));
-const ActivityLog       = React.lazy(() => import('./pages/ActivityLog'));
-const Expenses          = React.lazy(() => import('./pages/Expenses'));
-const Reports           = React.lazy(() => import('./pages/Reports'));
-const Drivers           = React.lazy(() => import('./pages/Drivers'));
-const AdminBusinessRequests = React.lazy(() => import('./pages/AdminBusinessRequests'));
-const Fleet                 = React.lazy(() => import('./pages/Fleet'));
-const BusinessDashboard     = React.lazy(() => import('./pages/BusinessDashboard'));
-const BusinessSettings      = React.lazy(() => import('./pages/BusinessSettings'));
-const MyVehicles            = React.lazy(() => import('./pages/MyVehicles'));
-const BulkAddVehicles       = React.lazy(() => import('./pages/BulkAddVehicles'));
 
 export const PAGES = {
     "Accidents": Accidents,
@@ -100,20 +86,6 @@ export const PAGES = {
     "ChecklistEditor": ChecklistEditor,
     "ChecklistHistory": ChecklistHistory,
     "AdminAiSettings": AdminAiSettings,
-    "CreateBusinessWorkspace": CreateBusinessWorkspace,
-    "Routes":       Routes_,
-    "CreateRoute":  CreateRoute,
-    "RouteDetail":  RouteDetail,
-    "ActivityLog":  ActivityLog,
-    "Expenses":     Expenses,
-    "Reports":      Reports,
-    "Drivers":      Drivers,
-    "AdminBusinessRequests": AdminBusinessRequests,
-    "Fleet":        Fleet,
-    "BusinessDashboard": BusinessDashboard,
-    "BusinessSettings": BusinessSettings,
-    "MyVehicles":   MyVehicles,
-    "BulkAddVehicles": BulkAddVehicles,
 }
 
 export const pagesConfig = {

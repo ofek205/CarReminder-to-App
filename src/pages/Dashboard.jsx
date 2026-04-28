@@ -15,7 +15,6 @@ import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { useAuth } from "../components/shared/GuestContext";
-import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
 import { usesHours, usesKm } from "../components/shared/DateStatusUtils";
@@ -765,16 +764,6 @@ import useNotificationScheduler from '@/hooks/useNotificationScheduler';
 export default function Dashboard() {
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles, getStoredGuestVehicles,
     getStoredGuestDocuments, getStoredGuestReminderSettings, clearGuestData, isDemoDismissed } = useAuth();
-  // Phase 9 step 5: when active workspace is business, the manager should
-  // land on the business dashboard, not the personal one.
-  const navigateRef = useNavigate();
-  const { activeWorkspace } = useWorkspace();
-  useEffect(() => {
-    if (isGuest) return;
-    if (activeWorkspace?.account_type === 'business') {
-      navigateRef(createPageUrl('BusinessDashboard'), { replace: true });
-    }
-  }, [activeWorkspace, isGuest, navigateRef]);
   const [accountId, setAccountId] = useState(null);
   const [filteredVehicles, setFilteredVehicles] = useState(null);
   // Dashboard list sort. Default: newest-added first.
@@ -936,18 +925,11 @@ export default function Dashboard() {
   // accepting an invite. The view also exposes is_shared_with_me +
   // share_role columns so card components can render the indicator.
   const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery({
-    queryKey: ['my-vehicles', user?.id, accountId],
+    queryKey: ['my-vehicles', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.from('my_vehicles_v').select('*');
       if (error) throw error;
-      // Phase 9 fix: scope to the active workspace so a user with both
-      // personal + business memberships doesn't see vehicles from the
-      // other workspace mixed into the personal Dashboard. Shared
-      // vehicles (vehicle_shares) keep showing because they're a
-      // personal-flow feature; business workspace users are redirected
-      // to /BusinessDashboard above so this filter only runs in
-      // personal context.
-      return (data || []).filter(v => v.is_shared_with_me || v.account_id === accountId);
+      return data || [];
     },
     enabled: !!user?.id && !!accountId,
     // Bumped from 2 min → 10 min. Real changes invalidate the cache

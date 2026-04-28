@@ -18,7 +18,6 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X, Clock } from 'lucide-react';
 import { differenceInYears, subMonths, formatDistanceToNow } from 'date-fns';
 import { he as heLocale } from 'date-fns/locale';
@@ -56,13 +55,6 @@ export default function NotificationBell() {
   const [popupOpen, setPopupOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const { user } = useAuth();
-  // activeWorkspaceId scopes the vehicle-derived reminders. Without it,
-  // a multi-workspace user always saw the bell pinned to the first
-  // membership row (personal or business, whichever sorted first), so
-  // switching workspaces left the bell mismatched against the page they
-  // were looking at. User-level rows (profile, license, app_notifications,
-  // community) stay untouched — those aren't tied to a workspace.
-  const { activeWorkspaceId } = useWorkspace();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -131,15 +123,6 @@ export default function NotificationBell() {
         });
 
         if (membersResult.length === 0) return;
-        // Pick the workspace the user is currently looking at. Falls
-        // back to the first active membership only when the workspace
-        // context hasn't resolved yet (very first render); otherwise
-        // the bell would either lag behind a workspace switch or pull
-        // vehicles from the wrong account entirely.
-        const activeMember = activeWorkspaceId
-          ? membersResult.find(m => m.account_id === activeWorkspaceId)
-          : null;
-        const targetAccountId = activeMember?.account_id || membersResult[0].account_id;
         // Bell only reads dates and labels off each vehicle — never
         // photos, notes, or any base64 column. Restricting to the
         // exact 11 columns used below shaves the per-vehicle payload
@@ -160,7 +143,7 @@ export default function NotificationBell() {
           'km_update_date', 'engine_hours_update_date',
         ].join(',');
         const vehicles = await db.vehicles.filter(
-          { account_id: targetAccountId },
+          { account_id: membersResult[0].account_id },
           { select: BELL_COLS },
         );
         const threshold = (settingsResult.length > 0 && settingsResult[0].remind_test_days_before) || 14;
@@ -468,11 +451,7 @@ export default function NotificationBell() {
         if (import.meta.env?.DEV) console.warn('[NotificationBell] fetch failed:', err?.message);
       }
     })();
-    // activeWorkspaceId is in deps so a workspace switch refetches the
-    // bell against the new account immediately. Without it the bell
-    // would keep showing the previous workspace's reminders until some
-    // unrelated event (profile save, realtime ping) bumped refreshKey.
-  }, [user, refreshKey, activeWorkspaceId]);
+  }, [user, refreshKey]);
 
   const unreadCount = notifications.filter(n => !readIds.has(n.id)).length;
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
@@ -14,8 +15,6 @@ import VehicleCardEnhanced from '../components/vehicles/VehicleCardEnhanced';
 import SignUpPromptDialog from '../components/shared/SignUpPromptDialog';
 import { useAuth } from '../components/shared/GuestContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import useAccountRole from '@/hooks/useAccountRole';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 //  Helpers 
 function daysUntil(dateStr) {
@@ -533,12 +532,61 @@ export default function Vehicles() {
   const authLoading = auth?.isLoading;
   const user = auth?.user;
   const guestVehicles = auth?.guestVehicles;
-  // Phase 3: accountId comes from the active workspace via useAccountRole
-  // (now a thin wrapper over WorkspaceContext). Auto-heal for users
-  // with zero memberships is centralized in WorkspaceContext.
-  const { accountId } = useAccountRole();
-  const { activeWorkspace } = useWorkspace();
+  const [accountId, setAccountId] = useState(null);
   const [showSignUp, setShowSignUp] = useState(false);
+
+  // True only after we attempted ensure_user_account once during this
+  // mount. Prevents an infinite RPC loop if the heal also fails.
+  const provisionedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    async function init() {
+      // Fetch ALL membership rows — legacy/migrated accounts can have
+      // status NULL or 'active' instead of 'פעיל'. The old filter
+      // returned 0 and accountId stayed null forever, leaving Ilan /
+      // Eyal and anyone else with a non-standard status stuck on the
+      // loading spinner. Prefer 'פעיל' but accept any row as a fallback.
+      const all = await db.account_members.filter({ user_id: user.id });
+      if (all.length === 0) {
+        // Self-heal: brand-new user landed here directly without going
+        // through Dashboard's provisioning, OR the bootstrap trigger
+        // silently failed. Call the SECURITY DEFINER RPC once and
+        // retry the membership read. This is the page-level safety
+        // net beyond the trigger + GuestContext layers.
+        if (!provisionedRef.current) {
+          provisionedRef.current = true;
+          try {
+            const { supabase } = await import('@/lib/supabase');
+            await supabase.rpc('ensure_user_account');
+            const retried = await db.account_members.filter({ user_id: user.id });
+            if (retried.length > 0) {
+              const usable = retried.filter(m => m.status !== 'הוסר' && m.status !== 'removed');
+              if (usable.length > 0) {
+                const ROLE_PRIORITY = { 'בעלים': 0, 'מנהל': 1, 'שותף': 2 };
+                const sortByRole = (a, b) => (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9);
+                const active = usable.filter(m => m.status === 'פעיל').sort(sortByRole);
+                const inactive = usable.filter(m => m.status !== 'פעיל').sort(sortByRole);
+                setAccountId((active[0] || inactive[0]).account_id);
+              }
+            }
+          } catch { /* fall through; the page will sit at empty-state */ }
+        }
+        return;
+      }
+      // Skip removed rows; prefer active; tie-break by role priority
+      // (בעלים wins over מנהל wins over שותף) so a multi-membership user
+      // lands on the account they actually own, not one they just view.
+      const usable = all.filter(m => m.status !== 'הוסר' && m.status !== 'removed');
+      if (usable.length === 0) return;
+      const ROLE_PRIORITY = { 'בעלים': 0, 'מנהל': 1, 'שותף': 2 };
+      const sortByRole = (a, b) => (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9);
+      const active = usable.filter(m => m.status === 'פעיל').sort(sortByRole);
+      const inactive = usable.filter(m => m.status !== 'פעיל').sort(sortByRole);
+      setAccountId((active[0] || inactive[0]).account_id);
+    }
+    init();
+  }, [isAuthenticated, user]);
 
   const queryClient = useQueryClient();
   // my_vehicles_v returns owned ∪ accepted-shared rows for auth.uid().
@@ -546,7 +594,7 @@ export default function Vehicles() {
   // shared WITH them (via vehicle_shares) alongside their own. The
   // view exposes is_shared_with_me + share_role + share_owner_user_id
   // so the UI can render a "shared with me" badge.
-  const { data: rawVehicles = [], isLoading } = useQuery({
+  const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ['my-vehicles', user?.id],
     queryFn: async () => {
       const { supabase } = await import('@/lib/supabase');
@@ -558,18 +606,6 @@ export default function Vehicles() {
     refetchOnMount: 'always',
     staleTime: 2 * 60 * 1000,
   });
-
-  // Phase 3: workspace-aware filtering.
-  // Personal workspace: owned + accepted shares (current behavior).
-  // Business workspace: only vehicles whose account_id matches.
-  const vehicles = useMemo(() => {
-    if (!accountId) return [];
-    const isBusiness = activeWorkspace?.account_type === 'business';
-    return rawVehicles.filter(v => {
-      if (v.is_shared_with_me) return !isBusiness;
-      return v.account_id === accountId;
-    });
-  }, [rawVehicles, accountId, activeWorkspace]);
 
   // Pull-to-refresh. re-fetches the vehicles list.
   const { pulling, progress } = usePullToRefresh(async () => {

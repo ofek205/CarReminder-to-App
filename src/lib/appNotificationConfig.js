@@ -10,7 +10,7 @@
  * this module is purely visual / navigational.
  */
 
-import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare, Briefcase } from 'lucide-react';
+import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare } from 'lucide-react';
 
 // Build a deep-link href from the row's `data` jsonb. Each function is
 // pure so callers can resolve the href without state. When a type
@@ -94,16 +94,6 @@ export const APP_NOTIF_CONFIG = {
     iconColor: '#4338CA',
     iconBg: '#4338CA',
     buildHref: hrefForVehicleDetail,
-  },
-  workspace_member_added: {
-    // Manager added the user to a business workspace. Routes to the
-    // driver-facing home page so a driver lands somewhere useful,
-    // and a viewer/manager can navigate from there.
-    icon: Briefcase,
-    bg: '#E8F2EA',
-    iconColor: '#2D5233',
-    iconBg: '#2D5233',
-    buildHref: () => '/MyVehicles',
   },
   community_comment: {
     // Reused for any community thread reply on the user's own post.
