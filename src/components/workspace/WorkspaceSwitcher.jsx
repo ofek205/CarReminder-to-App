@@ -95,14 +95,19 @@ export default function WorkspaceSwitcher() {
                         if (!isActive) {
                           const ok = await switchTo(m.account_id);
                           if (ok) {
-                            // Navigate straight to the workspace home so we
-                            // don't depend on Dashboard.jsx detecting the
-                            // type change and redirecting. That indirect
-                            // path was unreliable when the user was already
-                            // on Dashboard (URL no-op + state-update race).
-                            const target = m.account_type === 'business'
-                              ? 'BusinessDashboard'
-                              : 'Dashboard';
+                            // Navigate straight to the workspace home,
+                            // role-aware. BusinessDashboard is manager-only;
+                            // drivers must land on /MyVehicles instead or
+                            // they hit the "אין הרשאה לדשבורד" guard right
+                            // after every switch back to business.
+                            let target;
+                            if (m.account_type === 'business') {
+                              target = m.role === 'driver'
+                                ? 'MyVehicles'
+                                : 'BusinessDashboard';
+                            } else {
+                              target = 'Dashboard';
+                            }
                             navigate(createPageUrl(target), { replace: true });
                           }
                         }
