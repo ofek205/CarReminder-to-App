@@ -17,7 +17,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Truck, Briefcase, Loader2, Wrench, AlertTriangle, Gauge, X,
-  CheckCircle, Clock, AlertCircle, ChevronLeft,
+  CheckCircle, Clock, AlertCircle, ChevronLeft, Crown, Phone, Mail, Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -83,6 +83,26 @@ export default function MyVehicles() {
     enabled,
     staleTime: 60 * 1000,
   });
+
+  // Team directory — owner / managers / fellow drivers + phone numbers.
+  // Used to render the manager-contact card (driver knows who to call)
+  // and to surface a peer roster on the Team page link.
+  const { data: team = [] } = useQuery({
+    queryKey: ['workspace-team', accountId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('workspace_team_directory', {
+        p_account_id: accountId,
+      });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+  const managers = useMemo(
+    () => team.filter(m => m.role === 'בעלים' || m.role === 'מנהל'),
+    [team]
+  );
 
   // Vehicles the driver can read via the layered RLS policy.
   const vehicleIds = assignments.map(a => a.vehicle_id);
@@ -153,6 +173,15 @@ export default function MyVehicles() {
             : `${assignments.length} ${assignments.length === 1 ? 'רכב משויך' : 'רכבים משויכים'} אליך`}
         </p>
       </div>
+
+      {/* Manager / fleet-owner contact card. Shown above the vehicle
+          list and the empty state alike, so a brand-new driver who
+          opens the app for the first time immediately sees who to
+          call. Only renders when at least one manager has provided a
+          phone (otherwise the card is empty noise). */}
+      {managers.length > 0 && (
+        <ManagerContactCard managers={managers} totalTeam={team.length} />
+      )}
 
       {isLoading ? (
         <p className="text-center text-xs text-gray-400 py-8">טוען...</p>
@@ -484,6 +513,67 @@ function DialogShell({ title, subtitle, onClose, children }) {
         {subtitle && <p className="text-xs text-gray-500 mb-4">{subtitle}</p>}
         {children}
       </div>
+    </div>
+  );
+}
+
+// ---------- manager contact card -------------------------------------
+// Surfaces the workspace owner + managers' phone / email so the driver
+// can reach them without leaving the app or hunting through paper
+// records. The card also doubles as the entry point to the Team page
+// (full roster) — a driver coordinating with peers taps "צוות מלא".
+function ManagerContactCard({ managers, totalTeam }) {
+  const primary = managers[0];
+  if (!primary) return null;
+  const showAdditional = managers.length > 1;
+  return (
+    <div className="bg-white border border-gray-100 rounded-2xl p-4 mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+            <Crown className="h-4 w-4 text-purple-700" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-gray-500">מנהל הצי</p>
+            <p className="text-sm font-bold text-gray-900 truncate">{primary.display_name}</p>
+          </div>
+        </div>
+        <Link
+          to={createPageUrl('Team')}
+          className="text-[11px] font-bold text-[#2D5233] flex items-center gap-0.5 shrink-0"
+        >
+          <Users className="h-3 w-3" />
+          {`צוות מלא (${totalTeam})`}
+          <ChevronLeft className="h-3 w-3" />
+        </Link>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-2">
+        {primary.phone && (
+          <a
+            href={`tel:${primary.phone}`}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#E8F2EA] text-[#2D5233] text-xs font-bold active:scale-[0.98]"
+            dir="ltr"
+          >
+            <Phone className="h-3.5 w-3.5 shrink-0" />
+            {primary.phone}
+          </a>
+        )}
+        {primary.email && (
+          <a
+            href={`mailto:${primary.email}`}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 text-gray-700 text-xs font-bold active:scale-[0.98]"
+            dir="ltr"
+          >
+            <Mail className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{primary.email}</span>
+          </a>
+        )}
+      </div>
+      {showAdditional && (
+        <p className="text-[10px] text-gray-400 mt-2">
+          + עוד {managers.length - 1} {managers.length - 1 === 1 ? 'מנהל' : 'מנהלים'} בצוות מלא
+        </p>
+      )}
     </div>
   );
 }

@@ -75,6 +75,7 @@ const navItems = [
   { divider: true, title: 'תפעול', businessOnly: true },
   { name: 'BusinessDashboard',     label: 'דשבורד עסקי',        icon: LayoutDashboard, guestAllowed: false, businessOnly: true, managerOnly: true },
   { name: 'MyVehicles',            label: 'הרכבים שלי',         icon: Truck,           guestAllowed: false, businessOnly: true, driverOnly: true },
+  { name: 'Team',                  label: 'הצוות שלי',          icon: Users,           guestAllowed: false, businessOnly: true, driverOnly: true },
   { name: 'Fleet',                 label: 'צי הרכבים',          icon: Truck,           guestAllowed: false, businessOnly: true, managerOnly: true },
   { name: 'Routes',                label: 'מסלולים ומשימות',   icon: MapPin,          guestAllowed: false, businessOnly: true },
   { name: 'Drivers',               label: 'נהגים',              icon: Users,           guestAllowed: false, businessOnly: true, managerOnly: true },

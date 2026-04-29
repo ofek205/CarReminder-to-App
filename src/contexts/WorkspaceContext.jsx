@@ -56,19 +56,23 @@ const sortByRole = (a, b) =>
 function resolveDefault(memberships, savedHintId) {
   if (!memberships?.length) return null;
 
-  if (savedHintId) {
-    const hinted = memberships.find(m => m.account_id === savedHintId);
-    if (hinted) return hinted;
-  }
-
   const active = memberships.filter(m => m.status === 'פעיל');
 
-  // Driver in a business workspace → land there. They almost never have
-  // anything to do in their personal account during work hours.
+  // Driver in a business workspace → ALWAYS land there, even if a stale
+  // saved hint points elsewhere. The hint loses to the driver default
+  // because most drivers' time-on-app is purely workplace activity, and
+  // a once-set hint to "personal" used to trap them in the wrong context
+  // every login. Drivers can still reach the personal workspace via the
+  // switcher in one tap.
   const businessAsDriver = active.find(
     m => m.account_type === 'business' && m.role === 'driver'
   );
   if (businessAsDriver) return businessAsDriver;
+
+  if (savedHintId) {
+    const hinted = memberships.find(m => m.account_id === savedHintId);
+    if (hinted) return hinted;
+  }
 
   const personal = active.find(m => m.account_type === 'personal');
   if (personal) return personal;
