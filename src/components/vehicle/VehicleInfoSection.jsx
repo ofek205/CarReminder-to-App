@@ -6,7 +6,7 @@ import StatusBadge from "../shared/StatusBadge";
 import { getDateStatus, formatDateHe, isVessel, isOffroad, getVehicleLabels } from "../shared/DateStatusUtils";
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES } from "../vehicle/VehicleTypeSelector";
 import { COUNTRIES } from "../vehicle/CountryFlagSelect";
-import { Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Cog, ExternalLink, Camera, Loader2, Upload, AlertTriangle } from "lucide-react";
+import { Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Cog, ExternalLink, Camera, Loader2, Upload, AlertTriangle, Zap, Leaf, Hash } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { db } from '@/lib/supabaseEntities';
 import { Link } from 'react-router-dom';
@@ -454,6 +454,101 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
 }
 
 //  Info Row 
+// Pill colors for known categorical values. Each entry: {bg, text}.
+// Adding a new term is one line; unknown values render as a neutral
+// gray pill so the layout stays consistent regardless of dataset
+// surprises.
+const PILL_PALETTE = {
+  // Transmission
+  'אוטומטי':  { bg: 'bg-blue-50',     text: 'text-blue-700' },
+  'ידני':      { bg: 'bg-slate-100',   text: 'text-slate-700' },
+  // Fuel
+  'בנזין':     { bg: 'bg-orange-50',   text: 'text-orange-700' },
+  'דיזל':      { bg: 'bg-amber-50',    text: 'text-amber-800' },
+  'חשמל':      { bg: 'bg-emerald-50',  text: 'text-emerald-700' },
+  'היברידי':   { bg: 'bg-emerald-50',  text: 'text-emerald-700' },
+  'גז':        { bg: 'bg-purple-50',   text: 'text-purple-700' },
+  // Ownership
+  'פרטי':      { bg: 'bg-indigo-50',   text: 'text-indigo-700' },
+  'ליסינג':    { bg: 'bg-yellow-50',   text: 'text-yellow-800' },
+  'השכרה':     { bg: 'bg-pink-50',     text: 'text-pink-700' },
+  'מסחרי':     { bg: 'bg-teal-50',     text: 'text-teal-700' },
+  // Tow hitch
+  'כן':        { bg: 'bg-green-50',    text: 'text-green-700' },
+};
+
+// Split a "number unit" string into its components so we can render
+// the digit large + bold and the unit smaller + muted. Falls back to
+// returning null when the value doesn't match the pattern (free-text,
+// already pure number, etc.) — caller renders it as plain text.
+//
+//   "125 כ\"ס"  → { num: '125',  unit: 'כ"ס' }
+//   "1395 סמ\"ק" → { num: '1395', unit: 'סמ"ק' }
+//   "1400 / 640 ק\"ג (עם/בלי בלמים)" → { num: '1400 / 640', unit: 'ק"ג (עם/בלי בלמים)' }
+function splitValueUnit(raw) {
+  if (typeof raw !== 'string') return null;
+  // Match [digits + optional separators (/ , .)] then whitespace then rest.
+  const m = raw.match(/^([\d.,/\s-]+)\s+(\D.+)$/);
+  if (!m) return null;
+  const num  = m[1].trim();
+  const unit = m[2].trim();
+  if (!num || !unit) return null;
+  return { num, unit };
+}
+
+// SpecRow — visual workhorse for any group that isn't `dense`.
+// Two-tone layout: muted label on the right, bold value on the left.
+// When item.pill is true and the value matches the pill palette, it
+// renders as a colored chip; otherwise as plain bold text. Numeric
+// values with units get a split treatment (number large, unit small).
+function SpecRow({ item, theme }) {
+  const T = theme;
+  const palette = item.pill ? (PILL_PALETTE[item.value] || { bg: 'bg-gray-100', text: 'text-gray-700' }) : null;
+  const split   = !palette && splitValueUnit(item.value);
+  return (
+    <div className="flex items-center justify-between px-2.5 py-2.5 rounded-lg hover:bg-gray-50/60 transition-colors">
+      <span className="text-[12.5px] font-medium" style={{ color: T.muted }}>{item.label}</span>
+      {palette ? (
+        <span className={`px-2.5 py-0.5 rounded-md text-[12px] font-bold ${palette.bg} ${palette.text}`}>
+          {item.value}
+        </span>
+      ) : split ? (
+        <span className="flex items-baseline gap-1" dir={item.ltr ? 'ltr' : 'rtl'}>
+          <span className="text-[14px] font-black text-gray-900 tabular-nums">{split.num}</span>
+          <span className="text-[10.5px] font-medium text-gray-500">{split.unit}</span>
+        </span>
+      ) : (
+        <span className="text-[13px] font-bold text-gray-900" dir={item.ltr ? 'ltr' : 'rtl'}>
+          {item.value}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// SpecChip — chip card for `dense` groups (safety, environment).
+// Big value on top, label below — at-a-glance numeric scan layout.
+function SpecChip({ item, theme }) {
+  const T = theme;
+  const split = splitValueUnit(item.value);
+  return (
+    <div
+      className="rounded-xl text-center px-2 py-3"
+      style={{ background: '#F9FAFB', border: '1px solid #F3F4F6' }}
+    >
+      {split ? (
+        <p className="leading-none">
+          <span className="text-base font-black text-gray-900 tabular-nums">{split.num}</span>
+          <span className="block text-[9px] font-medium text-gray-500 mt-0.5">{split.unit}</span>
+        </p>
+      ) : (
+        <p className="text-base font-black text-gray-900 tabular-nums leading-none">{item.value}</p>
+      )}
+      <p className="text-[10px] mt-1.5 font-medium" style={{ color: T.muted }}>{item.label}</p>
+    </div>
+  );
+}
+
 // Hand label for the "יד" spec row. Two parts joined by " · ":
 //
 //   1. Hebrew ordinal — through 4 ("ראשונה / שנייה / שלישית /
@@ -479,25 +574,30 @@ function formatHandLabel(n) {
 // sub-panel. Used today only for "יד" → "היסטוריית בעלויות"; the
 // pattern is generic so the next expandable spec we want (warranty
 // history, accident summary, etc.) can ride on the same component.
-function ExpandableSpecRow({ item, theme, borderStyle }) {
+function ExpandableSpecRow({ item, theme }) {
   const [open, setOpen] = useState(false);
   const T = theme;
   return (
-    <div style={{ borderBottom: borderStyle }}>
+    <div>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between px-4 py-2 text-right hover:bg-gray-50 active:bg-gray-100 transition-colors"
+        className="w-full flex items-center justify-between px-2.5 py-2.5 rounded-lg text-right hover:bg-gray-50/60 active:bg-gray-100 transition-colors"
       >
-        <span className="text-[13px] flex items-center gap-1" style={{ color: '#6B7280' }}>
+        <span className="text-[12.5px] font-medium flex items-center gap-1" style={{ color: T.muted }}>
           {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           {item.label}
         </span>
-        <span className="text-[13px] font-semibold flex items-center gap-1" style={{ color: '#111827' }}>
-          {item.value}
-          <span className="text-[10px] font-bold" style={{ color: T.primary }}>
-            {open ? 'הסתר היסטוריה' : 'הצג היסטוריה'}
+        <span className="flex items-center gap-2">
+          <span
+            className="text-[10.5px] font-bold px-1.5 py-0.5 rounded"
+            style={{ background: T.light, color: T.primary }}
+          >
+            {open ? 'הסתר' : 'הצג היסטוריה'}
+          </span>
+          <span className="text-[13px] font-bold text-gray-900">
+            {item.value}
           </span>
         </span>
       </button>
@@ -762,13 +862,13 @@ export default function VehicleInfoSection({ vehicle }) {
       {/*  Technical Spec - grouped  */}
       {(() => {
         const groups = [
-          { title: 'פרטי רישום', items: [
+          { title: 'פרטי רישום', icon: ClipboardList, items: [
             vehicle.vehicle_class && { label: 'סיווג', value: vehicle.vehicle_class },
             vehicle.country_of_origin && { label: 'ארץ ייצור', value: vehicle.country_of_origin },
             vehicle.body_type && { label: 'סוג מרכב', value: vehicle.body_type },
             vehicle.color && { label: 'צבע', value: vehicle.color },
             vehicle.trim_level && { label: 'רמת גימור', value: vehicle.trim_level },
-            vehicle.ownership && { label: 'בעלות', value: vehicle.ownership },
+            vehicle.ownership && { label: 'בעלות', value: vehicle.ownership, pill: true },
             // "יד" — sourced from gov.il's ownership-history dataset.
             // The count of episodes IS the hand number; we render
             // "ראשונה / שנייה / שלישית / רביעית" up to 4 and fall back
@@ -787,28 +887,28 @@ export default function VehicleInfoSection({ vehicle }) {
             },
             vehicle.first_registration_date && { label: 'עלייה לכביש', value: formatDateHe(vehicle.first_registration_date) },
           ].filter(Boolean) },
-          { title: 'מנוע וביצועים', items: [
+          { title: 'מנוע וביצועים', icon: Zap, items: [
             vehicle.horsepower && { label: 'כוח', value: vehicle.horsepower },
             vehicle.engine_cc && { label: 'נפח', value: vehicle.engine_cc },
             vehicle.engine_model && { label: 'דגם מנוע', value: vehicle.engine_model, ltr: true },
-            vehicle.fuel_type && { label: 'דלק', value: vehicle.fuel_type },
-            vehicle.transmission && { label: 'תיבת הילוכים', value: vehicle.transmission },
+            vehicle.fuel_type && { label: 'דלק', value: vehicle.fuel_type, pill: true },
+            vehicle.transmission && { label: 'תיבת הילוכים', value: vehicle.transmission, pill: true },
             vehicle.drivetrain && { label: 'כונן', value: vehicle.drivetrain },
             vehicle.total_weight && { label: 'משקל כולל', value: vehicle.total_weight },
             vehicle.tow_capacity && { label: 'כושר גרירה', value: vehicle.tow_capacity },
-            vehicle.has_tow_hitch && { label: 'וו גרירה', value: vehicle.has_tow_hitch },
+            vehicle.has_tow_hitch && { label: 'וו גרירה', value: vehicle.has_tow_hitch, pill: true },
           ].filter(Boolean) },
-          { title: 'בטיחות ונוחות', items: [
+          { title: 'בטיחות ונוחות', icon: Shield, dense: true, items: [
             vehicle.doors && { label: 'דלתות', value: vehicle.doors },
             vehicle.seats && { label: 'מושבים', value: vehicle.seats },
             vehicle.airbags && { label: 'כריות אוויר', value: vehicle.airbags },
           ].filter(Boolean) },
-          { title: 'סביבה ופליטות', items: [
+          { title: 'סביבה ופליטות', icon: Leaf, dense: true, items: [
             vehicle.co2 && { label: 'פליטת CO₂', value: vehicle.co2 },
             vehicle.green_index && { label: 'מדד ירוק', value: vehicle.green_index },
             vehicle.pollution_group && { label: 'קבוצת זיהום', value: vehicle.pollution_group },
           ].filter(Boolean) },
-          { title: 'זיהוי', items: [
+          { title: 'זיהוי', icon: Hash, items: [
             // Tire display logic:
             //   - Both reported AND identical → single "צמיגים" row (most cars).
             //   - Both reported AND different → two rows — essential for SUVs,
@@ -836,50 +936,87 @@ export default function VehicleInfoSection({ vehicle }) {
         if (groups.length === 0) return null;
 
         return (
-          <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${T.border}` }} dir="rtl">
+          <div className="rounded-2xl overflow-hidden bg-white" style={{ border: `1.5px solid ${T.border}` }} dir="rtl">
+            {/* Card header — opens/closes the whole spec panel.
+                Slightly bolder typography than the inner group headers
+                so the user reads "section → groups → rows" hierarchy. */}
             <button type="button" onClick={() => setSpecOpen(!specOpen)}
-              className="w-full flex items-center justify-between px-4 py-3"
+              className="w-full flex items-center justify-between px-4 py-3 active:scale-[0.99] transition-transform"
               style={{ background: T.light }}>
               <div className="flex items-center gap-2">
-                <Cog className="w-4 h-4" style={{ color: T.primary }} />
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: '#fff', border: `1px solid ${T.border}` }}>
+                  <Cog className="w-3.5 h-3.5" style={{ color: T.primary }} />
+                </span>
                 <span className="text-sm font-black" style={{ color: T.text }}>מפרט טכני</span>
               </div>
               {specOpen ? <ChevronUp className="w-4 h-4" style={{ color: T.primary }} /> : <ChevronDown className="w-4 h-4" style={{ color: T.primary }} />}
             </button>
+
             {specOpen && (
-              <div className="divide-y" style={{ borderColor: `${T.border}40` }}>
-                {groups.map((group, gi) => (
-                  <div key={gi}>
-                    {/* Group header - subtle divider */}
-                    <div className="px-4 pt-3 pb-1">
-                      <span className="text-[10px] font-bold tracking-wide uppercase" style={{ color: T.primary }}>{group.title}</span>
-                    </div>
-                    {/* Items - clean rows. Expandable items (e.g. "יד")
-                        get a self-contained component that renders the
-                        row + an inline expand panel directly below it. */}
-                    {group.items.map((item, ii) => {
-                      const isLast = ii === group.items.length - 1;
-                      const borderStyle = !isLast ? `1px solid ${T.border}15` : 'none';
-                      if (item.expandable) {
-                        return (
-                          <ExpandableSpecRow
-                            key={ii}
-                            item={item}
-                            theme={T}
-                            borderStyle={borderStyle}
-                          />
-                        );
-                      }
-                      return (
-                        <div key={ii} className="flex items-center justify-between px-4 py-2"
-                          style={{ borderBottom: borderStyle }}>
-                          <span className="text-[13px]" style={{ color: '#6B7280' }}>{item.label}</span>
-                          <span className="text-[13px] font-semibold" style={{ color: '#111827' }} dir={item.ltr ? 'ltr' : 'rtl'}>{item.value}</span>
+              <div>
+                {groups.map((group, gi) => {
+                  const GroupIcon = group.icon;
+                  return (
+                    <div
+                      key={gi}
+                      className="border-t"
+                      style={{ borderColor: `${T.border}30` }}
+                    >
+                      {/* Group header — accent bar on the right (RTL),
+                          icon disc, bold heading. Significantly more
+                          presence than the previous tiny uppercase
+                          line, while still reading as a sub-section
+                          rather than a competing card. */}
+                      <div className="flex items-center gap-2.5 px-4 pt-4 pb-2.5">
+                        <span
+                          className="block w-1 h-5 rounded-full shrink-0"
+                          style={{ background: T.primary }}
+                          aria-hidden="true"
+                        />
+                        {GroupIcon && (
+                          <span
+                            className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+                            style={{ background: T.light }}
+                            aria-hidden="true"
+                          >
+                            <GroupIcon className="w-3.5 h-3.5" style={{ color: T.primary }} />
+                          </span>
+                        )}
+                        <h3 className="text-[13px] font-black tracking-tight" style={{ color: T.text }}>
+                          {group.title}
+                        </h3>
+                      </div>
+
+                      {/* Body — two layouts, picked per-group:
+                          • dense=true → 3-col chip grid for short numeric
+                            stats (doors, seats, airbags, CO2, ...).
+                          • default     → row list for varied content. */}
+                      {group.dense ? (
+                        <div className="grid grid-cols-3 gap-2 px-4 pb-4">
+                          {group.items.map((item, ii) => (
+                            <SpecChip key={ii} item={item} theme={T} />
+                          ))}
                         </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                      ) : (
+                        <div className="px-2 pb-2">
+                          {group.items.map((item, ii) => {
+                            if (item.expandable) {
+                              return (
+                                <ExpandableSpecRow
+                                  key={ii}
+                                  item={item}
+                                  theme={T}
+                                  borderStyle="none"
+                                />
+                              );
+                            }
+                            return <SpecRow key={ii} item={item} theme={T} />;
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
