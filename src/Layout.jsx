@@ -518,6 +518,12 @@ function LayoutInner({ children }) {
     const isFirstTime = ageMs < 60 * 60 * 1000; // account < 1h old
     setWelcomeState({ isReturning: !isFirstTime, userName: user.full_name || '' });
     try { localStorage.setItem(storageKey, today); } catch {}
+    // Close the side drawer (and any other open popovers) so the welcome
+    // modal isn't covered by the menu sheet. New users on a phone often
+    // tap the hamburger before they realise the welcome popup is meant
+    // to be the focal point — the cr:close-popups listener inside the
+    // drawer state hook handles the dismiss.
+    try { window.dispatchEvent(new CustomEvent('cr:close-popups')); } catch {}
   }, [isAuthenticated, user]);
 
   // Mileage reminder. skip for now (database not migrated yet)
