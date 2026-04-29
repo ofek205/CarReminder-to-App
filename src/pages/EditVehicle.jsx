@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
 import { C, getTheme, isVesselType } from '@/lib/designTokens';
 import useAccountRole from '@/hooks/useAccountRole';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
 import AiDateScan from '../components/shared/AiDateScan';
@@ -36,6 +37,17 @@ export default function EditVehicle() {
   const queryClient = useQueryClient();
   const { isGuest, guestVehicles, updateGuestVehicle } = useAuth();
   const { role, isGuest: isGuestRole } = useAccountRole();
+  // Drivers don't own vehicles in a business workspace — they USE
+  // them. The vehicle metadata (test date, insurance, plate, etc.)
+  // is the manager's responsibility. Bouncing drivers off this page
+  // prevents the "I changed something and the form silently rejected
+  // my save" confusion when the underlying RPC blocks them anyway.
+  const { isBusiness, isDriver, canManageRoutes } = useWorkspaceRole();
+  useEffect(() => {
+    if (isBusiness && isDriver && !canManageRoutes) {
+      navigate(createPageUrl('MyVehicles'), { replace: true });
+    }
+  }, [isBusiness, isDriver, canManageRoutes, navigate]);
 
   // Guard for the bad-id case is rendered DOWN BELOW, after every hook
   // is declared. Returning here would skip useState/useEffect on the

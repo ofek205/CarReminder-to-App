@@ -431,7 +431,12 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   // sharing their car with family/friends). In a business workspace
   // sharing is replaced by driver assignments, so we hide the share
   // controls here and the manager uses the Drivers page instead.
-  const { isBusiness } = useWorkspaceRole();
+  const { isBusiness, isDriver, canManageRoutes } = useWorkspaceRole();
+  // A driver in a business workspace can VIEW their assigned vehicle's
+  // details but cannot edit, delete, or share it — that's the manager's
+  // responsibility. We pre-compute one flag and use it to gate the
+  // action cluster + delete button + edit affordances below.
+  const driverReadOnly = isBusiness && isDriver && !canManageRoutes;
   const [accountIds, setAccountIds] = useState([]);
 
   useEffect(() => {
@@ -651,13 +656,15 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             <LicensePlate value={vehicle.license_plate} size="sm" showCopy />
           )}
           <div className="flex items-center gap-2">
-            {vehicleIsOwned && !isViewOnly(role) && isBusiness && (
+            {vehicleIsOwned && !isViewOnly(role) && isBusiness && !driverReadOnly && (
               // Business swap-in for the share cluster: there is no
               // "share with email" in a fleet workspace, so we surface
               // the equivalent action a manager actually wants from
               // here — assigning a driver. Routes back to the Drivers
               // page so the manager picks the driver from the workspace
-              // directory rather than free-text email entry.
+              // directory rather than free-text email entry. Drivers
+              // shouldn't see this — /Drivers itself is manager-only
+              // and would reject them with a permission error.
               <Link
                 to={createPageUrl('Drivers')}
                 className="h-9 px-3 rounded-2xl flex items-center gap-1.5 transition-all active:scale-95"
@@ -728,9 +735,11 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         </div>
       )}
 
-      {/*  Action buttons  */}
+      {/*  Action buttons — driverReadOnly hides עריכה / מחיקה for
+           drivers in business mode. They can still open Documents
+           (filtered to their assigned vehicles already). */}
       <div className="px-4 -mt-5 relative z-20 flex gap-2 mb-4">
-        {canEdit(role) && (
+        {canEdit(role) && !driverReadOnly && (
           <Link to={createPageUrl(`EditVehicle?id=${vehicleId}`)}>
             <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
               style={{ background: T.yellow, color: T.primary, boxShadow: `0 4px 12px ${T.yellow}40` }}>
@@ -746,7 +755,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             <FileText className="h-4 w-4" />
           </button>
         </Link>
-        {(canDelete(role) || isSharedWithMe) && (
+        {(canDelete(role) || isSharedWithMe) && !driverReadOnly && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"

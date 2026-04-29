@@ -47,6 +47,7 @@ import { C as defaultC, getTheme } from '@/lib/designTokens';
 import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { useQueryClient } from '@tanstack/react-query';
 import useAccountRole from '@/hooks/useAccountRole';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
 import FileOrCameraUpload from '@/components/ui/file-or-camera-upload';
@@ -123,6 +124,17 @@ export default function AddVehicle() {
   const queryClient = useQueryClient();
   const { isAuthenticated, isGuest, user, addGuestVehicle, guestVehicles } = useAuth();
   const { role, isGuest: isGuestRole } = useAccountRole();
+  // Drivers in a business workspace cannot add vehicles to the fleet —
+  // that's the manager's responsibility. Without this gate the driver
+  // would fill the whole form and only learn it failed on save (RLS
+  // rejection). Bounce them upfront to MyVehicles. Owners / managers /
+  // viewers in business + every personal-account user keep access.
+  const { isBusiness: isWsBusiness, isDriver: isWsDriver, canManageRoutes: wsCanManage } = useWorkspaceRole();
+  useEffect(() => {
+    if (isWsBusiness && isWsDriver && !wsCanManage) {
+      navigate(createPageUrl('MyVehicles'), { replace: true });
+    }
+  }, [isWsBusiness, isWsDriver, wsCanManage, navigate]);
   const [saving, setSaving] = useState(false);
   const [accountId, setAccountId] = useState(null);
   const [userId, setUserId] = useState(null);

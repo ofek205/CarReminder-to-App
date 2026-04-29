@@ -25,6 +25,7 @@ import VehicleScanWizard from "../components/vehicle/VehicleScanWizard";
 import ConfirmDeleteDialog from "../components/shared/ConfirmDeleteDialog";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import useAccountRole from '@/hooks/useAccountRole';
 import { canEdit } from '@/lib/permissions';
 
@@ -858,9 +859,15 @@ export default function Documents() {
   return <AuthDocuments vehicleIdParam={vehicleIdParam} />;
 }
 
-//  Auth Documents 
+//  Auth Documents
 function AuthDocuments({ vehicleIdParam }) {
   const { role } = useAccountRole();
+  // Drivers in a business workspace must only see documents that
+  // belong to vehicles they're actively assigned to. Without this
+  // scoping the page leaks every document a manager uploaded for the
+  // whole fleet — privacy + clutter problem.
+  const { isBusiness, isDriver, canManageRoutes } = useWorkspaceRole();
+  const restrictToDriverAssignments = isBusiness && isDriver && !canManageRoutes;
   const [accountId, setAccountId] = useState(null);
   const [userId, setUserId] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -881,28 +888,60 @@ function AuthDocuments({ vehicleIdParam }) {
     init();
   }, []);
 
+  // Driver assignments — used to scope both the documents query and
+  // the vehicles dropdown so drivers only see what's theirs.
+  const { data: driverAssignedVehicleIds = null } = useQuery({
+    queryKey: ['driver-assigned-vehicle-ids', accountId, userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('driver_assignments')
+        .select('vehicle_id')
+        .eq('account_id', accountId)
+        .eq('driver_user_id', userId)
+        .eq('status', 'active');
+      if (error) return [];
+      return (data || []).map(a => a.vehicle_id);
+    },
+    enabled: !!accountId && !!userId && restrictToDriverAssignments,
+    staleTime: 60 * 1000,
+  });
+
   const { data: documents = [], isLoading } = useQuery({
-    queryKey: ['documents', accountId, vehicleIdParam],
+    queryKey: ['documents', accountId, vehicleIdParam, restrictToDriverAssignments, driverAssignedVehicleIds?.join(',')],
     queryFn: async () => {
       try {
         const filter = { account_id: accountId };
         if (vehicleIdParam) filter.vehicle_id = vehicleIdParam;
-        // Keep file_url for now (inline view/download buttons depend on it)
-        // but cap the page and order by newest so giant historical blobs
-        // don't dominate egress on every refresh.
-        return await db.documents.filter(filter, {
+        const all = await db.documents.filter(filter, {
           order: { column: 'created_at', ascending: false },
           limit: 200,
         });
+        // Driver scoping happens client-side because Supabase's filter
+        // helper takes equality only. The result set is already
+        // capped at 200 so the post-filter is cheap.
+        if (restrictToDriverAssignments) {
+          const allowed = new Set(driverAssignedVehicleIds || []);
+          return all.filter(d => d.vehicle_id && allowed.has(d.vehicle_id));
+        }
+        return all;
       } catch { return []; }
     },
-    enabled: !!accountId,
+    // For drivers we wait for assignments to resolve so the first
+    // render isn't a flash of unfiltered manager-style data.
+    enabled: !!accountId && (!restrictToDriverAssignments || driverAssignedVehicleIds !== null),
   });
 
   const { data: vehicles = [] } = useQuery({
-    queryKey: ['vehicles-list', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
-    enabled: !!accountId,
+    queryKey: ['vehicles-list', accountId, restrictToDriverAssignments, driverAssignedVehicleIds?.join(',')],
+    queryFn: async () => {
+      const all = await db.vehicles.filter({ account_id: accountId });
+      if (restrictToDriverAssignments) {
+        const allowed = new Set(driverAssignedVehicleIds || []);
+        return (all || []).filter(v => allowed.has(v.id));
+      }
+      return all;
+    },
+    enabled: !!accountId && (!restrictToDriverAssignments || driverAssignedVehicleIds !== null),
   });
 
   const handleSave = async (form) => {
