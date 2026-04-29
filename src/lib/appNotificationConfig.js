@@ -10,7 +10,7 @@
  * this module is purely visual / navigational.
  */
 
-import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare, Briefcase, Truck } from 'lucide-react';
+import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare, Briefcase, Truck, ClipboardList } from 'lucide-react';
 
 // Build a deep-link href from the row's `data` jsonb. Each function is
 // pure so callers can resolve the href without state. When a type
@@ -104,6 +104,19 @@ export const APP_NOTIF_CONFIG = {
     iconColor: '#2D5233',
     iconBg: '#2D5233',
     buildHref: () => '/MyVehicles',
+  },
+  task_assigned: {
+    // Manager created or reassigned a task to this driver. Routes
+    // straight to the task detail (RouteDetail) so the driver can
+    // start working immediately. Falls back to the task list if the
+    // route id is missing for any reason.
+    icon: ClipboardList,
+    bg: '#E8F2EA',
+    iconColor: '#2D5233',
+    iconBg: '#2D5233',
+    buildHref: (data) => data?.route_id
+      ? `/RouteDetail?id=${encodeURIComponent(data.route_id)}`
+      : '/Routes',
   },
   driver_assigned: {
     // Manager assigned this user a vehicle. Routes the driver to
