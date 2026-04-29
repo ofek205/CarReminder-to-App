@@ -35,60 +35,104 @@ const NotificationBell = React.lazy(() => import("@/components/shared/Notificati
 // Bottom nav paths (duplicated in mobile sidebar. hide from sidebar on mobile)
 const BOTTOM_NAV_PATHS = new Set(['Dashboard', 'Documents', 'FindGarage', 'Accidents', 'AiAssistant']);
 
+// Side-drawer items in render order. The filter at visibleItems below
+// preserves array order, so the order here IS the order in the drawer.
+//
+// Layout philosophy (UX + product):
+//   1. Business-workspace items at TOP — when a manager/driver opens
+//      the drawer the first thing they see is "what's my job today".
+//      Personal users don't see this block at all (businessOnly).
+//   2. Personal vehicle-management block follows. For a personal-only
+//      user it floats to the top of THEIR drawer (no businessOnly
+//      sections rendered above), preserving their existing experience.
+//      For a business manager it sits below the work block, prefaced
+//      by an "אישי" divider that only renders in business mode.
+//   3. Account-level items (settings, contact) near the bottom.
+//   4. Super-admin section ALWAYS last — heavy tools shouldn't dominate
+//      day-to-day navigation, even for admins.
+//
+// Copy rules: short, scannable labels. No "ה" filler ("דף הבית שלי" →
+// "דף הבית"). No bureaucratic suffixes ("ניתוחים", "תפעול",
+// "החשבון העסקי") when the section header already provides context.
 const navItems = [
-  //  ניווט 
-  { name: 'Dashboard',             label: 'דף הבית שלי',     icon: LayoutDashboard, guestAllowed: true,                          hideForBusinessDriver: true },
-  { name: 'Vehicles',              label: 'רכבים',            icon: Car,             guestAllowed: true,                          hideForBusinessDriver: true },
-  { name: 'Vehicles?category=vessel', label: 'כלי שייט',      icon: Ship,            guestAllowed: true, vesselOnly: true,        hideForBusinessDriver: true },
-  //  ניהול 
-  { divider: true, title: 'ניהול' },
-  { name: 'MaintenanceTemplates',  label: 'טיפולים ותיקונים', icon: Wrench,          guestAllowed: true },
-  { name: 'Documents',             label: 'מסמכים',           icon: FileText,        guestAllowed: true },
-  { name: 'Accidents',             label: 'תאונות',           icon: AlertTriangle,   guestAllowed: true },
-  //  קהילה
+  // ====================================================================
+  // עבודה — business work surfaces. Routes is shared by manager + driver
+  // so it sits high up; manager-only and driver-only items render
+  // conditionally in the same block.
+  // ====================================================================
+  { divider: true, title: 'עבודה', businessOnly: true },
+  { name: 'BusinessDashboard',  label: 'דשבורד עסקי',  icon: LayoutDashboard, guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'MyVehicles',         label: 'הרכבים שלי',   icon: Truck,           guestAllowed: false, businessOnly: true, driverOnly: true },
+  { name: 'Routes',             label: 'משימות',       icon: MapPin,          guestAllowed: false, businessOnly: true },
+  { name: 'Fleet',              label: 'צי הרכבים',    icon: Truck,           guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'Drivers',            label: 'נהגים',        icon: Users,           guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'Team',               label: 'הצוות שלי',    icon: Users,           guestAllowed: false, businessOnly: true, driverOnly: true },
+
+  // ====================================================================
+  // ניתוח ובקרה — analytical, not action-taking. Driver sees only
+  // ActivityLog (the only non-managerOnly item); the orphan-divider
+  // filter trims this header for them if no items remain.
+  // ====================================================================
+  { divider: true, title: 'ניתוח ובקרה', businessOnly: true },
+  { name: 'DrivingLog',         label: 'יומן נסיעות', icon: FileText,        guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'Reports',            label: 'דוחות',       icon: TrendingUp,      guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'Expenses',           label: 'הוצאות',      icon: Receipt,         guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'ActivityLog',        label: 'יומן פעילות', icon: FileText,        guestAllowed: false, businessOnly: true },
+
+  // ====================================================================
+  // אישי — personal vehicle hat. The "אישי" header is businessOnly so
+  // it only renders for business users (separating their two contexts);
+  // personal-only users see no header here, which matches the legacy
+  // behavior where Dashboard/Vehicles were the first un-headered items.
+  // ====================================================================
+  { divider: true, title: 'אישי', businessOnly: true },
+  { name: 'Dashboard',          label: 'דף הבית', icon: LayoutDashboard, guestAllowed: true, hideForBusinessDriver: true },
+  { name: 'Vehicles',           label: 'רכבים',   icon: Car,             guestAllowed: true, hideForBusinessDriver: true },
+  { name: 'Vehicles?category=vessel', label: 'כלי שייט', icon: Ship,    guestAllowed: true, vesselOnly: true, hideForBusinessDriver: true },
+
+  // ====================================================================
+  // תחזוקה — vehicle care. FindGarage moved here from its own "כלים"
+  // section; one-item sections waste a divider line and add visual
+  // noise without conveying structure.
+  // ====================================================================
+  { divider: true, title: 'תחזוקה' },
+  { name: 'MaintenanceTemplates', label: 'טיפולים', icon: Wrench,        guestAllowed: true },
+  { name: 'Documents',          label: 'מסמכים',  icon: FileText,        guestAllowed: true },
+  { name: 'Accidents',          label: 'תאונות',  icon: AlertTriangle,   guestAllowed: true },
+  { name: 'FindGarage',         label: 'מצא מוסך', icon: MapPin,         guestAllowed: true },
+
+  // ====================================================================
+  // קהילה — Community + Expert AI. Both are personal-flow surfaces and
+  // intentionally hidden from business drivers (they're working on
+  // company time; these are off-task). The driverHidesIfFlag option
+  // lets a manager re-surface them via BusinessSettings.
+  // ====================================================================
   { divider: true, title: 'קהילה' },
-  // Community + Expert AI are personal-flow surfaces. Drivers in a
-  // business workspace are working on company time — these would be
-  // a distraction in the driver's "what do I do next" line of sight.
-  // The driverHidesIfFlag option is kept for the rare manager who
-  // wants to surface them anyway via BusinessSettings, but the default
-  // is now hidden by hideForBusinessDriver.
-  { name: 'Community',             label: 'קהילה וייעוץ',    icon: Users,           guestAllowed: true, hideForBusinessDriver: true, driverHidesIfFlag: 'driver_hide_community' },
-  { name: 'AiAssistant',           label: 'התייעצות עם מומחה AI', icon: Sparkles,    guestAllowed: true, hideForBusinessDriver: true, driverHidesIfFlag: 'driver_hide_ai' },
-  //  כלים 
-  { divider: true, title: 'כלים' },
-  { name: 'FindGarage',            label: 'מצא מוסך',        icon: MapPin,          guestAllowed: true },
-  //  חשבון
+  { name: 'Community',          label: 'קהילה וייעוץ', icon: Users,    guestAllowed: true, hideForBusinessDriver: true, driverHidesIfFlag: 'driver_hide_community' },
+  { name: 'AiAssistant',        label: 'מומחה AI',      icon: Sparkles, guestAllowed: true, hideForBusinessDriver: true, driverHidesIfFlag: 'driver_hide_ai' },
+
+  // ====================================================================
+  // חשבון — settings, account-level actions. The unified Settings hub
+  // replaces three legacy entries (אזור אישי / שיתוף / תזכורות); old
+  // deep-links still work, they just aren't surfaced in the drawer.
+  // ====================================================================
   { divider: true, title: 'חשבון' },
-  // Unified Settings hub replaces three separate entries (אזור אישי /
-  // שיתוף חשבון / הגדרות תזכורות). The old routes still work as
-  // deep-link targets (e.g. from push notifications), they just aren't
-  // surfaced in the menu any more.
-  { name: 'Settings',              label: 'הגדרות',           icon: Settings,        guestAllowed: true },
-  { name: 'BusinessSettings',      label: 'הגדרות החשבון העסקי', icon: Briefcase,    guestAllowed: false, businessOnly: true, ownerOnly: true },
-  { name: 'AdminReviews',          label: 'חוות דעת',         icon: Star,            guestAllowed: true },
-  { name: 'Contact',               label: 'צור קשר',          icon: MessageSquare,   guestAllowed: true },
-  //  Phase 6 — B2B Routes & Tasks. businessOnly hides for personal
-  //  workspaces (private users see nothing). managerOnly / driverAllowed
-  //  further gate by workspace role. routes-list page itself handles
-  //  the manager-vs-driver mode switch internally.
-  { divider: true, title: 'תפעול', businessOnly: true },
-  { name: 'BusinessDashboard',     label: 'דשבורד עסקי',        icon: LayoutDashboard, guestAllowed: false, businessOnly: true, managerOnly: true },
-  { name: 'MyVehicles',            label: 'הרכבים שלי',         icon: Truck,           guestAllowed: false, businessOnly: true, driverOnly: true },
-  { name: 'Team',                  label: 'הצוות שלי',          icon: Users,           guestAllowed: false, businessOnly: true, driverOnly: true },
-  { name: 'Fleet',                 label: 'צי הרכבים',          icon: Truck,           guestAllowed: false, businessOnly: true, managerOnly: true },
-  { name: 'Routes',                label: 'משימות',             icon: MapPin,          guestAllowed: false, businessOnly: true },
-  { name: 'Drivers',               label: 'נהגים',              icon: Users,           guestAllowed: false, businessOnly: true, managerOnly: true },
-  { divider: true, title: 'אנליטיקה', businessOnly: true },
-  { name: 'ActivityLog',           label: 'יומן פעילות',       icon: FileText,        guestAllowed: false, businessOnly: true },
-  { name: 'DrivingLog',            label: 'יומן נסיעות',        icon: FileText,        guestAllowed: false, businessOnly: true, managerOnly: true },
-  { name: 'Reports',               label: 'דוחות וניתוחים',     icon: TrendingUp,      guestAllowed: false, businessOnly: true, managerOnly: true },
-  { name: 'Expenses',              label: 'הוצאות תפעול',      icon: Receipt,         guestAllowed: false, businessOnly: true, managerOnly: true },
-  { divider: true, title: 'ניהול אדמין', adminOnly: true },
-  { name: 'AdminDashboard',        label: 'לוח ניהול',        icon: ShieldCheck,     guestAllowed: false, adminOnly: true },
-  { name: 'EmailCenter',           label: 'ניהול מיילים',      icon: Mail,            guestAllowed: false, adminOnly: true },
-  { name: 'AdminAiSettings',       label: 'הגדרות AI',         icon: Sparkles,        guestAllowed: false, adminOnly: true },
-  { name: 'AdminBusinessRequests', label: 'בקשות חשבון עסקי',  icon: Briefcase,       guestAllowed: false, adminOnly: true },
+  { name: 'Settings',           label: 'הגדרות',         icon: Settings,        guestAllowed: true },
+  { name: 'BusinessSettings',   label: 'הגדרות עסקיות', icon: Briefcase,       guestAllowed: false, businessOnly: true, ownerOnly: true },
+  { name: 'AdminReviews',       label: 'חוות דעת',       icon: Star,            guestAllowed: true },
+  { name: 'Contact',            label: 'צור קשר',        icon: MessageSquare,   guestAllowed: true },
+
+  // ====================================================================
+  // ניהול מערכת — super-admin (Ofek) only. Always last per project
+  // rule: powerful tools shouldn't dominate day-to-day nav.
+  // Renamed from "ניהול אדמין" — distinguishes from workspace-level
+  // "מנהל" (account manager); this section is system-level admin.
+  // ====================================================================
+  { divider: true, title: 'ניהול מערכת', adminOnly: true },
+  { name: 'AdminDashboard',     label: 'לוח ניהול',     icon: ShieldCheck, guestAllowed: false, adminOnly: true },
+  { name: 'EmailCenter',        label: 'מיילים',        icon: Mail,        guestAllowed: false, adminOnly: true },
+  { name: 'AdminAiSettings',    label: 'הגדרות AI',     icon: Sparkles,    guestAllowed: false, adminOnly: true },
+  { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase, guestAllowed: false, adminOnly: true },
 ];
 
 
