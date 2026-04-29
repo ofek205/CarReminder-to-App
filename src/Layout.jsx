@@ -321,6 +321,7 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
             </div>
           </div>
         )}
+        {isAuthenticated && !isMobile && <WorkspaceSwitcher />}
       </div>
 
       {/* Navigation - scrollable.
