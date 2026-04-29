@@ -26,6 +26,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import VehiclePicker from '@/components/shared/VehiclePicker';
 
 const PAGE_SIZE = 30;
 
@@ -205,14 +206,16 @@ export default function ActivityLog() {
             </select>
           </FilterRow>
           <FilterRow label="רכב">
-            <select value={filterVehicle} onChange={(e) => setFilterVehicle(e.target.value)} className={selectCls}>
-              <option value="">הכל</option>
-              {vehicles.map(v => (
-                <option key={v.id} value={v.id}>
-                  {v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim()}
-                </option>
-              ))}
-            </select>
+            {/* Rich vehicle picker — searchable, themed, replaces the
+                plate-only native <select>. */}
+            <VehiclePicker
+              vehicles={vehicles}
+              value={filterVehicle}
+              onChange={setFilterVehicle}
+              placeholder="כל הרכבים"
+              allowClear
+              size="sm"
+            />
           </FilterRow>
           <FilterRow label="משימה">
             <select value={filterRoute} onChange={(e) => setFilterRoute(e.target.value)} className={selectCls}>

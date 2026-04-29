@@ -15,7 +15,7 @@ import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Briefcase, Truck, User as UserIcon, Calendar, Search, ChevronLeft,
+  Briefcase, User as UserIcon, Calendar, Search, ChevronLeft,
   AlertCircle, FileText,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -25,6 +25,7 @@ import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { createPageUrl } from '@/utils';
 import VehicleLabel, { vehicleDisplayText } from '@/components/shared/VehicleLabel';
+import VehiclePicker from '@/components/shared/VehiclePicker';
 
 // Status pills mirror Routes.jsx exactly so a manager who jumps
 // between the two pages doesn't have to re-learn the colour code.
@@ -179,12 +180,15 @@ export default function DrivingLog() {
             onChange={setFilterDriver}
             options={[{ value: '', label: 'כל הנהגים' }, ...drivers.map(d => ({ value: d.user_id, label: d.display_name }))]}
           />
-          <FilterSelect
-            label="רכב"
-            icon={<Truck className="h-3.5 w-3.5 text-gray-400" />}
+          {/* Rich, searchable vehicle picker — used to be a native
+              <select> that could only show plate text. */}
+          <VehiclePicker
+            vehicles={vehicles}
             value={filterVehicle}
             onChange={setFilterVehicle}
-            options={[{ value: '', label: 'כל הרכבים' }, ...vehicles.map(v => ({ value: v.id, label: vehicleLabel(v.id) }))]}
+            placeholder="כל הרכבים"
+            allowClear
+            size="sm"
           />
         </div>
 

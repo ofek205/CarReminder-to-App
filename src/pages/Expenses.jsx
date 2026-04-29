@@ -1,20 +1,37 @@
 /**
  * Phase 8 — Expenses CRUD (Manager only).
  *
- * List + add/edit/delete manual vehicle expenses (fuel, insurance,
- * other; repair entries can also live here for non-repair_logs flows).
+ * List + add/edit/delete manual vehicle expenses. The list view is a
+ * tight per-row card; the editor opens a polished bottom-sheet/modal
+ * dialog with:
  *
- * Drivers cannot reach this page — RLS on vehicle_expenses denies SELECT
- * for role='driver', and the businessOnly nav flag hides the link.
+ *   • Rich VehiclePicker (icon + name + plate + search) — replaces the
+ *     plate-only native <select> the previous version had.
+ *   • Receipt attachment with two paths:
+ *       1. Upload + AI scan — Gemini extracts amount, date, vendor and
+ *          suggests a category, prefilling the form.
+ *       2. Upload only — store the receipt for record-keeping without
+ *          the AI step.
+ *     Both store the file in the shared scans bucket and persist the
+ *     URL on vehicle_expenses.receipt_url / receipt_storage_path.
+ *   • Inline preview of the attached receipt with "החלף" / "הסר".
  *
- * Note: repair_logs.cost values entered through the existing
- * Maintenance/Repairs UI are NOT shown here — that page already manages
- * them. Reports.jsx aggregates BOTH sources together.
+ * Drivers cannot reach this page — RLS denies SELECT for role='driver'
+ * and the businessOnly nav flag hides the link.
+ *
+ * SQL prerequisites (supabase-expense-receipts.sql, run once):
+ *   • vehicle_expenses.receipt_url, receipt_storage_path columns
+ *   • add_vehicle_expense / update_vehicle_expense extended signatures
+ *
+ * Note: repair_logs.cost values entered through Maintenance/Repairs UI
+ * are NOT shown here — that page already manages them. Reports.jsx
+ * aggregates BOTH sources together.
  */
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useQuery, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import {
-  Plus, Trash2, Pencil, Loader2, Briefcase, Receipt, X,
+  Plus, Trash2, Pencil, Loader2, Briefcase, Receipt, X, Upload, Camera,
+  ScanLine, Sparkles, FileText, AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -22,7 +39,11 @@ import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
-import VehicleLabel, { vehicleDisplayText } from '@/components/shared/VehicleLabel';
+import VehicleLabel from '@/components/shared/VehicleLabel';
+import VehiclePicker from '@/components/shared/VehiclePicker';
+import { uploadScanFile, deleteFile } from '@/lib/supabaseStorage';
+import { extractDataFromUploadedFile } from '@/lib/aiExtract';
+import { validateUploadFile } from '@/lib/securityUtils';
 
 const CATEGORY_LABELS = {
   fuel:      'דלק',
@@ -42,12 +63,9 @@ export default function Expenses() {
   const { isBusiness, isManager, isLoading: roleLoading } = useWorkspaceRole();
   const queryClient = useQueryClient();
 
-  const [editing, setEditing]     = useState(null); // null | {} (new) | row (edit)
+  const [editing, setEditing] = useState(null); // null | {} (new) | row (edit)
 
   // Phase 9 step 7 — keyset pagination on created_at, 30 rows per page.
-  // expense_date can repeat across rows so cursor uses created_at which
-  // is monotonic. Display order is still expense_date desc → created_at desc
-  // for natural reading.
   const PAGE_SIZE = 30;
   const {
     data: expensePages, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage,
@@ -106,7 +124,6 @@ export default function Expenses() {
     );
 
   const vehicleById = Object.fromEntries(vehicles.map(v => [v.id, v]));
-  const vehicleLabel = (id) => vehicleDisplayText(vehicleById[id]);
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
@@ -118,7 +135,7 @@ export default function Expenses() {
         <button
           type="button"
           onClick={() => setEditing({})}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98]"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98] shadow-sm"
         >
           <Plus className="h-4 w-4" /> הוצאה חדשה
         </button>
@@ -139,15 +156,24 @@ export default function Expenses() {
             <li key={e.id} className="bg-white border border-gray-100 rounded-xl p-3">
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1.5">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                     <span className="text-sm font-bold text-gray-900">{fmtMoney(e.amount, e.currency)}</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-700 font-bold">
                       {CATEGORY_LABELS[e.category] || e.category}
                     </span>
                     <span className="text-[11px] text-gray-400">{fmtDate(e.expense_date)}</span>
+                    {e.receipt_url && (
+                      <a
+                        href={e.receipt_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#E8F2EA] text-[#2D5233] text-[10px] font-bold border border-[#2D5233]/20 hover:bg-[#2D5233]/10"
+                        onClick={(ev) => ev.stopPropagation()}
+                      >
+                        <FileText className="h-2.5 w-2.5" /> חשבונית
+                      </a>
+                    )}
                   </div>
-                  {/* Interactive vehicle row — click goes to VehicleDetail.
-                      Replaces the previous "license-plate-only" text. */}
                   <VehicleLabel
                     vehicle={vehicleById[e.vehicle_id]}
                     size="sm"
@@ -166,9 +192,15 @@ export default function Expenses() {
                       try {
                         const { error } = await supabase.rpc('delete_vehicle_expense', { p_id: e.id });
                         if (error) throw error;
+                        // Receipt blob cleanup is best-effort; if it
+                        // fails the row is already gone so the user is
+                        // none the wiser.
+                        if (e.receipt_storage_path) {
+                          deleteFile(e.receipt_storage_path).catch(() => {});
+                        }
                         toast.success('ההוצאה נמחקה');
                         await queryClient.invalidateQueries({ queryKey: ['expenses'] });
-                      } catch (err) {
+                      } catch {
                         toast.error('המחיקה נכשלה. נסה שוב.');
                       }
                     }}
@@ -212,6 +244,8 @@ export default function Expenses() {
   );
 }
 
+// ---------- Dialog ---------------------------------------------------
+
 function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
   const isEdit = !!row?.id;
   const [vehicleId, setVehicleId] = useState(row.vehicle_id   || '');
@@ -221,6 +255,125 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
   const [note,      setNote]      = useState(row.note         || '');
   const [submitting, setSubmitting] = useState(false);
 
+  // Receipt state ----------------------------------------------------
+  // url        — signed URL we can render now (newly uploaded OR loaded
+  //              from the existing row).
+  // storagePath — bucket-relative path; the source of truth.
+  // didReplace  — manager replaced/removed the existing receipt; we
+  //              tell the RPC to clear via p_clear_receipt or update
+  //              with the new path.
+  // newPath     — when a new file was uploaded in THIS dialog session.
+  //              On dialog close without save, we delete that orphan;
+  //              on save, we mark it as committed so cleanup skips.
+  const [receiptUrl,  setReceiptUrl]  = useState(row.receipt_url || '');
+  const [receiptPath, setReceiptPath] = useState(row.receipt_storage_path || '');
+  const [uploading,   setUploading]   = useState(false);
+  const [scanning,    setScanning]    = useState(false);
+  const [scanError,   setScanError]   = useState('');
+  const [didChangeReceipt, setDidChangeReceipt] = useState(false);
+  const newOrphanPathRef = useRef(null); // path uploaded in THIS session
+  const savedRef         = useRef(false);
+  const fileInputRef     = useRef(null);
+
+  const handleClose = () => {
+    // If we uploaded a fresh receipt in this session and the user
+    // closes without saving, drop the orphan blob so we don't pay for
+    // unreferenced storage.
+    if (newOrphanPathRef.current && !savedRef.current) {
+      deleteFile(newOrphanPathRef.current).catch(() => {});
+    }
+    onClose();
+  };
+
+  // -- file upload ---------------------------------------------------
+  const handleFile = async (file, { thenScan } = {}) => {
+    if (!file) return;
+    const validation = validateUploadFile(file, 'doc', 10);
+    if (!validation.ok) { setScanError(validation.error); return; }
+
+    setScanError('');
+    setUploading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('no user');
+      const { file_url, storage_path } = await uploadScanFile({ file, userId: user.id });
+
+      // If the user is replacing an EXISTING receipt, queue the previous
+      // one for cleanup once the row is saved. We don't delete it yet
+      // because if the user cancels, the original is still referenced.
+      // Easiest correct approach: if didChangeReceipt was already true
+      // (already an orphan from this session), nuke it immediately.
+      if (newOrphanPathRef.current) {
+        deleteFile(newOrphanPathRef.current).catch(() => {});
+      }
+      newOrphanPathRef.current = storage_path;
+      setReceiptUrl(file_url);
+      setReceiptPath(storage_path);
+      setDidChangeReceipt(true);
+
+      if (thenScan) {
+        await runAiScan(file_url);
+      }
+    } catch {
+      setScanError('שגיאה בהעלאת הקובץ. נסה שנית.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // -- AI scan -------------------------------------------------------
+  const runAiScan = async (urlOverride) => {
+    const url = urlOverride || receiptUrl;
+    if (!url) { setScanError('יש להעלות חשבונית קודם'); return; }
+    setScanning(true);
+    setScanError('');
+    try {
+      const schema = {
+        type: 'object',
+        properties: {
+          amount:   { type: 'number', description: 'הסכום הסופי לתשלום בשקלים (ILS). אם המסמך באנגלית — סכום total.' },
+          date:     { type: 'string', description: 'תאריך החשבונית בפורמט YYYY-MM-DD. אם יש רק DD/MM/YYYY — המר.' },
+          vendor:   { type: 'string', description: 'שם בית העסק / המוסך / תחנת הדלק.' },
+          category: { type: 'string', enum: ['fuel', 'repair', 'insurance', 'other'],
+                      description: 'אחת מ: fuel (דלק / תחנת דלק), repair (תיקונים / מוסך / חלפים), insurance (ביטוח / פוליסה), other (כל השאר).' },
+        },
+      };
+      const result = await extractDataFromUploadedFile({
+        file_url: url,
+        json_schema: schema,
+        instructions: 'חלץ פרטי חשבונית כספית. החזר רק את הערכים שמופיעים בבירור במסמך. אם שדה לא ברור — השאר ריק.',
+      });
+      if (result?.status !== 'success' || !result.output) {
+        throw new Error(result?.details || 'extraction_failed');
+      }
+      const out = result.output;
+      // Only overwrite fields the AI confidently extracted; leave the
+      // rest of the form untouched.
+      if (out.amount && Number(out.amount) > 0) setAmount(String(out.amount));
+      if (out.date && /^\d{4}-\d{2}-\d{2}$/.test(out.date)) setDate(out.date);
+      if (out.category && CATEGORY_LABELS[out.category]) setCategory(out.category);
+      if (out.vendor && !note) setNote(out.vendor);
+      toast.success('הסריקה הושלמה — בדוק את הפרטים והוסף');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('receipt scan failed:', err);
+      setScanError('הסריקה לא הצליחה — מלא את הפרטים ידנית');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const removeReceipt = () => {
+    if (newOrphanPathRef.current) {
+      deleteFile(newOrphanPathRef.current).catch(() => {});
+      newOrphanPathRef.current = null;
+    }
+    setReceiptUrl('');
+    setReceiptPath('');
+    setDidChangeReceipt(true);
+  };
+
+  // -- submit --------------------------------------------------------
   const submit = async (e) => {
     e.preventDefault();
     if (!isEdit && !vehicleId) { toast.error('יש לבחור רכב'); return; }
@@ -232,27 +385,39 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
     try {
       if (isEdit) {
         const { error } = await supabase.rpc('update_vehicle_expense', {
-          p_id:           row.id,
-          p_amount:       amt,
-          p_category:     category,
-          p_expense_date: date,
-          p_note:         note,
+          p_id:                   row.id,
+          p_amount:               amt,
+          p_category:             category,
+          p_expense_date:         date,
+          p_note:                 note,
+          p_receipt_url:          didChangeReceipt ? (receiptUrl || null) : null,
+          p_receipt_storage_path: didChangeReceipt ? (receiptPath || null) : null,
+          p_clear_receipt:        didChangeReceipt && !receiptPath,
         });
         if (error) throw error;
+        // If we replaced an existing receipt, the OLD blob is now
+        // orphaned — nuke it.
+        if (didChangeReceipt && row.receipt_storage_path
+            && row.receipt_storage_path !== receiptPath) {
+          deleteFile(row.receipt_storage_path).catch(() => {});
+        }
         toast.success('ההוצאה עודכנה');
       } else {
         const { error } = await supabase.rpc('add_vehicle_expense', {
-          p_account_id:   accountId,
-          p_vehicle_id:   vehicleId,
-          p_amount:       amt,
-          p_category:     category,
-          p_expense_date: date,
-          p_note:         note || null,
-          p_currency:     'ILS',
+          p_account_id:           accountId,
+          p_vehicle_id:           vehicleId,
+          p_amount:               amt,
+          p_category:             category,
+          p_expense_date:         date,
+          p_note:                 note || null,
+          p_currency:             'ILS',
+          p_receipt_url:          receiptUrl || null,
+          p_receipt_storage_path: receiptPath || null,
         });
         if (error) throw error;
         toast.success('ההוצאה נוספה');
       }
+      savedRef.current = true;
       onSaved?.();
     } catch (err) {
       const msg = err?.message || '';
@@ -269,64 +434,321 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
   };
 
   return (
-    <div dir="rtl" className="fixed inset-0 z-[10000] bg-black/40 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">{isEdit ? 'ערוך הוצאה' : 'הוצאה חדשה'}</h2>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="h-4 w-4 text-gray-500" /></button>
+    <div
+      dir="rtl"
+      className="fixed inset-0 z-[10000] bg-black/40 flex items-end sm:items-center justify-center p-2 sm:p-3"
+      onClick={handleClose}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-[#E8F2EA] flex items-center justify-center">
+              <Receipt className="h-4 w-4 text-[#2D5233]" />
+            </div>
+            <h2 className="text-base font-bold text-gray-900">
+              {isEdit ? 'ערוך הוצאה' : 'הוצאה חדשה'}
+            </h2>
+          </div>
+          <button onClick={handleClose} className="p-1.5 hover:bg-gray-100 rounded-lg" aria-label="סגור">
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
         </div>
-        <form onSubmit={submit} className="space-y-3">
+
+        {/* Body — scrollable so the receipt section never pushes the
+            submit button off-screen on a small device. */}
+        <form onSubmit={submit} className="flex-1 overflow-y-auto px-5 py-4 space-y-3.5">
+          {/* Vehicle */}
           {!isEdit && (
             <Field label="רכב" required>
-              <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} className={inputCls}>
-                <option value="">בחר רכב...</option>
-                {vehicles.map(v => (
-                  <option key={v.id} value={v.id}>
-                    {v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim()}
-                  </option>
-                ))}
-              </select>
+              <VehiclePicker
+                vehicles={vehicles}
+                value={vehicleId}
+                onChange={setVehicleId}
+                placeholder="בחר רכב מהצי..."
+              />
             </Field>
           )}
+          {isEdit && (
+            <Field label="רכב">
+              <div className="px-3 py-2 rounded-lg border border-gray-100 bg-gray-50">
+                <VehicleLabel
+                  vehicle={vehicles.find(v => v.id === row.vehicle_id)}
+                  size="sm"
+                  interactive={false}
+                />
+              </div>
+            </Field>
+          )}
+
+          {/* AI receipt scan section */}
+          <ReceiptScanCard
+            receiptUrl={receiptUrl}
+            uploading={uploading}
+            scanning={scanning}
+            scanError={scanError}
+            onUpload={(file, opts) => handleFile(file, opts)}
+            onScan={() => runAiScan()}
+            onRemove={removeReceipt}
+            fileInputRef={fileInputRef}
+          />
+
+          {/* Amount + Category */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="סכום (₪)" required>
-              <input type="number" step="0.01" min="0" value={amount}
-                onChange={(e) => setAmount(e.target.value)} className={inputCls} />
+              <input
+                type="number" inputMode="decimal" step="0.01" min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className={inputCls}
+                placeholder="0"
+              />
             </Field>
             <Field label="קטגוריה" required>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
-                {CATEGORY_ORDER.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
-              </select>
+              <CategoryPicker value={category} onChange={setCategory} />
             </Field>
           </div>
+
+          {/* Date */}
           <Field label="תאריך" required>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
           </Field>
+
+          {/* Note */}
           <Field label="הערה">
             <textarea
               value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={inputCls}
               placeholder="תיאור קצר, מספר חשבונית, או כל פרט שיועיל"
             />
           </Field>
-          <button type="submit" disabled={submitting}
-            className="w-full py-2.5 rounded-xl font-bold text-sm bg-[#2D5233] text-white flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60">
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isEdit ? 'שמור שינויים' : 'הוסף הוצאה'}
-          </button>
         </form>
+
+        {/* Sticky footer */}
+        <div className="px-5 py-3 border-t border-gray-100 bg-white">
+          <button
+            type="button"
+            onClick={submit}
+            disabled={submitting}
+            className="w-full py-3 rounded-xl font-bold text-sm bg-[#2D5233] text-white flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 shadow-sm"
+          >
+            {submitting
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : isEdit ? 'שמור שינויים' : 'הוסף הוצאה'}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30";
+// ---------- Receipt scan card ----------------------------------------
+
+function ReceiptScanCard({ receiptUrl, uploading, scanning, scanError, onUpload, onScan, onRemove, fileInputRef }) {
+  // Camera input gives mobile users the OS camera picker; the regular
+  // file input gives desktop users their file dialog. Both feed the
+  // same upload handler.
+  const cameraRef = useRef(null);
+  const isImage = /\.(jpe?g|png|webp|heic|heif)(\?|$)/i.test(receiptUrl || '');
+
+  const handleFileEvent = (e, opts) => {
+    const f = e.target.files?.[0];
+    if (f) onUpload(f, opts);
+    e.target.value = '';
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gradient-to-bl from-[#F5FAF6] to-white p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <ScanLine className="h-3.5 w-3.5 text-[#2D5233]" />
+          <span className="text-xs font-bold text-gray-900">חשבונית / קבלה</span>
+        </div>
+        {!receiptUrl && (
+          <span className="text-[10px] text-gray-400">לא חובה</span>
+        )}
+      </div>
+
+      {!receiptUrl ? (
+        <>
+          <p className="text-[10px] text-gray-500 leading-relaxed mb-2.5">
+            צרף תמונת חשבונית או קבלה. אפשר לסרוק עם AI שיזהה אוטומטית סכום, תאריך וקטגוריה — או רק לתעד.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {/* Hidden file inputs driven by the two visible buttons. */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              onChange={(e) => handleFileEvent(e, { thenScan: false })}
+              className="hidden"
+            />
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => handleFileEvent(e, { thenScan: true })}
+              className="hidden"
+            />
+
+            <button
+              type="button"
+              disabled={uploading || scanning}
+              onClick={() => cameraRef.current?.click()}
+              className="flex flex-col items-center justify-center gap-1 py-2.5 px-2 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold active:scale-[0.97] disabled:opacity-60 shadow-sm"
+            >
+              <span className="flex items-center gap-1">
+                <Sparkles className="h-3.5 w-3.5" />
+                <Camera className="h-3.5 w-3.5" />
+              </span>
+              <span>צלם וסרוק עם AI</span>
+            </button>
+            <button
+              type="button"
+              disabled={uploading || scanning}
+              onClick={() => fileInputRef.current?.click()}
+              className="flex flex-col items-center justify-center gap-1 py-2.5 px-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-[11px] font-bold active:scale-[0.97] disabled:opacity-60 hover:bg-gray-50"
+            >
+              <Upload className="h-3.5 w-3.5 text-gray-500" />
+              <span>צרף קובץ בלבד</span>
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="space-y-2">
+          {/* Inline preview — image gets a thumbnail; PDFs / unknowns get
+              a generic file pill so the user knows it's there. */}
+          <div className="flex items-center gap-3 p-2 rounded-lg bg-white border border-gray-100">
+            {isImage ? (
+              <a href={receiptUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                <img
+                  src={receiptUrl}
+                  alt="חשבונית"
+                  className="w-14 h-14 rounded-md object-cover border border-gray-100"
+                />
+              </a>
+            ) : (
+              <a
+                href={receiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 w-14 h-14 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center"
+              >
+                <FileText className="h-6 w-6 text-gray-400" />
+              </a>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-gray-900">חשבונית מצורפת</p>
+              <a
+                href={receiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-[#2D5233] underline"
+              >
+                פתח בחלון חדש
+              </a>
+            </div>
+            <button
+              type="button"
+              onClick={onRemove}
+              className="p-1.5 rounded-md hover:bg-red-50"
+              aria-label="הסר חשבונית"
+              title="הסר"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-red-500" />
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={scanning}
+              onClick={onScan}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold disabled:opacity-60 active:scale-[0.97]"
+            >
+              {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {scanning ? 'מנתח חשבונית...' : 'סרוק שדות עם AI'}
+            </button>
+            <button
+              type="button"
+              disabled={uploading || scanning}
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-gray-100 text-gray-700 text-[11px] font-bold active:scale-[0.97]"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              החלף
+            </button>
+          </div>
+        </div>
+      )}
+
+      {(uploading) && (
+        <div className="mt-2 flex items-center gap-1.5 text-[10px] text-gray-500">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          מעלה קובץ...
+        </div>
+      )}
+      {scanError && (
+        <div className="mt-2 flex items-center gap-1.5 text-[10px] text-red-600">
+          <AlertCircle className="h-3 w-3 shrink-0" />
+          <span>{scanError}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Category picker (visual segmented control) --------------
+
+const CATEGORY_VISUAL = {
+  fuel:      { color: 'text-blue-700  bg-blue-50  border-blue-200',    activeBg: 'bg-blue-600' },
+  repair:    { color: 'text-orange-700 bg-orange-50 border-orange-200', activeBg: 'bg-orange-600' },
+  insurance: { color: 'text-purple-700 bg-purple-50 border-purple-200', activeBg: 'bg-purple-600' },
+  other:     { color: 'text-slate-700  bg-slate-50  border-slate-200',  activeBg: 'bg-slate-600' },
+};
+
+function CategoryPicker({ value, onChange }) {
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      {CATEGORY_ORDER.map(c => {
+        const active = c === value;
+        const v = CATEGORY_VISUAL[c];
+        return (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onChange(c)}
+            className={`px-2.5 py-2 rounded-lg text-xs font-bold border transition-all ${
+              active
+                ? `${v.activeBg} text-white border-transparent shadow-sm`
+                : `${v.color} hover:brightness-95`
+            }`}
+          >
+            {CATEGORY_LABELS[c]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------- helpers --------------------------------------------------
+
+const inputCls = "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30 focus:border-[#2D5233] transition-all";
+
 function Field({ label, required, children }) {
   return (
     <div>
-      <label className="block text-xs font-bold text-gray-700 mb-1">{label} {required && <span className="text-red-500">*</span>}</label>
+      <label className="block text-xs font-bold text-gray-700 mb-1.5">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
       {children}
     </div>
   );
 }
+
 function Empty({ icon, title, text, embedded }) {
   return (
     <div dir="rtl" className={embedded ? 'py-10' : 'max-w-md mx-auto py-16'}>

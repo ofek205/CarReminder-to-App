@@ -41,6 +41,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import VehicleLabel, { vehicleDisplayText } from '@/components/shared/VehicleLabel';
+import VehiclePicker from '@/components/shared/VehiclePicker';
 
 // ---------- formatters ------------------------------------------------
 
@@ -568,21 +569,17 @@ export default function Reports() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-gray-50">
           <DateField label="מתאריך" value={customFrom} onChange={setCustomFrom} />
           <DateField label="עד תאריך" value={customTo}   onChange={setCustomTo} />
-          <FilterField label="רכב">
-            <select
-              value={filterVehicle}
-              onChange={(e) => setFilterVehicle(e.target.value)}
-              className="w-full text-xs bg-transparent focus:outline-none truncate"
-            >
-              <option value="">כל הרכבים</option>
-              {vehicles.map(v => (
-                // Native <option> can't host JSX, so we use the
-                // plain-text "name · plate" form. Everywhere outside
-                // the dropdown we use the rich VehicleLabel.
-                <option key={v.id} value={v.id}>{vehicleDisplayText(v)}</option>
-              ))}
-            </select>
-          </FilterField>
+          {/* Rich VehiclePicker — searchable, themed, shows icon +
+              nickname chip + plate. Replaces the native <select>
+              that could only show "name · plate" text. */}
+          <VehiclePicker
+            vehicles={vehicles}
+            value={filterVehicle}
+            onChange={setFilterVehicle}
+            placeholder="כל הרכבים"
+            allowClear
+            size="sm"
+          />
         </div>
         {customActive && (
           <p className="text-[10px] text-gray-400">תאריך מותאם פעיל — מתעלם מהקיצורים.</p>
