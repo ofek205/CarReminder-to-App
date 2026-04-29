@@ -409,7 +409,7 @@ function StopRow({ index, stop, isMultiStop, onChange, onRemove, canRemove }) {
       <input
         value={stop.address_text}
         onChange={(e) => onChange('address_text', e.target.value)}
-        placeholder="כתובת או נקודת ציון"
+        placeholder="כתובת מדויקת — תיפתח אצל הנהג ישירות בוויז"
         className={inputCls}
       />
       <input

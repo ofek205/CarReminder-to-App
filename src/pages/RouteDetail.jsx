@@ -17,7 +17,7 @@ import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2, AlertTriangle, MessageSquarePlus,
-  Calendar, Truck, MapPin, Clock,
+  Calendar, Truck, MapPin, Clock, Navigation,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -268,9 +268,38 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
             <p className="text-sm font-bold text-gray-900 truncate">{stop.title}</p>
           </div>
           {stop.address_text && (
-            <p className="text-[11px] text-gray-500 flex items-center gap-1 mb-1">
-              <MapPin className="h-3 w-3" /> {stop.address_text}
-            </p>
+            <div className="mb-1.5">
+              <p className="text-[11px] text-gray-500 flex items-center gap-1 mb-1">
+                <MapPin className="h-3 w-3" /> {stop.address_text}
+              </p>
+              {/* Waze + Google Maps deep-links. The Waze "ul" universal
+                  link opens the native app on iOS/Android and falls
+                  back to the web client on desktop. Google Maps is
+                  the safety net for users who don't have Waze
+                  installed. Both are external links — open in a new
+                  context so the driver can flip back to the task
+                  card without losing their place. */}
+              <div className="flex flex-wrap gap-1.5">
+                <a
+                  href={`https://waze.com/ul?q=${encodeURIComponent(stop.address_text)}&navigate=yes`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#33CCFF]/10 text-[#0A8FB3] text-[10px] font-bold border border-[#33CCFF]/30 active:scale-[0.97]"
+                >
+                  <Navigation className="h-3 w-3" />
+                  פתח בוויז
+                </a>
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.address_text)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-[10px] font-bold border border-gray-200 active:scale-[0.97]"
+                >
+                  <MapPin className="h-3 w-3" />
+                  Google Maps
+                </a>
+              </div>
+            </div>
           )}
           {stop.notes && <p className="text-[11px] text-gray-600">{stop.notes}</p>}
           {stop.completion_note && (

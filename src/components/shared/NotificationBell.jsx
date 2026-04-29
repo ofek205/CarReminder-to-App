@@ -401,6 +401,13 @@ export default function NotificationBell() {
                 name: an.body || '',
                 days: 500, isExpired: false,
                 navHref: href,                            // resolved string or null
+                // Keep the raw data jsonb on the item so the click
+                // handler can re-resolve href at click time as a
+                // fallback (covers the stale-cache window where a
+                // notification arrived in a tab that loaded the bell
+                // before the appNotificationConfig got a new type
+                // added to the map).
+                appData: an.data || {},
                 _appNotifId: an.id,
                 // Real arrival timestamp from the DB row. Drives both
                 // chronological sort (newest first) and the visible
@@ -651,12 +658,14 @@ export default function NotificationBell() {
                             if (n._appNotifId) {
                               supabase.from('app_notifications').update({ is_read: true }).eq('id', n._appNotifId).then(() => {});
                             }
-                            // navHref is pre-resolved to an absolute path
-                            // by appNotificationConfig.buildHref(). Some
-                            // types (e.g. share_deleted) deliberately
-                            // produce null — for those we just mark-read
-                            // and stay where the user is.
-                            if (n.navHref) navigate(n.navHref);
+                            // navHref is pre-resolved at fetch time. As a
+                            // safety net (e.g. the row arrived after the
+                            // config map was updated but before the bell
+                            // re-rendered), recompute from the raw data
+                            // jsonb at click time.
+                            const liveHref = n.navHref
+                              || appConfigForType(n.appType).buildHref(n.appData || {});
+                            if (liveHref) navigate(liveHref);
                           }
                           else if (n.vehicleId) {
                             const NOTIF_FIELD_MAP = {
