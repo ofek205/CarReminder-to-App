@@ -27,17 +27,17 @@
 -- Vehicles: every workspace-scoped read filters by account_id. The
 -- existing repair_logs_account_idx covers repair_logs but vehicles
 -- itself was unindexed on this column.
-create index concurrently if not exists vehicles_account_id_perf_idx
+create index if not exists vehicles_account_id_perf_idx
   on public.vehicles(account_id);
 
 -- App notifications: the bell reads (user_id, is_read=false, ordered
 -- by created_at desc, limit 10). A composite index on these columns
 -- in this order turns a sequential scan into an index-only seek.
-create index concurrently if not exists app_notifications_user_unread_perf_idx
+create index if not exists app_notifications_user_unread_perf_idx
   on public.app_notifications(user_id, is_read, created_at desc);
 
 -- Community notifications: same access pattern as app_notifications.
-create index concurrently if not exists community_notifications_user_unread_perf_idx
+create index if not exists community_notifications_user_unread_perf_idx
   on public.community_notifications(user_id, is_read, created_at desc);
 
 -- Vehicle shares lookup: my_vehicles_v joins vehicle_shares on the
@@ -55,7 +55,11 @@ begin
       and table_name   = 'vehicle_shares'
       and column_name  = 'shared_with_user_id'
   ) then
-    execute 'create index concurrently if not exists vehicle_shares_recipient_perf_idx '
+    execute 'create index if not exists vehicle_shares_recipient_perf_idx '
          || 'on public.vehicle_shares(shared_with_user_id)';
+    -- (CONCURRENTLY removed: Supabase SQL Editor wraps statements in
+    --  a transaction, where CREATE INDEX CONCURRENTLY is not legal.
+    --  Without it the index build briefly locks the table; on these
+    --  table sizes the lock is sub-second.)
   end if;
 end $$;
