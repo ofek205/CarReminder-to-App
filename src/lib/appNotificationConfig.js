@@ -10,7 +10,7 @@
  * this module is purely visual / navigational.
  */
 
-import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare, Briefcase } from 'lucide-react';
+import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare, Briefcase, Truck } from 'lucide-react';
 
 // Build a deep-link href from the row's `data` jsonb. Each function is
 // pure so callers can resolve the href without state. When a type
@@ -100,6 +100,16 @@ export const APP_NOTIF_CONFIG = {
     // driver-facing home page so a driver lands somewhere useful,
     // and a viewer/manager can navigate from there.
     icon: Briefcase,
+    bg: '#E8F2EA',
+    iconColor: '#2D5233',
+    iconBg: '#2D5233',
+    buildHref: () => '/MyVehicles',
+  },
+  driver_assigned: {
+    // Manager assigned this user a vehicle. Routes the driver to
+    // MyVehicles where the new card now appears so the next tap lands
+    // them on something useful.
+    icon: Truck,
     bg: '#E8F2EA',
     iconColor: '#2D5233',
     iconBg: '#2D5233',

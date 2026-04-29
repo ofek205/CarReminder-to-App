@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { useAuth } from "../components/shared/GuestContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
 import { usesHours, usesKm } from "../components/shared/DateStatusUtils";
@@ -765,16 +766,25 @@ import useNotificationScheduler from '@/hooks/useNotificationScheduler';
 export default function Dashboard() {
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles, getStoredGuestVehicles,
     getStoredGuestDocuments, getStoredGuestReminderSettings, clearGuestData, isDemoDismissed } = useAuth();
-  // Phase 9 step 5: when active workspace is business, the manager should
-  // land on the business dashboard, not the personal one.
+  // Phase 9 step 5: when active workspace is business, route by role.
+  //   manager / viewer / owner → /BusinessDashboard
+  //   driver                   → /MyVehicles  (their assigned vehicles)
+  // Without the driver branch, drivers fell through BusinessDashboard's
+  // manager-only guard and saw "אין הרשאה לדשבורד" — and crucially,
+  // they never reached the per-driver vehicle filter, so the personal
+  // Dashboard ended up showing them every vehicle in the workspace.
   const navigateRef = useNavigate();
   const { activeWorkspace } = useWorkspace();
+  const { isDriver, canManageRoutes } = useWorkspaceRole();
   useEffect(() => {
     if (isGuest) return;
-    if (activeWorkspace?.account_type === 'business') {
+    if (activeWorkspace?.account_type !== 'business') return;
+    if (isDriver && !canManageRoutes) {
+      navigateRef(createPageUrl('MyVehicles'), { replace: true });
+    } else {
       navigateRef(createPageUrl('BusinessDashboard'), { replace: true });
     }
-  }, [activeWorkspace, isGuest, navigateRef]);
+  }, [activeWorkspace, isGuest, isDriver, canManageRoutes, navigateRef]);
   const [accountId, setAccountId] = useState(null);
   const [filteredVehicles, setFilteredVehicles] = useState(null);
   // Dashboard list sort. Default: newest-added first.

@@ -5,7 +5,7 @@ import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
 import { Plus, Car, Ship, Bike, Truck, Star, Mountain, Wrench, Search, X, CheckCircle, Clock, AlertTriangle, ArrowUpDown } from 'lucide-react';
 import { C, getTheme, getVehicleCategory } from '@/lib/designTokens';
 import { isVessel, isOffroad } from '../components/shared/DateStatusUtils';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import PageHeader from '../components/shared/PageHeader';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
@@ -16,6 +16,7 @@ import { useAuth } from '../components/shared/GuestContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import useAccountRole from '@/hooks/useAccountRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 
 //  Helpers 
 function daysUntil(dateStr) {
@@ -538,6 +539,18 @@ export default function Vehicles() {
   // with zero memberships is centralized in WorkspaceContext.
   const { accountId } = useAccountRole();
   const { activeWorkspace } = useWorkspace();
+  // Drivers in a business workspace must NEVER see this page — it
+  // surfaces every vehicle in the workspace, defeating the
+  // assignment model. Bounce them to MyVehicles, which scopes by
+  // driver_assignments. Owners / managers / viewers stay on this
+  // page for the personal-flow features (sharing, etc.).
+  const { isDriver, canManageRoutes, isBusiness } = useWorkspaceRole();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (isBusiness && isDriver && !canManageRoutes) {
+      navigate(createPageUrl('MyVehicles'), { replace: true });
+    }
+  }, [isBusiness, isDriver, canManageRoutes, navigate]);
   const [showSignUp, setShowSignUp] = useState(false);
 
   const queryClient = useQueryClient();

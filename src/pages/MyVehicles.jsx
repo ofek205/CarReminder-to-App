@@ -25,6 +25,7 @@ import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
 
 // ---------- helpers ---------------------------------------------------
@@ -56,7 +57,10 @@ export default function MyVehicles() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { accountId } = useAccountRole();
   const { isBusiness, isDriver, isLoading: roleLoading } = useWorkspaceRole();
+  const { activeWorkspace } = useWorkspace();
   const queryClient = useQueryClient();
+  const driverName = (user?.user_metadata?.full_name || user?.full_name || user?.email || '').split('@')[0].split(' ')[0];
+  const workspaceName = activeWorkspace?.account_name || 'חשבון עסקי';
 
   const [activeAction, setActiveAction] = useState(null);
   // shape: { kind: 'mileage' | 'report_issue' | 'maintenance_done', vehicle }
@@ -128,24 +132,32 @@ export default function MyVehicles() {
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
-      <div className="mb-4">
-        <h1 className="text-xl font-bold text-gray-900">הרכבים שלי</h1>
-        <p className="text-xs text-gray-500">
+      {/* Driver-focused header. Establishes context (which workspace
+          they're driving for) and greets by first name so the page
+          doesn't feel like the same generic dashboard a manager sees.
+          The workspace pill is the same green family used by the
+          rest of the B2B chrome so the user recognises the visual
+          contract from the workspace switcher. */}
+      <div className="mb-5 bg-gradient-to-l from-[#2D5233] to-[#3A6B42] text-white rounded-2xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 mb-1">
+          <Briefcase className="h-3.5 w-3.5 opacity-80" />
+          <span className="text-[11px] font-bold opacity-90 truncate">{workspaceName}</span>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20">נהג</span>
+        </div>
+        <h1 className="text-xl font-black truncate">
+          {driverName ? `שלום ${driverName}` : 'שלום'} 👋
+        </h1>
+        <p className="text-[11px] opacity-85 mt-1">
           {assignments.length === 0
-            ? 'רכבים שיוקצו לך יופיעו כאן.'
-            : `${assignments.length} ${assignments.length === 1 ? 'רכב' : 'רכבים'} משויכים אליך`}
+            ? 'עוד אין רכב משויך אליך. כשהמנהל ישייך אותך לרכב — תקבל התראה ותראה אותו כאן.'
+            : `${assignments.length} ${assignments.length === 1 ? 'רכב משויך' : 'רכבים משויכים'} אליך`}
         </p>
       </div>
 
       {isLoading ? (
         <p className="text-center text-xs text-gray-400 py-8">טוען...</p>
       ) : vehicles.length === 0 ? (
-        <Empty
-          icon={<Truck className="h-10 w-10 text-gray-300" />}
-          title="עוד אין רכב משויך אליך"
-          text="כשהמנהל יקצה לך רכב קבוע, הוא יופיע כאן עם פעולות מהירות לעדכון ק'מ, דיווח על תקלות ותיעוד טיפולים."
-          embedded
-        />
+        <DriverEmptyState />
       ) : (
         <ul className="space-y-3">
           {vehicles.map(v => (
@@ -472,6 +484,54 @@ function DialogShell({ title, subtitle, onClose, children }) {
         {subtitle && <p className="text-xs text-gray-500 mb-4">{subtitle}</p>}
         {children}
       </div>
+    </div>
+  );
+}
+
+// ---------- driver-specific empty state ------------------------------
+// Larger, more reassuring than the generic Empty card. Three "what to
+// expect" rows so a brand-new driver understands the page will fill in
+// once a manager assigns a vehicle, instead of staring at an unhelpful
+// "no data" placeholder.
+function DriverEmptyState() {
+  return (
+    <div dir="rtl" className="bg-white border border-gray-100 rounded-2xl p-6 sm:p-8 text-center">
+      <div className="mx-auto w-14 h-14 rounded-2xl bg-[#E8F2EA] flex items-center justify-center mb-3">
+        <Truck className="h-7 w-7 text-[#2D5233]" />
+      </div>
+      <p className="text-base font-bold text-gray-900 mb-1.5">עוד אין רכב משויך אליך</p>
+      <p className="text-xs text-gray-500 leading-relaxed mb-5 max-w-sm mx-auto">
+        כשהמנהל ישייך לך רכב, הוא יופיע כאן עם פעולות מהירות. בינתיים אפשר להמתין — אין מה לעשות בצד שלך.
+      </p>
+      <div className="grid sm:grid-cols-3 gap-2 text-right">
+        <DriverHintRow
+          icon={<Gauge className="h-4 w-4 text-[#2D5233]" />}
+          title="עדכון קילומטראז'"
+          text="עדכן את המד אחרי כל נסיעה."
+        />
+        <DriverHintRow
+          icon={<AlertTriangle className="h-4 w-4 text-orange-600" />}
+          title="דיווח על תקלה"
+          text="תקלה ברכב מגיעה ישר למנהל."
+        />
+        <DriverHintRow
+          icon={<Wrench className="h-4 w-4 text-blue-600" />}
+          title="תיעוד טיפול"
+          text="טיפול שעשית מתועד ביומן הרכב."
+        />
+      </div>
+    </div>
+  );
+}
+
+function DriverHintRow({ icon, title, text }) {
+  return (
+    <div className="bg-gray-50 rounded-xl p-2.5">
+      <div className="flex items-center gap-1.5 mb-0.5">
+        {icon}
+        <span className="text-[11px] font-bold text-gray-900">{title}</span>
+      </div>
+      <p className="text-[10px] text-gray-500 leading-snug">{text}</p>
     </div>
   );
 }
