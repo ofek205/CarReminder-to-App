@@ -49,6 +49,18 @@ begin
     v_account_ids := array[]::uuid[];
   end if;
 
+  -- 0. workspace_audit_log first — it has FKs to vehicles/routes with
+  --    ON DELETE SET NULL, but the table also has a BEFORE UPDATE
+  --    trigger (prevent_audit_log_update) that raises
+  --    'activity_log_immutable' on any UPDATE. The cascade SET NULL
+  --    counts as UPDATE → trigger blocks the whole transaction.
+  --    Deleting these rows up front avoids the cascade entirely.
+  --    The trigger does NOT block DELETE.
+  foreach v_account_id in array v_account_ids
+  loop
+    delete from public.workspace_audit_log where account_id = v_account_id;
+  end loop;
+
   -- 1. Delete B2B data BEFORE vehicles, in dependency order.
   --    routes.vehicle_id is ON DELETE RESTRICT (intentional — a manager
   --    losing route history because a vehicle row vanished would be a
