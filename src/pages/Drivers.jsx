@@ -115,7 +115,7 @@ export default function Drivers() {
   }
 
   if (!isAuthenticated) {
-    return <Empty text="צריך להתחבר כדי לראות את חברי הסביבה." />;
+    return <Empty text="צריך להתחבר כדי לראות את הצוות." />;
   }
 
   if (!isBusiness) {
@@ -132,8 +132,8 @@ export default function Drivers() {
     return (
       <Empty
         icon={<UserIcon className="h-10 w-10 text-gray-300" />}
-        title="אין הרשאה לניהול חברי הסביבה"
-        text="ניהול חברים והקצאות שמור לבעלים ולמנהלים בלבד."
+        title="אין הרשאה לניהול נהגים"
+        text="ניהול נהגים והקצאות שמור לבעלים ולמנהלים בלבד."
       />
     );
   }
@@ -142,10 +142,10 @@ export default function Drivers() {
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
       <div className="flex items-center justify-between mb-4 gap-2">
         <div className="min-w-0">
-          <h1 className="text-xl font-bold text-gray-900">נהגים וחברי הסביבה</h1>
+          <h1 className="text-xl font-bold text-gray-900">נהגים</h1>
           <p className="text-xs text-gray-500 truncate">
-            ניהול תפקידים והקצאת רכבים לנהגים
-            <span className="text-gray-400">{` · ${members.length} ${members.length === 1 ? 'חבר' : 'חברים'}`}</span>
+            ניהול תפקידים והקצאת רכבים לנהגי החברה
+            <span className="text-gray-400">{` · ${members.length} ${members.length === 1 ? 'נהג' : 'נהגים'}`}</span>
           </p>
         </div>
         <button
