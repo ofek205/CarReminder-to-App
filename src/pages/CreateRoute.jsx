@@ -28,14 +28,9 @@ import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { DateInput } from '@/components/ui/date-input';
 import { createPageUrl } from '@/utils';
+import VehiclePicker from '@/components/shared/VehiclePicker';
 
 // ---------- helpers ---------------------------------------------------
-
-const labelOfVehicle = (v) => {
-  if (!v) return '';
-  const parts = [v.manufacturer, v.model, v.year].filter(Boolean).map(String);
-  return parts.join(' ').trim() || v.nickname || v.license_plate || 'רכב';
-};
 
 const ROLE_TAG = {
   'בעלים': { label: 'בעלים', icon: Crown,    cls: 'bg-purple-50 text-purple-700' },
@@ -418,133 +413,6 @@ function StopRow({ index, stop, isMultiStop, onChange, onRemove, canRemove }) {
         placeholder="הערות לנהג (לא חובה)"
         className={inputCls}
       />
-    </div>
-  );
-}
-
-// ---------- VehiclePicker --------------------------------------------
-// Searchable rich picker. Same shape as the one in /Drivers; kept
-// inline here so /CreateRoute is a self-contained page change.
-
-function VehiclePicker({ vehicles, value, onChange }) {
-  const [open, setOpen]   = useState(false);
-  const [query, setQuery] = useState('');
-  const wrapRef           = useRef(null);
-  const searchRef         = useRef(null);
-
-  const selected = vehicles.find(v => v.id === value);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('touchstart', onDoc);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('touchstart', onDoc);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 30);
-    else setQuery('');
-  }, [open]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return vehicles;
-    return vehicles.filter(v => {
-      const haystack = [
-        v.nickname, v.license_plate, v.manufacturer, v.model,
-        v.year != null ? String(v.year) : '',
-      ].join(' ').toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [vehicles, query]);
-
-  return (
-    <div ref={wrapRef} className="relative" dir="rtl">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm text-right active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="flex-1 min-w-0 truncate">
-          {selected ? (
-            <span className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-gray-900 truncate">{labelOfVehicle(selected)}</span>
-              {selected.nickname && (
-                <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-[#E8F2EA] text-[#2D5233] text-[10px] font-bold">
-                  {selected.nickname}
-                </span>
-              )}
-              <span className="shrink-0 text-[11px] font-mono text-gray-500">{selected.license_plate}</span>
-            </span>
-          ) : (
-            <span className="text-gray-400">בחר רכב מהצי...</span>
-          )}
-        </span>
-        <ChevronDown className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div role="listbox" className="absolute z-[10001] top-full mt-1 inset-x-0 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden">
-          <div className="p-2 border-b border-gray-100">
-            <div className="relative">
-              <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-              <input
-                ref={searchRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="חפש לפי יצרן, דגם, שנה, כינוי או מספר רישוי"
-                className="w-full pr-8 pl-2 py-1.5 text-xs rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:border-gray-300 focus:outline-none"
-              />
-            </div>
-          </div>
-          <div className="max-h-72 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="text-center text-[11px] text-gray-400 py-6">לא נמצאו רכבים תואמים</p>
-            ) : (
-              filtered.map(v => {
-                const isSelected = v.id === value;
-                return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    onClick={() => { onChange(v.id); setOpen(false); }}
-                    className={`w-full flex items-start gap-3 px-3 py-2.5 text-right border-b border-gray-50 last:border-0 transition-colors ${
-                      isSelected ? 'bg-[#E8F2EA]' : 'hover:bg-gray-50 active:bg-gray-100'
-                    }`}
-                  >
-                    <Truck className={`shrink-0 h-4 w-4 mt-0.5 ${isSelected ? 'text-[#2D5233]' : 'text-gray-400'}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-sm truncate ${isSelected ? 'font-bold text-[#2D5233]' : 'font-bold text-gray-900'}`}>
-                          {labelOfVehicle(v)}
-                        </span>
-                        {v.nickname && (
-                          <span className="px-1.5 py-0.5 rounded-md bg-[#E8F2EA] text-[#2D5233] text-[10px] font-bold">
-                            {v.nickname}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5 font-mono">{v.license_plate}</p>
-                    </div>
-                    {isSelected && <Check className="shrink-0 h-4 w-4 text-[#2D5233]" />}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

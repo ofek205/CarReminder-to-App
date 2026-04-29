@@ -27,7 +27,7 @@
  * are NOT shown here — that page already manages them. Reports.jsx
  * aggregates BOTH sources together.
  */
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import {
   Plus, Trash2, Pencil, Loader2, Briefcase, Receipt, X, Upload, Camera,
@@ -248,6 +248,17 @@ export default function Expenses() {
 
 function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
   const isEdit = !!row?.id;
+
+  // Body scroll lock — without this, a phone can scroll the page
+  // behind the dialog with the same swipe gesture intended for the
+  // dialog's own scroll, leaving the user disoriented when they
+  // dismiss. Restore the original overflow on unmount.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   const [vehicleId, setVehicleId] = useState(row.vehicle_id   || '');
   const [amount,    setAmount]    = useState(row.amount   != null ? String(row.amount) : '');
   const [category,  setCategory]  = useState(row.category    || 'fuel');
@@ -594,11 +605,13 @@ function ReceiptScanCard({ receiptUrl, uploading, scanning, scanError, onUpload,
               className="hidden"
             />
 
+            {/* Both buttons sized to clear iOS's 44px tap target —
+                py-3 + the icon row gives ~52px of comfortable thumb area. */}
             <button
               type="button"
               disabled={uploading || scanning}
               onClick={() => cameraRef.current?.click()}
-              className="flex flex-col items-center justify-center gap-1 py-2.5 px-2 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold active:scale-[0.97] disabled:opacity-60 shadow-sm"
+              className="min-h-[52px] flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold active:scale-[0.97] disabled:opacity-60 shadow-sm"
             >
               <span className="flex items-center gap-1">
                 <Sparkles className="h-3.5 w-3.5" />
@@ -610,7 +623,7 @@ function ReceiptScanCard({ receiptUrl, uploading, scanning, scanError, onUpload,
               type="button"
               disabled={uploading || scanning}
               onClick={() => fileInputRef.current?.click()}
-              className="flex flex-col items-center justify-center gap-1 py-2.5 px-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-[11px] font-bold active:scale-[0.97] disabled:opacity-60 hover:bg-gray-50"
+              className="min-h-[52px] flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-[11px] font-bold active:scale-[0.97] disabled:opacity-60 hover:bg-gray-50"
             >
               <Upload className="h-3.5 w-3.5 text-gray-500" />
               <span>צרף קובץ בלבד</span>

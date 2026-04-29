@@ -566,7 +566,10 @@ export default function Reports() {
             })}
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-gray-50">
+        {/* On mobile + small tablets the date pickers and the rich
+            VehiclePicker are too cramped side-by-side at 33% each.
+            Stack until md so each control gets full row width. */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1 border-t border-gray-50">
           <DateField label="מתאריך" value={customFrom} onChange={setCustomFrom} />
           <DateField label="עד תאריך" value={customTo}   onChange={setCustomTo} />
           {/* Rich VehiclePicker — searchable, themed, shows icon +
