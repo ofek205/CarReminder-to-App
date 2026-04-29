@@ -173,10 +173,25 @@ export default function BulkAddVehicles() {
 
     setSubmitting(true);
     try {
-      const payload = toImport.map(r => ({
-        license_plate: r.plate,
-        ...sanitizeFromMoT(r.data),
-      }));
+      const payload = toImport.map(r => {
+        const cleaned = sanitizeFromMoT(r.data);
+        const nick = (r.nickname || '').trim();
+        // Match the manual AddVehicle sanitiser: integer 0–9,999,999.
+        // Anything outside that drops the field rather than sending a
+        // bogus value. The bulk RPC also strips empty strings so this
+        // is belt-and-suspenders.
+        const kmRaw = r.current_km;
+        const kmNum = (kmRaw === '' || kmRaw == null) ? null : Number(kmRaw);
+        const kmValid = Number.isFinite(kmNum) && kmNum >= 0 && kmNum <= 9999999;
+        return {
+          license_plate: r.plate,
+          ...cleaned,
+          // User-typed nickname overrides whatever MoT returned
+          // (registry rarely sets one anyway). Empty string is dropped.
+          ...(nick ? { nickname: nick.slice(0, 60) } : {}),
+          ...(kmValid ? { current_km: kmNum } : {}),
+        };
+      });
 
       const { data, error } = await supabase.rpc('bulk_add_vehicles', {
         p_account_id: accountId,
@@ -246,6 +261,12 @@ export default function BulkAddVehicles() {
           submitting={submitting}
           onChangeIncluded={(plate, included) => {
             setRows(prev => prev.map(r => r.plate === plate ? { ...r, included } : r));
+          }}
+          onChangeNickname={(plate, nickname) => {
+            setRows(prev => prev.map(r => r.plate === plate ? { ...r, nickname } : r));
+          }}
+          onChangeKm={(plate, km) => {
+            setRows(prev => prev.map(r => r.plate === plate ? { ...r, current_km: km } : r));
           }}
           onSubmit={submitImport}
           onBack={() => { setStep('input'); setRows([]); }}
@@ -424,7 +445,7 @@ function TabBtn({ active, children, onClick }) {
 
 // ---------- Step 2: Review ------------------------------------------
 
-function ReviewStep({ rows, progress, submitting, onChangeIncluded, onSubmit, onBack }) {
+function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNickname, onChangeKm, onSubmit, onBack }) {
   const found     = rows.filter(r => r.status === 'found');
   const duplicate = rows.filter(r => r.status === 'duplicate');
   const notFound  = rows.filter(r => r.status === 'not_found');
@@ -456,7 +477,7 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onSubmit, on
         >
           <ul className="space-y-1.5">
             {found.map(r => (
-              <FoundRow key={r.plate} row={r} onToggle={onChangeIncluded} />
+              <FoundRow key={r.plate} row={r} onToggle={onChangeIncluded} onNicknameChange={onChangeNickname} onKmChange={onChangeKm} />
             ))}
           </ul>
         </Group>
@@ -607,11 +628,11 @@ function Group({ tone, icon, title, subtitle, children }) {
   );
 }
 
-function FoundRow({ row, onToggle }) {
+function FoundRow({ row, onToggle, onNicknameChange, onKmChange }) {
   const d = row.data || {};
   const label = [d.manufacturer, d.model].filter(Boolean).join(' ') || 'רכב';
   return (
-    <li className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+    <li className="flex flex-wrap items-center gap-2 py-2 border-b border-gray-50 last:border-0">
       <input
         type="checkbox"
         checked={row.included}
@@ -620,12 +641,42 @@ function FoundRow({ row, onToggle }) {
         aria-label={`כלול את ${row.plate}`}
       />
       <span className="text-[11px] font-mono px-2 py-0.5 bg-gray-50 rounded shrink-0">{row.plate}</span>
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-[140px]">
         <p className="text-sm font-bold text-gray-900 truncate">{label}</p>
         <p className="text-[11px] text-gray-500 truncate">
           {[d.year, d.vehicle_type].filter(Boolean).join(' · ')}
         </p>
       </div>
+      {/* Optional nickname — empty by default. Saved with the vehicle on
+          import; users who don't fill it just get the plate-based label
+          on the dashboard, exactly like before. Limited to 60 chars to
+          match the manual AddVehicle form. */}
+      <input
+        type="text"
+        value={row.nickname || ''}
+        onChange={(e) => onNicknameChange(row.plate, e.target.value.slice(0, 60))}
+        placeholder="כינוי (לא חובה)"
+        disabled={!row.included}
+        dir="rtl"
+        className="shrink-0 w-28 sm:w-36 px-2 py-1 text-[11px] rounded-md border border-gray-200 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+        aria-label={`כינוי לרכב ${row.plate}`}
+      />
+      {/* Optional current km — same role as the field on the manual
+          AddVehicle form. Plain integer, 0–9,999,999 to match the
+          manual flow's sanitiser. */}
+      <input
+        type="number"
+        min="0"
+        max="9999999"
+        inputMode="numeric"
+        value={row.current_km ?? ''}
+        onChange={(e) => onKmChange(row.plate, e.target.value)}
+        placeholder='ק"מ נוכחי'
+        disabled={!row.included}
+        dir="ltr"
+        className="shrink-0 w-24 sm:w-28 px-2 py-1 text-[11px] rounded-md border border-gray-200 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+        aria-label={`קילומטראז' נוכחי לרכב ${row.plate}`}
+      />
     </li>
   );
 }
