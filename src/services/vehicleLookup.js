@@ -452,10 +452,12 @@ async function fetchLastTestKm(plateDigits) {
     const json = await res.json();
     const record = json?.result?.records?.[0];
     if (!record) return null;
-    // Field name from the dataset (visible in the gov.il preview as
-    // "...test_aharon"). Fallback to a couple of plausible synonyms in
-    // case the dataset gets renamed — costs nothing to check.
-    const raw = record.kilometraj_test_aharon
+    // Verified column name from the dataset's `fields` schema:
+    // `kilometer_test_aharon` (numeric, the odometer reading at the
+    // last annual test). The other names are kept as fallbacks in
+    // case the dataset is ever renamed — costs nothing to check.
+    const raw = record.kilometer_test_aharon
+             ?? record.kilometraj_test_aharon
              ?? record.km_test_aharon
              ?? record.kmrut_test_aharon;
     const km = Number(raw);
