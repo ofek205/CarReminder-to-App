@@ -562,16 +562,68 @@ async function fetchOwnershipHistory(plateDigits) {
 }
 
 /**
- * Check the personal-import registry. Returns:
- *   { is_personal_import: true, personal_import_type: 'יבוא אישי-משומש' }
- *   when the plate is in the dataset, or null when it isn't (or the
- *   call fails — best-effort, never throws).
- *
- * Uses an exact `mispar_rechev` filter so a 7-digit plate doesn't
- * match against unrelated rows where the digits happen to appear in
- * a VIN or engine number.
+ * Map a personal-import dataset row to sanitized form fields. The
+ * dataset has plenty of overlap with the standard car schema — we use
+ * it as a primary record source for plates that aren't in the active
+ * private-car registry (vintage personal-imports often live ONLY here).
  */
-async function fetchPersonalImport(plateDigits) {
+function mapPersonalImportRecord(r) {
+  const fields = {};
+
+  if (r.mispar_rechev)      fields.license_plate           = formatPlate(r.mispar_rechev);
+  if (r.tozeret_nm)         fields.manufacturer            = safeStr(r.tozeret_nm, 60);
+  if (r.degem_nm)           fields.model                   = safeStr(r.degem_nm, 60);
+  if (r.shnat_yitzur)       fields.year                    = safeYear(r.shnat_yitzur);
+  if (r.sug_delek_nm)       fields.fuel_type               = safeStr(r.sug_delek_nm, 40);
+  if (r.tozeret_eretz_nm)   fields.country_of_origin       = safeStr(r.tozeret_eretz_nm, 40);
+  if (r.degem_manoa)        fields.engine_model            = safeStr(r.degem_manoa, 60);
+  if (r.shilda)             fields.vin                     = safeStr(String(r.shilda), 30);
+  if (r.sug_rechev_nm)      fields.vehicle_class           = safeStr(r.sug_rechev_nm, 40);
+  if (r.nefach_manoa && Number(r.nefach_manoa) > 0) {
+    fields.engine_cc = safeNum(r.nefach_manoa) + ' סמ"ק';
+  }
+  if (r.mishkal_kolel && Number(r.mishkal_kolel) > 0) {
+    fields.total_weight = safeNum(r.mishkal_kolel) + ' ק"ג';
+  }
+  if (r.tokef_dt)               fields.test_due_date           = safeDate(r.tokef_dt);
+  if (r.mivchan_acharon_dt)     fields.last_test_date          = safeDate(r.mivchan_acharon_dt);
+  if (r.moed_aliya_lakvish) {
+    const raw = String(r.moed_aliya_lakvish);
+    // moed_aliya_lakvish in this dataset can be "YYYY-MM" or "YYYY-MM-DD".
+    const match = raw.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
+    if (match) {
+      const [, yr, mo, dy] = match;
+      const d = new Date(Number(yr), Number(mo) - 1, Number(dy || 1));
+      if (!isNaN(d.getTime())) {
+        fields.first_registration_date = d.toISOString().split('T')[0];
+      }
+    }
+  }
+
+  // Pre-flag the import status so the parallel enrichment doesn't have
+  // to call the dataset a second time (we already know it's positive).
+  fields.is_personal_import   = true;
+  if (r.sug_yevu) {
+    fields.personal_import_type = safeStr(r.sug_yevu, 30);
+  }
+
+  return fields;
+}
+
+/**
+ * Fetch the raw personal-import record for a plate (or null). Used in
+ * two ways:
+ *   1. As a fallback PRIMARY source — when the plate isn't in the
+ *      active registry but IS a personal import (vintage Mercedes etc.),
+ *      we map the record to fields and treat it as the lookup result.
+ *   2. As an ENRICHMENT — when the plate IS in the active registry,
+ *      we still want to know it's a personal import to surface the
+ *      badge. The caller in that path only reads sug_yevu.
+ *
+ * Exact mispar_rechev filter — never substring/fulltext, to avoid
+ * matching rows where the digits happen to appear in a VIN.
+ */
+async function fetchPersonalImportRecord(plateDigits) {
   try {
     const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
     const url = `${API_BASE}?resource_id=${encodeURIComponent(PERSONAL_IMPORT_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
@@ -581,15 +633,23 @@ async function fetchPersonalImport(plateDigits) {
     clearTimeout(timeoutId);
     if (!res.ok) return null;
     const json = await res.json();
-    const record = json?.result?.records?.[0];
-    if (!record) return null;
-    return {
-      is_personal_import:   true,
-      personal_import_type: safeStr(record.sug_yevu || '', 30) || 'יבוא אישי',
-    };
+    return json?.result?.records?.[0] || null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Lightweight wrapper for the parallel-enrichment path. Returns just
+ * the flag + type, or null. Kept for clarity at the call site.
+ */
+async function fetchPersonalImport(plateDigits) {
+  const record = await fetchPersonalImportRecord(plateDigits);
+  if (!record) return null;
+  return {
+    is_personal_import:   true,
+    personal_import_type: safeStr(record.sug_yevu || '', 30) || 'יבוא אישי',
+  };
 }
 
 /**
@@ -690,21 +750,37 @@ export async function lookupVehicleByPlate(plate) {
     if (records) source = 'inactive';
   }
 
-  if (!records) return null;
+  // Final fallback — the personal-import registry. Plates of
+  // privately-imported cars (often older Mercedes / BMW / etc.) live
+  // ONLY here; without this tier they'd return "not found" even
+  // though the gov knows about them. Tried for any plate length.
+  let personalImportRecordRaw = null;
+  if (!records) {
+    personalImportRecordRaw = await fetchPersonalImportRecord(clean);
+    if (personalImportRecordRaw) source = 'personal_import';
+  }
+
+  if (!records && !personalImportRecordRaw) return null;
 
   // CME records key on mispar_tzama, all other tiers on mispar_rechev.
-  const plateField = source === 'cme' ? 'mispar_tzama' : 'mispar_rechev';
-  const exact = records.find(
-    r => String(r[plateField]).replace(/\D/g, '') === clean
-  );
-  const record = exact ?? records[0];
+  let record;
+  if (source === 'personal_import') {
+    record = personalImportRecordRaw;
+  } else {
+    const plateField = source === 'cme' ? 'mispar_tzama' : 'mispar_rechev';
+    const exact = records.find(
+      r => String(r[plateField]).replace(/\D/g, '') === clean
+    );
+    record = exact ?? records[0];
+  }
 
   // Pick the matching mapper. The `inactive` (off-road / cancelled)
   // dataset uses the same private-car schema, so mapRecord is reused;
   // the cancellation date is appended after.
-  const fields = source === 'moto'     ? mapMotoRecord(record)
-              : source === 'heavy'    ? mapHeavyRecord(record)
-              : source === 'cme'      ? mapCmeRecord(record)
+  const fields = source === 'moto'           ? mapMotoRecord(record)
+              : source === 'heavy'          ? mapHeavyRecord(record)
+              : source === 'cme'            ? mapCmeRecord(record)
+              : source === 'personal_import' ? mapPersonalImportRecord(record)
               : mapRecord(record); // 'car' OR 'inactive'
 
   // Inactive-registry hit → tag the result so AddVehicle can warn the
@@ -741,7 +817,9 @@ export async function lookupVehicleByPlate(plate) {
     (source !== 'moto' && source !== 'cme')
       ? fetchOwnershipHistory(clean)
       : Promise.resolve(null),
-    (source !== 'cme')                       // works for cars + motorcycles
+    // Skip when personal_import is already the primary source — we
+     // already have those fields. Skip CME (different plate namespace).
+    (source !== 'cme' && source !== 'personal_import')
       ? fetchPersonalImport(clean)
       : Promise.resolve(null),
   ]);
@@ -801,6 +879,11 @@ export async function lookupVehicleByPlate(plate) {
     if (tk.startsWith('O'))      detectedType = 'trailer';
     else if (tk === 'M2' || tk === 'M3') detectedType = 'bus';
     else                         detectedType = 'truck';
+  } else if (source === 'personal_import') {
+    // Personal-import dataset is private-car-only (sug_rechev_nm =
+    // "פרטי נוסעים" on every row I sampled). Mapping to 'car' surfaces
+    // the right category in the AddVehicle category selector.
+    detectedType = 'car';
   } else {
     // Private-car dataset OR inactive-vehicle dataset (same schema).
     // The inactive dataset uses sug_rechev_nm instead of sug_degem
