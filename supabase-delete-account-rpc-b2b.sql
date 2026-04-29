@@ -100,8 +100,12 @@ begin
     into v_community_deleted;
 
   -- 4. User-scoped records that don't belong to an account.
+  --    anonymous_analytics is intentionally NOT touched here — the
+  --    table is genuinely anonymous (event, date, count, metadata)
+  --    with no user_id column, so DELETE … WHERE user_id = uid raised
+  --    42703 (undefined_column) and aborted the whole transaction.
+  --    Nothing per-user to delete there anyway.
   delete from public.user_profiles              where user_id = uid;
-  delete from public.anonymous_analytics        where user_id = uid;
   delete from public.reminder_settings          where user_id = uid;
   delete from public.maintenance_reminder_prefs where user_id = uid;
   -- B2B addition: in-app notifications targeted at this user.
