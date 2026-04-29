@@ -293,6 +293,21 @@ export default function EditVehicle() {
     }
     if (form.current_km) data.current_km = Number(form.current_km);
     if (form.current_engine_hours) data.current_engine_hours = Number(form.current_engine_hours);
+    // Off-road toggleable types (jeep / ATV / dune buggy / dirt-bike)
+    // can use either km or engine hours. The picker (`usesHours()`)
+    // decides per row by checking that ONLY the chosen column is set —
+    // if both are populated it falls back to km, which is exactly the
+    // bug a user hit: they edited from km to hours, but the original
+    // current_km row from MoT was never cleared, so the dashboard
+    // still rendered "קילומטראז'". Clear the unused column on save
+    // so the picker reads the user's actual choice.
+    if (offroadMode) {
+      if (usageMetric === 'שעות מנוע') {
+        data.current_km = null;
+      } else {
+        data.current_engine_hours = null;
+      }
+    }
     if (form.km_since_tire_change) data.km_since_tire_change = Number(form.km_since_tire_change);
     if (form.insurance_company === 'אחר') data.insurance_company = form.insurance_company_other;
     // Same pattern for fuel type: if user picked "אחר" and typed a custom
