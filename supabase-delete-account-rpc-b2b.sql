@@ -39,11 +39,20 @@ begin
     raise exception 'invalid_mode: must be "data" or "account"';
   end if;
 
+  -- CRITICAL: only collect accounts the user OWNS. Earlier versions
+  -- iterated every account they were a member of, which meant a driver
+  -- in a business workspace ran 'delete my data' and wiped the whole
+  -- fleet that belonged to the workspace owner. The user is responsible
+  -- for the data in accounts they own; in shared accounts they're just
+  -- a member and have no business deleting other people's records.
+  -- Their membership in shared accounts is removed below in 'account'
+  -- mode (and only the membership row, not the underlying data).
   select array_agg(account_id)
     into v_account_ids
     from public.account_members
     where user_id = uid
-      and status = 'פעיל';
+      and status = 'פעיל'
+      and role   = 'בעלים';
 
   if v_account_ids is null then
     v_account_ids := array[]::uuid[];
@@ -121,14 +130,20 @@ begin
     );
   end if;
 
-  -- 5. 'account' mode: drop memberships and orphaned accounts.
-  --    workspace_audit_log cascades via account_id when the account
-  --    row is deleted; we don't need to touch it explicitly.
+  -- 5. 'account' mode: leave shared workspaces (driver / viewer
+  --    memberships) by removing this user's membership rows, and drop
+  --    accounts the user owns. Driver assignments referencing this
+  --    user have ON DELETE CASCADE on driver_user_id (auth.users) but
+  --    we only delete from account_members here — the auth.users row
+  --    survives because the RPC has no admin rights to drop it.
+  delete from public.account_members
+    where user_id = uid;
+
+  --    For owned accounts where no other בעלים remains, delete the
+  --    account row. workspace_audit_log + everything else cascades
+  --    via account_id FKs.
   foreach v_account_id in array v_account_ids
   loop
-    delete from public.account_members
-      where account_id = v_account_id and user_id = uid;
-
     if not exists (
       select 1 from public.account_members
        where account_id = v_account_id
