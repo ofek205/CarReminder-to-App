@@ -204,8 +204,13 @@ export default function AuthPage() {
   // Supabase's /verify endpoint. /verify wraps the token in a redirect
   // that some configs (Site URL not pointing here, allowlist not
   // including ?mode=update-password) strip before we ever see it.
-  // Calling verifyOtp({ token_hash, type: 'recovery' }) bypasses that
-  // entirely and reliably fires PASSWORD_RECOVERY on success.
+  //
+  // The supabase project is on PKCE flow (flowType: 'pkce' in
+  // src/lib/supabase.js), so {{ .TokenHash }} in the email template
+  // emits a `pkce_…` prefixed value — verifyOtp does NOT accept those.
+  // PKCE tokens go through exchangeCodeForSession instead. We branch
+  // on the prefix so the same handler works if the project ever
+  // switches back to implicit flow.
   useEffect(() => {
     try {
       const u = new URL(window.location.href);
@@ -214,24 +219,32 @@ export default function AuthPage() {
       if (!tokenHash || type !== 'recovery') return;
       (async () => {
         try {
-          const { error } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: 'recovery',
-          });
+          let error;
+          if (tokenHash.startsWith('pkce_')) {
+            const r = await supabase.auth.exchangeCodeForSession(tokenHash);
+            error = r.error;
+          } else {
+            const r = await supabase.auth.verifyOtp({
+              token_hash: tokenHash,
+              type: 'recovery',
+            });
+            error = r.error;
+          }
           if (!error) {
             setMode('update-password');
             setHoldForRecovery(false);
-            // Strip the token_hash from the visible URL so a hard
-            // refresh after success doesn't try to re-verify a now-
-            // consumed token.
+            // Strip the token from the visible URL so a hard refresh
+            // after success doesn't try to re-verify a now-consumed
+            // token. Keep mode=update-password so the form survives
+            // the refresh.
             window.history.replaceState({}, '', '/Auth?mode=update-password');
           } else {
             // eslint-disable-next-line no-console
-            console.warn('verifyOtp(recovery) failed:', error.message);
+            console.warn('recovery verify failed:', error.message);
           }
         } catch (err) {
           // eslint-disable-next-line no-console
-          console.warn('verifyOtp(recovery) threw:', err?.message);
+          console.warn('recovery verify threw:', err?.message);
         }
       })();
     } catch {}
