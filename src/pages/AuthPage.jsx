@@ -199,6 +199,44 @@ export default function AuthPage() {
     return () => clearTimeout(t);
   }, [holdForRecovery]);
 
+  // Direct token_hash verification path — set when the email template
+  // builds /Auth?type=recovery&token_hash=… instead of routing through
+  // Supabase's /verify endpoint. /verify wraps the token in a redirect
+  // that some configs (Site URL not pointing here, allowlist not
+  // including ?mode=update-password) strip before we ever see it.
+  // Calling verifyOtp({ token_hash, type: 'recovery' }) bypasses that
+  // entirely and reliably fires PASSWORD_RECOVERY on success.
+  useEffect(() => {
+    try {
+      const u = new URL(window.location.href);
+      const tokenHash = u.searchParams.get('token_hash');
+      const type      = u.searchParams.get('type');
+      if (!tokenHash || type !== 'recovery') return;
+      (async () => {
+        try {
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: 'recovery',
+          });
+          if (!error) {
+            setMode('update-password');
+            setHoldForRecovery(false);
+            // Strip the token_hash from the visible URL so a hard
+            // refresh after success doesn't try to re-verify a now-
+            // consumed token.
+            window.history.replaceState({}, '', '/Auth?mode=update-password');
+          } else {
+            // eslint-disable-next-line no-console
+            console.warn('verifyOtp(recovery) failed:', error.message);
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('verifyOtp(recovery) threw:', err?.message);
+        }
+      })();
+    } catch {}
+  }, []);
+
   // Auto-redirect logged-in users away from /Auth — UNLESS they're
   // mid password-recovery. Critical security fix: when a user clicks
   // a recovery email link, Supabase mints a (scoped) session as part
