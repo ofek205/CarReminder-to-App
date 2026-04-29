@@ -19,8 +19,22 @@ function vehicleAge(year) {
   return Math.max(0, new Date().getFullYear() - n);
 }
 
+function numericValue(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const n = Number(String(value).replace(/[^\d.]/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function detectedType(vehicle) {
   return vehicle._detectedType || '';
+}
+
+function isRoadVehicle(vehicle) {
+  return ['car', 'commercial', 'motorcycle', 'truck', 'bus'].includes(detectedType(vehicle));
+}
+
+function isWorkTool(vehicle) {
+  return ['cme', 'trailer'].includes(detectedType(vehicle));
 }
 
 function isVintage(vehicle, age) {
@@ -65,6 +79,52 @@ function insight(id, tone, title, description, label) {
   return { id, tone, title, description, label };
 }
 
+function riskLevel({ vehicle, age, hand, testDays, km, annualKm, rating }) {
+  let score = 0;
+  if (vehicle._isInactive) score += 5;
+  if (testDays !== null && testDays < 0) score += 3;
+  else if (testDays !== null && testDays <= 45) score += 1;
+  if (Number.isFinite(hand) && hand >= 5) score += 2;
+  if (age !== null && age <= 5 && Number.isFinite(hand) && hand >= 4) score += 2;
+  if (age !== null && age >= 12) score += 1;
+  if (annualKm !== null && annualKm >= 30000) score += 2;
+  if (annualKm !== null && age >= 5 && annualKm <= 2500) score += 1;
+  if (isRoadVehicle(vehicle) && !km) score += 1;
+  if (Number.isFinite(rating) && rating <= 2) score += 1;
+
+  if (score >= 5) return 'high';
+  if (score >= 2) return 'medium';
+  return 'low';
+}
+
+function decisionInsight(level) {
+  if (level === 'high') {
+    return insight(
+      'decision-summary',
+      'danger',
+      'דורש בדיקה מעמיקה לפני החלטה',
+      'יש כאן כמה סימני סיכון שיכולים להשפיע על בטיחות, מחיר או כשירות. מומלץ לא להתקדם בלי בדיקה מקצועית ומסמכים משלימים.',
+      'המלצה'
+    );
+  }
+  if (level === 'medium') {
+    return insight(
+      'decision-summary',
+      'warning',
+      'מתאים להמשך בדיקה, לא להחלטה מהירה',
+      'הנתונים לא חוסמים, אבל יש נקודות שחשוב לאמת מול המוכר או בעל הכלי לפני שמתקדמים.',
+      'המלצה'
+    );
+  }
+  return insight(
+    'decision-summary',
+    'success',
+    'אין דגלים אדומים בולטים בנתונים הזמינים',
+    'לפי המידע שנמצא, אין כרגע סימן חריג מרכזי. עדיין מומלץ לוודא היסטוריית טיפולים, מסמכים ומצב מכני בפועל.',
+    'המלצה'
+  );
+}
+
 export function generateVehicleInsights(vehicle = {}) {
   const insights = [];
   const age = vehicleAge(vehicle.year);
@@ -72,6 +132,12 @@ export function generateVehicleInsights(vehicle = {}) {
   const testDays = daysUntil(vehicle.test_due_date || vehicle.inspection_report_expiry_date);
   const typeBasedInsight = typeInsight(vehicle);
   const testLabel = testLabelFor(vehicle);
+  const km = numericValue(vehicle.current_km);
+  const annualKm = km && age ? Math.round(km / Math.max(age, 1)) : null;
+  const rating = Number(vehicle.safety_rating);
+  const level = riskLevel({ vehicle, age, hand, testDays, km, annualKm, rating });
+
+  insights.push(decisionInsight(level));
 
   if (typeBasedInsight) {
     insights.push(typeBasedInsight);
@@ -81,11 +147,11 @@ export function generateVehicleInsights(vehicle = {}) {
     insights.push(insight(
       'inactive',
       'danger',
-      'הרכב נמצא בסטטוס לא פעיל',
+      'סטטוס לא פעיל במאגר',
       vehicle._cancellationDate
-        ? `הרכב מופיע כירד מהכביש. תאריך ביטול: ${vehicle._cancellationDate}.`
-        : 'הרכב מופיע במאגר רכב לא פעיל. כדאי לבדוק לפני רכישה או שימוש.',
-      'דורש בדיקה'
+        ? `הכלי מופיע כירד מהכביש. תאריך ביטול: ${vehicle._cancellationDate}. זה נתון שחייבים לברר לפני שימוש או רכישה.`
+        : 'הכלי מופיע במאגר כלי רכב לא פעילים. זה דגל אדום שדורש אימות מול רישיון הרכב והמוכר.',
+      'דגל אדום'
     ));
   }
 
@@ -95,9 +161,48 @@ export function generateVehicleInsights(vehicle = {}) {
       'info',
       'רכב אספנות',
       age !== null
-        ? `לפי שנת הייצור הרכב בן ${age} שנים ולכן מתאים לסיווג אספנות במעקב האפליקציה.`
-        : 'הרכב מסומן כרכב אספנות לפי המידע הזמין.',
+        ? `לפי שנת הייצור הכלי בן ${age} שנים. כדאי לבדוק רישום אספנות, זמינות חלקים ותדירות בדיקות לפני קנייה.`
+        : 'הכלי מסומן כאספנות לפי המידע הזמין. כדאי לוודא שהסיווג מופיע גם במסמכים.',
       'אספנות'
+    ));
+  }
+
+  if (km) {
+    const title = annualKm ? `קילומטראז׳ אחרון: ${km.toLocaleString('he-IL')}` : `קילומטראז׳: ${km.toLocaleString('he-IL')}`;
+    let tone = 'info';
+    let text = 'זה נתון חשוב להשוואה מול גיל הכלי, היסטוריית טיפולים ומצב מכני בפועל.';
+    let label = 'קילומטראז׳';
+    if (annualKm !== null) {
+      if (annualKm >= 30000) {
+        tone = 'warning';
+        text = `ממוצע משוער של כ־${annualKm.toLocaleString('he-IL')} ק״מ לשנה נחשב גבוה יחסית. כדאי לבדוק בלאי, טיפולים ושימוש מסחרי.`;
+        label = 'שימוש גבוה';
+      } else if (age >= 5 && annualKm <= 2500) {
+        tone = 'warning';
+        text = `ממוצע משוער של כ־${annualKm.toLocaleString('he-IL')} ק״מ לשנה נמוך מאוד. כדאי לוודא שהקריאה הגיונית מול היסטוריית טיפולים וטסטים.`;
+        label = 'דורש אימות';
+      } else {
+        tone = 'success';
+        text = `ממוצע משוער של כ־${annualKm.toLocaleString('he-IL')} ק״מ לשנה נראה סביר ביחס לגיל הכלי.`;
+        label = 'שימוש סביר';
+      }
+    }
+    insights.push(insight('mileage', tone, title, text, label));
+  } else if (isRoadVehicle(vehicle)) {
+    insights.push(insight(
+      'missing-mileage',
+      'warning',
+      'חסר קילומטראז׳ מאומת',
+      'לא נמצא נתון קילומטראז׳ במידע הזמין. לפני קנייה כדאי לבקש צילום מד אוץ, היסטוריית טיפולים ונתוני טסט אחרון.',
+      'נתון חסר'
+    ));
+  } else if (isWorkTool(vehicle)) {
+    insights.push(insight(
+      'work-tool-hours',
+      'info',
+      'לבדוק שעות עבודה בפועל',
+      'בכלי עבודה, נגררים או כלי צמ״ה הקילומטראז׳ פחות משמעותי. כדאי לבקש שעות מנוע, תסקיר תקף ותיעוד תחזוקה.',
+      'שימוש'
     ));
   }
 
@@ -107,12 +212,12 @@ export function generateVehicleInsights(vehicle = {}) {
       age <= 3 ? 'success' : age >= 30 ? 'info' : age >= 12 ? 'warning' : 'info',
       age === 0 ? 'כלי חדש מאוד' : `גיל הכלי: ${age} שנים`,
       age <= 3
-        ? 'כלי צעיר יחסית, בדרך כלל עם פחות בלאי מצטבר.'
+        ? 'כלי צעיר יחסית. עדיין חשוב לוודא אחריות, טיפולים ראשונים והיעדר תאונות.'
         : age >= 30
-          ? 'כלי ותיק מאוד. מומלץ לבדוק היסטוריית טיפולים, רישוי וחלקים זמינים.'
+          ? 'כלי ותיק מאוד. הערך תלוי במצב, מקוריות, רישוי וזמינות חלקים יותר מאשר בגיל בלבד.'
           : age >= 12
-            ? 'כלי ותיק. מומלץ לבדוק היסטוריית טיפולים ובלאי לפני החלטה.'
-            : 'גיל הכלי תקין למעקב שוטף אחר רישוי, ביטוח וטיפולים.',
+            ? 'כלי ותיק. כדאי לבדוק טיפולים יקרים צפויים, בלאי ומצב מערכות בטיחות.'
+            : 'גיל הכלי סביר, ולכן כדאי להתמקד בקילומטראז׳, בעלויות והיסטוריית טיפולים.',
       age <= 3 ? 'צעיר' : age >= 30 ? 'אספנות' : age >= 12 ? 'ותיק' : 'סטנדרטי'
     ));
   }
@@ -123,10 +228,10 @@ export function generateVehicleInsights(vehicle = {}) {
       hand <= 2 ? 'success' : hand >= 5 ? 'warning' : 'info',
       `יד ${hand}`,
       hand <= 2
-        ? 'מספר בעלויות נמוך יחסית, נתון חיובי בבדיקת רקע.'
+        ? 'מספר בעלויות נמוך יחסית. זה נתון חיובי, במיוחד אם יש רצף טיפולים ומסמכים מסודרים.'
         : hand >= 5
-          ? 'מספר בעלויות גבוה יחסית. כדאי לבדוק מדוע הרכב החליף ידיים רבות.'
-          : 'מספר בעלויות סביר, אך עדיין כדאי להשוות לגיל הרכב.',
+          ? 'מספר בעלויות גבוה יחסית. זה יכול להשפיע על מחיר ועל אמון, לכן כדאי להבין למה הכלי החליף ידיים רבות.'
+          : 'מספר בעלויות סביר. כדאי להשוות אותו לגיל הכלי ולשימוש בפועל.',
       'בעלות'
     ));
   }
@@ -136,7 +241,7 @@ export function generateVehicleInsights(vehicle = {}) {
       'ownership-pattern',
       'warning',
       'החלפת בעלויות מהירה',
-      'הכלי צעיר יחסית אך עבר כמה בעלויות. זה לא בהכרח בעייתי, אבל שווה בדיקה.',
+      'הכלי צעיר יחסית אך עבר כמה בעלויות. זה לא מוכיח בעיה, אבל זו נקודה טובה לשיחה עם המוכר ולבדיקת היסטוריה.',
       'חריג'
     ));
   }
@@ -147,23 +252,23 @@ export function generateVehicleInsights(vehicle = {}) {
         'test-expired',
         'danger',
         `${testLabel} פג תוקף`,
-        `תוקף ${testLabel} פג לפני ${Math.abs(testDays)} ימים.`,
-        'לא בתוקף'
+        `תוקף ${testLabel} פג לפני ${Math.abs(testDays)} ימים. זה יכול למנוע שימוש חוקי ומהווה נקודת מיקוח ברורה.`,
+        'מיקוח'
       ));
     } else if (testDays <= 45) {
       insights.push(insight(
         'test-soon',
         'warning',
         `${testLabel} מתקרב`,
-        `נותרו ${testDays} ימים עד תוקף ${testLabel}.`,
-        'בקרוב'
+        `נותרו ${testDays} ימים עד תוקף ${testLabel}. כדאי לברר מי משלם על הבדיקה הקרובה ומה צפוי להידרש.`,
+        'עלות קרובה'
       ));
     } else {
       insights.push(insight(
         'test-valid',
         'success',
         `${testLabel} נראה בתוקף`,
-        `נותרו ${testDays} ימים עד תוקף ${testLabel}.`,
+        `נותרו ${testDays} ימים עד תוקף ${testLabel}. זה מפחית חיכוך מיידי, אבל לא מחליף בדיקה מכנית.`,
         'בתוקף'
       ));
     }
@@ -175,24 +280,45 @@ export function generateVehicleInsights(vehicle = {}) {
       'info',
       'יבוא אישי',
       vehicle.personal_import_type
-        ? `הרכב מופיע במאגר יבוא אישי: ${vehicle.personal_import_type}.`
-        : 'הרכב מופיע כרכב יבוא אישי.',
+        ? `הכלי מופיע במאגר יבוא אישי: ${vehicle.personal_import_type}. כדאי לבדוק זמינות חלפים, תאימות תקינה והיסטוריית שירות.`
+        : 'הכלי מופיע כיבוא אישי. כדאי לבדוק זמינות חלפים, תאימות תקינה והיסטוריית שירות.',
       'יבוא'
     ));
   }
 
   if (vehicle.safety_rating) {
-    const rating = Number(vehicle.safety_rating);
     insights.push(insight(
       'safety',
       rating >= 6 ? 'success' : rating <= 2 ? 'warning' : 'info',
       `רמת בטיחות ${vehicle.safety_rating}`,
       rating >= 6
-        ? 'נתון בטיחות חיובי ביחס למידע הזמין.'
+        ? 'נתון בטיחות חיובי ביחס למידע הזמין. זה יתרון במיוחד לרכב משפחתי או נסועה גבוהה.'
         : rating <= 2
-          ? 'רמת הבטיחות נמוכה יחסית. כדאי לקחת זאת בחשבון.'
-          : 'נתון בטיחות זמין להשוואה מול רכבים דומים.',
+          ? 'רמת הבטיחות נמוכה יחסית. כדאי לקחת זאת בחשבון בהחלטת קנייה ובשימוש יומיומי.'
+          : 'נתון בטיחות בינוני. מומלץ להשוות מול דגמים דומים באותה קטגוריה.',
       'בטיחות'
+    ));
+  }
+
+  if (vehicle.has_tow_hitch || vehicle.tow_capacity) {
+    insights.push(insight(
+      'tow-capability',
+      'info',
+      'יש יכולת גרירה או וו גרירה',
+      vehicle.tow_capacity
+        ? `נמצא נתון כושר גרירה: ${vehicle.tow_capacity}. כדאי לוודא שהוא מתאים לצורך ולרישיון.`
+        : 'נמצא סימון לוו גרירה. כדאי לוודא שהוא רשום ומותקן כחוק.',
+      'גרירה'
+    ));
+  }
+
+  if (detectedType(vehicle) === 'cme' && !vehicle.test_due_date && !vehicle.inspection_report_expiry_date) {
+    insights.push(insight(
+      'cme-certificate-missing',
+      'warning',
+      'לא נמצא תוקף כשירות לכלי צמ״ה',
+      'בכלי צמ״ה תסקיר וכשירות תקופתית הם נתונים קריטיים. אם אין תוקף במאגר, כדאי לבקש מסמך עדכני לפני שימוש.',
+      'תסקיר'
     ));
   }
 

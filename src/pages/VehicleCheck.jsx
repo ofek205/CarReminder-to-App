@@ -3,8 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle, ArrowLeft, BadgeCheck, CalendarDays, Car, CheckCircle2,
-  ChevronLeft, Gauge, Info, Loader2, LockKeyhole, Save, Search, ShieldCheck,
-  Sparkles, UserPlus, Wrench, XCircle,
+  ChevronLeft, Download, Gauge, Info, Loader2, LockKeyhole, RotateCcw, Save,
+  Search, ShieldCheck, Sparkles, UserPlus, Wrench, XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createPageUrl } from '@/utils';
@@ -48,6 +48,8 @@ const toneIcons = {
   danger: XCircle,
   info: Info,
 };
+
+const reportDisclaimer = 'המידע בדוח נמשך ממאגרי משרד התחבורה וממקורות מידע ציבוריים זמינים. ייתכנו פערים, עיכובים או חוסרים בנתונים, ולכן יש לקחת את המידע בערבון מוגבל ולא להסתמך עליו כתחליף לבדיקה מקצועית או משפטית.';
 
 export default function VehicleCheck() {
   const navigate = useNavigate();
@@ -170,10 +172,26 @@ export default function VehicleCheck() {
     }
   };
 
+  const resetCheck = () => {
+    setPlate('');
+    setResult(null);
+    setStatus('idle');
+    setError('');
+    setLimitLocked(false);
+    setSaved(false);
+    setLoadingIndex(0);
+  };
+
+  const exportReport = () => {
+    if (!result) return;
+    window.setTimeout(() => window.print(), 50);
+  };
+
   return (
-    <div dir="rtl" className="min-h-screen -m-4 lg:-m-8 px-4 py-6 sm:px-6 lg:px-10"
+    <div dir="rtl" className="vehicle-check-root min-h-screen -m-4 lg:-m-8 px-4 py-6 sm:px-6 lg:px-10"
       style={{ background: 'linear-gradient(180deg, #F5FAF6 0%, #FFFFFF 52%)' }}>
-      <div className="max-w-5xl mx-auto">
+      <PrintStyles />
+      <div className="vehicle-check-screen max-w-5xl mx-auto">
         <Header isAuthenticated={isAuthenticated} />
 
         <section className="bg-white border border-[#D8E5D9] rounded-[2rem] shadow-xl shadow-[#2D5233]/10 p-4 sm:p-6 mb-5">
@@ -221,6 +239,7 @@ export default function VehicleCheck() {
         {result && status === 'success' && (
           <div className="space-y-5">
             <SummaryCard result={result} />
+            <ResultActions onExport={exportReport} onReset={resetCheck} />
             <Insights insights={result.insights} />
             <KeyInfoGrid result={result} />
             <SpecsAccordion result={result} />
@@ -234,6 +253,7 @@ export default function VehicleCheck() {
           </div>
         )}
       </div>
+      {result && status === 'success' && <VehiclePrintReport result={result} />}
     </div>
   );
 }
@@ -299,35 +319,64 @@ function SmartLoading({ text }) {
 
 function SummaryCard({ result }) {
   const b = result.basicInfo || {};
+  const registration = result.registration || {};
   const ownership = result.ownership || {};
+  const stats = [
+    { label: 'יצרן', value: b.manufacturer },
+    { label: 'דגם', value: b.model },
+    { label: 'שנה', value: b.year },
+    { label: 'קילומטראז׳', value: formatKm(registration.currentKm) },
+    { label: 'יד', value: ownership.hand ? `יד ${ownership.hand}` : '' },
+    { label: 'בעלות', value: ownership.current },
+    { label: 'סוג', value: b.detectedTypeLabel || b.vehicleType },
+    { label: 'אספנות', value: b.isVintage ? 'כן' : '' },
+  ].filter(item => hasDisplayValue(item.value));
+  const typeLine = [b.vehicleType, b.detectedTypeLabel].filter(Boolean).join(' · ');
+
   return (
-    <section className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm">
-      <div className="flex flex-col md:flex-row md:items-center gap-5">
-        <div className="w-16 h-16 rounded-3xl flex items-center justify-center bg-[#E8F2EA] text-[#2D5233] shrink-0">
+    <section className="bg-white border border-gray-100 rounded-3xl p-4 sm:p-5 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center gap-4 sm:gap-5">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-3xl flex items-center justify-center bg-[#E8F2EA] text-[#2D5233] shrink-0 mx-auto md:mx-0">
           <Car className="h-8 w-8" />
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-2">
+        <div className="flex-1 min-w-0 text-center md:text-right">
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-2">
             <LicensePlate value={b.licensePlate || result.plate} size="lg" />
             <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${b.status === 'פעיל' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
               {b.status || 'סטטוס לא ידוע'}
             </span>
           </div>
-          <h2 className="text-2xl font-black text-gray-900 truncate">
+          <h2 className="text-xl sm:text-2xl font-black text-gray-900 md:truncate">
             {b.displayName || 'רכב'}
           </h2>
-          <p className="text-sm text-gray-500">
-            {[b.vehicleType, b.detectedTypeLabel].filter(Boolean).join(' · ')}
-          </p>
+          {typeLine && <p className="text-sm text-gray-500">{typeLine}</p>}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:min-w-[300px]">
-          <MiniStat label="יצרן" value={b.manufacturer} />
-          <MiniStat label="דגם" value={b.model} />
-          <MiniStat label="שנה" value={b.year} />
-          <MiniStat label="יד" value={ownership.hand ? `יד ${ownership.hand}` : ''} />
-          <MiniStat label="בעלות" value={ownership.current} />
-          <MiniStat label="סוג" value={b.detectedTypeLabel || b.vehicleType} />
-          <MiniStat label="אספנות" value={b.isVintage ? 'כן' : ''} />
+        {stats.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:min-w-[300px]">
+            {stats.map(item => <MiniStat key={item.label} label={item.label} value={item.value} />)}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ResultActions({ onExport, onReset }) {
+  return (
+    <section className="bg-white border border-gray-100 rounded-3xl p-3 shadow-sm">
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+        <p className="text-xs sm:text-sm text-gray-500 font-bold text-center sm:text-right">
+          אפשר לשמור דוח מסודר או לאפס את הבדיקה ולהזין מספר אחר.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button type="button" onClick={onExport} className="rounded-2xl font-black" style={{ background: C.primary }}>
+            <Download className="h-4 w-4 ml-2" />
+            ייצוא דוח
+          </Button>
+          <Button type="button" variant="outline" onClick={onReset} className="rounded-2xl font-bold">
+            <RotateCcw className="h-4 w-4 ml-2" />
+            איפוס לבדיקה נוספת
+          </Button>
         </div>
       </div>
     </section>
@@ -338,7 +387,7 @@ function MiniStat({ label, value }) {
   return (
     <div className="rounded-2xl bg-gray-50 border border-gray-100 p-3">
       <p className="text-[10px] font-bold text-gray-400 mb-1">{label}</p>
-      <p className="text-sm font-black text-gray-900 truncate">{value || 'לא זמין'}</p>
+      <p className="text-sm font-black text-gray-900 break-words">{formatSpecValue(value)}</p>
     </div>
   );
 }
@@ -372,24 +421,26 @@ function KeyInfoGrid({ result }) {
   const o = result.ownership || {};
   const r = result.registration || {};
   const items = [
+    { icon: Gauge, label: 'קילומטראז׳ אחרון', value: formatKm(r.currentKm) },
     { icon: Gauge, label: 'נפח מנוע', value: t.engineCc },
     { icon: Wrench, label: 'סוג דלק', value: t.fuelType },
     { icon: ShieldCheck, label: 'תיבת הילוכים', value: t.transmission },
     { icon: BadgeCheck, label: 'סוג בעלות', value: o.current },
     { icon: CalendarDays, label: 'עלייה לכביש', value: r.firstRegistrationDate },
     { icon: CalendarDays, label: 'תוקף בדיקה', value: r.testDueDate || r.inspectionReportExpiryDate },
-  ];
+  ].filter(item => hasDisplayValue(item.value));
+  if (!items.length) return null;
   return (
     <section>
       <SectionTitle icon={<Info className="h-4 w-4" />} title="מידע מרכזי" subtitle="הפרטים החשובים לסינון ראשוני" />
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {items.map(item => {
           const Icon = item.icon;
           return (
             <div key={item.label} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
               <Icon className="h-4 w-4 text-[#2D5233] mb-2" />
               <p className="text-[11px] font-bold text-gray-400">{item.label}</p>
-              <p className="text-sm font-black text-gray-900 mt-1">{item.value || 'לא זמין'}</p>
+              <p className="text-sm font-black text-gray-900 mt-1 break-words">{formatSpecValue(item.value)}</p>
             </div>
           );
         })}
@@ -405,7 +456,11 @@ function SpecsAccordion({ result }) {
     { id: 'technical', title: 'מפרט טכני', data: result.technical },
     { id: 'ownership', title: 'בעלות והיסטוריה', data: result.ownership },
     { id: 'additional', title: 'מידע נוסף', data: result.additional },
-  ];
+  ].map(section => ({
+    ...section,
+    hasData: Object.values(section.data || {}).some(hasDisplayValue),
+  })).filter(section => section.hasData);
+  if (!sections.length) return null;
   return (
     <section className="bg-white rounded-3xl border border-gray-100 p-4 shadow-sm">
       <SectionTitle icon={<Wrench className="h-4 w-4" />} title="מפרט מלא" subtitle="פתח רק את החלק שמעניין אותך" />
@@ -428,11 +483,8 @@ function SpecsAccordion({ result }) {
 function SpecRows({ data = {} }) {
   const entries = Object.entries(data || {}).filter(([, value]) => {
     if (Array.isArray(value)) return value.length > 0;
-    return value !== undefined && value !== null && value !== '';
+    return hasDisplayValue(value);
   });
-  if (!entries.length) {
-    return <p className="text-xs text-gray-400">אין מידע זמין בסעיף הזה.</p>;
-  }
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {entries.map(([key, value]) => (
@@ -451,6 +503,18 @@ function formatSpecValue(value) {
   if (Array.isArray(value)) return `${value.length} רשומות`;
   if (typeof value === 'boolean') return value ? 'כן' : 'לא';
   return String(value);
+}
+
+function formatKm(value) {
+  if (!hasDisplayValue(value)) return '';
+  const n = Number(String(value).replace(/[^\d.]/g, ''));
+  if (!Number.isFinite(n) || n <= 0) return String(value);
+  return `${Math.round(n).toLocaleString('he-IL')} ק״מ`;
+}
+
+function hasDisplayValue(value) {
+  if (Array.isArray(value)) return value.length > 0;
+  return value !== undefined && value !== null && value !== '';
 }
 
 function ConversionCta({ isAuthenticated, saving, saved, onSave, onAuth }) {
@@ -536,6 +600,276 @@ function SectionTitle({ icon, title, subtitle }) {
   );
 }
 
+function VehiclePrintReport({ result }) {
+  const b = result.basicInfo || {};
+  const rows = buildReportSections(result);
+  return (
+    <article className="vehicle-report-print" dir="rtl" aria-hidden="true">
+      <header className="report-header">
+        <div className="report-brand">
+          <BrandMark />
+          <div>
+            <p className="report-brand-name">CarReminder</p>
+            <p className="report-brand-subtitle">דוח בדיקת רכב</p>
+          </div>
+        </div>
+        <div className="report-meta">
+          <p>תאריך הפקה: {formatReportDate(result.fetchedAt)}</p>
+          <p>מספר רישוי: {b.licensePlate || result.plate}</p>
+        </div>
+      </header>
+
+      <section className="report-hero">
+        <div>
+          <p className="report-kicker">סיכום בדיקה</p>
+          <h1>{b.displayName || 'רכב'}</h1>
+          <p>{[b.vehicleType, b.detectedTypeLabel].filter(Boolean).join(' · ') || 'סוג כלי לא זמין'}</p>
+        </div>
+        <div className="report-plate">{b.licensePlate || result.plate}</div>
+      </section>
+
+      {rows.map(section => (
+        <section key={section.title} className="report-section">
+          <h2>{section.title}</h2>
+          <div className="report-grid">
+            {section.rows.map(([key, value]) => (
+              <div key={`${section.title}-${key}`} className="report-field">
+                <span>{labelFor(key)}</span>
+                <strong>{formatSpecValue(value)}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+
+      <footer className="report-footer">
+        <strong>הבהרה חשובה:</strong> {reportDisclaimer}
+      </footer>
+    </article>
+  );
+}
+
+function BrandMark() {
+  return (
+    <div className="report-logo" aria-hidden="true">
+      <Car className="h-7 w-7" />
+      <Sparkles className="h-3.5 w-3.5 report-logo-spark" />
+    </div>
+  );
+}
+
+function buildReportSections(result) {
+  return [
+    { title: 'מידע כללי', data: result.basicInfo },
+    { title: 'רישוי ובדיקות', data: result.registration },
+    { title: 'בעלות והיסטוריה', data: result.ownership },
+    { title: 'מפרט טכני', data: result.technical },
+    { title: 'מידע נוסף', data: result.additional },
+  ].map(section => ({
+    title: section.title,
+    rows: Object.entries(section.data || {}).filter(([, value]) => {
+      if (Array.isArray(value)) return value.length > 0;
+      return hasDisplayValue(value);
+    }),
+  })).filter(section => section.rows.length > 0);
+}
+
+function formatReportDate(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return 'לא זמין';
+  return date.toLocaleDateString('he-IL');
+}
+
+function PrintStyles() {
+  return (
+    <style>{`
+      .vehicle-report-print {
+        display: none;
+      }
+
+      @media print {
+        @page {
+          size: A4;
+          margin: 10mm;
+        }
+
+        html,
+        body {
+          background: #fff !important;
+        }
+
+        body * {
+          visibility: hidden;
+        }
+
+        .vehicle-report-print,
+        .vehicle-report-print * {
+          visibility: visible;
+        }
+
+        .vehicle-check-screen {
+          display: none !important;
+        }
+
+        .vehicle-report-print {
+          display: block !important;
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          min-height: auto;
+          padding: 0;
+          background: #fff;
+          color: #162117;
+          font-family: Arial, sans-serif;
+          direction: rtl;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        .report-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          padding-bottom: 10px;
+          border-bottom: 2px solid #2D5233;
+        }
+
+        .report-brand {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .report-logo {
+          position: relative;
+          width: 44px;
+          height: 44px;
+          border-radius: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #2D5233;
+          color: #E8B829;
+        }
+
+        .report-logo-spark {
+          position: absolute;
+          top: 6px;
+          left: 7px;
+          color: #FFF5CC;
+        }
+
+        .report-brand-name {
+          margin: 0;
+          font-size: 18px;
+          font-weight: 900;
+          color: #2D5233;
+        }
+
+        .report-brand-subtitle,
+        .report-meta p,
+        .report-hero p,
+        .report-kicker {
+          margin: 0;
+          color: #647067;
+          font-size: 10px;
+          font-weight: 700;
+        }
+
+        .report-meta {
+          text-align: left;
+        }
+
+        .report-hero {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          margin: 12px 0;
+          padding: 12px;
+          border-radius: 18px;
+          background: #F5FAF6;
+          border: 1px solid #D8E5D9;
+        }
+
+        .report-hero h1 {
+          margin: 3px 0;
+          font-size: 20px;
+          line-height: 1.2;
+          color: #162117;
+        }
+
+        .report-plate {
+          min-width: 130px;
+          padding: 8px 12px;
+          border-radius: 10px;
+          border: 2px solid #1A3A5C;
+          background: #FFBF00;
+          color: #111;
+          text-align: center;
+          font-size: 22px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          direction: ltr;
+        }
+
+        .report-section {
+          break-inside: avoid;
+          margin-top: 9px;
+        }
+
+        .report-section h2 {
+          margin: 0 0 5px;
+          font-size: 12px;
+          color: #2D5233;
+          border-bottom: 1px solid #E5ECE6;
+          padding-bottom: 3px;
+        }
+
+        .report-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 4px;
+        }
+
+        .report-field {
+          min-height: 31px;
+          border-radius: 8px;
+          border: 1px solid #E5ECE6;
+          background: #FBFCFB;
+          padding: 4px 6px;
+        }
+
+        .report-field span {
+          display: block;
+          font-size: 7.5px;
+          color: #7C887F;
+          font-weight: 700;
+          margin-bottom: 1px;
+        }
+
+        .report-field strong {
+          display: block;
+          font-size: 9px;
+          line-height: 1.25;
+          color: #162117;
+          word-break: break-word;
+        }
+
+        .report-footer {
+          margin-top: 10px;
+          padding-top: 7px;
+          border-top: 1px solid #E5ECE6;
+          color: #6B766E;
+          font-size: 7.8px;
+          line-height: 1.35;
+        }
+      }
+    `}</style>
+  );
+}
+
 function labelFor(key) {
   return ({
     licensePlate: 'מספר רישוי',
@@ -555,12 +889,14 @@ function labelFor(key) {
     currentKm: 'קילומטראז׳',
     engineCc: 'נפח מנוע',
     fuelType: 'סוג דלק',
+    fuelTypeSpec: 'סוג דלק לפי מפרט',
     transmission: 'תיבת הילוכים',
     horsepower: 'כוח סוס',
     drivetrain: 'הנעה',
     vehicleClass: 'קבוצת רכב',
     bodyType: 'מרכב',
     engineModel: 'דגם מנוע',
+    engineNumber: 'מספר מנוע',
     modelCode: 'קוד דגם',
     trimLevel: 'רמת גימור',
     vin: 'מספר שלדה',
@@ -573,10 +909,16 @@ function labelFor(key) {
     doors: 'דלתות',
     airbags: 'כריות אוויר',
     totalWeight: 'משקל כולל',
+    emptyWeight: 'משקל עצמי',
+    payloadCapacity: 'כושר העמסה',
     countryOfOrigin: 'ארץ ייצור',
     co2: 'פליטת פחמן',
     greenIndex: 'מדד ירוק',
     towCapacity: 'כושר גרירה',
+    hasTowHitch: 'וו גרירה',
+    euClass: 'סיווג אירופי',
+    ac: 'מזגן',
+    abs: 'מערכת בלימה',
     current: 'בעלות נוכחית',
     hand: 'יד',
     history: 'היסטוריית בעלות',
