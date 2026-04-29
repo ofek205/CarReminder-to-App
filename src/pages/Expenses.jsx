@@ -22,6 +22,7 @@ import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import VehicleLabel, { vehicleDisplayText } from '@/components/shared/VehicleLabel';
 
 const CATEGORY_LABELS = {
   fuel:      'דלק',
@@ -104,11 +105,8 @@ export default function Expenses() {
       />
     );
 
-  const vehicleLabel = (id) => {
-    const v = vehicles.find(x => x.id === id);
-    if (!v) return 'רכב לא ידוע';
-    return v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'רכב ללא שם';
-  };
+  const vehicleById = Object.fromEntries(vehicles.map(v => [v.id, v]));
+  const vehicleLabel = (id) => vehicleDisplayText(vehicleById[id]);
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
@@ -141,16 +139,21 @@ export default function Expenses() {
             <li key={e.id} className="bg-white border border-gray-100 rounded-xl p-3">
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mb-1.5">
                     <span className="text-sm font-bold text-gray-900">{fmtMoney(e.amount, e.currency)}</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-700 font-bold">
                       {CATEGORY_LABELS[e.category] || e.category}
                     </span>
+                    <span className="text-[11px] text-gray-400">{fmtDate(e.expense_date)}</span>
                   </div>
-                  <p className="text-[11px] text-gray-500 mt-0.5 truncate">
-                    {vehicleLabel(e.vehicle_id)} · {fmtDate(e.expense_date)}
-                  </p>
-                  {e.note && <p className="text-[11px] text-gray-700 mt-1">{e.note}</p>}
+                  {/* Interactive vehicle row — click goes to VehicleDetail.
+                      Replaces the previous "license-plate-only" text. */}
+                  <VehicleLabel
+                    vehicle={vehicleById[e.vehicle_id]}
+                    size="sm"
+                    showSubtitle={false}
+                  />
+                  {e.note && <p className="text-[11px] text-gray-700 mt-1.5">{e.note}</p>}
                 </div>
                 <div className="flex items-center gap-1">
                   <button type="button" onClick={() => setEditing(e)} className="p-1.5 rounded-lg hover:bg-gray-100">

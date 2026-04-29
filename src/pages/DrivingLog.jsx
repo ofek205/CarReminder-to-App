@@ -24,6 +24,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { createPageUrl } from '@/utils';
+import VehicleLabel, { vehicleDisplayText } from '@/components/shared/VehicleLabel';
 
 // Status pills mirror Routes.jsx exactly so a manager who jumps
 // between the two pages doesn't have to re-learn the colour code.
@@ -95,11 +96,10 @@ export default function DrivingLog() {
   const vehicleById = useMemo(() => Object.fromEntries(vehicles.map(v => [v.id, v])), [vehicles]);
 
   const driverName = (id) => memberById[id]?.display_name || '—';
-  const vehicleLabel = (id) => {
-    const v = vehicleById[id];
-    if (!v) return '—';
-    return v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'רכב';
-  };
+  // Plain-text label for the dropdown, the search haystack, and any
+  // place that can't host JSX. The visual list rows use the rich
+  // VehicleLabel component below.
+  const vehicleLabel = (id) => vehicleDisplayText(vehicleById[id]);
 
   // Filter routes per active filters. Simple AND across fields.
   const filtered = useMemo(() => {
@@ -224,7 +224,7 @@ export default function DrivingLog() {
                           {status.label}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-[11px] text-gray-500 flex-wrap">
+                      <div className="flex items-center gap-3 text-[11px] text-gray-500 flex-wrap mb-1.5">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           {fmtDate(r.scheduled_for) || fmtDate(r.created_at)}
@@ -233,11 +233,20 @@ export default function DrivingLog() {
                           <UserIcon className="h-3 w-3" />
                           {driverName(r.assigned_driver_user_id) || 'ללא שיוך'}
                         </span>
-                        <span className="flex items-center gap-1">
-                          <Truck className="h-3 w-3" />
-                          {vehicleLabel(r.vehicle_id)}
-                        </span>
                       </div>
+                      {/* Vehicle row gets its own line — the VehicleLabel
+                          component is taller than the inline date/driver
+                          chips and looks cramped wedged between them.
+                          interactive=false here because the parent <Link>
+                          already navigates to RouteDetail; clicking the
+                          inner vehicle would steal the click and bounce
+                          the manager to a different page. */}
+                      <VehicleLabel
+                        vehicle={vehicleById[r.vehicle_id]}
+                        size="sm"
+                        interactive={false}
+                        showSubtitle={false}
+                      />
                     </div>
                     <ChevronLeft className="h-4 w-4 text-gray-300 shrink-0 mt-0.5" />
                   </div>

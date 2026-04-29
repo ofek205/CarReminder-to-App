@@ -40,6 +40,7 @@ import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import VehicleLabel, { vehicleDisplayText } from '@/components/shared/VehicleLabel';
 
 // ---------- formatters ------------------------------------------------
 
@@ -263,11 +264,15 @@ export default function Reports() {
 
   // -- helpers --------------------------------------------------------
 
-  const vehicleLabel = (id) => {
-    const v = vehicles.find(x => x.id === id);
-    if (!v) return 'רכב לא ידוע';
-    return v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'רכב ללא שם';
-  };
+  // Lookup helpers. `vehicleById` is the source of truth used by
+  // VehicleLabel anywhere we render a vehicle; `vehicleLabel` is the
+  // plain-text fallback for places that can't host JSX (Excel cells,
+  // <option> values, sort comparators).
+  const vehicleById = useMemo(
+    () => Object.fromEntries(vehicles.map(v => [v.id, v])),
+    [vehicles]
+  );
+  const vehicleLabel = (id) => vehicleDisplayText(vehicleById[id]);
 
   // -- derived: chart data (monthly) ---------------------------------
   // FIX: month-overlap test instead of naive "month >= periodFrom"
@@ -571,7 +576,10 @@ export default function Reports() {
             >
               <option value="">כל הרכבים</option>
               {vehicles.map(v => (
-                <option key={v.id} value={v.id}>{vehicleLabel(v.id)}</option>
+                // Native <option> can't host JSX, so we use the
+                // plain-text "name · plate" form. Everywhere outside
+                // the dropdown we use the rich VehicleLabel.
+                <option key={v.id} value={v.id}>{vehicleDisplayText(v)}</option>
               ))}
             </select>
           </FilterField>
@@ -698,11 +706,16 @@ export default function Reports() {
                 const pct = (v.total / max) * 100;
                 return (
                   <li key={v.vehicle_id}>
-                    <div className="flex items-center justify-between gap-2 mb-0.5">
-                      <span className="text-[11px] text-gray-700 truncate flex-1 min-w-0">
-                        <span className="text-[10px] font-bold text-gray-400 ml-1">{i + 1}.</span>
-                        {vehicleLabel(v.vehicle_id)}
-                      </span>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <span className="text-[10px] font-black text-gray-400 shrink-0 w-3 text-center">{i + 1}</span>
+                        <VehicleLabel
+                          vehicle={vehicleById[v.vehicle_id]}
+                          size="sm"
+                          showSubtitle={false}
+                          className="flex-1"
+                        />
+                      </div>
                       <span className="text-[11px] font-bold text-[#2D5233] shrink-0">
                         {fmtMoney(v.total)}
                       </span>
@@ -786,8 +799,15 @@ export default function Reports() {
                   return (
                     <tr key={r.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
                       <td className="py-1.5 px-3 text-gray-700 whitespace-nowrap">{fmtDate(r.date)}</td>
-                      <td className="py-1.5 px-3 text-gray-900 truncate max-w-[140px]" title={vehicleLabel(r.vehicle_id)}>
-                        {vehicleLabel(r.vehicle_id)}
+                      <td className="py-1.5 px-2 max-w-[200px]">
+                        {/* Interactive vehicle cell — click goes to
+                            VehicleDetail. Without this users only saw
+                            a license plate number with no context. */}
+                        <VehicleLabel
+                          vehicle={vehicleById[r.vehicle_id]}
+                          size="sm"
+                          showSubtitle={false}
+                        />
                       </td>
                       <td className="py-1.5 px-3">
                         <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md ${meta.bg} ${meta.text} font-bold whitespace-nowrap`}>
