@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine } from "lucide-react";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
-import { normalizePlate, isVintageVehicle, isOffroad, usesHours } from "../components/shared/DateStatusUtils";
+import { normalizePlate, isVintageVehicle, isOffroad, usesHours, isCme } from "../components/shared/DateStatusUtils";
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { toast } from "sonner";
@@ -437,6 +437,7 @@ export default function EditVehicle() {
   const T = getTheme(form.vehicle_type, form.nickname, form.manufacturer);
   const vesselMode = isVesselType(form.vehicle_type, form.nickname);
   const offroadMode = isOffroad(form.vehicle_type);
+  const cmeMode = isCme(form.vehicle_type);
   const hasOffroadData = (form.offroad_equipment?.length > 0 || form.offroad_usage_type || form.last_offroad_service_date);
 
   const VehicleIcon = vesselMode ? Ship : Car;
@@ -593,12 +594,14 @@ export default function EditVehicle() {
             </div>
           </div>
 
-          {/* תסקיר — periodic inspection certificate. Hidden for
-              vessels (they have כושר שייט). Optional everywhere else;
-              relevant primarily for construction equipment but exposed
-              for any non-vessel since forklifts/lifts under different
-              top-level categories also legally require it. */}
-          {!vesselMode && (
+          {/* תסקיר — periodic safety certificate required by law for
+              כלי צמ"ה only (forklifts, excavators, telehandlers,
+              cranes, rollers). Hidden for every other category since
+              a private car / motorcycle / vessel owner has no use
+              for this date and the field just cluttered the form.
+              Existing data on a non-CME vehicle stays in the row
+              (we don't drop it on save), it just isn't shown. */}
+          {cmeMode && (
             <div data-field="inspection_report_expiry_date" className="rounded-xl p-1 -m-1 transition-all">
               <Label>תסקיר (אופציונלי)</Label>
               <DateInput

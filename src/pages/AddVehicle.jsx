@@ -205,6 +205,11 @@ export default function AddVehicle() {
   // Dynamic theme - switches to marine when כלי שייט is selected
   const isVesselCategory = selectedCategory?.label === 'כלי שייט';
   const isOffroadCategory = selectedCategory?.label === 'כלי שטח';
+  // תסקיר (periodic safety inspection) is a regulatory requirement
+  // specific to construction equipment (forklifts, excavators, cranes,
+  // telehandlers, rollers). Showing it for every vehicle clutters the
+  // form for a private car owner who has no use for the field.
+  const isCmeCategory = selectedCategory?.label === 'כלי צמ"ה';
   const isJeepOffroad = selectedSubcategory?.dbName === "ג'יפ שטח";
   const [showOffroadSection, setShowOffroadSection] = useState(false);
   const T = isVesselCategory ? getTheme('כלי שייט') : defaultC;
@@ -1550,14 +1555,14 @@ export default function AddVehicle() {
                     </div>
                   </div>
 
-                  {/* Inspection report ("תסקיר") — optional date.
-                      Promoted into the form for any non-vessel category
-                      since forklifts, telehandlers, excavators and other
-                      construction equipment legally require a periodic
-                      inspection certificate. Hidden for vessels (they
-                      have their own כושר שייט slot above). NULL = no
-                      reminder fires, so leaving blank is fine. */}
-                  {!isVesselCategory && (
+                  {/* Inspection report ("תסקיר") — periodic safety
+                      certificate required by law for כלי צמ"ה only
+                      (forklifts, excavators, telehandlers, cranes,
+                      rollers). Hidden for every other category
+                      including private cars / motorcycles / vessels —
+                      previously the field appeared everywhere and just
+                      cluttered the form. NULL = no reminder fires. */}
+                  {isCmeCategory && (
                     <div>
                       <Label>תסקיר (אופציונלי)</Label>
                       <DateInput
