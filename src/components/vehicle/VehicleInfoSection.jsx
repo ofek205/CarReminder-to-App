@@ -454,6 +454,88 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
 }
 
 //  Info Row 
+// Hand label for the "יד" spec row. Hebrew has natural ordinals
+// through 4 ("ראשונה / שנייה / שלישית / רביעית") that read more
+// fluently than the numeric form. From 5 onwards, "יד 5" is what
+// Israelis write anyway so we don't try to invent more ordinals.
+function formatHandLabel(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num) || num <= 0) return '';
+  const words = { 1: 'ראשונה', 2: 'שנייה', 3: 'שלישית', 4: 'רביעית' };
+  return words[num] || String(num);
+}
+
+// OwnershipHistoryRow — collapsible "history" panel that lives at the
+// bottom of the technical-spec card. Renders the chronological list
+// of ownership episodes the gov.il dataset returned for the plate.
+//
+// Self-contained: own open/close state. Doesn't propagate up because
+// the parent's specOpen toggle already controls whether the whole
+// spec card is visible; this is just the "more detail" affordance
+// inside it.
+function OwnershipHistoryRow({ history, theme }) {
+  const [open, setOpen] = useState(false);
+  const T = theme;
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-right hover:bg-gray-50 active:bg-gray-100 transition-colors"
+        aria-expanded={open}
+      >
+        <span className="text-[12px] font-bold flex items-center gap-1.5" style={{ color: T.primary }}>
+          {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          היסטוריית בעלויות
+        </span>
+        <span className="text-[10px] text-gray-400">{history.length} בעלויות</span>
+      </button>
+      {open && (
+        <ol className="px-4 pb-3 space-y-1.5">
+          {history.map((h, i) => {
+            const isCurrent = i === history.length - 1;
+            return (
+              <li
+                key={i}
+                className="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5"
+                style={{
+                  background: isCurrent ? T.light : '#F9FAFB',
+                  border: `1px solid ${isCurrent ? T.border : '#F3F4F6'}`,
+                }}
+              >
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                    style={{ background: isCurrent ? T.primary : '#D1D5DB', color: '#fff' }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="text-[12px] font-semibold text-gray-900 truncate">
+                    {h.baalut || 'לא ידוע'}
+                  </span>
+                  {isCurrent && (
+                    <span
+                      className="text-[9px] px-1 py-0.5 rounded font-bold shrink-0"
+                      style={{ background: T.primary, color: '#fff' }}
+                    >
+                      נוכחית
+                    </span>
+                  )}
+                </span>
+                {h.date && (
+                  <span className="text-[10px] text-gray-500 font-mono shrink-0" dir="ltr">
+                    {h.date}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 function InfoRow({ label, value, T }) {
   if (!value) return null;
   return (
@@ -668,6 +750,13 @@ export default function VehicleInfoSection({ vehicle }) {
             vehicle.color && { label: 'צבע', value: vehicle.color },
             vehicle.trim_level && { label: 'רמת גימור', value: vehicle.trim_level },
             vehicle.ownership && { label: 'בעלות', value: vehicle.ownership },
+            // "יד" — sourced from gov.il's ownership-history dataset.
+            // The count of episodes IS the hand number; we render
+            // "ראשונה / שנייה / שלישית / רביעית" up to 4 and fall back
+            // to a numeric string for ≥5. The expandable history that
+            // unfolds below the spec card lets the user see what each
+            // episode actually was (פרטי / ליסינג / השכרה / ...).
+            vehicle.ownership_hand && { label: 'יד', value: formatHandLabel(vehicle.ownership_hand) },
             vehicle.first_registration_date && { label: 'עלייה לכביש', value: formatDateHe(vehicle.first_registration_date) },
           ].filter(Boolean) },
           { title: 'מנוע וביצועים', items: [
@@ -747,6 +836,14 @@ export default function VehicleInfoSection({ vehicle }) {
                     ))}
                   </div>
                 ))}
+                {/* Ownership-history expandable. Only renders when the
+                    history list has at least 2 entries (the row "יד" in
+                    the registration group already conveys 1-hand cars
+                    with no further detail to show). Self-contained
+                    state, doesn't compete with specOpen. */}
+                {Array.isArray(vehicle.ownership_history) && vehicle.ownership_history.length > 1 && (
+                  <OwnershipHistoryRow history={vehicle.ownership_history} theme={T} />
+                )}
               </div>
             )}
           </div>

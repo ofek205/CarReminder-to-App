@@ -72,6 +72,11 @@ const EMPTY_FORM = {
   current_km: '',
   current_engine_hours: '',
   vehicle_photo: '',
+  // Ownership history (auto-filled from gov.il during plate lookup;
+  // never user-entered manually, but kept here so handleChange can
+  // reset it if the user re-runs the lookup with a different plate).
+  ownership_hand: '',
+  ownership_history: null,
   last_tire_change_date: '',
   km_since_tire_change: '',
   tires_changed_count: 4,  // default assumption: a "tire change" event replaces all 4. User can narrow down.
@@ -506,6 +511,12 @@ export default function AddVehicle() {
     // they can still override before submitting if they've driven
     // since the last test.
     current_km: fields.current_km || '',
+    // Ownership-history derived fields. ownership_hand is the count
+    // of episodes ("יד שלישית" = 3); ownership_history is the full
+    // chronological list rendered in the expandable specs panel.
+    // Both come from the gov.il "היסטוריית כלי רכב" dataset.
+    ownership_hand:    fields.ownership_hand    || '',
+    ownership_history: fields.ownership_history || null,
   });
 
   // Apply lookup result to the form + UI state
@@ -746,7 +757,8 @@ export default function AddVehicle() {
         'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
         'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
         'offroad_equipment','offroad_usage_type','last_offroad_service_date',
-        'inspection_report_expiry_date'];
+        'inspection_report_expiry_date',
+        'ownership_hand','ownership_history'];
       const cleanData = { account_id: accountId };
       DB_COLUMNS.forEach(k => { if (data[k] !== undefined && data[k] !== null && data[k] !== '') cleanData[k] = data[k]; });
 

@@ -32,6 +32,13 @@ const INACTIVE_RESOURCE_ID = '851ecab1-0622-4dbe-a6c7-f950cf82abf9';
 // 1 record back. Values of 0 are stored when the inspector didn't
 // record a reading — treated as "no value" and ignored.
 const LAST_TEST_KM_RESOURCE_ID = '56063a99-8a3e-4ff4-912e-5966c0279bad';
+// "היסטוריית כלי רכב פרטיים" — one row per ownership episode for a plate.
+// The number of rows for a given mispar_rechev IS the vehicle's hand
+// number (3 rows = יד שלישית). The `baalut` column on each row tells
+// us what kind of ownership that episode was (פרטי / ליסינג /
+// מסחרי / השכרה / ...). Used to populate ownership_hand and the
+// expandable ownership_history list.
+const OWNERSHIP_HISTORY_RESOURCE_ID = 'bb2355dc-9ec7-4f06-9c3f-3344672171da';
 import { isNative } from '@/lib/capacitor';
 
 // In dev browser, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
@@ -460,6 +467,77 @@ async function fetchLastTestKm(plateDigits) {
 }
 
 /**
+ * Fetch ownership history for a plate. Returns:
+ *   {
+ *     hand:    integer 1+    — count of ownership episodes
+ *     history: array of      — chronological list (oldest first)
+ *       { baalut: 'פרטי', date: 'YYYY-MM-DD' | null }
+ *     current: 'פרטי'        — most recent baalut value (for the
+ *                              ownership field; only used as fallback
+ *                              when the registration record didn't
+ *                              already give us one)
+ *   }
+ *
+ * Returns null on any error / empty result. Best-effort: never throws,
+ * never blocks the parent lookup. The dataset has no documented field
+ * for ownership-start date — we try a few plausible names and gracefully
+ * leave date=null if none is found.
+ */
+async function fetchOwnershipHistory(plateDigits) {
+  try {
+    // We DON'T use a filters= query here because the gov.il datastore_search
+    // exact-match filter on this dataset has flaky behavior with 7-digit
+    // numerics — depending on whether the column is stored as int or
+    // text we get either a hit or 0 results. Using q=fulltext on the
+    // plate number works reliably across both. We then filter the
+    // returned records client-side to the exact plate.
+    const url = `${API_BASE}?resource_id=${encodeURIComponent(OWNERSHIP_HISTORY_RESOURCE_ID)}&q=${encodeURIComponent(plateDigits)}&limit=50`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const records = json?.result?.records || [];
+    if (records.length === 0) return null;
+
+    // Tighten to records whose plate column matches exactly. Cheap
+    // safeguard against fulltext bleed (e.g. "1234567" matching a VIN
+    // suffix in another row).
+    const exact = records.filter(r =>
+      String(r.mispar_rechev || '').replace(/\D/g, '') === plateDigits
+    );
+    if (exact.length === 0) return null;
+
+    // Sort chronologically (oldest first). The dataset doesn't document
+    // a single date column — try a handful of plausible names. If
+    // nothing works, the records are returned in the dataset's native
+    // order, which usually correlates with insertion order.
+    const dateOf = (r) =>
+      r.taarich_baalut ?? r.tarich_baalut ?? r.tarich_haskara
+      ?? r.taarich_aliya ?? r.moed_baalut ?? null;
+    const sorted = [...exact].sort((a, b) => {
+      const da = String(dateOf(a) || '');
+      const db = String(dateOf(b) || '');
+      return da.localeCompare(db);
+    });
+
+    const history = sorted.map(r => ({
+      baalut: safeStr(r.baalut || '', 30) || null,
+      date:   safeDate(dateOf(r)) || null,
+    }));
+
+    return {
+      hand:    history.length,
+      history,
+      current: history[history.length - 1]?.baalut || null,
+    };
+  } catch {
+    return null;   // never throws — enrichment is best-effort
+  }
+}
+
+/**
  * Fetch detailed tech specs from the דגמי רכב API using tozeret_cd + degem_cd + year.
  */
 async function fetchDetailedSpecs(tozeretCd, degemCd, year) {
@@ -605,8 +683,11 @@ export async function lookupVehicleByPlate(plate) {
     (source !== 'moto' && source !== 'cme')
       ? fetchLastTestKm(clean)
       : Promise.resolve(null),
+    (source !== 'moto' && source !== 'cme')
+      ? fetchOwnershipHistory(clean)
+      : Promise.resolve(null),
   ]);
-  const [specs, lastTestKm] = enrichments;
+  const [specs, lastTestKm, ownership] = enrichments;
 
   if (specs) {
     Object.entries(specs).forEach(([k, v]) => {
@@ -619,6 +700,18 @@ export async function lookupVehicleByPlate(plate) {
   // ground-truth reading we have for the plate.
   if (lastTestKm && !fields.current_km) {
     fields.current_km = String(lastTestKm);
+  }
+  // Ownership enrichment — the dedicated history dataset is the
+  // primary source for hand + history. Current `ownership` (baalut)
+  // is taken from the registration record first; we only fall back
+  // to the history's most-recent entry if the registration didn't
+  // carry one (e.g. CME / heavy where it isn't included).
+  if (ownership) {
+    fields.ownership_hand    = ownership.hand;
+    fields.ownership_history = ownership.history;
+    if (!fields.ownership && ownership.current) {
+      fields.ownership = ownership.current;
+    }
   }
 
   // Remove internal fields

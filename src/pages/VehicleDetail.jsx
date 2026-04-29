@@ -496,7 +496,10 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           'vehicle_class','safety_rating','front_tire','rear_tire','color','ownership',
           'first_registration_date','fuel_type',
           'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
-          'transmission','body_type','country_of_origin','co2','green_index','tow_capacity'];
+          'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
+          // Ownership-history enrichment — backfills "יד" + history
+          // for vehicles that pre-date the new dataset integration.
+          'ownership_hand','ownership_history'];
         const update = {};
         allFields.forEach(f => { if (govData[f] && !vehicle[f]) update[f] = govData[f]; });
         if (Object.keys(update).length > 0) {
