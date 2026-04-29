@@ -312,9 +312,9 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
               onChange={(e) => setRole(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
             >
-              <option value="driver">נהג. רואה את הרכב שלו ומסלולים שלו בלבד</option>
+              <option value="driver">נהג. רואה את הרכב שלו ואת המשימות שלו בלבד</option>
               <option value="שותף">צופה. רואה הכל בקריאה בלבד</option>
-              <option value="מנהל">מנהל. אחראי על צי, נהגים ומסלולים</option>
+              <option value="מנהל">מנהל. אחראי על צי, נהגים ומשימות</option>
             </select>
           </div>
 

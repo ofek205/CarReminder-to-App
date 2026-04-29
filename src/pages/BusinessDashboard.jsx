@@ -78,10 +78,10 @@ const ACTION_LABEL = {
   'workspace.create':           'נוצרה סביבת עבודה עסקית',
   'workspace.create_approved':  'אושרה בקשה לחשבון עסקי',
   'driver.assign':              'נהג שויך לרכב',
-  'route.create':               'נוצר מסלול',
-  'route.start':                'מסלול יצא לדרך',
-  'route.complete':             'מסלול הושלם',
-  'route.reopen':               'מסלול נפתח מחדש',
+  'route.create':               'נוצרה משימה',
+  'route.start':                'משימה יצאה לדרך',
+  'route.complete':             'משימה הושלמה',
+  'route.reopen':               'משימה נפתחה מחדש',
   'stop.complete':              'תחנה הושלמה',
   'stop.skip':                  'תחנה דולגה',
   'stop.issue':                 'תקלה דווחה בתחנה',
@@ -274,7 +274,7 @@ export default function BusinessDashboard() {
       <Empty
         icon={<TrendingUp className="h-10 w-10 text-gray-300" />}
         title="אין הרשאה לדשבורד"
-        text="הדשבורד שמור למנהלי החשבון. נסה את 'המשימות שלי' אם הוקצו לך מסלולים."
+        text="הדשבורד שמור למנהלי החשבון. נסה את 'המשימות שלי' אם הוקצו לך משימות."
       />
     );
   }
@@ -302,7 +302,7 @@ export default function BusinessDashboard() {
 
       {/* ── Quick Actions ────────────────────────────────────────── */}
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-        <QuickAction icon={<Plus className="h-3.5 w-3.5" />}     label="צור מסלול"     to={createPageUrl('CreateRoute')} primary />
+        <QuickAction icon={<Plus className="h-3.5 w-3.5" />}     label="משימה חדשה"    to={createPageUrl('CreateRoute')} primary />
         <QuickAction icon={<Truck className="h-3.5 w-3.5" />}    label="הוסף רכב"      to={createPageUrl('AddVehicle')} />
         <QuickAction icon={<Users className="h-3.5 w-3.5" />}    label="נהגים"         to={createPageUrl('Drivers')} />
         <QuickAction icon={<Receipt className="h-3.5 w-3.5" />}  label="הוצאה חדשה"   to={createPageUrl('Expenses')} />
@@ -319,9 +319,9 @@ export default function BusinessDashboard() {
         />
         <Kpi
           icon={<MapPin className="h-5 w-5" />}
-          label="במסלול פעיל"
+          label="משימות פעילות"
           value={fmtNumber(activeRoutes.length)}
-          sub={activeRoutes.length === 0 ? 'אף מסלול פתוח' : null}
+          sub={activeRoutes.length === 0 ? 'אין משימה פתוחה' : null}
           to={createPageUrl('Routes')}
           tone="primary"
         />
@@ -561,7 +561,7 @@ function buildAttentionItems({ overdueCount, soonCount, openIssuesCount, monthDe
     items.push({
       barCls: 'bg-red-500',
       text: `${openIssuesCount} תקלות מדווחות שטרם טופלו`,
-      sub: 'נהגים דיווחו על תקלות במסלולים פעילים',
+      sub: 'נהגים דיווחו על תקלות במשימות פעילות',
       to: createPageUrl('Routes'),
     });
   }

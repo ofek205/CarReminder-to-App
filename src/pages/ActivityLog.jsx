@@ -35,10 +35,10 @@ const PAGE_SIZE = 30;
 const ACTION_META = {
   'workspace.create':       { label: 'נוצרה סביבת עבודה עסקית', icon: Briefcase,    cls: 'text-purple-600 bg-purple-50' },
   'driver.assign':          { label: 'נהג שויך לרכב',          icon: UserIcon,     cls: 'text-blue-600 bg-blue-50' },
-  'route.create':           { label: 'נוצר מסלול',              icon: Plus,         cls: 'text-green-600 bg-green-50' },
-  'route.start':            { label: 'מסלול יצא לדרך',          icon: Truck,        cls: 'text-blue-600 bg-blue-50' },
-  'route.complete':         { label: 'מסלול הושלם',             icon: CheckCircle2, cls: 'text-green-700 bg-green-50' },
-  'route.reopen':           { label: 'מסלול נפתח מחדש',         icon: ChevronLeft,  cls: 'text-yellow-700 bg-yellow-50' },
+  'route.create':           { label: 'נוצרה משימה',             icon: Plus,         cls: 'text-green-600 bg-green-50' },
+  'route.start':            { label: 'משימה יצאה לדרך',         icon: Truck,        cls: 'text-blue-600 bg-blue-50' },
+  'route.complete':         { label: 'משימה הושלמה',            icon: CheckCircle2, cls: 'text-green-700 bg-green-50' },
+  'route.reopen':           { label: 'משימה נפתחה מחדש',        icon: ChevronLeft,  cls: 'text-yellow-700 bg-yellow-50' },
   'stop.complete':          { label: 'תחנה הושלמה',             icon: CheckCircle2, cls: 'text-green-700 bg-green-50' },
   'stop.skip':              { label: 'תחנה דולגה',               icon: ChevronLeft,  cls: 'text-yellow-700 bg-yellow-50' },
   'stop.issue':             { label: 'תקלה דווחה בתחנה',        icon: AlertTriangle, cls: 'text-red-700 bg-red-50' },
@@ -178,7 +178,7 @@ export default function ActivityLog() {
           <p className="text-xs text-gray-500">
             {canManageRoutes
               ? 'תיעוד כרונולוגי של כל הפעולות בחשבון. שורה לכל אירוע.'
-              : 'הפעולות שלך והפעילות במסלולים שמשויכים אליך.'}
+              : 'הפעולות שלך והפעילות במשימות שמשויכות אליך.'}
           </p>
         </div>
         {canManageRoutes && (
@@ -214,7 +214,7 @@ export default function ActivityLog() {
               ))}
             </select>
           </FilterRow>
-          <FilterRow label="מסלול">
+          <FilterRow label="משימה">
             <select value={filterRoute} onChange={(e) => setFilterRoute(e.target.value)} className={selectCls}>
               <option value="">הכל</option>
               {routes.map(r => <option key={r.id} value={r.id}>{r.title}</option>)}
@@ -240,7 +240,7 @@ export default function ActivityLog() {
           title={hasFilters ? 'לא נמצאה פעילות בסינון הזה' : 'עוד לא נרשמה פעילות'}
           text={hasFilters
             ? 'נסה להסיר חלק מהמסננים, או לבחור טווח תאריכים אחר.'
-            : 'כל פעולה בחשבון תיכתב ליומן אוטומטית. יצירת מסלול, עדכון תחנה, הוספת הוצאה.'}
+            : 'כל פעולה בחשבון תיכתב ליומן אוטומטית. יצירת משימה, עדכון תחנה, הוספת הוצאה.'}
           embedded
         />
       ) : (
