@@ -560,7 +560,7 @@ export default function Vehicles() {
   // view exposes is_shared_with_me + share_role + share_owner_user_id
   // so the UI can render a "shared with me" badge.
   const { data: rawVehicles = [], isLoading } = useQuery({
-    queryKey: ['my-vehicles', user?.id],
+    queryKey: ['my-vehicles', user?.id, accountId],
     queryFn: async () => {
       const { supabase } = await import('@/lib/supabase');
       const { data, error } = await supabase.from('my_vehicles_v').select('*');
@@ -568,8 +568,8 @@ export default function Vehicles() {
       return data || [];
     },
     enabled: !!user?.id && !!accountId,
-    refetchOnMount: 'always',
-    staleTime: 2 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: true,
   });
 
   // Phase 3: workspace-aware filtering.
@@ -586,7 +586,7 @@ export default function Vehicles() {
 
   // Pull-to-refresh. re-fetches the vehicles list.
   const { pulling, progress } = usePullToRefresh(async () => {
-    await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+    await queryClient.invalidateQueries({ queryKey: ['my-vehicles', user?.id, accountId] });
     await new Promise(r => setTimeout(r, 500));
   });
 

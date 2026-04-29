@@ -27,8 +27,11 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { DateInput } from '@/components/ui/date-input';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { createPageUrl } from '@/utils';
 import VehiclePicker from '@/components/shared/VehiclePicker';
+import MobileBackButton from '@/components/shared/MobileBackButton';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -204,6 +207,7 @@ export default function CreateRoute() {
 
   return (
     <div dir="rtl" className="max-w-2xl mx-auto py-2">
+      <MobileBackButton />
       {/* Header card */}
       <div className="bg-gradient-to-l from-[#2D5233] to-[#3A6B42] text-white rounded-2xl p-4 mb-4 shadow-sm">
         <div className="flex items-center gap-2 mb-1">
@@ -221,13 +225,13 @@ export default function CreateRoute() {
         {/* Section: כותרת המשימה */}
         <Section title="פרטי המשימה" icon={<ClipboardList className="h-4 w-4 text-[#2D5233]" />}>
           <Field label="שם המשימה" required>
-            <input
+            <Input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="לדוגמה: איסוף הזמנת קלאלית מהמחסן"
               maxLength={120}
-              className={inputCls}
+              className="h-11 rounded-xl"
               autoFocus
             />
           </Field>
@@ -236,16 +240,16 @@ export default function CreateRoute() {
               value={scheduledFor}
               onChange={(e) => setScheduledFor(e.target.value)}
               min={todayISO}
-              className={inputCls}
+              className="h-11 rounded-xl"
             />
           </Field>
           <Field label="הערות למשימה (לא חובה)">
-            <textarea
+            <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="פרטים שיועילו לנהג: שעות פעילות, איש קשר, מספר הזמנה וכו׳"
               rows={2}
-              className={inputCls}
+              className="rounded-xl"
             />
           </Field>
         </Section>
@@ -346,9 +350,6 @@ export default function CreateRoute() {
 
 // ---------- shared UI primitives -------------------------------------
 
-const inputCls =
-  "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30 focus:border-[#2D5233] transition-all";
-
 function Section({ title, icon, headerExtra, children }) {
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
@@ -395,23 +396,23 @@ function StopRow({ index, stop, isMultiStop, onChange, onRemove, canRemove }) {
           </button>
         )}
       </div>
-      <input
+      <Input
         value={stop.title}
         onChange={(e) => onChange('title', e.target.value)}
         placeholder="לדוגמה: איסוף סחורה ממחסן"
-        className={inputCls}
+        className="h-10 rounded-xl text-sm"
       />
-      <input
+      <Input
         value={stop.address_text}
         onChange={(e) => onChange('address_text', e.target.value)}
         placeholder="כתובת מדויקת — תיפתח אצל הנהג ישירות בוויז"
-        className={inputCls}
+        className="h-10 rounded-xl text-sm"
       />
-      <input
+      <Input
         value={stop.notes}
         onChange={(e) => onChange('notes', e.target.value)}
         placeholder="הערות לנהג (לא חובה)"
-        className={inputCls}
+        className="h-10 rounded-xl text-sm"
       />
     </div>
   );
@@ -510,13 +511,13 @@ function DriverPicker({ members, value, permanentDriverId, onChange }) {
           <div className="p-2 border-b border-gray-100">
             <div className="relative">
               <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-              <input
+              <Input
                 ref={searchRef}
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="חפש לפי שם, אימייל או טלפון"
-                className="w-full pr-8 pl-2 py-1.5 text-xs rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:border-gray-300 focus:outline-none"
+                className="h-9 rounded-xl pr-8 pl-2 text-xs bg-gray-50 focus:bg-white"
               />
             </div>
           </div>

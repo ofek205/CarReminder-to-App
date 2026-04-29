@@ -27,6 +27,9 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
+import MobileBackButton from '@/components/shared/MobileBackButton';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 const MAX_NAME = 120;
 
@@ -190,6 +193,7 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
 
   return (
     <div dir="rtl" className="max-w-md mx-auto py-6 px-2">
+      <MobileBackButton />
       <div className="flex items-center gap-3 mb-5">
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${isRequest ? 'bg-yellow-50' : 'bg-[#E8F2EA]'}`}>
           {isRequest
@@ -226,13 +230,13 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
           <label className="block text-xs font-bold text-gray-700 mb-1.5">
             שם החשבון העסקי <span className="text-red-500">*</span>
           </label>
-          <input
+          <Input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="לדוגמה: יצור פלסטיק בע&quot;מ"
             maxLength={MAX_NAME}
-            className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30 focus:border-[#2D5233]"
+            className="h-11 rounded-xl"
             required
           />
         </div>
@@ -241,12 +245,12 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
           <label className="block text-xs font-bold text-gray-700 mb-1.5">
             ח.פ. / מספר עוסק
           </label>
-          <input
+          <Input
             type="text"
             value={businessId}
             onChange={(e) => setBusinessId(e.target.value)}
             placeholder="לא חובה"
-            className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30 focus:border-[#2D5233]"
+            className="h-11 rounded-xl"
           />
         </div>
 
@@ -254,12 +258,12 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
           <label className="block text-xs font-bold text-gray-700 mb-1.5">
             אימייל ליצירת קשר
           </label>
-          <input
+          <Input
             type="email"
             value={contactEmail}
             onChange={(e) => setContactEmail(e.target.value)}
             placeholder="לא חובה"
-            className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30 focus:border-[#2D5233]"
+            className="h-11 rounded-xl"
           />
         </div>
 
@@ -268,12 +272,12 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
             <label className="block text-xs font-bold text-gray-700 mb-1.5">
               סיבת הבקשה <span className="text-red-500">*</span>
             </label>
-            <textarea
+            <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
               placeholder="לדוגמה: סניף שני בעיר אחרת, פעילות נפרדת לחברת בת, או צרכים אחרים"
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30 focus:border-[#2D5233]"
+              className="rounded-xl"
               required
             />
           </div>
@@ -305,6 +309,7 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
 function PendingState({ request }) {
   return (
     <div dir="rtl" className="max-w-md mx-auto py-10 px-3">
+      <MobileBackButton />
       <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-center">
         <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-3">
           <Clock className="h-6 w-6 text-yellow-700" />

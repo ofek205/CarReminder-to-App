@@ -42,6 +42,8 @@ import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import VehicleLabel, { vehicleDisplayText } from '@/components/shared/VehicleLabel';
 import VehiclePicker from '@/components/shared/VehiclePicker';
+import MobileBackButton from '@/components/shared/MobileBackButton';
+import { DateInput } from '@/components/ui/date-input';
 
 // ---------- formatters ------------------------------------------------
 
@@ -524,6 +526,7 @@ export default function Reports() {
 
   return (
     <div dir="rtl" className="max-w-5xl mx-auto py-2">
+      <MobileBackButton />
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
@@ -946,15 +949,14 @@ function FilterField({ label, children }) {
 
 function DateField({ label, value, onChange }) {
   return (
-    <label className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white">
-      <span className="text-[10px] font-bold text-gray-500 shrink-0">{label}:</span>
-      <input
-        type="date"
+    <div className="space-y-1">
+      <span className="block text-[10px] font-bold text-gray-500">{label}</span>
+      <DateInput
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex-1 text-xs bg-transparent focus:outline-none"
+        className="h-10 rounded-xl text-xs"
       />
-    </label>
+    </div>
   );
 }
 

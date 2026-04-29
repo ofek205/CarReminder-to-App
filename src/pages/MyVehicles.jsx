@@ -21,12 +21,14 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import MobileBackButton from '@/components/shared/MobileBackButton';
 import { createPageUrl } from '@/utils';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -110,8 +112,13 @@ export default function MyVehicles() {
     queryKey: ['my-vehicles-detail', accountId, vehicleIds.join(',')],
     queryFn: async () => {
       if (vehicleIds.length === 0) return [];
-      const all = await db.vehicles.filter({ account_id: accountId });
-      return all.filter(v => vehicleIds.includes(v.id));
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('id, nickname, manufacturer, model, year, license_plate, current_km, test_due_date, insurance_due_date')
+        .eq('account_id', accountId)
+        .in('id', vehicleIds);
+      if (error) throw error;
+      return data || [];
     },
     enabled: enabled && vehicleIds.length > 0,
     staleTime: 60 * 1000,
@@ -152,6 +159,7 @@ export default function MyVehicles() {
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
+      <MobileBackButton />
       {/* Driver-focused header. Establishes context (which workspace
           they're driving for) and greets by first name so the page
           doesn't feel like the same generic dashboard a manager sees.
@@ -360,14 +368,14 @@ function UpdateMileageDialog({ vehicle, onClose, onDone }) {
           <label className="block text-xs font-bold text-gray-700 mb-1">
             ק"מ נוכחי <span className="text-red-500">*</span>
           </label>
-          <input
+          <Input
             type="number"
             min={minKm}
             step="1"
             value={km}
             onChange={(e) => setKm(e.target.value)}
             placeholder={vehicle.current_km != null ? `מינימום: ${fmtKm(vehicle.current_km)}` : 'הזן ק"מ'}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
+            className="h-10 rounded-xl text-sm"
             autoFocus
             required
           />
@@ -438,13 +446,13 @@ function VehicleEventDialog({ vehicle, kind, onClose, onDone }) {
           <label className="block text-xs font-bold text-gray-700 mb-1">
             {isIssue ? 'כותרת קצרה לתקלה' : 'מה עשית'} <span className="text-red-500">*</span>
           </label>
-          <input
+          <Input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={isIssue ? 'לדוגמה: רעש מהמנוע' : 'לדוגמה: החלפת שמן'}
             maxLength={120}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
+            className="h-10 rounded-xl text-sm"
             autoFocus
             required
           />
@@ -452,28 +460,28 @@ function VehicleEventDialog({ vehicle, kind, onClose, onDone }) {
 
         <div>
           <label className="block text-xs font-bold text-gray-700 mb-1">תיאור (לא חובה)</label>
-          <textarea
+          <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
             placeholder={isIssue
               ? 'מתי החל, באילו תנאים, מה ההשפעה'
               : 'פרטים נוספים שיועילו למעקב'}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
+            className="rounded-xl text-sm"
           />
         </div>
 
         {!isIssue && (
           <div>
             <label className="block text-xs font-bold text-gray-700 mb-1">עלות (₪, לא חובה)</label>
-            <input
+            <Input
               type="number"
               min="0"
               step="0.01"
               value={cost}
               onChange={(e) => setCost(e.target.value)}
               placeholder="אם הטיפול עלה כסף"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
+              className="h-10 rounded-xl text-sm"
             />
           </div>
         )}

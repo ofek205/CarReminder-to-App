@@ -18,6 +18,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import MobileBackButton from '@/components/shared/MobileBackButton';
 
 const ROLE_META = {
   'בעלים':  { label: 'בעלים', icon: Crown,  cls: 'text-purple-700 bg-purple-50' },
@@ -87,6 +88,7 @@ export default function Team() {
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
+      <MobileBackButton />
       <div className="mb-4">
         <h1 className="text-xl font-bold text-gray-900">הצוות שלי</h1>
         <p className="text-xs text-gray-500 truncate">

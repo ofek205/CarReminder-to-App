@@ -15,19 +15,22 @@
  * For v1, the page surfaces what's already possible at the data layer
  * and gives the manager a clean directory + assignment workflow.
  */
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase, UserPlus, Truck, Loader2, Plus, X,
   Crown, Shield, Eye, User as UserIcon, Calendar, Mail,
-  Search, Check, ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import MobileBackButton from '@/components/shared/MobileBackButton';
+import VehiclePicker from '@/components/shared/VehiclePicker';
+import { DateInput } from '@/components/ui/date-input';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Visual treatment per role. Order also defines display priority.
 const ROLE_META = {
@@ -51,7 +54,7 @@ export default function Drivers() {
 
   // Member directory — names via the SECURITY DEFINER RPC.
   const { data: members = [], isLoading: membersLoading } = useQuery({
-    queryKey: ['workspace-members', accountId],
+    queryKey: ['workspace-members-directory', accountId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('workspace_members_directory', {
         p_account_id: accountId,
@@ -83,7 +86,14 @@ export default function Drivers() {
   // populate the assign dialog dropdown.
   const { data: vehicles = [] } = useQuery({
     queryKey: ['drivers-vehicle-list', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('id, nickname, manufacturer, model, year, license_plate')
+        .eq('account_id', accountId);
+      if (error) throw error;
+      return data || [];
+    },
     enabled: !!accountId && canManageRoutes && isBusiness,
     staleTime: 5 * 60 * 1000,
   });
@@ -140,6 +150,7 @@ export default function Drivers() {
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
+      <MobileBackButton />
       <div className="flex items-center justify-between mb-4 gap-2">
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-gray-900">נהגים</h1>
@@ -292,12 +303,12 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
             </label>
             <div className="relative">
               <Mail className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-              <input
+              <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="driver@example.com"
-                className="w-full pr-10 pl-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
+                className="h-10 rounded-xl pr-10 text-sm"
                 required
               />
             </div>
@@ -307,15 +318,16 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
             <label className="block text-xs font-bold text-gray-700 mb-1">
               תפקיד <span className="text-red-500">*</span>
             </label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
-            >
-              <option value="driver">נהג. רואה את הרכב שלו ואת המשימות שלו בלבד</option>
-              <option value="שותף">צופה. רואה הכל בקריאה בלבד</option>
-              <option value="מנהל">מנהל. אחראי על צי, נהגים ומשימות</option>
-            </select>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger className="h-10 rounded-xl text-sm">
+                <SelectValue placeholder="בחר תפקיד" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="driver">נהג. רואה את הרכב שלו ואת המשימות שלו בלבד</SelectItem>
+                <SelectItem value="שותף">צופה. רואה הכל בקריאה בלבד</SelectItem>
+                <SelectItem value="מנהל">מנהל. אחראי על צי, נהגים ומשימות</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-2.5 text-[11px] text-blue-900 leading-relaxed">
@@ -458,6 +470,7 @@ function AssignVehicleDialog({ driver, vehicles, accountId, existingAssignments,
               vehicles={available}
               value={vehicleId}
               onChange={setVehicleId}
+              placeholder="בחר רכב מהצי..."
             />
             {available.length === 0 && (
               <p className="text-[11px] text-gray-500 mt-1">
@@ -504,12 +517,11 @@ function AssignVehicleDialog({ driver, vehicles, accountId, existingAssignments,
               <label className="block text-xs font-bold text-gray-700 mb-1">
                 תאריך סיום <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <DateInput
                 value={validTo}
                 onChange={(e) => setValidTo(e.target.value)}
                 min={new Date().toISOString().slice(0, 10)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white"
+                className="h-10 rounded-xl text-sm"
               />
             </div>
           )}
@@ -523,157 +535,6 @@ function AssignVehicleDialog({ driver, vehicles, accountId, existingAssignments,
           </button>
         </form>
       </div>
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------------
-
-// Searchable vehicle picker for the assignment dialog. Replaces a plain
-// <select> that only showed nickname-or-plate, leaving managers with
-// 20+ vehicles to scan through nameless plate numbers. Shows the full
-// label (manufacturer, model, year, plate, nickname when set) and lets
-// the manager filter by typing any of those tokens.
-function VehiclePicker({ vehicles, value, onChange }) {
-  const [open, setOpen]     = useState(false);
-  const [query, setQuery]   = useState('');
-  const wrapRef             = useRef(null);
-  const searchRef           = useRef(null);
-
-  const selected = vehicles.find(v => v.id === value);
-
-  // Close on outside click. Mousedown beats click here so the dropdown
-  // closes before any inner button fires (matches WorkspaceSwitcher).
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('touchstart', onDoc);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('touchstart', onDoc);
-    };
-  }, [open]);
-
-  // Auto-focus the search input the moment the dropdown opens. Most
-  // managers reach this dialog with a vehicle name in mind; not having
-  // to click into the search field saves a step.
-  useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 30);
-    else setQuery('');
-  }, [open]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return vehicles;
-    return vehicles.filter(v => {
-      const haystack = [
-        v.nickname, v.license_plate, v.manufacturer, v.model,
-        v.year != null ? String(v.year) : '',
-      ].join(' ').toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [vehicles, query]);
-
-  const labelOf = (v) => {
-    if (!v) return '';
-    const parts = [];
-    if (v.manufacturer) parts.push(v.manufacturer);
-    if (v.model)        parts.push(v.model);
-    if (v.year)         parts.push(v.year);
-    return parts.join(' ').trim() || v.nickname || v.license_plate || 'רכב';
-  };
-
-  return (
-    <div ref={wrapRef} className="relative" dir="rtl">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-right active:scale-[0.99]"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="flex-1 min-w-0 truncate">
-          {selected ? (
-            <span className="flex items-center gap-2">
-              <span className="font-bold text-gray-900 truncate">{labelOf(selected)}</span>
-              {selected.nickname && (
-                <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-[#E8F2EA] text-[#2D5233] text-[10px] font-bold">
-                  {selected.nickname}
-                </span>
-              )}
-              <span className="shrink-0 text-[11px] font-mono text-gray-500">{selected.license_plate}</span>
-            </span>
-          ) : (
-            <span className="text-gray-400">בחר רכב...</span>
-          )}
-        </span>
-        <ChevronDown className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div
-          role="listbox"
-          className="absolute z-[10001] top-full mt-1 inset-x-0 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden"
-        >
-          <div className="p-2 border-b border-gray-100">
-            <div className="relative">
-              <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-              <input
-                ref={searchRef}
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="חפש לפי יצרן, דגם, שנה, כינוי או מספר רישוי"
-                className="w-full pr-8 pl-2 py-1.5 text-xs rounded-lg border border-gray-200 bg-gray-50 focus:bg-white focus:border-gray-300 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="max-h-72 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="text-center text-[11px] text-gray-400 py-6">לא נמצאו רכבים תואמים</p>
-            ) : (
-              filtered.map(v => {
-                const isSelected = v.id === value;
-                const main = labelOf(v);
-                return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    onClick={() => { onChange(v.id); setOpen(false); }}
-                    className={`w-full flex items-start gap-3 px-3 py-2.5 text-right border-b border-gray-50 last:border-0 transition-colors ${
-                      isSelected ? 'bg-[#E8F2EA]' : 'hover:bg-gray-50 active:bg-gray-100'
-                    }`}
-                  >
-                    <Truck className={`shrink-0 h-4 w-4 mt-0.5 ${isSelected ? 'text-[#2D5233]' : 'text-gray-400'}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-sm truncate ${isSelected ? 'font-bold text-[#2D5233]' : 'font-bold text-gray-900'}`}>
-                          {main}
-                        </span>
-                        {v.nickname && (
-                          <span className="px-1.5 py-0.5 rounded-md bg-[#E8F2EA] text-[#2D5233] text-[10px] font-bold">
-                            {v.nickname}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-gray-500 mt-0.5 font-mono">
-                        {v.license_plate}
-                      </p>
-                    </div>
-                    {isSelected && <Check className="shrink-0 h-4 w-4 text-[#2D5233]" />}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -20,10 +20,10 @@ import {
   CheckCircle2, Play, Clock,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import MobileBackButton from '@/components/shared/MobileBackButton';
 import { createPageUrl } from '@/utils';
 
 const STATUS_LABEL = {
@@ -92,7 +92,8 @@ export default function Routes() {
         .select('id, title, status, scheduled_for, vehicle_id, assigned_driver_user_id, created_at')
         .eq('account_id', accountId)
         .order('scheduled_for', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
       if (error) throw error;
       return data || [];
     },
@@ -126,7 +127,14 @@ export default function Routes() {
   // Vehicle labels for richer cards.
   const { data: vehicles = [] } = useQuery({
     queryKey: ['routes-vehicles', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('id, nickname, manufacturer, model, license_plate')
+        .eq('account_id', accountId);
+      if (error) throw error;
+      return data || [];
+    },
     enabled,
     staleTime: 5 * 60 * 1000,
   });
@@ -196,6 +204,7 @@ export default function Routes() {
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
+      <MobileBackButton />
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-gray-900">משימות</h1>
@@ -308,6 +317,7 @@ function DriverView({ routes, isLoading, stopsByRoute, vehicleLabel }) {
   if (isLoading) {
     return (
       <div dir="rtl" className="max-w-3xl mx-auto py-2">
+        <MobileBackButton />
         <div className="text-center text-xs text-gray-400 py-8">טוען את המשימות שלך...</div>
       </div>
     );
@@ -318,6 +328,7 @@ function DriverView({ routes, isLoading, stopsByRoute, vehicleLabel }) {
   if (totalActiveOrPending === 0 && grouped.completedRecent.length === 0) {
     return (
       <div dir="rtl" className="max-w-3xl mx-auto py-2">
+        <MobileBackButton />
         <div className="mb-4">
           <h1 className="text-xl font-bold text-gray-900">המשימות שלי</h1>
           <p className="text-xs text-gray-500">משימות שהוקצו לך לביצוע</p>
@@ -334,6 +345,7 @@ function DriverView({ routes, isLoading, stopsByRoute, vehicleLabel }) {
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
+      <MobileBackButton />
       <div className="mb-4">
         <h1 className="text-xl font-bold text-gray-900">המשימות שלי</h1>
         <p className="text-xs text-gray-500">

@@ -23,6 +23,8 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import MobileBackButton from '@/components/shared/MobileBackButton';
+import { Input } from '@/components/ui/input';
 
 const MAX_NAME = 120;
 
@@ -120,6 +122,7 @@ export default function BusinessSettings() {
 
   return (
     <div dir="rtl" className="max-w-xl mx-auto py-2">
+      <MobileBackButton />
       <div className="mb-5">
         <h1 className="text-xl font-bold text-gray-900">הגדרות החשבון העסקי</h1>
         <p className="text-xs text-gray-500">פרטי החשבון, אנשי קשר וכלים שמותר לנהגים לראות</p>
@@ -129,31 +132,31 @@ export default function BusinessSettings() {
         {/* Workspace details */}
         <Section title="פרטי החשבון">
           <Field label="שם החשבון העסקי" required>
-            <input
+            <Input
               type="text"
               value={name}
               onChange={(e) => { setName(e.target.value); markDirty(); }}
               maxLength={MAX_NAME}
-              className={inputCls}
+              className="h-11 rounded-xl"
               required
             />
           </Field>
           <Field label="ח.פ. / מספר עוסק">
-            <input
+            <Input
               type="text"
               value={businessId}
               onChange={(e) => { setBusinessId(e.target.value); markDirty(); }}
               placeholder="לא חובה"
-              className={inputCls}
+              className="h-11 rounded-xl"
             />
           </Field>
           <Field label="אימייל ליצירת קשר">
-            <input
+            <Input
               type="email"
               value={contactEmail}
               onChange={(e) => { setContactEmail(e.target.value); markDirty(); }}
               placeholder="לא חובה"
-              className={inputCls}
+              className="h-11 rounded-xl"
             />
           </Field>
         </Section>
@@ -243,8 +246,6 @@ function Toggle({ icon, label, description, checked, onChange }) {
     </label>
   );
 }
-
-const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30";
 
 function Empty({ icon, title, text }) {
   return (

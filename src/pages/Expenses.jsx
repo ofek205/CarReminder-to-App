@@ -41,6 +41,10 @@ import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import VehicleLabel from '@/components/shared/VehicleLabel';
 import VehiclePicker from '@/components/shared/VehiclePicker';
+import MobileBackButton from '@/components/shared/MobileBackButton';
+import { DateInput } from '@/components/ui/date-input';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { uploadScanFile, deleteFile } from '@/lib/supabaseStorage';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
 import { validateUploadFile } from '@/lib/securityUtils';
@@ -127,6 +131,7 @@ export default function Expenses() {
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
+      <MobileBackButton />
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-gray-900">הוצאות תפעול</h1>
@@ -510,11 +515,11 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
           {/* Amount + Category */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="סכום (₪)" required>
-              <input
+              <Input
                 type="number" inputMode="decimal" step="0.01" min="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className={inputCls}
+                className="h-10 rounded-xl text-sm"
                 placeholder="0"
               />
             </Field>
@@ -525,13 +530,13 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
 
           {/* Date */}
           <Field label="תאריך" required>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
+            <DateInput value={date} onChange={(e) => setDate(e.target.value)} className="h-10 rounded-xl text-sm" />
           </Field>
 
           {/* Note */}
           <Field label="הערה">
-            <textarea
-              value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={inputCls}
+            <Textarea
+              value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="rounded-xl text-sm"
               placeholder="תיאור קצר, מספר חשבונית, או כל פרט שיועיל"
             />
           </Field>
@@ -748,8 +753,6 @@ function CategoryPicker({ value, onChange }) {
 }
 
 // ---------- helpers --------------------------------------------------
-
-const inputCls = "w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30 focus:border-[#2D5233] transition-all";
 
 function Field({ label, required, children }) {
   return (

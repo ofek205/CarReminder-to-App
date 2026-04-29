@@ -24,6 +24,8 @@ import { supabase } from '@/lib/supabase';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useAuth } from '@/components/shared/GuestContext';
+import MobileBackButton from '@/components/shared/MobileBackButton';
+import { Textarea } from '@/components/ui/textarea';
 
 // Status pill labels per gender. The route is masculine in Hebrew
 // ("מסלול"), the stop is feminine ("תחנה") — that's why the same
@@ -81,6 +83,19 @@ export default function RouteDetail() {
     enabled: !!routeId,
   });
 
+  const { data: team = [] } = useQuery({
+    queryKey: ['route-team-directory', route?.account_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('workspace_team_directory', {
+        p_account_id: route.account_id,
+      });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!route?.account_id,
+    staleTime: 5 * 60 * 1000,
+  });
+
   if (!routeId) {
     return <Empty text="הקישור חסר מזהה משימה. חזור לרשימת המשימות ונסה שוב." />;
   }
@@ -111,9 +126,12 @@ export default function RouteDetail() {
   const completedCount = stops.filter(s => s.status === 'completed').length;
   const totalCount     = stops.length;
   const progressPct    = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const assignedDriver = team.find(m => m.user_id === route.assigned_driver_user_id);
+  const assignedDriverName = assignedDriver?.display_name || assignedDriver?.email || 'נהג משויך';
 
   return (
     <div dir="rtl" className="max-w-2xl mx-auto py-2">
+      <MobileBackButton />
       <div className="bg-white border border-gray-100 rounded-2xl p-4 mb-4">
         <div className="flex items-start justify-between gap-3 mb-2">
           <h1 className="text-lg font-bold text-gray-900 flex-1">{route.title}</h1>
@@ -145,7 +163,7 @@ export default function RouteDetail() {
           <span className="flex items-center gap-1"><Truck className="h-3 w-3" /> רכב משויך</span>
           {route.assigned_driver_user_id && (
             <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" /> נהג: {route.assigned_driver_user_id.slice(0, 8)}
+              <Clock className="h-3 w-3" /> נהג: {assignedDriverName}
             </span>
           )}
         </div>
@@ -338,10 +356,10 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
 
       {noteOpen && (
         <div className="mt-2 space-y-2">
-          <textarea
+          <Textarea
             value={noteText} onChange={(e) => setNoteText(e.target.value)}
             placeholder="הערה לתחנה. מה קרה, מה צריך לדעת" rows={3}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-xs"
+            className="rounded-xl text-xs"
           />
           <div className="flex gap-2">
             <button type="button" onClick={submitNote} disabled={busy || !noteText.trim()}
@@ -358,10 +376,10 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
 
       {issueOpen && (
         <div className="mt-2 space-y-2">
-          <textarea
+          <Textarea
             value={issueText} onChange={(e) => setIssueText(e.target.value)}
             placeholder="תאר את התקלה. שער נעול, אין מענה, רכב פגום" rows={3}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-xs"
+            className="rounded-xl text-xs"
           />
           <div className="flex gap-2">
             <button type="button" onClick={submitIssue} disabled={busy || !issueText.trim()}

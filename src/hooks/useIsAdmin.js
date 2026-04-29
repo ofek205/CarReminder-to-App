@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/shared/GuestContext';
 
 /**
  * Returns true if current user is admin, null while loading, false otherwise.
@@ -10,27 +11,22 @@ import { supabase } from '@/lib/supabase';
  * auth.uid() against the server-side allow-list.
  */
 export default function useIsAdmin() {
-  const [isAdmin, setIsAdmin] = useState(null);
+  const { user, isGuest, isLoading: authLoading, authState } = useAuth();
+  const enabled = !!user?.id && !isGuest;
 
-  useEffect(() => {
-    let cancelled = false;
-    async function check() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (cancelled) return;
-        if (!user) { setIsAdmin(false); return; }
+  const { data, isLoading } = useQuery({
+    queryKey: ['is-admin', user?.id],
+    enabled,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('is_admin');
+      if (error) return false;
+      return data === true;
+    },
+  });
 
-        const { data, error } = await supabase.rpc('is_admin');
-        if (cancelled) return;
-        if (error) { setIsAdmin(false); return; }
-        setIsAdmin(data === true);
-      } catch {
-        if (!cancelled) setIsAdmin(false);
-      }
-    }
-    check();
-    return () => { cancelled = true; };
-  }, []);
+  if (isGuest || authState === 'guest') return false;
+  if (authLoading || (enabled && isLoading)) return null;
 
-  return isAdmin;
+  return data === true;
 }

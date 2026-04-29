@@ -24,11 +24,13 @@ import {
   Search, Plus, ChevronLeft, Truck, Briefcase, X, Upload,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import MobileBackButton from '@/components/shared/MobileBackButton';
 import { createPageUrl } from '@/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 const PAGE_SIZE = 25;
 
@@ -91,13 +93,20 @@ export default function Fleet() {
 
   const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ['fleet-vehicles', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('id, nickname, manufacturer, model, year, license_plate, vehicle_type, test_due_date, insurance_due_date')
+        .eq('account_id', accountId);
+      if (error) throw error;
+      return data || [];
+    },
     enabled,
     staleTime: 60 * 1000,
   });
 
   const { data: assignments = [] } = useQuery({
-    queryKey: ['fleet-assignments', accountId],
+    queryKey: ['driver-assignments', accountId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('driver_assignments')
@@ -112,7 +121,7 @@ export default function Fleet() {
   });
 
   const { data: members = [] } = useQuery({
-    queryKey: ['fleet-members', accountId],
+    queryKey: ['workspace-members-directory', accountId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('workspace_members_directory', {
         p_account_id: accountId,
@@ -246,6 +255,7 @@ export default function Fleet() {
 
   return (
     <div dir="rtl" className="max-w-5xl mx-auto py-2">
+      <MobileBackButton />
       <div className="flex items-center justify-between mb-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">צי הרכבים</h1>
@@ -276,12 +286,12 @@ export default function Fleet() {
       {/* Search */}
       <div className="relative mb-3">
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-        <input
+        <Input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="חפש לפי מספר רישוי, שם, יצרן או דגם"
-          className="w-full pr-10 pl-9 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2D5233]/30"
+          className="h-10 rounded-xl pr-10 pl-9 text-sm"
         />
         {search && (
           <button
@@ -306,31 +316,34 @@ export default function Fleet() {
 
       {/* Driver / Type / Sort row */}
       <div className="grid grid-cols-3 gap-2 mb-4">
-        <select
-          value={driverFilter}
-          onChange={(e) => setDriverFilter(e.target.value)}
-          className="px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-xs"
-        >
-          <option value="">כל הנהגים</option>
+        <Select value={driverFilter || 'all-drivers'} onValueChange={(v) => setDriverFilter(v === 'all-drivers' ? '' : v)}>
+          <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+            <SelectValue placeholder="כל הנהגים" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all-drivers">כל הנהגים</SelectItem>
           {members.map(m => (
-            <option key={m.user_id} value={m.user_id}>{m.display_name}</option>
+              <SelectItem key={m.user_id} value={m.user_id}>{m.display_name}</SelectItem>
           ))}
-        </select>
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-xs"
-        >
-          <option value="">כל הסוגים</option>
-          {types.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          className="px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-xs"
-        >
-          {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>מיון: {o.label}</option>)}
-        </select>
+          </SelectContent>
+        </Select>
+        <Select value={typeFilter || 'all-types'} onValueChange={(v) => setTypeFilter(v === 'all-types' ? '' : v)}>
+          <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+            <SelectValue placeholder="כל הסוגים" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all-types">כל הסוגים</SelectItem>
+            {types.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={sort} onValueChange={setSort}>
+          <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>מיון: {o.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* List */}

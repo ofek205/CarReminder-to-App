@@ -27,6 +27,9 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import VehiclePicker from '@/components/shared/VehiclePicker';
+import MobileBackButton from '@/components/shared/MobileBackButton';
+import { DateInput } from '@/components/ui/date-input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const PAGE_SIZE = 30;
 
@@ -76,11 +79,9 @@ export default function ActivityLog() {
   const { data: members = [] } = useQuery({
     queryKey: ['activity-filter-members', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('account_members')
-        .select('user_id, role')
-        .eq('account_id', accountId)
-        .eq('status', 'פעיל');
+      const { data, error } = await supabase.rpc('workspace_members_directory', {
+        p_account_id: accountId,
+      });
       if (error) throw error;
       return data || [];
     },
@@ -92,8 +93,11 @@ export default function ActivityLog() {
     queryKey: ['activity-filter-vehicles', accountId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('vehicles').select('id, nickname, license_plate, manufacturer, model')
-        .eq('account_id', accountId);
+        .from('vehicles')
+        .select('id, nickname, license_plate, manufacturer, model')
+        .eq('account_id', accountId)
+        .order('created_date', { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data || [];
     },
@@ -173,6 +177,7 @@ export default function ActivityLog() {
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
+      <MobileBackButton />
       <div className="flex items-center justify-between mb-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">יומן פעילות</h1>
@@ -200,10 +205,19 @@ export default function ActivityLog() {
       {showFilters && canManageRoutes && (
         <div className="bg-gray-50 rounded-xl p-3 mb-3 space-y-2">
           <FilterRow label="משתמש">
-            <select value={filterUser} onChange={(e) => setFilterUser(e.target.value)} className={selectCls}>
-              <option value="">הכל</option>
-              {members.map(m => <option key={m.user_id} value={m.user_id}>{m.user_id.slice(0, 8)} ({m.role})</option>)}
-            </select>
+            <Select value={filterUser || 'all-users'} onValueChange={(v) => setFilterUser(v === 'all-users' ? '' : v)}>
+              <SelectTrigger className={selectTriggerCls}>
+                <SelectValue placeholder="כל המשתמשים" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all-users">כל המשתמשים</SelectItem>
+                {members.map(m => (
+                  <SelectItem key={m.user_id} value={m.user_id}>
+                    {m.display_name || m.email || 'משתמש ללא שם'} · {m.role}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </FilterRow>
           <FilterRow label="רכב">
             {/* Rich vehicle picker — searchable, themed, replaces the
@@ -218,13 +232,22 @@ export default function ActivityLog() {
             />
           </FilterRow>
           <FilterRow label="משימה">
-            <select value={filterRoute} onChange={(e) => setFilterRoute(e.target.value)} className={selectCls}>
-              <option value="">הכל</option>
-              {routes.map(r => <option key={r.id} value={r.id}>{r.title}</option>)}
-            </select>
+            <Select value={filterRoute || 'all-routes'} onValueChange={(v) => setFilterRoute(v === 'all-routes' ? '' : v)}>
+              <SelectTrigger className={selectTriggerCls}>
+                <SelectValue placeholder="כל המשימות" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all-routes">כל המשימות</SelectItem>
+                {routes.map(r => <SelectItem key={r.id} value={r.id}>{r.title}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </FilterRow>
           <FilterRow label="תאריך">
-            <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className={selectCls} />
+            <DateInput
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="h-10 rounded-xl text-xs"
+            />
           </FilterRow>
           {hasFilters && (
             <button type="button" onClick={clearFilters}
@@ -309,7 +332,7 @@ function FilterRow({ label, children }) {
   );
 }
 
-const selectCls = "w-full px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs";
+const selectTriggerCls = "h-10 rounded-xl text-xs font-bold";
 
 function Empty({ icon, title, text, embedded }) {
   return (

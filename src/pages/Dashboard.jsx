@@ -808,7 +808,7 @@ export default function Dashboard() {
 
   // Pull-to-refresh
   const { pulling, progress } = usePullToRefresh(async () => {
-    await queryClient.invalidateQueries();
+    await queryClient.invalidateQueries({ queryKey: ['my-vehicles', user?.id, accountId] });
     await new Promise(r => setTimeout(r, 500));
   });
 

@@ -27,6 +27,9 @@ import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { lookupVehicleByPlate } from '@/services/vehicleLookup';
 import { createPageUrl } from '@/utils';
+import MobileBackButton from '@/components/shared/MobileBackButton';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 const LOOKUP_CONCURRENCY = 5;
 
@@ -239,6 +242,7 @@ export default function BulkAddVehicles() {
 
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
+      <MobileBackButton />
       <div className="mb-5">
         <h1 className="text-xl font-bold text-gray-900">ייבוא מרובה רכבים</h1>
         <p className="text-xs text-gray-500">העלה קובץ אקסל או הדבק רשימת מספרי רישוי. המערכת תאתר את הרכבים אצל משרד התחבורה ותוסיף אותם אוטומטית.</p>
@@ -360,12 +364,12 @@ function InputStep({ onPlatesParsed, onContinue, plates }) {
           <label className="block text-xs font-bold text-gray-700 mb-1.5">
             רשימת מספרי רישוי
           </label>
-          <textarea
+          <Textarea
             value={text}
             onChange={(e) => handleTextChange(e.target.value)}
             rows={10}
             placeholder={'לדוגמה:\n1234567\n89-012-34\n5566778\n\nאפשר גם להעתיק עמודה ישירות מאקסל. מספר רישוי בעמודה הראשונה.'}
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white font-mono"
+            className="rounded-xl text-sm font-mono"
           />
           <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
             שורה אחת לכל רכב. ספרות בלבד. אם יש טאבים או פסיקים, רק העמודה הראשונה תיקח. הסטטוסים שנמצאו במאגר משרד התחבורה יציגו בשלב הבא.
@@ -651,20 +655,20 @@ function FoundRow({ row, onToggle, onNicknameChange, onKmChange }) {
           import; users who don't fill it just get the plate-based label
           on the dashboard, exactly like before. Limited to 60 chars to
           match the manual AddVehicle form. */}
-      <input
+      <Input
         type="text"
         value={row.nickname || ''}
         onChange={(e) => onNicknameChange(row.plate, e.target.value.slice(0, 60))}
         placeholder="כינוי (לא חובה)"
         disabled={!row.included}
         dir="rtl"
-        className="shrink-0 w-28 sm:w-36 px-2 py-1 text-[11px] rounded-md border border-gray-200 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+        className="shrink-0 h-8 w-28 sm:w-36 rounded-lg px-2 text-[11px] disabled:bg-gray-50 disabled:text-gray-400"
         aria-label={`כינוי לרכב ${row.plate}`}
       />
       {/* Optional current km — same role as the field on the manual
           AddVehicle form. Plain integer, 0–9,999,999 to match the
           manual flow's sanitiser. */}
-      <input
+      <Input
         type="number"
         min="0"
         max="9999999"
@@ -674,7 +678,7 @@ function FoundRow({ row, onToggle, onNicknameChange, onKmChange }) {
         placeholder='ק"מ נוכחי'
         disabled={!row.included}
         dir="ltr"
-        className="shrink-0 w-24 sm:w-28 px-2 py-1 text-[11px] rounded-md border border-gray-200 bg-white disabled:bg-gray-50 disabled:text-gray-400"
+        className="shrink-0 h-8 w-24 sm:w-28 rounded-lg px-2 text-[11px] disabled:bg-gray-50 disabled:text-gray-400"
         aria-label={`קילומטראז' נוכחי לרכב ${row.plate}`}
       />
     </li>

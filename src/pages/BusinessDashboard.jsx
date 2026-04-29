@@ -23,6 +23,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import MobileBackButton from '@/components/shared/MobileBackButton';
 import { createPageUrl } from '@/utils';
 
 // ---------- helpers ---------------------------------------------------
@@ -289,6 +290,7 @@ export default function BusinessDashboard() {
 
   return (
     <div dir="rtl" className="max-w-5xl mx-auto pb-8">
+      <MobileBackButton />
 
       {/* ── Hero ─────────────────────────────────────────────────── */}
       <header className="mb-5">

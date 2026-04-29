@@ -17,7 +17,7 @@ import useReviewPromptSchedule from "@/hooks/useReviewPromptSchedule";
 import PopupEngine from "@/components/shared/PopupEngine";
 import { SafeComponent } from "@/components/shared/SafeComponent";
 import { GuestProvider, useAuth } from "@/components/shared/GuestContext";
-import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
+import { WorkspaceProvider, useWorkspace } from "@/contexts/WorkspaceContext";
 import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
 import useWorkspaceRole from "@/hooks/useWorkspaceRole";
 import { AccessibilityProvider } from "@/components/shared/AccessibilityContext";
@@ -491,7 +491,19 @@ function LayoutInner({ children }) {
   const [mileageReminderOpen, setMileageReminderOpen] = useState(false);
   const [mileageCheckDone, setMileageCheckDone] = useState(false);
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles } = useAuth();
+  const { activeWorkspace } = useWorkspace();
   const [hasVessel, setHasVessel] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)').matches : false
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsDesktop(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, []);
 
   // Real-time sync between participants of a shared vehicle. The hook
   // self-gates on `isGuest`/`!user` so it's a no-op for guests; when
@@ -542,16 +554,20 @@ function LayoutInner({ children }) {
     } else if (isAuthenticated && user) {
       (async () => {
         try {
-          const { db } = await import('@/lib/supabaseEntities');
-          const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-          if (members.length > 0) {
-            const vehicles = await db.vehicles.filter({ account_id: members[0].account_id });
-            setHasVessel(vehicles.some(isVesselVehicle));
+          if (!activeWorkspace?.account_id) {
+            setHasVessel(false);
+            return;
           }
+          const { data, error } = await supabase
+            .from('vehicles')
+            .select('id, vehicle_type, manufacturer')
+            .eq('account_id', activeWorkspace.account_id);
+          if (error) throw error;
+          setHasVessel((data || []).some(isVesselVehicle));
         } catch {}
       })();
     }
-  }, [isGuest, isAuthenticated, user, guestVehicles, location.pathname]);
+  }, [isGuest, isAuthenticated, user, guestVehicles, activeWorkspace?.account_id, location.pathname]);
 
   // Pages that don't require authentication (legal/compliance pages for app stores)
   const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
@@ -668,7 +684,7 @@ function LayoutInner({ children }) {
           opposite corner from the sidebar so the bell + bell-popover
           don't overlap. Hidden on mobile because the mobile top bar
           below has its own bell already. */}
-      {isAuthenticated && (
+      {isAuthenticated && isDesktop && (
         <div className="hidden lg:block fixed top-4 left-4 z-40">
           <React.Suspense fallback={<div className="w-10 h-10" />}>
             <NotificationBell />
@@ -718,7 +734,7 @@ function LayoutInner({ children }) {
           </Link>
           <div className="flex-1" />
           {isAuthenticated && <WorkspaceSwitcher />}
-          {isAuthenticated && (
+          {isAuthenticated && !isDesktop && (
             <React.Suspense fallback={<div className="w-10 h-10" />}>
               <NotificationBell />
             </React.Suspense>
