@@ -20,9 +20,10 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X, Clock } from 'lucide-react';
-import { differenceInYears, subMonths, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { he as heLocale } from 'date-fns/locale';
-import { configForType as appConfigForType } from '@/lib/appNotificationConfig';
+import { configForType as appConfigForType, requiresActionForType } from '@/lib/appNotificationConfig';
+import { calcAllReminders } from '@/components/shared/ReminderEngine';
 
 // Hebrew "X ago" label for an ISO timestamp. Returns null for
 // missing/invalid input so callers can omit the row entirely.
@@ -37,6 +38,25 @@ function formatRelativeTime(isoString) {
     if (Number.isNaN(d.getTime())) return null;
     return formatDistanceToNow(d, { addSuffix: true, locale: heLocale });
   } catch { return null; }
+}
+
+function reminderToBellItem(reminder) {
+  return {
+    id: reminder.id,
+    vehicleId: reminder.vehicleId || null,
+    type: reminder.type,
+    label: reminder.label || reminder.typeName || 'תזכורת',
+    name: reminder.name || '',
+    days: reminder.daysLeft ?? 999,
+    isExpired: reminder.daysLeft !== null && reminder.daysLeft !== undefined && reminder.daysLeft < 0,
+    navTarget: reminder.linkTo,
+  };
+}
+
+function isActionNotification(notification) {
+  if (!notification) return false;
+  if (notification.type === 'app') return requiresActionForType(notification.appType);
+  return ['profile', 'license', 'test', 'insurance', 'inspection', 'maintenance', 'mileage', 'safety'].includes(notification.type);
 }
 
 export default function NotificationBell() {
@@ -140,6 +160,7 @@ export default function NotificationBell() {
           ? membersResult.find(m => m.account_id === activeWorkspaceId)
           : null;
         const targetAccountId = activeMember?.account_id || membersResult[0].account_id;
+        const targetMember = activeMember || membersResult[0];
         // Bell only reads dates and labels off each vehicle — never
         // photos, notes, or any base64 column. Restricting to the
         // exact 11 columns used below shaves the per-vehicle payload
@@ -147,7 +168,7 @@ export default function NotificationBell() {
         // bytes. Multiplied across an account's vehicles + every
         // refresh, this is the bell's biggest single egress win.
         const BELL_COLS = [
-          'id', 'nickname', 'manufacturer', 'year', 'vehicle_type',
+          'id', 'nickname', 'manufacturer', 'model', 'year', 'vehicle_type',
           'is_vintage',
           // expiry dates the bell renders
           'test_due_date', 'insurance_due_date',
@@ -159,184 +180,39 @@ export default function NotificationBell() {
           'km_baseline', 'last_shipyard_date',
           'km_update_date', 'engine_hours_update_date',
         ].join(',');
-        const vehicles = await db.vehicles.filter(
-          { account_id: targetAccountId },
-          { select: BELL_COLS },
-        );
-        const threshold = (settingsResult.length > 0 && settingsResult[0].remind_test_days_before) || 14;
-
-        let mileageDates = {};
-        try {
-          const parsed = JSON.parse(localStorage.getItem('carreminder_mileage_dates') || '{}');
-          mileageDates = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
-        } catch (err) {
-          if (import.meta.env?.DEV) console.warn('[NotificationBell] mileage_dates corrupt:', err?.message);
+        let vehicles = [];
+        const isBusinessDriver = targetMember?.account_type === 'business' && targetMember?.role === 'driver';
+        if (isBusinessDriver) {
+          const { data: assignments, error: assignmentError } = await supabase
+            .from('driver_assignments')
+            .select('vehicle_id')
+            .eq('account_id', targetAccountId)
+            .eq('driver_user_id', user.id)
+            .eq('status', 'active');
+          if (assignmentError) throw assignmentError;
+          const vehicleIds = (assignments || []).map(a => a.vehicle_id).filter(Boolean);
+          if (vehicleIds.length > 0) {
+            const { data, error } = await supabase
+              .from('vehicles')
+              .select(BELL_COLS)
+              .eq('account_id', targetAccountId)
+              .in('id', vehicleIds);
+            if (error) throw error;
+            vehicles = data || [];
+          }
+        } else {
+          vehicles = await db.vehicles.filter(
+            { account_id: targetAccountId },
+            { select: BELL_COLS },
+          );
         }
 
         const items = [];
-        const now = new Date();
-        const isVesselVeh = (v) => ['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי'].includes(v.vehicle_type);
-        const addNotif = (id, vehicleId, type, label, name, days, navTarget) => {
-          items.push({ id, vehicleId, type, label, name, days, isExpired: days < 0, navTarget });
-        };
-        const daysTo = (dateStr) => dateStr ? Math.ceil((new Date(dateStr) - now) / 86400000) : null;
-
-        vehicles.forEach(v => {
-          const name = v.nickname || v.manufacturer || 'רכב';
-          const isVessel = isVesselVeh(v);
-          const testWord = isVessel ? 'כושר שייט' : 'טסט';
-          const vehicleAge = v.year ? now.getFullYear() - Number(v.year) : 0;
-          const isVintage = !isVessel && (v.is_vintage || vehicleAge >= 30 || v.vehicle_type === 'רכב אספנות');
-
-          if (v.test_due_date) {
-            let nextTestDate = new Date(v.test_due_date);
-            if (isVintage && nextTestDate > now) {
-              // subMonths handles month-length edge cases (Mar 31 - 6mo =
-              // Sep 30, not Oct 1 as naive setMonth can produce). Matches
-              // the fix in ReminderEngine.js.
-              const halfTest = subMonths(nextTestDate, 6);
-              if (halfTest > now) nextTestDate = halfTest;
-            }
-            const testDays = Math.ceil((nextTestDate - now) / 86400000);
-            const vintageLabel = isVintage ? ' (אספנות)' : '';
-            if (testDays <= threshold) {
-              addNotif(`test-${v.id}`, v.id, 'test',
-                testDays < 0 ? `${testWord} פג תוקף!${vintageLabel}` : `${testWord} בעוד ${testDays} ימים${vintageLabel}`,
-                name, testDays, 'VehicleDetail');
-            }
-          }
-
-          // Inspection report ("תסקיר") — optional periodic safety
-          // certificate. Only shows when the user has filled the date
-          // and it's within the same threshold window the test uses
-          // (no separate setting — same urgency model as טסט).
-          if (v.inspection_report_expiry_date) {
-            const insp = daysTo(v.inspection_report_expiry_date);
-            if (insp !== null && insp <= threshold) {
-              addNotif(`inspect-${v.id}`, v.id, 'inspection',
-                insp < 0 ? 'תסקיר פג תוקף!' : `תסקיר בעוד ${insp} ימים`,
-                name, insp, 'VehicleDetail');
-            }
-          }
-
-          const insDays = daysTo(v.insurance_due_date);
-          if (insDays !== null && insDays <= threshold) {
-            addNotif(`ins-${v.id}`, v.id, 'insurance',
-              insDays < 0 ? 'ביטוח פג תוקף!' : `ביטוח בעוד ${insDays} ימים`,
-              name, insDays, 'VehicleDetail');
-          }
-
-          if (isVessel) {
-            const pyroDays = daysTo(v.pyrotechnics_expiry_date);
-            if (pyroDays !== null && pyroDays <= threshold) {
-              addNotif(`pyro-${v.id}`, v.id, 'safety',
-                pyroDays < 0 ? 'פירוטכניקה פג תוקף!' : `פירוטכניקה בעוד ${pyroDays} ימים`,
-                name, pyroDays, 'VehicleDetail');
-            }
-            const extDays = daysTo(v.fire_extinguisher_expiry_date);
-            if (extDays !== null && extDays <= threshold) {
-              addNotif(`ext-${v.id}`, v.id, 'safety',
-                extDays < 0 ? 'מטף כיבוי פג תוקף!' : `מטף כיבוי בעוד ${extDays} ימים`,
-                name, extDays, 'VehicleDetail');
-            }
-            const raftDays = daysTo(v.life_raft_expiry_date);
-            if (raftDays !== null && raftDays <= threshold) {
-              addNotif(`raft-${v.id}`, v.id, 'safety',
-                raftDays < 0 ? 'אסדת הצלה פג תוקף!' : `אסדת הצלה בעוד ${raftDays} ימים`,
-                name, raftDays, 'VehicleDetail');
-            }
-          }
-
-          if (!isVessel && v.current_km && v.last_tire_change_date) {
-            // km_since_tire_change = odometer at change; driven-since = current - stored.
-            // Matches ReminderEngine: validate the stored value is in
-            // [0, current_km] so corrupted data doesn't flap thresholds.
-            const rawStored = Number(v.km_since_tire_change);
-            const validStored = Number.isFinite(rawStored) && rawStored >= 0 && rawStored <= v.current_km;
-            const kmSinceTire = validStored ? (v.current_km - rawStored) : 0;
-            const tireYears = differenceInYears(now, new Date(v.last_tire_change_date));
-            if (kmSinceTire >= 90000 || tireYears >= 2.75) {
-              const urgent = kmSinceTire >= 100000 || tireYears >= 3;
-              addNotif(`tires-${v.id}`, v.id, 'maintenance',
-                urgent ? 'הגיע זמן להחליף צמיגים!' : 'החלפת צמיגים מתקרבת',
-                name, urgent ? 0 : 30, 'VehicleDetail');
-            }
-          }
-
-          if (!isVessel && v.current_km) {
-            const lastServiceKm = v.km_baseline || 0;
-            const kmSinceService = v.current_km - lastServiceKm;
-            if (kmSinceService >= 13500) {
-              const urgent = kmSinceService >= 15000;
-              addNotif(`service-${v.id}`, v.id, 'maintenance',
-                urgent ? `טיפול תקופתי נדרש (${Math.round(kmSinceService / 1000)}K ק"מ)` : `טיפול מתקרב (${Math.round(kmSinceService / 1000)}K ק"מ)`,
-                name, urgent ? 0 : 30, 'VehicleDetail');
-            }
-          }
-
-          if (isVessel && v.last_shipyard_date) {
-            const shipyardYears = differenceInYears(now, new Date(v.last_shipyard_date));
-            if (shipyardYears >= 2.75) {
-              const urgent = shipyardYears >= 3;
-              addNotif(`shipyard-${v.id}`, v.id, 'maintenance',
-                urgent ? 'הגיע זמן לביקור מספנה!' : 'ביקור מספנה מתקרב',
-                name, urgent ? 0 : 30, 'VehicleDetail');
-            }
-          }
-
-          if (!isVessel && vehicleAge >= 15 && v.test_due_date) {
-            const testDaysLeft = daysTo(v.test_due_date);
-            if (testDaysLeft !== null && testDaysLeft <= 60 && testDaysLeft > 0) {
-              addNotif(`brakes-${v.id}`, v.id, 'safety',
-                `רכב ותיק (${vehicleAge} שנים): נדרש אישור בלמים לטסט`,
-                name, testDaysLeft, 'VehicleDetail');
-            }
-          }
-
-          const localMileageDate = mileageDates[v.id] || null;
-          const mileageDate = localMileageDate || v.km_update_date || v.engine_hours_update_date;
-          if (mileageDate) {
-            const mileageDays = Math.floor((now - new Date(mileageDate)) / 86400000);
-            if (mileageDays > 180) {
-              const isKmVehicle = !isVessel;
-              addNotif(`mileage-${v.id}`, v.id, 'mileage',
-                isKmVehicle ? `עדכן קילומטראז' (${mileageDays} ימים)` : `עדכן שעות מנוע (${mileageDays} ימים)`,
-                name, 999, 'VehicleDetail');
-            }
-          } else if (v.current_km || v.current_engine_hours) {
-            addNotif(`mileage-${v.id}`, v.id, 'mileage',
-              !isVessel ? 'עדכן קילומטראז\'' : 'עדכן שעות מנוע',
-              name, 999, 'VehicleDetail');
-          }
-        });
-
-        const month = now.getMonth();
-        const hasNonVesselVehicles = vehicles.some(v => !isVesselVeh(v));
-        const hasVesselVehicles = vehicles.some(v => isVesselVeh(v));
-
-        if (month === 10 && hasNonVesselVehicles) {
-          const winterKey = `winter_dismissed_${now.getFullYear()}`;
-          if (!localStorage.getItem(winterKey)) {
-            items.push({
-              id: 'winter-prep', vehicleId: null, type: 'seasonal',
-              label: '❄️ הכן את הרכב לחורף',
-              name: 'בדוק: סוללה, מגבים, צמיגים, מים למגבים, אורות',
-              days: 500, isExpired: false,
-            });
-          }
-        }
-
-        if (month === 3 && hasVesselVehicles) {
-          const sailKey = `sailing_dismissed_${now.getFullYear()}`;
-          if (!localStorage.getItem(sailKey)) {
-            items.push({
-              id: 'sailing-season', vehicleId: null, type: 'seasonal',
-              label: '⛵ עונת ההפלגה מתחילה!',
-              name: 'בדוק: ציוד בטיחות, מנוע, תחתית, מפרשים',
-              days: 500, isExpired: false,
-            });
-          }
-        }
+        items.push(...calcAllReminders({
+          vehicles,
+          documents: [],
+          settings: settingsResult[0] || {},
+        }).map(reminderToBellItem));
 
         // Defer sorting to setNotifications below — we need to mix in
         // community + app_notifications (which carry real createdAt
@@ -526,6 +402,31 @@ export default function NotificationBell() {
     });
   };
 
+  const persistRemoteReadState = async (notification, nextRead) => {
+    if (!notification) return;
+    try {
+      if (notification._communityNotifId) {
+        await supabase
+          .from('community_notifications')
+          .update({ is_read: nextRead })
+          .eq('id', notification._communityNotifId);
+      }
+      if (notification._appNotifId) {
+        await supabase
+          .from('app_notifications')
+          .update({ is_read: nextRead })
+          .eq('id', notification._appNotifId);
+        window.dispatchEvent(new CustomEvent('cr:notifications-changed'));
+      }
+    } catch {}
+  };
+
+  const markItemReadState = async (notification, nextRead = true) => {
+    if (nextRead) markRead(notification.id);
+    else markUnread(notification.id);
+    await persistRemoteReadState(notification, nextRead);
+  };
+
   const dismissNotification = (id) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
     try {
@@ -537,7 +438,7 @@ export default function NotificationBell() {
     } catch {}
   };
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
     const allIds = new Set(notifications.map(n => n.id));
     setReadIds(allIds);
     localStorage.setItem('read_notif_ids', JSON.stringify([...allIds].filter(i => i !== 'profile-incomplete')));
@@ -548,6 +449,19 @@ export default function NotificationBell() {
         localStorage.setItem('read_notif_timed', JSON.stringify(timed));
       } catch {}
     }
+    const appIds = notifications.map(n => n._appNotifId).filter(Boolean);
+    const communityIds = notifications.map(n => n._communityNotifId).filter(Boolean);
+    try {
+      if (appIds.length > 0) {
+        await supabase.from('app_notifications').update({ is_read: true }).in('id', appIds);
+      }
+      if (communityIds.length > 0) {
+        await supabase.from('community_notifications').update({ is_read: true }).in('id', communityIds);
+      }
+      if (appIds.length > 0 || communityIds.length > 0) {
+        window.dispatchEvent(new CustomEvent('cr:notifications-changed'));
+      }
+    } catch {}
   };
 
   useEffect(() => {
@@ -634,13 +548,14 @@ export default function NotificationBell() {
               ) : (
                 notifications.slice(0, 10).map(n => {
                   const isRead = readIds.has(n.id);
+                  const actionRequired = isActionNotification(n);
                   return (
                     <div key={n.id}
                       className="flex items-center gap-3 px-4 py-3 transition-all"
                       style={{ background: isRead ? '#fff' : '#FEFCE8', borderBottom: '1px solid #F5F5F5' }}>
                       <button
-                        onClick={() => {
-                          markRead(n.id);
+                        onClick={async () => {
+                          await markItemReadState(n, true);
                           setPopupOpen(false);
                           if (n.type === 'profile' || n.type === 'license') navigate(createPageUrl('UserProfile'));
                           else if (n.type === 'seasonal') {
@@ -649,15 +564,9 @@ export default function NotificationBell() {
                             navigate(createPageUrl('Vehicles'));
                           }
                           else if (n.type === 'community') {
-                            if (n._communityNotifId) {
-                              supabase.from('community_notifications').update({ is_read: true }).eq('id', n._communityNotifId).then(() => {});
-                            }
                             navigate(createPageUrl('Community'));
                           }
                           else if (n.type === 'app') {
-                            if (n._appNotifId) {
-                              supabase.from('app_notifications').update({ is_read: true }).eq('id', n._appNotifId).then(() => {});
-                            }
                             // navHref is pre-resolved at fetch time. As a
                             // safety net (e.g. the row arrived after the
                             // config map was updated but before the bell
@@ -740,6 +649,14 @@ export default function NotificationBell() {
                             {n.label}
                           </p>
                           <p className="text-[10px] truncate" style={{ color: '#9CA3AF' }}>{n.name}</p>
+                          <span
+                            className="inline-flex mt-1 rounded-full px-2 py-0.5 text-[9px] font-black"
+                            style={{
+                              background: actionRequired ? '#FEF3C7' : '#F3F4F6',
+                              color: actionRequired ? '#92400E' : '#6B7280',
+                            }}>
+                            {actionRequired ? 'דורש פעולה' : 'לידיעה'}
+                          </span>
                           {/* Relative-time row for DB-backed notifications
                               (shares, vehicle-change events, community
                               replies). Synthetic reminders return null
@@ -760,7 +677,10 @@ export default function NotificationBell() {
                       </button>
                       <div className="flex items-center gap-0.5 shrink-0">
                         <button
-                          onClick={(e) => { e.stopPropagation(); isRead ? markUnread(n.id) : markRead(n.id); }}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            await markItemReadState(n, !isRead);
+                          }}
                           className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-all"
                           title={isRead ? 'סמן כלא נקרא' : 'סמן כנקרא'}>
                           <div className="w-2.5 h-2.5 rounded-full border-2 transition-all"

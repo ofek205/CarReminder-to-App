@@ -12,6 +12,13 @@
 
 import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare, Briefcase, Truck, ClipboardList } from 'lucide-react';
 
+const ACTION_REQUIRED_TYPES = new Set([
+  'share_offered',
+  'task_assigned',
+  'driver_assigned',
+  'workspace_member_added',
+]);
+
 // Build a deep-link href from the row's `data` jsonb. Each function is
 // pure so callers can resolve the href without state. When a type
 // genuinely has no follow-up screen (e.g. share_deleted — vehicle is
@@ -167,4 +174,8 @@ export const APP_NOTIF_CONFIG = {
 
 export function configForType(type) {
   return APP_NOTIF_CONFIG[type] || APP_NOTIF_CONFIG._default;
+}
+
+export function requiresActionForType(type) {
+  return ACTION_REQUIRED_TYPES.has(type);
 }

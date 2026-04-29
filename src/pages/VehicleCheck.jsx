@@ -64,6 +64,7 @@ export default function VehicleCheck() {
   const [limitLocked, setLimitLocked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [reportMode, setReportMode] = useState(null);
 
   const isBusy = status === 'loading';
   const isPublicVisitor = !authLoading && !isAuthenticated;
@@ -180,9 +181,15 @@ export default function VehicleCheck() {
     setLimitLocked(false);
     setSaved(false);
     setLoadingIndex(0);
+    setReportMode(null);
   };
 
-  const exportReport = () => {
+  const openReportOptions = () => {
+    if (!result) return;
+    setReportMode('options');
+  };
+
+  const downloadReport = () => {
     if (!result) return;
     window.setTimeout(() => window.print(), 50);
   };
@@ -239,7 +246,7 @@ export default function VehicleCheck() {
         {result && status === 'success' && (
           <div className="space-y-5">
             <SummaryCard result={result} />
-            <ResultActions onExport={exportReport} onReset={resetCheck} />
+            <ResultActions onExport={openReportOptions} onReset={resetCheck} />
             <Insights insights={result.insights} />
             <KeyInfoGrid result={result} />
             <SpecsAccordion result={result} />
@@ -254,6 +261,15 @@ export default function VehicleCheck() {
         )}
       </div>
       {result && status === 'success' && <VehiclePrintReport result={result} />}
+      {result && reportMode && (
+        <ReportModal
+          mode={reportMode}
+          result={result}
+          onClose={() => setReportMode(null)}
+          onPreview={() => setReportMode('preview')}
+          onDownload={downloadReport}
+        />
+      )}
     </div>
   );
 }
@@ -331,7 +347,7 @@ function SummaryCard({ result }) {
     { label: 'סוג', value: b.detectedTypeLabel || b.vehicleType },
     { label: 'אספנות', value: b.isVintage ? 'כן' : '' },
   ].filter(item => hasDisplayValue(item.value));
-  const typeLine = [b.vehicleType, b.detectedTypeLabel].filter(Boolean).join(' · ');
+  const typeLine = formatUniqueList([b.vehicleType, b.detectedTypeLabel]);
 
   return (
     <section className="bg-white border border-gray-100 rounded-3xl p-4 sm:p-5 shadow-sm">
@@ -380,6 +396,73 @@ function ResultActions({ onExport, onReset }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function ReportModal({ mode, result, onClose, onPreview, onDownload }) {
+  const isPreview = mode === 'preview';
+  return (
+    <div className="report-modal-backdrop fixed inset-0 z-50 bg-black/45 p-3 sm:p-6 overflow-y-auto">
+      <div className={`bg-white rounded-3xl shadow-2xl mx-auto ${isPreview ? 'max-w-4xl' : 'max-w-lg'} overflow-hidden`}>
+        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+          <div>
+            <p className="text-base font-black text-gray-900">
+              {isPreview ? 'צפייה בדוח' : 'ייצוא דוח בדיקת רכב'}
+            </p>
+            <p className="text-xs text-gray-500">
+              הדוח כולל נתונים יבשים בלבד, ללא תובנות או המלצות.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600"
+          >
+            סגור
+          </button>
+        </div>
+
+        {isPreview ? (
+          <div>
+            <div className="flex flex-col sm:flex-row gap-2 p-3 border-b border-gray-100 bg-gray-50">
+              <Button type="button" onClick={onDownload} className="rounded-2xl font-black" style={{ background: C.primary }}>
+                <Download className="h-4 w-4 ml-2" />
+                הורדה
+              </Button>
+              <Button type="button" variant="outline" onClick={onClose} className="rounded-2xl font-bold">
+                חזרה למסך
+              </Button>
+            </div>
+            <div className="max-h-[75vh] overflow-auto bg-gray-100 p-3 sm:p-5">
+              <VehiclePrintReport result={result} variant="preview" />
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 sm:p-5 space-y-3">
+            <button
+              type="button"
+              onClick={onPreview}
+              className="w-full text-right rounded-3xl border border-[#D8E5D9] bg-[#F5FAF6] p-4 hover:border-[#2D5233] transition-colors"
+            >
+              <p className="text-sm font-black text-[#1C2E20] mb-1">צפייה בדוח</p>
+              <p className="text-xs leading-relaxed text-gray-600">
+                פותח תצוגה מקדימה נקייה בתוך האפליקציה. מתוך התצוגה אפשר גם להוריד.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={onDownload}
+              className="w-full text-right rounded-3xl border border-gray-200 bg-white p-4 hover:border-[#2D5233] transition-colors"
+            >
+              <p className="text-sm font-black text-gray-900 mb-1">הורדה כקובץ</p>
+              <p className="text-xs leading-relaxed text-gray-600">
+                פותח את חלון השמירה של הדפדפן. בוחרים שמירה כקובץ.
+              </p>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -505,6 +588,20 @@ function formatSpecValue(value) {
   return String(value);
 }
 
+function formatUniqueList(values) {
+  const seen = new Set();
+  return values
+    .filter(hasDisplayValue)
+    .map(value => String(value).trim())
+    .filter((value) => {
+      const key = value.replace(/\s+/g, ' ');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(' · ');
+}
+
 function formatKm(value) {
   if (!hasDisplayValue(value)) return '';
   const n = Number(String(value).replace(/[^\d.]/g, ''));
@@ -600,11 +697,11 @@ function SectionTitle({ icon, title, subtitle }) {
   );
 }
 
-function VehiclePrintReport({ result }) {
+function VehiclePrintReport({ result, variant = 'print' }) {
   const b = result.basicInfo || {};
   const rows = buildReportSections(result);
   return (
-    <article className="vehicle-report-print" dir="rtl" aria-hidden="true">
+    <article className={variant === 'preview' ? 'vehicle-report-preview' : 'vehicle-report-print'} dir="rtl" aria-hidden={variant === 'print'}>
       <header className="report-header">
         <div className="report-brand">
           <BrandMark />
@@ -623,7 +720,7 @@ function VehiclePrintReport({ result }) {
         <div>
           <p className="report-kicker">סיכום בדיקה</p>
           <h1>{b.displayName || 'רכב'}</h1>
-          <p>{[b.vehicleType, b.detectedTypeLabel].filter(Boolean).join(' · ') || 'סוג כלי לא זמין'}</p>
+          <p>{formatUniqueList([b.vehicleType, b.detectedTypeLabel]) || 'סוג כלי לא זמין'}</p>
         </div>
         <div className="report-plate">{b.licensePlate || result.plate}</div>
       </section>
@@ -687,6 +784,176 @@ function PrintStyles() {
         display: none;
       }
 
+      .vehicle-report-preview {
+        width: min(100%, 794px);
+        margin: 0 auto;
+        padding: 28px;
+        background: #fff;
+        color: #162117;
+        direction: rtl;
+        font-family: Arial, sans-serif;
+        box-shadow: 0 12px 35px rgba(22, 33, 23, 0.12);
+      }
+
+      .vehicle-report-preview .report-header,
+      .vehicle-report-preview .report-hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .vehicle-report-preview .report-header {
+        padding-bottom: 12px;
+        border-bottom: 2px solid #2D5233;
+      }
+
+      .vehicle-report-preview .report-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .vehicle-report-preview .report-logo {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #2D5233;
+        color: #E8B829;
+      }
+
+      .vehicle-report-preview .report-logo-spark {
+        position: absolute;
+        top: 6px;
+        left: 7px;
+        color: #FFF5CC;
+      }
+
+      .vehicle-report-preview .report-brand-name {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 900;
+        color: #2D5233;
+      }
+
+      .vehicle-report-preview .report-brand-subtitle,
+      .vehicle-report-preview .report-meta p,
+      .vehicle-report-preview .report-hero p,
+      .vehicle-report-preview .report-kicker {
+        margin: 0;
+        color: #647067;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .vehicle-report-preview .report-meta {
+        text-align: left;
+      }
+
+      .vehicle-report-preview .report-hero {
+        margin: 14px 0;
+        padding: 14px;
+        border-radius: 18px;
+        background: #F5FAF6;
+        border: 1px solid #D8E5D9;
+      }
+
+      .vehicle-report-preview .report-hero h1 {
+        margin: 4px 0;
+        font-size: 22px;
+        line-height: 1.2;
+        color: #162117;
+      }
+
+      .vehicle-report-preview .report-plate {
+        min-width: 130px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        border: 2px solid #1A3A5C;
+        background: #FFBF00;
+        color: #111;
+        text-align: center;
+        font-size: 22px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        direction: ltr;
+      }
+
+      .vehicle-report-preview .report-section {
+        margin-top: 12px;
+      }
+
+      .vehicle-report-preview .report-section h2 {
+        margin: 0 0 6px;
+        font-size: 13px;
+        color: #2D5233;
+        border-bottom: 1px solid #E5ECE6;
+        padding-bottom: 4px;
+      }
+
+      .vehicle-report-preview .report-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+      }
+
+      .vehicle-report-preview .report-field {
+        min-height: 38px;
+        border-radius: 10px;
+        border: 1px solid #E5ECE6;
+        background: #FBFCFB;
+        padding: 6px 8px;
+      }
+
+      .vehicle-report-preview .report-field span {
+        display: block;
+        font-size: 9px;
+        color: #7C887F;
+        font-weight: 700;
+        margin-bottom: 2px;
+      }
+
+      .vehicle-report-preview .report-field strong {
+        display: block;
+        font-size: 11px;
+        line-height: 1.3;
+        color: #162117;
+        word-break: break-word;
+      }
+
+      .vehicle-report-preview .report-footer {
+        margin-top: 14px;
+        padding-top: 9px;
+        border-top: 1px solid #E5ECE6;
+        color: #6B766E;
+        font-size: 9px;
+        line-height: 1.45;
+      }
+
+      @media (max-width: 640px) {
+        .vehicle-report-preview {
+          padding: 16px;
+        }
+
+        .vehicle-report-preview .report-header,
+        .vehicle-report-preview .report-hero {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .vehicle-report-preview .report-meta {
+          text-align: right;
+        }
+
+        .vehicle-report-preview .report-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
       @media print {
         @page {
           size: A4;
@@ -696,10 +963,20 @@ function PrintStyles() {
         html,
         body {
           background: #fff !important;
+          height: auto !important;
+          margin: 0 !important;
+          padding: 0 !important;
         }
 
         body * {
           visibility: hidden;
+        }
+
+        .vehicle-check-root {
+          min-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #fff !important;
         }
 
         .vehicle-report-print,
@@ -707,16 +984,17 @@ function PrintStyles() {
           visibility: visible;
         }
 
-        .vehicle-check-screen {
+        .vehicle-check-screen,
+        .report-modal-backdrop {
           display: none !important;
         }
 
         .vehicle-report-print {
           display: block !important;
-          position: absolute;
-          inset: 0;
+          position: static !important;
           width: 100%;
           min-height: auto;
+          height: auto;
           padding: 0;
           background: #fff;
           color: #162117;

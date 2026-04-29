@@ -10,10 +10,8 @@
 -- UNION ALL branches (one per notification key) that target drivers.
 -- Drivers who are also the owner of the same vehicle are excluded
 -- from the driver branch (to avoid duplicate sends). reminder_settings
--- is LEFT-joined for drivers because a driver may have never opted in
--- explicitly — absence is treated as opt-in (the default) so the
--- driver gets reminded by default, with email_send_log providing the
--- per-key cooldown.
+-- is LEFT-joined for drivers because the row may not exist yet; absence
+-- is treated as opt-out. Email reminders are explicit opt-in only.
 --
 -- Idempotent. The DROP at the top makes re-runs safe.
 -- DO NOT skip the steps if you've already deployed Phase 8 — this
@@ -78,7 +76,7 @@ language sql security definer set search_path = public stable as $$
     cross join trig
     where p_notification_key = 'reminder_insurance'
       and v.insurance_due_date = current_date + trig.days_before
-      and coalesce(rs.email_enabled, true) = true
+      and coalesce(rs.email_enabled, false) = true
       and not exists (
         select 1 from public.account_members am2
          where am2.account_id = v.account_id
@@ -127,7 +125,7 @@ language sql security definer set search_path = public stable as $$
     cross join trig
     where p_notification_key = 'reminder_test'
       and v.test_due_date = current_date + trig.days_before
-      and coalesce(rs.email_enabled, true) = true
+      and coalesce(rs.email_enabled, false) = true
       and not exists (
         select 1 from public.account_members am2
          where am2.account_id = v.account_id
