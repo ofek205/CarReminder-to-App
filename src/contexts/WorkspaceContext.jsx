@@ -43,10 +43,15 @@ const sortByRole = (a, b) =>
 
 /**
  * Pick the default active workspace from a memberships list.
- * 1. saved hint, if still a valid + non-removed membership
- * 2. first active 'personal' membership
- * 3. first active membership of any type (sorted by role priority)
- * 4. first inactive membership (legacy fallback, mirrors useAccountRole)
+ *
+ * Resolution order:
+ *   1. saved hint, if still a valid + non-removed membership
+ *   2. business workspace where the user is a driver — drivers do their
+ *      job in the company workspace, so opening the app there saves
+ *      them a manual workspace switch every session
+ *   3. first active 'personal' membership (default for everyone else)
+ *   4. first active membership of any type (sorted by role priority)
+ *   5. first inactive membership (legacy fallback)
  */
 function resolveDefault(memberships, savedHintId) {
   if (!memberships?.length) return null;
@@ -57,6 +62,14 @@ function resolveDefault(memberships, savedHintId) {
   }
 
   const active = memberships.filter(m => m.status === 'פעיל');
+
+  // Driver in a business workspace → land there. They almost never have
+  // anything to do in their personal account during work hours.
+  const businessAsDriver = active.find(
+    m => m.account_type === 'business' && m.role === 'driver'
+  );
+  if (businessAsDriver) return businessAsDriver;
+
   const personal = active.find(m => m.account_type === 'personal');
   if (personal) return personal;
 

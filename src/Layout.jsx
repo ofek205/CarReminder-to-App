@@ -47,8 +47,14 @@ const navItems = [
   { name: 'Accidents',             label: 'תאונות',           icon: AlertTriangle,   guestAllowed: true },
   //  קהילה
   { divider: true, title: 'קהילה' },
-  { name: 'Community',             label: 'קהילה וייעוץ',    icon: Users,           guestAllowed: true, driverHidesIfFlag: 'driver_hide_community' },
-  { name: 'AiAssistant',           label: 'התייעצות עם מומחה AI', icon: Sparkles,    guestAllowed: true, driverHidesIfFlag: 'driver_hide_ai' },
+  // Community + Expert AI are personal-flow surfaces. Drivers in a
+  // business workspace are working on company time — these would be
+  // a distraction in the driver's "what do I do next" line of sight.
+  // The driverHidesIfFlag option is kept for the rare manager who
+  // wants to surface them anyway via BusinessSettings, but the default
+  // is now hidden by hideForBusinessDriver.
+  { name: 'Community',             label: 'קהילה וייעוץ',    icon: Users,           guestAllowed: true, hideForBusinessDriver: true, driverHidesIfFlag: 'driver_hide_community' },
+  { name: 'AiAssistant',           label: 'התייעצות עם מומחה AI', icon: Sparkles,    guestAllowed: true, hideForBusinessDriver: true, driverHidesIfFlag: 'driver_hide_ai' },
   //  כלים 
   { divider: true, title: 'כלים' },
   { name: 'FindGarage',            label: 'מצא מוסך',        icon: MapPin,          guestAllowed: true },

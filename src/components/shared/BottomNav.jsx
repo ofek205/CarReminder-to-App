@@ -1,12 +1,13 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Home, MapPin, FileText, AlertTriangle, Sparkles } from 'lucide-react';
+import { Home, MapPin, FileText, AlertTriangle, Sparkles, Truck, Route as RouteIcon, Bell } from 'lucide-react';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 
 // Tab order in RTL: rightmost first → leftmost last
 // AI Assistant is intentionally LAST so it sits on the visual LEFT
 // relatedPaths: pages that should also highlight this tab (e.g. VehicleDetail → Home)
-const tabs = [
+const PERSONAL_TABS = [
   { label: 'ראשי',         icon: Home,           path: 'Dashboard',
     relatedPaths: ['/Vehicles', '/VehicleDetail', '/AddVehicle', '/EditVehicle', '/DemoVehicleDetail'] },
   { label: 'מסמכים',       icon: FileText,       path: 'Documents' },
@@ -16,8 +17,28 @@ const tabs = [
   { label: 'מומחה AI',     icon: Sparkles,       path: 'AiAssistant', isAi: true },
 ];
 
+// Driver-in-business tabs: no AI / no community; "ראשי" lands on
+// MyVehicles (their assignments), and "מסלולים" replaces "מצא מוסך"
+// since the company already has a relationship with a garage and the
+// driver's day-to-day is route execution.
+const DRIVER_TABS = [
+  { label: 'ראשי',     icon: Home,          path: 'MyVehicles',
+    relatedPaths: ['/VehicleDetail'] },
+  { label: 'הרכבים',   icon: Truck,         path: 'MyVehicles' },
+  { label: 'מסלולים',  icon: RouteIcon,     path: 'Routes',
+    relatedPaths: ['/RouteDetail'] },
+  { label: 'התראות',   icon: Bell,          path: 'Notifications' },
+  { label: 'מסמכים',   icon: FileText,      path: 'Documents' },
+];
+
 export default function BottomNav({ sheetOpen = false }) {
   const location = useLocation();
+  const { isBusiness, isDriver, canManageRoutes } = useWorkspaceRole();
+  // Drivers in a business workspace get a business-flavoured tab bar.
+  // Managers / owners / viewers in a business workspace keep the
+  // personal tabs since they ALSO use the personal-flow pages
+  // (FindGarage, etc.) regularly.
+  const tabs = (isBusiness && isDriver && !canManageRoutes) ? DRIVER_TABS : PERSONAL_TABS;
   const primaryPath = createPageUrl(''); // e.g., '/'
 
   // Figure out which tab is active. An exact match on the tab's own route wins;
