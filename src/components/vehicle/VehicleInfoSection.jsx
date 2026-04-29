@@ -808,6 +808,27 @@ export default function VehicleInfoSection({ vehicle }) {
         </div>
       )}
 
+      {/*  Personal-import badge — informational only, no logic effect.
+          Sourced from gov.il's "כלי רכב ביבוא אישי" registry. Sky/cyan
+          palette to differentiate from vintage's purple. Subtitle shows
+          the variant ("יבוא אישי-משומש" / "יבוא אישי-חדש"). */}
+      {vehicle.is_personal_import && (
+        <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
+          style={{ background: 'linear-gradient(135deg, #ECFEFF 0%, #CFFAFE 100%)', border: '1.5px solid #A5F3FC' }}>
+          <span className="text-lg">🌍</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold leading-tight" style={{ color: '#0E7490' }}>
+              רכב ביבוא אישי
+            </p>
+            {vehicle.personal_import_type && (
+              <p className="text-[11px] font-medium leading-tight mt-0.5" style={{ color: '#0891B2' }}>
+                {vehicle.personal_import_type}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/*  Mileage / Engine hours  */}
       <MileageUpdateWidget vehicle={vehicle} />
 

@@ -77,6 +77,10 @@ const EMPTY_FORM = {
   // reset it if the user re-runs the lookup with a different plate).
   ownership_hand: '',
   ownership_history: null,
+  // Personal-import flag (gov.il "כלי רכב ביבוא אישי" registry).
+  // Informational badge only — not user-editable.
+  is_personal_import: false,
+  personal_import_type: '',
   last_tire_change_date: '',
   km_since_tire_change: '',
   tires_changed_count: 4,  // default assumption: a "tire change" event replaces all 4. User can narrow down.
@@ -520,6 +524,10 @@ export default function AddVehicle() {
     // Both come from the gov.il "היסטוריית כלי רכב" dataset.
     ownership_hand:    fields.ownership_hand    || '',
     ownership_history: fields.ownership_history || null,
+    // Personal-import flag (gov.il "יבוא אישי" registry). Surfaced
+    // as a small informational badge — no functional impact.
+    is_personal_import:    fields.is_personal_import    || false,
+    personal_import_type:  fields.personal_import_type  || '',
   });
 
   // Apply lookup result to the form + UI state
@@ -761,7 +769,8 @@ export default function AddVehicle() {
         'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
         'offroad_equipment','offroad_usage_type','last_offroad_service_date',
         'inspection_report_expiry_date',
-        'ownership_hand','ownership_history'];
+        'ownership_hand','ownership_history',
+        'is_personal_import','personal_import_type'];
       const cleanData = { account_id: accountId };
       DB_COLUMNS.forEach(k => { if (data[k] !== undefined && data[k] !== null && data[k] !== '') cleanData[k] = data[k]; });
 

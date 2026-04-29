@@ -481,17 +481,20 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
     const specFields = ['model_code','trim_level','vin','pollution_group','vehicle_class','safety_rating',
       'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
       'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
-      // gov.il enrichment (v5): odometer @ last test + ownership history
-      // count. A vehicle missing either of these qualifies for a
-      // re-fetch even if the spec fields above are already filled.
+      // gov.il enrichment (v6): odometer @ last test + ownership history
+      // count + personal-import flag. A vehicle missing any of these
+      // qualifies for a re-fetch even if the spec fields above are
+      // already filled. Note: is_personal_import defaults to false in
+      // DB, so we DON'T add it to the missing-check (we'd refetch
+      // forever for non-imported cars). Personal-import gets backfilled
+      // organically when v6 fires for any other reason.
       'current_km','ownership_hand'];
     const missing = specFields.filter(f => !vehicle[f]);
     if (missing.length === 0) { setEnrichDone(true); return; }
     // Check localStorage flag — only try once per vehicle per version.
-    // v5: bumped from v4 so vehicles enriched before the
-    // last-test-km / ownership-history datasets were wired in get
-    // re-fetched and pick up the new fields.
-    const enrichKey = `enriched_v5_${vehicle.id}`;
+    // v6: bumped from v5 to wire in the personal-import dataset so
+    // existing vehicles get re-checked once for the import flag.
+    const enrichKey = `enriched_v6_${vehicle.id}`;
     if (localStorage.getItem(enrichKey)) { setEnrichDone(true); return; }
     (async () => {
       try {
@@ -505,7 +508,8 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
           // Gov.il enrichment additions — backfills the new fields
           // for vehicles that pre-date the dataset integration.
-          'current_km','ownership_hand','ownership_history'];
+          'current_km','ownership_hand','ownership_history',
+          'is_personal_import','personal_import_type'];
         const update = {};
         allFields.forEach(f => { if (govData[f] && !vehicle[f]) update[f] = govData[f]; });
         if (Object.keys(update).length > 0) {

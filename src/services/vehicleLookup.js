@@ -39,6 +39,13 @@ const LAST_TEST_KM_RESOURCE_ID = '56063a99-8a3e-4ff4-912e-5966c0279bad';
 // מסחרי / השכרה / ...). Used to populate ownership_hand and the
 // expandable ownership_history list.
 const OWNERSHIP_HISTORY_RESOURCE_ID = 'bb2355dc-9ec7-4f06-9c3f-3344672171da';
+// "כלי רכב ביבוא אישי" — 27K-row registry of vehicles that entered
+// Israel via personal import. Presence of a record means the plate
+// IS personally imported; the `sug_yevu` column gives the variant
+// ("יבוא אישי-משומש" / "יבוא אישי-חדש"). We surface this as a small
+// informational badge next to the existing vintage chip — no logic
+// or reminders depend on it.
+const PERSONAL_IMPORT_RESOURCE_ID = '03adc637-b6fe-402b-9937-7c3d3afc9140';
 import { isNative } from '@/lib/capacitor';
 
 // In dev browser, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
@@ -555,6 +562,37 @@ async function fetchOwnershipHistory(plateDigits) {
 }
 
 /**
+ * Check the personal-import registry. Returns:
+ *   { is_personal_import: true, personal_import_type: 'יבוא אישי-משומש' }
+ *   when the plate is in the dataset, or null when it isn't (or the
+ *   call fails — best-effort, never throws).
+ *
+ * Uses an exact `mispar_rechev` filter so a 7-digit plate doesn't
+ * match against unrelated rows where the digits happen to appear in
+ * a VIN or engine number.
+ */
+async function fetchPersonalImport(plateDigits) {
+  try {
+    const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
+    const url = `${API_BASE}?resource_id=${encodeURIComponent(PERSONAL_IMPORT_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const record = json?.result?.records?.[0];
+    if (!record) return null;
+    return {
+      is_personal_import:   true,
+      personal_import_type: safeStr(record.sug_yevu || '', 30) || 'יבוא אישי',
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch detailed tech specs from the דגמי רכב API using tozeret_cd + degem_cd + year.
  */
 async function fetchDetailedSpecs(tozeretCd, degemCd, year) {
@@ -703,8 +741,11 @@ export async function lookupVehicleByPlate(plate) {
     (source !== 'moto' && source !== 'cme')
       ? fetchOwnershipHistory(clean)
       : Promise.resolve(null),
+    (source !== 'cme')                       // works for cars + motorcycles
+      ? fetchPersonalImport(clean)
+      : Promise.resolve(null),
   ]);
-  const [specs, lastTestKm, ownership] = enrichments;
+  const [specs, lastTestKm, ownership, personalImport] = enrichments;
 
   if (specs) {
     Object.entries(specs).forEach(([k, v]) => {
@@ -729,6 +770,14 @@ export async function lookupVehicleByPlate(plate) {
     if (!fields.ownership && ownership.current) {
       fields.ownership = ownership.current;
     }
+  }
+  // Personal-import flag — informational only. Whether the plate
+  // appears in the dedicated registry → boolean + a short label
+  // (e.g. "יבוא אישי-משומש"). Surfaced as a badge in VehicleDetail
+  // alongside the vintage chip; no business logic depends on it.
+  if (personalImport) {
+    fields.is_personal_import   = true;
+    fields.personal_import_type = personalImport.personal_import_type;
   }
 
   // Remove internal fields

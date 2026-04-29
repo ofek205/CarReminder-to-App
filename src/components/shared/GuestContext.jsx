@@ -142,7 +142,8 @@ export function GuestProvider({ children }) {
         'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
         'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
         'offroad_equipment','offroad_usage_type','last_offroad_service_date',
-        'ownership_hand','ownership_history'];
+        'ownership_hand','ownership_history',
+        'is_personal_import','personal_import_type'];
 
       let migrated = 0;
       for (const guestVehicle of toMigrate) {

@@ -290,7 +290,8 @@ export default function EditVehicle() {
       'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
       'offroad_equipment','offroad_usage_type','last_offroad_service_date',
       'inspection_report_expiry_date',
-      'ownership_hand','ownership_history'];
+      'ownership_hand','ownership_history',
+      'is_personal_import','personal_import_type'];
 
     const data = {};
     DB_COLUMNS.forEach(k => { if (form[k] !== undefined && form[k] !== null) data[k] = form[k]; });
