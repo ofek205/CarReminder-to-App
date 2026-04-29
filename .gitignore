@@ -13,6 +13,18 @@ apple-icon-*.png
 .apple-review-creds
 AuthKey_*.p8
 
+# iOS signing artifacts — distribution cert (.p12), provisioning profile,
+# and the password used to encrypt the .p12. scripts/setup-ios-signing.cjs
+# emits these to .ios-signing/ as a "paste these into GitHub Secrets" copy
+# but they MUST NOT live in git: anyone with read access to the repo can
+# sign + ship binaries as our team. Untracking only stops the bleed; if
+# these were ever pushed to the remote, rotate the cert in Apple Developer
+# and `git filter-repo` the history.
+.ios-signing/
+IOS_DIST_CERT_BASE64.txt
+IOS_DIST_CERT_PASSWORD.txt
+IOS_PROFILE_NAME.txt
+
 # Logs
 logs
 *.log

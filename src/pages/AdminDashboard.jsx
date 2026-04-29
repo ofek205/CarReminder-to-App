@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
+import useIsAdmin from '@/hooks/useIsAdmin';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import AdminPopupsTab from '../components/admin/AdminPopupsTab';
 import {
@@ -412,7 +413,13 @@ function FunnelWeakestStep({ funnel }) {
 //
 
 export default function AdminDashboard() {
-  const [isAdmin, setIsAdmin]       = useState(null);
+  // Server-side admin check (is_admin() RPC). Returns null while loading,
+  // true / false after. Replaces an earlier inline read of
+  // user.user_metadata?.role === 'admin' which a self-set signup metadata
+  // could spoof. Server-side enforcement (RLS + RPC) was already the
+  // actual gatekeeper for every admin action; this aligns the UI gate
+  // with the same source of truth used by Layout's nav.
+  const isAdmin = useIsAdmin();
   const [filter, setFilter]         = useState('week');
   const [segment, setSegment]       = useState('all'); // all | car | motorcycle | truck | vessel | offroad
   const [adminTab, setAdminTab]     = useState('stats'); // stats | users | messages | bugs
@@ -428,22 +435,9 @@ export default function AdminDashboard() {
   const [documents, setDocuments]   = useState([]);
   const [analyticsData, setAnalyticsData] = useState([]);
 
-  // Step 1: verify admin role (using Supabase user metadata)
-  useEffect(() => {
-    async function checkAdmin() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setIsAdmin(false); return; }
-        // Check user_metadata role or account_members for admin flag
-        const isAdminUser = user.user_metadata?.role === 'admin'
-          || user.email === 'ofek205@gmail.com'; // fallback: app owner
-        setIsAdmin(isAdminUser);
-      } catch {
-        setIsAdmin(false);
-      }
-    }
-    checkAdmin();
-  }, []);
+  // (admin role check moved to the useIsAdmin() hook above; the previous
+  // useEffect that read user.user_metadata?.role + an email fallback has
+  // been removed.)
 
   // Track the last successful refresh so the UI can show "updated N
   // minutes ago". transparency matters in an admin dashboard.

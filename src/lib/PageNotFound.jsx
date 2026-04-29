@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/components/shared/GuestContext';
+import useIsAdmin from '@/hooks/useIsAdmin';
 import { Home, ArrowRight } from 'lucide-react';
 
 
@@ -7,8 +7,12 @@ export default function PageNotFound({}) {
     const location = useLocation();
     const navigate = useNavigate();
     const pageName = location.pathname.substring(1);
-    const { user, authState } = useAuth();
-    const isAdmin = authState === 'authenticated' && user?.role === 'admin';
+    // Server-side check (is_admin() RPC) — matches the rest of the codebase
+    // (Layout's NavContent, every admin page). The previous inline check
+    // read user.role from auth user_metadata, which the user can self-set
+    // at signup; that gave any account the "admin hint" UI on the 404 page,
+    // and was inconsistent with the documented source-of-truth.
+    const isAdmin = useIsAdmin() === true;
 
     return (
         <div dir="rtl" className="min-h-[70vh] flex items-center justify-center p-6"
