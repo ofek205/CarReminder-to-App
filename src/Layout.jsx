@@ -81,6 +81,7 @@ const navItems = [
   { name: 'Drivers',               label: 'נהגים',              icon: Users,           guestAllowed: false, businessOnly: true, managerOnly: true },
   { divider: true, title: 'אנליטיקה', businessOnly: true },
   { name: 'ActivityLog',           label: 'יומן פעילות',       icon: FileText,        guestAllowed: false, businessOnly: true },
+  { name: 'DrivingLog',            label: 'יומן נסיעות',        icon: FileText,        guestAllowed: false, businessOnly: true, managerOnly: true },
   { name: 'Reports',               label: 'דוחות וניתוחים',     icon: TrendingUp,      guestAllowed: false, businessOnly: true, managerOnly: true },
   { name: 'Expenses',              label: 'הוצאות תפעול',      icon: Receipt,         guestAllowed: false, businessOnly: true, managerOnly: true },
   { divider: true, title: 'ניהול אדמין', adminOnly: true },
