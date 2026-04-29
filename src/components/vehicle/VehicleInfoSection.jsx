@@ -465,74 +465,84 @@ function formatHandLabel(n) {
   return words[num] || String(num);
 }
 
-// OwnershipHistoryRow — collapsible "history" panel that lives at the
-// bottom of the technical-spec card. Renders the chronological list
-// of ownership episodes the gov.il dataset returned for the plate.
-//
-// Self-contained: own open/close state. Doesn't propagate up because
-// the parent's specOpen toggle already controls whether the whole
-// spec card is visible; this is just the "more detail" affordance
-// inside it.
-function OwnershipHistoryRow({ history, theme }) {
+// ExpandableSpecRow — drop-in replacement for the standard spec row
+// (label + value layout) that gains a chevron and an inline-revealing
+// sub-panel. Used today only for "יד" → "היסטוריית בעלויות"; the
+// pattern is generic so the next expandable spec we want (warranty
+// history, accident summary, etc.) can ride on the same component.
+function ExpandableSpecRow({ item, theme, borderStyle }) {
   const [open, setOpen] = useState(false);
   const T = theme;
   return (
-    <div>
+    <div style={{ borderBottom: borderStyle }}>
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-2.5 text-right hover:bg-gray-50 active:bg-gray-100 transition-colors"
         aria-expanded={open}
+        className="w-full flex items-center justify-between px-4 py-2 text-right hover:bg-gray-50 active:bg-gray-100 transition-colors"
       >
-        <span className="text-[12px] font-bold flex items-center gap-1.5" style={{ color: T.primary }}>
-          {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          היסטוריית בעלויות
+        <span className="text-[13px] flex items-center gap-1" style={{ color: '#6B7280' }}>
+          {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {item.label}
         </span>
-        <span className="text-[10px] text-gray-400">{history.length} בעלויות</span>
+        <span className="text-[13px] font-semibold flex items-center gap-1" style={{ color: '#111827' }}>
+          {item.value}
+          <span className="text-[10px] font-bold" style={{ color: T.primary }}>
+            {open ? 'הסתר היסטוריה' : 'הצג היסטוריה'}
+          </span>
+        </span>
       </button>
-      {open && (
-        <ol className="px-4 pb-3 space-y-1.5">
-          {history.map((h, i) => {
-            const isCurrent = i === history.length - 1;
-            return (
-              <li
-                key={i}
-                className="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5"
-                style={{
-                  background: isCurrent ? T.light : '#F9FAFB',
-                  border: `1px solid ${isCurrent ? T.border : '#F3F4F6'}`,
-                }}
-              >
-                <span className="flex items-center gap-1.5 min-w-0">
-                  <span
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                    style={{ background: isCurrent ? T.primary : '#D1D5DB', color: '#fff' }}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="text-[12px] font-semibold text-gray-900 truncate">
-                    {h.baalut || 'לא ידוע'}
-                  </span>
-                  {isCurrent && (
-                    <span
-                      className="text-[9px] px-1 py-0.5 rounded font-bold shrink-0"
-                      style={{ background: T.primary, color: '#fff' }}
-                    >
-                      נוכחית
-                    </span>
-                  )}
-                </span>
-                {h.date && (
-                  <span className="text-[10px] text-gray-500 font-mono shrink-0" dir="ltr">
-                    {h.date}
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      )}
+      {open && item.expandedContent}
     </div>
+  );
+}
+
+// OwnershipHistoryPanel — the actual content rendered inside the
+// expanded "יד" row. Pure: takes the history array and renders the
+// numbered timeline.
+function OwnershipHistoryPanel({ history, theme }) {
+  const T = theme;
+  return (
+    <ol className="px-4 pb-3 pt-1 space-y-1.5">
+      {history.map((h, i) => {
+        const isCurrent = i === history.length - 1;
+        return (
+          <li
+            key={i}
+            className="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5"
+            style={{
+              background: isCurrent ? T.light : '#F9FAFB',
+              border: `1px solid ${isCurrent ? T.border : '#F3F4F6'}`,
+            }}
+          >
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span
+                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                style={{ background: isCurrent ? T.primary : '#D1D5DB', color: '#fff' }}
+              >
+                {i + 1}
+              </span>
+              <span className="text-[12px] font-semibold text-gray-900 truncate">
+                {h.baalut || 'לא ידוע'}
+              </span>
+              {isCurrent && (
+                <span
+                  className="text-[9px] px-1 py-0.5 rounded font-bold shrink-0"
+                  style={{ background: T.primary, color: '#fff' }}
+                >
+                  נוכחית
+                </span>
+              )}
+            </span>
+            {h.date && (
+              <span className="text-[10px] text-gray-500 font-mono shrink-0" dir="ltr">
+                {h.date}
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -753,10 +763,19 @@ export default function VehicleInfoSection({ vehicle }) {
             // "יד" — sourced from gov.il's ownership-history dataset.
             // The count of episodes IS the hand number; we render
             // "ראשונה / שנייה / שלישית / רביעית" up to 4 and fall back
-            // to a numeric string for ≥5. The expandable history that
-            // unfolds below the spec card lets the user see what each
-            // episode actually was (פרטי / ליסינג / השכרה / ...).
-            vehicle.ownership_hand && { label: 'יד', value: formatHandLabel(vehicle.ownership_hand) },
+            // to a numeric string for ≥5.
+            //
+            // When ownership_history has more than one entry, the row
+            // becomes clickable — tapping it unfolds the chronological
+            // list of episodes inline (right under the row, inside the
+            // same registration group). Single-hand cars have nothing
+            // extra to show, so the row stays a plain spec.
+            vehicle.ownership_hand && {
+              label:    'יד',
+              value:    formatHandLabel(vehicle.ownership_hand),
+              expandable: Array.isArray(vehicle.ownership_history) && vehicle.ownership_history.length > 1,
+              expandedContent: <OwnershipHistoryPanel history={vehicle.ownership_history} theme={T} />,
+            },
             vehicle.first_registration_date && { label: 'עלייה לכביש', value: formatDateHe(vehicle.first_registration_date) },
           ].filter(Boolean) },
           { title: 'מנוע וביצועים', items: [
@@ -826,24 +845,32 @@ export default function VehicleInfoSection({ vehicle }) {
                     <div className="px-4 pt-3 pb-1">
                       <span className="text-[10px] font-bold tracking-wide uppercase" style={{ color: T.primary }}>{group.title}</span>
                     </div>
-                    {/* Items - clean rows */}
-                    {group.items.map((item, ii) => (
-                      <div key={ii} className="flex items-center justify-between px-4 py-2"
-                        style={{ borderBottom: ii < group.items.length - 1 ? `1px solid ${T.border}15` : 'none' }}>
-                        <span className="text-[13px]" style={{ color: '#6B7280' }}>{item.label}</span>
-                        <span className="text-[13px] font-semibold" style={{ color: '#111827' }} dir={item.ltr ? 'ltr' : 'rtl'}>{item.value}</span>
-                      </div>
-                    ))}
+                    {/* Items - clean rows. Expandable items (e.g. "יד")
+                        get a self-contained component that renders the
+                        row + an inline expand panel directly below it. */}
+                    {group.items.map((item, ii) => {
+                      const isLast = ii === group.items.length - 1;
+                      const borderStyle = !isLast ? `1px solid ${T.border}15` : 'none';
+                      if (item.expandable) {
+                        return (
+                          <ExpandableSpecRow
+                            key={ii}
+                            item={item}
+                            theme={T}
+                            borderStyle={borderStyle}
+                          />
+                        );
+                      }
+                      return (
+                        <div key={ii} className="flex items-center justify-between px-4 py-2"
+                          style={{ borderBottom: borderStyle }}>
+                          <span className="text-[13px]" style={{ color: '#6B7280' }}>{item.label}</span>
+                          <span className="text-[13px] font-semibold" style={{ color: '#111827' }} dir={item.ltr ? 'ltr' : 'rtl'}>{item.value}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
-                {/* Ownership-history expandable. Only renders when the
-                    history list has at least 2 entries (the row "יד" in
-                    the registration group already conveys 1-hand cars
-                    with no further detail to show). Self-contained
-                    state, doesn't compete with specOpen. */}
-                {Array.isArray(vehicle.ownership_history) && vehicle.ownership_history.length > 1 && (
-                  <OwnershipHistoryRow history={vehicle.ownership_history} theme={T} />
-                )}
               </div>
             )}
           </div>
