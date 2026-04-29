@@ -36,7 +36,15 @@ export default function useWorkspaces() {
       return data || [];
     },
     enabled,
-    staleTime: 5 * 60 * 1000,
+    // staleTime kept short because workspace membership changes mid-
+    // session (driver gets added to a fleet, manual SQL hot-fix mints
+    // a personal workspace, etc.) and a 5-minute stale window meant
+    // the switcher rendered the OLD list for the rest of the session.
+    // 30s lets the user see new memberships almost immediately on the
+    // next render-trigger without flooding Supabase with refetches.
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 
   // Mirror the existing useAccountRole filter: never surface 'הוסר' /
