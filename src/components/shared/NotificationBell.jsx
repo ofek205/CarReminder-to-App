@@ -347,7 +347,11 @@ export default function NotificationBell() {
         try {
           const { data: communityNotifs, error: cnError } = await supabase
             .from('community_notifications')
-            .select('*')
+            // Narrow select — the bell only reads id, commenter_name and
+            // created_at. Pulling '*' dragged the full notification body
+            // (post excerpts, comment text, metadata) over the wire on
+            // every bell mount, which the UI never showed.
+            .select('id, commenter_name, created_at')
             .eq('user_id', user.id)
             .eq('is_read', false)
             .order('created_at', { ascending: false })
@@ -374,7 +378,11 @@ export default function NotificationBell() {
         try {
           const { data: appNotifs, error: anError } = await supabase
             .from('app_notifications')
-            .select('*')
+            // Narrow select — the bell renders id, type, title, body,
+            // data (for buildHref), created_at, is_read. Internal
+            // bookkeeping columns (updated_at, push_fired flags etc)
+            // are not needed for the dropdown.
+            .select('id, type, title, body, data, created_at, is_read')
             .eq('user_id', user.id)
             .eq('is_read', false)
             .order('created_at', { ascending: false })
