@@ -526,29 +526,6 @@ function SpecRow({ item, theme }) {
   );
 }
 
-// SpecChip — chip card for `dense` groups (safety, environment).
-// Big value on top, label below — at-a-glance numeric scan layout.
-function SpecChip({ item, theme }) {
-  const T = theme;
-  const split = splitValueUnit(item.value);
-  return (
-    <div
-      className="rounded-xl text-center px-2 py-3"
-      style={{ background: '#F9FAFB', border: '1px solid #F3F4F6' }}
-    >
-      {split ? (
-        <p className="leading-none">
-          <span className="text-base font-black text-gray-900 tabular-nums">{split.num}</span>
-          <span className="block text-[9px] font-medium text-gray-500 mt-0.5">{split.unit}</span>
-        </p>
-      ) : (
-        <p className="text-base font-black text-gray-900 tabular-nums leading-none">{item.value}</p>
-      )}
-      <p className="text-[10px] mt-1.5 font-medium" style={{ color: T.muted }}>{item.label}</p>
-    </div>
-  );
-}
-
 // Hand label for the "יד" spec row. Two parts joined by " · ":
 //
 //   1. Hebrew ordinal — through 4 ("ראשונה / שנייה / שלישית /
@@ -988,14 +965,27 @@ export default function VehicleInfoSection({ vehicle }) {
                       </div>
 
                       {/* Body — two layouts, picked per-group:
-                          • dense=true → 3-col chip grid for short numeric
-                            stats (doors, seats, airbags, CO2, ...).
+                          • dense=true → single inline meta-strip for
+                            light secondary stats (doors / seats / airbags,
+                            CO2 / pollution / green index). User feedback:
+                            those values aren't important enough to warrant
+                            a 3-card grid; we collapse to a single line of
+                            "value label · value label · …" so they're
+                            present but not screaming.
                           • default     → row list for varied content. */}
                       {group.dense ? (
-                        <div className="grid grid-cols-3 gap-2 px-4 pb-4">
-                          {group.items.map((item, ii) => (
-                            <SpecChip key={ii} item={item} theme={T} />
-                          ))}
+                        <div className="px-4 pb-4">
+                          <p className="text-[11px] leading-relaxed flex items-center flex-wrap gap-x-1.5 gap-y-1">
+                            {group.items.map((item, ii) => (
+                              <React.Fragment key={ii}>
+                                {ii > 0 && <span className="text-gray-300">·</span>}
+                                <span>
+                                  <span className="font-black text-gray-900 tabular-nums">{item.value}</span>
+                                  <span className="text-gray-500 mr-1">{item.label}</span>
+                                </span>
+                              </React.Fragment>
+                            ))}
+                          </p>
                         </div>
                       ) : (
                         <div className="px-2 pb-2">
