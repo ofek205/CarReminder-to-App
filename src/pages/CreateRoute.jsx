@@ -62,8 +62,8 @@ export default function CreateRoute() {
     return (
       <div dir="rtl" className="max-w-md mx-auto py-16 text-center">
         <Briefcase className="h-10 w-10 text-gray-300 mx-auto mb-3" />
-        <p className="text-sm font-bold text-gray-700 mb-1">אין הרשאה ליצור מסלולים</p>
-        <p className="text-xs text-gray-500">יצירת מסלולים שמורה למנהלי חשבון עסקי.</p>
+        <p className="text-sm font-bold text-gray-700 mb-1">אין הרשאה ליצור משימות</p>
+        <p className="text-xs text-gray-500">יצירת משימות שמורה למנהלי חשבון עסקי.</p>
       </div>
     );
   }
@@ -77,8 +77,8 @@ export default function CreateRoute() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const cleanTitle = title.trim();
-    if (!cleanTitle)  { toast.error('יש להזין שם למסלול'); return; }
-    if (!vehicleId)   { toast.error('יש לבחור רכב למסלול'); return; }
+    if (!cleanTitle)  { toast.error('יש להזין שם למשימה'); return; }
+    if (!vehicleId)   { toast.error('יש לבחור רכב למשימה'); return; }
     const cleanStops = stops
       .map(s => ({
         title:        s.title.trim(),
@@ -86,7 +86,7 @@ export default function CreateRoute() {
         notes:        s.notes.trim() || null,
       }))
       .filter(s => s.title || s.address_text);
-    if (cleanStops.length === 0) { toast.error('הוסף לפחות תחנה אחת למסלול'); return; }
+    if (cleanStops.length === 0) { toast.error('הוסף לפחות תחנה אחת למשימה'); return; }
 
     setSubmitting(true);
     try {
@@ -104,16 +104,16 @@ export default function CreateRoute() {
 
       await queryClient.invalidateQueries({ queryKey: ['routes'] });
       toast.success(driverUserId
-        ? 'המסלול נוצר. הנהג יראה אותו ברשימת המסלולים שלו.'
-        : 'המסלול נוצר. אפשר לשייך נהג בכל שלב.');
+        ? 'המשימה נוצרה. הנהג יראה אותה ברשימת המשימות שלו.'
+        : 'המשימה נוצרה. אפשר לשייך נהג בכל שלב.');
       navigate(createPageUrl('RouteDetail') + '?id=' + newRouteId);
     } catch (err) {
       const code = err?.message || '';
       if      (code.includes('forbidden_not_manager'))    toast.error('אין לך הרשאת מנהל בחשבון הזה');
       else if (code.includes('vehicle_not_in_workspace')) toast.error('הרכב שנבחר לא שייך לחשבון העסקי');
       else if (code.includes('driver_not_workspace_member')) toast.error('הנהג שנבחר אינו חבר פעיל בחשבון');
-      else if (code.includes('title_required'))           toast.error('יש להזין שם למסלול');
-      else                                                 toast.error('יצירת המסלול נכשלה. נסה שוב.');
+      else if (code.includes('title_required'))           toast.error('יש להזין שם למשימה');
+      else                                                 toast.error('יצירת המשימה נכשלה. נסה שוב.');
       // eslint-disable-next-line no-console
       console.error('CreateRoute failed:', err);
     } finally {
@@ -123,16 +123,16 @@ export default function CreateRoute() {
 
   return (
     <div dir="rtl" className="max-w-2xl mx-auto py-2">
-      <h1 className="text-xl font-bold text-gray-900 mb-1">מסלול חדש</h1>
-      <p className="text-xs text-gray-500 mb-5">תכנן מסלול עם תחנות והשייך אותו לנהג. הנהג יראה את המסלול ברשימה שלו.</p>
+      <h1 className="text-xl font-bold text-gray-900 mb-1">משימה חדשה</h1>
+      <p className="text-xs text-gray-500 mb-5">תכנן משימה עם תחנות ושייך אותה לנהג. הנהג יראה את המשימה ברשימה שלו.</p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="שם המסלול" required>
+        <Field label="שם המשימה" required>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} maxLength={120} />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="רכב למסלול" required>
+          <Field label="רכב למשימה" required>
             <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} className={inputCls}>
               <option value="">בחר רכב...</option>
               {vehicles.map(v => (
@@ -162,7 +162,7 @@ export default function CreateRoute() {
           </p>
         </Field>
 
-        <Field label="הערות למסלול">
+        <Field label="הערות למשימה">
           <textarea
             value={notes} onChange={(e) => setNotes(e.target.value)}
             placeholder="פרטים שיועילו לנהג: שעות פעילות, איש קשר, וכו'"
@@ -172,7 +172,7 @@ export default function CreateRoute() {
 
         <div>
           <div className="flex items-baseline justify-between mb-2">
-            <p className="text-xs font-bold text-gray-700">תחנות במסלול</p>
+            <p className="text-xs font-bold text-gray-700">תחנות במשימה</p>
             <p className="text-[10px] text-gray-400">חובה לפחות תחנה אחת</p>
           </div>
           <div className="space-y-2">

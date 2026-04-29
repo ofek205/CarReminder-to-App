@@ -157,14 +157,14 @@ export default function Routes() {
   // ---------- guards --------------------------------------------------
 
   if (!isAuthenticated) {
-    return <EmptyShell text="צריך להתחבר כדי לראות מסלולים." />;
+    return <EmptyShell text="צריך להתחבר כדי לראות משימות." />;
   }
   if (roleLoading) return <EmptyShell text="טוען..." />;
   if (!isBusiness) {
     return (
       <EmptyShell
         icon={<Briefcase className="h-10 w-10 text-gray-300" />}
-        title="ניהול מסלולים זמין בחשבון עסקי"
+        title="ניהול משימות זמין בחשבון עסקי"
         text="עבור לחשבון עסקי דרך הסרגל העליון, או צור חשבון חדש כדי להתחיל."
       />
     );
@@ -173,7 +173,7 @@ export default function Routes() {
     return (
       <EmptyShell
         icon={<AlertCircle className="h-10 w-10 text-gray-300" />}
-        title="אין הרשאה למסלולים"
+        title="אין הרשאה למשימות"
         text="פנה למנהל החשבון כדי לקבל גישה."
       />
     );
@@ -198,25 +198,25 @@ export default function Routes() {
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">ניהול מסלולים</h1>
-          <p className="text-xs text-gray-500">תכנון, שיוך ומעקב אחרי מסלולי הצי</p>
+          <h1 className="text-xl font-bold text-gray-900">משימות</h1>
+          <p className="text-xs text-gray-500">תכנון, שיוך ומעקב אחרי משימות הצי</p>
         </div>
         <Link
           to={createPageUrl('CreateRoute')}
           className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98]"
         >
           <Plus className="h-4 w-4" />
-          מסלול חדש
+          משימה חדשה
         </Link>
       </div>
 
       {isLoading ? (
-        <div className="text-center text-xs text-gray-400 py-8">טוען מסלולים...</div>
+        <div className="text-center text-xs text-gray-400 py-8">טוען משימות...</div>
       ) : routes.length === 0 ? (
         <EmptyShell
           icon={<Truck className="h-10 w-10 text-gray-300" />}
-          title="עוד אין מסלולים בחשבון"
-          text="צור מסלול ראשון כדי לתאם בין נהגים, רכבים ותחנות."
+          title="עוד אין משימות בחשבון"
+          text="צור משימה ראשונה ושייך לה רכב, נהג ותחנות."
           embedded
         />
       ) : (
@@ -271,7 +271,7 @@ export default function Routes() {
               onClick={() => fetchNextPage()}
               className="w-full mt-3 py-2.5 rounded-xl bg-gray-100 text-xs font-bold text-gray-700 disabled:opacity-60"
             >
-              {isFetchingNextPage ? 'טוען...' : 'טען עוד מסלולים'}
+              {isFetchingNextPage ? 'טוען...' : 'טען עוד משימות'}
             </button>
           )}
           {!hasNextPage && routes.length >= PAGE_SIZE && (
@@ -320,12 +320,12 @@ function DriverView({ routes, isLoading, stopsByRoute, vehicleLabel }) {
       <div dir="rtl" className="max-w-3xl mx-auto py-2">
         <div className="mb-4">
           <h1 className="text-xl font-bold text-gray-900">המשימות שלי</h1>
-          <p className="text-xs text-gray-500">מסלולים שהוקצו לך לביצוע</p>
+          <p className="text-xs text-gray-500">משימות שהוקצו לך לביצוע</p>
         </div>
         <EmptyShell
           icon={<Truck className="h-10 w-10 text-gray-300" />}
           title="אין לך משימות פעילות"
-          text="כשהמנהל ישייך לך מסלול, הוא יופיע כאן ותוכל להתחיל בביצוע."
+          text="כשהמנהל ישייך לך משימה, היא תופיע כאן ותוכל להתחיל בביצוע."
           embedded
         />
       </div>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Home, MapPin, FileText, AlertTriangle, Sparkles, Truck, Route as RouteIcon, Bell } from 'lucide-react';
+import { Home, MapPin, FileText, AlertTriangle, Sparkles, Route as RouteIcon } from 'lucide-react';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 
 // Tab order in RTL: rightmost first → leftmost last
@@ -17,20 +17,17 @@ const PERSONAL_TABS = [
   { label: 'מומחה AI',     icon: Sparkles,       path: 'AiAssistant', isAi: true },
 ];
 
-// Driver-in-business tabs: no AI / no community; "ראשי" lands on
-// MyVehicles (their assignments), and "מסלולים" replaces "מצא מוסך"
-// since the company already has a relationship with a garage and the
-// driver's day-to-day is route execution. We do NOT duplicate the
-// MyVehicles entry — pointing two tabs at the same path made both
-// look active simultaneously and cluttered the bar.
+// Driver-in-business tabs: no AI / no community / no peer team here
+// (the bell handles notifications, "/Team" is reachable from the side
+// menu). The tab bar is pruned to the three things a driver actually
+// taps on the go: their assigned vehicles, the day's tasks, and the
+// document drawer. No duplicate entries.
 const DRIVER_TABS = [
-  { label: 'ראשי',     icon: Home,          path: 'MyVehicles',
+  { label: 'ראשי',    icon: Home,         path: 'MyVehicles',
     relatedPaths: ['/VehicleDetail'] },
-  { label: 'הצוות',    icon: Truck,         path: 'Team' },
-  { label: 'מסלולים',  icon: RouteIcon,     path: 'Routes',
-    relatedPaths: ['/RouteDetail'] },
-  { label: 'התראות',   icon: Bell,          path: 'Notifications' },
-  { label: 'מסמכים',   icon: FileText,      path: 'Documents' },
+  { label: 'משימות',  icon: RouteIcon,    path: 'Routes',
+    relatedPaths: ['/RouteDetail', '/CreateRoute'] },
+  { label: 'מסמכים',  icon: FileText,     path: 'Documents' },
 ];
 
 export default function BottomNav({ sheetOpen = false }) {

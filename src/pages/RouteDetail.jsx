@@ -82,13 +82,13 @@ export default function RouteDetail() {
   });
 
   if (!routeId) {
-    return <Empty text="הקישור חסר מזהה מסלול. חזור לרשימת המסלולים ונסה שוב." />;
+    return <Empty text="הקישור חסר מזהה משימה. חזור לרשימת המשימות ונסה שוב." />;
   }
   if (routeLoading || stopsLoading) {
-    return <div dir="rtl" className="text-center py-16 text-xs text-gray-400">טוען מסלול...</div>;
+    return <div dir="rtl" className="text-center py-16 text-xs text-gray-400">טוען משימה...</div>;
   }
   if (!route) {
-    return <Empty text="המסלול לא נמצא, או שאין לך הרשאה לצפות בו." />;
+    return <Empty text="המשימה לא נמצאה, או שאין לך הרשאה לצפות בה." />;
   }
 
   // Driver actions only allowed if the user is the assigned driver of
@@ -132,7 +132,7 @@ export default function RouteDetail() {
         {totalCount > 0 && (
           <div className="mt-3 pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between text-[11px] mb-1.5">
-              <span className="font-bold text-gray-700">התקדמות המסלול</span>
+              <span className="font-bold text-gray-700">התקדמות המשימה</span>
               <span className="text-gray-500">{completedCount} מתוך {totalCount} תחנות</span>
             </div>
             <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -151,10 +151,10 @@ export default function RouteDetail() {
         </div>
       </div>
 
-      <h2 className="text-sm font-bold text-gray-700 mb-2">תחנות במסלול</h2>
+      <h2 className="text-sm font-bold text-gray-700 mb-2">תחנות במשימה</h2>
       <div className="space-y-2">
         {stops.length === 0 ? (
-          <p className="text-xs text-gray-400 text-center py-6">לא הוגדרו תחנות למסלול זה.</p>
+          <p className="text-xs text-gray-400 text-center py-6">לא הוגדרו תחנות למשימה זו.</p>
         ) : (
           stops.map(stop => (
             <StopCard
