@@ -199,6 +199,57 @@ export default function AuthPage() {
     return () => clearTimeout(t);
   }, [holdForRecovery]);
 
+  // Direct token_hash verification path — set when the email template
+  // builds /Auth?type=recovery&token_hash=… instead of routing through
+  // Supabase's /verify endpoint. /verify wraps the token in a redirect
+  // that some configs (Site URL not pointing here, allowlist not
+  // including ?mode=update-password) strip before we ever see it.
+  //
+  // The supabase project is on PKCE flow (flowType: 'pkce' in
+  // src/lib/supabase.js), so {{ .TokenHash }} in the email template
+  // emits a `pkce_…` prefixed value — verifyOtp does NOT accept those.
+  // PKCE tokens go through exchangeCodeForSession instead. We branch
+  // on the prefix so the same handler works if the project ever
+  // switches back to implicit flow.
+  useEffect(() => {
+    try {
+      const u = new URL(window.location.href);
+      const tokenHash = u.searchParams.get('token_hash');
+      const type      = u.searchParams.get('type');
+      if (!tokenHash || type !== 'recovery') return;
+      (async () => {
+        try {
+          let error;
+          if (tokenHash.startsWith('pkce_')) {
+            const r = await supabase.auth.exchangeCodeForSession(tokenHash);
+            error = r.error;
+          } else {
+            const r = await supabase.auth.verifyOtp({
+              token_hash: tokenHash,
+              type: 'recovery',
+            });
+            error = r.error;
+          }
+          if (!error) {
+            setMode('update-password');
+            setHoldForRecovery(false);
+            // Strip the token from the visible URL so a hard refresh
+            // after success doesn't try to re-verify a now-consumed
+            // token. Keep mode=update-password so the form survives
+            // the refresh.
+            window.history.replaceState({}, '', '/Auth?mode=update-password');
+          } else {
+            // eslint-disable-next-line no-console
+            console.warn('recovery verify failed:', error.message);
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('recovery verify threw:', err?.message);
+        }
+      })();
+    } catch {}
+  }, []);
+
   // Auto-redirect logged-in users away from /Auth — UNLESS they're
   // mid password-recovery. Critical security fix: when a user clicks
   // a recovery email link, Supabase mints a (scoped) session as part
