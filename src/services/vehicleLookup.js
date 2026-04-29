@@ -511,22 +511,37 @@ async function fetchOwnershipHistory(plateDigits) {
     );
     if (exact.length === 0) return null;
 
-    // Sort chronologically (oldest first). The dataset doesn't document
-    // a single date column — try a handful of plausible names. If
-    // nothing works, the records are returned in the dataset's native
-    // order, which usually correlates with insertion order.
+    // Verified column from the dataset's `fields` schema:
+    // `baalut_dt` numeric in YYYYMM format (e.g. 201709 = Sept 2017).
+    // We normalize to YYYY-MM-01 ISO so the UI's date formatter renders
+    // it consistently with the rest of the form's dates. Other names
+    // are kept as fallbacks against future schema drift.
     const dateOf = (r) =>
-      r.taarich_baalut ?? r.tarich_baalut ?? r.tarich_haskara
-      ?? r.taarich_aliya ?? r.moed_baalut ?? null;
+      r.baalut_dt ?? r.taarich_baalut ?? r.tarich_baalut
+      ?? r.tarich_haskara ?? r.taarich_aliya ?? r.moed_baalut ?? null;
+
+    const normalizeDate = (raw) => {
+      if (raw == null) return null;
+      const s = String(raw);
+      // YYYYMM (6 digits) → YYYY-MM-01
+      if (/^\d{6}$/.test(s)) {
+        return `${s.slice(0, 4)}-${s.slice(4, 6)}-01`;
+      }
+      // YYYY-MM-DD or YYYY-MM-DD HH:MM:SS → keep date portion
+      return safeDate(s) || null;
+    };
+
+    // Sort chronologically (oldest first) by the raw value — works
+    // regardless of whether the column is YYYYMM int or ISO string.
     const sorted = [...exact].sort((a, b) => {
-      const da = String(dateOf(a) || '');
-      const db = String(dateOf(b) || '');
+      const da = String(dateOf(a) ?? '');
+      const db = String(dateOf(b) ?? '');
       return da.localeCompare(db);
     });
 
     const history = sorted.map(r => ({
       baalut: safeStr(r.baalut || '', 30) || null,
-      date:   safeDate(dateOf(r)) || null,
+      date:   normalizeDate(dateOf(r)),
     }));
 
     return {

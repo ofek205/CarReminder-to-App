@@ -108,13 +108,16 @@ const EMPTY_FORM = {
   inspection_report_expiry_date: '',
 };
 
-// Autofill visual helper - renders "מולא אוטומטית" hint if field was autofilled
-function AutofillHint({ name, autofillFields }) {
+// Autofill visual helper - renders "מולא אוטומטית" hint if field was autofilled.
+// `message` overrides the default copy — used by fields with a more
+// specific provenance the user benefits from knowing (e.g. current_km
+// comes from the gov.il last-test dataset, not the registration card).
+function AutofillHint({ name, autofillFields, message }) {
   if (!autofillFields.has(name)) return null;
   return (
     <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
       <CheckCircle2 className="h-3 w-3 shrink-0" />
-      מולא אוטומטית (ניתן לערוך)
+      {message || 'מולא אוטומטית (ניתן לערוך)'}
     </p>
   );
 }
@@ -1637,7 +1640,21 @@ export default function AddVehicle() {
                       {usageMetric === 'שעות מנוע' ? (
                         <Input type="number" value={form.current_engine_hours} onChange={e => handleChange('current_engine_hours', e.target.value)} placeholder="0" dir="ltr" />
                       ) : (
-                        <Input type="number" value={form.current_km} onChange={e => handleChange('current_km', e.target.value)} placeholder="0" dir="ltr" />
+                        <>
+                          <Input
+                            type="number"
+                            value={form.current_km}
+                            onChange={e => handleChange('current_km', e.target.value)}
+                            placeholder="0"
+                            dir="ltr"
+                            className={autofillCls('current_km', autofillFields)}
+                          />
+                          <AutofillHint
+                            name="current_km"
+                            autofillFields={autofillFields}
+                            message="ק&quot;מ אחרון מתוצאות הטסט במשרד התחבורה"
+                          />
+                        </>
                       )}
                     </div>
                     <div>
