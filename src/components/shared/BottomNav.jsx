@@ -20,11 +20,13 @@ const PERSONAL_TABS = [
 // Driver-in-business tabs: no AI / no community; "ראשי" lands on
 // MyVehicles (their assignments), and "מסלולים" replaces "מצא מוסך"
 // since the company already has a relationship with a garage and the
-// driver's day-to-day is route execution.
+// driver's day-to-day is route execution. We do NOT duplicate the
+// MyVehicles entry — pointing two tabs at the same path made both
+// look active simultaneously and cluttered the bar.
 const DRIVER_TABS = [
   { label: 'ראשי',     icon: Home,          path: 'MyVehicles',
     relatedPaths: ['/VehicleDetail'] },
-  { label: 'הרכבים',   icon: Truck,         path: 'MyVehicles' },
+  { label: 'הצוות',    icon: Truck,         path: 'Team' },
   { label: 'מסלולים',  icon: RouteIcon,     path: 'Routes',
     relatedPaths: ['/RouteDetail'] },
   { label: 'התראות',   icon: Bell,          path: 'Notifications' },
