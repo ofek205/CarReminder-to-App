@@ -591,6 +591,10 @@ export default function Vehicles() {
   });
 
   if (!auth || authLoading) return <LoadingSpinner />;
+  // Driver in a business workspace — the useEffect above redirects to
+  // /MyVehicles but it fires after first paint. Show a spinner so the
+  // manager-flavoured vehicle list never reaches the screen.
+  if (isBusiness && isDriver && !canManageRoutes) return <LoadingSpinner />;
 
   //  Guest mode 
   if (isGuest) {

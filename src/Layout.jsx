@@ -37,9 +37,9 @@ const BOTTOM_NAV_PATHS = new Set(['Dashboard', 'Documents', 'FindGarage', 'Accid
 
 const navItems = [
   //  ניווט 
-  { name: 'Dashboard',             label: 'דף הבית שלי',     icon: LayoutDashboard, guestAllowed: true },
-  { name: 'Vehicles',              label: 'רכבים',            icon: Car,             guestAllowed: true },
-  { name: 'Vehicles?category=vessel', label: 'כלי שייט',      icon: Ship,            guestAllowed: true, vesselOnly: true },
+  { name: 'Dashboard',             label: 'דף הבית שלי',     icon: LayoutDashboard, guestAllowed: true,                          hideForBusinessDriver: true },
+  { name: 'Vehicles',              label: 'רכבים',            icon: Car,             guestAllowed: true,                          hideForBusinessDriver: true },
+  { name: 'Vehicles?category=vessel', label: 'כלי שייט',      icon: Ship,            guestAllowed: true, vesselOnly: true,        hideForBusinessDriver: true },
   //  ניהול 
   { divider: true, title: 'ניהול' },
   { name: 'MaintenanceTemplates',  label: 'טיפולים ותיקונים', icon: Wrench,          guestAllowed: true },
@@ -207,6 +207,10 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
       (!item.vesselOnly    || hasVessel) &&
       // Driver in business workspace — hide items the manager flagged.
       !(isBusiness && isDriver && item.driverHidesIfFlag && businessMeta?.[item.driverHidesIfFlag]) &&
+      // Items with no business semantics for a driver (the personal
+      // Dashboard / Vehicles surface every workspace vehicle, which
+      // breaks the assignment model). MyVehicles takes their place.
+      !(isBusiness && isDriver && item.hideForBusinessDriver) &&
       (!isMobile || !BOTTOM_NAV_PATHS.has(item.name))
     ))
   // Remove dividers that have no items after them (orphan dividers)

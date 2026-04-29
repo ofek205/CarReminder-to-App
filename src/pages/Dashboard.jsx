@@ -980,6 +980,14 @@ export default function Dashboard() {
   const { unreadCount } = useNotificationScheduler(vehicles || [], accountId);
 
   if (isLoading) return <LoadingSpinner />;
+  // Driver in business workspace — the redirect useEffect above sends
+  // them to /MyVehicles, but it runs after the first paint. Without
+  // this short-circuit they briefly see the manager-style vehicle
+  // list (every car in the workspace) before the URL changes. Return
+  // a spinner so nothing leaks during that one render.
+  if (activeWorkspace?.account_type === 'business' && isDriver && !canManageRoutes) {
+    return <LoadingSpinner />;
+  }
 
   //  GUEST MODE 
   if (isGuest) {
