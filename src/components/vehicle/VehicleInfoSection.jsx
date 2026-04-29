@@ -454,15 +454,24 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
 }
 
 //  Info Row 
-// Hand label for the "יד" spec row. Hebrew has natural ordinals
-// through 4 ("ראשונה / שנייה / שלישית / רביעית") that read more
-// fluently than the numeric form. From 5 onwards, "יד 5" is what
-// Israelis write anyway so we don't try to invent more ordinals.
+// Hand label for the "יד" spec row. Two parts joined by " · ":
+//
+//   1. Hebrew ordinal — through 4 ("ראשונה / שנייה / שלישית /
+//      רביעית"); from 5 onwards we just use the digit ("יד 5") because
+//      that's how Israelis write it anyway.
+//   2. Registration code — the same number expressed in the format
+//      that appears on the physical vehicle license. Israeli licenses
+//      list it zero-based and zero-padded to 2 digits: 00 = first
+//      hand, 01 = second, 02 = third, etc. Showing both forms lets
+//      the user cross-reference what they see on their license card
+//      against what we display.
 function formatHandLabel(n) {
   const num = Number(n);
   if (!Number.isFinite(num) || num <= 0) return '';
   const words = { 1: 'ראשונה', 2: 'שנייה', 3: 'שלישית', 4: 'רביעית' };
-  return words[num] || String(num);
+  const word  = words[num] || String(num);
+  const code  = String(num - 1).padStart(2, '0');   // 1→"00", 2→"01", 3→"02", ...
+  return `${word} · ${code}`;
 }
 
 // ExpandableSpecRow — drop-in replacement for the standard spec row
