@@ -446,25 +446,35 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
     toast.success('היסטוריה נמחקה');
   };
 
-  const charsLeft = MAX_LEN - input.length;
-  const isInputValid = input.trim().length >= MIN_LEN && input.length <= MAX_LEN;
-  // Vessel-aware suggestions: when יוסי is on, use the marine prompt set so
-  // the chip row doesn't ask "תקלות ברכבי 2018-2020" while the user is
-  // looking at a sailboat. Mirrored split for both general & per-vehicle
-  // prompt buckets.
-  const isVesselExpert = expert.domain === 'vessel';
-  const generalPrompts = isVesselExpert ? SUGGESTED_PROMPTS_GENERAL_VESSEL : SUGGESTED_PROMPTS_GENERAL_CAR;
-  const vehiclePrompts = isVesselExpert ? SUGGESTED_PROMPTS_VEHICLE_VESSEL : SUGGESTED_PROMPTS_VEHICLE_CAR;
-  const allSuggestedPrompts = selectedVehicle ? vehiclePrompts : generalPrompts;
-  // The expert identity for the currently-selected vehicle (or the default ברוך
-  // for a general question). Used for every place in the UI that names the AI.
+  // All hooks first (Rules of Hooks: same order every render, no
+  // hook may sit below a derived `const` that could short-circuit).
+  const [showAllPrompts, setShowAllPrompts] = useState(false);
+
+  // Expert identity for the currently-selected vehicle (or the default
+  // ברוך for general questions). MUST come before any `const` that
+  // reads `expert.*` — a previous version had the `expert.domain` check
+  // above this line, which crashed at runtime as a TDZ ("Cannot access
+  // 'u' before initialization" in the minified bundle).
   const expert = getAiExpert(selectedVehicle);
+  const isVesselExpert = expert.domain === 'vessel';
+
   // Context-aware noun for "this vehicle" — vessel/forklift/tractor users
   // were seeing "רכב" everywhere on this page, which jarred. labels.vehicleWord
   // returns the right Hebrew (כלי שייט / מלגזה / טרקטורון / רכב) per type.
   const labels = getVehicleLabels(selectedVehicle?.vehicle_type, selectedVehicle?.nickname);
   const itemNoun = selectedVehicle ? labels.vehicleWord : 'רכב';
-  const [showAllPrompts, setShowAllPrompts] = useState(false);
+
+  // Input validation
+  const charsLeft = MAX_LEN - input.length;
+  const isInputValid = input.trim().length >= MIN_LEN && input.length <= MAX_LEN;
+
+  // Vessel-aware suggestions: when יוסי is on, use the marine prompt set so
+  // the chip row doesn't ask "תקלות ברכבי 2018-2020" while the user is
+  // looking at a sailboat. Mirrored split for both general & per-vehicle
+  // prompt buckets.
+  const generalPrompts = isVesselExpert ? SUGGESTED_PROMPTS_GENERAL_VESSEL : SUGGESTED_PROMPTS_GENERAL_CAR;
+  const vehiclePrompts = isVesselExpert ? SUGGESTED_PROMPTS_VEHICLE_VESSEL : SUGGESTED_PROMPTS_VEHICLE_CAR;
+  const allSuggestedPrompts = selectedVehicle ? vehiclePrompts : generalPrompts;
   const suggestedPrompts = showAllPrompts ? allSuggestedPrompts : allSuggestedPrompts.slice(0, 3);
 
   return (
