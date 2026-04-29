@@ -66,6 +66,19 @@ const isoNDaysAgo = (n) => {
 };
 const isoYearStart = () => `${new Date().getFullYear()}-01-01`;
 
+// Last day of the month for an ISO month-start (yyyy-MM-dd of day 1).
+// Used by the chart's month-overlap filter: a month "overlaps" the
+// active period if its END is on/after periodFrom AND its START is on/
+// before periodTo. Naive string compare (month >= periodFrom) drops
+// edge months whose 1st falls before periodFrom but whose data is
+// inside the window.
+const monthEndISO = (iso) => {
+  if (!iso) return iso;
+  const d = new Date(iso);
+  d.setMonth(d.getMonth() + 1, 0);  // last day of same month
+  return d.toISOString().slice(0, 10);
+};
+
 // Category metadata. Fuel is omitted on purpose — it's hidden from this
 // dashboard at every layer (chart, splits, table). Adding it back would
 // dwarf maintenance costs and make the data useless for fleet planning.
@@ -96,6 +109,10 @@ export default function Reports() {
   const [customTo,   setCustomTo]     = useState('');
   const [filterVehicle, setFilterVehicle] = useState('');
   const [exporting, setExporting]     = useState(false);
+  // Table sort: which column + direction. Default: date desc (most
+  // recent first), the most common scan order for "what just happened".
+  const [sortBy, setSortBy]   = useState('date');     // 'date'|'amount'|'vehicle'|'category'
+  const [sortDir, setSortDir] = useState('desc');     // 'asc'|'desc'
 
   // Active period — preset wins unless the manager set a custom range.
   const customActive = customFrom || customTo;
@@ -130,32 +147,27 @@ export default function Reports() {
     staleTime: 60 * 1000,
   });
 
-  // Per-vehicle aggregates — used for "top vehicles" and KPI.
-  const { data: vehicleSummaries = [] } = useQuery({
-    queryKey: ['reports-vehicle-cost', accountId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('v_vehicle_cost_summary')
-        .select('*')
-        .eq('account_id', accountId);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!accountId && canRead && isBusiness,
-    staleTime: 60 * 1000,
-  });
+  // (Top-vehicles aggregation now happens in JS off the unified line
+  // items — see `topVehicles` memo below — so we no longer need to
+  // pull the v_vehicle_cost_summary view. Removed to avoid an unused
+  // round trip on every page mount.)
 
-  // Line-item data — three sources unified. We fetch wider than needed
-  // (no server-side period filter) so changing presets is instant; the
-  // payload is bounded by `limit` per source.
+  // Workspace vehicle IDs — used to scope maintenance_logs (which has
+  // no account_id, only vehicle_id; RLS enforces visibility but the
+  // explicit IN list keeps the query bounded server-side).
+  const vehicleIds = useMemo(() => vehicles.map(v => v.id), [vehicles]);
+
+  // Line-item data — three sources unified into one stream. We fetch
+  // wider than the active filter (no server-side period filter) so
+  // switching presets is instant. Bounded by `limit` per source.
   const LINE_ITEM_LIMIT = 500;
   const { data: lineItems = [], isLoading: linesLoading } = useQuery({
-    queryKey: ['reports-line-items', accountId],
+    queryKey: ['reports-line-items', accountId, vehicleIds.join(',')],
     queryFn: async () => {
       const [exp, rep, maint] = await Promise.all([
         supabase
           .from('vehicle_expenses')
-          .select('id, vehicle_id, amount, category, expense_date, note, created_at')
+          .select('id, vehicle_id, amount, category, expense_date, note, currency')
           .eq('account_id', accountId)
           .neq('category', 'fuel')
           .order('expense_date', { ascending: false })
@@ -167,45 +179,74 @@ export default function Reports() {
           .gt('cost', 0)
           .order('occurred_at', { ascending: false })
           .limit(LINE_ITEM_LIMIT),
-        // maintenance_logs has no account_id; we query by vehicle_id list.
-        // For accounts with very many vehicles we'd switch to an RPC; for
-        // now this keeps the UI simple.
-        Promise.resolve({ data: [], error: null }),
+        // maintenance_logs has no account_id column — scope by the
+        // workspace's vehicle IDs (RLS double-checks). Skip the round
+        // trip entirely when the workspace has no vehicles yet.
+        vehicleIds.length === 0
+          ? Promise.resolve({ data: [], error: null })
+          : supabase
+              .from('maintenance_logs')
+              .select('id, vehicle_id, date, title, cost, garage_name, notes, type')
+              .in('vehicle_id', vehicleIds)
+              .gt('cost', 0)
+              .order('date', { ascending: false })
+              .limit(LINE_ITEM_LIMIT),
       ]);
       const errs = [exp.error, rep.error, maint.error].filter(Boolean);
       if (errs.length) throw errs[0];
 
-      const expense   = (exp.data || []).map(r => ({
+      const expense = (exp.data || []).map(r => ({
         id:         `e:${r.id}`,
         date:       r.expense_date,
         vehicle_id: r.vehicle_id,
         category:   r.category,                // 'repair' | 'insurance' | 'other'
         amount:     Number(r.amount) || 0,
+        currency:   r.currency || 'ILS',
         note:       r.note || '',
         source:     'expense',
       }));
-      const repairs   = (rep.data || []).map(r => ({
+      const repairs = (rep.data || []).map(r => ({
         id:         `r:${r.id}`,
         date:       r.occurred_at,
         vehicle_id: r.vehicle_id,
         category:   'repair',
         amount:     Number(r.cost) || 0,
+        currency:   'ILS',
         note:       [r.title, r.garage_name && `במוסך ${r.garage_name}`, r.is_accident && 'תאונה']
                       .filter(Boolean).join(' · '),
         source:     r.is_accident ? 'accident' : 'repair',
       }));
-      // Combined and sorted desc.
-      return [...expense, ...repairs].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      // Maintenance logs — scheduled service entries. Categorized as
+      // 'repair' for chart/breakdown purposes (it IS a maintenance
+      // expense). The note mirrors the displayed pattern: title +
+      // garage + service-type hint ("טיפול קטן" / "טיפול גדול").
+      const TYPE_HINT = { small: 'טיפול קטן', large: 'טיפול גדול' };
+      const maintenance = (maint.data || []).map(r => ({
+        id:         `m:${r.id}`,
+        date:       r.date,
+        vehicle_id: r.vehicle_id,
+        category:   'repair',
+        amount:     Number(r.cost) || 0,
+        currency:   'ILS',
+        note:       [r.title || TYPE_HINT[r.type] || 'טיפול', r.garage_name && `במוסך ${r.garage_name}`, r.notes]
+                      .filter(Boolean).join(' · '),
+        source:     'maintenance',
+      }));
+      // Combined and sorted desc by date.
+      return [...expense, ...repairs, ...maintenance]
+        .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     },
     enabled: !!accountId && canRead && isBusiness,
     staleTime: 60 * 1000,
   });
 
-  // Maintenance logs (sub-query to compute issue counts per vehicle).
-  // Used only for the "vehicle with most issues" KPI — we count
-  // repair_logs entries (not cost) per vehicle.
-  const { data: issueCounts = {} } = useQuery({
-    queryKey: ['reports-issue-counts', accountId],
+  // Raw issue events for "vehicle with most issues" KPI. We DON'T put
+  // periodFrom/periodTo in the queryKey or filter inside queryFn —
+  // changing the period would either (a) refetch unnecessarily or (b)
+  // leave stale closure state. Instead we fetch the last 1000 issues
+  // once and apply the period filter in a useMemo below.
+  const { data: rawIssues = [] } = useQuery({
+    queryKey: ['reports-raw-issues', accountId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('repair_logs')
@@ -214,15 +255,7 @@ export default function Reports() {
         .order('occurred_at', { ascending: false })
         .limit(1000);
       if (error) throw error;
-      const counts = {};
-      (data || []).forEach(r => {
-        if (!periodFrom || r.occurred_at >= periodFrom) {
-          if (!periodTo || r.occurred_at <= periodTo) {
-            counts[r.vehicle_id] = (counts[r.vehicle_id] || 0) + 1;
-          }
-        }
-      });
-      return counts;
+      return data || [];
     },
     enabled: !!accountId && canRead && isBusiness,
     staleTime: 60 * 1000,
@@ -237,20 +270,27 @@ export default function Reports() {
   };
 
   // -- derived: chart data (monthly) ---------------------------------
-
+  // FIX: month-overlap test instead of naive "month >= periodFrom"
+  // string compare. A month overlaps the period iff its END is on/after
+  // periodFrom AND its START is on/before periodTo. Otherwise edge
+  // months whose 1st falls outside the period get dropped from the
+  // chart even when they have data inside the window.
   const chartData = useMemo(() => {
     return monthlySummaries
       .filter(r => {
-        if (periodFrom && r.month < periodFrom) return false;
-        if (periodTo   && r.month > periodTo)   return false;
+        const mEnd = monthEndISO(r.month);
+        if (periodFrom && mEnd < periodFrom) return false;
+        if (periodTo   && r.month > periodTo) return false;
         return true;
       })
       .map(r => ({
+        monthIso:  r.month,
         month:     fmtMonthLabel(r.month),
         repair:    Number(r.by_repair)    || 0,
         insurance: Number(r.by_insurance) || 0,
         other:     Number(r.by_other)     || 0,
         // total intentionally excludes fuel here — sum of the three keys.
+        total:     (Number(r.by_repair) || 0) + (Number(r.by_insurance) || 0) + (Number(r.by_other) || 0),
       }));
   }, [monthlySummaries, periodFrom, periodTo]);
 
@@ -265,6 +305,47 @@ export default function Reports() {
     });
   }, [lineItems, periodFrom, periodTo, filterVehicle]);
 
+  // FIX: issue counts derived in useMemo so changing the period
+  // recalculates; the previous version captured periodFrom/periodTo
+  // inside queryFn closure and never updated.
+  const issueCounts = useMemo(() => {
+    const counts = {};
+    rawIssues.forEach(r => {
+      if (periodFrom && r.occurred_at < periodFrom) return;
+      if (periodTo   && r.occurred_at > periodTo)   return;
+      counts[r.vehicle_id] = (counts[r.vehicle_id] || 0) + 1;
+    });
+    return counts;
+  }, [rawIssues, periodFrom, periodTo]);
+
+  // -- derived: previous-period total (for the delta indicator) -----
+  // For "30/90 days" we mirror the same length backwards. For "ytd"
+  // we compare to last calendar year. For "all" we hide the delta
+  // (no meaningful previous period to compare against).
+  const prevPeriodTotal = useMemo(() => {
+    if (!periodFrom) return null;        // 'all' preset → no comparison
+    if (customActive) return null;       // custom range → ambiguous
+    const fromD = new Date(periodFrom);
+    const toD   = new Date(periodTo);
+    let prevFrom, prevTo;
+    if (presetId === 'ytd') {
+      const lastYear = fromD.getFullYear() - 1;
+      prevFrom = `${lastYear}-01-01`;
+      prevTo   = `${lastYear}-12-31`;
+    } else {
+      const lengthMs = toD - fromD;
+      const pf = new Date(fromD.getTime() - lengthMs);
+      const pt = new Date(fromD.getTime() - 1);
+      prevFrom = pf.toISOString().slice(0, 10);
+      prevTo   = pt.toISOString().slice(0, 10);
+    }
+    return lineItems.reduce((sum, r) => {
+      if (filterVehicle && r.vehicle_id !== filterVehicle) return sum;
+      if (r.date < prevFrom || r.date > prevTo) return sum;
+      return sum + r.amount;
+    }, 0);
+  }, [lineItems, periodFrom, periodTo, presetId, customActive, filterVehicle]);
+
   // -- derived: KPIs --------------------------------------------------
 
   const kpiTotal = useMemo(() =>
@@ -272,6 +353,22 @@ export default function Reports() {
   , [filteredLines]);
 
   const kpiCount = filteredLines.length;
+
+  // Δ vs previous period — null when comparison isn't meaningful.
+  // sign+pct rendered as a colored chip on the totals KPI.
+  const kpiDelta = useMemo(() => {
+    if (prevPeriodTotal === null) return null;
+    if (prevPeriodTotal === 0) {
+      // Avoid divide-by-zero. If we have current activity but none in
+      // the prior window, show "חדש" rather than ±∞%.
+      return kpiTotal > 0 ? { sign: 'up', label: 'תקופה חדשה' } : null;
+    }
+    const pct = ((kpiTotal - prevPeriodTotal) / prevPeriodTotal) * 100;
+    return {
+      sign:  pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat',
+      label: `${pct > 0 ? '+' : ''}${pct.toFixed(0)}% מהתקופה הקודמת`,
+    };
+  }, [kpiTotal, prevPeriodTotal]);
 
   const kpiCostlyVehicle = useMemo(() => {
     const byVehicle = new Map();
@@ -305,6 +402,36 @@ export default function Reports() {
       .slice(0, 5);
   }, [filteredLines]);
 
+  // -- derived: sorted line items for the table ---------------------
+  // Sorting is applied last (after period+vehicle filtering) so the
+  // table reflects the active filters. Tied dates fall back to amount
+  // desc — keeps within-day rows in a sensible order.
+  const sortedLines = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    const arr = [...filteredLines];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === 'date')        cmp = (a.date || '').localeCompare(b.date || '');
+      else if (sortBy === 'amount') cmp = a.amount - b.amount;
+      else if (sortBy === 'vehicle') cmp = vehicleLabel(a.vehicle_id).localeCompare(vehicleLabel(b.vehicle_id), 'he');
+      else if (sortBy === 'category') cmp = (a.category || '').localeCompare(b.category || '');
+      if (cmp === 0 && sortBy !== 'date') {
+        // tie-break: newer first
+        cmp = (a.date || '').localeCompare(b.date || '');
+      }
+      return cmp * dir;
+    });
+    return arr;
+  // vehicleLabel is stable enough between renders that the lint
+  // requirement to include it doesn't add real value here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredLines, sortBy, sortDir, vehicles]);
+
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(col); setSortDir(col === 'date' || col === 'amount' ? 'desc' : 'asc'); }
+  };
+
   // -- derived: category breakdown -----------------------------------
 
   const categoryBreakdown = useMemo(() => {
@@ -332,8 +459,9 @@ export default function Reports() {
     setExporting(true);
     try {
       const XLSX = await import('xlsx');
-      // Mirror the visible table columns; one row per line item.
-      const rows = filteredLines.map(r => ({
+      // Export reflects the user's active sort — same order they see
+      // on screen — so they can reproduce a screenshot exactly.
+      const rows = sortedLines.map(r => ({
         'תאריך':    r.date,
         'רכב':      vehicleLabel(r.vehicle_id),
         'קטגוריה':  CATEGORY_META[r.category]?.label || r.category,
@@ -460,13 +588,14 @@ export default function Reports() {
           label="סה״כ הוצאה"
           value={fmtMoney(kpiTotal)}
           sub={`${kpiCount} פעולות`}
+          delta={kpiDelta}
           tone="green"
         />
         <KpiCard
           icon={<Wrench className="h-3.5 w-3.5" />}
           label="פעולות בתקופה"
           value={kpiCount}
-          sub={kpiCount === 0 ? 'אין פעילות' : 'תיקונים, ביטוח, אחר'}
+          sub={kpiCount === 0 ? 'אין פעילות בתקופה' : 'תיקונים · ביטוח · אחר'}
           tone="blue"
         />
         <KpiCard
@@ -475,6 +604,13 @@ export default function Reports() {
           value={kpiCostlyVehicle ? fmtMoneyShort(kpiCostlyVehicle.total) : '—'}
           sub={kpiCostlyVehicle ? vehicleLabel(kpiCostlyVehicle.vehicle_id) : 'אין נתונים'}
           tone="orange"
+          // Click to drill into this vehicle's expenses. If already
+          // filtered to it, click clears the filter — the standard
+          // "selected/deselect" pattern in dashboards.
+          onClick={kpiCostlyVehicle
+            ? () => setFilterVehicle(prev => prev === kpiCostlyVehicle.vehicle_id ? '' : kpiCostlyVehicle.vehicle_id)
+            : null}
+          highlighted={filterVehicle && kpiCostlyVehicle && filterVehicle === kpiCostlyVehicle.vehicle_id}
         />
         <KpiCard
           icon={<AlertTriangle className="h-3.5 w-3.5" />}
@@ -482,6 +618,10 @@ export default function Reports() {
           value={kpiIssuesVehicle ? `${kpiIssuesVehicle.count} תקלות` : '—'}
           sub={kpiIssuesVehicle ? vehicleLabel(kpiIssuesVehicle.vehicle_id) : 'אין נתונים'}
           tone="red"
+          onClick={kpiIssuesVehicle
+            ? () => setFilterVehicle(prev => prev === kpiIssuesVehicle.vehicle_id ? '' : kpiIssuesVehicle.vehicle_id)
+            : null}
+          highlighted={filterVehicle && kpiIssuesVehicle && filterVehicle === kpiIssuesVehicle.vehicle_id}
         />
       </div>
 
@@ -521,9 +661,12 @@ export default function Reports() {
                   orientation="right"
                 />
                 <Tooltip
-                  formatter={(value, key) => [fmtMoney(value), CATEGORY_META[key]?.label || key]}
-                  labelStyle={{ fontWeight: 'bold', fontSize: 12 }}
-                  contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #E5E7EB', direction: 'rtl' }}
+                  // Custom content gives us a "סה״כ" header per month
+                  // — the recharts default formatter only labels each
+                  // stack segment, leaving the manager to mentally add
+                  // them up. The chart total IS the headline number
+                  // they're scanning for.
+                  content={(p) => <ChartTooltip {...p} />}
                   cursor={{ fill: 'rgba(45, 82, 51, 0.06)' }}
                 />
                 <Legend
@@ -628,29 +771,31 @@ export default function Reports() {
           <div className="overflow-x-auto -mx-3">
             <table className="w-full text-[11px]">
               <thead>
-                <tr className="border-b border-gray-100 text-gray-500">
-                  <th className="text-right py-2 px-3 font-bold">תאריך</th>
-                  <th className="text-right py-2 px-3 font-bold">רכב</th>
-                  <th className="text-right py-2 px-3 font-bold">קטגוריה</th>
+                <tr className="border-b border-gray-100 text-gray-500 select-none">
+                  <SortHeader col="date"     sortBy={sortBy} sortDir={sortDir} onClick={toggleSort} align="right">תאריך</SortHeader>
+                  <SortHeader col="vehicle"  sortBy={sortBy} sortDir={sortDir} onClick={toggleSort} align="right">רכב</SortHeader>
+                  <SortHeader col="category" sortBy={sortBy} sortDir={sortDir} onClick={toggleSort} align="right">קטגוריה</SortHeader>
                   <th className="text-right py-2 px-3 font-bold hidden sm:table-cell">הערה</th>
-                  <th className="text-left py-2 px-3 font-bold">סכום</th>
+                  <SortHeader col="amount"   sortBy={sortBy} sortDir={sortDir} onClick={toggleSort} align="left">סכום</SortHeader>
                 </tr>
               </thead>
               <tbody>
-                {filteredLines.slice(0, 200).map(r => {
+                {sortedLines.slice(0, 200).map(r => {
                   const meta = CATEGORY_META[r.category] || CATEGORY_META.other;
                   const Icon = meta.icon;
                   return (
-                    <tr key={r.id} className="border-b border-gray-50 last:border-0">
+                    <tr key={r.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
                       <td className="py-1.5 px-3 text-gray-700 whitespace-nowrap">{fmtDate(r.date)}</td>
-                      <td className="py-1.5 px-3 text-gray-900 truncate max-w-[140px]">{vehicleLabel(r.vehicle_id)}</td>
+                      <td className="py-1.5 px-3 text-gray-900 truncate max-w-[140px]" title={vehicleLabel(r.vehicle_id)}>
+                        {vehicleLabel(r.vehicle_id)}
+                      </td>
                       <td className="py-1.5 px-3">
                         <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md ${meta.bg} ${meta.text} font-bold whitespace-nowrap`}>
                           <Icon className="h-2.5 w-2.5" />
                           {meta.label}
                         </span>
                       </td>
-                      <td className="py-1.5 px-3 text-gray-500 truncate max-w-[260px] hidden sm:table-cell">
+                      <td className="py-1.5 px-3 text-gray-500 truncate max-w-[260px] hidden sm:table-cell" title={r.note || ''}>
                         {r.note || '—'}
                       </td>
                       <td className="py-1.5 px-3 font-bold text-[#2D5233] text-left whitespace-nowrap">
@@ -661,9 +806,9 @@ export default function Reports() {
                 })}
               </tbody>
             </table>
-            {filteredLines.length > 200 && (
+            {sortedLines.length > 200 && (
               <p className="text-[10px] text-gray-400 px-3 py-2 text-center">
-                מוצגות 200 שורות ראשונות. ייצא לאקסל לקבלת כל {filteredLines.length} השורות.
+                מוצגות 200 שורות ראשונות (מתוך {sortedLines.length}). הייצוא לאקסל כולל את כולן.
               </p>
             )}
           </div>
@@ -675,7 +820,7 @@ export default function Reports() {
 
 // ---------- helper components ----------------------------------------
 
-function KpiCard({ icon, label, value, sub, tone }) {
+function KpiCard({ icon, label, value, sub, tone, delta, onClick, highlighted }) {
   // Subtle tinted-tile style. Each KPI gets a different accent so the
   // eye can jump straight to the metric it cares about — totals (green),
   // operations (blue), costliest vehicle (orange), issues (red).
@@ -685,15 +830,88 @@ function KpiCard({ icon, label, value, sub, tone }) {
     orange: 'bg-orange-50 text-orange-700',
     red:    'bg-red-50    text-red-700',
   }[tone] || 'bg-gray-50 text-gray-700';
+
+  // delta chip: ▲ green when up vs prev period, ▼ green when down (less
+  // spend = good news for a fleet manager). Counter-intuitive in some
+  // domains, but here a smaller bill is what we want — color logic
+  // mirrors that.
+  const deltaChip = delta && (
+    <span className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold ${
+      delta.sign === 'down' ? 'bg-green-50 text-green-700'
+        : delta.sign === 'up' ? 'bg-red-50 text-red-700'
+        : 'bg-gray-100 text-gray-600'
+    }`}>
+      {delta.sign === 'down' ? '▼' : delta.sign === 'up' ? '▲' : '•'} {delta.label}
+    </span>
+  );
+
+  const interactive = typeof onClick === 'function';
+  const Wrap = interactive ? 'button' : 'div';
   return (
-    <div className="bg-white border border-gray-100 rounded-xl p-2.5">
+    <Wrap
+      type={interactive ? 'button' : undefined}
+      onClick={onClick || undefined}
+      className={`bg-white border rounded-xl p-2.5 text-right ${
+        highlighted ? 'border-[#2D5233] ring-2 ring-[#2D5233]/20' : 'border-gray-100'
+      } ${interactive ? 'active:scale-[0.98] transition-all hover:border-gray-200 cursor-pointer' : ''}`}
+    >
       <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold mb-1.5 ${toneCls}`}>
         {icon}
         {label}
       </div>
-      <p className="text-base font-black text-gray-900 leading-tight truncate">{value}</p>
-      {sub && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{sub}</p>}
+      <p className="text-base font-black text-gray-900 leading-tight truncate" title={typeof value === 'string' ? value : undefined}>
+        {value}
+      </p>
+      {sub && <p className="text-[10px] text-gray-500 mt-0.5 truncate" title={sub}>{sub}</p>}
+      {deltaChip && <div className="mt-1">{deltaChip}</div>}
+    </Wrap>
+  );
+}
+
+// Custom recharts tooltip — shows the segment values AND a "סה״כ" line
+// at the top so the manager sees the month total at a glance.
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload || payload.length === 0) return null;
+  const total = payload.reduce((s, p) => s + (Number(p.value) || 0), 0);
+  return (
+    <div
+      dir="rtl"
+      className="bg-white rounded-lg border border-gray-200 shadow-md text-[11px] px-3 py-2 min-w-[140px]"
+    >
+      <p className="font-bold text-gray-900 mb-1">{label}</p>
+      <p className="text-[#2D5233] font-black mb-1.5 border-b border-gray-100 pb-1.5">
+        סה״כ {fmtMoney(total)}
+      </p>
+      <ul className="space-y-0.5">
+        {payload.map(p => (
+          <li key={p.dataKey} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1 text-gray-600">
+              <span className="inline-block w-2 h-2 rounded-sm" style={{ background: p.color }} />
+              {CATEGORY_META[p.dataKey]?.label || p.dataKey}
+            </span>
+            <span className="font-bold text-gray-900">{fmtMoney(p.value)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
+  );
+}
+
+function SortHeader({ col, sortBy, sortDir, onClick, align, children }) {
+  const active = sortBy === col;
+  const arrow  = !active ? '↕' : (sortDir === 'asc' ? '▲' : '▼');
+  const alignCls = align === 'left' ? 'text-left' : 'text-right';
+  return (
+    <th className={`${alignCls} py-2 px-3 font-bold`}>
+      <button
+        type="button"
+        onClick={() => onClick(col)}
+        className={`inline-flex items-center gap-1 hover:text-gray-900 transition-colors ${active ? 'text-[#2D5233]' : ''}`}
+      >
+        {children}
+        <span className={`text-[9px] ${active ? 'opacity-100' : 'opacity-40'}`}>{arrow}</span>
+      </button>
+    </th>
   );
 }
 
