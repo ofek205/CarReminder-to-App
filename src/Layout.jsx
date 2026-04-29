@@ -197,10 +197,17 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   // never see businessOnly items.
   // Phase 9 step 8 — owners-only items + driver-hide flags driven by
   // accounts.business_meta toggles set in /BusinessSettings.
-  const { isBusiness, isDriver, isOwner, canManageRoutes, canDriveRoutes, businessMeta } = useWorkspaceRole();
+  const { isBusiness, isDriver, isOwner, canManageRoutes, canDriveRoutes, businessMeta, isLoading: roleLoading } = useWorkspaceRole();
   const businessAccess = canManageRoutes || canDriveRoutes;
+  // While role is still resolving, don't render any nav items —
+  // otherwise a driver in a business workspace briefly sees the
+  // personal-flow items (Dashboard / Vehicles / Community / AI) before
+  // the filter kicks in and hides them. Empty array = empty drawer
+  // for ~200ms instead of a flash of the wrong content.
+  // (Empty results below still render the chrome / dividers, just no
+  // links until role is known.)
   // On mobile, hide items that are already in the bottom nav
-  const visibleItems = navItems.filter(item =>
+  const visibleItems = roleLoading ? [] : navItems.filter(item =>
     (item.divider ? (
       (!item.adminOnly    || isAdmin) &&
       (!item.businessOnly || (isBusiness && businessAccess))

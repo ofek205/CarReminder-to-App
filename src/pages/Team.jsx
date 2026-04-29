@@ -35,7 +35,7 @@ export default function Team() {
   const { activeWorkspace } = useWorkspace();
   const enabled = !!accountId && isAuthenticated && isBusiness;
 
-  const { data: team = [], isLoading } = useQuery({
+  const { data: team = [], isLoading, error: teamError } = useQuery({
     queryKey: ['workspace-team', accountId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('workspace_team_directory', {
@@ -46,6 +46,11 @@ export default function Team() {
     },
     enabled,
     staleTime: 5 * 60 * 1000,
+    // Without retry the first transient 502 leaves the team page on
+    // a permanent spinner. 1 retry + 800ms exponential keeps it
+    // honest without delaying the genuine-error case too long.
+    retry: 1,
+    retryDelay: 800,
   });
 
   // Group by role bucket so the page reads top-down: leadership first,
@@ -92,6 +97,13 @@ export default function Team() {
 
       {isLoading ? (
         <p className="text-center text-xs text-gray-400 py-8">טוען...</p>
+      ) : teamError ? (
+        <Empty
+          icon={<Users className="h-10 w-10 text-gray-300" />}
+          title="לא הצלחנו לטעון את הצוות"
+          text="בדוק את החיבור לאינטרנט ונסה שוב. אם הבעיה נמשכת — צור קשר עם מנהל הצי."
+          embedded
+        />
       ) : team.length === 0 ? (
         <Empty
           icon={<Users className="h-10 w-10 text-gray-300" />}

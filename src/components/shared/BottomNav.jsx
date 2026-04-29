@@ -35,7 +35,13 @@ const DRIVER_TABS = [
 
 export default function BottomNav({ sheetOpen = false }) {
   const location = useLocation();
-  const { isBusiness, isDriver, canManageRoutes } = useWorkspaceRole();
+  const { isBusiness, isDriver, canManageRoutes, isLoading: roleLoading } = useWorkspaceRole();
+  // Hold the bar off-screen while role is still resolving. Without
+  // this, drivers saw the personal tab bar (Home / Documents /
+  // FindGarage / Accidents / AI) for ~300ms before it flipped to
+  // DRIVER_TABS — long enough to register as a glitch on slow
+  // devices and to register a stray tap on the wrong tab.
+  if (roleLoading) return null;
   // Drivers in a business workspace get a business-flavoured tab bar.
   // Managers / owners / viewers in a business workspace keep the
   // personal tabs since they ALSO use the personal-flow pages
