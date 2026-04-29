@@ -826,7 +826,16 @@ export default function EditVehicle() {
                   </div>
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div><Label>תאריך החלפה</Label><DateInput value={form.last_tire_change_date} onChange={e => handleChange('last_tire_change_date', e.target.value)} /></div>
-                    <div><Label>ק"מ בעת ההחלפה</Label><Input type="number" dir="ltr" value={form.km_since_tire_change} onChange={e => handleChange('km_since_tire_change', e.target.value)} placeholder="0" /></div>
+                    <div>
+                      <Label>{usageMetric === 'שעות מנוע' ? 'שעות מנוע בעת ההחלפה' : 'ק"מ בעת ההחלפה'}</Label>
+                      <Input
+                        type="number"
+                        dir="ltr"
+                        value={form.km_since_tire_change}
+                        onChange={e => handleChange('km_since_tire_change', e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
                   </div>
                 </>
               )}

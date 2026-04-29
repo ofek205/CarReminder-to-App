@@ -1801,8 +1801,13 @@ export default function AddVehicle() {
                             <DateInput value={form.last_tire_change_date} onChange={e => handleChange('last_tire_change_date', e.target.value)} />
                           </div>
                           <div>
-                            <Label>קילומטראז׳ בעת ההחלפה (אופציונלי)</Label>
-                            <Input type="number" value={form.km_since_tire_change} onChange={e => handleChange('km_since_tire_change', e.target.value)} placeholder="מד הק״מ ביום ההחלפה" />
+                            <Label>{usageMetric === 'שעות מנוע' ? 'שעות מנוע בעת ההחלפה (אופציונלי)' : 'קילומטראז׳ בעת ההחלפה (אופציונלי)'}</Label>
+                            <Input
+                              type="number"
+                              value={form.km_since_tire_change}
+                              onChange={e => handleChange('km_since_tire_change', e.target.value)}
+                              placeholder={usageMetric === 'שעות מנוע' ? 'מד שעות המנוע ביום ההחלפה' : 'מד הק״מ ביום ההחלפה'}
+                            />
                           </div>
                         </div>
                       </>
