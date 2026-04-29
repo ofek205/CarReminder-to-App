@@ -23,6 +23,15 @@ const CME_RESOURCE_ID = '58dc4654-16b1-42ed-8170-98fadec153ea';
 // (vintage / keepsake / etc.) — but flag it so the UI can warn
 // before silently filling the form.
 const INACTIVE_RESOURCE_ID = '851ecab1-0622-4dbe-a6c7-f950cf82abf9';
+// "תוצאות מבחני רישוי שנתיים" — yearly inspection (test) results
+// keyed by mispar_rechev. The headline field for our purposes is
+// `kilometraj_test_aharon` — odometer reading recorded at the last
+// annual test. We use it to seed `current_km` on AddVehicle for plates
+// that don't already carry one. Tens of millions of rows; we always
+// query with an exact mispar_rechev filter (not q=fulltext) and limit
+// 1 record back. Values of 0 are stored when the inspector didn't
+// record a reading — treated as "no value" and ignored.
+const LAST_TEST_KM_RESOURCE_ID = '56063a99-8a3e-4ff4-912e-5966c0279bad';
 import { isNative } from '@/lib/capacitor';
 
 // In dev browser, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
@@ -410,6 +419,47 @@ function mapSpecRecord(r) {
 }
 
 /**
+ * Fetch last-test odometer reading for a plate. Uses an exact filter
+ * on mispar_rechev (not q=fulltext) so we never get a spurious match
+ * against a record where the plate digits happen to appear in some
+ * other column.
+ *
+ * Returns the kilometers as a positive integer, or null if:
+ *   • the plate isn't in the dataset
+ *   • the odometer field is missing/zero (inspector didn't record)
+ *   • the API call fails or times out (we never fail the parent
+ *     lookup just because this enrichment didn't land)
+ *
+ * Wrapped in its own try/catch so a failure here can't escape and
+ * crash the main lookup — current_km is a nice-to-have, not critical.
+ */
+async function fetchLastTestKm(plateDigits) {
+  try {
+    const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
+    const url = `${API_BASE}?resource_id=${encodeURIComponent(LAST_TEST_KM_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const record = json?.result?.records?.[0];
+    if (!record) return null;
+    // Field name from the dataset (visible in the gov.il preview as
+    // "...test_aharon"). Fallback to a couple of plausible synonyms in
+    // case the dataset gets renamed — costs nothing to check.
+    const raw = record.kilometraj_test_aharon
+             ?? record.km_test_aharon
+             ?? record.kmrut_test_aharon;
+    const km = Number(raw);
+    if (!Number.isFinite(km) || km <= 0) return null;
+    return Math.round(km);
+  } catch {
+    return null;   // never throws — current_km is best-effort
+  }
+}
+
+/**
  * Fetch detailed tech specs from the דגמי רכב API using tozeret_cd + degem_cd + year.
  */
 async function fetchDetailedSpecs(tozeretCd, degemCd, year) {
@@ -535,20 +585,40 @@ export async function lookupVehicleByPlate(plate) {
     }
   }
 
-  // Detailed specs lookup. The דגמי רכב table carries entries for
-  // cars, heavies, and even some inactive/cancelled rows (the model
-  // table is mostly model-not-status keyed), so we call it whenever
-  // tozeret_cd is present. Motorcycles already have specs inline.
-  // CME has its own complete record so no second call. Specs are
-  // merged non-destructively — never overwrite a value the
-  // registration record already provided.
-  if (source !== 'moto' && source !== 'cme' && fields._tozeret_cd) {
-    const specs = await fetchDetailedSpecs(fields._tozeret_cd, fields._degem_cd, fields.year);
-    if (specs) {
-      Object.entries(specs).forEach(([k, v]) => {
-        if (v && !fields[k]) fields[k] = v;
-      });
-    }
+  // Detailed specs lookup + last-test odometer enrichment. Both run
+  // in parallel — they're independent calls against different
+  // datasets. Either failing leaves the rest of the result intact;
+  // current_km is a "nice if we have it" enrichment, the user can
+  // also enter it manually.
+  //
+  // Coverage:
+  //   • specs: cars + heavies (private-car + inactive use the same
+  //     schema; motorcycles carry specs inline; CME has a complete
+  //     record so neither needs the second call)
+  //   • test-km: cars + heavies + inactive (all keyed on
+  //     mispar_rechev). Motorcycles have their own dataset; CME plates
+  //     are a different namespace entirely (mispar_tzama).
+  const enrichments = await Promise.all([
+    (source !== 'moto' && source !== 'cme' && fields._tozeret_cd)
+      ? fetchDetailedSpecs(fields._tozeret_cd, fields._degem_cd, fields.year)
+      : Promise.resolve(null),
+    (source !== 'moto' && source !== 'cme')
+      ? fetchLastTestKm(clean)
+      : Promise.resolve(null),
+  ]);
+  const [specs, lastTestKm] = enrichments;
+
+  if (specs) {
+    Object.entries(specs).forEach(([k, v]) => {
+      if (v && !fields[k]) fields[k] = v;
+    });
+  }
+  // Merge non-destructively — if the user already populated current_km
+  // (e.g. from a previous form session) we don't overwrite it. The
+  // value is the odometer at the LAST test, which is the most recent
+  // ground-truth reading we have for the plate.
+  if (lastTestKm && !fields.current_km) {
+    fields.current_km = String(lastTestKm);
   }
 
   // Remove internal fields

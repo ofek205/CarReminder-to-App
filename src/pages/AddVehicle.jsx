@@ -500,6 +500,12 @@ export default function AddVehicle() {
     // Other tiers don't return it and the empty default leaves the
     // existing value alone.
     inspection_report_expiry_date: fields.inspection_report_expiry_date || '',
+    // Odometer reading at the last annual test, sourced from the
+    // yearly inspection-results dataset. Pre-fills current_km so the
+    // user doesn't have to copy it from the registration card —
+    // they can still override before submitting if they've driven
+    // since the last test.
+    current_km: fields.current_km || '',
   });
 
   // Apply lookup result to the form + UI state
