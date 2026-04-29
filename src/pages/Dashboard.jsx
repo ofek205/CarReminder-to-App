@@ -312,10 +312,13 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
           )}
         </div>
 
-        {/* Stats bar */}
+        {/* Stats bar — use usesHours() instead of isVessel so off-road
+            and CME vehicles edited into engine-hours mode show "שעות
+            מנוע" with their engine hours instead of "קילומטראז'" with
+            an empty / stale km. */}
         <div className="grid grid-cols-3" style={{ background: T.card }} dir="rtl">
           {[
-            { label: isVessel ? 'שעות מנוע' : 'קילומטראז\'', value: isVessel ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '-') : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '-') },
+            { label: usesHours(vehicle) ? 'שעות מנוע' : 'קילומטראז\'', value: usesHours(vehicle) ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '-') : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '-') },
             { label: 'שנת יצור', value: vehicle.year || '-' },
             { label: isVessel ? 'כושר שייט' : 'טיפול הבא', value: testDays !== null ? daysLabel(testDays) : '-' },
           ].map((stat, i) => (

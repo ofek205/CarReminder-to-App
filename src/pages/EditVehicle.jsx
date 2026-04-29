@@ -803,12 +803,18 @@ export default function EditVehicle() {
                   <div className="pt-1">
                     <Label>כמה צמיגים הוחלפו?</Label>
                     <div className="flex gap-2 mt-1.5" dir="rtl">
-                      {[
-                        { val: 4, label: 'כל ה-4' },
-                        { val: 2, label: '2 צמיגים' },
-                        { val: 1, label: '1 צמיג' },
-                        { val: 3, label: '3 צמיגים' },
-                      ].map(opt => (
+                      {(['אופנוע כביש', 'אופנוע שטח', 'קטנוע'].includes(form.vehicle_type)
+                        ? [
+                            { val: 2, label: 'שני הצמיגים' },
+                            { val: 1, label: 'צמיג אחד' },
+                          ]
+                        : [
+                            { val: 4, label: 'כל ה-4' },
+                            { val: 2, label: '2 צמיגים' },
+                            { val: 1, label: '1 צמיג' },
+                            { val: 3, label: '3 צמיגים' },
+                          ]
+                      ).map(opt => (
                         <button
                           key={opt.val}
                           type="button"

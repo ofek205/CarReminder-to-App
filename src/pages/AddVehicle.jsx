@@ -211,6 +211,22 @@ export default function AddVehicle() {
   // form for a private car owner who has no use for the field.
   const isCmeCategory = selectedCategory?.label === 'כלי צמ"ה';
   const isJeepOffroad = selectedSubcategory?.dbName === "ג'יפ שטח";
+  // Two-wheelers (road motorcycle, scooter, off-road motorcycle) only
+  // ever have 2 tires — showing the 1/2/3/4 selector for them was
+  // confusing and let users pick "כל ה-4" by accident on an אופנוע.
+  const isTwoWheeler =
+    selectedCategory?.label === 'אופנועים' ||
+    ['אופנוע כביש', 'אופנוע שטח', 'קטנוע'].includes(form.vehicle_type);
+  // Normalise tires_changed_count when the user lands on a two-wheeler
+  // category — EMPTY_FORM defaults to 4, which is illegal for a
+  // motorcycle. We don't override an explicit 1 the user already
+  // picked, only the impossible 3/4 values.
+  useEffect(() => {
+    if (isTwoWheeler && (form.tires_changed_count === 4 || form.tires_changed_count === 3)) {
+      handleChange('tires_changed_count', 2);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTwoWheeler]);
   const [showOffroadSection, setShowOffroadSection] = useState(false);
   const T = isVesselCategory ? getTheme('כלי שייט') : defaultC;
 
@@ -1769,12 +1785,18 @@ export default function AddVehicle() {
                         <div className="pt-1">
                           <Label>כמה צמיגים הוחלפו?</Label>
                           <div className="flex gap-2 mt-1.5" dir="rtl">
-                            {[
-                              { val: 4, label: 'כל ה-4' },
-                              { val: 2, label: '2 צמיגים' },
-                              { val: 1, label: '1 צמיג' },
-                              { val: 3, label: '3 צמיגים' },
-                            ].map(opt => (
+                            {(isTwoWheeler
+                              ? [
+                                  { val: 2, label: 'שני הצמיגים' },
+                                  { val: 1, label: 'צמיג אחד' },
+                                ]
+                              : [
+                                  { val: 4, label: 'כל ה-4' },
+                                  { val: 2, label: '2 צמיגים' },
+                                  { val: 1, label: '1 צמיג' },
+                                  { val: 3, label: '3 צמיגים' },
+                                ]
+                            ).map(opt => (
                               <button
                                 key={opt.val}
                                 type="button"
@@ -1790,9 +1812,13 @@ export default function AddVehicle() {
                             ))}
                           </div>
                           <p className="text-[11px] mt-1" style={{ color: '#7A8A7C' }}>
-                            {form.tires_changed_count === 4
-                              ? 'נשער ש-4 צמיגים חדשים באותה נקודה'
-                              : `נעקוב אחר ${form.tires_changed_count} צמיגים חדשים. לצמיגים שלא הוחלפו, הגיל נמדד מהרכב עצמו.`}
+                            {isTwoWheeler
+                              ? (form.tires_changed_count === 2
+                                  ? 'נשער ששני הצמיגים חדשים באותה נקודה'
+                                  : 'נעקוב אחר צמיג אחד חדש. לצמיג שלא הוחלף, הגיל נמדד מהרכב עצמו.')
+                              : (form.tires_changed_count === 4
+                                  ? 'נשער ש-4 צמיגים חדשים באותה נקודה'
+                                  : `נעקוב אחר ${form.tires_changed_count} צמיגים חדשים. לצמיגים שלא הוחלפו, הגיל נמדד מהרכב עצמו.`)}
                           </p>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
