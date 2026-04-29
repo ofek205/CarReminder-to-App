@@ -69,9 +69,30 @@ export default function DeleteAccount() {
       const { error: rpcErr } = await supabase.rpc('delete_my_account', { mode });
       if (rpcErr) throw rpcErr;
 
-      localStorage.clear();
       if (mode === 'account') {
+        // Account is gone — wipe everything and sign the user out so
+        // the app can't keep using a session that no longer maps to a
+        // membership row.
+        localStorage.clear();
         await supabase.auth.signOut();
+      } else {
+        // mode='data' — the user is still signed in, the account+
+        // membership stay. Wipe only app-local caches so stale
+        // vehicle/document/notification ids don't linger; KEEP the
+        // supabase auth keys (sb-…-auth-token), otherwise the next
+        // page-load thinks the user is logged out and the dashboard
+        // hangs on 'not_authenticated' from ensure_user_account.
+        try {
+          const PRESERVE_PREFIXES = ['sb-', 'cr_remember_me_v1', 'cr_pending_recovery_'];
+          const toRemove = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (!k) continue;
+            if (PRESERVE_PREFIXES.some(p => k.startsWith(p))) continue;
+            toRemove.push(k);
+          }
+          toRemove.forEach(k => localStorage.removeItem(k));
+        } catch {}
       }
       setStep('done');
     } catch (err) {
