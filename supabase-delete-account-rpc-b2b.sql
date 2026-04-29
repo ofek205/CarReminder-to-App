@@ -132,10 +132,54 @@ begin
 
   -- 5. 'account' mode: leave shared workspaces (driver / viewer
   --    memberships) by removing this user's membership rows, and drop
-  --    accounts the user owns. Driver assignments referencing this
-  --    user have ON DELETE CASCADE on driver_user_id (auth.users) but
-  --    we only delete from account_members here — the auth.users row
-  --    survives because the RPC has no admin rights to drop it.
+  --    accounts the user owns.
+  --
+  --    Before removing the rows, notify each shared workspace's
+  --    owners + managers so they see "X עזב את החשבון" in their bell.
+  --    Without this the manager only finds out by spotting the gap in
+  --    the directory. Email is preferred over display_name for the
+  --    label so the manager recognises a driver they may have invited
+  --    by email.
+  declare
+    v_actor_email   text;
+    v_actor_display text;
+  begin
+    select
+      coalesce(nullif(u.raw_user_meta_data->>'full_name', ''), split_part(u.email, '@', 1)),
+      u.email
+    into v_actor_display, v_actor_email
+    from auth.users u
+    where u.id = uid;
+
+    insert into public.app_notifications (user_id, type, title, body, data)
+    select
+      m.user_id,
+      'workspace_member_left',
+      'חבר עזב את הסביבה',
+      coalesce(v_actor_display, v_actor_email, 'משתמש') || ' עזב את החשבון "' ||
+        coalesce(a.name, 'חשבון עסקי') || '"',
+      jsonb_build_object(
+        'account_id',     a.id,
+        'account_name',   a.name,
+        'left_user_id',   uid,
+        'left_email',     v_actor_email,
+        'left_display',   v_actor_display
+      )
+    from public.account_members m
+    join public.accounts a on a.id = m.account_id
+    -- Only owners/managers in the same shared workspaces the leaving
+    -- user is a member of. Excludes the leaving user themselves and
+    -- accounts where they're the owner (those rows get deleted whole
+    -- below; nobody to notify).
+    where m.account_id in (
+      select account_id from public.account_members
+       where user_id = uid and status = 'פעיל' and role <> 'בעלים'
+    )
+      and m.user_id <> uid
+      and m.status = 'פעיל'
+      and m.role in ('בעלים', 'מנהל');
+  end;
+
   delete from public.account_members
     where user_id = uid;
 

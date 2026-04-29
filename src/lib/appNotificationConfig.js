@@ -105,6 +105,16 @@ export const APP_NOTIF_CONFIG = {
     iconBg: '#2D5233',
     buildHref: () => '/MyVehicles',
   },
+  workspace_member_left: {
+    // A member voluntarily left a business workspace (delete-account
+    // flow). Routes the manager to the Drivers page so they can see
+    // the updated directory and reassign vehicles if needed.
+    icon: LogOut,
+    bg: '#FFF7ED',
+    iconColor: '#EA580C',
+    iconBg: '#EA580C',
+    buildHref: () => '/Drivers',
+  },
   community_comment: {
     // Reused for any community thread reply on the user's own post.
     // Purple matches the existing "תגובות בקהילה" chrome elsewhere
