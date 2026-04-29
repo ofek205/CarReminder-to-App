@@ -31,7 +31,7 @@ as $$
 declare
   uid uuid := auth.uid();
   new_id uuid;
-  stop record;
+  stop_elem jsonb;
   seq int := 0;
   clean_title text;
   v_account_name  text;
@@ -74,8 +74,11 @@ begin
   returning id into new_id;
 
   if p_stops is not null and jsonb_typeof(p_stops) = 'array' then
-    for stop in
-      select * from jsonb_array_elements(p_stops) as elem
+    -- jsonb_array_elements returns rows with column "value" by default;
+    -- iterate the value directly into a jsonb local. The earlier
+    -- "as elem" alias renamed the table only, not the column, which
+    -- caused 42703 'record "stop" has no field "elem"' at run time.
+    for stop_elem in select value from jsonb_array_elements(p_stops)
     loop
       seq := seq + 1;
       insert into public.route_stops
@@ -84,9 +87,9 @@ begin
         (new_id,
          p_account_id,
          seq,
-         coalesce(nullif(trim(stop.elem->>'title'), ''), 'תחנה ' || seq),
-         stop.elem->>'address_text',
-         stop.elem->>'notes',
+         coalesce(nullif(trim(stop_elem->>'title'), ''), 'תחנה ' || seq),
+         stop_elem->>'address_text',
+         stop_elem->>'notes',
          'pending');
     end loop;
   end if;
