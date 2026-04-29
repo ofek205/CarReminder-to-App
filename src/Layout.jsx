@@ -96,6 +96,7 @@ const navItems = [
   // noise without conveying structure.
   // ====================================================================
   { divider: true, title: 'תחזוקה' },
+  { name: 'vehicle-check',      label: 'בדיקת רכב', icon: Car,             guestAllowed: true },
   { name: 'MaintenanceTemplates', label: 'טיפולים', icon: Wrench,        guestAllowed: true },
   { name: 'Documents',          label: 'מסמכים',  icon: FileText,        guestAllowed: true },
   { name: 'Accidents',          label: 'תאונות',  icon: AlertTriangle,   guestAllowed: true },
@@ -570,7 +571,7 @@ function LayoutInner({ children }) {
   }, [isGuest, isAuthenticated, user, guestVehicles, activeWorkspace?.account_id, location.pathname]);
 
   // Pages that don't require authentication (legal/compliance pages for app stores)
-  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
+  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check'];
   const isPublicRoute = PUBLIC_PAGES.includes(location.pathname);
   const isAuthRoute = location.pathname === '/Auth' || location.pathname === '/';
 
@@ -620,7 +621,7 @@ function LayoutInner({ children }) {
   }, [isGuest, isAuthRoute, isPublicRoute, navigate]);
 
   // Auth page + public legal pages render standalone - no chrome, no auth required
-  const STANDALONE_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
+  const STANDALONE_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check'];
   if (STANDALONE_PAGES.includes(location.pathname) && !isAuthenticated && !isGuest) {
     return <>{children}</>;
   }

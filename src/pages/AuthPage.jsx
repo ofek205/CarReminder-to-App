@@ -24,6 +24,8 @@ const C = {
   successBg: '#F0FDF4',
 };
 
+const QUICK_CHECK_RETURN_KEY = 'vehicle_quick_check_return';
+
 //  Google icon 
 const GoogleIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -260,6 +262,13 @@ export default function AuthPage() {
   // log in without ever proving they know (or set) a password.
   useEffect(() => {
     if (isAuthenticated && mode !== 'update-password' && !holdForRecovery) {
+      try {
+        if (sessionStorage.getItem(QUICK_CHECK_RETURN_KEY) === '1') {
+          sessionStorage.removeItem(QUICK_CHECK_RETURN_KEY);
+          navigate('/vehicle-check', { replace: true });
+          return;
+        }
+      } catch {}
       navigate(createPageUrl('Dashboard'), { replace: true });
     }
   }, [isAuthenticated, mode, navigate, holdForRecovery]);
