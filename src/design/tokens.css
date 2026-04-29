@@ -1,0 +1,297 @@
+/**
+ * CarReminder Design Tokens — Single Source of Truth
+ * ====================================================
+ *
+ * This is the canonical design system for the application.
+ * All new code MUST consume tokens from here. Inline hex
+ * values in src/pages/* are linted as warnings (sprint 1)
+ * and will be hard-blocked in sprint 2.
+ *
+ * Token categories:
+ *   1. Brand palette          (raw color scales)
+ *   2. Semantic colors        (intent-based: text, surface, border, status)
+ *   3. Spacing                (4px base scale)
+ *   4. Radii                  (corner rounding)
+ *   5. Shadows                (elevation)
+ *   6. Typography             (size + weight)
+ *   7. Z-index                (layering)
+ *
+ * Naming conventions (semantic, not visual):
+ *   --cr-text-primary         (use this; not --cr-color-gray-900)
+ *   --cr-surface-card         (use this; not --cr-color-white)
+ *   --cr-status-danger-bg     (use this; not --cr-color-red-50)
+ *
+ * Why CSS variables instead of Tailwind theme alone?
+ *   1. Allows runtime theming (vehicle-type theme, dark mode in v2)
+ *   2. Lets us read the same value from JS (window.getComputedStyle)
+ *   3. Cascades naturally with vehicle-card scoped overrides
+ *
+ * The legacy src/lib/designTokens.js (`C`, `getTheme`) is kept for
+ * back-compat during sprint 2 migration. New code should NOT import
+ * from there — use src/design/tokens.js instead.
+ */
+
+:root {
+  /*
+   * ============================================================
+   * 1. BRAND PALETTE — raw color scales
+   * ============================================================
+   * Don't reference these directly in components. Use the semantic
+   * tokens below. They exist so we have a coherent palette to draw
+   * from when adding new semantic tokens.
+   */
+
+  /* Primary — deep forest green (CarReminder brand) */
+  --cr-green-50:  #F0F7F1;
+  --cr-green-100: #E8F2EA;
+  --cr-green-200: #D8E5D9;
+  --cr-green-300: #B7CDBA;
+  --cr-green-400: #7FA587;
+  --cr-green-500: #4A8C5C;
+  --cr-green-600: #3A6B42;
+  --cr-green-700: #2D5233;
+  --cr-green-800: #1E3D24;
+  --cr-green-900: #1C2E20;
+
+  /* Accent — warm amber */
+  --cr-amber-50:  #FFFBEB;
+  --cr-amber-100: #FEF3C7;
+  --cr-amber-200: #FDE68A;
+  --cr-amber-300: #FCD34D;
+  --cr-amber-400: #FBBF24;
+  --cr-amber-500: #FFBF00;
+  --cr-amber-600: #D97706;
+  --cr-amber-700: #B45309;
+  --cr-amber-800: #92400E;
+  --cr-amber-900: #78350F;
+
+  /* Neutrals — UI grays */
+  --cr-gray-0:    #FFFFFF;
+  --cr-gray-50:   #FAFAFA;
+  --cr-gray-100:  #F3F4F6;
+  --cr-gray-200:  #E5E7EB;
+  --cr-gray-300:  #D1D5DB;
+  --cr-gray-400:  #9CA3AF;
+  --cr-gray-500:  #6B7280;
+  --cr-gray-600:  #4B5563;
+  --cr-gray-700:  #374151;
+  --cr-gray-800:  #1F2937;
+  --cr-gray-900:  #111827;
+
+  /* Status — red (danger) */
+  --cr-red-50:    #FEF2F2;
+  --cr-red-100:   #FEE2E2;
+  --cr-red-200:   #FECACA;
+  --cr-red-500:   #EF4444;
+  --cr-red-600:   #DC2626;
+  --cr-red-700:   #B91C1C;
+  --cr-red-800:   #991B1B;
+
+  /* Status — blue (info) */
+  --cr-blue-50:   #EFF6FF;
+  --cr-blue-100:  #DBEAFE;
+  --cr-blue-500:  #3B82F6;
+  --cr-blue-600:  #2563EB;
+  --cr-blue-700:  #1D4ED8;
+  --cr-blue-800:  #1E40AF;
+
+  /* Marine — teal (vessels override theme) */
+  --cr-marine-50:  #E0F7FA;
+  --cr-marine-100: #B2EBF2;
+  --cr-marine-500: #0C7B93;
+  --cr-marine-600: #065A6E;
+  --cr-marine-700: #0A3D4D;
+
+  /* Earth — brown (off-road override theme) */
+  --cr-earth-50:  #EFEBE9;
+  --cr-earth-100: #D7CCC8;
+  --cr-earth-500: #795548;
+  --cr-earth-600: #5D4037;
+  --cr-earth-700: #4E342E;
+  --cr-earth-900: #3E2723;
+
+  /*
+   * ============================================================
+   * 2. SEMANTIC COLORS — what the UI consumes
+   * ============================================================
+   * These are intent-driven. Components should ONLY use these.
+   */
+
+  /* Brand */
+  --cr-brand-primary:        var(--cr-green-700);
+  --cr-brand-primary-hover:  var(--cr-green-800);
+  --cr-brand-primary-soft:   var(--cr-green-100);
+  --cr-brand-accent:         var(--cr-amber-500);
+  --cr-brand-accent-hover:   var(--cr-amber-600);
+
+  /* Text */
+  --cr-text-primary:         var(--cr-gray-900);
+  --cr-text-secondary:       var(--cr-gray-600);
+  --cr-text-muted:           var(--cr-gray-500);
+  --cr-text-disabled:        var(--cr-gray-400);
+  --cr-text-on-brand:        #FFFFFF;
+  --cr-text-link:            var(--cr-green-700);
+  --cr-text-on-elevated:     var(--cr-gray-900);
+
+  /* Surfaces (backgrounds) */
+  --cr-surface-canvas:       #FFFFFF;        /* page background */
+  --cr-surface-subtle:       var(--cr-gray-50);   /* alt page background */
+  --cr-surface-card:         #FFFFFF;        /* card background */
+  --cr-surface-elevated:     #FFFFFF;        /* dialog / popover */
+  --cr-surface-overlay:      rgba(17, 24, 39, 0.55);  /* modal scrim */
+  --cr-surface-brand-soft:   var(--cr-green-50);  /* tinted brand container */
+  --cr-surface-input:        #FFFFFF;
+  --cr-surface-input-focus:  var(--cr-gray-50);
+
+  /* Borders */
+  --cr-border-subtle:        var(--cr-gray-100);
+  --cr-border-default:       var(--cr-gray-200);
+  --cr-border-strong:        var(--cr-gray-300);
+  --cr-border-brand:         var(--cr-green-700);
+  --cr-border-focus-ring:    var(--cr-green-500);
+
+  /* Status — Success */
+  --cr-status-ok-bg:         #E8F5E9;
+  --cr-status-ok-fg:         #1B5E20;
+  --cr-status-ok-border:     #BBDEFB;
+  --cr-status-ok-solid:      #2E7D32;
+
+  /* Status — Warning (insurance/test approaching) */
+  --cr-status-warn-bg:       var(--cr-amber-100);
+  --cr-status-warn-fg:       var(--cr-amber-800);
+  --cr-status-warn-border:   var(--cr-amber-200);
+  --cr-status-warn-solid:    var(--cr-amber-600);
+
+  /* Status — Danger (overdue/expired) */
+  --cr-status-danger-bg:     var(--cr-red-50);
+  --cr-status-danger-fg:     var(--cr-red-700);
+  --cr-status-danger-border: var(--cr-red-200);
+  --cr-status-danger-solid:  var(--cr-red-600);
+
+  /* Status — Info (neutral/informational) */
+  --cr-status-info-bg:       var(--cr-blue-50);
+  --cr-status-info-fg:       var(--cr-blue-700);
+  --cr-status-info-border:   var(--cr-blue-100);
+  --cr-status-info-solid:    var(--cr-blue-600);
+
+  /*
+   * ============================================================
+   * 3. SPACING — 4px base scale (geometric, not arbitrary)
+   * ============================================================
+   * Use these in custom CSS / inline styles. In Tailwind, prefer
+   * the corresponding p-1, p-2, p-3 utilities (4/8/12 px).
+   */
+  --cr-space-0:   0;
+  --cr-space-1:   4px;
+  --cr-space-2:   8px;
+  --cr-space-3:   12px;
+  --cr-space-4:   16px;
+  --cr-space-5:   20px;
+  --cr-space-6:   24px;
+  --cr-space-8:   32px;
+  --cr-space-10:  40px;
+  --cr-space-12:  48px;
+  --cr-space-16:  64px;
+
+  /*
+   * ============================================================
+   * 4. RADII — corner rounding scale
+   * ============================================================
+   * Discrete steps. Avoid mixing rounded-md with rounded-lg with
+   * rounded-3xl in the same surface; pick one per "container family".
+   */
+  --cr-radius-none: 0;
+  --cr-radius-sm:   6px;    /* small chips, dense rows */
+  --cr-radius-md:   10px;   /* inputs, buttons */
+  --cr-radius-lg:   14px;   /* cards, list rows */
+  --cr-radius-xl:   20px;   /* hero cards, primary surfaces */
+  --cr-radius-2xl:  28px;   /* page-level hero, modal */
+  --cr-radius-full: 9999px; /* pills */
+
+  /*
+   * ============================================================
+   * 5. SHADOWS — elevation scale
+   * ============================================================
+   * Use sparingly. Excessive shadow stacking is a strong
+   * "AI-generated" signal. Default to flat with borders.
+   */
+  --cr-shadow-none:      none;
+  --cr-shadow-xs:        0 1px 2px rgba(17, 24, 39, 0.04);
+  --cr-shadow-sm:        0 1px 3px rgba(17, 24, 39, 0.06), 0 1px 2px rgba(17, 24, 39, 0.04);
+  --cr-shadow-md:        0 4px 12px rgba(17, 24, 39, 0.08), 0 2px 4px rgba(17, 24, 39, 0.04);
+  --cr-shadow-lg:        0 12px 24px rgba(17, 24, 39, 0.10), 0 4px 8px rgba(17, 24, 39, 0.06);
+  --cr-shadow-card:      0 1px 3px rgba(17, 24, 39, 0.06), 0 1px 2px rgba(17, 24, 39, 0.04);
+  --cr-shadow-floating:  0 12px 32px rgba(17, 24, 39, 0.14);
+
+  /*
+   * ============================================================
+   * 6. TYPOGRAPHY — 6 sizes, 4 weights. NO MORE.
+   * ============================================================
+   * Why 4 weights? Above 4 the eye stops perceiving hierarchy
+   * as weight differences and starts seeing them as inconsistency.
+   * Apple iOS uses 6 weights but only 3-4 are used in any single
+   * screen. CarReminder will live with 4 across the whole app.
+   */
+  --cr-font-size-xs:   12px;
+  --cr-font-size-sm:   14px;
+  --cr-font-size-base: 16px;
+  --cr-font-size-lg:   18px;
+  --cr-font-size-xl:   22px;
+  --cr-font-size-2xl:  28px;
+
+  --cr-font-weight-regular:  400;
+  --cr-font-weight-medium:   500;
+  --cr-font-weight-semibold: 600;
+  --cr-font-weight-bold:     700;
+
+  --cr-line-height-tight:    1.2;
+  --cr-line-height-normal:   1.5;
+  --cr-line-height-relaxed:  1.7;
+
+  /*
+   * ============================================================
+   * 7. Z-INDEX — layering scale
+   * ============================================================
+   * Centralized to prevent the z-index arms-race we have today
+   * (z-10010 vs z-9998 vs z-50 etc).
+   */
+  --cr-z-base:        0;
+  --cr-z-raised:      10;
+  --cr-z-sticky:      20;     /* status bars, fixed headers */
+  --cr-z-bottom-nav:  40;
+  --cr-z-modal:       50;
+  --cr-z-toast:       60;
+  --cr-z-popover:     70;
+  --cr-z-tooltip:     80;
+}
+
+/*
+ * ============================================================
+ * Marine theme override — vessels get teal accent
+ * ============================================================
+ * Apply by adding `data-theme="marine"` on a wrapping element.
+ * This re-binds the brand semantic tokens to teal palette,
+ * but keeps text/surface/status tokens unchanged. So the same
+ * <CTAButton> renders teal automatically inside a vessel card.
+ */
+[data-theme="marine"] {
+  --cr-brand-primary:        var(--cr-marine-500);
+  --cr-brand-primary-hover:  var(--cr-marine-600);
+  --cr-brand-primary-soft:   var(--cr-marine-50);
+  --cr-surface-brand-soft:   var(--cr-marine-50);
+  --cr-border-brand:         var(--cr-marine-500);
+  --cr-text-link:            var(--cr-marine-500);
+}
+
+/*
+ * Off-road / earth theme override — ATVs, dirt bikes, RZRs
+ * Brown palette signals rugged/utility usage.
+ */
+[data-theme="earth"] {
+  --cr-brand-primary:        var(--cr-earth-600);
+  --cr-brand-primary-hover:  var(--cr-earth-700);
+  --cr-brand-primary-soft:   var(--cr-earth-50);
+  --cr-surface-brand-soft:   var(--cr-earth-50);
+  --cr-border-brand:         var(--cr-earth-600);
+  --cr-text-link:            var(--cr-earth-600);
+}

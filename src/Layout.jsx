@@ -570,8 +570,11 @@ function LayoutInner({ children }) {
     }
   }, [isGuest, isAuthenticated, user, guestVehicles, activeWorkspace?.account_id, location.pathname]);
 
-  // Pages that don't require authentication (legal/compliance pages for app stores)
-  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check'];
+  // Pages that don't require authentication (legal/compliance pages for app stores).
+  // /dev/components is the design-system style guide — kept public so you can
+  // open it on any browser/device without juggling logins, including on staging
+  // QA devices that might not have a workspace yet.
+  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components'];
   const isPublicRoute = PUBLIC_PAGES.includes(location.pathname);
   const isAuthRoute = location.pathname === '/Auth' || location.pathname === '/';
 
@@ -621,8 +624,15 @@ function LayoutInner({ children }) {
   }, [isGuest, isAuthRoute, isPublicRoute, navigate]);
 
   // Auth page + public legal pages render standalone - no chrome, no auth required
-  const STANDALONE_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check'];
+  const STANDALONE_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components'];
   if (STANDALONE_PAGES.includes(location.pathname) && !isAuthenticated && !isGuest) {
+    return <>{children}</>;
+  }
+  // /dev/components is a developer-facing style guide. Render it raw —
+  // no chrome, no welcome popup, no guest banner — even when the visitor
+  // happens to be authenticated or in guest mode. Otherwise the screenshots
+  // and design checks get polluted with the app shell.
+  if (location.pathname === '/dev/components') {
     return <>{children}</>;
   }
   // Auth page for guests too

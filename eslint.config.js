@@ -74,4 +74,35 @@ export default [
       "react-hooks/rules-of-hooks": "error",
     },
   },
+  // ----------------------------------------------------------------
+  // Sprint 1 — design-system enforcement (warning only).
+  // ----------------------------------------------------------------
+  // Goal: surface every inline hex/rgb color in src/pages/* so the
+  // sprint 2 visual-polish migration has a concrete to-do list. Set
+  // to "warn" intentionally — flipping to "error" before the migration
+  // would make `npm run lint` fail across ~200 spots immediately.
+  //
+  // The rule is a `no-restricted-syntax` matcher that fires on JSX
+  // string literals (style="..." / className="...") AND on Object
+  // expressions inside `style={{ }}` whose values look like a hex code.
+  // Files in src/pages/_dev/ and the design system itself are exempt.
+  {
+    files: ["src/pages/**/*.{js,mjs,cjs,jsx}"],
+    ignores: [
+      "src/pages/DevComponents.jsx",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "warn",
+        {
+          // Inline style object: style={{ background: '#FEF2F2' }}
+          selector: "JSXAttribute[name.name='style'] Property > Literal[value=/^(#[0-9A-Fa-f]{3,8}|rgb\\(|rgba\\()/]",
+          message:
+            "Inline hex/rgb in style is forbidden in src/pages/*. Use a design token from @/design/tokens.css " +
+            "(e.g. var(--cr-status-danger-bg)) or a Tailwind class (bg-cr-status-danger-bg). " +
+            "See /dev/components for the full token catalog.",
+        },
+      ],
+    },
+  },
 ];

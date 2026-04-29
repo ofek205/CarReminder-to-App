@@ -1,3 +1,11 @@
+/* CarReminder Design Tokens — sprint 1 foundation.
+   MUST come before @tailwind directives because plain @import statements
+   in CSS have to precede all other rules. The new --cr-* tokens are
+   global; the legacy --background / --foreground HSL block below
+   continues to feed shadcn primitives (Button, Dialog, ...) untouched
+   until those primitives are migrated in sprint 2. */
+@import "./design/tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -131,6 +139,22 @@ body.keyboard-visible {
 }
 .leaflet-top .leaflet-control {
   z-index: 1 !important;
+}
+
+/* CR design-system skeleton shimmer — used by <LoadingState variant="skeleton"> */
+@keyframes cr-skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.cr-skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--cr-surface-subtle) 0%,
+    var(--cr-border-subtle) 50%,
+    var(--cr-surface-subtle) 100%
+  );
+  background-size: 200% 100%;
+  animation: cr-skeleton-shimmer 1.4s linear infinite;
 }
 
 /* Card entrance animation. staggered fade-in + slide-up */

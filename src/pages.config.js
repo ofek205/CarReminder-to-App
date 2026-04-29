@@ -67,6 +67,9 @@ const BulkAddVehicles       = React.lazy(() => import('./pages/BulkAddVehicles')
 const Team                  = React.lazy(() => import('./pages/Team'));
 const DrivingLog            = React.lazy(() => import('./pages/DrivingLog'));
 const VehicleCheck          = React.lazy(() => import('./pages/VehicleCheck'));
+// /dev/components — design system style guide. No auth, no chrome.
+// Safe to ship; intentionally not surfaced in any nav (URL-only access).
+const DevComponents         = React.lazy(() => import('./pages/DevComponents'));
 
 export const PAGES = {
     "Accidents": Accidents,
@@ -120,6 +123,12 @@ export const PAGES = {
     "Team":         Team,
     "DrivingLog":   DrivingLog,
     "vehicle-check": VehicleCheck,
+    // Design system style guide. URL is /dev/components.
+    // The slash in the path is fine here because the route entry is
+    // wrapped in `/${path}` by App.jsx, and react-router accepts /a/b
+    // form natively. Kept lower-case-with-slash so it visually
+    // distinguishes itself from the user-facing PascalCase pages.
+    "dev/components": DevComponents,
 }
 
 export const pagesConfig = {
