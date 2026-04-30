@@ -25,7 +25,12 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    # macos-26 is required because Apple now mandates iOS 26 SDK for all
+    # App Store uploads (rejected earlier with code 90725 / 4093:
+    # "All iOS and iPadOS apps must be built with the iOS 26 SDK or later,
+    # included in Xcode 26 or later"). The previous macos-14 runner only
+    # ships Xcode 16.x with the iOS 18.5 SDK, which is no longer accepted.
+    runs-on: macos-26
     timeout-minutes: 45
 
     steps:
@@ -38,8 +43,23 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Select latest Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.app
+      # Pick the highest-numbered non-beta Xcode 26.x installed on the
+      # runner. Hardcoding a specific point release (e.g. Xcode_26.2.app)
+      # would silently break the workflow whenever GitHub bumps the
+      # default. The grep -v eliminates beta builds — we don't want to
+      # ship to App Store from an Xcode beta even if it's installed.
+      - name: Select latest Xcode 26
+        run: |
+          xcode_path=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          if [ -z "$xcode_path" ]; then
+            echo "::error::No Xcode 26.x found on runner. Available:"
+            ls -d /Applications/Xcode*.app 2>/dev/null || true
+            exit 1
+          fi
+          echo "Selecting $xcode_path"
+          sudo xcode-select -s "$xcode_path"
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
 
       - name: Install dependencies
         run: npm ci
