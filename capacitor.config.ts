@@ -1,7 +1,13 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.carreminder.app',
+  // Bundle ID note: iOS native (pbxproj) and the Apple App Store record
+  // are 'com.carreminders.app' (plural). Android applicationId overrides
+  // this in android/app/build.gradle to 'com.carreminder.app' (singular)
+  // because the Google Play record was registered without the 's'. The
+  // Capacitor appId here mirrors the iOS bundle ID to avoid runtime
+  // mismatches between Capacitor's bridged appId and the actual bundle.
+  appId: 'com.carreminders.app',
   appName: 'CarReminder',
   webDir: 'dist',
   // Allow loading from Supabase and external APIs
