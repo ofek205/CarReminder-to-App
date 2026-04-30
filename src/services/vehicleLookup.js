@@ -551,8 +551,18 @@ async function fetchOwnershipHistory(plateDigits) {
       date:   normalizeDate(dateOf(r)),
     }));
 
+    // "יד" counts only real owners. By Israeli used-car convention the
+    // dealer (סוחר) doesn't count as a hand — the dealer holds the car
+    // for resale rather than driving it, so the buyer-facing hand
+    // number treats those rows as pass-through. Every other ownership
+    // type (פרטי / ליסינג / השכרה / מסחרי / מונית / ...) DOES count.
+    // The full history list is still returned verbatim so the
+    // breakdown UI can show every episode with its real baalut tag.
+    const isDealerEpisode = (b) => String(b || '').trim() === 'סוחר';
+    const handCount = history.filter(h => !isDealerEpisode(h.baalut)).length;
+
     return {
-      hand:    history.length,
+      hand:    handCount,
       history,
       current: history[history.length - 1]?.baalut || null,
     };

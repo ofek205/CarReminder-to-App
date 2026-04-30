@@ -27,6 +27,7 @@ import {
   validateQuickCheckPlate,
 } from '@/services/vehicleQuickCheck';
 import { C } from '@/lib/designTokens';
+import { OwnershipHistoryPanel } from '@/components/vehicle/VehicleInfoSection';
 
 const loadingMessages = [
   'בודקים נתוני רישוי...',
@@ -554,7 +555,8 @@ function SpecsAccordion({ result }) {
               {section.title}
             </AccordionTrigger>
             <AccordionContent>
-              <SpecRows data={section.data} />
+              <SpecRows data={section.data} sectionId={section.id} />
+              {section.id === 'ownership' && <OwnershipBreakdown ownership={section.data} />}
             </AccordionContent>
           </AccordionItem>
         ))}
@@ -563,11 +565,24 @@ function SpecsAccordion({ result }) {
   );
 }
 
-function SpecRows({ data = {} }) {
-  const entries = Object.entries(data || {}).filter(([, value]) => {
+// Per-section keys that SpecRows should NEVER render in the generic
+// key-value grid because a richer component owns that data below.
+//   ownership.history → OwnershipBreakdown (numbered timeline of every
+//                       baalut episode with date and "current" badge —
+//                       same component the technical-spec page uses, so
+//                       the two views match exactly).
+const SPEC_ROWS_HIDDEN = {
+  ownership: new Set(['history']),
+};
+
+function SpecRows({ data = {}, sectionId }) {
+  const hidden = SPEC_ROWS_HIDDEN[sectionId];
+  const entries = Object.entries(data || {}).filter(([key, value]) => {
+    if (hidden && hidden.has(key)) return false;
     if (Array.isArray(value)) return value.length > 0;
     return hasDisplayValue(value);
   });
+  if (!entries.length) return null;
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {entries.map(([key, value]) => (
@@ -578,6 +593,39 @@ function SpecRows({ data = {} }) {
           </p>
         </div>
       ))}
+    </div>
+  );
+}
+
+// "פירוט בעלים קודמים" — chronological list of every ownership episode
+// for the plate. Same component (OwnershipHistoryPanel) the technical-
+// spec card on VehicleDetail renders, kept identical so the public
+// quick-check page and the owned-vehicle detail page stay visually
+// consistent.
+//
+// Rules of engagement:
+//   - Only renders when the gov.il enrichment actually returned an
+//     ownership_history array. If the lookup was skipped (commercial
+//     plate, plate not found, etc) we silently render nothing — never
+//     show an empty "previous owners" header that would imply a
+//     missing record.
+//   - Renders even when there's only ONE episode, because seeing
+//     "1 בעלים פרטי, 2024-12-01" is meaningful even for first-hand
+//     cars (verifies the registration date, confirms the type).
+//   - Reuses C (the default green design tokens) as the theme. The
+//     panel's own internal styling adapts to whatever palette is
+//     passed; future per-vehicle theming (e.g. marine teal for boats)
+//     would just need a getTheme() call here.
+function OwnershipBreakdown({ ownership }) {
+  const history = Array.isArray(ownership?.history) ? ownership.history : [];
+  if (!history.length) return null;
+  return (
+    <div className="mt-3 rounded-xl border border-gray-100 bg-white">
+      <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+        <p className="text-[11px] font-black text-gray-700">פירוט בעלים קודמים</p>
+        <p className="text-[10px] text-gray-400">{history.length} רשומות</p>
+      </div>
+      <OwnershipHistoryPanel history={history} theme={C} />
     </div>
   );
 }
@@ -759,16 +807,38 @@ function buildReportSections(result) {
   return [
     { title: 'מידע כללי', data: result.basicInfo },
     { title: 'רישוי ובדיקות', data: result.registration },
-    { title: 'בעלות והיסטוריה', data: result.ownership },
+    { title: 'בעלות והיסטוריה', data: result.ownership, expandHistory: true },
     { title: 'מפרט טכני', data: result.technical },
     { title: 'מידע נוסף', data: result.additional },
-  ].map(section => ({
-    title: section.title,
-    rows: Object.entries(section.data || {}).filter(([, value]) => {
-      if (Array.isArray(value)) return value.length > 0;
-      return hasDisplayValue(value);
-    }),
-  })).filter(section => section.rows.length > 0);
+  ].map(section => {
+    // Standard key/value rows. The 'history' key is intentionally
+    // dropped here because the generic formatter would render it as
+    // "4 רשומות", which is exactly the bug a printed report should
+    // not have. We re-emit it below as a chronological list of rows.
+    const rows = Object.entries(section.data || {})
+      .filter(([key, value]) => {
+        if (section.expandHistory && key === 'history') return false;
+        if (Array.isArray(value)) return value.length > 0;
+        return hasDisplayValue(value);
+      });
+
+    // Ownership: append one row per episode so the printed/viewed
+    // report shows the same numbered breakdown the on-screen accordion
+    // displays. We label the most-recent entry "בעלות נוכחית" and the
+    // rest "בעלים N", matching the on-screen pill that says "נוכחית".
+    if (section.expandHistory) {
+      const history = Array.isArray(section.data?.history) ? section.data.history : [];
+      history.forEach((episode, idx) => {
+        const isCurrent = idx === history.length - 1;
+        const label = isCurrent ? 'בעלות נוכחית' : `בעלים ${idx + 1}`;
+        const date  = episode?.date ? ` · ${episode.date}` : '';
+        const baal  = episode?.baalut || 'לא ידוע';
+        rows.push([label, `${baal}${date}`]);
+      });
+    }
+
+    return { title: section.title, rows };
+  }).filter(section => section.rows.length > 0);
 }
 
 function formatReportDate(value) {

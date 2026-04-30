@@ -586,7 +586,12 @@ function ExpandableSpecRow({ item, theme }) {
 // OwnershipHistoryPanel — the actual content rendered inside the
 // expanded "יד" row. Pure: takes the history array and renders the
 // numbered timeline.
-function OwnershipHistoryPanel({ history, theme }) {
+//
+// Exported so other consumers (e.g. VehicleCheck — the public quick
+// vehicle-lookup page) can render the same breakdown without duplicating
+// the markup or theme handling. The `theme` prop is the same shape as
+// the InfoCard's local theme: { primary, light, border, muted }.
+export function OwnershipHistoryPanel({ history, theme }) {
   const T = theme;
   return (
     <ol className="px-4 pb-3 pt-1 space-y-1.5">
