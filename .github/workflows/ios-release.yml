@@ -1,11 +1,15 @@
 name: iOS Release
 
 # Builds the iOS app on a free GitHub-hosted macOS runner and uploads
-# it to App Store Connect (TestFlight). Authentication uses an
-# App Store Connect API key stored in repository secrets — no
-# certificates or provisioning profiles need to be exported from a
-# Mac, because xcodebuild's `-allowProvisioningUpdates` flag tells
-# Apple's signing service to issue them on demand.
+# it to App Store Connect (TestFlight). Uses MANUAL signing — a
+# Distribution certificate (.p12) and an App Store provisioning
+# profile are imported into the runner keychain at build time.
+#
+# This replaces the previous automatic-signing flow. Automatic
+# signing during `xcodebuild archive` unconditionally tries to also
+# issue an iOS Development profile, which Apple's service refuses
+# for Individual accounts that have no devices registered. Manual
+# signing skips that step entirely.
 #
 # Trigger: manually from the Actions tab. Optionally bump the build
 # number via the `build_number` input.
@@ -14,6 +18,10 @@ name: iOS Release
 #   APP_STORE_CONNECT_API_KEY_ID       — 10-char Key ID
 #   APP_STORE_CONNECT_ISSUER_ID        — UUID Issuer ID
 #   APP_STORE_CONNECT_API_KEY_BASE64   — base64 of the .p8 key file
+#   IOS_DIST_CERT_BASE64               — base64 of the Apple Distribution .p12
+#   IOS_DIST_CERT_PASSWORD             — export password for the .p12
+#   IOS_PROFILE_NAME                   — exact name of the App Store provisioning profile
+#                                        (must match PROVISIONING_PROFILE_SPECIFIER in pbxproj)
 
 on:
   workflow_dispatch:
@@ -26,10 +34,12 @@ on:
 jobs:
   build:
     # macos-26 is required because Apple now mandates iOS 26 SDK for all
-    # App Store uploads (rejected earlier with code 90725 / 4093:
-    # "All iOS and iPadOS apps must be built with the iOS 26 SDK or later,
-    # included in Xcode 26 or later"). The previous macos-14 runner only
-    # ships Xcode 16.x with the iOS 18.5 SDK, which is no longer accepted.
+    # App Store uploads (effective Apr 28, 2026). The previous macos-15
+    # runner only ships Xcode 16.x with the iOS 18.5 SDK, which the
+    # App Store Connect upload validator now rejects with:
+    #   "All iOS and iPadOS apps must be built with the iOS 26 SDK or
+    #    later, included in Xcode 26 or later."
+    # macos-26 is GA since Feb 2026 and ships Xcode 26.0/.1/.2/.3/.4.
     runs-on: macos-26
     timeout-minutes: 45
 
@@ -38,31 +48,25 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        # Capacitor CLI 8.3+ enforces NodeJS >=22.0.0 at runtime. Earlier
-        # workflow ran on Node 20 and `npx cap sync ios` aborted with
-        # "[Fatal] The Capacitor CLI requires NodeJS >=22.0.0". Node 22
-        # has been LTS since October 2024 and is fully supported by the
-        # macos-26 runner image.
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
-      # Pick the highest-numbered non-beta Xcode 26.x installed on the
-      # runner. Hardcoding a specific point release (e.g. Xcode_26.2.app)
-      # would silently break the workflow whenever GitHub bumps the
-      # default. The grep -v eliminates beta builds — we don't want to
-      # ship to App Store from an Xcode beta even if it's installed.
-      - name: Select latest Xcode 26
+      - name: Select latest Xcode 26 (non-beta)
+        # App Store Connect now requires iOS 26 SDK (Xcode 26+). macos-26
+        # ships multiple Xcode 26.x installs under /Applications/Xcode_26*.app
+        # — pick the highest version that exists, excluding betas (we don't
+        # want to ship to App Store from a beta even if it's installed).
         run: |
-          xcode_path=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
-          if [ -z "$xcode_path" ]; then
-            echo "::error::No Xcode 26.x found on runner. Available:"
-            ls -d /Applications/Xcode*.app 2>/dev/null || true
+          XCODE_PATH=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          if [ -z "$XCODE_PATH" ]; then
+            echo "ERROR: no Xcode 26.x found under /Applications. Available:"
+            ls -d /Applications/Xcode*.app 2>/dev/null
             exit 1
           fi
-          echo "Selecting $xcode_path"
-          sudo xcode-select -s "$xcode_path"
+          echo "Selecting $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
 
@@ -75,34 +79,84 @@ jobs:
       - name: Sync Capacitor → iOS
         run: npx cap sync ios
 
-      - name: Resolve Swift packages
-        working-directory: ios/App
+      - name: Verify web bundle was synced
         run: |
-          xcodebuild -resolvePackageDependencies \
-            -workspace App.xcworkspace \
-            -scheme App
+          test -f ios/App/App/public/index.html \
+            || (echo "ERROR: ios/App/App/public/index.html missing — cap sync did not copy the web bundle."; exit 1)
+          echo "Web bundle present: $(ls -la ios/App/App/public/index.html)"
 
-      - name: Bump build number
-        if: ${{ inputs.build_number != '' }}
+      - name: Install CocoaPods dependencies
+        # Compiles Capacitor + plugins from local source via CocoaPods. SPM
+        # cannot handle Capacitor's mixed Swift+ObjC target on Xcode 15.x, and
+        # the upstream binary xcframework drops public-extension symbols, so
+        # CocoaPods is the only working integration on this stack.
         working-directory: ios/App
-        run: |
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ inputs.build_number }}" App/Info.plist || true
-          xcrun agvtool new-version -all "${{ inputs.build_number }}"
+        run: pod install --repo-update
 
-      - name: Decode App Store Connect API key
+      - name: Set unique build number (per CI run)
+        working-directory: ios/App
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          USER_BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          if [ -n "$USER_BUILD_NUMBER" ]; then
+            NEW_BUILD="$USER_BUILD_NUMBER"
+          else
+            NEW_BUILD=$((100 + RUN_NUMBER))
+          fi
+          echo "Setting build number to $NEW_BUILD"
+          xcrun agvtool new-version -all "$NEW_BUILD"
+
+      - name: Import Apple Distribution certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.IOS_DIST_CERT_BASE64 }}
+          p12-password:    ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+
+      - name: Decode API key for download-provisioning-profiles
+        id: api_key_pem
+        env:
+          API_KEY_B64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          # The download-provisioning-profiles action expects the raw .p8
+          # PEM contents as a string, not a base64 encoding. Decode the
+          # secret here, mask the decoded value in logs, and expose it
+          # as a step output for the next step to consume.
+          DECODED=$(echo -n "$API_KEY_B64" | base64 --decode)
+          echo "::add-mask::$DECODED"
+          {
+            echo 'pem<<APPLE_KEY_EOF'
+            echo "$DECODED"
+            echo 'APPLE_KEY_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download App Store provisioning profile
+        uses: apple-actions/download-provisioning-profiles@v3
+        with:
+          bundle-id:           com.carreminders.app
+          profile-type:        IOS_APP_STORE
+          issuer-id:           ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id:          ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          api-private-key:     ${{ steps.api_key_pem.outputs.pem }}
+
+      - name: Decode App Store Connect API key (for altool upload)
         env:
           API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           API_KEY_ID:     ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
         run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo -n "$API_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8
           mkdir -p ~/private_keys
-          echo -n "$API_KEY_BASE64" | base64 --decode > ~/private_keys/AuthKey_${API_KEY_ID}.p8
-          ls -la ~/private_keys/
+          cp ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8 ~/private_keys/
 
-      - name: Archive (xcodebuild)
+      - name: Archive (xcodebuild, manual signing)
         working-directory: ios/App
-        env:
-          API_KEY_ID:     ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          API_ISSUER_ID:  ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        # CocoaPods generates App.xcworkspace; archiving must use the
+        # workspace, not the bare project, so the Pods target is linked.
+        # Manual-signing settings live in pbxproj on the App target's
+        # Release configuration; we don't pass them via cmdline so they
+        # only apply to App, not to the auto-generated Pods targets
+        # (which don't accept provisioning profiles).
         run: |
           xcodebuild \
             -workspace App.xcworkspace \
@@ -110,27 +164,16 @@ jobs:
             -configuration Release \
             -archivePath $RUNNER_TEMP/App.xcarchive \
             -destination 'generic/platform=iOS' \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
-            -authenticationKeyID ${API_KEY_ID} \
-            -authenticationKeyIssuerID ${API_ISSUER_ID} \
             archive
 
       - name: Export IPA
         working-directory: ios/App
-        env:
-          API_KEY_ID:     ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          API_ISSUER_ID:  ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           xcodebuild \
             -exportArchive \
             -archivePath $RUNNER_TEMP/App.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
-            -exportPath $RUNNER_TEMP/export \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
-            -authenticationKeyID ${API_KEY_ID} \
-            -authenticationKeyIssuerID ${API_ISSUER_ID}
+            -exportPath $RUNNER_TEMP/export
 
       - name: Upload to App Store Connect
         env:
@@ -147,4 +190,6 @@ jobs:
 
       - name: Cleanup API key
         if: always()
-        run: rm -f ~/private_keys/*.p8
+        run: |
+          rm -f ~/private_keys/*.p8
+          rm -f ~/.appstoreconnect/private_keys/*.p8
