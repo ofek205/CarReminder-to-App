@@ -3,19 +3,28 @@
  * Heavy pages are lazy-loaded to reduce initial bundle size.
  */
 import React from 'react';
-// Dashboard stays eager: it's the landing route. Lazy-loading it would
-// flash the suspense spinner on every fresh tab/PWA launch.
+// Dashboard and AuthPage stay eager.
+//
+// AuthPage is also eager because it's the actual landing route
+// (`mainPage: "Auth"` below). On iOS Capacitor + WKWebView, dynamic
+// `import()` for the very first lazy chunk after cold launch was
+// observed to hang indefinitely on iPadOS/iOS 26 — the Suspense
+// fallback (white screen with spinner) would never resolve. Making
+// the landing page eager guarantees there is never a cold-start
+// dynamic import; the user gets straight to the auth UI as soon as
+// React mounts. The cost is ~24 KB added to the initial bundle,
+// which is well worth eliminating a class of "app stuck loading"
+// bugs that App Review repeatedly flagged as Guideline 2.1(a).
 import Dashboard from './pages/Dashboard';
+import AuthPage from './pages/AuthPage';
 import __Layout from './Layout.jsx';
 
-// AuthPage / Vehicles / VehicleDetail used to be eager too, which dragged
-// ~2300 lines of page code (and their lucide-react / form / supabase
-// imports) into the entry chunk before the user saw anything. Authed
-// users on Dashboard have to download 870 lines of AuthPage they will
-// never see; logged-out users have to download Vehicles + VehicleDetail.
-// Splitting these into lazy chunks shrinks the initial bundle so the
-// landing render (Dashboard) starts paint earlier.
-const AuthPage = React.lazy(() => import('./pages/AuthPage'));
+// Vehicles / VehicleDetail are still lazy: they're not the landing
+// route, the user has to navigate to them, so a brief Suspense
+// fallback during navigation is acceptable. The new
+// SuspenseFallback in App.jsx auto-reloads after 8s if a chunk
+// genuinely hangs, so even a worst-case dynamic-import bug here
+// recovers automatically rather than trapping the user forever.
 const Vehicles = React.lazy(() => import('./pages/Vehicles'));
 const VehicleDetail = React.lazy(() => import('./pages/VehicleDetail'));
 
