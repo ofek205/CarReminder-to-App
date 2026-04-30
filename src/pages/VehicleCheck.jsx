@@ -68,6 +68,7 @@ export default function VehicleCheck() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [reportMode, setReportMode] = useState(null);
+  const [autoSearchQueued, setAutoSearchQueued] = useState(false);
 
   const isBusy = status === 'loading';
   const isPublicVisitor = !authLoading && !isAuthenticated;
@@ -79,6 +80,7 @@ export default function VehicleCheck() {
       if (prefilledPlate) {
         setPlate(normalizeQuickCheckPlate(prefilledPlate).slice(0, 8));
         sessionStorage.removeItem(QUICK_CHECK_PREFILL_KEY);
+        setAutoSearchQueued(true);
         return;
       }
     } catch {}
@@ -145,6 +147,18 @@ export default function VehicleCheck() {
         : 'לא הצלחנו להשלים את הבדיקה כרגע. נסה שוב בעוד רגע.');
     }
   };
+
+  useEffect(() => {
+    if (!autoSearchQueued || isBusy) return;
+    const v = validateQuickCheckPlate(plate);
+    if (!v.ok) {
+      setAutoSearchQueued(false);
+      return;
+    }
+    setAutoSearchQueued(false);
+    void search();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSearchQueued, plate, isBusy]);
 
   const goToAuth = () => {
     if (result) saveLastQuickCheckResult(result);

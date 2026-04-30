@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from '@/lib/popups/systemPopups';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
@@ -66,6 +66,9 @@ const QUICK_CHECK_PREFILL_KEY = 'vehicle_quick_check_prefill_plate';
 function normalizeQuickCheckPlateInput(value) {
   return String(value || '').replace(/\D/g, '').slice(0, 8);
 }
+function isQuickCheckPlateReady(value) {
+  return value.length === 7 || value.length === 8;
+}
 
 //  Compact alerts bar
 function UrgentBanner({ reminders, onView }) {
@@ -80,16 +83,40 @@ function UrgentBanner({ reminders, onView }) {
 
   if (count <= 0) return null;
   const overdueCount = actionable.filter(r => r.days < 0).length;
+  const isCritical = overdueCount > 0;
+  const palette = isCritical
+    ? {
+        bg: 'linear-gradient(135deg, #991B1B 0%, #DC2626 100%)',
+        border: '#FCA5A5',
+        title: '#FFFFFF',
+        subtitle: 'rgba(255,255,255,0.9)',
+        buttonBg: '#FFFFFF',
+        buttonText: '#991B1B',
+      }
+    : {
+        bg: 'linear-gradient(135deg, #B45309 0%, #F59E0B 100%)',
+        border: '#FDE68A',
+        title: '#FFFFFF',
+        subtitle: 'rgba(255,255,255,0.9)',
+        buttonBg: '#FFFFFF',
+        buttonText: '#92400E',
+      };
 
   return (
     <div
       className="mb-4 rounded-2xl border px-3 py-2.5 flex items-center justify-between gap-2"
-      style={{ background: '#FEF2F2', borderColor: '#FCA5A5' }}
+      style={{ background: palette.bg, borderColor: palette.border, boxShadow: '0 8px 20px rgba(0,0,0,0.14)' }}
       dir="rtl"
     >
       <div className="min-w-0">
-        <p className="text-sm font-black text-red-700 truncate">יש לך {count} התראות שדורשות טיפול ⚠️</p>
-        {overdueCount > 0 && <p className="text-[11px] text-red-600">מתוכן {overdueCount} באיחור</p>}
+        <p className="text-sm font-black truncate" style={{ color: palette.title }}>
+          יש לך {count} התראות שדורשות טיפול ⚠️
+        </p>
+        {overdueCount > 0 && (
+          <p className="text-[11px]" style={{ color: palette.subtitle }}>
+            מתוכן {overdueCount} באיחור
+          </p>
+        )}
       </div>
       <button
         type="button"
@@ -97,7 +124,8 @@ function UrgentBanner({ reminders, onView }) {
           logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'clicked');
           onView?.();
         }}
-        className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-black text-white bg-red-600 hover:bg-red-700 transition-colors"
+        className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-black transition-colors"
+        style={{ background: palette.buttonBg, color: palette.buttonText }}
       >
         צפה
       </button>
@@ -108,17 +136,17 @@ function UrgentBanner({ reminders, onView }) {
 function VehicleCheckHero({ hasVehicles, plate, onPlateChange, onSubmit, submitting }) {
   return (
     <section
-      className="rounded-3xl p-5 sm:p-6 mb-4 text-center border"
+      className="rounded-3xl p-3.5 sm:p-4 mb-2.5 text-center border"
       style={{ background: 'linear-gradient(180deg, #F3F9F4 0%, #FFFFFF 100%)', borderColor: '#D8E5D9' }}
       dir="rtl"
     >
-      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E8F2EA] text-[#2D5233] text-xs font-black mb-3">
+      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E8F2EA] text-[#2D5233] text-[10px] font-black mb-1.5">
         בדיקה חכמה תוך שניות
       </div>
-      <h1 className="font-black text-2xl sm:text-3xl text-[#1C2E20] mb-1.5">
+      <h1 className="font-black text-lg sm:text-xl text-[#1C2E20] mb-0.5">
         {hasVehicles ? 'רוצה לבדוק רכב נוסף?' : 'בדוק כל רכב תוך שניות'}
       </h1>
-      <p className="text-sm sm:text-base text-gray-600 mb-4">
+      <p className="text-[11px] sm:text-xs text-gray-600 mb-2.5">
         {hasVehicles
           ? 'הזן מספר רישוי וקבל את כל הפרטים תוך שניות'
           : 'הזן מספר רישוי וקבל דוח מלא כולל תובנות ופרטים'}
@@ -134,11 +162,11 @@ function VehicleCheckHero({ hasVehicles, plate, onPlateChange, onSubmit, submitt
         type="button"
         onClick={onSubmit}
         disabled={submitting}
-        className="mt-3 rounded-2xl px-6 py-2.5 text-sm font-black text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60"
+        className="mt-1.5 rounded-xl px-4 py-1.5 text-xs font-black text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60"
       >
-        {submitting ? 'מעביר...' : 'הפק דוח רכב'}
+        {submitting ? 'מעביר...' : 'בדוק עכשיו'}
       </button>
-      <p className="text-xs text-gray-500 mt-2">כולל דוח PDF מלא</p>
+      <p className="text-[10px] text-gray-500 mt-1">כולל דוח PDF מלא</p>
     </section>
   );
 }
@@ -770,17 +798,28 @@ export default function Dashboard() {
   const [profileMissing, setProfileMissing] = useState(false);
   const [quickCheckPlate, setQuickCheckPlate] = useState('');
   const [quickCheckSubmitting, setQuickCheckSubmitting] = useState(false);
+  const quickCheckAutoSubmittedRef = useRef(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const openQuickCheck = () => {
-    const normalized = normalizeQuickCheckPlateInput(quickCheckPlate);
-    if (normalized) {
-      try { sessionStorage.setItem(QUICK_CHECK_PREFILL_KEY, normalized); } catch {}
-    }
+  const openQuickCheck = (plateValue = quickCheckPlate) => {
+    const normalized = normalizeQuickCheckPlateInput(plateValue);
+    if (!isQuickCheckPlateReady(normalized)) return;
+    try { sessionStorage.setItem(QUICK_CHECK_PREFILL_KEY, normalized); } catch {}
     setQuickCheckSubmitting(true);
     navigate(createPageUrl('vehicle-check'));
   };
+
+  useEffect(() => {
+    const normalized = normalizeQuickCheckPlateInput(quickCheckPlate);
+    if (!isQuickCheckPlateReady(normalized)) {
+      quickCheckAutoSubmittedRef.current = false;
+      return;
+    }
+    if (quickCheckAutoSubmittedRef.current || quickCheckSubmitting) return;
+    quickCheckAutoSubmittedRef.current = true;
+    openQuickCheck(normalized);
+  }, [quickCheckPlate, quickCheckSubmitting]);
 
   // Pull-to-refresh
   const { pulling, progress } = usePullToRefresh(async () => {
