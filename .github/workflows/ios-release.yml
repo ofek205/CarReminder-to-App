@@ -53,19 +53,29 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Select Xcode 26.4 (stable, iOS 26.4 SDK)
-        # IMPORTANT: do NOT just pick "the highest 26.x" on this runner.
-        # macos-26 has Xcode 26.5 *beta* installed and exposes it via
-        # symlinks like /Applications/Xcode_26.5.app and Xcode_26.5.0.app
-        # whose own filenames do NOT contain "beta", so a naive
-        # `ls /Applications/Xcode_26*.app | grep -v beta | sort -V | tail -1`
-        # silently picks the beta. The beta's iOS 26.5 platform isn't
-        # fully provisioned for headless `xcodebuild archive` and fails:
-        #   "iOS 26.5 is not installed. Please download and install the
-        #    platform from Xcode > Settings > Components."
-        # Xcode 26.4 (which on this image symlinks to the real 26.4.1)
-        # ships with the iOS 26.4 SDK ready out of the box and satisfies
-        # Apple's "iOS 26 SDK or later" requirement for App Store uploads.
+      - name: Select Xcode 26.4 (stable, iOS 26.4 SDK) + pin DEVELOPER_DIR
+        # IMPORTANT: this step does THREE things, in order, and any of them
+        # failing must fail the whole job. Previous attempts only did
+        # `sudo xcode-select -s`, which the App Store altool then ignored
+        # — App Store Connect still rejected the upload because the IPA
+        # was built against the iOS 18.5 SDK (Xcode 16.4). That is only
+        # possible if either:
+        #   (a) the runner image has DEVELOPER_DIR pre-set to an older
+        #       Xcode and xcodebuild prefers DEVELOPER_DIR over xcode-select, or
+        #   (b) some apple-actions step earlier in the pipeline reset it.
+        # Either way, the bullet-proof fix is to set DEVELOPER_DIR in
+        # $GITHUB_ENV so EVERY subsequent step inherits it, then to
+        # actively assert that xcrun resolves iphoneos26.x before we
+        # waste time archiving.
+        #
+        # Runner trap to avoid: macos-26 has Xcode 26.5 *beta* exposed via
+        # symlinks like /Applications/Xcode_26.5.app whose own filename
+        # does NOT contain "beta". A naive
+        # `ls Xcode_26*.app | grep -v beta | sort -V | tail -1`
+        # silently picks the beta, and the beta's iOS 26.5 platform isn't
+        # fully provisioned for headless `xcodebuild archive`. Pin to 26.4
+        # explicitly — it ships with iOS 26.4 SDK, which is current Apple
+        # App Store-acceptable.
         run: |
           set -euo pipefail
           echo "=== All Xcode 26.x installs on this runner ==="
@@ -77,6 +87,10 @@ jobs:
               echo "  $app  (directory)"
             fi
           done
+          echo
+          echo "=== Inherited DEVELOPER_DIR (before our override) ==="
+          echo "DEVELOPER_DIR='${DEVELOPER_DIR:-<unset>}'"
+          echo "xcode-select -p (before): $(xcode-select -p 2>/dev/null || echo '<none>')"
           echo
 
           if [ -d /Applications/Xcode_26.4.app ]; then
@@ -91,15 +105,45 @@ jobs:
 
           echo "Selecting $XCODE_PATH"
           sudo xcode-select -s "$XCODE_PATH"
-          echo "=== xcode-select -p ==="
+
+          # Critical: export DEVELOPER_DIR for every subsequent step.
+          # xcodebuild prefers DEVELOPER_DIR over xcode-select when both
+          # are set; the runner image may set DEVELOPER_DIR by default,
+          # which would silently override our xcode-select choice.
+          DEV_DIR="$XCODE_PATH/Contents/Developer"
+          echo "DEVELOPER_DIR=$DEV_DIR" >> "$GITHUB_ENV"
+          export DEVELOPER_DIR="$DEV_DIR"
+
+          echo "=== xcode-select -p (after) ==="
           xcode-select -p
+          echo "=== DEVELOPER_DIR (after, exported) ==="
+          echo "$DEVELOPER_DIR"
           echo "=== xcodebuild -version ==="
           xcodebuild -version
           echo "=== xcrun iphoneos SDK ==="
-          xcrun --sdk iphoneos --show-sdk-version
-          xcrun --sdk iphoneos --show-sdk-platform-version
+          IPHONE_SDK="$(xcrun --sdk iphoneos --show-sdk-version)"
+          IPHONE_PLAT="$(xcrun --sdk iphoneos --show-sdk-platform-version)"
+          echo "iphoneos SDK version:      $IPHONE_SDK"
+          echo "iphoneos platform version: $IPHONE_PLAT"
           echo "=== xcodebuild -showsdks (iOS only) ==="
           xcodebuild -showsdks 2>/dev/null | grep -i iphoneos || true
+
+          # Hard assert: bail BEFORE archive if anything resolved to a
+          # non-26 SDK. Better to fail at minute 1 with a clear diagnostic
+          # than to fail at minute 4 during App Store upload validation
+          # with a cryptic "iOS 18.5 SDK" error after the IPA is already
+          # signed.
+          case "$IPHONE_SDK" in
+            26.*)
+              echo "OK: iOS SDK is $IPHONE_SDK — App Store accepts."
+              ;;
+            *)
+              echo "FATAL: iOS SDK resolved to '$IPHONE_SDK', expected 26.x."
+              echo "       App Store will reject this build."
+              echo "       xcode-select / DEVELOPER_DIR did not take effect."
+              exit 1
+              ;;
+          esac
 
       - name: Install dependencies
         run: npm ci
@@ -188,12 +232,24 @@ jobs:
         # Release configuration; we don't pass them via cmdline so they
         # only apply to App, not to the auto-generated Pods targets
         # (which don't accept provisioning profiles).
+        #
+        # `-sdk iphoneos` is passed explicitly so xcodebuild uses the
+        # iphoneos SDK from the active Xcode (26.4) and never silently
+        # picks an older one. Combined with the Select-Xcode step's
+        # DEVELOPER_DIR export this gives us two independent guarantees
+        # that the archive lands on iOS 26.4 SDK.
         run: |
+          set -euo pipefail
+          echo "Archive will use:"
+          echo "  DEVELOPER_DIR=${DEVELOPER_DIR:-<unset>}"
+          echo "  xcodebuild   =$(xcrun -f xcodebuild)"
+          echo "  iphoneos SDK =$(xcrun --sdk iphoneos --show-sdk-version)"
           xcodebuild \
             -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -archivePath $RUNNER_TEMP/App.xcarchive \
+            -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             archive
 
