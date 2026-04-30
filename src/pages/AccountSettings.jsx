@@ -9,6 +9,7 @@ import { Users, UserPlus, Copy, Trash2, Crown, Shield, User, Loader2, Share2, Ch
 import { toast } from "sonner";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
+import VehicleImage, { hasVehiclePhoto } from "../components/shared/VehicleImage";
 import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from "@/hooks/useAccountRole";
 import { canManage, isOwner, ROLE_INFO } from "@/lib/permissions";
@@ -758,8 +759,8 @@ function AuthAccountSettings({ embedded = false }) {
                             border: `1.5px solid ${selected ? '#4CAF50' : '#E5E7EB'}`,
                           }}>
                           <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-gray-100">
-                            {v.vehicle_photo ? (
-                              <img src={v.vehicle_photo} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                            {hasVehiclePhoto(v) ? (
+                              <VehicleImage vehicle={v} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
                                 <Car className="w-4 h-4 text-gray-400" />

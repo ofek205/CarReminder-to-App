@@ -1,7 +1,8 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
+import useFileUpload from '@/hooks/useFileUpload';
 import FirstTimeTour from '@/components/shared/FirstTimeTour';
 
 // Mini tour shown the first time a user lands on /AddVehicle with no
@@ -72,6 +73,12 @@ const EMPTY_FORM = {
   current_km: '',
   current_engine_hours: '',
   vehicle_photo: '',
+  // Sprint A.B-2: Storage path for the vehicle photo. Set when an
+  // authenticated user uploads a photo (vehicle_photo holds the
+  // current signed URL; storage_path lets readers refresh that URL
+  // after it expires). Stays empty for guests — they persist a
+  // base64 data: URL in vehicle_photo only, in localStorage.
+  vehicle_photo_storage_path: '',
   // Ownership history (auto-filled from gov.il during plate lookup;
   // never user-entered manually, but kept here so handleChange can
   // reset it if the user re-runs the lookup with a different plate).
@@ -172,6 +179,14 @@ export default function AddVehicle() {
   const [selectedMethod, setSelectedMethod] = useState(null); // null | 'plate' | 'scan' | 'manual'
   const [autofillFields, setAutofillFields] = useState(new Set());
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  // Sprint A.B-2: storage-backed photo upload for authenticated users.
+  // Guests don't get an accountId so the hook is effectively idle for them
+  // (handlePhoto branches into the guest base64 path before calling upload).
+  const { upload: uploadPhotoToStorage } = useFileUpload({
+    accountId,
+    mode: 'photo',
+    maxMB: 10,
+  });
   const formRef = useRef(null);
   // Submit guard — synchronous check prevents double-submit in the ~frame
   // window between button click and `saving` state commit. Without this,
@@ -335,22 +350,49 @@ export default function AddVehicle() {
     if (!file) return;
     const validation = validateUploadFile(file, 'photo', 10);
     if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
-    try {
-      // Shared compressor (WebP when supported, JPEG fallback) keeps the
-      // data URL small enough to store comfortably in the row.
-      const small = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.75 });
-      const base64 = await new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = (ev) => resolve(ev.target.result);
-        r.onerror = reject;
-        r.readAsDataURL(small);
-      });
-      setPhotoPreview(base64);
-      handleChange('vehicle_photo', base64);
-      toast.success('התמונה נטענה');
-    } catch (err) {
-      console.error('Photo load error:', err);
-      toast.error('שגיאה בטעינת התמונה');
+
+    // Sprint A.B-2: split the photo flow.
+    //   • Guests have no Supabase auth and persist everything to localStorage,
+    //     so they keep the legacy "compress + base64" path. The data: URL is
+    //     intentionally NOT written to the DB (there is no DB write for guest
+    //     vehicles), so the no-restricted-syntax rule's spirit is preserved.
+    //   • Authenticated users upload to Supabase Storage and persist BOTH the
+    //     resulting signed URL (for cheap immediate display) and the
+    //     storage_path (for re-signing when the URL expires after 7 days).
+    if (isGuest) {
+      try {
+        const small = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.75 });
+        const base64 = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = (ev) => resolve(ev.target.result);
+          r.onerror = reject;
+          // eslint-disable-next-line no-restricted-syntax -- guest vehicles never reach the DB; data: URL is stored in localStorage only.
+          r.readAsDataURL(small);
+        });
+        setPhotoPreview(base64);
+        handleChange('vehicle_photo', base64);
+        toast.success('התמונה נטענה');
+      } catch (err) {
+        console.error('Photo load error:', err);
+        toast.error('שגיאה בטעינת התמונה');
+      }
+    } else {
+      try {
+        const { fileUrl, storagePath } = await uploadPhotoToStorage(file);
+        setPhotoPreview(fileUrl);
+        // Update both fields together so they never drift out of sync —
+        // a row with storage_path but a stale vehicle_photo (or vice versa)
+        // produces broken images on read.
+        setForm(prev => ({
+          ...prev,
+          vehicle_photo: fileUrl,
+          vehicle_photo_storage_path: storagePath,
+        }));
+        toast.success('התמונה נטענה');
+      } catch (err) {
+        console.error('Photo upload error:', err);
+        toast.error(err?.message || 'שגיאה בהעלאת התמונה');
+      }
     }
     e.target.value = '';
   };
@@ -759,7 +801,7 @@ export default function AddVehicle() {
       // Only keep known DB columns - strip everything else
       const DB_COLUMNS = ['account_id','vehicle_type','manufacturer','model','year',
         'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
-        'current_km','current_engine_hours','vehicle_photo','fuel_type','is_vintage',
+        'current_km','current_engine_hours','vehicle_photo','vehicle_photo_storage_path','fuel_type','is_vintage',
         'last_tire_change_date','km_since_tire_change','tires_changed_count',
         'flag_country','marina','marina_abroad','engine_manufacturer','pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
         'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',

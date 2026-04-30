@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
 import { getVehicleVisual } from '@/lib/designTokens';
 import VehicleIcon from '../shared/VehicleIcon';
+import VehicleImage, { hasVehiclePhoto } from '../shared/VehicleImage';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import useFormDraft from '@/hooks/useFormDraft';
@@ -260,7 +261,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
            * and a one-line confirmation ("ברוך יענה מותאם לרכב הזה"). */}
           {vehicles && vehicles.length > 0 && (() => {
             const selTheme = selectedVehicle ? getVehicleVisual(selectedVehicle).theme : null;
-            const hasPhoto = !!selectedVehicle?.vehicle_photo;
+            const hasPhoto = hasVehiclePhoto(selectedVehicle);
             return (
               <div dir="rtl">
                 <button type="button" onClick={() => setPickerOpen(o => !o)}
@@ -277,7 +278,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                         <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 ring-2"
                           style={{ background: selTheme.light, ringColor: selTheme.primary }}>
                           {hasPhoto
-                            ? <img src={selectedVehicle.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                            ? <VehicleImage vehicle={selectedVehicle} alt="" className="w-full h-full object-cover" />
                             : <div className="w-full h-full flex items-center justify-center">
                                 <VehicleIcon vehicle={selectedVehicle} className="w-6 h-6" style={{ color: selTheme.primary }} />
                               </div>
@@ -341,14 +342,14 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                       {vehicles.map(v => {
                         const { theme } = getVehicleVisual(v);
                         const sel = linkedVehicleId === v.id;
-                        const vPhoto = !!v.vehicle_photo;
+                        const vPhoto = hasVehiclePhoto(v);
                         return (
                           <button type="button" key={v.id} onClick={() => { setLinkedVehicleId(v.id); setPickerOpen(false); }}
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all active:bg-gray-50 hover:bg-gray-50"
                             style={{ background: sel ? theme.light : 'transparent', border: sel ? `1.5px solid ${theme.primary}40` : '1.5px solid transparent' }}>
                             <div className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0" style={{ background: theme.light }}>
                               {vPhoto
-                                ? <img src={v.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                                ? <VehicleImage vehicle={v} alt="" className="w-full h-full object-cover" />
                                 : <VehicleIcon vehicle={v} className="w-4 h-4" style={{ color: theme.primary }} />}
                             </div>
                             <div className="flex-1 text-right min-w-0">

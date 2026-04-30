@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
+import useFileUpload from '@/hooks/useFileUpload';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { Input } from "@/components/ui/input";
@@ -57,6 +58,14 @@ export default function EditVehicle() {
   const [photoPreview, setPhotoPreview] = useState(null);
   const [form, setForm] = useState(null);
   const [accountId, setAccountId] = useState(null);
+  // Sprint A.B-2: storage-backed photo upload for authenticated users.
+  // Guests still use the legacy compress-then-base64 path inside handlePhoto;
+  // for them this hook is unused (handlePhoto branches before calling upload).
+  const { upload: uploadPhotoToStorage } = useFileUpload({
+    accountId,
+    mode: 'photo',
+    maxMB: 10,
+  });
   const [usageMetric, setUsageMetric] = useState('קילומטרים');
   const [tireQuestion, setTireQuestion] = useState(null);
   const [shipyardQuestion, setShipyardQuestion] = useState(null);
@@ -82,6 +91,11 @@ export default function EditVehicle() {
     current_km: v.current_km || '',
     current_engine_hours: v.current_engine_hours || '',
     vehicle_photo: v.vehicle_photo || '',
+    // Sprint A.B-2: Storage path for the vehicle photo. Pre-load from the
+    // existing row so a user who only edits, say, the nickname keeps their
+    // photo intact (the path is what lets the read-side refresh expired
+    // signed URLs). Empty for guest rows or pre-migration vehicles.
+    vehicle_photo_storage_path: v.vehicle_photo_storage_path || '',
     last_tire_change_date: v.last_tire_change_date || '',
     km_since_tire_change: v.km_since_tire_change || '',
     tires_changed_count: v.tires_changed_count || 4,
@@ -226,22 +240,49 @@ export default function EditVehicle() {
     if (!file) return;
     const validation = validateUploadFile(file, 'photo', 10);
     if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
-    try {
-      // Shared compressor. WebP when supported, JPEG fallback. Keeps the
-      // final data URL small so the row fits comfortably.
-      const small = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.75 });
-      const base64 = await new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = (ev) => resolve(ev.target.result);
-        r.onerror = reject;
-        r.readAsDataURL(small);
-      });
-      setPhotoPreview(base64);
-      handleChange('vehicle_photo', base64);
-      toast.success('התמונה נטענה');
-    } catch (err) {
-      console.error('Photo load error:', err);
-      toast.error('שגיאה בטעינת התמונה');
+
+    // Sprint A.B-2: split the photo flow.
+    //   • Guests have no Supabase auth and persist everything to localStorage,
+    //     so they keep the legacy "compress + base64" path. The data: URL is
+    //     intentionally NOT written to the DB (guests have no DB writes), so
+    //     the no-restricted-syntax rule's spirit is preserved.
+    //   • Authenticated users upload to Supabase Storage and persist BOTH the
+    //     resulting signed URL (for cheap immediate display) and the
+    //     storage_path (for re-signing when the URL expires after 7 days).
+    if (isGuest) {
+      try {
+        const small = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.75 });
+        const base64 = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = (ev) => resolve(ev.target.result);
+          r.onerror = reject;
+          // eslint-disable-next-line no-restricted-syntax -- guest vehicles never reach the DB; data: URL is stored in localStorage only.
+          r.readAsDataURL(small);
+        });
+        setPhotoPreview(base64);
+        handleChange('vehicle_photo', base64);
+        toast.success('התמונה נטענה');
+      } catch (err) {
+        console.error('Photo load error:', err);
+        toast.error('שגיאה בטעינת התמונה');
+      }
+    } else {
+      try {
+        const { fileUrl, storagePath } = await uploadPhotoToStorage(file);
+        setPhotoPreview(fileUrl);
+        // Update both fields together so they never drift out of sync —
+        // a row with storage_path but a stale vehicle_photo (or vice versa)
+        // produces broken images on read.
+        setForm(prev => ({
+          ...prev,
+          vehicle_photo: fileUrl,
+          vehicle_photo_storage_path: storagePath,
+        }));
+        toast.success('התמונה נטענה');
+      } catch (err) {
+        console.error('Photo upload error:', err);
+        toast.error(err?.message || 'שגיאה בהעלאת התמונה');
+      }
     }
     e.target.value = '';
   };
@@ -279,7 +320,7 @@ export default function EditVehicle() {
     // Only send columns that exist in Supabase
     const DB_COLUMNS = ['vehicle_type','manufacturer','model','year',
       'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
-      'current_km','current_engine_hours','vehicle_photo','fuel_type',
+      'current_km','current_engine_hours','vehicle_photo','vehicle_photo_storage_path','fuel_type',
       'last_tire_change_date','km_since_tire_change','tires_changed_count',
       'flag_country','marina','marina_abroad','engine_manufacturer',
       'pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
@@ -381,7 +422,7 @@ export default function EditVehicle() {
       try {
         const CORE = ['vehicle_type','manufacturer','model','year','nickname','license_plate',
           'test_due_date','insurance_due_date','insurance_company','current_km','current_engine_hours',
-          'vehicle_photo','fuel_type','is_vintage','last_tire_change_date','km_since_tire_change','tires_changed_count',
+          'vehicle_photo','vehicle_photo_storage_path','fuel_type','is_vintage','last_tire_change_date','km_since_tire_change','tires_changed_count',
           'flag_country','marina','marina_abroad','engine_manufacturer',
           'pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
           'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',

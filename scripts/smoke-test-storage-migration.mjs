@@ -82,6 +82,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 let userId, accountId, storagePath, docId;
+// declared up here so the cleanup block can always see them, even when the
+// vehicle phase throws partway through (we still want to remove the bucket
+// object and the half-inserted row).
+let vehStoragePathTracked = null;
+let vehId = null;
 let allGreen = true;
 
 try {
@@ -203,6 +208,71 @@ try {
     readBack.file_url.slice(0, 60) + '…'
   );
   if (!isNotBase64) allGreen = false;
+
+  // ============================================================
+  // Sprint A.B-2 — Vehicles flow (vehicle_photo + vehicle_photo_storage_path)
+  // ============================================================
+  console.log('\n[smoke] vehicles flow…');
+  vehStoragePathTracked = `scans/${userId}/${crypto.randomUUID()}-veh-${Date.now()}.png`;
+  const { error: vehUpErr } = await supabase.storage
+    .from(BUCKET)
+    .upload(vehStoragePathTracked, fileBuf, {
+      contentType: 'image/png',
+      cacheControl: '3600',
+      upsert: false,
+    });
+  if (vehUpErr) throw new Error(`vehicles storage.upload: ${vehUpErr.message}`);
+  record('vehicles: storage.upload to vehicle-files bucket', true, vehStoragePathTracked);
+
+  const { data: vehSigned, error: vehSignErr } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(vehStoragePathTracked, SIGNED_TTL);
+  if (vehSignErr) throw new Error(`vehicles createSignedUrl: ${vehSignErr.message}`);
+
+  // Insert a minimal vehicle row that mirrors what AddVehicle.jsx persists:
+  // vehicle_photo (signed URL, valid 7 days for instant display) AND
+  // vehicle_photo_storage_path (durable path for re-signing).
+  const vehRow = {
+    account_id: accountId,
+    vehicle_type: 'רכב',
+    nickname: `Sprint A.B-2 smoke ${new Date().toISOString().slice(0, 19)}`,
+    license_plate: `SMOKE${Math.floor(Math.random() * 1e8)}`,
+    vehicle_photo: vehSigned.signedUrl,
+    vehicle_photo_storage_path: vehStoragePathTracked,
+  };
+  const { data: vehInserted, error: vehInsErr } = await supabase
+    .from('vehicles')
+    .insert(vehRow)
+    .select('id, vehicle_photo, vehicle_photo_storage_path')
+    .single();
+  if (vehInsErr) throw new Error(`vehicles.insert: ${vehInsErr.message}`);
+  vehId = vehInserted.id;
+  const vehStoragePersisted = vehInserted.vehicle_photo_storage_path === vehStoragePathTracked;
+  record(
+    'vehicles row INSERT with vehicle_photo_storage_path column',
+    vehStoragePersisted,
+    `id=${vehInserted.id}`
+  );
+  if (!vehStoragePersisted) allGreen = false;
+
+  // Read back + refresh signed URL — mirrors what VehicleImage does on render.
+  const { data: vehReadBack, error: vehReadErr } = await supabase
+    .from('vehicles')
+    .select('id, vehicle_photo, vehicle_photo_storage_path')
+    .eq('id', vehInserted.id)
+    .single();
+  if (vehReadErr) throw new Error(`vehicles.select: ${vehReadErr.message}`);
+  const { data: vehSigned2, error: vehSign2Err } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(vehReadBack.vehicle_photo_storage_path, SIGNED_TTL);
+  if (vehSign2Err) throw new Error(`vehicles refresh createSignedUrl: ${vehSign2Err.message}`);
+  const vehFetch = await fetch(vehSigned2.signedUrl);
+  record(
+    'vehicles: VehicleImage flow (read row → refresh signed URL → fetch)',
+    vehFetch.ok,
+    `status=${vehFetch.status}`
+  );
+  if (!vehFetch.ok) allGreen = false;
 } catch (err) {
   allGreen = false;
   record('FATAL', false, err.message);
@@ -215,7 +285,15 @@ try {
   }
   if (storagePath) {
     const { error } = await supabase.storage.from(BUCKET).remove([storagePath]);
-    record('cleanup: remove storage object', !error, error ? error.message : storagePath);
+    record('cleanup: remove storage object (documents)', !error, error ? error.message : storagePath);
+  }
+  if (vehId) {
+    const { error } = await supabase.from('vehicles').delete().eq('id', vehId);
+    record('cleanup: delete vehicles row', !error, error ? error.message : `id=${vehId}`);
+  }
+  if (vehStoragePathTracked) {
+    const { error } = await supabase.storage.from(BUCKET).remove([vehStoragePathTracked]);
+    record('cleanup: remove storage object (vehicles)', !error, error ? error.message : vehStoragePathTracked);
   }
   await supabase.auth.signOut().catch(() => {});
 }

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -13,6 +13,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
+import VehicleImage, { hasVehiclePhoto } from "../components/shared/VehicleImage";
 
 // First-time walkthrough of the vehicle detail page (cars/motorcycles/etc).
 // Fires once per user the first time they open any non-vessel vehicle.
@@ -170,7 +171,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
   const vWord = vehicleWord(vehicle.vehicle_type, vehicle.nickname);
   const name = vehicle.nickname || [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ') || vWord;
   const subtitle = [vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' · ');
-  const hasPhoto = !!vehicle.vehicle_photo;
+  const hasPhoto = hasVehiclePhoto(vehicle);
 
   const handleDelete = () => {
     removeGuestVehicle(vehicleId);
@@ -210,7 +211,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
         {/* Photo / gradient */}
         <div className="relative" style={{ height: hasPhoto ? '220px' : '150px' }}>
           {hasPhoto ? (
-            <img src={vehicle.vehicle_photo} alt={name} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: '50% 55%' }} />
+            <VehicleImage vehicle={vehicle} alt={name} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: '50% 55%' }} />
           ) : (
             <div className="absolute inset-0" style={{ background: T.grad }} />
           )}
@@ -628,14 +629,14 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const name = vehicle.nickname || `${vehicle.manufacturer || ''} ${vehicle.model || ''}`.trim() || (isVessel ? 'כלי שייט' : 'רכב');
   const subtitle = [vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' · ');
-  const hasPhoto = !!vehicle.vehicle_photo;
+  const hasPhoto = hasVehiclePhoto(vehicle);
 
   return (
     <div className="-mx-4 -mt-4" dir="rtl">
       {/*  Hero Card  */}
       <div className="relative overflow-hidden" style={{ height: hasPhoto ? '220px' : '150px' }}>
         {hasPhoto ? (
-          <img src={vehicle.vehicle_photo} alt={name}
+          <VehicleImage vehicle={vehicle} alt={name}
             className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: '50% 55%' }} />
         ) : (
           <div className="absolute inset-0" style={{ background: T.grad }} />

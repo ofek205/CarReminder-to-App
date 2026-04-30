@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
+import VehicleImage, { hasVehiclePhoto } from "../components/shared/VehicleImage";
 import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
@@ -204,7 +205,7 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
   const model = vehicle.model || '';
   const detailUrl = `${createPageUrl('VehicleDetail')}?id=${vehicle.id}`;
 
-  const hasPhoto = !!vehicle.vehicle_photo;
+  const hasPhoto = hasVehiclePhoto(vehicle);
 
   return (
     <>
@@ -216,7 +217,7 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
         <div className="relative" style={{ height: '220px' }}>
           {/* Background */}
           {hasPhoto ? (
-            <img src={vehicle.vehicle_photo} alt={name}
+            <VehicleImage vehicle={vehicle} alt={name}
               loading="lazy" decoding="async"
               className="absolute inset-0 w-full h-full object-cover"
               style={{ objectPosition: '50% 55%' }} />
@@ -675,8 +676,8 @@ function VehicleRow({ vehicle }) {
         {/* Vehicle thumbnail */}
         <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0"
           style={{ background: T.light }}>
-          {vehicle.vehicle_photo ? (
-            <img src={vehicle.vehicle_photo} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+          {hasVehiclePhoto(vehicle) ? (
+            <VehicleImage vehicle={vehicle} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <VehicleIcon className="w-7 h-7" style={{ color: T.accent, opacity: 0.6 }} />

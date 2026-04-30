@@ -6,6 +6,7 @@ import { aiRequest } from '@/lib/aiProxy';
 import { hapticFeedback } from '@/lib/capacitor';
 import { C, getVehicleVisual } from '@/lib/designTokens';
 import VehicleIcon from '../components/shared/VehicleIcon';
+import VehicleImage, { hasVehiclePhoto } from '../components/shared/VehicleImage';
 import { isVessel, getDateStatus, getVehicleLabels } from '../components/shared/DateStatusUtils';
 import { getAiExpert } from '@/lib/aiExpert';
 import { Send, Wrench, Loader2, Sparkles, Trash2, AlertTriangle, Check, ChevronDown, X, Copy, RotateCcw, Info } from 'lucide-react';
@@ -541,7 +542,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
           <PopoverTrigger asChild>
             {(() => {
               const selTheme = selectedVehicle ? getVehicleVisual(selectedVehicle).theme : null;
-              const hasPhoto = !!selectedVehicle?.vehicle_photo;
+              const hasPhoto = hasVehiclePhoto(selectedVehicle);
               return (
                 <button className="w-full flex items-center justify-between p-3.5 rounded-2xl transition-all active:scale-[0.99] hover:shadow-md"
                   style={{
@@ -555,7 +556,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                         <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center shrink-0"
                           style={{ background: selTheme.light }}>
                           {hasPhoto
-                            ? <img src={selectedVehicle.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                            ? <VehicleImage vehicle={selectedVehicle} alt="" className="w-full h-full object-cover" />
                             : <VehicleIcon vehicle={selectedVehicle} className="w-6 h-6" style={{ color: selTheme.primary }} />}
                         </div>
                         <div className="text-right min-w-0">
@@ -622,14 +623,14 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
               {vehicles.map(v => {
                 const { theme } = getVehicleVisual(v);
                 const sel = selectedVehicleId === v.id;
-                const vPhoto = !!v.vehicle_photo;
+                const vPhoto = hasVehiclePhoto(v);
                 return (
                   <button key={v.id} onClick={() => { setSelectedVehicleId(v.id); setPickerOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all hover:bg-gray-50"
                     style={{ background: sel ? theme.light : 'transparent', border: sel ? `1.5px solid ${theme.primary}40` : '1.5px solid transparent' }}>
                     <div className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0" style={{ background: theme.light }}>
                       {vPhoto
-                        ? <img src={v.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                        ? <VehicleImage vehicle={v} alt="" className="w-full h-full object-cover" />
                         : <VehicleIcon vehicle={v} className="w-4 h-4" style={{ color: theme.primary }} />}
                     </div>
                     <div className="flex-1 text-right min-w-0">
