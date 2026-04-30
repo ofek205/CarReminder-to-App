@@ -29,6 +29,7 @@ import LicensePlate from '../components/shared/LicensePlate';
 import FirstTimeTour from '../components/shared/FirstTimeTour';
 import SharedIndicator from '@/components/sharing/SharedIndicator';
 import { Share2 } from 'lucide-react';
+import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 // Lazy-loaded — only mounts on first card-share-tap so we don't pull
 // the dialog + its 9 RPC bindings into the dashboard's first paint.
 const ShareVehicleDialog = React.lazy(() => import('@/components/sharing/ShareVehicleDialog'));
@@ -61,121 +62,84 @@ function daysLabel(days) {
   return `בעוד ${months} ${months === 1 ? 'חודש' : 'חודשים'}`;
 }
 
-//  Urgent Banner 
-function UrgentBanner({ reminders, vehicles }) {
-  const allReminders = reminders || [];
-  const withDays = allReminders
+const QUICK_CHECK_PREFILL_KEY = 'vehicle_quick_check_prefill_plate';
+function normalizeQuickCheckPlateInput(value) {
+  return String(value || '').replace(/\D/g, '').slice(0, 8);
+}
+
+//  Compact alerts bar
+function UrgentBanner({ reminders, onView }) {
+  const actionable = (reminders || [])
     .map(r => ({ ...r, days: daysUntil(r.date) }))
-    .filter(r => r.days !== null)
-    // Product rule: the banner is meant to prompt *action*, not inform about
-    // routine future events. Anything more than 30 days out isn't "coming
-    // soon" — surfacing it in a hero banner 2 months ahead is false urgency.
-    // Keep the item in the detailed list below where the user went looking,
-    // but don't hijack the top of the page for it.
-    .filter(r => r.days <= 30)
-    .sort((a, b) => a.days - b.days);
+    .filter(r => r.days !== null && r.days <= 30);
+  const count = actionable.length;
 
-  // Show the nearest upcoming reminder
-  const urgent = withDays[0];
-
-  // Log 'shown' once per mount when an urgent reminder exists. Has to be
-  // declared BEFORE the early-return so rules-of-hooks stays happy —
-  // the body is gated on `urgent` so it's a no-op when the banner is
-  // not actually rendered.
   useEffect(() => {
-    if (urgent) {
-      logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'shown');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- log once per mount
-  }, []);
+    if (count > 0) logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'shown');
+  }, [count]);
 
-  if (!urgent) return null;
-
-  const isExpired = urgent.days < 0;
-  const isDanger = !isExpired && urgent.days <= 14; // 0-14 days
-
-  const urgentVehicle = vehicles?.find(v => v.id === urgent.vehicle_id);
-  const isUrgentVessel = isVesselType(urgentVehicle?.vehicle_type, urgentVehicle?.nickname);
-  const vehicleName = urgentVehicle?.nickname || urgentVehicle?.manufacturer || '';
-  const T = getTheme(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
-
-  // Urgency palette. Kept intentionally narrow now that >30d is filtered out:
-  //   expired (< 0) → red hero + red "פג תוקף!" badge
-  //   danger  (0-14) → themed hero + red "דחוף" badge
-  //   else    (15-30) → themed hero + amber "בקרוב" badge
-  const urgencyConfig = isExpired ? {
-    badgeBg: '#FEF2F2', badgeColor: '#DC2626', badgeBorder: '#FECACA',
-    badgeIcon: AlertTriangle, badgeText: 'פג תוקף!',
-    bannerBg: 'linear-gradient(135deg, #991B1B 0%, #DC2626 100%)',
-    bannerShadow: 'rgba(153,27,27,0.4)',
-  } : isDanger ? {
-    badgeBg: '#FEF2F2', badgeColor: '#DC2626', badgeBorder: '#FECACA',
-    badgeIcon: AlertTriangle, badgeText: 'דחוף',
-    bannerBg: T.grad,
-    bannerShadow: `${T.primary}40`,
-  } : {
-    badgeBg: '#FFF8E1', badgeColor: '#D97706', badgeBorder: '#FDE68A',
-    badgeIcon: Clock, badgeText: 'בקרוב',
-    bannerBg: T.grad,
-    bannerShadow: `${T.primary}40`,
-  };
-
-  // Build vehicle type name for the banner (e.g. "הטרקטורון", "האופנוע", "הרכב")
-  const vType = urgentVehicle?.vehicle_type || '';
-  const vCat = getVehicleCategory(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
-  const vehicleTypeLabel = vCat === 'vessel' ? '' : vCat === 'motorcycle' ? 'האופנוע' : vCat === 'truck' ? 'המשאית' : vCat === 'offroad' ? ('ה' + (vType || 'כלי שטח')) : 'הרכב';
-
-  // Headline is the *action* required. the "expired" urgency is already
-  // communicated by the red badge above, so avoid repeating "פג תוקף" here.
-  const typeLabel = isExpired ? ({
-    insurance: isUrgentVessel ? 'חידוש ביטוח ימי נדרש' : 'חידוש ביטוח נדרש',
-    test:      isUrgentVessel ? 'חידוש כושר שייט נדרש' : `חידוש טסט ${vehicleTypeLabel} נדרש`,
-    maintenance: 'טיפול תקופתי נדרש',
-  }[urgent.type] || urgent.title) : ({
-    insurance: isUrgentVessel ? 'חידוש ביטוח ימי מתקרב' : 'חידוש ביטוח מתקרב',
-    test:      isUrgentVessel ? 'כושר שייט מתקרב' : `טסט ${vehicleTypeLabel} מתקרב`,
-    maintenance: 'טיפול תקופתי מתקרב',
-  }[urgent.type] || urgent.title);
-
-  const BadgeIcon = urgencyConfig.badgeIcon;
-
-  // (urgentBanner 'shown' impression is logged near the top of the
-  // function, BEFORE the `if (!urgent) return null;` guard, so React's
-  // rules-of-hooks stays satisfied. The body of that effect is gated
-  // on `urgent` so it's a no-op when there's nothing to render.)
+  if (count <= 0) return null;
+  const overdueCount = actionable.filter(r => r.days < 0).length;
 
   return (
-    <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
-      style={{ background: urgencyConfig.bannerBg, boxShadow: `0 8px 32px ${urgencyConfig.bannerShadow}` }}>
-      <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-      <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full" style={{ background: `${T.yellow}20` }} />
-
-      <div className="relative z-10">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5"
-            style={{ background: urgencyConfig.badgeBg, color: urgencyConfig.badgeColor, border: `1.5px solid ${urgencyConfig.badgeBorder}` }}>
-            <BadgeIcon className="w-3.5 h-3.5" />
-            {urgencyConfig.badgeText}
-          </span>
-        </div>
-        <h2 className="font-black text-[1.5rem] sm:text-2xl mb-1.5 leading-tight text-white" dir="rtl">
-          {typeLabel}
-        </h2>
-        {vehicleName && urgentVehicle && (
-          <Link to={`${createPageUrl('VehicleDetail')}?id=${urgentVehicle.id}`}
-            className="text-base font-semibold mb-5 block underline decoration-white/30 hover:decoration-white/60 transition-all" style={{ color: 'rgba(255,255,255,0.85)' }} dir="rtl">
-            {vehicleName} &bull; {daysLabel(urgent.days)}
-          </Link>
-        )}
-        <Link to={createPageUrl('Notifications')}
-          onClick={() => logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'clicked')}>
-          <button className="w-full py-3.5 rounded-2xl font-bold text-base transition-all active:scale-[0.98]"
-            style={{ background: T.yellow, color: T.primary }}>
-            צפה בתזכורות
-          </button>
-        </Link>
+    <div
+      className="mb-4 rounded-2xl border px-3 py-2.5 flex items-center justify-between gap-2"
+      style={{ background: '#FEF2F2', borderColor: '#FCA5A5' }}
+      dir="rtl"
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-black text-red-700 truncate">יש לך {count} התראות שדורשות טיפול ⚠️</p>
+        {overdueCount > 0 && <p className="text-[11px] text-red-600">מתוכן {overdueCount} באיחור</p>}
       </div>
+      <button
+        type="button"
+        onClick={() => {
+          logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'clicked');
+          onView?.();
+        }}
+        className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-black text-white bg-red-600 hover:bg-red-700 transition-colors"
+      >
+        צפה
+      </button>
     </div>
+  );
+}
+
+function VehicleCheckHero({ hasVehicles, plate, onPlateChange, onSubmit, submitting }) {
+  return (
+    <section
+      className="rounded-3xl p-5 sm:p-6 mb-4 text-center border"
+      style={{ background: 'linear-gradient(180deg, #F3F9F4 0%, #FFFFFF 100%)', borderColor: '#D8E5D9' }}
+      dir="rtl"
+    >
+      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E8F2EA] text-[#2D5233] text-xs font-black mb-3">
+        בדיקה חכמה תוך שניות
+      </div>
+      <h1 className="font-black text-2xl sm:text-3xl text-[#1C2E20] mb-1.5">
+        {hasVehicles ? 'רוצה לבדוק רכב נוסף?' : 'בדוק כל רכב תוך שניות'}
+      </h1>
+      <p className="text-sm sm:text-base text-gray-600 mb-4">
+        {hasVehicles
+          ? 'הזן מספר רישוי וקבל את כל הפרטים תוך שניות'
+          : 'הזן מספר רישוי וקבל דוח מלא כולל תובנות ופרטים'}
+      </p>
+      <VehicleCheckPlateInput
+        value={plate}
+        onChange={onPlateChange}
+        onEnter={onSubmit}
+        disabled={submitting}
+        compact
+      />
+      <button
+        type="button"
+        onClick={onSubmit}
+        disabled={submitting}
+        className="mt-3 rounded-2xl px-6 py-2.5 text-sm font-black text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60"
+      >
+        {submitting ? 'מעביר...' : 'הפק דוח רכב'}
+      </button>
+      <p className="text-xs text-gray-500 mt-2">כולל דוח PDF מלא</p>
+    </section>
   );
 }
 
@@ -804,8 +768,19 @@ export default function Dashboard() {
   const [showSignUp, setShowSignUp] = useState(false);
   const [showCompleteProfile, setShowCompleteProfile] = useState(false);
   const [profileMissing, setProfileMissing] = useState(false);
+  const [quickCheckPlate, setQuickCheckPlate] = useState('');
+  const [quickCheckSubmitting, setQuickCheckSubmitting] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  const openQuickCheck = () => {
+    const normalized = normalizeQuickCheckPlateInput(quickCheckPlate);
+    if (normalized) {
+      try { sessionStorage.setItem(QUICK_CHECK_PREFILL_KEY, normalized); } catch {}
+    }
+    setQuickCheckSubmitting(true);
+    navigate(createPageUrl('vehicle-check'));
+  };
 
   // Pull-to-refresh
   const { pulling, progress } = usePullToRefresh(async () => {
@@ -1049,9 +1024,20 @@ export default function Dashboard() {
           reason="כדי לשמור את הרכבים שלך לצמיתות ולגשת אליהם מכל מכשיר" />
 
         <div className="px-4 pt-6">
-
-          {/* Urgent banner */}
-          <UrgentBanner reminders={upcomingReminders} vehicles={vehiclesToShow} />
+          <VehicleCheckHero
+            hasVehicles={hasGuestVehicles}
+            plate={quickCheckPlate}
+            onPlateChange={setQuickCheckPlate}
+            onSubmit={openQuickCheck}
+            submitting={quickCheckSubmitting}
+          />
+          <UrgentBanner
+            reminders={upcomingReminders}
+            onView={() => {
+              const remindersTitle = document.getElementById('dashboard-reminders-title');
+              remindersTitle?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          />
 
           {/* Section header */}
           <div className="flex items-center justify-between mb-4" dir="rtl">
@@ -1096,7 +1082,7 @@ export default function Dashboard() {
           {/* Upcoming reminders */}
           {upcomingReminders.length > 0 && (
             <div>
-              <h2 className="font-black text-2xl mb-4" style={{ color: C.text }} dir="rtl">
+              <h2 id="dashboard-reminders-title" className="font-black text-2xl mb-4" style={{ color: C.text }} dir="rtl">
                 טיפולים קרובים
               </h2>
               <div>
@@ -1236,9 +1222,17 @@ export default function Dashboard() {
         return <FirstTimeTour enabled={shouldTour} />;
       })()}
       <div className="px-4 pt-6">
-
-        {/* Urgent banner - only if something is urgent */}
-        <UrgentBanner reminders={allReminders} vehicles={vehicles} />
+        <VehicleCheckHero
+          hasVehicles={vehicles.length > 0}
+          plate={quickCheckPlate}
+          onPlateChange={setQuickCheckPlate}
+          onSubmit={openQuickCheck}
+          submitting={quickCheckSubmitting}
+        />
+        <UrgentBanner
+          reminders={allReminders}
+          onView={() => navigate(createPageUrl('Notifications'))}
+        />
 
         {/* Header with vehicle count */}
         <div className="flex items-center justify-between mb-3" dir="rtl">
@@ -1329,7 +1323,7 @@ export default function Dashboard() {
             {/* Upcoming reminders from all vehicles */}
             {allReminders.length > 0 && (
               <div>
-                <h2 className="font-black text-2xl mb-4" style={{ color: C.text }} dir="rtl">
+                <h2 id="dashboard-reminders-title" className="font-black text-2xl mb-4" style={{ color: C.text }} dir="rtl">
                   תזכורות קרובות
                 </h2>
                 <div className="rounded-3xl px-4" style={{ background: C.card, border: `1px solid ${C.border}`, boxShadow: '0 2px 16px rgba(45,82,51,0.07)' }}>

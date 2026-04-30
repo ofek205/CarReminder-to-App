@@ -87,6 +87,7 @@ const navItems = [
   // ====================================================================
   { divider: true, title: 'אישי', businessOnly: true },
   { name: 'Dashboard',          label: 'דף הבית', icon: LayoutDashboard, guestAllowed: true, hideForBusinessDriver: true },
+  { name: 'vehicle-check',      label: 'בדוק רכב', icon: Car,             guestAllowed: true },
   { name: 'Vehicles',           label: 'רכבים',   icon: Car,             guestAllowed: true, hideForBusinessDriver: true },
   { name: 'Vehicles?category=vessel', label: 'כלי שייט', icon: Ship,    guestAllowed: true, vesselOnly: true, hideForBusinessDriver: true },
 
@@ -96,7 +97,6 @@ const navItems = [
   // noise without conveying structure.
   // ====================================================================
   { divider: true, title: 'תחזוקה' },
-  { name: 'vehicle-check',      label: 'בדיקת רכב', icon: Car,             guestAllowed: true },
   { name: 'MaintenanceTemplates', label: 'טיפולים', icon: Wrench,        guestAllowed: true },
   { name: 'Documents',          label: 'מסמכים',  icon: FileText,        guestAllowed: true },
   { name: 'Accidents',          label: 'תאונות',  icon: AlertTriangle,   guestAllowed: true },

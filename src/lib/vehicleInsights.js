@@ -322,5 +322,54 @@ export function generateVehicleInsights(vehicle = {}) {
     ));
   }
 
-  return insights;
+  // Curate to 3-4 high-value insights only. Goal: decision-impacting
+  // signals, not obvious/general info overload.
+  const isHighValue = (item) => {
+    if (!item) return false;
+    if (['inactive', 'test-expired', 'test-soon', 'missing-mileage', 'ownership-pattern', 'cme-certificate-missing'].includes(item.id)) return true;
+    if (item.id === 'mileage') return item.tone !== 'success';
+    if (item.id === 'ownership-hand') return item.tone === 'warning';
+    if (item.id === 'safety') return item.tone === 'warning';
+    if (item.id === 'personal-import') return true;
+    if (item.id === 'work-tool-hours') return true;
+    return false;
+  };
+
+  const priorityById = {
+    inactive: 100,
+    'test-expired': 96,
+    'test-soon': 84,
+    'cme-certificate-missing': 82,
+    'ownership-pattern': 80,
+    'missing-mileage': 78,
+    mileage: 76,
+    'ownership-hand': 74,
+    safety: 72,
+    'personal-import': 70,
+    'work-tool-hours': 68,
+    'decision-summary': 40,
+    'detected-type': 30,
+  };
+  const toneWeight = { danger: 10, warning: 6, info: 2, success: 0 };
+
+  const selected = insights.filter(isHighValue);
+
+  // If data is sparse, backfill with concise context cards.
+  if (selected.length < 3) {
+    const fallback = insights.filter(item =>
+      ['decision-summary', 'detected-type', 'tow-capability'].includes(item.id)
+    );
+    fallback.forEach(item => {
+      if (selected.find(s => s.id === item.id)) return;
+      selected.push(item);
+    });
+  }
+
+  selected.sort((a, b) => {
+    const pa = (priorityById[a.id] || 0) + (toneWeight[a.tone] || 0);
+    const pb = (priorityById[b.id] || 0) + (toneWeight[b.tone] || 0);
+    return pb - pa;
+  });
+
+  return selected.slice(0, 4);
 }

@@ -28,6 +28,7 @@ import {
 } from '@/services/vehicleQuickCheck';
 import { C } from '@/lib/designTokens';
 import { OwnershipHistoryPanel } from '@/components/vehicle/VehicleInfoSection';
+import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 
 const loadingMessages = [
   'בודקים נתוני רישוי...',
@@ -51,6 +52,7 @@ const toneIcons = {
 };
 
 const reportDisclaimer = 'המידע בדוח נמשך ממאגרי משרד התחבורה וממקורות מידע ציבוריים זמינים. ייתכנו פערים, עיכובים או חוסרים בנתונים, ולכן יש לקחת את המידע בערבון מוגבל ולא להסתמך עליו כתחליף לבדיקה מקצועית או משפטית.';
+const QUICK_CHECK_PREFILL_KEY = 'vehicle_quick_check_prefill_plate';
 
 export default function VehicleCheck() {
   const navigate = useNavigate();
@@ -72,6 +74,15 @@ export default function VehicleCheck() {
   const validation = useMemo(() => validateQuickCheckPlate(plate), [plate]);
 
   useEffect(() => {
+    try {
+      const prefilledPlate = sessionStorage.getItem(QUICK_CHECK_PREFILL_KEY);
+      if (prefilledPlate) {
+        setPlate(normalizeQuickCheckPlate(prefilledPlate).slice(0, 8));
+        sessionStorage.removeItem(QUICK_CHECK_PREFILL_KEY);
+        return;
+      }
+    } catch {}
+
     const restored = readLastQuickCheckResult();
     if (restored) {
       setResult(restored);
@@ -217,7 +228,7 @@ export default function VehicleCheck() {
 
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">
               <div>
-                <LicensePlateInput
+                <VehicleCheckPlateInput
                   value={plate}
                   onChange={handlePlateChange}
                   onEnter={search}
@@ -291,28 +302,6 @@ function Header({ isAuthenticated }) {
           התחברות / הרשמה
         </button>
       )}
-    </div>
-  );
-}
-
-function LicensePlateInput({ value, onChange, onEnter, disabled }) {
-  return (
-    <div className="relative rounded-2xl border-2 border-[#1A3A5C] bg-[#FFBF00] shadow-lg overflow-hidden" dir="ltr">
-      <div className="absolute inset-y-0 left-0 w-12 bg-[#1A3A5C] flex flex-col items-center justify-center gap-1">
-        <span className="text-white text-[10px] font-black">IL</span>
-        <span className="w-5 h-3 bg-white rounded-sm" />
-      </div>
-      <input
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') onEnter?.(); }}
-        inputMode="numeric"
-        autoComplete="off"
-        placeholder="12345678"
-        aria-label="מספר רישוי"
-        className="w-full h-14 pl-14 pr-4 bg-transparent text-center text-2xl font-black tracking-[0.18em] text-[#1A1A1A] placeholder:text-black/25 outline-none disabled:opacity-60"
-      />
     </div>
   );
 }

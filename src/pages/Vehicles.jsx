@@ -102,9 +102,12 @@ const CATEGORY_TABS = [
 
 //  Sort Options 
 const SORT_OPTIONS = [
+  { key: 'newest', label: 'מהחדש לישן' },
   { key: 'name',   label: 'שם' },
+  { key: 'type',   label: 'סוג' },
   { key: 'status', label: 'סטטוס' },
   { key: 'year',   label: 'שנת ייצור' },
+  { key: 'updated', label: 'עודכן לאחרונה' },
 ];
 
 const STATUS_ORDER = { overdue: 0, soon: 1, ok: 2 };
@@ -296,7 +299,21 @@ function VehiclesContent({ vehicles, isLoading }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeCategoryTab, setActiveCategoryTab] = useState('all');
-  const [sortBy, setSortBy] = useState('name');
+  // Keep sorting aligned with Dashboard (same defaults + option keys).
+  const [sortBy, setSortBy] = useState(() => {
+    try {
+      return localStorage.getItem('cr_dashboard_sort') || localStorage.getItem('cr_vehicles_sort') || 'newest';
+    } catch {
+      return 'newest';
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('cr_vehicles_sort', sortBy);
+      // Shared key so Dashboard/Vehicles/כלי שייט keep the same selected mode.
+      localStorage.setItem('cr_dashboard_sort', sortBy);
+    } catch {}
+  }, [sortBy]);
   // null | 'overdue' | 'soon'. driven by the two clickable badges above the list.
   const [statusFilter, setStatusFilter] = useState(null);
 
@@ -364,6 +381,20 @@ function VehiclesContent({ vehicles, isLoading }) {
     result.sort((a, b) => {
       const va = a.vehicle, vb = b.vehicle;
       switch (sortBy) {
+        case 'newest':
+          return new Date(vb.created_at || vb.created_date || 0) - new Date(va.created_at || va.created_date || 0);
+        case 'updated':
+          return new Date(vb.updated_at || vb.created_at || vb.created_date || 0) -
+                 new Date(va.updated_at || va.created_at || va.created_date || 0);
+        case 'type': {
+          const typeA = String(va.vehicle_type || 'רכב');
+          const typeB = String(vb.vehicle_type || 'רכב');
+          const byType = typeA.localeCompare(typeB, 'he');
+          if (byType !== 0) return byType;
+          const nameA = String(va.nickname || va.manufacturer || '');
+          const nameB = String(vb.nickname || vb.manufacturer || '');
+          return nameA.localeCompare(nameB, 'he');
+        }
         case 'status':
           return (STATUS_ORDER[a.status] ?? 2) - (STATUS_ORDER[b.status] ?? 2);
         case 'year':
