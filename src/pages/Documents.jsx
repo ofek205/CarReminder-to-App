@@ -1041,19 +1041,22 @@ function AuthDocuments({ vehicleIdParam }) {
       console.info('[Documents.save] authUser=%s accountId=%s role=%s status=%s',
         authUser.id, accountId, myMember.role, myMember.status);
 
-      // Only keep known DB columns. The form has a `description` field that
-      // the DB stores as `notes`. map it explicitly so the user's notes
-      // aren't silently dropped during save.
+      // Only keep known DB columns. The form field is `description`, which
+      // matches the DB column 1:1 — no remapping needed.
+      // (Historical note: an earlier version mapped `description` → `notes`
+      // on the assumption the DB column was named `notes`. That column does
+      // NOT exist in this schema; PostgREST rejected every save where the
+      // user populated the description field. Removed during Sprint A.B-1
+      // smoke testing — caught by an end-to-end insert that wrote to `notes`
+      // and got back: "Could not find the 'notes' column of 'documents'".)
       // Sprint A.B: `storage_path` is now persisted alongside `file_url` so
       // the document viewer can refresh expired signed URLs without losing
       // track of the underlying Storage object.
-      const DOC_COLUMNS = ['document_type','title','issue_date','expiry_date','vehicle_id','file_url','storage_path','notes'];
+      const DOC_COLUMNS = ['document_type','title','issue_date','expiry_date','vehicle_id','file_url','storage_path','description'];
       const data = { account_id: accountId };
       DOC_COLUMNS.forEach(k => {
         if (form[k] !== undefined && form[k] !== null && form[k] !== '') data[k] = form[k];
       });
-      // Map form.description → DB column `notes`
-      if (form.description && !data.notes) data.notes = form.description;
 
       const created = await db.documents.create(data);
       if (!created) throw new Error('שמירה נכשלה');
