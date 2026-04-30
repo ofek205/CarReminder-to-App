@@ -25,6 +25,19 @@
 --   prod:     §1 → §2 → §3 → §4 → run migration script → §6
 --   later:    §5 (lock new base64 inserts), then §7 (drop old data)
 --
+-- ----------------------------------------------------------------------------
+-- 2026-04-30 audit finding (excluded from this migration):
+--   public.maintenance_logs has NO photo/image column. The screen
+--   `MaintenanceSection.jsx` (line 161, `row.receipt_photo = receiptPhoto`)
+--   tries to write to a column that does not exist. PostgREST silently
+--   drops or rejects the field on insert — receipts are never persisted.
+--   That is a separate bug, NOT part of Sprint A.
+--   All maintenance_logs branches have been removed from §1, §2, §3,
+--   §6, §7, §8 below to keep this script runnable. maintenance_logs is
+--   still listed in §1.7 / §6.7 size summaries because those are
+--   read-only informational queries that don't fail.
+-- ----------------------------------------------------------------------------
+--
 -- ============================================================================
 
 
@@ -87,15 +100,7 @@ SELECT
                           FILTER (WHERE other_driver_insurance_photo LIKE 'data:%'), 0))    AS base64_bytes
 FROM public.accidents;
 
--- 1.5 — maintenance_logs.receipt_photo
-SELECT
-  'maintenance_logs.receipt_photo'                                          AS source,
-  COUNT(*)                                                                  AS total_rows,
-  COUNT(*) FILTER (WHERE receipt_photo LIKE 'data:%')                       AS base64_rows,
-  COUNT(*) FILTER (WHERE receipt_photo LIKE 'https://%')                    AS https_rows,
-  pg_size_pretty(COALESCE(SUM(octet_length(receipt_photo))
-                          FILTER (WHERE receipt_photo LIKE 'data:%'), 0))   AS base64_bytes
-FROM public.maintenance_logs;
+-- 1.5 — REMOVED: maintenance_logs has no photo column (see header note).
 
 -- 1.6 — community_posts.image_url
 SELECT
@@ -144,8 +149,9 @@ ALTER TABLE public.accidents
 ALTER TABLE public.accidents
   ADD COLUMN IF NOT EXISTS other_driver_insurance_photo_storage_path TEXT;
 
-ALTER TABLE public.maintenance_logs
-  ADD COLUMN IF NOT EXISTS receipt_photo_storage_path TEXT;
+-- maintenance_logs is intentionally NOT altered here — its source column
+-- doesn't exist (see header note). Leaving it untouched until the bug is
+-- triaged in a separate sprint.
 
 ALTER TABLE public.community_posts
   ADD COLUMN IF NOT EXISTS image_storage_path TEXT;
@@ -156,7 +162,7 @@ COMMENT ON COLUMN public.documents.storage_path                                 
 COMMENT ON COLUMN public.vehicles.vehicle_photo_storage_path                         IS 'Sprint A: path inside the vehicle-files Storage bucket. Replaces base64 in vehicle_photo.';
 COMMENT ON COLUMN public.accidents.photo_storage_paths                               IS 'Sprint A: storage paths matched by index to the photos[] array.';
 COMMENT ON COLUMN public.accidents.other_driver_insurance_photo_storage_path         IS 'Sprint A: path inside the vehicle-files Storage bucket.';
-COMMENT ON COLUMN public.maintenance_logs.receipt_photo_storage_path                 IS 'Sprint A: path inside the vehicle-files Storage bucket.';
+-- maintenance_logs.receipt_photo_storage_path COMMENT removed — column not added (see header note).
 COMMENT ON COLUMN public.community_posts.image_storage_path                          IS 'Sprint A: path inside the vehicle-files Storage bucket.';
 
 
@@ -184,9 +190,7 @@ CREATE INDEX IF NOT EXISTS accidents_base64_insurance_pending_idx
 -- accidents.photos[] doesn't get a partial index — it's a JSONB array and
 -- needs a row-by-row scan during migration. The migration script paginates.
 
-CREATE INDEX IF NOT EXISTS maintenance_logs_base64_pending_idx
-  ON public.maintenance_logs (id)
-  WHERE receipt_photo LIKE 'data:%' AND receipt_photo_storage_path IS NULL;
+-- maintenance_logs index removed — source column doesn't exist (see header).
 
 CREATE INDEX IF NOT EXISTS community_posts_base64_pending_idx
   ON public.community_posts (id)
@@ -245,10 +249,7 @@ ORDER BY tablename;
 --   ADD CONSTRAINT accidents_insurance_photo_not_base64
 --   CHECK (other_driver_insurance_photo IS NULL OR other_driver_insurance_photo NOT LIKE 'data:%');
 --
--- COMMENTED:
--- ALTER TABLE public.maintenance_logs
---   ADD CONSTRAINT maintenance_logs_receipt_photo_not_base64
---   CHECK (receipt_photo IS NULL OR receipt_photo NOT LIKE 'data:%');
+-- maintenance_logs CHECK constraint removed — column doesn't exist (see header note).
 --
 -- COMMENTED:
 -- ALTER TABLE public.community_posts
@@ -310,11 +311,7 @@ SELECT
   COUNT(*) FILTER (WHERE other_driver_insurance_photo LIKE 'https://%' AND other_driver_insurance_photo_storage_path IS NOT NULL) AS migrated
 FROM public.accidents;
 
--- 6.5 — maintenance_logs
-SELECT
-  COUNT(*) FILTER (WHERE receipt_photo LIKE 'data:%' AND receipt_photo_storage_path IS NULL)        AS base64_pending,
-  COUNT(*) FILTER (WHERE receipt_photo LIKE 'https://%' AND receipt_photo_storage_path IS NOT NULL) AS migrated
-FROM public.maintenance_logs;
+-- 6.5 — REMOVED: maintenance_logs has no photo column (see header note).
 
 -- 6.6 — community_posts
 SELECT
@@ -380,11 +377,7 @@ ORDER BY pg_total_relation_size(relid) DESC;
 --   WHERE other_driver_insurance_photo LIKE 'data:%'
 --     AND other_driver_insurance_photo_storage_path IS NOT NULL;
 
--- 7.5 — maintenance_logs
--- COMMENTED:
--- UPDATE public.maintenance_logs
---   SET receipt_photo = NULL
---   WHERE receipt_photo LIKE 'data:%' AND receipt_photo_storage_path IS NOT NULL;
+-- 7.5 — REMOVED: maintenance_logs has no photo column (see header note).
 
 -- 7.6 — community_posts
 -- COMMENTED:
@@ -397,7 +390,6 @@ ORDER BY pg_total_relation_size(relid) DESC;
 -- DROP INDEX IF EXISTS public.documents_base64_pending_idx;
 -- DROP INDEX IF EXISTS public.vehicles_base64_pending_idx;
 -- DROP INDEX IF EXISTS public.accidents_base64_insurance_pending_idx;
--- DROP INDEX IF EXISTS public.maintenance_logs_base64_pending_idx;
 -- DROP INDEX IF EXISTS public.community_posts_base64_pending_idx;
 
 -- 7.8 — Reclaim disk. PG only releases space to the OS after VACUUM FULL.
@@ -406,7 +398,6 @@ ORDER BY pg_total_relation_size(relid) DESC;
 -- VACUUM FULL ANALYZE public.documents;
 -- VACUUM FULL ANALYZE public.vehicles;
 -- VACUUM FULL ANALYZE public.accidents;
--- VACUUM FULL ANALYZE public.maintenance_logs;
 -- VACUUM FULL ANALYZE public.community_posts;
 
 
@@ -423,11 +414,9 @@ ORDER BY pg_total_relation_size(relid) DESC;
 -- ALTER TABLE public.vehicles           DROP COLUMN IF EXISTS vehicle_photo_storage_path;
 -- ALTER TABLE public.accidents          DROP COLUMN IF EXISTS photo_storage_paths;
 -- ALTER TABLE public.accidents          DROP COLUMN IF EXISTS other_driver_insurance_photo_storage_path;
--- ALTER TABLE public.maintenance_logs   DROP COLUMN IF EXISTS receipt_photo_storage_path;
 -- ALTER TABLE public.community_posts    DROP COLUMN IF EXISTS image_storage_path;
 
 -- DROP INDEX IF EXISTS public.documents_base64_pending_idx;
 -- DROP INDEX IF EXISTS public.vehicles_base64_pending_idx;
 -- DROP INDEX IF EXISTS public.accidents_base64_insurance_pending_idx;
--- DROP INDEX IF EXISTS public.maintenance_logs_base64_pending_idx;
 -- DROP INDEX IF EXISTS public.community_posts_base64_pending_idx;

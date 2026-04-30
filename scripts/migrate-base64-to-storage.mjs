@@ -13,8 +13,13 @@
  *   • vehicles.vehicle_photo                     → vehicles.vehicle_photo_storage_path
  *   • accidents.photos[] (JSONB array)           → accidents.photo_storage_paths (TEXT[])
  *   • accidents.other_driver_insurance_photo     → accidents.other_driver_insurance_photo_storage_path
- *   • maintenance_logs.receipt_photo             → maintenance_logs.receipt_photo_storage_path
  *   • community_posts.image_url                  → community_posts.image_storage_path
+ *
+ * NOT covered: maintenance_logs.
+ *   2026-04-30 audit found that the `receipt_photo` column referenced by
+ *   the UI does not actually exist in the production schema. That's a
+ *   separate latent bug, tracked outside Sprint A. Keeping this script
+ *   focused on real migrations only.
  *
  * Prerequisites:
  *   1. Run §2 (SCHEMA) and §3 (INDEXES) of supabase-base64-to-storage-migration.sql
@@ -385,72 +390,6 @@ async function migrateAccidentsPhotos() {
   }
 }
 
-/**
- * maintenance_logs has no account_id column — only vehicle_id. We need
- * the account_id to satisfy Storage RLS (first folder must be account_id).
- * PostgREST's `vehicles!inner(account_id)` syntax pulls the FK-joined
- * account_id in a single round-trip.
- */
-async function migrateMaintenanceLogs() {
-  const source = 'maintenance_logs.receipt_photo';
-  console.log(`\n=== ${source} ===`);
-  let from = 0;
-  while (true) {
-    const { data: rows, error } = await supabase
-      .from('maintenance_logs')
-      .select('id, receipt_photo, receipt_photo_storage_path, vehicles!inner(account_id)')
-      .like('receipt_photo', 'data:%')
-      .is('receipt_photo_storage_path', null)
-      .order('id', { ascending: true })
-      .range(from, from + ARGS.batch - 1);
-
-    if (error) throw new Error(`select(${source}): ${error.message}`);
-    if (!rows || rows.length === 0) break;
-
-    for (const row of rows) {
-      bump(source, 'scanned');
-      const decoded = decodeDataUrl(row.receipt_photo);
-      if (!decoded) {
-        console.warn(`  [skip] ${source} id=${row.id} — could not decode base64`);
-        bump(source, 'skipped');
-        continue;
-      }
-      const accountId = row.vehicles?.account_id;
-      if (!accountId) {
-        console.warn(`  [skip] ${source} id=${row.id} — missing parent vehicle account_id`);
-        bump(source, 'skipped');
-        continue;
-      }
-      if (ARGS.dryRun) {
-        bump(source, 'migrated');
-        bump(source, 'bytesUploaded', decoded.bytes.length);
-        continue;
-      }
-      try {
-        const { storage_path, signed_url } = await uploadDecoded({
-          ownerFolder: String(accountId),
-          subFolder: 'migrated-maintenance',
-          rowId: row.id,
-          contentType: decoded.contentType,
-          bytes: decoded.bytes,
-        });
-        const { error: upErr } = await supabase
-          .from('maintenance_logs')
-          .update({ receipt_photo: signed_url, receipt_photo_storage_path: storage_path })
-          .eq('id', row.id);
-        if (upErr) throw upErr;
-        bump(source, 'migrated');
-        bump(source, 'bytesUploaded', decoded.bytes.length);
-      } catch (err) {
-        console.error(`  [fail] ${source} id=${row.id}: ${err.message}`);
-        bump(source, 'failed');
-      }
-    }
-    from += rows.length;
-    if (rows.length < ARGS.batch) break;
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Source registry. To add a new source, append an entry here. Done.
 // ---------------------------------------------------------------------------
@@ -472,10 +411,7 @@ const SOURCES = {
     ownerCol: 'account_id', subFolder: 'migrated-accidents-insurance',
   }),
   accidents_photos: () => migrateAccidentsPhotos(),
-  // maintenance_logs has no account_id column. We need to enrich with the
-  // account_id from the parent vehicle. PostgREST's foreign-key embed makes
-  // this a single round-trip via select=...,vehicles!inner(account_id).
-  maintenance_logs: () => migrateMaintenanceLogs(),
+  // maintenance_logs intentionally NOT included — see header doc.
   // community_posts is user-scoped. Existing Storage RLS allows
   // scans/{user_id}/... so we use that prefix.
   community_posts: () => migrateSingleColumn({
