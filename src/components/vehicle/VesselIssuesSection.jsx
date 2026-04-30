@@ -396,7 +396,7 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
             <Anchor className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-black text-sm" style={{ color: M.text }}>תקלות ופגמים</h3>
+            <h3 className="font-bold text-sm" style={{ color: M.text }}>תקלות ופגמים</h3>
             <p className="text-[11px] font-medium" style={{ color: '#6B9EA8' }}>
               {counts.open > 0 ? `${counts.open} פתוחים` : 'אין תקלות פתוחות'}
               {counts['in-progress'] > 0 && ` · ${counts['in-progress']} בטיפול`}

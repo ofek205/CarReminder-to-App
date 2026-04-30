@@ -102,7 +102,7 @@ export default function ChecklistHistory() {
           style={{ background: THEME.grad, boxShadow: '0 8px 24px rgba(12,123,147,0.25)' }}>
           <div className="flex items-center gap-2">
             <HistoryIcon className="w-5 h-5" />
-            <h1 className="text-xl font-black">היסטוריית בדיקות</h1>
+            <h1 className="text-xl font-bold">היסטוריית בדיקות</h1>
           </div>
           <p className="text-xs mt-1 opacity-80">
             עד 90 הימים האחרונים. רשומות ישנות יותר נמחקות אוטומטית.

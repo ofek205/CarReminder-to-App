@@ -149,7 +149,7 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
           <button onClick={onClose} className="flex items-center gap-1 px-3 h-9 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100">
             <ArrowRight className="w-3.5 h-3.5" /> חזרה
           </button>
-          <h2 className="text-base font-black text-gray-900">
+          <h2 className="text-base font-bold text-gray-900">
             {popup ? `עריכה: ${popup.name}` : 'פופ-אפ חדש'}
           </h2>
         </div>

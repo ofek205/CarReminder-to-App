@@ -711,7 +711,7 @@ export default function Reports() {
                   <li key={v.vehicle_id}>
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <span className="text-[10px] font-black text-gray-400 shrink-0 w-3 text-center">{i + 1}</span>
+                        <span className="text-[10px] font-bold text-gray-400 shrink-0 w-3 text-center">{i + 1}</span>
                         <VehicleLabel
                           vehicle={vehicleById[v.vehicle_id]}
                           size="sm"
@@ -882,7 +882,7 @@ function KpiCard({ icon, label, value, sub, tone, delta, onClick, highlighted })
         {icon}
         {label}
       </div>
-      <p className="text-base font-black text-gray-900 leading-tight truncate" title={typeof value === 'string' ? value : undefined}>
+      <p className="text-base font-bold text-gray-900 leading-tight truncate" title={typeof value === 'string' ? value : undefined}>
         {value}
       </p>
       {sub && <p className="text-[10px] text-gray-500 mt-0.5 truncate" title={sub}>{sub}</p>}
@@ -902,7 +902,7 @@ function ChartTooltip({ active, payload, label }) {
       className="bg-white rounded-lg border border-gray-200 shadow-md text-[11px] px-3 py-2 min-w-[140px]"
     >
       <p className="font-bold text-gray-900 mb-1">{label}</p>
-      <p className="text-[#2D5233] font-black mb-1.5 border-b border-gray-100 pb-1.5">
+      <p className="text-[#2D5233] font-bold mb-1.5 border-b border-gray-100 pb-1.5">
         סה״כ {fmtMoney(total)}
       </p>
       <ul className="space-y-0.5">

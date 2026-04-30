@@ -133,7 +133,7 @@ export default function AdminPopupsTab() {
       {/*  Toolbar */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-baseline gap-4">
-          <h2 className="text-lg font-black text-gray-900">🔔 ניהול פופ-אפים</h2>
+          <h2 className="text-lg font-bold text-gray-900">🔔 ניהול פופ-אפים</h2>
           <p className="text-xs text-gray-500">
             {totals.active} פעילים · {totals.draft} טיוטות · {totals.shownToday} הוצגו ב-7 ימים אחרונים
           </p>

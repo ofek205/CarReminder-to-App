@@ -223,7 +223,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
               <div className="flex items-center gap-2">
                 <DomainIcon className="w-4 h-4 text-white opacity-90" />
-                <h2 className="text-lg font-black text-white">
+                <h2 className="text-lg font-bold text-white">
                   {domain === 'vessel' ? 'פוסט חדש - כלי שייט' : 'פוסט חדש - רכבים'}
                 </h2>
               </div>
@@ -285,7 +285,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                           }
                         </div>
                         <div className="text-right min-w-0">
-                          <p className="text-[14px] font-black truncate" style={{ color: '#111827' }}>
+                          <p className="text-[14px] font-bold truncate" style={{ color: '#111827' }}>
                             {selectedVehicle.nickname || `${selectedVehicle.manufacturer || ''} ${selectedVehicle.model || ''}`.trim()}
                           </p>
                           <p className="text-[11px] font-bold flex items-center gap-1 mt-0.5" style={{ color: selTheme.primary }}>
@@ -300,7 +300,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                           <Sparkles className="w-6 h-6 text-white" />
                         </div>
                         <div className="text-right">
-                          <p className="text-[14px] font-black" style={{ color: '#111827' }}>
+                          <p className="text-[14px] font-bold" style={{ color: '#111827' }}>
                             התייעץ על כלי תחבורה ספציפי
                           </p>
                           <p className="text-[11px] font-semibold mt-0.5" style={{ color: T.primary }}>
@@ -533,7 +533,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
         {/*  Bottom submit button. bold gradient with shimmer  */}
         <div className="px-4 pb-4 pt-2">
           <button onClick={handleSubmit} disabled={!isValid || saving}
-            className="w-full py-4 rounded-2xl font-black text-base transition-all active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"
+            className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"
             style={{
               background: isValid ? (T.grad || T.primary) : '#E5E7EB',
               color: isValid ? '#fff' : '#9CA3AF',

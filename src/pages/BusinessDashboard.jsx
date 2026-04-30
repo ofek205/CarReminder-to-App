@@ -30,7 +30,7 @@ import { createPageUrl } from '@/utils';
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
-  const diff = new Date(dateStr) - new Date();
+  const diff = new Date(dateStr).getTime() - new Date().getTime();
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
@@ -45,7 +45,7 @@ const fmtTimeShort = (ts) => {
   if (!ts) return '';
   const d = new Date(ts);
   const now = new Date();
-  const diffMin = Math.floor((now - d) / 60000);
+  const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
   const diffHr  = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHr / 24);
   if (diffMin < 1)   return 'הרגע';
@@ -160,7 +160,10 @@ export default function BusinessDashboard() {
         .eq('account_id', accountId)
         .eq('status', 'issue');
       if (error) throw error;
-      return (data || []).filter(s => s.route?.status !== 'completed');
+      return (data || []).filter((s) => {
+        const routeRow = Array.isArray(s.route) ? s.route[0] : s.route;
+        return routeRow?.status !== 'completed';
+      });
     },
     enabled, staleTime: 60 * 1000,
   });
@@ -236,8 +239,9 @@ export default function BusinessDashboard() {
   const overdueVehicles = useMemo(() => {
     return vehicles
       .map(v => {
-        const testD = daysUntil(v.test_due_date);
-        const insD  = daysUntil(v.insurance_due_date);
+        const vehicle = /** @type {any} */ (v);
+        const testD = daysUntil(vehicle.test_due_date);
+        const insD  = daysUntil(vehicle.insurance_due_date);
         const worst = Math.min(testD ?? 999, insD ?? 999);
         return { v, worst, testD, insD };
       })
@@ -304,10 +308,10 @@ export default function BusinessDashboard() {
 
       {/* ── Quick Actions ────────────────────────────────────────── */}
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-        <QuickAction icon={<Plus className="h-3.5 w-3.5" />}     label="משימה חדשה"    to={createPageUrl('CreateRoute')} primary />
+        <QuickAction icon={<Plus className="h-3.5 w-3.5" />}     label="צור משימה"     to={createPageUrl('CreateRoute')} primary />
         <QuickAction icon={<Truck className="h-3.5 w-3.5" />}    label="הוסף רכב"      to={createPageUrl('AddVehicle')} />
-        <QuickAction icon={<Users className="h-3.5 w-3.5" />}    label="נהגים"         to={createPageUrl('Drivers')} />
-        <QuickAction icon={<Receipt className="h-3.5 w-3.5" />}  label="הוצאה חדשה"   to={createPageUrl('Expenses')} />
+        <QuickAction icon={<Users className="h-3.5 w-3.5" />}    label="נהל נהגים"     to={createPageUrl('Drivers')} />
+        <QuickAction icon={<Receipt className="h-3.5 w-3.5" />}  label="הוסף הוצאה"    to={createPageUrl('Expenses')} />
       </div>
 
       {/* ── KPI Cards ────────────────────────────────────────────── */}
@@ -414,7 +418,7 @@ export default function BusinessDashboard() {
               to={createPageUrl('ActivityLog')}
               className="text-[11px] font-bold text-[#2D5233] flex items-center gap-0.5"
             >
-              ראה הכל
+              לכל הפעילות
               <ArrowLeft className="h-3 w-3" />
             </Link>
           </div>
@@ -454,7 +458,7 @@ export default function BusinessDashboard() {
 
 // ---------- subcomponents --------------------------------------------
 
-function QuickAction({ icon, label, to, primary }) {
+function QuickAction({ icon, label, to, primary = false }) {
   return (
     <Link
       to={to}
@@ -470,7 +474,7 @@ function QuickAction({ icon, label, to, primary }) {
   );
 }
 
-function Kpi({ icon, label, value, sub, delta, to, tone = 'primary' }) {
+function Kpi({ icon, label, value, sub = null, delta = null, to, tone = 'primary' }) {
   const iconWrap = {
     primary: 'bg-[#E8F2EA] text-[#2D5233]',
     danger:  'bg-red-50    text-red-600',
@@ -498,7 +502,7 @@ function Kpi({ icon, label, value, sub, delta, to, tone = 'primary' }) {
   return to ? <Link to={to}>{inner}</Link> : inner;
 }
 
-function HealthCard({ tone, icon, title, sub, to }) {
+function HealthCard({ tone, icon, title, sub, to = null }) {
   const wrap = {
     green:  'bg-gradient-to-l from-green-50 to-white border-green-100',
     yellow: 'bg-gradient-to-l from-yellow-50 to-white border-yellow-100',
@@ -531,7 +535,7 @@ function HealthCard({ tone, icon, title, sub, to }) {
   );
 }
 
-function SectionHeader({ icon, title, tight }) {
+function SectionHeader({ icon, title, tight = false }) {
   return (
     <div className={`flex items-center gap-2 ${tight ? '' : 'mb-3'}`}>
       {icon}
@@ -578,7 +582,7 @@ function buildAttentionItems({ overdueCount, soonCount, openIssuesCount, monthDe
   return items;
 }
 
-function Empty({ icon, title, text }) {
+function Empty({ icon = null, title = null, text }) {
   return (
     <div dir="rtl" className="max-w-md mx-auto py-16">
       <div className="text-center px-6">

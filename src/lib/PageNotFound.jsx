@@ -20,7 +20,7 @@ export default function PageNotFound({}) {
             <div className="max-w-md w-full text-center">
                 {/* Friendly 404 */}
                 <div className="text-8xl mb-4" role="img" aria-label="page not found">🔍</div>
-                <h1 className="text-2xl font-black mb-2" style={{ color: '#1C2E20' }}>
+                <h1 className="text-2xl font-bold mb-2" style={{ color: '#1C2E20' }}>
                     העמוד לא נמצא
                 </h1>
                 <p className="text-sm mb-2" style={{ color: '#6B7280' }}>

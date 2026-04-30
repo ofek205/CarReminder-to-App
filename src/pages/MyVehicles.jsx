@@ -172,7 +172,7 @@ export default function MyVehicles() {
           <span className="text-[11px] font-bold opacity-90 truncate">{workspaceName}</span>
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/20">נהג</span>
         </div>
-        <h1 className="text-xl font-black truncate">
+        <h1 className="text-xl font-bold truncate">
           {driverName ? `שלום ${driverName}` : 'שלום'} 👋
         </h1>
         <p className="text-[11px] opacity-85 mt-1">

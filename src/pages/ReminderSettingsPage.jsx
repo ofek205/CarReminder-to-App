@@ -96,7 +96,7 @@ function GuestReminderSettings({ embedded = false }) {
         style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
         <span className="text-lg">🔒</span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-black" style={{ color: '#92400E' }}>הגדרות זמניות</p>
+          <p className="text-sm font-bold" style={{ color: '#92400E' }}>הגדרות זמניות</p>
           <p className="text-xs" style={{ color: '#B45309' }}>
             נשמרות במכשיר בלבד.{' '}
             <button onClick={() => window.location.href = '/Auth'} className="underline font-bold">הירשם לשמירה קבועה</button>
@@ -112,7 +112,7 @@ function GuestReminderSettings({ embedded = false }) {
             <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: '#FFF8E1' }}>
               <span className="text-2xl">🔒</span>
             </div>
-            <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
+            <h2 className="text-lg font-bold text-gray-900">הירשם כדי לשמור</h2>
             <p className="text-sm" style={{ color: '#6B7280' }}>
               הרשמה בחינם - ותוכל לשמור הגדרות, לקבל תזכורות אמיתיות ולגשת מכל מכשיר
             </p>
@@ -286,7 +286,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
               <Bell className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="font-black text-xl text-white">הגדרות התראות</h1>
+              <h1 className="font-bold text-xl text-white">הגדרות התראות</h1>
               <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
                 בחר מה ומתי לקבל התראות
               </p>
@@ -365,7 +365,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
                         value={form[cat.timing] ?? ''}
                         onChange={e => setForm(f => ({ ...f, [cat.timing]: e.target.value }))}
                         dir="ltr"
-                        className="w-14 h-9 text-center font-black text-sm rounded-lg outline-none focus:ring-2 focus:ring-[#3A7D44]/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-14 h-9 text-center font-bold text-sm rounded-lg outline-none focus:ring-2 focus:ring-[#3A7D44]/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         style={{ background: '#fff', color: '#2D5233', border: '1.5px solid #BBF7D0' }}
                       />
                       <span className="text-[11px] font-bold" style={{ color: '#166534' }}>ימים לפני</span>
@@ -396,7 +396,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
             value={form.overdue_repeat_every_days ?? ''}
             onChange={e => setForm(f => ({ ...f, overdue_repeat_every_days: e.target.value }))}
             dir="ltr"
-            className="w-14 h-10 text-center font-black text-base rounded-xl outline-none focus:ring-2 focus:ring-orange-300 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            className="w-14 h-10 text-center font-bold text-base rounded-xl outline-none focus:ring-2 focus:ring-orange-300 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             style={{ background: '#fff', color: '#9A3412', border: '1.5px solid #FED7AA' }}
           />
           <span className="text-xs font-bold" style={{ color: '#9A3412' }}>ימים</span>

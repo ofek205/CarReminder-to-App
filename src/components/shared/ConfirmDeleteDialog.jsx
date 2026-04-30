@@ -49,7 +49,7 @@ export default function ConfirmDeleteDialog({
               style={{ letterSpacing: '0.25em', color: 'rgba(255,255,255,0.85)' }}>
               פעולה סופית
             </p>
-            <AlertDialogTitle className="text-center text-xl font-black text-white leading-tight">
+            <AlertDialogTitle className="text-center text-xl font-bold text-white leading-tight">
               {title}
             </AlertDialogTitle>
           </AlertDialogHeader>
@@ -70,7 +70,7 @@ export default function ConfirmDeleteDialog({
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={onConfirm}
-              className="w-full m-0 text-white font-extrabold transition-all active:translate-y-px"
+              className="w-full m-0 text-white font-bold transition-all active:translate-y-px"
               style={{
                 height: 52, borderRadius: 16,
                 background: 'linear-gradient(135deg, #B91C1C 0%, #DC2626 100%)',

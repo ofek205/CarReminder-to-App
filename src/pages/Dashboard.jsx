@@ -109,8 +109,8 @@ function UrgentBanner({ reminders, onView }) {
       dir="rtl"
     >
       <div className="min-w-0">
-        <p className="text-sm font-black truncate" style={{ color: palette.title }}>
-          יש לך {count} התראות שדורשות טיפול ⚠️
+        <p className="text-sm font-bold truncate" style={{ color: palette.title }}>
+          יש לך {count} התראות שדורשות טיפול
         </p>
         {overdueCount > 0 && (
           <p className="text-[11px]" style={{ color: palette.subtitle }}>
@@ -124,7 +124,7 @@ function UrgentBanner({ reminders, onView }) {
           logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'clicked');
           onView?.();
         }}
-        className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-black transition-colors"
+        className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors"
         style={{ background: palette.buttonBg, color: palette.buttonText }}
       >
         צפה
@@ -140,10 +140,10 @@ function VehicleCheckHero({ hasVehicles, plate, onPlateChange, onSubmit, submitt
       style={{ background: 'linear-gradient(180deg, #F3F9F4 0%, #FFFFFF 100%)', borderColor: '#D8E5D9' }}
       dir="rtl"
     >
-      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F2EA] text-[#2D5233] text-[11px] font-black mb-1.5">
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F2EA] text-[#2D5233] text-[11px] font-bold mb-1.5">
         בדיקה חכמה תוך שניות
       </div>
-      <h1 className="font-black text-lg sm:text-xl text-[#1C2E20] mb-0.5">
+      <h1 className="font-bold text-lg sm:text-xl text-[#1C2E20] mb-0.5">
         {hasVehicles ? 'הזן מספר רישוי וקבל את פרטי הרכב תוך שניות' : 'בדוק כל רכב תוך שניות'}
       </h1>
       <p className="text-[11px] sm:text-xs text-gray-600 mb-2.5">
@@ -162,7 +162,7 @@ function VehicleCheckHero({ hasVehicles, plate, onPlateChange, onSubmit, submitt
         type="button"
         onClick={onSubmit}
         disabled={submitting}
-        className="mt-1.5 rounded-xl px-4 py-1.5 text-xs font-black text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60"
+        className="mt-1.5 rounded-xl px-4 py-1.5 text-xs font-bold text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60"
       >
         {submitting ? 'מעביר...' : 'בדוק רכב'}
       </button>
@@ -234,12 +234,12 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
           {/* Demo / Guest badge */}
           {(isDemo || isGuestVehicle) && (
             <div className="absolute top-4 left-4 z-10">
-              <span className="text-xs font-black px-3 py-1.5 rounded-full backdrop-blur-md flex items-center gap-1"
+              <span className="text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-md flex items-center gap-1"
                 style={isDemo
                   ? { background: '#FFBF00', color: '#92400E', boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }
                   : { background: 'rgba(255,255,255,0.9)', color: '#2D5233', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }
                 }>
-                {isDemo ? '👀 לדוגמה' : '💾 שמור זמנית'}
+                {isDemo ? 'לדוגמה' : 'שמור זמנית'}
               </span>
             </div>
           )}
@@ -283,7 +283,7 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
 
           {/* Vehicle name on image */}
           <div className="absolute bottom-4 right-4 left-4 z-10" dir="rtl">
-            <h3 className="font-black text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+            <h3 className="font-bold text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
               {name}
             </h3>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -316,7 +316,7 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
           ].map((stat, i) => (
             <div key={i} className={`py-4 px-3 text-center ${i < 2 ? 'border-l' : ''}`}
               style={{ borderColor: T.border }}>
-              <p className="font-black text-base sm:text-lg" style={{ color: T.text }}>{stat.value}</p>
+              <p className="font-bold text-base sm:text-lg" style={{ color: T.text }}>{stat.value}</p>
               <p className="text-sm mt-1 font-bold" style={{ color: T.muted }}>{stat.label}</p>
             </div>
           ))}
@@ -361,7 +361,7 @@ function InfoTile({ icon: Icon, label, value, status }) {
       </div>
       <div dir="rtl" className="relative z-10">
         <p className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.8)' }}>{label}</p>
-        <p className="font-black text-lg mt-1 text-white">{value}</p>
+        <p className="font-bold text-lg mt-1 text-white">{value}</p>
       </div>
     </div>
   );
@@ -473,7 +473,7 @@ function StatusSummary({ vehicles }) {
               className="rounded-2xl py-3 px-2 flex flex-col items-center gap-1.5 transition-transform active:scale-[0.97] disabled:cursor-default"
               style={{ background: item.bg, opacity: clickable ? 1 : 0.7 }}>
               <div className="flex items-center gap-1.5">
-                <span className="font-black text-2xl" style={{ color: item.color }}>{item.count}</span>
+                <span className="font-bold text-2xl" style={{ color: item.color }}>{item.count}</span>
                 <item.icon className="w-5 h-5" style={{ color: item.color }} />
               </div>
               <span className="text-xs font-bold" style={{ color: item.color }}>{item.label}</span>
@@ -536,7 +536,7 @@ function StatusDrilldownDialog({ open, status, rows, onClose }) {
         <div className="px-4 pr-14 py-3.5 flex items-center gap-2 border-b"
           style={{ background: meta.bg, borderColor: meta.color + '20' }}>
           <Icon className="w-5 h-5 shrink-0" style={{ color: meta.color }} />
-          <p className="font-black text-[15px] leading-tight" style={{ color: meta.color }}>{meta.title}</p>
+          <p className="font-bold text-[15px] leading-tight" style={{ color: meta.color }}>{meta.title}</p>
           <span className="mr-auto text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0"
             style={{ color: meta.color, background: '#fff' }}>
             {rows.length}
@@ -678,7 +678,7 @@ function VehicleRow({ vehicle }) {
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <h3 className="font-extrabold text-base truncate" style={{ color: T.text }}>{name}</h3>
+          <h3 className="font-bold text-base truncate" style={{ color: T.text }}>{name}</h3>
           <p className="text-sm mt-0.5 truncate font-medium" style={{ color: T.muted }}>{subtitle}</p>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             {isHoursVehicle ? (
@@ -1067,9 +1067,9 @@ export default function Dashboard() {
 
           {/* Section header */}
           <div className="flex items-center justify-between mb-4" dir="rtl">
-            <h2 className="font-black text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
+            <h2 className="font-bold text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
             <Link to={createPageUrl('Vehicles')}
-              className="flex items-center gap-1 text-base font-extrabold" style={{ color: C.green }}>
+              className="flex items-center gap-1 text-base font-bold" style={{ color: C.green }}>
               ניהול <ChevronLeft className="w-4 h-4" />
             </Link>
           </div>
@@ -1081,10 +1081,10 @@ export default function Dashboard() {
               <div className="flex items-center gap-3" dir="rtl">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                   style={{ background: '#FFBF00' }}>
-                  <span className="text-lg">👀</span>
+                  <Car className="w-5 h-5" style={{ color: '#92400E' }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black" style={{ color: '#92400E' }}>אלו רכבים לדוגמה בלבד</p>
+                  <p className="text-sm font-bold" style={{ color: '#92400E' }}>אלו רכבים לדוגמה בלבד</p>
                   <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>כך ייראה המסך שלך - הוסף את כלי התחבורה האמיתי שלך</p>
                 </div>
               </div>
@@ -1108,7 +1108,7 @@ export default function Dashboard() {
           {/* Upcoming reminders */}
           {upcomingReminders.length > 0 && (
             <div>
-              <h2 id="dashboard-reminders-title" className="font-black text-2xl mb-4" style={{ color: C.text }} dir="rtl">
+              <h2 id="dashboard-reminders-title" className="font-bold text-2xl mb-4" style={{ color: C.text }} dir="rtl">
                 טיפולים קרובים
               </h2>
               <div>
@@ -1263,7 +1263,7 @@ export default function Dashboard() {
         {/* Header with vehicle count */}
         <div className="flex items-center justify-between mb-3" dir="rtl">
           <div>
-            <h2 className="font-black text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
+            <h2 className="font-bold text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
           </div>
           <Link to={createPageUrl('Vehicles')}
             className="flex items-center gap-1 text-sm font-bold" style={{ color: C.green }}>
@@ -1349,7 +1349,7 @@ export default function Dashboard() {
             {/* Upcoming reminders from all vehicles */}
             {allReminders.length > 0 && (
               <div>
-                <h2 id="dashboard-reminders-title" className="font-black text-2xl mb-4" style={{ color: C.text }} dir="rtl">
+                <h2 id="dashboard-reminders-title" className="font-bold text-2xl mb-4" style={{ color: C.text }} dir="rtl">
                   תזכורות קרובות
                 </h2>
                 <div className="rounded-3xl px-4" style={{ background: C.card, border: `1px solid ${C.border}`, boxShadow: '0 2px 16px rgba(45,82,51,0.07)' }}>

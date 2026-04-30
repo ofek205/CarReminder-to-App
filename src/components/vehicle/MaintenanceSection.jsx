@@ -196,7 +196,7 @@ export default function MaintenanceSection({ vehicle }) {
         <div className="flex items-center justify-between px-4 py-3" style={{ background: T.light }}>
           <div className="flex items-center gap-2 flex-wrap">
             <Wrench className="w-4 h-4" style={{ color: T.primary }} />
-            <span className="text-sm font-black" style={{ color: T.text }}>טיפולים ותיקונים</span>
+            <span className="text-sm font-bold" style={{ color: T.text }}>טיפולים ותיקונים</span>
             {(() => {
               // Split the combined count into two badges so users can see at
               // a glance how many are maintenance vs accident-level repairs.

@@ -327,7 +327,7 @@ function HeroKpi({ icon: Icon, label, value, delta, deltaUnit = '%', deltaLabel,
       </div>
       <div>
         <p className="text-[12px] font-semibold text-gray-500 leading-tight">{label}</p>
-        <p className="text-3xl font-black text-gray-900 mt-1 tabular-nums leading-none">
+        <p className="text-3xl font-bold text-gray-900 mt-1 tabular-nums leading-none">
           {typeof value === 'number' ? value.toLocaleString() : value}
         </p>
         <p className="text-[10px] text-gray-400 mt-1.5 leading-tight">
@@ -1753,7 +1753,7 @@ function InsightCard({ label, value, sub, delta, deltaSuffix = '%', tone = 'blue
         <p className="text-[11px] font-bold text-gray-500">{label}</p>
         <span className="w-1.5 h-1.5 rounded-full mt-1" style={{ background: t.dot }} />
       </div>
-      <p className="text-2xl font-black text-gray-900 tracking-tight">{value}</p>
+      <p className="text-2xl font-bold text-gray-900 tracking-tight">{value}</p>
       <div className="flex items-center justify-between gap-2 mt-2">
         {sub && <p className="text-[10px] text-gray-400 truncate">{sub}</p>}
         {hasDelta && (
@@ -1779,7 +1779,7 @@ function StatPill({ label, value, tone = 'blue' }) {
   return (
     <div className={`rounded-xl border px-3 py-2 ${bg}`}>
       <p className="text-[10px] font-bold opacity-80">{label}</p>
-      <p className="text-lg font-black leading-tight">{value}</p>
+      <p className="text-lg font-bold leading-tight">{value}</p>
     </div>
   );
 }

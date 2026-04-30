@@ -324,7 +324,7 @@ export default function AddAccident() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </div>
           </Link>
-          <h1 className="text-lg font-black text-white">
+          <h1 className="text-lg font-bold text-white">
             {isDemo ? 'תאונה לדוגמה' : isEdit ? 'עריכת תאונה' : 'תיעוד תאונה חדשה'}
           </h1>
         </div>
@@ -681,7 +681,7 @@ export default function AddAccident() {
             <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: '#FFF8E1' }}>
               <span className="text-2xl">🔒</span>
             </div>
-            <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
+            <h2 className="text-lg font-bold text-gray-900">הירשם כדי לשמור</h2>
             <p className="text-sm" style={{ color: '#6B7280' }}>
               הרשמה בחינם - ותוכל לתעד תאונות, לשמור תמונות ולגשת מכל מכשיר
             </p>

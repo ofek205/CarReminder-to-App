@@ -5,39 +5,40 @@ import { createPageUrl } from "@/utils";
 import { C } from '@/lib/designTokens';
 
 export default function PageHeader({ title, subtitle, backPage, actions, icon: Icon, gradient }) {
-  const grad = gradient || C.grad;
+  const isGradient = Boolean(gradient);
+  const bg = gradient || C.card;
+  const titleColor = isGradient ? '#FFFFFF' : C.text;
+  const subtitleColor = isGradient ? 'rgba(255,255,255,0.75)' : C.muted;
+  const chipBg = isGradient ? 'rgba(255,255,255,0.2)' : C.light;
+  const iconColor = isGradient ? '#FFFFFF' : C.primary;
 
   return (
-    <div className="rounded-3xl p-4 mb-5 relative overflow-hidden" dir="rtl"
-      style={{ background: grad, boxShadow: `0 4px 20px rgba(0,0,0,0.12)` }}>
-      {/* Decorative circles */}
-      <div className="absolute -top-10 -left-10 w-36 h-36 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-      <div className="absolute -bottom-6 -right-6 w-24 h-24 rounded-full" style={{ background: 'rgba(255,191,0,0.1)' }} />
-
-      <div className="relative z-10">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            {backPage && (
-              <Link to={createPageUrl(backPage)}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors"
-                  style={{ background: 'rgba(255,255,255,0.2)' }}>
-                  <ArrowRight className="h-4 w-4 text-white" />
-                </div>
-              </Link>
-            )}
-            {Icon && !backPage && (
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: 'rgba(255,255,255,0.2)' }}>
-                <Icon className="h-5 w-5 text-white" />
+    <div
+      className="rounded-3xl p-4 mb-5 border"
+      dir="rtl"
+      style={{ background: bg, borderColor: C.border, boxShadow: '0 2px 12px rgba(45,82,51,0.08)' }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {backPage && (
+            <Link to={createPageUrl(backPage)}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors"
+                style={{ background: chipBg }}>
+                <ArrowRight className="h-4 w-4" style={{ color: iconColor }} />
               </div>
-            )}
-            <div className="min-w-0">
-              <h1 className="text-lg font-black text-white truncate">{title}</h1>
-              {subtitle && <p className="text-[11px] font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.7)' }}>{subtitle}</p>}
+            </Link>
+          )}
+          {Icon && !backPage && (
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: chipBg }}>
+              <Icon className="h-5 w-5" style={{ color: iconColor }} />
             </div>
+          )}
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold truncate" style={{ color: titleColor }}>{title}</h1>
+            {subtitle && <p className="text-[11px] font-medium mt-0.5" style={{ color: subtitleColor }}>{subtitle}</p>}
           </div>
-          {actions && <div className="flex items-center gap-2 flex-wrap shrink-0">{actions}</div>}
         </div>
+        {actions && <div className="flex items-center gap-2 flex-wrap shrink-0">{actions}</div>}
       </div>
     </div>
   );

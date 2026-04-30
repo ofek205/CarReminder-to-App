@@ -87,7 +87,7 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-lg font-black" style={{ color: M.text }}>
+          <DialogTitle className="text-lg font-bold" style={{ color: M.text }}>
             {issue ? 'עריכת תקלה' : 'תקלה חדשה'}
           </DialogTitle>
         </DialogHeader>

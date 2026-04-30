@@ -195,7 +195,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-black flex items-center gap-2">
+          <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <Share2 className="w-5 h-5" style={{ color: C.primary }} />
             שיתוף הרכב {vehicleName}
           </DialogTitle>

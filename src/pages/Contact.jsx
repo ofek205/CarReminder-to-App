@@ -82,7 +82,7 @@ export default function Contact() {
             style={{ background: C.grad }}>
             <CheckCircle2 className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-2xl font-black mb-2" style={{ color: C.text }}>ההודעה נשלחה!</h1>
+          <h1 className="text-2xl font-bold mb-2" style={{ color: C.text }}>ההודעה נשלחה!</h1>
           <p className="text-sm" style={{ color: C.muted }}>נחזור אליך בהקדם האפשרי.</p>
         </div>
       </div>
@@ -101,7 +101,7 @@ export default function Contact() {
             <MessageSquare className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white">צור קשר</h1>
+            <h1 className="text-xl font-bold text-white">צור קשר</h1>
             <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
               יש לך שאלה, הערה, או בקשה? נשמח לשמוע
             </p>
@@ -153,7 +153,7 @@ export default function Contact() {
         </div>
 
         <button type="submit" disabled={saving}
-          className="w-full h-14 rounded-2xl font-black text-base flex items-center justify-center gap-2.5 transition-all active:scale-95 disabled:opacity-50"
+          className="w-full h-14 rounded-2xl font-bold text-base flex items-center justify-center gap-2.5 transition-all active:scale-95 disabled:opacity-50"
           style={{ background: C.grad, color: '#fff', boxShadow: `0 6px 24px ${C.primary}35` }}>
           {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
           {saving ? 'שולח...' : 'שלח הודעה'}

@@ -142,7 +142,7 @@ export default function Expenses() {
           onClick={() => setEditing({})}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98] shadow-sm"
         >
-          <Plus className="h-4 w-4" /> הוצאה חדשה
+          <Plus className="h-4 w-4" /> הוסף הוצאה
         </button>
       </div>
 
@@ -466,7 +466,7 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
               <Receipt className="h-4 w-4 text-[#2D5233]" />
             </div>
             <h2 className="text-base font-bold text-gray-900">
-              {isEdit ? 'ערוך הוצאה' : 'הוצאה חדשה'}
+              {isEdit ? 'ערוך הוצאה' : 'הוסף הוצאה'}
             </h2>
           </div>
           <button onClick={handleClose} className="p-1.5 hover:bg-gray-100 rounded-lg" aria-label="סגור">

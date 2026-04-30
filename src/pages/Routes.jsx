@@ -215,7 +215,7 @@ export default function Routes() {
           className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98]"
         >
           <Plus className="h-4 w-4" />
-          משימה חדשה
+          צור משימה
         </Link>
       </div>
 

@@ -233,7 +233,7 @@ export default function VehicleCheck() {
               <Sparkles className="h-3.5 w-3.5" />
               בדיקה חכמה תוך שניות
             </div>
-            <h1 className="text-2xl sm:text-4xl font-black text-[#1C2E20] mb-2">
+            <h1 className="text-2xl sm:text-4xl font-bold text-[#1C2E20] mb-2">
               בדיקת רכב לפי מספר רישוי
             </h1>
             <p className="text-sm text-gray-500 leading-relaxed mb-6">
@@ -254,7 +254,7 @@ export default function VehicleCheck() {
                 type="button"
                 onClick={search}
                 disabled={isBusy || !validation.ok}
-                className="h-14 rounded-2xl px-6 font-black shadow-lg shadow-[#2D5233]/20"
+                className="h-14 rounded-2xl px-6 font-bold shadow-lg shadow-[#2D5233]/20"
                 style={{ background: C.primary, color: '#fff' }}
               >
                 {isBusy ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Search className="h-4 w-4 ml-2" />}
@@ -328,7 +328,7 @@ function SmartLoading({ text }) {
           <Loader2 className="h-6 w-6 animate-spin text-[#2D5233]" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-black text-gray-900">{text}</p>
+          <p className="text-sm font-bold text-gray-900">{text}</p>
           <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
             <div className="h-full w-2/3 rounded-full bg-[#2D5233] animate-pulse" />
           </div>
@@ -367,7 +367,7 @@ function SummaryCard({ result }) {
               {b.status || 'סטטוס לא ידוע'}
             </span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-gray-900 md:truncate">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 md:truncate">
             {b.displayName || 'רכב'}
           </h2>
           {typeLine && <p className="text-sm text-gray-500">{typeLine}</p>}
@@ -390,7 +390,7 @@ function ResultActions({ onExport, onReset }) {
           אפשר לשמור דוח מסודר או לאפס את הבדיקה ולהזין מספר אחר.
         </p>
         <div className="flex flex-col sm:flex-row gap-2">
-          <Button type="button" onClick={onExport} className="rounded-2xl font-black" style={{ background: C.primary }}>
+          <Button type="button" onClick={onExport} className="rounded-2xl font-bold" style={{ background: C.primary }}>
             <Download className="h-4 w-4 ml-2" />
             ייצוא דוח
           </Button>
@@ -420,7 +420,7 @@ function MarketAnecdote({ result }) {
           <Sparkles className="h-4 w-4" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-black text-[#1C2E20] mb-1">אנקדוטה מהמאגר הארצי</p>
+          <p className="text-sm font-bold text-[#1C2E20] mb-1">אנקדוטה מהמאגר הארצי</p>
           {hasModel && (
             <p className="text-sm text-gray-700">
               כרגע רשומים בישראל בערך <strong>{modelCount.toLocaleString('he-IL')}</strong> רכבים פעילים מאותו דגם.
@@ -448,7 +448,7 @@ function ReportModal({ mode, result, onClose, onPreview, onDownload }) {
       <div className={`bg-white rounded-3xl shadow-2xl mx-auto ${isPreview ? 'max-w-4xl' : 'max-w-lg'} overflow-hidden`}>
         <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
           <div>
-            <p className="text-base font-black text-gray-900">
+            <p className="text-base font-bold text-gray-900">
               {isPreview ? 'צפייה בדוח' : 'ייצוא דוח בדיקת רכב'}
             </p>
             <p className="text-xs text-gray-500">
@@ -467,7 +467,7 @@ function ReportModal({ mode, result, onClose, onPreview, onDownload }) {
         {isPreview ? (
           <div>
             <div className="flex flex-col sm:flex-row gap-2 p-3 border-b border-gray-100 bg-gray-50">
-              <Button type="button" onClick={onDownload} className="rounded-2xl font-black" style={{ background: C.primary }}>
+              <Button type="button" onClick={onDownload} className="rounded-2xl font-bold" style={{ background: C.primary }}>
                 <Download className="h-4 w-4 ml-2" />
                 הורדה
               </Button>
@@ -486,7 +486,7 @@ function ReportModal({ mode, result, onClose, onPreview, onDownload }) {
               onClick={onPreview}
               className="w-full text-right rounded-3xl border border-[#D8E5D9] bg-[#F5FAF6] p-4 hover:border-[#2D5233] transition-colors"
             >
-              <p className="text-sm font-black text-[#1C2E20] mb-1">צפייה בדוח</p>
+              <p className="text-sm font-bold text-[#1C2E20] mb-1">צפייה בדוח</p>
               <p className="text-xs leading-relaxed text-gray-600">
                 פותח תצוגה מקדימה נקייה בתוך האפליקציה. מתוך התצוגה אפשר גם להוריד.
               </p>
@@ -496,7 +496,7 @@ function ReportModal({ mode, result, onClose, onPreview, onDownload }) {
               onClick={onDownload}
               className="w-full text-right rounded-3xl border border-gray-200 bg-white p-4 hover:border-[#2D5233] transition-colors"
             >
-              <p className="text-sm font-black text-gray-900 mb-1">הורדה כקובץ</p>
+              <p className="text-sm font-bold text-gray-900 mb-1">הורדה כקובץ</p>
               <p className="text-xs leading-relaxed text-gray-600">
                 פותח את חלון השמירה של הדפדפן. בוחרים שמירה כקובץ.
               </p>
@@ -512,7 +512,7 @@ function MiniStat({ label, value }) {
   return (
     <div className="rounded-2xl bg-gray-50 border border-gray-100 p-3">
       <p className="text-[10px] font-bold text-gray-400 mb-1">{label}</p>
-      <p className="text-sm font-black text-gray-900 break-words">{formatSpecValue(value)}</p>
+      <p className="text-sm font-bold text-gray-900 break-words">{formatSpecValue(value)}</p>
     </div>
   );
 }
@@ -529,9 +529,9 @@ function Insights({ insights = [] }) {
             <div key={item.id} className={`rounded-2xl border p-4 ${toneClasses[item.tone] || toneClasses.info}`}>
               <div className="flex items-center gap-2 mb-2">
                 <Icon className="h-4 w-4 shrink-0" />
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-white/60">{item.label}</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/60">{item.label}</span>
               </div>
-              <p className="text-sm font-black mb-1">{item.title}</p>
+              <p className="text-sm font-bold mb-1">{item.title}</p>
               <p className="text-xs leading-relaxed opacity-85">{item.description}</p>
             </div>
           );
@@ -565,7 +565,7 @@ function KeyInfoGrid({ result }) {
             <div key={item.label} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
               <Icon className="h-4 w-4 text-[#2D5233] mb-2" />
               <p className="text-[11px] font-bold text-gray-400">{item.label}</p>
-              <p className="text-sm font-black text-gray-900 mt-1 break-words">{formatSpecValue(item.value)}</p>
+              <p className="text-sm font-bold text-gray-900 mt-1 break-words">{formatSpecValue(item.value)}</p>
             </div>
           );
         })}
@@ -592,7 +592,7 @@ function SpecsAccordion({ result }) {
       <Accordion type="single" collapsible className="w-full">
         {sections.map(section => (
           <AccordionItem key={section.id} value={section.id} className="border-gray-100">
-            <AccordionTrigger className="text-right font-black hover:no-underline">
+            <AccordionTrigger className="text-right font-bold hover:no-underline">
               {section.title}
             </AccordionTrigger>
             <AccordionContent>
@@ -663,7 +663,7 @@ function OwnershipBreakdown({ ownership }) {
   return (
     <div className="mt-3 rounded-xl border border-gray-100 bg-white">
       <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-        <p className="text-[11px] font-black text-gray-700">פירוט בעלים קודמים</p>
+        <p className="text-[11px] font-bold text-gray-700">פירוט בעלים קודמים</p>
         <p className="text-[10px] text-gray-400">{history.length} רשומות</p>
       </div>
       <OwnershipHistoryPanel history={history} theme={C} />
@@ -708,7 +708,7 @@ function ConversionCta({ isAuthenticated, saving, saved, onSave, onAuth }) {
     return (
       <section className="rounded-3xl border border-green-100 bg-green-50 p-5 text-center">
         <CheckCircle2 className="h-8 w-8 text-green-700 mx-auto mb-2" />
-        <p className="text-lg font-black text-green-900">הרכב נשמר בהצלחה</p>
+        <p className="text-lg font-bold text-green-900">הרכב נשמר בהצלחה</p>
         <Link to={createPageUrl('Vehicles')} className="inline-flex items-center gap-1 mt-3 text-sm font-bold text-green-800">
           לרכבים שלי
           <ArrowLeft className="h-4 w-4" />
@@ -720,12 +720,12 @@ function ConversionCta({ isAuthenticated, saving, saved, onSave, onAuth }) {
     <section className="rounded-3xl border border-[#D8E5D9] p-5 text-center"
       style={{ background: 'linear-gradient(135deg, #E8F2EA 0%, #FFF8E1 100%)' }}>
       <Save className="h-8 w-8 text-[#2D5233] mx-auto mb-2" />
-      <p className="text-lg font-black text-[#1C2E20]">רוצה לשמור את הרכב לרכבים שלך?</p>
+      <p className="text-lg font-bold text-[#1C2E20]">רוצה לשמור את הרכב לרכבים שלך?</p>
       <p className="text-sm text-gray-600 mt-1 mb-4">
         שמירה תאפשר לקבל תזכורות, מסמכים ומעקב תחזוקה במקום אחד.
       </p>
       <div className="flex flex-col sm:flex-row gap-2 justify-center">
-        <Button onClick={onSave} disabled={saving} className="rounded-2xl font-black" style={{ background: C.primary }}>
+        <Button onClick={onSave} disabled={saving} className="rounded-2xl font-bold" style={{ background: C.primary }}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Save className="h-4 w-4 ml-2" />}
           {isAuthenticated ? 'הוסף לרכבים שלי' : 'התחבר ושמור רכב'}
         </Button>
@@ -743,14 +743,14 @@ function GuestLimitCard({ onAuth }) {
   return (
     <section className="bg-white border border-yellow-100 rounded-3xl p-5 mb-5 shadow-sm text-center">
       <LockKeyhole className="h-9 w-9 text-yellow-700 mx-auto mb-3" />
-      <h2 className="text-lg font-black text-gray-900 mb-1">
+      <h2 className="text-lg font-bold text-gray-900 mb-1">
         רוצה לבדוק עוד רכבים ולשמור אותם במקום אחד?
       </h2>
       <p className="text-sm text-gray-500 mb-4">
         הרשמה פותחת בדיקות נוספות, שמירה לרכבים שלי ותזכורות חכמות.
       </p>
       <div className="flex flex-col sm:flex-row gap-2 justify-center">
-        <Button onClick={onAuth} className="rounded-2xl font-black" style={{ background: C.primary }}>
+        <Button onClick={onAuth} className="rounded-2xl font-bold" style={{ background: C.primary }}>
           הרשמה / התחברות
         </Button>
         <Link to={createPageUrl('Auth')} className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-gray-200 text-sm font-bold text-gray-700">
@@ -766,7 +766,7 @@ function StateCard({ tone, title, text }) {
   return (
     <section className={`rounded-3xl border p-5 mb-5 text-center ${cls}`}>
       <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-      <p className="text-lg font-black">{title}</p>
+      <p className="text-lg font-bold">{title}</p>
       <p className="text-sm opacity-80 mt-1">{text}</p>
     </section>
   );
@@ -776,7 +776,7 @@ function SectionTitle({ icon, title, subtitle }) {
   return (
     <div className="flex items-center justify-between gap-3 mb-3">
       <div>
-        <h2 className="flex items-center gap-1.5 text-base font-black text-gray-900">
+        <h2 className="flex items-center gap-1.5 text-base font-bold text-gray-900">
           <span className="text-[#2D5233]">{icon}</span>
           {title}
         </h2>

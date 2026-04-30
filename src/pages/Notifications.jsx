@@ -180,7 +180,7 @@ function NotifEmptyState() {
             style={{ background: C.border }}>
             <Bell className="w-8 h-8" style={{ color: C.primary, opacity: 0.5 }} />
           </div>
-          <h3 className="font-black text-lg mb-2" style={{ color: C.text }}>אין התראות</h3>
+          <h3 className="font-bold text-lg mb-2" style={{ color: C.text }}>אין התראות</h3>
           <p className="text-sm max-w-xs mx-auto leading-relaxed" style={{ color: C.muted }}>
             ההתראות שלך יופיעו כאן כשמועד הטסט/כושר שייט, הביטוח או הטיפול מתקרב
           </p>
@@ -206,7 +206,7 @@ function NotifSummary({ overdue, upcoming }) {
             <item.icon className="w-4 h-4 text-white" />
           </div>
           <div>
-            <span className="font-black text-lg block leading-none" style={{ color: item.color }}>{item.count}</span>
+            <span className="font-bold text-lg block leading-none" style={{ color: item.color }}>{item.count}</span>
             <span className="text-xs font-bold" style={{ color: item.color }}>{item.label}</span>
           </div>
         </div>
@@ -260,17 +260,15 @@ function GuestNotifications() {
   return (
     <div dir="rtl">
       {/* Header */}
-      <div className="rounded-3xl p-5 mb-5 relative overflow-hidden"
+      <div className="rounded-3xl p-5 mb-5"
         style={{ background: C.grad, boxShadow: `0 8px 32px ${C.primary}40` }}>
-        <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-        <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full" style={{ background: `${C.yellow}20` }} />
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
               <Bell className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-white">התראות</h1>
+              <h1 className="text-xl font-bold text-white">התראות</h1>
               <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
                 {notifications.length > 0 ? `${notifications.length} התראות פעילות` : 'אין התראות'}
               </p>
@@ -282,9 +280,11 @@ function GuestNotifications() {
       {/* Guest banner */}
       <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
         style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
-        <span className="text-lg">🔒</span>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#FDE68A' }}>
+          <AlertTriangle className="w-4 h-4" style={{ color: '#92400E' }} />
+        </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-black" style={{ color: '#92400E' }}>התראות זמניות</p>
+          <p className="text-sm font-bold" style={{ color: '#92400E' }}>התראות זמניות</p>
           <p className="text-xs" style={{ color: '#B45309' }}>
             <button onClick={() => window.location.href = '/Auth'} className="underline font-bold">הירשם</button>
             {' '}כדי לקבל התראות אמיתיות למכשיר
@@ -556,15 +556,14 @@ function AuthNotifications() {
   return (
     <div dir="rtl">
       {/* Header */}
-      <div className="rounded-3xl p-5 mb-5 relative overflow-hidden"
+      <div className="rounded-3xl p-5 mb-5"
         style={{ background: C.grad, boxShadow: `0 8px 32px ${C.primary}40` }}>
-        <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
         <div className="relative z-10 flex items-center gap-2.5">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
             <Bell className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-black text-white">התראות</h1>
+            <h1 className="text-xl font-bold text-white">התראות</h1>
             <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
               {totalUnread > 0 ? `${totalUnread} חדשות` : 'אין התראות חדשות'}
             </p>
@@ -645,7 +644,7 @@ function AuthNotifications() {
                 <p className="text-xs mt-0.5" style={{ color: isRead ? '#9CA3AF' : cfg.iconColor + 'CC' }}>{an.body}</p>
               )}
               <span
-                className="inline-flex mt-2 rounded-full px-2 py-0.5 text-[10px] font-black"
+                className="inline-flex mt-2 rounded-full px-2 py-0.5 text-[10px] font-bold"
                 style={{
                   background: actionRequired ? '#FEF3C7' : '#F3F4F6',
                   color: actionRequired ? '#92400E' : '#6B7280',

@@ -518,7 +518,7 @@ export default function NotificationBell() {
       >
         <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? '#DC2626' : '#6B7280' }} aria-hidden="true" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white"
+          <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
             style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220,38,38,0.4)' }}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
@@ -531,7 +531,7 @@ export default function NotificationBell() {
           <div className="absolute left-0 top-12 z-50 w-80 rounded-2xl bg-white shadow-2xl border overflow-hidden"
             style={{ borderColor: '#E5E7EB' }} dir="rtl">
             <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#F3F4F6' }}>
-              <span className="text-sm font-black" style={{ color: '#1C2E20' }}>התראות</span>
+              <span className="text-sm font-bold" style={{ color: '#1C2E20' }}>התראות</span>
               {unreadCount > 0 && (
                 <button onClick={markAllRead} className="text-[11px] font-bold" style={{ color: '#3A7D44' }}>
                   סמן הכל כנקרא
@@ -650,7 +650,7 @@ export default function NotificationBell() {
                           </p>
                           <p className="text-[10px] truncate" style={{ color: '#9CA3AF' }}>{n.name}</p>
                           <span
-                            className="inline-flex mt-1 rounded-full px-2 py-0.5 text-[9px] font-black"
+                            className="inline-flex mt-1 rounded-full px-2 py-0.5 text-[9px] font-bold"
                             style={{
                               background: actionRequired ? '#FEF3C7' : '#F3F4F6',
                               color: actionRequired ? '#92400E' : '#6B7280',

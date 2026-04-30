@@ -286,7 +286,7 @@ export default function ChecklistEditor() {
                 </Button>
               </div>
             ) : (
-              <h1 className="font-black text-lg text-slate-800 flex items-center gap-2">
+              <h1 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                 <Anchor className="w-5 h-5" style={{ color: THEME.primary }} />
                 <span>עריכת: {isCustom ? (row?.name || 'צ\'ק ליסט') : PHASE_LABELS[effectivePhase]}</span>
                 {isCustom && row && (
@@ -472,7 +472,7 @@ function SortableSection({ section, onRename, onDelete, onAddItem, onRenameItem,
             </Button>
           </>
         ) : (
-          <h2 className="text-xs font-black uppercase tracking-wide text-slate-500 flex-1">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500 flex-1">
             {section.name}
           </h2>
         )}
@@ -557,7 +557,7 @@ function SortableItem({ item, number, onRename, onDelete }) {
       </button>
 
       {/* Number badge (1., 2., 3., …) */}
-      <span className="shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[11px] font-black flex items-center justify-center">
+      <span className="shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold flex items-center justify-center">
         {number}
       </span>
 

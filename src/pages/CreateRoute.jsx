@@ -214,7 +214,7 @@ export default function CreateRoute() {
           <ClipboardList className="h-4 w-4 opacity-80" />
           <span className="text-[11px] font-bold opacity-90">משימה חדשה</span>
         </div>
-        <h1 className="text-xl font-black">תכנון משימה לצי</h1>
+        <h1 className="text-xl font-bold">תכנון משימה לצי</h1>
         <p className="text-[11px] opacity-85 mt-1 leading-relaxed">
           קבע יעד, רכב ונהג. אם המשימה כוללת מסלול עם כמה תחנות —
           תוכל להוסיף אותן בהמשך.

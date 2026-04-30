@@ -10,7 +10,7 @@ export default function TermsOfService() {
       <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 mb-4 text-sm font-bold" style={{ color: C.primary }}>
         <ArrowRight className="w-4 h-4" /> חזרה
       </button>
-      <h1 className="text-2xl font-black mb-6">תנאי שימוש - CarReminder</h1>
+      <h1 className="text-2xl font-bold mb-6">תנאי שימוש - CarReminder</h1>
       <p className="text-xs mb-4" style={{ color: '#9CA3AF' }}>עודכן לאחרונה: אפריל 2026</p>
 
       <div className="space-y-5 text-sm leading-relaxed" style={{ color: '#374151' }}>

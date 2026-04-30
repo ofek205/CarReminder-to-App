@@ -56,7 +56,7 @@ export default function LicensePlate({ value, size = 'md', showCopy = true, clas
             <polygon points="30,26 25.5,15 34.5,15" fill="none" stroke="#003DA5" strokeWidth="2" />
           </svg>
         </span>
-        <span className="font-black leading-none" style={{ color: '#1a1a1a', fontSize: P.textSize, letterSpacing: '0.02em' }}>
+        <span className="font-bold leading-none" style={{ color: '#1a1a1a', fontSize: P.textSize, letterSpacing: '0.02em' }}>
           {value}
         </span>
       </span>

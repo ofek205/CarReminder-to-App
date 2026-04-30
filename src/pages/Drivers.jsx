@@ -287,7 +287,7 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
     <div dir="rtl" className="fixed inset-0 z-[10000] bg-black/40 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-bold text-gray-900">הוסף חבר לחשבון</h2>
+          <h2 className="text-lg font-bold text-gray-900">הוסף חבר לצוות</h2>
           <button onClick={onClose} aria-label="סגור" className="p-1.5 hover:bg-gray-100 rounded-lg">
             <X className="h-4 w-4 text-gray-500" />
           </button>
@@ -341,7 +341,7 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
           >
             {submitting
               ? <><Loader2 className="h-4 w-4 animate-spin" /> מוסיף...</>
-              : <><UserPlus className="h-4 w-4" /> הוסף לחשבון</>}
+              : <><UserPlus className="h-4 w-4" /> הוסף לצוות</>}
           </button>
         </form>
       </div>

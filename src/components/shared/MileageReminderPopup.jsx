@@ -79,7 +79,7 @@ export default function MileageReminderPopup({ open, onClose }) {
             style={{ letterSpacing: '0.25em', color: 'rgba(255,255,255,0.85)' }}>
             תזכורת
           </p>
-          <h2 className="text-center mt-1.5 text-xl font-black text-white leading-tight relative z-10">
+          <h2 className="text-center mt-1.5 text-xl font-bold text-white leading-tight relative z-10">
             עדכן קילומטראז׳ או שעות מנוע
           </h2>
         </div>
@@ -103,7 +103,7 @@ export default function MileageReminderPopup({ open, onClose }) {
           </p>
 
           <button onClick={() => handleClose('clicked')}
-            className="w-full text-white font-extrabold transition-all active:translate-y-px mt-5"
+            className="w-full text-white font-bold transition-all active:translate-y-px mt-5"
             style={{
               height: 52, borderRadius: 16,
               background: 'linear-gradient(135deg, #2D5233 0%, #4A8C5C 100%)',

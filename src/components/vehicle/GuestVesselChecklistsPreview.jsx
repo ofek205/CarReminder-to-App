@@ -86,7 +86,7 @@ export default function GuestVesselChecklistsPreview() {
           <Anchor className="w-4 h-4" style={{ color: '#00695C' }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-black" style={{ color: '#1C2E20' }}>צ׳ק ליסטים לים</p>
+          <p className="text-sm font-bold" style={{ color: '#1C2E20' }}>צ׳ק ליסטים לים</p>
           <p className="text-[11px]" style={{ color: '#5F6B5F' }}>מה שצריך לבדוק לפני, בזמן ואחרי הפלגה</p>
         </div>
         <span className="text-[10px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1 shrink-0"

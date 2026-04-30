@@ -106,7 +106,7 @@ export default function BroadcastDialog({ notification, open, onClose }) {
               <div className="rounded-2xl p-4" style={{ background: '#F4F7F3', border: '1.5px solid #D8E5D9' }}>
                 <div className="flex items-center gap-2 mb-1" style={{ color: '#1C3620' }}>
                   <Users className="w-5 h-5" />
-                  <span className="text-lg font-black">{eligible}</span>
+                  <span className="text-lg font-bold">{eligible}</span>
                   <span className="text-sm">נמענים זכאים</span>
                 </div>
                 <p className="text-[11px]" style={{ color: '#3A6B42' }}>

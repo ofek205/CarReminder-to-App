@@ -987,13 +987,13 @@ export default function AddVehicle() {
               <span className="text-3xl" role="img" aria-label="warning">⚠️</span>
             </div>
             <div className="text-center space-y-2">
-              <h2 id="mismatch-title" className="text-lg font-black text-gray-900">
+              <h2 id="mismatch-title" className="text-lg font-bold text-gray-900">
                 סוג הרכב לא תואם לקטגוריה
               </h2>
               <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
                 המספר <span dir="ltr" className="font-mono font-bold" style={{ color: '#DC2626' }}>{typeMismatch.pendingFields.license_plate || plateQuery}</span>
                 {' '}שייך לפי משרד התחבורה ל
-                <span className="font-black" style={{ color: '#2D5233' }}>{typeMismatch.detectedLabel}</span>,
+                <span className="font-bold" style={{ color: '#2D5233' }}>{typeMismatch.detectedLabel}</span>,
                 {' '}אבל בחרת בקטגוריה <span className="font-bold">{selectedCategory?.label}</span>.
               </p>
               <p className="text-xs" style={{ color: '#9CA3AF' }}>
@@ -1033,7 +1033,7 @@ export default function AddVehicle() {
               style={{ background: T.grad || T.primary, width: 72, height: 72, boxShadow: `0 8px 32px ${T.primary}40` }}>
               <PartyPopper className="h-9 w-9 text-white" />
             </div>
-            <h2 className="text-xl font-black text-gray-900">
+            <h2 className="text-xl font-bold text-gray-900">
               {isVesselCategory ? 'כלי השייט נוסף' : 'הרכב נוסף'}
             </h2>
             <p className="text-gray-500 text-sm leading-relaxed">
@@ -1069,7 +1069,7 @@ export default function AddVehicle() {
               style={{ background: T.grad || C.grad, boxShadow: `0 6px 20px ${T.primary}30` }}>
               <CheckCircle2 className="w-7 h-7 text-white" />
             </div>
-            <h2 className="text-lg font-black text-gray-900">{isVesselCategory ? 'כלי השייט נשמר!' : 'הרכב נשמר!'}</h2>
+            <h2 className="text-lg font-bold text-gray-900">{isVesselCategory ? 'כלי השייט נשמר!' : 'הרכב נשמר!'}</h2>
             <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
               הפרטים נשמרו זמנית במכשיר שלך.
               <br />
@@ -1109,7 +1109,7 @@ export default function AddVehicle() {
               </div>
             </Link>
             <div>
-              <h1 className="text-lg font-black text-white">הוספת כלי תחבורה</h1>
+              <h1 className="text-lg font-bold text-white">הוספת כלי תחבורה</h1>
               <p className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>בחר סוג ומלא פרטים</p>
             </div>
           </div>
@@ -1131,7 +1131,7 @@ export default function AddVehicle() {
 
       {/*  Step 1: Vehicle type  */}
       <div className="mb-6" data-tour="av-category">
-        <h2 className="font-black text-lg mb-3 text-center" style={{ color: '#1C2E20' }}>בחר סוג כלי רכב</h2>
+        <h2 className="font-bold text-lg mb-3 text-center" style={{ color: '#1C2E20' }}>בחר סוג כלי רכב</h2>
         <VehicleTypeSelector
           variant="tabs"
           value={form.vehicle_type_id}
@@ -1285,7 +1285,7 @@ export default function AddVehicle() {
 
       {/*  Step 2: Method selection  */}
       <div className={`transition-all duration-300 ${categoryReady ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-      <h2 className="font-black text-lg mb-4 text-center" style={{ color: '#1C2E20' }}>איך תרצה להוסיף?</h2>
+      <h2 className="font-bold text-lg mb-4 text-center" style={{ color: '#1C2E20' }}>איך תרצה להוסיף?</h2>
       <div className="space-y-3 mb-6" data-tour="av-methods">
 
         {/* 1. Plate lookup - only if category supports it */}
@@ -1439,7 +1439,7 @@ export default function AddVehicle() {
             {/* Step header - premium */}
             <div className="flex items-center justify-between mb-4" dir="rtl">
               <div className="flex items-center gap-2">
-                <h2 className="font-black text-xl" style={{ color: T.text }}>פרטי הרכב</h2>
+                <h2 className="font-bold text-xl" style={{ color: T.text }}>פרטי הרכב</h2>
                 {draft.showSaved && (
                   <span className="text-[10px] font-bold flex items-center gap-1 draft-saved"
                     style={{ color: '#059669' }}>
@@ -2052,7 +2052,7 @@ export default function AddVehicle() {
                   disabled={saving
                     || (!form?.vehicle_type_id && !form?.vehicle_type)
                     || (!isGuest && (!vehiclesLoaded || !accountId))}
-                  className="w-full h-14 rounded-2xl font-black text-base transition-all duration-200 active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
+                  className="w-full h-14 rounded-2xl font-bold text-base transition-all duration-200 active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
                   style={{
                     background: T.grad || T.primary,
                     color: '#fff',

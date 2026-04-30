@@ -693,7 +693,7 @@ export default function AuthPage() {
           <div className="w-full" style={{ marginTop: '4px' }}>
             {/* Headline + subtitle */}
             <div className="text-center mb-8">
-              <h1 className="font-black leading-tight mb-2" style={{ fontSize: '1.65rem', color: C.text, letterSpacing: '-0.02em' }}>
+              <h1 className="font-bold leading-tight mb-2" style={{ fontSize: '1.65rem', color: C.text, letterSpacing: '-0.02em' }}>
                 נהל את הרכב שלך<br />בלי לשכוח דבר
               </h1>
               <div className="w-14 h-1.5 mx-auto rounded-full mb-3" style={{ background: C.yellow }} />
@@ -776,14 +776,14 @@ export default function AuthPage() {
                   • everything else: normal login/signup/reset tab toggle */}
               {mode === 'update-password' ? (
                 <div className="text-center mb-6">
-                  <h2 className="text-lg font-black" style={{ color: C.greenDark }}>בחירת סיסמה חדשה</h2>
+                  <h2 className="text-lg font-bold" style={{ color: C.greenDark }}>בחירת סיסמה חדשה</h2>
                   <p className="text-xs mt-1" style={{ color: C.muted }}>
                     לפחות 8 תווים, עם אות וספרה.
                   </p>
                 </div>
               ) : mode === 'verify-email' ? (
                 <div className="text-center mb-6">
-                  <h2 className="text-lg font-black" style={{ color: C.greenDark }}>אימות האימייל</h2>
+                  <h2 className="text-lg font-bold" style={{ color: C.greenDark }}>אימות האימייל</h2>
                   <p className="text-xs mt-2 leading-relaxed" style={{ color: C.muted }}>
                     שלחנו קוד בן 6 ספרות אל
                   </p>
@@ -831,7 +831,7 @@ export default function AuthPage() {
                         autoComplete="one-time-code"
                         autoFocus
                         dir="ltr"
-                        className="w-full text-center text-2xl font-black tracking-[0.5em] py-4 rounded-2xl outline-none transition-all"
+                        className="w-full text-center text-2xl font-bold tracking-[0.5em] py-4 rounded-2xl outline-none transition-all"
                         style={{
                           background: '#FAFDF6',
                           border: `2px solid ${verificationCode.length === 6 ? C.green : C.border}`,

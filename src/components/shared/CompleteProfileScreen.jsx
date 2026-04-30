@@ -114,7 +114,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
             style={{ background: '#2D5233' }}>
             <User className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-xl font-black" style={{ color: '#1C2E20' }}>
+          <h1 className="text-xl font-bold" style={{ color: '#1C2E20' }}>
             {fullName ? `שלום ${fullName}` : 'ברוך הבא'}
           </h1>
           <p className="text-sm mt-1" style={{ color: '#6B7280' }}>

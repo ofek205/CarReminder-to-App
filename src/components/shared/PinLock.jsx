@@ -16,7 +16,7 @@ function KeypadBtn({ value, onPress, icon, disabled }) {
       onClick={() => onPress(value)}
       disabled={disabled}
       aria-label={icon ? (value === 'del' ? 'מחק ספרה' : '') : `הזן ${value}`}
-      className="h-16 rounded-2xl font-black text-2xl transition-all active:scale-95 disabled:opacity-30"
+      className="h-16 rounded-2xl font-bold text-2xl transition-all active:scale-95 disabled:opacity-30"
       style={{
         background: icon ? 'transparent' : '#F3F4F6',
         color: '#1C2E20',
@@ -176,7 +176,7 @@ export default function PinLock({ mode = 'unlock', onSuccess, onForgot, onCancel
         <div className="w-16 h-16 rounded-2xl overflow-hidden mb-4" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
           <img src={logo} alt="CarReminder" className="w-full h-full object-contain" />
         </div>
-        <h1 id="pin-title" className="text-xl font-black text-white mb-1">{title}</h1>
+        <h1 id="pin-title" className="text-xl font-bold text-white mb-1">{title}</h1>
         <p className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>{subtitle}</p>
       </div>
 

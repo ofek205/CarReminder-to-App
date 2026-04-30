@@ -271,7 +271,7 @@ export default function Fleet() {
             className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-xs font-bold active:scale-[0.98] hover:border-gray-300"
           >
             <Upload className="h-4 w-4" />
-            ייבוא מרובה
+            ייבוא רכבים
           </Link>
           <Link
             to={createPageUrl('AddVehicle')}

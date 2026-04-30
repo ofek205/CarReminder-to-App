@@ -39,7 +39,7 @@ function StatusSummary({ accidents }) {
         <div key={item.key} className="rounded-2xl py-3 px-2 flex flex-col items-center gap-1.5"
           style={{ background: item.bg }}>
           <div className="flex items-center gap-1.5">
-            <span className="font-black text-2xl" style={{ color: item.color }}>{item.count}</span>
+            <span className="font-bold text-2xl" style={{ color: item.color }}>{item.count}</span>
             <item.icon className="w-5 h-5" style={{ color: item.color }} />
           </div>
           <span className="text-xs font-bold" style={{ color: item.color }}>{item.label}</span>
@@ -94,7 +94,7 @@ function AccidentRow({ accident, vehicleName, vehicle }) {
             )}
             {/* Vehicle + driver on photo */}
             <div className="absolute bottom-3 right-3 left-3 z-10">
-              <h3 className="font-black text-white text-base leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+              <h3 className="font-bold text-white text-base leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
                 {vehicleName || labels.vehicleFallback}
                 {accident.other_driver_name && ` - ${accident.other_driver_name}`}
               </h3>
@@ -200,7 +200,7 @@ function EmptyState() {
             style={{ background: '#FECACA' }}>
             <AlertTriangle className="w-10 h-10" style={{ color: '#DC2626' }} />
           </div>
-          <h3 className="font-black text-xl mb-2" style={{ color: C.text }}>אין תאונות רשומות</h3>
+          <h3 className="font-bold text-xl mb-2" style={{ color: C.text }}>אין תאונות רשומות</h3>
           <p className="text-sm mb-6 max-w-xs mx-auto leading-relaxed" style={{ color: C.muted }}>
             תיעוד תאונות עוזר לעקוב אחר פרטי הנזק, הנהג השני והביטוח
           </p>
@@ -295,7 +295,7 @@ export default function Accidents() {
                   <AlertTriangle className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-black text-white">תאונות</h1>
+                  <h1 className="text-xl font-bold text-white">תאונות</h1>
                   <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
                     {sortedAccidents.length} {sortedAccidents.length === 1 ? 'תאונה' : 'תאונות'}
                     {isGuest ? ' (זמני)' : ''}

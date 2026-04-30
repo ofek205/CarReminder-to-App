@@ -475,7 +475,7 @@ export default function EditVehicle() {
       <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
         <div className="max-w-sm w-full text-center">
           <div className="text-7xl mb-4" role="img" aria-hidden="true">✏️</div>
-          <h1 className="text-xl font-black mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב לעריכה</h1>
+          <h1 className="text-xl font-bold mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב לעריכה</h1>
           <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
             בחר רכב מהרשימה כדי לערוך אותו.
           </p>
@@ -528,7 +528,7 @@ export default function EditVehicle() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-black text-white">{vesselMode ? 'עריכת כלי שייט' : 'עריכת רכב'}</h1>
+            <h1 className="text-lg font-bold text-white">{vesselMode ? 'עריכת כלי שייט' : 'עריכת רכב'}</h1>
             <p className="text-[11px] font-medium truncate" style={{ color: 'rgba(255,255,255,0.65)' }}>
               {form.nickname || [form.manufacturer, form.model].filter(Boolean).join(' ') || 'עדכון פרטים'}
             </p>
@@ -966,7 +966,7 @@ export default function EditVehicle() {
           )}
 
           <button type="submit" disabled={saving}
-            className="w-full h-14 rounded-2xl font-black text-base transition-all active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
+            className="w-full h-14 rounded-2xl font-bold text-base transition-all active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
             style={{ background: T.grad || T.primary, color: '#fff', boxShadow: `0 6px 24px ${T.primary}35` }}>
             {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
             {saving ? 'שומר...' : offroadMode ? 'עדכן כלי שטח' : vesselMode ? 'עדכן כלי שייט' : 'שמור שינויים'}

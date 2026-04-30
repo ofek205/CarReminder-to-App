@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, FileText, Upload, Trash2, Eye, Download, Loader2, Sparkles, CheckCircle2, X, ChevronDown, ChevronUp, Camera } from "lucide-react";
+import { Plus, FileText, Upload, Trash2, Eye, Download, Loader2, Sparkles, CheckCircle2, X, ChevronDown, ChevronUp, Camera, Car, Lock, Shield, User, Wrench, Anchor } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import PageHeader from "../components/shared/PageHeader";
 import { ListSkeleton } from "../components/shared/Skeletons";
@@ -63,6 +63,18 @@ const allDocTypes = [...new Set([...DOC_CATEGORIES, ...VESSEL_DOC_CATEGORIES].ma
 function getCat(type) {
   return [...DOC_CATEGORIES, ...VESSEL_DOC_CATEGORIES].find(c => c.type === type)
     || DOC_CATEGORIES[DOC_CATEGORIES.length - 1];
+}
+
+function renderDocCategoryIcon(cat) {
+  const cls = "w-4 h-4";
+  if (cat.type.includes('ביטוח')) {
+    return cat.type.includes('מקיף') ? <Lock className={cls} /> : <Shield className={cls} />;
+  }
+  if (cat.type.includes('רישיון') && cat.type.includes('שייט')) return <Anchor className={cls} />;
+  if (cat.type.includes('רישיון') && cat.type.includes('נהיגה')) return <User className={cls} />;
+  if (cat.type.includes('רישיון')) return <Car className={cls} />;
+  if (cat.type.includes('טיפול') || cat.type.includes('טסט') || cat.type.includes('כושר')) return <Wrench className={cls} />;
+  return <FileText className={cls} />;
 }
 
 //  Parse DD/MM/YYYY → YYYY-MM-DD 
@@ -407,7 +419,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
                       : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                     }`}
                 >
-                  <span className="text-base">{cat.emoji}</span>
+                  {renderDocCategoryIcon(cat)}
                   <span className="truncate">{cat.type}</span>
                 </button>
               ))}
@@ -546,8 +558,8 @@ function DocCard({ doc, vehicle, onOpen, onDownload, onDelete, openingId }) {
     <Card className="p-4 border border-gray-100">
       <div className="flex items-start justify-between gap-3" dir="rtl">
         <div className="flex items-start gap-3 min-w-0 flex-1">
-          <div className={`w-10 h-10 rounded-xl ${cat.bg} flex items-center justify-center shrink-0 text-lg`}>
-            {cat.emoji}
+          <div className={`w-10 h-10 rounded-xl ${cat.bg} flex items-center justify-center shrink-0`}>
+            {renderDocCategoryIcon(cat)}
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-gray-900 truncate">{doc.title || doc.document_type}</p>
@@ -651,7 +663,7 @@ function VehicleGroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, o
               className="w-full flex items-center justify-between gap-2 mb-2"
               onClick={() => setCollapsed(c => ({ ...c, [key]: !c[key] }))}>
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-base">{vehicle ? '🚗' : '📂'}</span>
+                {vehicle ? <Car className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                 <div className="text-right min-w-0">
                   <p className="text-sm font-bold truncate" style={{ color: '#1C2E20' }}>{name}</p>
                   {sub && <p className="text-[10px]" dir="ltr" style={{ color: '#9CA3AF' }}>{sub}</p>}
@@ -713,7 +725,7 @@ function GroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingI
               onClick={() => setCollapsed(c => ({ ...c, [cat.type]: !c[cat.type] }))}
             >
               <div className="flex items-center gap-2">
-                <span className="text-base">{cat.emoji}</span>
+                {renderDocCategoryIcon(cat)}
                 <span className={`text-sm font-semibold ${cat.text}`}>{cat.type}</span>
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${cat.bg} ${cat.text} border ${cat.border}`}>
                   {catDocs.length}
@@ -841,9 +853,13 @@ function GuestDocuments({ vehicleIdParam }) {
       {/* Guest banner - single combined banner */}
       <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
         style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
-        <span className="text-lg">{docs.some(d => d._isDemo) ? '👀' : '🔒'}</span>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#FDE68A' }}>
+          {docs.some(d => d._isDemo)
+            ? <Eye className="w-4 h-4" style={{ color: '#92400E' }} />
+            : <Lock className="w-4 h-4" style={{ color: '#92400E' }} />}
+        </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-black" style={{ color: '#92400E' }}>
+          <p className="text-sm font-bold" style={{ color: '#92400E' }}>
             {docs.some(d => d._isDemo) ? 'מסמכים לדוגמה' : 'מסמכים זמניים'}
           </p>
           <p className="text-xs" style={{ color: '#B45309' }}>
@@ -895,9 +911,9 @@ function GuestDocuments({ vehicleIdParam }) {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
           <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
             <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: '#FFF8E1' }}>
-              <span className="text-2xl">🔒</span>
+              <Lock className="w-6 h-6" style={{ color: '#92400E' }} />
             </div>
-            <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
+            <h2 className="text-lg font-bold text-gray-900">הירשם כדי לשמור</h2>
             <p className="text-sm" style={{ color: '#6B7280' }}>
               הרשמה בחינם תוך שניות - ותוכל לשמור מסמכים, לקבל תזכורות ולגשת מכל מכשיר
             </p>

@@ -135,7 +135,7 @@ function StatusSummaryBar({ counts, activeFilter, onFilter }) {
               boxShadow: active ? `0 4px 12px ${item.color}30` : 'none',
             }}>
             <div className="flex items-center gap-1">
-              <span className="font-black text-xl" style={{ color: active ? '#fff' : item.color }}>{item.count}</span>
+              <span className="font-bold text-xl" style={{ color: active ? '#fff' : item.color }}>{item.count}</span>
               <item.icon className="w-4 h-4" style={{ color: active ? '#fff' : item.color }} />
             </div>
             <span className="text-[10px] font-bold" style={{ color: active ? '#fff' : item.color }}>{item.label}</span>
@@ -251,7 +251,7 @@ function PremiumEmptyState({ hasFilters, onClearFilters, theme, isVessel }) {
         </div>
         {hasFilters ? (
           <>
-            <h3 className="font-black text-lg mb-2" style={{ color: T.text }}>לא נמצאו תוצאות</h3>
+            <h3 className="font-bold text-lg mb-2" style={{ color: T.text }}>לא נמצאו תוצאות</h3>
             <p className="text-sm mb-5 max-w-xs mx-auto" style={{ color: T.muted }}>נסה לשנות את החיפוש או הסינון</p>
             <button onClick={onClearFilters}
               className="px-6 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
@@ -261,7 +261,7 @@ function PremiumEmptyState({ hasFilters, onClearFilters, theme, isVessel }) {
           </>
         ) : (
           <>
-            <h3 className="font-black text-lg mb-2" style={{ color: T.text }}>{isVessel ? 'אין כלי שייט עדיין' : 'אין רכבים עדיין'}</h3>
+            <h3 className="font-bold text-lg mb-2" style={{ color: T.text }}>{isVessel ? 'אין כלי שייט עדיין' : 'אין רכבים עדיין'}</h3>
             <p className="text-sm mb-5 max-w-xs mx-auto" style={{ color: T.muted }}>{isVessel ? 'הוסף את כלי השייט הראשון שלך' : 'הוסף את הרכב הראשון שלך וקבל תזכורות לטסט, ביטוח וטיפולים'}</p>
             <Link to={createPageUrl('AddVehicle')}>
               <button className="px-8 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
@@ -451,9 +451,9 @@ function VehiclesContent({ vehicles, isLoading }) {
       {filteredByPage.some(v => v._isDemo) && (
         <div className="rounded-2xl p-3.5 mb-4 flex items-center gap-3"
           style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
-          <span className="text-lg">👀</span>
+          <Car className="w-5 h-5 shrink-0" style={{ color: '#92400E' }} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black" style={{ color: '#92400E' }}>{isVesselPage ? 'כלי שייט לדוגמה' : 'רכבים לדוגמה'}</p>
+            <p className="text-sm font-bold" style={{ color: '#92400E' }}>{isVesselPage ? 'כלי שייט לדוגמה' : 'רכבים לדוגמה'}</p>
             <p className="text-xs" style={{ color: '#B45309' }}>הוסף את הרכב האמיתי שלך כדי להתחיל</p>
           </div>
         </div>

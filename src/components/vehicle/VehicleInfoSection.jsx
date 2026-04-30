@@ -177,7 +177,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); reset(); } }}>
       <DialogContent className="max-w-sm mx-4" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-base font-black">{step === 'done' ? '✅ עודכן!' : `חידוש ${docLabel}`}</DialogTitle>
+          <DialogTitle className="text-base font-bold">{step === 'done' ? '✅ עודכן!' : `חידוש ${docLabel}`}</DialogTitle>
         </DialogHeader>
 
         {/* Upload step */}
@@ -514,7 +514,7 @@ function SpecRow({ item, theme }) {
         </span>
       ) : split ? (
         <span className="flex items-baseline gap-1" dir={item.ltr ? 'ltr' : 'rtl'}>
-          <span className="text-[14px] font-black text-gray-900 tabular-nums">{split.num}</span>
+          <span className="text-[14px] font-bold text-gray-900 tabular-nums">{split.num}</span>
           <span className="text-[10.5px] font-medium text-gray-500">{split.unit}</span>
         </span>
       ) : (
@@ -950,7 +950,7 @@ export default function VehicleInfoSection({ vehicle }) {
                 <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: '#fff', border: `1px solid ${T.border}` }}>
                   <Cog className="w-3.5 h-3.5" style={{ color: T.primary }} />
                 </span>
-                <span className="text-sm font-black" style={{ color: T.text }}>מפרט טכני</span>
+                <span className="text-sm font-bold" style={{ color: T.text }}>מפרט טכני</span>
               </div>
               {specOpen ? <ChevronUp className="w-4 h-4" style={{ color: T.primary }} /> : <ChevronDown className="w-4 h-4" style={{ color: T.primary }} />}
             </button>
@@ -985,7 +985,7 @@ export default function VehicleInfoSection({ vehicle }) {
                             <GroupIcon className="w-3.5 h-3.5" style={{ color: T.primary }} />
                           </span>
                         )}
-                        <h3 className="text-[13px] font-black tracking-tight" style={{ color: T.text }}>
+                        <h3 className="text-[13px] font-bold tracking-tight" style={{ color: T.text }}>
                           {group.title}
                         </h3>
                       </div>
@@ -1006,7 +1006,7 @@ export default function VehicleInfoSection({ vehicle }) {
                               <React.Fragment key={ii}>
                                 {ii > 0 && <span className="text-gray-300">·</span>}
                                 <span>
-                                  <span className="font-black text-gray-900 tabular-nums">{item.value}</span>
+                                  <span className="font-bold text-gray-900 tabular-nums">{item.value}</span>
                                   <span className="text-gray-500 mr-1">{item.label}</span>
                                 </span>
                               </React.Fragment>

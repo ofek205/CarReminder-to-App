@@ -102,7 +102,7 @@ function ReviewsHero({ reviews }) {
       <div className="rounded-2xl p-6 mb-5 text-center"
         style={{ background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)', border: '1.5px solid #BBF7D0' }}>
         <div className="text-5xl mb-2">💬</div>
-        <p className="font-black text-lg" style={{ color: C.greenDark }}>היה הראשון/ה לשתף</p>
+        <p className="font-bold text-lg" style={{ color: C.greenDark }}>היה הראשון/ה לשתף</p>
         <p className="text-sm text-gray-600 mt-1">עדיין אין חוות דעת. הדעה שלך תעזור לאחרים</p>
       </div>
     );
@@ -114,7 +114,7 @@ function ReviewsHero({ reviews }) {
       <div className="flex items-center gap-5">
         {/* Big average number */}
         <div className="text-center shrink-0">
-          <div className="text-5xl font-black leading-none" style={{ color: '#B45309' }}>
+          <div className="text-5xl font-bold leading-none" style={{ color: '#B45309' }}>
             {avg.toFixed(1)}
           </div>
           <div className="mt-2 flex justify-center">

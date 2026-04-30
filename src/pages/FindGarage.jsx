@@ -593,7 +593,7 @@ export default function FindGarage() {
               <MapPin className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-black text-white truncate">{hasVessel ? 'מצא מוסך / מרינה' : 'מצא מוסך קרוב'}</h1>
+              <h1 className="text-lg font-bold text-white truncate">{hasVessel ? 'מצא מוסך / מרינה' : 'מצא מוסך קרוב'}</h1>
               <p className="text-[10px] font-medium truncate" style={{ color: 'rgba(255,255,255,0.65)' }}>
                 {hasVessel ? 'מוסכים, חלפים, מרינות ושירותי שייט' : 'מוסכים, מכונאים וחנויות חלפים'}
               </p>
@@ -661,7 +661,7 @@ export default function FindGarage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-0.5">
                 <span className="text-[10px] text-white/60">רדיוס:</span>
-                <span className="text-[11px] font-black text-white">{(searchRadius / 1000).toFixed(0)} ק"מ</span>
+                <span className="text-[11px] font-bold text-white">{(searchRadius / 1000).toFixed(0)} ק"מ</span>
               </div>
               <input
                 type="range" min={RADIUS_MIN} max={RADIUS_MAX} step={RADIUS_STEP} value={searchRadius}
@@ -702,7 +702,7 @@ export default function FindGarage() {
               }}>
               {f.label}
               {typeCounts[f.key] > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black"
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
                   style={{ background: filterType === f.key ? 'rgba(255,255,255,0.3)' : f.color + '20', color: filterType === f.key ? '#fff' : f.color }}>
                   {typeCounts[f.key]}
                 </span>
@@ -901,13 +901,13 @@ export default function FindGarage() {
                     {/* Name + distance */}
                     <div className="flex items-start justify-between gap-1.5 mb-0.5">
                       <div className="min-w-0">
-                        <h3 className="font-black text-[13px] truncate" style={{ color: C.text }}>{g.name}</h3>
+                        <h3 className="font-bold text-[13px] truncate" style={{ color: C.text }}>{g.name}</h3>
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-0.5"
                           style={{ background: tc.bg, color: tc.color }}>
                           {tc.label}
                         </span>
                       </div>
-                      <span className="text-[11px] font-black px-2 py-0.5 rounded-md shrink-0"
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0"
                         style={{ background: tc.bg, color: tc.color }}>
                         {g.distance.toFixed(1)} ק"מ
                       </span>

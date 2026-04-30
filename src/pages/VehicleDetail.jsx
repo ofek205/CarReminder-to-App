@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2 } from "lucide-react";
+import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2, Search } from "lucide-react";
 import ShareVehicleDialog from "@/components/sharing/ShareVehicleDialog";
 import SharedIndicator from "@/components/sharing/SharedIndicator";
 import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
@@ -95,7 +95,7 @@ function RemindersPreview({ vehicle, T }) {
       <button type="button" onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2 px-4 py-3" style={{ background: T.light }}>
         <Bell className="w-4 h-4" style={{ color: T.primary }} />
-        <span className="text-sm font-black" style={{ color: T.text }}>תזכורות</span>
+        <span className="text-sm font-bold" style={{ color: T.text }}>תזכורות</span>
         <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: T.primary, color: '#fff' }}>{items.length}</span>
         {open
           ? <ChevronUp className="w-4 h-4 mr-auto" style={{ color: T.primary }} />
@@ -126,7 +126,7 @@ function DocumentsPreview({ vehicleId, documents, T }) {
     <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: `1.5px solid ${T.border}` }} dir="rtl">
       <div className="flex items-center gap-2 px-4 py-3" style={{ background: T.light }}>
         <FileText className="w-4 h-4" style={{ color: T.primary }} />
-        <span className="text-sm font-black" style={{ color: T.text }}>מסמכים</span>
+        <span className="text-sm font-bold" style={{ color: T.text }}>מסמכים</span>
         <span className="text-xs font-bold px-1.5 py-0.5 rounded-full mr-auto" style={{ background: T.primary, color: '#fff' }}>{vehicleDocs.length}</span>
       </div>
       <div className="divide-y" style={{ borderColor: `${T.border}60` }}>
@@ -252,7 +252,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
 
           {/* Vehicle name + subtitle */}
           <div className="absolute bottom-4 right-4 left-4 z-10">
-            <h1 className="font-black text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{name}</h1>
+            <h1 className="font-bold text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{name}</h1>
             <p className="text-base font-semibold mt-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{subtitle}</p>
           </div>
         </div>
@@ -271,7 +271,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
           ].map((stat, i) => (
             <div key={i} className={`py-4 px-3 text-center ${i < 2 ? 'border-l' : ''}`}
               style={{ borderColor: T.border }}>
-              <p className="font-black text-base" style={{ color: T.text }}>{stat.value}</p>
+              <p className="font-bold text-base" style={{ color: T.text }}>{stat.value}</p>
               <p className="text-sm mt-1 font-bold" style={{ color: T.muted }}>{stat.label}</p>
             </div>
           ))}
@@ -316,9 +316,9 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
       {vehicle._isDemo ? (
         <div className="mx-4 mb-4 rounded-2xl p-3.5 flex items-center gap-3"
           style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
-          <span className="text-lg">👀</span>
+          <Car className="h-5 w-5 shrink-0" style={{ color: '#92400E' }} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black" style={{ color: '#92400E' }}>{vWord} לדוגמה</p>
+            <p className="text-sm font-bold" style={{ color: '#92400E' }}>{vWord} לדוגמה</p>
             <p className="text-xs" style={{ color: '#B45309' }}>הוסף את ה{vWord} האמיתי שלך כדי להתחיל</p>
           </div>
         </div>
@@ -379,8 +379,10 @@ export default function VehicleDetail() {
     return (
       <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
         <div className="max-w-sm w-full text-center">
-          <div className="text-7xl mb-4" role="img" aria-hidden="true">🚗</div>
-          <h1 className="text-xl font-black mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב</h1>
+          <div className="mb-4 flex justify-center" aria-hidden="true">
+            <Car className="h-14 w-14" style={{ color: '#2D5233' }} />
+          </div>
+          <h1 className="text-xl font-bold mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב</h1>
           <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
             נראה שהגעת לכאן בלי לבחור רכב. חזור לרשימה כדי לבחור אחד.
           </p>
@@ -403,8 +405,10 @@ export default function VehicleDetail() {
       return (
         <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
           <div className="max-w-sm w-full text-center">
-            <div className="text-7xl mb-4" role="img" aria-hidden="true">🔍</div>
-            <h1 className="text-xl font-black mb-2" style={{ color: '#1C2E20' }}>הרכב לא נמצא</h1>
+            <div className="mb-4 flex justify-center" aria-hidden="true">
+              <Search className="h-14 w-14" style={{ color: '#2D5233' }} />
+            </div>
+            <h1 className="text-xl font-bold mb-2" style={{ color: '#1C2E20' }}>הרכב לא נמצא</h1>
             <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
               ייתכן שהרכב נמחק או שהקישור פג תוקף.
             </p>
@@ -735,7 +739,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
 
         {/* Name overlay */}
         <div className="absolute bottom-4 right-4 left-4 z-10">
-          <h1 className="font-black text-white text-2xl leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+          <h1 className="font-bold text-white text-2xl leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
             {name}
           </h1>
           <p className="text-sm mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>{subtitle}</p>
@@ -898,7 +902,7 @@ function ChecklistsEntryCard({ vehicleId, navigate }) {
           </svg>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-black text-base">צ'ק ליסטים</p>
+          <p className="font-bold text-base">צ'ק ליסטים</p>
           <p className="text-xs opacity-85 mt-0.5">בדיקות מנוע, לפני יציאה וסיום. לחץ כדי להתחיל.</p>
         </div>
         <div className="text-white/80 text-lg">←</div>

@@ -485,12 +485,6 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
           top bar is the only thing pinned. Sticky here was overlapping the
           chat under the global bar at z-9998. */}
       <div className="relative overflow-hidden pb-6" style={{ background: C.grad }}>
-        {/* Decorative circles */}
-        <div className="absolute -top-12 -left-16 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
-        <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full" style={{ background: 'rgba(255,191,0,0.18)' }} />
-        <div className="absolute top-10 right-1/3 w-2 h-2 rounded-full bg-white/30 animate-pulse" />
-        <div className="absolute top-16 right-1/4 w-1.5 h-1.5 rounded-full bg-yellow-300/60" />
-
         <div className="relative z-10 px-4 pt-4">
           <div className="flex items-center justify-between mb-2">
             {/* Left avatar. yellow accent */}
@@ -501,7 +495,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
 
             {/* Center title */}
             <div className="text-center flex-1">
-              <h1 className="text-base font-black text-white">התייעצות עם מומחה AI</h1>
+              <h1 className="text-base font-bold text-white">התייעצות עם מומחה AI</h1>
               <div className="flex items-center justify-center gap-1.5 mt-0.5">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -524,7 +518,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
           </div>
 
           <p className="text-[11px] font-medium text-center mt-2" style={{ color: 'rgba(255,255,255,0.85)' }}>
-            {expert.emoji} {expert.shortRole} AI עם 25 שנות ניסיון - שאל הכל
+            {expert.shortRole} AI עם 25 שנות ניסיון - שאל הכל
           </p>
         </div>
       </div>
@@ -560,7 +554,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                             : <VehicleIcon vehicle={selectedVehicle} className="w-6 h-6" style={{ color: selTheme.primary }} />}
                         </div>
                         <div className="text-right min-w-0">
-                          <p className="text-[14px] font-black truncate" style={{ color: '#111827' }}>
+                          <p className="text-[14px] font-bold truncate" style={{ color: '#111827' }}>
                             {selectedVehicle.nickname || `${selectedVehicle.manufacturer || ''} ${selectedVehicle.model || ''}`.trim()}
                           </p>
                           <p className="text-[11px] font-bold flex items-center gap-1 mt-0.5" style={{ color: selTheme.primary }}>
@@ -578,7 +572,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                           <Sparkles className="w-6 h-6 text-white" />
                         </div>
                         <div className="text-right">
-                          <p className="text-[14px] font-black" style={{ color: '#111827' }}>
+                          <p className="text-[14px] font-bold" style={{ color: '#111827' }}>
                             התייעץ על כלי תחבורה ספציפי
                           </p>
                           <p className="text-[11px] font-semibold mt-0.5" style={{ color: C.primary }}>
@@ -703,7 +697,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                   <Check className="w-4 h-4 text-white" strokeWidth={3} />
                 </div>
               </div>
-              <h3 className="text-lg font-black mb-1" style={{ color: '#1F2937' }}>שלום! אני {expert.firstName} {expert.emoji}</h3>
+              <h3 className="text-lg font-bold mb-1" style={{ color: '#1F2937' }}>שלום! אני {expert.firstName}</h3>
               <p className="text-sm leading-relaxed max-w-[300px] mx-auto" style={{ color: '#6B7280' }}>
                 {expert.role}.{' '}
                 {expert.domain === 'vessel'
@@ -734,7 +728,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
             <div className="space-y-2 mt-5 px-1">
               <div className="flex items-center gap-2 mb-2 px-1">
                 <Sparkles className="w-3.5 h-3.5" style={{ color: C.primary }} />
-                <p className="text-[11px] font-black" style={{ color: '#1F2937' }}>
+                <p className="text-[11px] font-bold" style={{ color: '#1F2937' }}>
                   {selectedVehicle ? `הצעות ל${itemNoun} הזה:` : 'הצעות לשאלה:'}
                 </p>
               </div>

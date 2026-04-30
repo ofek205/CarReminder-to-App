@@ -170,7 +170,7 @@ export default function VehicleAccessModal({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md mx-4 max-h-[80vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black flex items-center gap-2">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Users className="w-5 h-5" style={{ color: C.primary }} />
               שיתופים של {vehicleName}
             </DialogTitle>
