@@ -38,9 +38,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        # Capacitor CLI 8.3+ enforces NodeJS >=22.0.0 at runtime. Earlier
+        # workflow ran on Node 20 and `npx cap sync ios` aborted with
+        # "[Fatal] The Capacitor CLI requires NodeJS >=22.0.0". Node 22
+        # has been LTS since October 2024 and is fully supported by the
+        # macos-26 runner image.
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       # Pick the highest-numbered non-beta Xcode 26.x installed on the
