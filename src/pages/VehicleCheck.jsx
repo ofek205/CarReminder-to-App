@@ -247,6 +247,7 @@ export default function VehicleCheck() {
         {result && status === 'success' && (
           <div className="space-y-5">
             <SummaryCard result={result} />
+            <MarketAnecdote result={result} />
             <ResultActions onExport={openReportOptions} onReset={resetCheck} />
             <Insights insights={result.insights} />
             <KeyInfoGrid result={result} />
@@ -394,6 +395,43 @@ function ResultActions({ onExport, onReset }) {
             <RotateCcw className="h-4 w-4 ml-2" />
             איפוס לבדיקה נוספת
           </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MarketAnecdote({ result }) {
+  const a = result?.additional || {};
+  const modelCount = Number(a.activeSameModelCount);
+  const modelColorCount = Number(a.activeSameModelColorCount);
+  const colorName = a.activeSameModelColorName;
+  const hasModel = Number.isFinite(modelCount) && modelCount > 0;
+  const hasModelColor = Number.isFinite(modelColorCount) && modelColorCount >= 0;
+  if (!hasModel && !hasModelColor) return null;
+
+  return (
+    <section className="rounded-3xl border border-[#D8E5D9] bg-[#F7FBF8] p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-2xl bg-[#E8F2EA] text-[#2D5233] flex items-center justify-center shrink-0">
+          <Sparkles className="h-4 w-4" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-black text-[#1C2E20] mb-1">אנקדוטה מהמאגר הארצי</p>
+          {hasModel && (
+            <p className="text-sm text-gray-700">
+              כרגע רשומים בישראל בערך <strong>{modelCount.toLocaleString('he-IL')}</strong> רכבים פעילים מאותו דגם.
+            </p>
+          )}
+          {hasModelColor && (
+            <p className="text-sm text-gray-600 mt-1">
+              מתוכם <strong>{modelColorCount.toLocaleString('he-IL')}</strong>
+              {colorName ? ` באותו צבע (${colorName})` : ' באותו צבע'}.
+            </p>
+          )}
+          <p className="text-[11px] text-gray-400 mt-2">
+            נתון אינדיקטיבי מתוך מאגר הרכבים הפעילים של משרד התחבורה.
+          </p>
         </div>
       </div>
     </section>
@@ -1272,6 +1310,9 @@ function labelFor(key) {
     history: 'היסטוריית בעלות',
     isPersonalImport: 'יבוא אישי',
     personalImportType: 'סוג יבוא אישי',
+    activeSameModelCount: 'פעילים מאותו דגם בישראל',
+    activeSameModelColorCount: 'פעילים מאותו דגם וצבע',
+    activeSameModelColorName: 'צבע בדיקה',
     marina: 'מרינה',
     flagCountry: 'דגל',
     offroadUsageType: 'שימוש שטח',

@@ -558,7 +558,20 @@ async function fetchOwnershipHistory(plateDigits) {
     // type (פרטי / ליסינג / השכרה / מסחרי / מונית / ...) DOES count.
     // The full history list is still returned verbatim so the
     // breakdown UI can show every episode with its real baalut tag.
-    const isDealerEpisode = (b) => String(b || '').trim() === 'סוחר';
+    // Data.gov ownership labels aren't always a clean literal "סוחר".
+    // In practice we may get variants like:
+    //   "סוחר רכב", "סוחר-רכב", "סוחר/פרטי", extra spaces, punctuation, etc.
+    // Business rule from PM: ANY dealer episode should not count as a hand.
+    const normalizeOwnershipLabel = (value) =>
+      String(value || '')
+        .trim()
+        .replace(/[\u0591-\u05C7]/g, '') // Hebrew niqqud/marks
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+    const isDealerEpisode = (b) => {
+      const label = normalizeOwnershipLabel(b);
+      return label.includes('סוחר');
+    };
     const handCount = history.filter(h => !isDealerEpisode(h.baalut)).length;
 
     return {
@@ -681,6 +694,60 @@ async function fetchDetailedSpecs(tozeretCd, degemCd, year) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Fetch "anecdote" market stats for private cars:
+ *   - how many ACTIVE vehicles exist בישראל מאותו דגם
+ *   - how many ACTIVE vehicles exist מאותו דגם + אותו צבע
+ *
+ * Scope is intentionally the active private-car registry only
+ * (RESOURCE_ID). For motorcycles/heavy/CME datasets we skip to avoid
+ * misleading counts from schema mismatch.
+ */
+async function fetchActiveModelAnecdote(source, record) {
+  // Supported sources that can be mapped back to the active private-car
+  // registry with stable model identifiers.
+  const supported = source === 'car' || source === 'inactive' || source === 'personal_import';
+  if (!supported) return null;
+
+  const tozeretCd = Number(record?.tozeret_cd);
+  const degemCd = Number(record?.degem_cd);
+  if (!Number.isFinite(tozeretCd) || !Number.isFinite(degemCd) || tozeretCd <= 0 || degemCd <= 0) {
+    return null;
+  }
+
+  const modelFilters = { tozeret_cd: tozeretCd, degem_cd: degemCd };
+  const colorRaw = safeStr(record?.tzeva_rechev || '', 30) || null;
+
+  const fetchCount = async (filters) => {
+    const url = `${API_BASE}?resource_id=${encodeURIComponent(RESOURCE_ID)}&filters=${encodeURIComponent(JSON.stringify(filters))}&limit=0`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const total = Number(json?.result?.total);
+      return Number.isFinite(total) && total >= 0 ? total : null;
+    } catch {
+      clearTimeout(timeoutId);
+      return null;
+    }
+  };
+
+  const [sameModelCount, sameModelColorCount] = await Promise.all([
+    fetchCount(modelFilters),
+    colorRaw ? fetchCount({ ...modelFilters, tzeva_rechev: colorRaw }) : Promise.resolve(null),
+  ]);
+
+  if (!Number.isFinite(sameModelCount) && !Number.isFinite(sameModelColorCount)) return null;
+  return {
+    active_same_model_count: Number.isFinite(sameModelCount) ? sameModelCount : null,
+    active_same_model_color_count: Number.isFinite(sameModelColorCount) ? sameModelColorCount : null,
+    active_same_model_color_name: colorRaw,
+  };
 }
 
 /**
@@ -832,8 +899,9 @@ export async function lookupVehicleByPlate(plate) {
     (source !== 'cme' && source !== 'personal_import')
       ? fetchPersonalImport(clean)
       : Promise.resolve(null),
+    fetchActiveModelAnecdote(source, record),
   ]);
-  const [specs, lastTestKm, ownership, personalImport] = enrichments;
+  const [specs, lastTestKm, ownership, personalImport, modelAnecdote] = enrichments;
 
   if (specs) {
     Object.entries(specs).forEach(([k, v]) => {
@@ -866,6 +934,19 @@ export async function lookupVehicleByPlate(plate) {
   if (personalImport) {
     fields.is_personal_import   = true;
     fields.personal_import_type = personalImport.personal_import_type;
+  }
+  // Friendly "market context" anecdote for Vehicle Quick Check:
+  // active vehicles בישראל with the same model (+ same color). Best-effort.
+  if (modelAnecdote) {
+    if (Number.isFinite(modelAnecdote.active_same_model_count)) {
+      fields.active_same_model_count = modelAnecdote.active_same_model_count;
+    }
+    if (Number.isFinite(modelAnecdote.active_same_model_color_count)) {
+      fields.active_same_model_color_count = modelAnecdote.active_same_model_color_count;
+    }
+    if (modelAnecdote.active_same_model_color_name) {
+      fields.active_same_model_color_name = modelAnecdote.active_same_model_color_name;
+    }
   }
 
   // Remove internal fields

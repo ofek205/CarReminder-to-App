@@ -133,6 +133,9 @@ function normalizeLookupResult(raw, plate) {
       marina: source.marina,
       flagCountry: source.flag_country,
       offroadUsageType: source.offroad_usage_type,
+      activeSameModelCount: source.active_same_model_count,
+      activeSameModelColorCount: source.active_same_model_color_count,
+      activeSameModelColorName: source.active_same_model_color_name,
     }),
     insights: generateVehicleInsights(source),
   };
