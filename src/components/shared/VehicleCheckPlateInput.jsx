@@ -16,7 +16,8 @@ export default function VehicleCheckPlateInput({ value, onChange, onEnter, disab
       dir="ltr"
     >
       <div className="absolute inset-y-0 left-0 w-[38px] bg-[#0A3A78] border-r border-[#072A56] flex flex-col items-center justify-center">
-        <span className="text-white text-[9px] leading-none font-black mb-1">IL</span>
+        <span className="text-white text-[9px] leading-none font-black">IL</span>
+        <span className="text-white text-[6px] leading-none font-bold mt-0.5 mb-0.5">ישראל</span>
         <span className="w-4 h-3 rounded-[2px] bg-white border border-[#D9D9D9]" />
       </div>
       <input

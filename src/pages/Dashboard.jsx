@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from '@/lib/popups/systemPopups';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
@@ -140,11 +140,11 @@ function VehicleCheckHero({ hasVehicles, plate, onPlateChange, onSubmit, submitt
       style={{ background: 'linear-gradient(180deg, #F3F9F4 0%, #FFFFFF 100%)', borderColor: '#D8E5D9' }}
       dir="rtl"
     >
-      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#E8F2EA] text-[#2D5233] text-[10px] font-black mb-1.5">
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F2EA] text-[#2D5233] text-[11px] font-black mb-1.5">
         בדיקה חכמה תוך שניות
       </div>
       <h1 className="font-black text-lg sm:text-xl text-[#1C2E20] mb-0.5">
-        {hasVehicles ? 'רוצה לבדוק רכב נוסף?' : 'בדוק כל רכב תוך שניות'}
+        {hasVehicles ? 'הזן מספר רישוי וקבל את פרטי הרכב תוך שניות' : 'בדוק כל רכב תוך שניות'}
       </h1>
       <p className="text-[11px] sm:text-xs text-gray-600 mb-2.5">
         {hasVehicles
@@ -164,9 +164,8 @@ function VehicleCheckHero({ hasVehicles, plate, onPlateChange, onSubmit, submitt
         disabled={submitting}
         className="mt-1.5 rounded-xl px-4 py-1.5 text-xs font-black text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60"
       >
-        {submitting ? 'מעביר...' : 'בדוק עכשיו'}
+        {submitting ? 'מעביר...' : 'בדוק רכב'}
       </button>
-      <p className="text-[10px] text-gray-500 mt-1">כולל דוח PDF מלא</p>
     </section>
   );
 }
@@ -798,7 +797,6 @@ export default function Dashboard() {
   const [profileMissing, setProfileMissing] = useState(false);
   const [quickCheckPlate, setQuickCheckPlate] = useState('');
   const [quickCheckSubmitting, setQuickCheckSubmitting] = useState(false);
-  const quickCheckAutoSubmittedRef = useRef(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -809,17 +807,6 @@ export default function Dashboard() {
     setQuickCheckSubmitting(true);
     navigate(createPageUrl('vehicle-check'));
   };
-
-  useEffect(() => {
-    const normalized = normalizeQuickCheckPlateInput(quickCheckPlate);
-    if (!isQuickCheckPlateReady(normalized)) {
-      quickCheckAutoSubmittedRef.current = false;
-      return;
-    }
-    if (quickCheckAutoSubmittedRef.current || quickCheckSubmitting) return;
-    quickCheckAutoSubmittedRef.current = true;
-    openQuickCheck(normalized);
-  }, [quickCheckPlate, quickCheckSubmitting]);
 
   // Pull-to-refresh
   const { pulling, progress } = usePullToRefresh(async () => {
