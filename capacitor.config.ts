@@ -20,9 +20,21 @@ const config: CapacitorConfig = {
     ],
   },
   plugins: {
+    // Splash strategy:
+    //   launchAutoHide=false  → native splash stays up until JS calls
+    //                            SplashScreen.hide() AFTER React mounts.
+    //   launchShowDuration=5000 → safety ceiling. With autoHide=false this
+    //                            is effectively a no-op, but kept as a
+    //                            documentation hint that 5s is the longest
+    //                            we'd ever expect cold start to take.
+    // Why this matters: on a fresh install on a new iOS device (App Review
+    // scenario) the bundle parse + AuthPage lazy-load + Supabase init can
+    // exceed 2s. With the previous launchAutoHide=true the splash dropped
+    // before React painted, and the user saw a white screen — exactly what
+    // Apple QA flagged as "blank screen on launch" (Guideline 2.1(a)).
     SplashScreen: {
-      launchShowDuration: 2000,
-      launchAutoHide: true,
+      launchShowDuration: 5000,
+      launchAutoHide: false,
       backgroundColor: '#16A34A',
       showSpinner: true,
       spinnerColor: '#FFFFFF',
