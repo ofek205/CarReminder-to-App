@@ -20,24 +20,38 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
  */
 const isNative = Capacitor.isNativePlatform();
 
+const STORAGE_OP_TIMEOUT_MS = 2500;
+const withTimeout = (promise, fallbackValue, timeoutMs = STORAGE_OP_TIMEOUT_MS) =>
+  Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => resolve(fallbackValue), timeoutMs)),
+  ]);
+
 const nativeStorage = {
   async getItem(key) {
     try {
-      const { Preferences } = await import('@capacitor/preferences');
-      const { value } = await Preferences.get({ key });
+      const mod = await withTimeout(import('@capacitor/preferences'), null);
+      const Preferences = mod?.Preferences;
+      if (!Preferences?.get) return null;
+      const result = await withTimeout(Preferences.get({ key }), { value: null });
+      const value = result?.value;
       return value ?? null;
     } catch { return null; }
   },
   async setItem(key, value) {
     try {
-      const { Preferences } = await import('@capacitor/preferences');
-      await Preferences.set({ key, value });
+      const mod = await withTimeout(import('@capacitor/preferences'), null);
+      const Preferences = mod?.Preferences;
+      if (!Preferences?.set) return;
+      await withTimeout(Preferences.set({ key, value }), null);
     } catch {}
   },
   async removeItem(key) {
     try {
-      const { Preferences } = await import('@capacitor/preferences');
-      await Preferences.remove({ key });
+      const mod = await withTimeout(import('@capacitor/preferences'), null);
+      const Preferences = mod?.Preferences;
+      if (!Preferences?.remove) return;
+      await withTimeout(Preferences.remove({ key }), null);
     } catch {}
   },
 };
