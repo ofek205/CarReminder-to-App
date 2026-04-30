@@ -53,22 +53,53 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Select latest Xcode 26 (non-beta)
-        # App Store Connect now requires iOS 26 SDK (Xcode 26+). macos-26
-        # ships multiple Xcode 26.x installs under /Applications/Xcode_26*.app
-        # — pick the highest version that exists, excluding betas (we don't
-        # want to ship to App Store from a beta even if it's installed).
+      - name: Select Xcode 26.4 (stable, iOS 26.4 SDK)
+        # IMPORTANT: do NOT just pick "the highest 26.x" on this runner.
+        # macos-26 has Xcode 26.5 *beta* installed and exposes it via
+        # symlinks like /Applications/Xcode_26.5.app and Xcode_26.5.0.app
+        # whose own filenames do NOT contain "beta", so a naive
+        # `ls /Applications/Xcode_26*.app | grep -v beta | sort -V | tail -1`
+        # silently picks the beta. The beta's iOS 26.5 platform isn't
+        # fully provisioned for headless `xcodebuild archive` and fails:
+        #   "iOS 26.5 is not installed. Please download and install the
+        #    platform from Xcode > Settings > Components."
+        # Xcode 26.4 (which on this image symlinks to the real 26.4.1)
+        # ships with the iOS 26.4 SDK ready out of the box and satisfies
+        # Apple's "iOS 26 SDK or later" requirement for App Store uploads.
         run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
-          if [ -z "$XCODE_PATH" ]; then
-            echo "ERROR: no Xcode 26.x found under /Applications. Available:"
-            ls -d /Applications/Xcode*.app 2>/dev/null
+          set -euo pipefail
+          echo "=== All Xcode 26.x installs on this runner ==="
+          for app in /Applications/Xcode_26*.app; do
+            if [ -L "$app" ]; then
+              target=$(readlink "$app")
+              echo "  $app -> $target  (symlink)"
+            elif [ -d "$app" ]; then
+              echo "  $app  (directory)"
+            fi
+          done
+          echo
+
+          if [ -d /Applications/Xcode_26.4.app ]; then
+            XCODE_PATH=/Applications/Xcode_26.4.app
+          elif [ -d /Applications/Xcode_26.4.1.app ]; then
+            XCODE_PATH=/Applications/Xcode_26.4.1.app
+          else
+            echo "ERROR: Xcode 26.4 not found on macos-26 runner."
+            echo "The runner image may have changed; pick a different stable 26.x explicitly."
             exit 1
           fi
+
           echo "Selecting $XCODE_PATH"
           sudo xcode-select -s "$XCODE_PATH"
+          echo "=== xcode-select -p ==="
+          xcode-select -p
+          echo "=== xcodebuild -version ==="
           xcodebuild -version
+          echo "=== xcrun iphoneos SDK ==="
           xcrun --sdk iphoneos --show-sdk-version
+          xcrun --sdk iphoneos --show-sdk-platform-version
+          echo "=== xcodebuild -showsdks (iOS only) ==="
+          xcodebuild -showsdks 2>/dev/null | grep -i iphoneos || true
 
       - name: Install dependencies
         run: npm ci
