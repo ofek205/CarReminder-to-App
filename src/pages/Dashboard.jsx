@@ -189,7 +189,7 @@ function VehicleCheckHero({ plate, onPlateChange, onSubmit, submitting, compact 
           compact ? 'text-[11px] mb-3' : 'text-xs sm:text-sm mb-4'
         }`}
       >
-        הזן מספר רישוי וקבל סיכום מובנה, תובנות ומפרט טכני בלי להוסיף את הרכב לחשבון.
+        הזן מספר רישוי וקבל סיכום מובנה, תובנות ומפרט טכני.
       </p>
 
       {/* Plate (RTL leading) + CTA (RTL trailing). Single column on mobile

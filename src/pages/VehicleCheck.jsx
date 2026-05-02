@@ -227,42 +227,56 @@ export default function VehicleCheck() {
       <div className="vehicle-check-screen max-w-5xl mx-auto">
         <Header isAuthenticated={isAuthenticated} />
 
-        <section className="bg-white border border-[#D8E5D9] rounded-[2rem] shadow-xl shadow-[#2D5233]/10 p-4 sm:p-6 mb-5">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E8F2EA] text-[#2D5233] text-xs font-bold mb-4">
-              <Sparkles className="h-3.5 w-3.5" />
-              בדיקה חכמה תוך שניות
-            </div>
-            <h1 className="text-2xl sm:text-4xl font-bold text-[#1C2E20] mb-2">
-              בדיקת רכב לפי מספר רישוי
-            </h1>
-            <p className="text-sm text-gray-500 leading-relaxed mb-6">
-              הזן מספר רישוי וקבל סיכום מובנה, תובנות ומפרט טכני בלי להוסיף את הרכב לחשבון.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">
-              <div>
-                <VehicleCheckPlateInput
-                  value={plate}
-                  onChange={handlePlateChange}
-                  onEnter={search}
-                  disabled={isBusy}
-                />
-                {error && <p className="text-xs text-red-600 text-right mt-2">{error}</p>}
+        {/* Big hero — shown whenever there isn't a successful result on
+            screen. After a hit, we collapse to <CompactPlateBar /> below
+            so the actual report owns the fold instead of a now-redundant
+            "enter your plate" panel. */}
+        {status !== 'success' && (
+          <section className="bg-white border border-[#D8E5D9] rounded-[2rem] shadow-xl shadow-[#2D5233]/10 p-4 sm:p-6 mb-5">
+            <div className="max-w-2xl mx-auto text-center">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E8F2EA] text-[#2D5233] text-xs font-bold mb-4">
+                <Sparkles className="h-3.5 w-3.5" />
+                בדיקה חכמה תוך שניות
               </div>
-              <Button
-                type="button"
-                onClick={search}
-                disabled={isBusy || !validation.ok}
-                className="h-14 rounded-2xl px-6 font-bold shadow-lg shadow-[#2D5233]/20"
-                style={{ background: C.primary, color: '#fff' }}
-              >
-                {isBusy ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Search className="h-4 w-4 ml-2" />}
-                בדוק רכב
-              </Button>
+              <h1 className="text-2xl sm:text-4xl font-bold text-[#1C2E20] mb-2">
+                בדיקת רכב לפי מספר רישוי
+              </h1>
+              <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                הזן מספר רישוי וקבל סיכום מובנה, תובנות ומפרט טכני.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">
+                <div>
+                  <VehicleCheckPlateInput
+                    value={plate}
+                    onChange={handlePlateChange}
+                    onEnter={search}
+                    disabled={isBusy}
+                  />
+                  {error && <p className="text-xs text-red-600 text-right mt-2">{error}</p>}
+                </div>
+                <Button
+                  type="button"
+                  onClick={search}
+                  disabled={isBusy || !validation.ok}
+                  className="h-14 rounded-2xl px-6 font-bold shadow-lg shadow-[#2D5233]/20"
+                  style={{ background: C.primary, color: '#fff' }}
+                >
+                  {isBusy ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Search className="h-4 w-4 ml-2" />}
+                  בדוק רכב
+                </Button>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
+
+        {/* Compact plate bar — replaces the big hero once we have a hit.
+            Reset is the navigation action: top of the page, near where
+            the plate originally lived, so opening a fresh check is one
+            tap away from the searched plate. */}
+        {status === 'success' && result && (
+          <CompactPlateBar plateValue={result.plate || plate} onReset={resetCheck} />
+        )}
 
         {limitLocked && <GuestLimitCard onAuth={goToAuth} />}
         {isBusy && <SmartLoading text={loadingMessages[loadingIndex]} />}
@@ -273,16 +287,21 @@ export default function VehicleCheck() {
           <div className="space-y-5">
             <SummaryCard result={result} />
             <MarketAnecdote result={result} />
-            <ResultActions onExport={openReportOptions} onReset={resetCheck} />
             <Insights insights={result.insights} />
             <KeyInfoGrid result={result} />
             <SpecsAccordion result={result} />
+            {/* Final action card — save (primary) + export (secondary) live
+                here together so the user finishes the report and lands on
+                a single coherent commit bar, instead of two split bars
+                (one mid-page, one bottom). The mid-page <ResultActions />
+                was removed in this refactor. */}
             <ConversionCta
               isAuthenticated={isAuthenticated}
               saving={saving}
               saved={saved}
               onSave={saveVehicle}
               onAuth={goToAuth}
+              onExport={openReportOptions}
             />
           </div>
         )}
@@ -382,23 +401,29 @@ function SummaryCard({ result }) {
   );
 }
 
-function ResultActions({ onExport, onReset }) {
+// CompactPlateBar — slim summary of the searched plate. Replaces the
+// big hero after a successful lookup so the report itself owns the fold
+// instead of an "enter your plate" panel that's already done its job.
+// The reset button lives here (not mid-page) because "search a different
+// plate" is a navigation action, not a commit action — top-of-page is
+// where the user expects nav controls.
+function CompactPlateBar({ plateValue, onReset }) {
   return (
-    <section className="bg-white border border-gray-100 rounded-3xl p-3 shadow-sm">
-      <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-        <p className="text-xs sm:text-sm text-gray-500 font-bold text-center sm:text-right">
-          אפשר לשמור דוח מסודר או לאפס את הבדיקה ולהזין מספר אחר.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Button type="button" onClick={onExport} className="rounded-2xl font-bold" style={{ background: C.primary }}>
-            <Download className="h-4 w-4 ml-2" />
-            ייצוא דוח
-          </Button>
-          <Button type="button" variant="outline" onClick={onReset} className="rounded-2xl font-bold">
-            <RotateCcw className="h-4 w-4 ml-2" />
-            איפוס לבדיקה נוספת
-          </Button>
+    <section className="bg-white border border-[#D8E5D9] rounded-3xl p-3 sm:p-4 mb-5 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 max-w-2xl mx-auto">
+        <div className="flex items-center justify-center sm:justify-start gap-2">
+          <span className="text-xs sm:text-sm text-gray-500 font-bold">תוצאות עבור</span>
+          <LicensePlate value={plateValue} size="md" showCopy={false} />
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onReset}
+          className="rounded-2xl font-bold w-full sm:w-auto"
+        >
+          <RotateCcw className="h-4 w-4 ml-2" />
+          בדיקה חדשה
+        </Button>
       </div>
     </section>
   );
@@ -409,9 +434,11 @@ function MarketAnecdote({ result }) {
   const modelCount = Number(a.activeSameModelCount);
   const modelColorCount = Number(a.activeSameModelColorCount);
   const colorName = a.activeSameModelColorName;
+  const distribution = Array.isArray(a.ownershipDistribution) ? a.ownershipDistribution : [];
   const hasModel = Number.isFinite(modelCount) && modelCount > 0;
   const hasModelColor = Number.isFinite(modelColorCount) && modelColorCount >= 0;
-  if (!hasModel && !hasModelColor) return null;
+  const hasDistribution = distribution.length > 0;
+  if (!hasModel && !hasModelColor && !hasDistribution) return null;
 
   return (
     <section className="rounded-3xl border border-[#D8E5D9] bg-[#F7FBF8] p-4 shadow-sm">
@@ -430,6 +457,16 @@ function MarketAnecdote({ result }) {
             <p className="text-sm text-gray-600 mt-1">
               מתוכם <strong>{modelColorCount.toLocaleString('he-IL')}</strong>
               {colorName ? ` באותו צבע (${colorName})` : ' באותו צבע'}.
+            </p>
+          )}
+          {hasDistribution && (
+            <p className="text-sm text-gray-600 mt-1">
+              לפי סוג בעלות: {distribution.map((d, i) => (
+                <span key={d.label}>
+                  {i > 0 && ' · '}
+                  <strong>{d.percent}%</strong> {d.label}
+                </span>
+              ))}
             </p>
           )}
           <p className="text-[11px] text-gray-400 mt-2">
@@ -521,7 +558,7 @@ function Insights({ insights = [] }) {
   if (!insights.length) return null;
   return (
     <section>
-      <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="תובנות חכמות" subtitle="מה כדאי לשים לב אליו לפי הנתונים הזמינים" />
+      <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="תובנות חכמות" subtitle="דגלים, אנומליות והקשרים שצצים בהצלבת הנתונים. לא מוצגות תובנות גנריות." />
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {insights.map(item => {
           const Icon = toneIcons[item.tone] || Info;
@@ -545,8 +582,39 @@ function KeyInfoGrid({ result }) {
   const t = result.technical || {};
   const o = result.ownership || {};
   const r = result.registration || {};
+  const b = result.basicInfo || {};
+
+  // Annual-km average — the "is this car driven a lot?" signal that
+  // buyers actually care about. We show it as a tiny suffix on the
+  // קילומטראז׳ tile (subtle, per the user's brief that this shouldn't
+  // steal focus). Only computed when we have BOTH a km reading and a
+  // year — otherwise the division would be misleading.
+  const kmNum = Number(String(r.currentKm || '').replace(/[^\d.]/g, ''));
+  const yearNum = Number(b.year);
+  const ageYears = yearNum && yearNum > 1900 ? Math.max(1, new Date().getFullYear() - yearNum) : null;
+  const annualKm = (Number.isFinite(kmNum) && kmNum > 0 && ageYears)
+    ? Math.round(kmNum / ageYears)
+    : null;
+  // 15K-20K is the Israeli per-driver average (CBS). Buckets:
+  let annualKmBand = null;
+  if (annualKm !== null) {
+    if (annualKm < 8000)        annualKmBand = { label: 'נסועה נמוכה',  tone: 'text-amber-700' };
+    else if (annualKm <= 22000) annualKmBand = { label: 'נסועה ממוצעת', tone: 'text-emerald-700' };
+    else                        annualKmBand = { label: 'נסועה גבוהה',  tone: 'text-amber-700' };
+  }
+
+  const kmTile = formatKm(r.currentKm);
   const items = [
-    { icon: Gauge, label: 'קילומטראז׳ אחרון', value: formatKm(r.currentKm) },
+    {
+      icon: Gauge,
+      label: 'קילומטראז׳ אחרון',
+      value: kmTile,
+      // Annual-km hint slipped in as a small second line, only when we
+      // have enough data. Doesn't replace the headline number.
+      hint: annualKm !== null
+        ? { text: `~${annualKm.toLocaleString('he-IL')} ק״מ/שנה`, badge: annualKmBand?.label, tone: annualKmBand?.tone }
+        : null,
+    },
     { icon: Gauge, label: 'נפח מנוע', value: t.engineCc },
     { icon: Wrench, label: 'סוג דלק', value: t.fuelType },
     { icon: ShieldCheck, label: 'תיבת הילוכים', value: t.transmission },
@@ -566,6 +634,14 @@ function KeyInfoGrid({ result }) {
               <Icon className="h-4 w-4 text-[#2D5233] mb-2" />
               <p className="text-[11px] font-bold text-gray-400">{item.label}</p>
               <p className="text-sm font-bold text-gray-900 mt-1 break-words">{formatSpecValue(item.value)}</p>
+              {item.hint && (
+                <p className="text-[10px] mt-1 leading-snug">
+                  <span className="text-gray-500">{item.hint.text}</span>
+                  {item.hint.badge && (
+                    <span className={`mr-1.5 font-bold ${item.hint.tone}`}>· {item.hint.badge}</span>
+                  )}
+                </p>
+              )}
             </div>
           );
         })}
@@ -626,14 +702,22 @@ function SpecRows({ data = {}, sectionId }) {
   if (!entries.length) return null;
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-      {entries.map(([key, value]) => (
-        <div key={key} className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
-          <p className="text-[10px] font-bold text-gray-400">{labelFor(key)}</p>
-          <p className="text-xs font-bold text-gray-800 break-words">
-            {formatSpecValue(value)}
-          </p>
-        </div>
-      ))}
+      {entries.map(([key, value]) => {
+        const formatted = formatSpecValueByKey(key, value);
+        return (
+          <div key={key} className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+            <p className="text-[10px] font-bold text-gray-400">{labelFor(key)}</p>
+            <p className="text-xs font-bold text-gray-800 break-words">
+              {formatted.raw}
+              {formatted.band && (
+                <span className={`mr-1.5 text-[10px] font-bold ${TONE_TEXT[formatted.band.tone]}`}>
+                  · {formatted.band.label}
+                </span>
+              )}
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -677,6 +761,59 @@ function formatSpecValue(value) {
   return String(value);
 }
 
+// Bucket helpers for the technical scales — pollution / safety / green
+// index are stored as raw 1-15 ints by gov.il which look like noise to a
+// non-expert ("קבוצת זיהום: 7" means nothing). The grading bands match
+// the public Ministry of Transport rubric so a buyer can read the
+// numeric value and the human label side by side.
+function humanPollutionGroup(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (n <= 3)  return { label: 'זיהום נמוך',       tone: 'success' };
+  if (n <= 7)  return { label: 'זיהום בינוני',     tone: 'info'    };
+  if (n <= 11) return { label: 'זיהום גבוה',       tone: 'warning' };
+  return            { label: 'זיהום גבוה מאוד', tone: 'danger'  };
+}
+function humanGreenIndex(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (n <= 3) return { label: 'ירוק',         tone: 'success' };
+  if (n <= 7) return { label: 'בינוני',       tone: 'info'    };
+  return         { label: 'לא ירוק',       tone: 'warning' };
+}
+// Israeli MOT safety rating runs 0-8 stars; we display the raw score
+// alongside a 3-band reading so a buyer instantly knows whether a "5"
+// is good or bad without remembering the scale.
+function humanSafetyRating(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  if (n >= 6) return { label: 'בטיחות גבוהה',  tone: 'success' };
+  if (n >= 4) return { label: 'בטיחות בינונית', tone: 'info'    };
+  return        { label: 'בטיחות נמוכה',   tone: 'warning' };
+}
+const HUMANIZE_BY_KEY = {
+  pollutionGroup: humanPollutionGroup,
+  greenIndex:     humanGreenIndex,
+  safetyRating:   humanSafetyRating,
+};
+const TONE_TEXT = {
+  success: 'text-emerald-700',
+  info:    'text-gray-700',
+  warning: 'text-amber-700',
+  danger:  'text-red-700',
+};
+// Per-key formatter used by the spec rows. Falls back to the plain
+// formatSpecValue for keys without a humanizer so we don't clobber
+// straight numeric/string values like seats=5.
+function formatSpecValueByKey(key, value) {
+  const h = HUMANIZE_BY_KEY[key];
+  if (h) {
+    const band = h(value);
+    if (band) return { raw: String(value), band };
+  }
+  return { raw: formatSpecValue(value), band: null };
+}
+
 function formatUniqueList(values) {
   const seen = new Set();
   return values
@@ -703,12 +840,27 @@ function hasDisplayValue(value) {
   return value !== undefined && value !== null && value !== '';
 }
 
-function ConversionCta({ isAuthenticated, saving, saved, onSave, onAuth }) {
+// Final action card. Save is primary (commit), Export is the secondary
+// commit, Auth/login is tertiary (only for guests). Keeping all three in
+// one card means the user lands on a single decision point at the bottom
+// of the report instead of having an export bar mid-page and a save bar
+// at the bottom.
+function ConversionCta({ isAuthenticated, saving, saved, onSave, onAuth, onExport }) {
   if (saved) {
     return (
       <section className="rounded-3xl border border-green-100 bg-green-50 p-5 text-center">
         <CheckCircle2 className="h-8 w-8 text-green-700 mx-auto mb-2" />
         <p className="text-lg font-bold text-green-900">הרכב נשמר בהצלחה</p>
+        {/* Export is still relevant after save — user might want a printed
+            copy of the very report they just saved. */}
+        {onExport && (
+          <div className="flex justify-center mt-3">
+            <Button type="button" variant="outline" onClick={onExport} className="rounded-2xl font-bold">
+              <Download className="h-4 w-4 ml-2" />
+              ייצוא דוח
+            </Button>
+          </div>
+        )}
         <Link to={createPageUrl('Vehicles')} className="inline-flex items-center gap-1 mt-3 text-sm font-bold text-green-800">
           לרכבים שלי
           <ArrowLeft className="h-4 w-4" />
@@ -729,6 +881,12 @@ function ConversionCta({ isAuthenticated, saving, saved, onSave, onAuth }) {
           {saving ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Save className="h-4 w-4 ml-2" />}
           {isAuthenticated ? 'הוסף לרכבים שלי' : 'התחבר ושמור רכב'}
         </Button>
+        {onExport && (
+          <Button type="button" variant="outline" onClick={onExport} className="rounded-2xl font-bold">
+            <Download className="h-4 w-4 ml-2" />
+            ייצוא דוח
+          </Button>
+        )}
         {!isAuthenticated && (
           <Button type="button" variant="outline" onClick={onAuth} className="rounded-2xl font-bold">
             הרשמה / התחברות

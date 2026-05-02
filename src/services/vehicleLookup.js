@@ -46,6 +46,13 @@ const OWNERSHIP_HISTORY_RESOURCE_ID = 'bb2355dc-9ec7-4f06-9c3f-3344672171da';
 // informational badge next to the existing vintage chip — no logic
 // or reminders depend on it.
 const PERSONAL_IMPORT_RESOURCE_ID = '03adc637-b6fe-402b-9937-7c3d3afc9140';
+// "כלי רכב שלא ביצעו ריקול - קריאות שירות" — vehicles with an OPEN
+// (unfulfilled) recall service call. Match by MISPAR_RECHEV; presence
+// of any record means the plate has at least one outstanding recall.
+// Headline fields: TEUR_TAKALA (defect description in Hebrew),
+// SUG_TAKALA (defect type — typically "ליקוי בטיחותי"), TAARICH_PTICHA
+// (recall opening date). 137K records as of 2026-05.
+const OPEN_RECALL_RESOURCE_ID = '36bf1404-0be4-49d2-82dc-2f1ead4a8b93';
 import { isNative } from '@/lib/capacitor';
 
 // In dev browser, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
@@ -737,17 +744,77 @@ async function fetchActiveModelAnecdote(source, record) {
     }
   };
 
-  const [sameModelCount, sameModelColorCount] = await Promise.all([
+  // Ownership-mix breakdown — same model, split by baalut. We only
+  // probe the four most common values in the registry (private/leasing/
+  // rental/commercial); anything else is too rare to be useful as a
+  // percentage and would just inflate API load. All 6 calls fire in
+  // parallel, all best-effort. If any fails we degrade gracefully —
+  // the breakdown is informational, never load-bearing.
+  const BAALUT_BREAKDOWN_KEYS = ['פרטי', 'ליסינג', 'השכרה', 'מסחרי'];
+
+  const [sameModelCount, sameModelColorCount, ...baalutCounts] = await Promise.all([
     fetchCount(modelFilters),
     colorRaw ? fetchCount({ ...modelFilters, tzeva_rechev: colorRaw }) : Promise.resolve(null),
+    ...BAALUT_BREAKDOWN_KEYS.map(b => fetchCount({ ...modelFilters, baalut: b })),
   ]);
 
   if (!Number.isFinite(sameModelCount) && !Number.isFinite(sameModelColorCount)) return null;
+
+  // Build breakdown only when we have a reliable total to divide by AND
+  // at least one band landed. Skip the percentage rounding when total
+  // is too small to be meaningful (<100) — at low N the % swings wildly
+  // and looks like noise.
+  let ownership_distribution = null;
+  if (Number.isFinite(sameModelCount) && sameModelCount >= 100) {
+    const entries = BAALUT_BREAKDOWN_KEYS
+      .map((label, i) => ({ label, count: Number(baalutCounts[i]) }))
+      .filter(e => Number.isFinite(e.count) && e.count > 0)
+      .map(e => ({ label: e.label, count: e.count, percent: Math.round((e.count / sameModelCount) * 100) }))
+      .filter(e => e.percent >= 1)
+      .sort((a, b) => b.count - a.count);
+    if (entries.length > 0) ownership_distribution = entries;
+  }
+
   return {
     active_same_model_count: Number.isFinite(sameModelCount) ? sameModelCount : null,
     active_same_model_color_count: Number.isFinite(sameModelColorCount) ? sameModelColorCount : null,
     active_same_model_color_name: colorRaw,
+    ownership_distribution,
   };
+}
+
+/**
+ * Open-recall lookup. Best-effort: never throws, returns null on any
+ * failure or empty result so the parent lookup can keep going. We do
+ * an exact filter on MISPAR_RECHEV (the dataset uses an uppercase
+ * field name) and ask for up to 10 rows — a single plate can have
+ * multiple recalls open if the manufacturer issued several over time.
+ *
+ * Returns an array of { id, type, defectType, description, openedDate }
+ * or null when the plate has no open recalls (or the call failed).
+ */
+async function fetchOpenRecalls(plateDigits) {
+  try {
+    const filters = JSON.stringify({ MISPAR_RECHEV: Number(plateDigits) });
+    const url = `${API_BASE}?resource_id=${encodeURIComponent(OPEN_RECALL_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=10`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const records = json?.result?.records;
+    if (!Array.isArray(records) || records.length === 0) return null;
+    return records.map(r => ({
+      id:           r.RECALL_ID != null ? String(r.RECALL_ID) : null,
+      type:         safeStr(r.SUG_RECALL, 60),
+      defectType:   safeStr(r.SUG_TAKALA, 60),
+      description:  safeStr(r.TEUR_TAKALA, 400),
+      openedDate:   safeDate(r.TAARICH_PTICHA),
+    }));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -900,8 +967,13 @@ export async function lookupVehicleByPlate(plate) {
       ? fetchPersonalImport(clean)
       : Promise.resolve(null),
     fetchActiveModelAnecdote(source, record),
+    // Open-recall lookup — same MISPAR_RECHEV namespace as cars, motos,
+    // heavies, and inactives. CME plates are a different namespace
+    // (mispar_tzama) so we skip; personal-import plates ARE in the
+    // car namespace so they're included.
+    (source !== 'cme') ? fetchOpenRecalls(clean) : Promise.resolve(null),
   ]);
-  const [specs, lastTestKm, ownership, personalImport, modelAnecdote] = enrichments;
+  const [specs, lastTestKm, ownership, personalImport, modelAnecdote, openRecalls] = enrichments;
 
   if (specs) {
     Object.entries(specs).forEach(([k, v]) => {
@@ -935,6 +1007,14 @@ export async function lookupVehicleByPlate(plate) {
     fields.is_personal_import   = true;
     fields.personal_import_type = personalImport.personal_import_type;
   }
+  // Open recalls — actionable warning for buyers. Surface BOTH the
+  // count (drives the insight tone) and the array of full records (so
+  // the UI can show the actual defect descriptions, not just a count).
+  if (Array.isArray(openRecalls) && openRecalls.length > 0) {
+    fields.open_recalls       = openRecalls;
+    fields.open_recalls_count = openRecalls.length;
+  }
+
   // Friendly "market context" anecdote for Vehicle Quick Check:
   // active vehicles בישראל with the same model (+ same color). Best-effort.
   if (modelAnecdote) {
@@ -946,6 +1026,9 @@ export async function lookupVehicleByPlate(plate) {
     }
     if (modelAnecdote.active_same_model_color_name) {
       fields.active_same_model_color_name = modelAnecdote.active_same_model_color_name;
+    }
+    if (Array.isArray(modelAnecdote.ownership_distribution) && modelAnecdote.ownership_distribution.length) {
+      fields.ownership_distribution = modelAnecdote.ownership_distribution;
     }
   }
 

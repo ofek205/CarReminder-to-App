@@ -136,6 +136,17 @@ function normalizeLookupResult(raw, plate) {
       activeSameModelCount: source.active_same_model_count,
       activeSameModelColorCount: source.active_same_model_color_count,
       activeSameModelColorName: source.active_same_model_color_name,
+      // Ownership-mix breakdown for the same model — array of
+      // { label, count, percent } objects, top 4 baalut types,
+      // ordered descending by count. May be missing when the total
+      // model fleet is too small to produce reliable percentages.
+      ownershipDistribution: source.ownership_distribution,
+      // Open recalls — surfaced via insights AND via a dedicated
+      // <RecallsCard /> on the report page, so we keep both the count
+      // and the full array here (the array drives the description text
+      // a buyer needs to actually act on).
+      openRecallsCount: source.open_recalls_count,
+      openRecalls: source.open_recalls,
     }),
     insights: generateVehicleInsights(source),
   };
