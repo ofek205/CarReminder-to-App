@@ -6,7 +6,7 @@ import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
-import { Plus, Car, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, Mountain, AlertCircle, ArrowUpDown, Search, X } from "lucide-react";
+import { Plus, Car, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, Mountain, AlertCircle, ArrowUpDown, Search, X, Sparkles } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -148,68 +148,71 @@ function UrgentBanner({ reminders, onView }) {
   );
 }
 
-// Quick-Check hero. Two visual modes:
-//   - expanded (compact=false): primary on the dashboard when there's
-//     nothing urgent. Slightly larger heading, value-prop subtitle in a
-//     prominent slot.
-//   - compact  (compact=true):  secondary when the UrgentBanner takes
-//     priority. Same component, tighter padding/typography, value-prop
-//     drops below the CTA so the input remains the focal point.
-function VehicleCheckHero({ hasVehicles, plate, onPlateChange, onSubmit, submitting, compact = false }) {
-  const heading  = hasVehicles ? 'בדיקת רכב מהירה' : 'בדוק כל רכב לפי לוחית';
-  const subtitle = 'פרטים, היסטוריית בעלות וטסט ממשרד התחבורה';
-
+// Quick-Check hero on the dashboard. Mirrors the dedicated /VehicleCheck
+// page layout (pill badge → centered heading → centered subtitle → grid
+// row with plate on the RTL leading edge and a Search-iconed button on
+// the trailing edge), just at smaller proportions so it fits inside the
+// dashboard alongside the alerts banner and vehicle list.
+//   - expanded (compact=false): hero look, primary on the dashboard when
+//     nothing urgent is happening.
+//   - compact  (compact=true):  same layout, tighter typography/padding,
+//     used when the UrgentBanner is leading the page.
+function VehicleCheckHero({ plate, onPlateChange, onSubmit, submitting, compact = false }) {
   return (
     <section
-      className={`rounded-3xl border bg-white mb-4 ${compact ? 'p-3.5' : 'p-4 sm:p-5'}`}
+      className={`rounded-3xl border bg-white text-center mb-4 ${compact ? 'p-4' : 'p-5 sm:p-6'}`}
       style={{ borderColor: '#E2E8E2', boxShadow: '0 4px 16px rgba(45,82,51,0.06)' }}
       dir="rtl"
     >
-      {/* Heading row with anchor icon */}
-      <div className="flex items-center gap-2.5 mb-3">
-        <div
-          className={`rounded-xl flex items-center justify-center shrink-0 ${compact ? 'w-8 h-8' : 'w-9 h-9'}`}
-          style={{ background: '#E8F2EA' }}
-        >
-          <Search className={compact ? 'w-4 h-4' : 'w-[18px] h-[18px]'} style={{ color: '#2D5233' }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h2 className={`font-bold text-[#1C2E20] leading-tight ${compact ? 'text-base' : 'text-lg sm:text-xl'}`}>
-            {heading}
-          </h2>
-          {!compact && (
-            <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 leading-snug">
-              {subtitle}
-            </p>
-          )}
-        </div>
+      {/* Pill badge */}
+      <div
+        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F2EA] text-[#2D5233] font-bold ${
+          compact ? 'text-[10px] mb-2' : 'text-[11px] sm:text-xs mb-3'
+        }`}
+      >
+        <Sparkles className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
+        בדיקה חכמה תוך שניות
       </div>
 
-      {/* Plate input */}
-      <VehicleCheckPlateInput
-        value={plate}
-        onChange={onPlateChange}
-        onEnter={onSubmit}
-        disabled={submitting}
-        compact
-      />
-
-      {/* CTA — full-width so it reads as the primary action of the card */}
-      <button
-        type="button"
-        onClick={onSubmit}
-        disabled={submitting}
-        className="mt-3 w-full rounded-xl py-2.5 text-sm font-bold text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60 active:scale-[0.99]"
+      {/* Heading */}
+      <h2
+        className={`font-bold text-[#1C2E20] leading-tight mb-1.5 ${
+          compact ? 'text-lg' : 'text-xl sm:text-2xl'
+        }`}
       >
-        {submitting ? 'מעביר...' : 'בדוק רכב'}
-      </button>
+        בדיקת רכב לפי מספר רישוי
+      </h2>
 
-      {/* Compact mode keeps the value-prop, just demoted below the CTA */}
-      {compact && (
-        <p className="text-[11px] text-gray-500 mt-2 text-center leading-snug">
-          {subtitle}
-        </p>
-      )}
+      {/* Subtitle */}
+      <p
+        className={`text-gray-500 leading-relaxed mx-auto max-w-md ${
+          compact ? 'text-[11px] mb-3' : 'text-xs sm:text-sm mb-4'
+        }`}
+      >
+        הזן מספר רישוי וקבל סיכום מובנה, תובנות ומפרט טכני בלי להוסיף את הרכב לחשבון.
+      </p>
+
+      {/* Plate (RTL leading) + CTA (RTL trailing). Single column on mobile
+          so neither element gets squeezed; side-by-side from sm: up. */}
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2.5 items-center">
+        <VehicleCheckPlateInput
+          value={plate}
+          onChange={onPlateChange}
+          onEnter={onSubmit}
+          disabled={submitting}
+          compact
+        />
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={submitting}
+          className="h-10 rounded-xl px-4 font-bold text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60 active:scale-[0.99] flex items-center justify-center gap-2 shrink-0 text-sm"
+          style={{ boxShadow: '0 4px 12px rgba(45,82,51,0.18)' }}
+        >
+          <Search className="w-4 h-4" />
+          {submitting ? 'מעביר...' : 'בדוק רכב'}
+        </button>
+      </div>
     </section>
   );
 }

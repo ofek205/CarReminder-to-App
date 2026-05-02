@@ -4,6 +4,7 @@ import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
 import useFileUpload from '@/hooks/useFileUpload';
 import FirstTimeTour from '@/components/shared/FirstTimeTour';
+import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 
 // Mini tour shown the first time a user lands on /AddVehicle with no
 // vehicles yet. Kept intentionally short: two steps, plain Hebrew,
@@ -1306,38 +1307,28 @@ export default function AddVehicle() {
             </div>
           </div>
 
-          {/* Plate input - only shown when this card is selected */}
+          {/* Plate input - only shown when this card is selected. Uses the
+              shared <VehicleCheckPlateInput /> so the IL strip + flag here
+              matches every other plate in the app (LicensePlate display,
+              Dashboard hero, VehicleCheck page). */}
           {isSelected('plate') && (
-            <div className="mt-4">
+            <div className="mt-4" onClick={e => e.stopPropagation()}>
               <div className="flex gap-2 items-stretch">
-                <div className="relative flex-1">
-                  <div className="absolute right-0 top-0 bottom-0 w-9 rounded-r-lg bg-[#003DA5] flex flex-col items-center justify-center gap-0.5 pointer-events-none z-10">
-                    <span className="text-white text-[8px] font-bold leading-none tracking-wider">IL</span>
-                    <svg viewBox="0 0 60 40" className="w-5 h-3 mt-0.5">
-                      <rect width="60" height="40" fill="white"/>
-                      <rect y="4" width="60" height="5" fill="#003DA5"/>
-                      <rect y="31" width="60" height="5" fill="#003DA5"/>
-                      <polygon points="30,10 34.5,21 25.5,21" fill="none" stroke="#003DA5" strokeWidth="2"/>
-                      <polygon points="30,26 25.5,15 34.5,15" fill="none" stroke="#003DA5" strokeWidth="2"/>
-                    </svg>
-                  </div>
-                  <input
-                    type="text"
-                    dir="ltr"
+                <div className="flex-1">
+                  <VehicleCheckPlateInput
                     value={plateQuery}
-                    onChange={e => { setPlateQuery(e.target.value); setLookupStatus('idle'); }}
-                    onKeyDown={e => e.key === 'Enter' && handleLookup()}
-                    onClick={e => e.stopPropagation()}
+                    onChange={v => { setPlateQuery(v); setLookupStatus('idle'); }}
+                    onEnter={handleLookup}
+                    disabled={lookupStatus === 'loading'}
                     autoFocus
-                    placeholder="12-345-67"
-                    className="w-full h-12 pr-11 pl-3 text-center text-xl font-bold tracking-widest bg-[#FFD600] border-2 border-yellow-400 rounded-lg focus:outline-none focus:border-[#003DA5] placeholder:text-yellow-700/50"
+                    compact
                   />
                 </div>
                 <Button
                   type="button"
                   onClick={e => { e.stopPropagation(); handleLookup(); }}
                   disabled={lookupStatus === 'loading' || !plateQuery.trim()}
-                  className="bg-[#003DA5] hover:bg-[#002d7a] text-white h-12 px-4 gap-2 shrink-0"
+                  className="bg-[#003DA5] hover:bg-[#002d7a] text-white h-10 px-4 gap-2 shrink-0"
                 >
                   {lookupStatus === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   מצא רכב

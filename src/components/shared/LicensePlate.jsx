@@ -6,6 +6,14 @@ import { copyToClipboard } from '@/lib/clipboard';
 /**
  * Israeli license plate display. yellow plate, IL flag, copy button.
  * Usage: <LicensePlate value={vehicle.license_plate} size="sm|md|lg" />
+ *
+ * Design note (kept from the original): the IL badge here is intentionally
+ * compact — flag-only, no stacked "IL"/"ישראל" text. We tried the full
+ * strip (matching <VehicleCheckPlateInput />) and at sm size the Hebrew
+ * "ישראל" rendered at ~4px and looked like a smudge. The full strip lives
+ * in the editable input where there's room; static badges in vehicle
+ * cards / lists keep this slim version so the plate number stays the
+ * focal point.
  */
 export default function LicensePlate({ value, size = 'md', showCopy = true, className = '' }) {
   const [copied, setCopied] = useState(false);

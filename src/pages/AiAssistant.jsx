@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '../components/shared/GuestContext';
 import { aiRequest } from '@/lib/aiProxy';
 import { hapticFeedback } from '@/lib/capacitor';
-import { C, getVehicleVisual } from '@/lib/designTokens';
+import { C, getVehicleVisual, getVehicleCategory } from '@/lib/designTokens';
 import VehicleIcon from '../components/shared/VehicleIcon';
 import VehicleImage, { hasVehiclePhoto } from '../components/shared/VehicleImage';
 import { isVessel, getDateStatus, getVehicleLabels } from '../components/shared/DateStatusUtils';
@@ -57,6 +57,41 @@ const SUGGESTED_PROMPTS_VEHICLE_VESSEL = [
   'יש לי רעש/רעידה במנוע, מה זה יכול להיות?',
 ];
 
+const SUGGESTED_PROMPTS_VEHICLE_MOTORCYCLE = [
+  'מה הטיפולים הקרובים שצריך לעשות?',
+  'מתי כדאי להחליף שרשרת ושמן מנוע?',
+  'איזה צמיגים מתאימים לדגם הזה?',
+  'מה המחיר המוערך לטסט שנתי?',
+  'יש לי רעידה בכידון, מה זה יכול להיות?',
+];
+
+const SUGGESTED_PROMPTS_VEHICLE_TRUCK = [
+  'מה הטיפולים הקרובים שצריך לעשות?',
+  'מתי הטיפול הבא של מערכת הבלמים?',
+  'מה לבדוק לפני נסיעה ארוכה?',
+  'מתי כדאי להחליף שמן הילוכים ודיפרנציאל?',
+  'יש דליפת אוויר במערכת הבלמים, מה לבדוק?',
+];
+
+// CME = Construction & Material Equipment (מלגזה, מחפר, טרקטור, מנוף וכו')
+// — שעות מנוע במקום ק"מ, טיפולים אחרים לחלוטין מרכב כביש.
+const SUGGESTED_PROMPTS_VEHICLE_CME = [
+  'מה הטיפולים הקרובים לפי שעות מנוע?',
+  'איזה תקלות נפוצות בכלי הזה?',
+  'מה לבדוק לפני יום עבודה?',
+  'מתי כדאי להחליף שמן הידראולי ופילטרים?',
+  'יש רעש מהמערכת ההידראולית, מה זה יכול להיות?',
+];
+
+// Off-road recreational — טרקטורון, באגי, ATV, אופנוע שטח
+const SUGGESTED_PROMPTS_VEHICLE_OFFROAD = [
+  'מה הטיפולים הקרובים שצריך לעשות?',
+  'איזה תקלות נפוצות בכלי הזה?',
+  'מה לבדוק אחרי יציאה לשטח?',
+  'מתי כדאי להחליף שמן, פילטרים ושרשרת/רצועה?',
+  'יש רעש מהתמסורת או מהשרשרת, מה זה יכול להיות?',
+];
+
 // Sanitize message text. strip HTML, control chars
 function sanitize(text) {
   if (typeof text !== 'string') return '';
@@ -89,6 +124,7 @@ export default function AiAssistant() {
   const [error, setError] = useState(null);
   const lastSendRef = useRef(0);
   const scrollRef = useRef(null);
+  const messagesEndRef = useRef(null); // sentinel at bottom of message list — anchor for scrollIntoView
   const inputRef = useRef(null);
 
   // Load chat history. works for both guests and authenticated users
@@ -152,27 +188,51 @@ export default function AiAssistant() {
   }, [selectedVehicleId]);
 
   // Auto-scroll on new message.
-  // The previous version set scrollTop synchronously inside the effect,
-  // which fired before the browser had painted the new message bubble.
-  // Markdown content (badges, tool results, multi-line replies) often
-  // grows the container *after* the effect runs, so the scroll landed
-  // on a still-stale scrollHeight and the new bubble stayed off-screen.
-  // Two animation frames + smooth behavior covers paint timing and
-  // gives the user a visible motion cue that a new message arrived.
+  //
+  // We use a sentinel <div ref={messagesEndRef}> at the bottom of the
+  // list and call scrollIntoView on it. That's more reliable than
+  // computing scrollHeight on the parent — it works regardless of
+  // which element is actually the scroll container (inner overflow div
+  // vs the document itself), which matters on Android Capacitor where
+  // adjustResize changes who's scrolling when the keyboard opens.
+  //
+  // Two animation frames cover the paint-timing trap: markdown bubbles
+  // (badges, tool blocks, multi-line replies) grow the container AFTER
+  // the effect runs, so a single rAF would land on a still-stale layout
+  // and leave the new bubble off-screen. We also fire one final scroll
+  // 250ms later as a safety net for slow Android paints.
+  const scrollChatToBottom = useCallback((behavior = 'smooth') => {
+    const el = messagesEndRef.current;
+    if (!el) return;
+    try { el.scrollIntoView({ behavior, block: 'end' }); } catch { /* old browsers */ }
+  }, []);
+
   useEffect(() => {
-    if (!scrollRef.current) return;
     let cancelled = false;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (cancelled || !scrollRef.current) return;
-        scrollRef.current.scrollTo({
-          top: scrollRef.current.scrollHeight,
-          behavior: 'smooth',
-        });
+        if (cancelled) return;
+        scrollChatToBottom('smooth');
       });
     });
-    return () => { cancelled = true; };
-  }, [messages, sending]);
+    const t = setTimeout(() => { if (!cancelled) scrollChatToBottom('auto'); }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [messages, sending, scrollChatToBottom]);
+
+  // When the input is focused (keyboard opens on mobile), the layout
+  // re-flows. Re-anchor to the bottom so the latest message is visible
+  // above the keyboard instead of leaving the user mid-thread.
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const onFocus = () => {
+      // Three timed retries — keyboard animations on Android take
+      // 100-300ms to settle, and the WebView resize fires partway through.
+      [120, 280, 450].forEach(ms => setTimeout(() => scrollChatToBottom('auto'), ms));
+    };
+    input.addEventListener('focus', onFocus);
+    return () => input.removeEventListener('focus', onFocus);
+  }, [scrollChatToBottom]);
 
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
 
@@ -469,14 +529,37 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
   const charsLeft = MAX_LEN - input.length;
   const isInputValid = input.trim().length >= MIN_LEN && input.length <= MAX_LEN;
 
-  // Vessel-aware suggestions: when יוסי is on, use the marine prompt set so
-  // the chip row doesn't ask "תקלות ברכבי 2018-2020" while the user is
-  // looking at a sailboat. Mirrored split for both general & per-vehicle
-  // prompt buckets.
+  // Category-aware derivations. We use getVehicleCategory() (the same
+  // helper that powers icon/theme picking) so chip prompts AND the
+  // disclaimer text ("התייעץ עם...") match the actual kind of vehicle:
+  // a forklift gets hour-meter prompts and a "טכנאי כלי הנדסה" hint, a
+  // truck gets brake-system prompts, an ATV gets off-road prompts, etc.
+  const vehicleCategory = selectedVehicle
+    ? getVehicleCategory(selectedVehicle.vehicle_type, selectedVehicle.nickname, selectedVehicle.manufacturer)
+    : null;
+
+  // Suggested prompts. General prompts (no vehicle picked) still split
+  // car↔vessel on the active expert (יוסי vs ברוך) — that's the only
+  // meaningful distinction before a specific vehicle is chosen.
   const generalPrompts = isVesselExpert ? SUGGESTED_PROMPTS_GENERAL_VESSEL : SUGGESTED_PROMPTS_GENERAL_CAR;
-  const vehiclePrompts = isVesselExpert ? SUGGESTED_PROMPTS_VEHICLE_VESSEL : SUGGESTED_PROMPTS_VEHICLE_CAR;
+  let vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_CAR;
+  if      (vehicleCategory === 'vessel')     vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_VESSEL;
+  else if (vehicleCategory === 'motorcycle') vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_MOTORCYCLE;
+  else if (vehicleCategory === 'truck')      vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_TRUCK;
+  else if (vehicleCategory === 'cme')        vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_CME;
+  else if (vehicleCategory === 'offroad')    vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_OFFROAD;
+  // 'special' / 'car' / null fall through to the car bucket — generic enough.
   const allSuggestedPrompts = selectedVehicle ? vehiclePrompts : generalPrompts;
   const suggestedPrompts = showAllPrompts ? allSuggestedPrompts : allSuggestedPrompts.slice(0, 3);
+
+  // Right kind of professional to recommend. Replaces the old
+  // "מוסך מוסמך / טכנאי כלי שייט" binary.
+  let repairProfessional = 'מוסך מוסמך';
+  if      (vehicleCategory === 'vessel')     repairProfessional = 'טכנאי כלי שייט / מספנה מוסמכת';
+  else if (vehicleCategory === 'motorcycle') repairProfessional = 'מוסך אופנועים מוסמך';
+  else if (vehicleCategory === 'truck')      repairProfessional = 'מוסך משאיות מוסמך';
+  else if (vehicleCategory === 'cme')        repairProfessional = 'טכנאי כלי הנדסה מוסמך';
+  else if (vehicleCategory === 'offroad')    repairProfessional = 'מוסך מוסמך לכלי שטח';
 
   return (
     <div dir="rtl" className="-mx-4 -mt-4 flex flex-col" style={{ background: '#F9FAFB', minHeight: '100dvh' }}>
@@ -576,7 +659,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                             התייעץ על כלי תחבורה ספציפי
                           </p>
                           <p className="text-[11px] font-semibold mt-0.5" style={{ color: C.primary }}>
-                            קבל תשובה מותאמת לכלי הרכב/הצי שלך
+                            קבל תשובה מותאמת לכלי התחבורה שלך
                             {vehicles.length > 0 ? ` · ${vehicles.length} ${vehicles.length === 1 ? 'כלי זמין' : 'כלים זמינים'}` : ''}
                           </p>
                         </div>
@@ -671,7 +754,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
             <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#92400E' }} />
           </div>
           <p className="text-[10px] leading-relaxed font-medium" style={{ color: '#78350F' }}>
-            <span className="font-bold">לתשומת לב:</span> התשובות לצורך התרשמות בלבד. AI עלול לטעות - מומלץ להתייעץ עם {expert.domain === 'vessel' ? 'טכנאי כלי שייט / מספנה מוסמכת' : 'מוסך מוסמך'}.
+            <span className="font-bold">לתשומת לב:</span> התשובות לצורך התרשמות בלבד. AI עלול לטעות - מומלץ להתייעץ עם {repairProfessional}.
           </p>
         </div>
       </div>
@@ -837,6 +920,12 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
             </div>
           </div>
         )}
+
+        {/* Anchor for scrollIntoView — always the last child so auto-scroll
+            lands on a stable element regardless of which element is the
+            actual scroll container (inner div on desktop, body on Android
+            after adjustResize). */}
+        <div ref={messagesEndRef} aria-hidden="true" style={{ height: 1 }} />
       </div>
 
       {/* Input area. premium */}
@@ -863,7 +952,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={selectedVehicle
               ? `שאל את ${expert.firstName} על ${selectedVehicle.nickname || selectedVehicle.manufacturer}...`
-              : `שאל את ${expert.firstName} על ${expert.domain === 'vessel' ? 'כלי השייט' : 'הרכב'} שלך...`}
+              : `שאל את ${expert.firstName} על כלי התחבורה שלך...`}
             disabled={sending}
             maxLength={MAX_LEN}
             className="flex-1 h-11 rounded-full px-4 text-[13px] focus-visible:ring-2 focus-visible:ring-offset-0 transition-all"
