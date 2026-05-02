@@ -70,11 +70,21 @@ function isQuickCheckPlateReady(value) {
   return value.length === 7 || value.length === 8;
 }
 
-//  Compact alerts bar
-function UrgentBanner({ reminders, onView }) {
-  const actionable = (reminders || [])
+//  Hero alerts card. Priority element when there's anything actionable —
+//  big count on the leading edge, breakdown line under a short headline,
+//  and a CTA on the trailing edge. The whole card is tappable so the
+//  hit area covers the full hero width on mobile.
+function getActionableReminders(reminders) {
+  return (reminders || [])
     .map(r => ({ ...r, days: daysUntil(r.date) }))
     .filter(r => r.days !== null && r.days <= 30);
+}
+function hasUrgentReminders(reminders) {
+  return getActionableReminders(reminders).length > 0;
+}
+
+function UrgentBanner({ reminders, onView }) {
+  const actionable = getActionableReminders(reminders);
   const count = actionable.length;
 
   useEffect(() => {
@@ -82,75 +92,100 @@ function UrgentBanner({ reminders, onView }) {
   }, [count]);
 
   if (count <= 0) return null;
-  const overdueCount = actionable.filter(r => r.days < 0).length;
-  const isCritical = overdueCount > 0;
+  const overdueCount  = actionable.filter(r => r.days < 0).length;
+  const upcomingCount = count - overdueCount;
+  const isCritical    = overdueCount > 0;
+
+  // Calmer than the previous gradient — single tone with a soft accent
+  // gradient. Keeps the urgency without competing visually with the
+  // green Quick-Check card directly below it.
   const palette = isCritical
-    ? {
-        bg: 'linear-gradient(135deg, #991B1B 0%, #DC2626 100%)',
-        border: '#FCA5A5',
-        title: '#FFFFFF',
-        subtitle: 'rgba(255,255,255,0.9)',
-        buttonBg: '#FFFFFF',
-        buttonText: '#991B1B',
-      }
-    : {
-        bg: 'linear-gradient(135deg, #B45309 0%, #F59E0B 100%)',
-        border: '#FDE68A',
-        title: '#FFFFFF',
-        subtitle: 'rgba(255,255,255,0.9)',
-        buttonBg: '#FFFFFF',
-        buttonText: '#92400E',
-      };
+    ? { bg: 'linear-gradient(135deg, #B91C1C 0%, #DC2626 100%)', shadow: 'rgba(185,28,28,0.32)' }
+    : { bg: 'linear-gradient(135deg, #B45309 0%, #D97706 100%)', shadow: 'rgba(180,83,9,0.32)' };
+
+  let subtitle;
+  if (overdueCount > 0 && upcomingCount > 0) subtitle = `${overdueCount} באיחור · ${upcomingCount} קרובות`;
+  else if (overdueCount > 0)                 subtitle = `${overdueCount} באיחור`;
+  else                                       subtitle = `${upcomingCount} ב-30 הימים הקרובים`;
 
   return (
-    <div
-      className="mb-4 rounded-2xl border px-3 py-2.5 flex items-center justify-between gap-2"
-      style={{ background: palette.bg, borderColor: palette.border, boxShadow: '0 8px 20px rgba(0,0,0,0.14)' }}
+    <button
+      type="button"
+      onClick={() => {
+        logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'clicked');
+        onView?.();
+      }}
+      className="w-full mb-3 rounded-3xl px-4 py-4 flex items-center gap-3 text-right transition-transform active:scale-[0.99]"
+      style={{ background: palette.bg, boxShadow: `0 10px 28px ${palette.shadow}` }}
       dir="rtl"
     >
-      <div className="min-w-0">
-        <p className="text-sm font-bold truncate" style={{ color: palette.title }}>
-          יש לך {count} התראות שדורשות טיפול
-        </p>
-        {overdueCount > 0 && (
-          <p className="text-[11px]" style={{ color: palette.subtitle }}>
-            מתוכן {overdueCount} באיחור
-          </p>
-        )}
+      {/* Big count block — RTL leading edge, separator on its left */}
+      <div className="flex flex-col items-center justify-center shrink-0 pl-3 border-l border-white/25 leading-none">
+        <span className="text-white font-black text-4xl sm:text-5xl tabular-nums tracking-tight">
+          {count}
+        </span>
+        <span className="text-white/85 text-[10px] font-semibold mt-1 tracking-wide">
+          התראות
+        </span>
       </div>
-      <button
-        type="button"
-        onClick={() => {
-          logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'clicked');
-          onView?.();
-        }}
-        className="shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors"
-        style={{ background: palette.buttonBg, color: palette.buttonText }}
-      >
-        צפה
-      </button>
-    </div>
+
+      {/* Body */}
+      <div className="flex-1 min-w-0">
+        <p className="text-white font-bold text-base sm:text-lg leading-tight">
+          {isCritical ? 'דרושה התייחסות מיידית' : 'דרושה התייחסות'}
+        </p>
+        <p className="text-white/90 text-xs sm:text-[13px] mt-1 leading-snug">
+          {subtitle}
+        </p>
+      </div>
+
+      {/* CTA — visual only, the whole card is the actual button */}
+      <div className="shrink-0 flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-2 text-white text-xs sm:text-sm font-bold">
+        טפל עכשיו
+        <ChevronLeft className="w-4 h-4" />
+      </div>
+    </button>
   );
 }
 
-function VehicleCheckHero({ hasVehicles, plate, onPlateChange, onSubmit, submitting }) {
+// Quick-Check hero. Two visual modes:
+//   - expanded (compact=false): primary on the dashboard when there's
+//     nothing urgent. Slightly larger heading, value-prop subtitle in a
+//     prominent slot.
+//   - compact  (compact=true):  secondary when the UrgentBanner takes
+//     priority. Same component, tighter padding/typography, value-prop
+//     drops below the CTA so the input remains the focal point.
+function VehicleCheckHero({ hasVehicles, plate, onPlateChange, onSubmit, submitting, compact = false }) {
+  const heading  = hasVehicles ? 'בדיקת רכב מהירה' : 'בדוק כל רכב לפי לוחית';
+  const subtitle = 'פרטים, היסטוריית בעלות וטסט ממשרד התחבורה';
+
   return (
     <section
-      className="rounded-3xl p-3.5 sm:p-4 mb-2.5 text-center border"
-      style={{ background: 'linear-gradient(180deg, #F3F9F4 0%, #FFFFFF 100%)', borderColor: '#D8E5D9' }}
+      className={`rounded-3xl border bg-white mb-4 ${compact ? 'p-3.5' : 'p-4 sm:p-5'}`}
+      style={{ borderColor: '#E2E8E2', boxShadow: '0 4px 16px rgba(45,82,51,0.06)' }}
       dir="rtl"
     >
-      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F2EA] text-[#2D5233] text-[11px] font-bold mb-1.5">
-        בדיקה חכמה תוך שניות
+      {/* Heading row with anchor icon */}
+      <div className="flex items-center gap-2.5 mb-3">
+        <div
+          className={`rounded-xl flex items-center justify-center shrink-0 ${compact ? 'w-8 h-8' : 'w-9 h-9'}`}
+          style={{ background: '#E8F2EA' }}
+        >
+          <Search className={compact ? 'w-4 h-4' : 'w-[18px] h-[18px]'} style={{ color: '#2D5233' }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className={`font-bold text-[#1C2E20] leading-tight ${compact ? 'text-base' : 'text-lg sm:text-xl'}`}>
+            {heading}
+          </h2>
+          {!compact && (
+            <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 leading-snug">
+              {subtitle}
+            </p>
+          )}
+        </div>
       </div>
-      <h1 className="font-bold text-lg sm:text-xl text-[#1C2E20] mb-0.5">
-        {hasVehicles ? 'הזן מספר רישוי וקבל את פרטי הרכב תוך שניות' : 'בדוק כל רכב תוך שניות'}
-      </h1>
-      <p className="text-[11px] sm:text-xs text-gray-600 mb-2.5">
-        {hasVehicles
-          ? 'הזן מספר רישוי וקבל את כל הפרטים תוך שניות'
-          : 'הזן מספר רישוי וקבל דוח מלא כולל תובנות ופרטים'}
-      </p>
+
+      {/* Plate input */}
       <VehicleCheckPlateInput
         value={plate}
         onChange={onPlateChange}
@@ -158,14 +193,23 @@ function VehicleCheckHero({ hasVehicles, plate, onPlateChange, onSubmit, submitt
         disabled={submitting}
         compact
       />
+
+      {/* CTA — full-width so it reads as the primary action of the card */}
       <button
         type="button"
         onClick={onSubmit}
         disabled={submitting}
-        className="mt-1.5 rounded-xl px-4 py-1.5 text-xs font-bold text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60"
+        className="mt-3 w-full rounded-xl py-2.5 text-sm font-bold text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60 active:scale-[0.99]"
       >
         {submitting ? 'מעביר...' : 'בדוק רכב'}
       </button>
+
+      {/* Compact mode keeps the value-prop, just demoted below the CTA */}
+      {compact && (
+        <p className="text-[11px] text-gray-500 mt-2 text-center leading-snug">
+          {subtitle}
+        </p>
+      )}
     </section>
   );
 }
@@ -1050,19 +1094,23 @@ export default function Dashboard() {
           reason="כדי לשמור את הרכבים שלך לצמיתות ולגשת אליהם מכל מכשיר" />
 
         <div className="px-4 pt-6">
-          <VehicleCheckHero
-            hasVehicles={hasGuestVehicles}
-            plate={quickCheckPlate}
-            onPlateChange={setQuickCheckPlate}
-            onSubmit={openQuickCheck}
-            submitting={quickCheckSubmitting}
-          />
+          {/* Banner-first: when something needs action it leads the page,
+              and the Quick Check below it switches to compact mode so the
+              eye lands on the urgency, not on the lookup tool. */}
           <UrgentBanner
             reminders={upcomingReminders}
             onView={() => {
               const remindersTitle = document.getElementById('dashboard-reminders-title');
               remindersTitle?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }}
+          />
+          <VehicleCheckHero
+            hasVehicles={hasGuestVehicles}
+            plate={quickCheckPlate}
+            onPlateChange={setQuickCheckPlate}
+            onSubmit={openQuickCheck}
+            submitting={quickCheckSubmitting}
+            compact={hasUrgentReminders(upcomingReminders)}
           />
 
           {/* Section header */}
@@ -1248,16 +1296,20 @@ export default function Dashboard() {
         return <FirstTimeTour enabled={shouldTour} />;
       })()}
       <div className="px-4 pt-6">
+        {/* Banner-first when there's anything urgent — Quick Check below
+            switches to compact mode so it stays accessible without
+            stealing focus from the alerts. */}
+        <UrgentBanner
+          reminders={allReminders}
+          onView={() => navigate(createPageUrl('Notifications'))}
+        />
         <VehicleCheckHero
           hasVehicles={vehicles.length > 0}
           plate={quickCheckPlate}
           onPlateChange={setQuickCheckPlate}
           onSubmit={openQuickCheck}
           submitting={quickCheckSubmitting}
-        />
-        <UrgentBanner
-          reminders={allReminders}
-          onView={() => navigate(createPageUrl('Notifications'))}
+          compact={hasUrgentReminders(allReminders)}
         />
 
         {/* Header with vehicle count */}
