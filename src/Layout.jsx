@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Wrench, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Wrench, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -98,6 +98,7 @@ const navItems = [
   // ====================================================================
   { divider: true, title: 'תחזוקה' },
   { name: 'MaintenanceTemplates', label: 'טיפולים', icon: Wrench,        guestAllowed: true },
+  { name: 'MyExpenses',         label: 'הוצאות רכב', icon: Wallet,       guestAllowed: false, hideForBusinessDriver: true },
   { name: 'Documents',          label: 'מסמכים',  icon: FileText,        guestAllowed: true },
   { name: 'Accidents',          label: 'תאונות',  icon: AlertTriangle,   guestAllowed: true },
   { name: 'FindGarage',         label: 'מצא מוסך', icon: MapPin,         guestAllowed: true },

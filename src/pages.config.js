@@ -65,6 +65,7 @@ const CreateRoute       = React.lazy(() => import('./pages/CreateRoute'));
 const RouteDetail       = React.lazy(() => import('./pages/RouteDetail'));
 const ActivityLog       = React.lazy(() => import('./pages/ActivityLog'));
 const Expenses          = React.lazy(() => import('./pages/Expenses'));
+const MyExpenses        = React.lazy(() => import('./pages/MyExpenses'));
 const Reports           = React.lazy(() => import('./pages/Reports'));
 const Drivers           = React.lazy(() => import('./pages/Drivers'));
 const AdminBusinessRequests = React.lazy(() => import('./pages/AdminBusinessRequests'));
@@ -121,6 +122,7 @@ export const PAGES = {
     "RouteDetail":  RouteDetail,
     "ActivityLog":  ActivityLog,
     "Expenses":     Expenses,
+    "MyExpenses":   MyExpenses,
     "Reports":      Reports,
     "Drivers":      Drivers,
     "AdminBusinessRequests": AdminBusinessRequests,

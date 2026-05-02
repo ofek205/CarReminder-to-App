@@ -478,6 +478,24 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
 
   const vehicle = vehicles[0];
 
+  // Hash-based deep link → scroll to a named section once the vehicle
+  // has loaded. Used by /MyExpenses to land the user on the maintenance
+  // log when they tap a treatment/repair row from the expenses list.
+  // Single allowlist of valid hashes so we don't try to scroll to
+  // arbitrary garbage from a malformed URL.
+  useEffect(() => {
+    if (!vehicle) return;
+    const hash = (window.location.hash || '').replace(/^#/, '');
+    const allowed = new Set(['vd-maintenance', 'vd-corkboard']);
+    if (!allowed.has(hash)) return;
+    // Two rAFs so the DOM has the chance to lay out the section we're
+    // scrolling to (sections lazy-render via SafeComponent).
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const el = document.getElementById(hash);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+  }, [vehicle?.id]);
+
   // One-time auto-enrich: if vehicle has license plate but missing tech spec fields, fetch from gov API
   const [enrichDone, setEnrichDone] = useState(false);
   useEffect(() => {
@@ -854,7 +872,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           </div>
         )}
 
-        <div data-tour="vd-maintenance">
+        <div id="vd-maintenance" data-tour="vd-maintenance" style={{ scrollMarginTop: '90px' }}>
           <SafeComponent label="MaintenanceSection">
             <MaintenanceSection vehicle={vehicle} />
           </SafeComponent>
