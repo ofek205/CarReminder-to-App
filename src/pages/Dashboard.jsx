@@ -158,6 +158,16 @@ function UrgentBanner({ reminders, onView }) {
 //   - compact  (compact=true):  same layout, tighter typography/padding,
 //     used when the UrgentBanner is leading the page.
 function VehicleCheckHero({ plate, onPlateChange, onSubmit, submitting, compact = false }) {
+  // The button needs to gate on plate validity, not just submitting.
+  // Without this gate the click handler (openQuickCheck) silently
+  // returns when the plate is empty/incomplete — which on Android
+  // looked like a dead button to users (no feedback, no toast).
+  // Now: disabled when plate is empty or not 7-8 digits, opacity
+  // makes it visually clear, and any tap that does land triggers
+  // onSubmit which still validates a second time at the page level.
+  const plateDigits = String(plate || '').replace(/\D/g, '');
+  const plateReady  = plateDigits.length === 7 || plateDigits.length === 8;
+  const disabled    = submitting || !plateReady;
   return (
     <section
       className={`rounded-3xl border bg-white text-center mb-4 ${compact ? 'p-4' : 'p-5 sm:p-6'}`}
@@ -205,7 +215,9 @@ function VehicleCheckHero({ plate, onPlateChange, onSubmit, submitting, compact 
         <button
           type="button"
           onClick={onSubmit}
-          disabled={submitting}
+          disabled={disabled}
+          aria-label={plateReady ? 'בדוק רכב' : 'הזן 7 או 8 ספרות לבדיקה'}
+          title={plateReady ? '' : 'הזן 7 או 8 ספרות לבדיקה'}
           className="h-10 rounded-xl px-4 font-bold text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60 active:scale-[0.99] flex items-center justify-center gap-2 shrink-0 text-sm"
           style={{ boxShadow: '0 4px 12px rgba(45,82,51,0.18)' }}
         >
