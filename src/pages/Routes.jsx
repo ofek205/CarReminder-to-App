@@ -17,20 +17,30 @@ import { Link } from 'react-router-dom';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import {
   Plus, Briefcase, Calendar, Truck, ChevronLeft, AlertCircle,
-  CheckCircle2, Play, Clock,
+  CheckCircle2, Clock,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
-import MobileBackButton from '@/components/shared/MobileBackButton';
 import { createPageUrl } from '@/utils';
+// Shared Living Dashboard system. Same components the BusinessDashboard
+// uses so every B2B page reads as one product.
+import {
+  PageShell,
+  Card,
+  KpiTile,
+  AnimatedCount,
+} from '@/components/business/system';
 
+// Status palette aligned with the system's color → meaning convention:
+//   pending = gray (waiting), in_progress = blue (active),
+//   completed = emerald (done), cancelled = red (problem).
 const STATUS_LABEL = {
-  pending:     { label: 'מתוזמן',  cls: 'bg-gray-100  text-gray-700' },
-  in_progress: { label: 'בביצוע',  cls: 'bg-blue-100  text-blue-700' },
-  completed:   { label: 'הושלם',   cls: 'bg-green-100 text-green-700' },
-  cancelled:   { label: 'בוטל',    cls: 'bg-red-100   text-red-700' },
+  pending:     { label: 'מתוזמן',  cls: 'bg-gray-100   text-gray-700',   tone: 'gray' },
+  in_progress: { label: 'בביצוע',  cls: 'bg-blue-100   text-blue-700',   tone: 'blue' },
+  completed:   { label: 'הושלם',   cls: 'bg-emerald-100 text-emerald-700', tone: 'emerald' },
+  cancelled:   { label: 'בוטל',    cls: 'bg-red-100    text-red-700',    tone: 'red' },
 };
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -202,75 +212,86 @@ export default function Routes() {
 
   // ---------- render: manager mode (default) --------------------------
 
+  // Aggregate counts per status for the KPI strip. Computed off the
+  // currently-loaded pages — close enough for the at-a-glance view;
+  // the deeper dashboard already has authoritative counts.
+  const counts = {
+    inProgress: routes.filter(r => r.status === 'in_progress').length,
+    pending:    routes.filter(r => r.status === 'pending').length,
+    completed:  routes.filter(r => r.status === 'completed').length,
+  };
+
   return (
-    <div dir="rtl" className="max-w-3xl mx-auto py-2">
-      <MobileBackButton />
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">משימות</h1>
-          <p className="text-xs text-gray-500">תכנון, שיוך ומעקב אחרי משימות הצי</p>
-        </div>
+    <PageShell
+      title="משימות"
+      subtitle="תכנון, שיוך ומעקב אחרי משימות הצי"
+      live
+      actions={(
         <Link
           to={createPageUrl('CreateRoute')}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98]"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+          style={{
+            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            color: '#FFFFFF',
+            boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+          }}
         >
           <Plus className="h-4 w-4" />
           צור משימה
         </Link>
-      </div>
-
-      {isLoading ? (
-        <div className="text-center text-xs text-gray-400 py-8">טוען משימות...</div>
-      ) : routes.length === 0 ? (
-        <EmptyShell
-          icon={<Truck className="h-10 w-10 text-gray-300" />}
-          title="עוד אין משימות בחשבון"
-          text="צור משימה ראשונה ושייך לה רכב, נהג ותחנות."
-          embedded
+      )}
+    >
+      {/* KPI Strip: 3-up status counters, color = meaning. */}
+      <section className="grid grid-cols-3 gap-3 mb-5">
+        <KpiTile
+          label="בביצוע עכשיו"
+          value={<AnimatedCount value={counts.inProgress} />}
+          sub={counts.inProgress === 0 ? 'אין משימה פתוחה' : 'בעבודה'}
+          tone="blue"
         />
+        <KpiTile
+          label="מתוזמנות"
+          value={<AnimatedCount value={counts.pending} />}
+          sub={counts.pending === 0 ? 'אין מתוזמן' : 'ממתינות'}
+          tone="amber"
+        />
+        <KpiTile
+          label="הושלמו"
+          value={<AnimatedCount value={counts.completed} />}
+          sub={counts.completed === 0 ? 'אין' : 'בהיסטוריה'}
+          tone="emerald"
+        />
+      </section>
+
+      {/* List of routes */}
+      {isLoading ? (
+        <Card className="text-center py-8">
+          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען משימות...</p>
+        </Card>
+      ) : routes.length === 0 ? (
+        <Card className="text-center py-12">
+          <Truck className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
+          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+            עוד אין משימות בחשבון
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+            צור משימה ראשונה ושייך לה רכב, נהג ותחנות.
+          </p>
+        </Card>
       ) : (
         <>
+          <h2 className="text-sm font-bold mb-2.5" style={{ color: '#0B2912' }}>
+            כל המשימות ({routes.length})
+          </h2>
           <div className="space-y-2">
-            {routes.map(r => {
-              const status = STATUS_LABEL[r.status] || STATUS_LABEL.pending;
-              const stats  = stopsByRoute[r.id];
-              return (
-                <Link
-                  key={r.id}
-                  to={createPageUrl('RouteDetail') + '?id=' + r.id}
-                  className="block bg-white border border-gray-100 rounded-xl p-3 active:bg-gray-50"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-gray-900 truncate">{r.title}</p>
-                      <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-1">
-                        {r.scheduled_for && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {fmtDate(r.scheduled_for)}
-                          </span>
-                        )}
-                        {vehicleLabel(r.vehicle_id) && (
-                          <span className="flex items-center gap-1">
-                            <Truck className="h-3 w-3" />
-                            {vehicleLabel(r.vehicle_id)}
-                          </span>
-                        )}
-                        {stats && (
-                          <span className="text-gray-400">
-                            {stats.completed}/{stats.total} תחנות
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${status.cls}`}>
-                      {status.label}
-                    </span>
-                    <ChevronLeft className="h-4 w-4 text-gray-300 shrink-0 mt-0.5" />
-                  </div>
-                </Link>
-              );
-            })}
+            {routes.map(r => (
+              <ManagerRouteCard
+                key={r.id}
+                route={r}
+                stats={stopsByRoute[r.id]}
+                vehicleLabel={vehicleLabel(r.vehicle_id)}
+              />
+            ))}
           </div>
 
           {hasNextPage && (
@@ -278,17 +299,73 @@ export default function Routes() {
               type="button"
               disabled={isFetchingNextPage}
               onClick={() => fetchNextPage()}
-              className="w-full mt-3 py-2.5 rounded-xl bg-gray-100 text-xs font-bold text-gray-700 disabled:opacity-60"
+              className="w-full mt-3 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-60"
+              style={{
+                background: '#FFFFFF',
+                color: '#10B981',
+                border: '1.5px solid #D1FAE5',
+              }}
             >
               {isFetchingNextPage ? 'טוען...' : 'טען עוד משימות'}
             </button>
           )}
           {!hasNextPage && routes.length >= PAGE_SIZE && (
-            <p className="text-center text-[10px] text-gray-400 mt-3">סוף הרשימה</p>
+            <p className="text-center text-[10px] mt-3" style={{ color: '#6B7C72' }}>סוף הרשימה</p>
           )}
         </>
       )}
-    </div>
+    </PageShell>
+  );
+}
+
+// ManagerRouteCard: list-row variant for the manager flat view.
+// Uses the system's white Card with a status accent stripe so the
+// row reads as part of the design family without screaming.
+function ManagerRouteCard({ route, stats, vehicleLabel }) {
+  const status = STATUS_LABEL[route.status] || STATUS_LABEL.pending;
+  // Map status tone to a Card accent color (top stripe).
+  const accent = status.tone === 'blue' ? 'blue'
+    : status.tone === 'emerald' ? 'emerald'
+    : status.tone === 'red' ? 'red'
+    : null;
+  return (
+    <Link
+      to={createPageUrl('RouteDetail') + '?id=' + route.id}
+      className="block transition-all hover:scale-[1.005] active:scale-[0.998]"
+    >
+      <Card accent={accent} padding="p-3.5">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{route.title}</p>
+            <div className="flex items-center gap-3 text-[11px] mt-1.5 flex-wrap" style={{ color: '#4B5D52' }}>
+              {route.scheduled_for && (
+                <span className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {fmtDate(route.scheduled_for)}
+                </span>
+              )}
+              {vehicleLabel && (
+                <span className="flex items-center gap-1">
+                  <Truck className="h-3 w-3" />
+                  {vehicleLabel}
+                </span>
+              )}
+              {stats && (
+                <span style={{ color: '#6B7C72' }}>
+                  {stats.completed}/{stats.total} תחנות
+                </span>
+              )}
+            </div>
+          </div>
+          <span
+            className={`shrink-0 px-2.5 py-0.5 rounded-full text-[10px] font-black ${status.cls}`}
+          >
+            {status.label}
+          </span>
+          <ChevronLeft className="h-4 w-4 shrink-0 mt-0.5" style={{ color: '#A7F3D0' }} />
+        </div>
+      </Card>
+    </Link>
   );
 }
 
@@ -316,10 +393,11 @@ function DriverView({ routes, isLoading, stopsByRoute, vehicleLabel }) {
 
   if (isLoading) {
     return (
-      <div dir="rtl" className="max-w-3xl mx-auto py-2">
-        <MobileBackButton />
-        <div className="text-center text-xs text-gray-400 py-8">טוען את המשימות שלך...</div>
-      </div>
+      <PageShell title="המשימות שלי" subtitle="טוען...">
+        <Card className="text-center py-8">
+          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען את המשימות שלך...</p>
+        </Card>
+      </PageShell>
     );
   }
 
@@ -327,89 +405,107 @@ function DriverView({ routes, isLoading, stopsByRoute, vehicleLabel }) {
 
   if (totalActiveOrPending === 0 && grouped.completedRecent.length === 0) {
     return (
-      <div dir="rtl" className="max-w-3xl mx-auto py-2">
-        <MobileBackButton />
-        <div className="mb-4">
-          <h1 className="text-xl font-bold text-gray-900">המשימות שלי</h1>
-          <p className="text-xs text-gray-500">משימות שהוקצו לך לביצוע</p>
-        </div>
-        <EmptyShell
-          icon={<Truck className="h-10 w-10 text-gray-300" />}
-          title="אין לך משימות פעילות"
-          text="כשהמנהל ישייך לך משימה, היא תופיע כאן ותוכל להתחיל בביצוע."
-          embedded
-        />
-      </div>
+      <PageShell title="המשימות שלי" subtitle="משימות שהוקצו לך לביצוע">
+        <Card className="text-center py-12">
+          <Truck className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
+          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+            אין לך משימות פעילות
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+            כשהמנהל ישייך לך משימה, היא תופיע כאן ותוכל להתחיל בביצוע.
+          </p>
+        </Card>
+      </PageShell>
     );
   }
 
   return (
-    <div dir="rtl" className="max-w-3xl mx-auto py-2">
-      <MobileBackButton />
-      <div className="mb-4">
-        <h1 className="text-xl font-bold text-gray-900">המשימות שלי</h1>
-        <p className="text-xs text-gray-500">
-          {todayHebrewLabel()}
-          {totalActiveOrPending > 0 && <> · {totalActiveOrPending} משימות פתוחות</>}
-        </p>
-      </div>
-
+    <PageShell
+      title="המשימות שלי"
+      subtitle={`${todayHebrewLabel()}${totalActiveOrPending > 0 ? ` · ${totalActiveOrPending} משימות פתוחות` : ''}`}
+      live={grouped.active.length > 0}
+    >
+      {/* Active task as a vivid hero card — that's the one the driver
+          is actively working. Gradient blue draws the eye instantly. */}
       {grouped.active.length > 0 && (
-        <Section icon={<Play className="h-4 w-4 text-blue-700" />} title="בביצוע עכשיו" tone="blue">
-          {grouped.active.map(r => (
-            <DriverRouteCard
-              key={r.id}
-              route={r}
-              stats={stopsByRoute[r.id]}
-              vehicle={vehicleLabel(r.vehicle_id)}
-              variant="active"
-            />
-          ))}
-        </Section>
+        <section className="mb-5">
+          <h2 className="text-xs uppercase tracking-[0.15em] font-bold mb-2.5" style={{ color: '#1D4ED8' }}>
+            בביצוע עכשיו
+          </h2>
+          <div className="space-y-3">
+            {grouped.active.map(r => (
+              <DriverRouteCard
+                key={r.id}
+                route={r}
+                stats={stopsByRoute[r.id]}
+                vehicle={vehicleLabel(r.vehicle_id)}
+                variant="active"
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {grouped.todayPending.length > 0 && (
-        <Section icon={<Calendar className="h-4 w-4 text-[#2D5233]" />} title="להיום" tone="green">
-          {grouped.todayPending.map(r => (
-            <DriverRouteCard
-              key={r.id}
-              route={r}
-              stats={stopsByRoute[r.id]}
-              vehicle={vehicleLabel(r.vehicle_id)}
-              variant="today"
-            />
-          ))}
-        </Section>
+        <section className="mb-5">
+          <h2 className="text-xs uppercase tracking-[0.15em] font-bold mb-2.5 flex items-center gap-2" style={{ color: '#047857' }}>
+            <Calendar className="h-3.5 w-3.5" />
+            להיום
+          </h2>
+          <div className="space-y-2">
+            {grouped.todayPending.map(r => (
+              <DriverRouteCard
+                key={r.id}
+                route={r}
+                stats={stopsByRoute[r.id]}
+                vehicle={vehicleLabel(r.vehicle_id)}
+                variant="today"
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {grouped.future.length > 0 && (
-        <Section icon={<Clock className="h-4 w-4 text-gray-500" />} title="מתוזמן בהמשך" tone="gray">
-          {grouped.future.map(r => (
-            <DriverRouteCard
-              key={r.id}
-              route={r}
-              stats={stopsByRoute[r.id]}
-              vehicle={vehicleLabel(r.vehicle_id)}
-              variant="future"
-            />
-          ))}
-        </Section>
+        <section className="mb-5">
+          <h2 className="text-xs uppercase tracking-[0.15em] font-bold mb-2.5 flex items-center gap-2" style={{ color: '#6B7C72' }}>
+            <Clock className="h-3.5 w-3.5" />
+            מתוזמן בהמשך
+          </h2>
+          <div className="space-y-2">
+            {grouped.future.map(r => (
+              <DriverRouteCard
+                key={r.id}
+                route={r}
+                stats={stopsByRoute[r.id]}
+                vehicle={vehicleLabel(r.vehicle_id)}
+                variant="future"
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {grouped.completedRecent.length > 0 && (
-        <Section icon={<CheckCircle2 className="h-4 w-4 text-green-700" />} title={`הושלמו השבוע (${grouped.completedRecent.length})`} tone="green" muted>
-          {grouped.completedRecent.map(r => (
-            <DriverRouteCard
-              key={r.id}
-              route={r}
-              stats={stopsByRoute[r.id]}
-              vehicle={vehicleLabel(r.vehicle_id)}
-              variant="completed"
-            />
-          ))}
-        </Section>
+        <section className="mb-5 opacity-90">
+          <h2 className="text-xs uppercase tracking-[0.15em] font-bold mb-2.5 flex items-center gap-2" style={{ color: '#047857' }}>
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            הושלמו השבוע ({grouped.completedRecent.length})
+          </h2>
+          <div className="space-y-2">
+            {grouped.completedRecent.map(r => (
+              <DriverRouteCard
+                key={r.id}
+                route={r}
+                stats={stopsByRoute[r.id]}
+                vehicle={vehicleLabel(r.vehicle_id)}
+                variant="completed"
+              />
+            ))}
+          </div>
+        </section>
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -421,18 +517,15 @@ function todayHebrewLabel() {
 
 // ---------- subcomponents --------------------------------------------
 
-function Section({ icon, title, children, muted }) {
-  return (
-    <section className={`mb-4 ${muted ? 'opacity-90' : ''}`}>
-      <div className="flex items-center gap-2 mb-2 px-1">
-        {icon}
-        <h2 className="text-sm font-bold text-gray-700">{title}</h2>
-      </div>
-      <div className="space-y-2">{children}</div>
-    </section>
-  );
-}
-
+// DriverRouteCard: variant-driven card for the driver task board.
+// Active = vivid blue gradient (the page's most important card).
+// Today  = mint outline, emerald CTA.
+// Future = neutral white, muted CTA.
+// Completed = subtle gray-tinted, no CTA.
+//
+// Progress bar color matches the variant tone so the visual rhythm
+// stays consistent: blue active, emerald today, gray future, emerald
+// completed (subdued).
 function DriverRouteCard({ route, stats, vehicle, variant }) {
   const total     = stats?.total || 0;
   const completed = stats?.completed || 0;
@@ -440,81 +533,143 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
 
   const isActive    = variant === 'active';
   const isToday     = variant === 'today';
-  const isFuture    = variant === 'future';
   const isCompleted = variant === 'completed';
 
-  const cardCls = isActive
-    ? 'bg-blue-50 border-blue-200'
-    : isCompleted
-      ? 'bg-gray-50 border-gray-100 opacity-90'
-      : 'bg-white border-gray-100';
+  const cta = isActive   ? 'המשך משימה ←'
+            : isToday    ? 'התחל ←'
+            : 'פרטים ←';
 
-  const cta = isActive   ? 'המשך משימה'
-            : isToday    ? 'התחל'
-            : isFuture   ? 'פרטים'
-            : 'צפה בפרטים';
-
-  return (
-    <Link
-      to={createPageUrl('RouteDetail') + '?id=' + route.id}
-      className={`block ${cardCls} border rounded-2xl p-4 active:scale-[0.99] transition-transform`}
-    >
-      <div className="flex items-start gap-3 mb-2">
-        <div className="flex-1 min-w-0">
-          <p className={`font-bold truncate ${isActive ? 'text-base text-blue-900' : 'text-sm text-gray-900'}`}>
-            {route.title}
-          </p>
-          <div className="flex items-center gap-2 text-[11px] text-gray-600 mt-1 flex-wrap">
+  // Active task = full gradient hero with white text. Hits like a CTA
+  // by itself.
+  if (isActive) {
+    return (
+      <Link
+        to={createPageUrl('RouteDetail') + '?id=' + route.id}
+        className="block rounded-2xl p-4 transition-all hover:scale-[1.005] active:scale-[0.998] relative overflow-hidden group"
+        style={{
+          background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 70%, #60A5FA 100%)',
+          boxShadow: '0 12px 28px -8px rgba(59,130,246,0.4), 0 4px 10px -2px rgba(59,130,246,0.2)',
+        }}
+      >
+        {/* Decorative blob */}
+        <div
+          aria-hidden
+          className="absolute pointer-events-none transition-transform group-hover:scale-110"
+          style={{
+            top: '-30%', left: '-10%',
+            width: '200px', height: '200px', borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 70%)',
+          }}
+        />
+        <div className="relative">
+          <p className="text-base font-black text-white truncate mb-1.5">{route.title}</p>
+          <div className="flex items-center gap-3 text-[12px] text-white/85 flex-wrap">
             {vehicle && (
               <span className="flex items-center gap-1">
-                <Truck className="h-3 w-3" />
+                <Truck className="h-3.5 w-3.5" />
                 {vehicle}
               </span>
             )}
             {route.scheduled_for && (
               <span className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
+                <Calendar className="h-3.5 w-3.5" />
                 {fmtDate(route.scheduled_for)}
               </span>
             )}
           </div>
-        </div>
-      </div>
-
-      {total > 0 && (
-        <div className="mt-2">
-          <div className="flex items-center justify-between text-[11px] mb-1">
-            <span className={`${isActive ? 'text-blue-900 font-bold' : 'text-gray-600'}`}>
-              {isCompleted ? 'הושלמו' : 'התקדמות'}
-            </span>
-            <span className="text-gray-500">{completed} מתוך {total} תחנות</span>
+          {total > 0 && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-[11px] mb-1 text-white">
+                <span className="font-bold">התקדמות</span>
+                <span className="opacity-85 tabular-nums">{completed} מתוך {total} תחנות</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden bg-white/20">
+                <div
+                  className="h-full transition-all duration-300 rounded-full"
+                  style={{ width: `${pct}%`, background: '#FFFFFF' }}
+                />
+              </div>
+            </div>
+          )}
+          <div className="mt-3 flex items-center justify-center py-2 rounded-xl bg-white/25 backdrop-blur-sm font-bold text-sm text-white">
+            {cta}
           </div>
-          <div className="h-2 bg-white rounded-full overflow-hidden border border-gray-100">
-            <div
-              className={`h-full transition-all duration-300 ${isActive ? 'bg-blue-600' : isCompleted ? 'bg-green-600' : 'bg-[#2D5233]'}`}
-              style={{ width: `${pct}%` }}
-            />
+        </div>
+      </Link>
+    );
+  }
+
+  // Non-active variants — standard system Card with tone accent.
+  const accent = isCompleted ? 'emerald' : isToday ? 'emerald' : null;
+  const ctaStyle = isToday
+    ? { background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)', color: '#FFFFFF' }
+    : { background: '#F0FDF4', color: '#047857', border: '1.5px solid #D1FAE5' };
+
+  return (
+    <Link
+      to={createPageUrl('RouteDetail') + '?id=' + route.id}
+      className="block transition-all hover:scale-[1.005] active:scale-[0.998]"
+    >
+      <Card accent={accent} padding="p-3.5" className={isCompleted ? 'opacity-90' : ''}>
+        <div className="flex items-start gap-3 mb-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{route.title}</p>
+            <div className="flex items-center gap-3 text-[11px] mt-1 flex-wrap" style={{ color: '#4B5D52' }}>
+              {vehicle && (
+                <span className="flex items-center gap-1">
+                  <Truck className="h-3 w-3" />
+                  {vehicle}
+                </span>
+              )}
+              {route.scheduled_for && (
+                <span className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {fmtDate(route.scheduled_for)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-      )}
 
-      {!isCompleted && (
-        <div className="mt-3 flex items-center justify-between">
-          <span className={`flex-1 text-center py-2 rounded-xl text-xs font-bold ${
-            isActive
-              ? 'bg-blue-600 text-white'
-              : isToday
-                ? 'bg-[#2D5233] text-white'
-                : 'bg-gray-100 text-gray-700'
-          }`}>
-            {cta} ←
-          </span>
-        </div>
-      )}
+        {total > 0 && (
+          <div className="mt-2">
+            <div className="flex items-center justify-between text-[11px] mb-1">
+              <span className="font-bold" style={{ color: '#0B2912' }}>
+                {isCompleted ? 'הושלמו' : 'התקדמות'}
+              </span>
+              <span style={{ color: '#6B7C72' }} className="tabular-nums">
+                {completed} מתוך {total} תחנות
+              </span>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: '#F0FDF4' }}>
+              <div
+                className="h-full transition-all duration-300 rounded-full"
+                style={{
+                  width: `${pct}%`,
+                  background: isCompleted
+                    ? 'linear-gradient(90deg, #047857 0%, #10B981 100%)'
+                    : 'linear-gradient(90deg, #047857 0%, #34D399 100%)',
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {!isCompleted && (
+          <div
+            className="mt-3 text-center py-2 rounded-xl text-xs font-bold"
+            style={ctaStyle}
+          >
+            {cta}
+          </div>
+        )}
+      </Card>
     </Link>
   );
 }
 
+// EmptyShell: kept as a thin fallback for guard-state renders that
+// don't go through PageShell (auth/permission gates above).
 function EmptyShell({ icon, title, text, embedded }) {
   return (
     <div dir="rtl" className={embedded ? 'py-10' : 'max-w-md mx-auto py-16'}>

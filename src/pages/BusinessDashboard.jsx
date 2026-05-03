@@ -9,7 +9,7 @@
  * Routing: when active workspace is business, /Dashboard auto-redirects
  * here. Manual /BusinessDashboard route also works.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -24,6 +24,13 @@ import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import MobileBackButton from '@/components/shared/MobileBackButton';
 import { createPageUrl } from '@/utils';
+// Shared design system. Every B2B page imports from this barrel.
+import {
+  AnimatedCount,
+  KpiTile,
+  ActionTile,
+  useTickEverySecond,
+} from '@/components/business/system';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -120,98 +127,10 @@ const TONE_DOT = {
   gray:   'bg-gray-300',
 };
 
-// ---------- interactive helpers ──────────────────────────────────────
-
-// useAnimatedNumber: smoothly counts from 0 → target on mount.
-// Returns the in-progress integer. Easing: ease-out-expo for a fast
-// start with a satisfying late settle. 1100ms feels alive without
-// dragging. If the target changes (live update), animation re-runs.
-function useAnimatedNumber(target, duration = 1100) {
-  const [value, setValue] = useState(0);
-  const startRef = useRef(null);
-  const fromRef  = useRef(0);
-  const rafRef   = useRef(null);
-
-  useEffect(() => {
-    fromRef.current = value;
-    startRef.current = null;
-
-    const tick = (ts) => {
-      if (startRef.current === null) startRef.current = ts;
-      const elapsed = ts - startRef.current;
-      const t = Math.min(1, elapsed / duration);
-      // ease-out-expo
-      const eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
-      const next = Math.round(fromRef.current + (target - fromRef.current) * eased);
-      setValue(next);
-      if (t < 1) rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, duration]);
-
-  return value;
-}
-
-// AnimatedCount: drop-in replacement for {fmtNumber(n)} when you want
-// it to count up. Renders just the formatted number. Caller handles
-// styling. Optional `format` lets caller override (e.g. to render
-// currency).
-function AnimatedCount({ value, format = fmtNumber, duration = 1100 }) {
-  const animated = useAnimatedNumber(Number(value) || 0, duration);
-  return <>{format(animated)}</>;
-}
-
-// Sparkline: tiny inline SVG line chart from a numeric series.
-// Auto-scales to its container. Last point gets a filled circle to
-// signal "this is the current value". Used in KPI tiles to show a
-// 6-month trend without breaking the tile's compact size.
-function Sparkline({ data, color = '#10B981', height = 28 }) {
-  if (!Array.isArray(data) || data.length < 2) return null;
-  const w = 80;
-  const h = height;
-  const max = Math.max(...data, 1);
-  const min = Math.min(...data, 0);
-  const range = Math.max(1, max - min);
-  const stepX = w / (data.length - 1);
-  const points = data.map((v, i) => {
-    const x = i * stepX;
-    const y = h - ((v - min) / range) * (h - 4) - 2;
-    return [x, y];
-  });
-  const path = points.map(([x, y], i) => (i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`)).join(' ');
-  const areaPath = `${path} L ${points[points.length - 1][0]} ${h} L 0 ${h} Z`;
-  const last = points[points.length - 1];
-
-  return (
-    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={`spark-grad-${color.slice(1)}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%"   stopColor={color} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill={`url(#spark-grad-${color.slice(1)})`} />
-      <path d={path}     fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={last[0]} cy={last[1]} r="2" fill={color} />
-    </svg>
-  );
-}
-
-// useTickEverySecond: forces a re-render every N ms so relative
-// timestamps ("לפני 3 דק׳") update without a manual refresh. Cheap —
-// each tick is just a setState that triggers React re-render of the
-// ancestor that holds it. Default 30s = once per "minute" floor edge.
-function useTickEverySecond(intervalMs = 30000) {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-}
-
 // ---------- main ------------------------------------------------------
+// Helpers (AnimatedCount, Sparkline, KpiTile, ActionTile,
+// useTickEverySecond) live in @/components/business/system and are
+// imported above. Anything page-specific (FleetChip) stays here.
 
 export default function BusinessDashboard() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -809,112 +728,6 @@ export default function BusinessDashboard() {
   );
 }
 
-// ---------- subcomponents --------------------------------------------
-// "Living Dashboard" components: vibrant colored surfaces, soft shadows,
-// smooth hover transitions. Each KPI tile carries its own theme color
-// (emerald / amber / blue / red) so the page reads as a colored data
-// arrangement rather than a monochrome list.
-
-// KpiTile: vivid colored surface for each KPI. The `tone` prop drives
-// background gradient, text, and shadow color so the eye instantly
-// connects color → meaning (emerald = healthy/active, amber = financial,
-// red = problem, blue = info).
-function KpiTile({ label, value, sub = null, subTone = 'neutral', tone = 'emerald', spark = null, to }) {
-  // Each tone is a triplet: surface gradient + dark text + shadow.
-  // Surfaces are LIGHT-tinted (10-20% saturation) so the page stays
-  // bright without screaming neon.
-  const TONES = {
-    emerald: {
-      surface: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
-      border:  '#A7F3D0',
-      label:   '#047857',
-      value:   '#065F46',
-      shadow:  '0 4px 12px rgba(16,185,129,0.12)',
-      hover:   '0 8px 20px rgba(16,185,129,0.20)',
-    },
-    amber: {
-      surface: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
-      border:  '#FCD34D',
-      label:   '#B45309',
-      value:   '#78350F',
-      shadow:  '0 4px 12px rgba(245,158,11,0.12)',
-      hover:   '0 8px 20px rgba(245,158,11,0.20)',
-    },
-    blue: {
-      surface: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
-      border:  '#93C5FD',
-      label:   '#1D4ED8',
-      value:   '#1E3A8A',
-      shadow:  '0 4px 12px rgba(59,130,246,0.12)',
-      hover:   '0 8px 20px rgba(59,130,246,0.20)',
-    },
-    red: {
-      surface: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)',
-      border:  '#FCA5A5',
-      label:   '#B91C1C',
-      value:   '#7F1D1D',
-      shadow:  '0 4px 12px rgba(239,68,68,0.12)',
-      hover:   '0 8px 20px rgba(239,68,68,0.20)',
-    },
-  };
-  const t = TONES[tone] || TONES.emerald;
-
-  // sub-line color — independent of tile tone so a green tile can
-  // still flag a red sub-stat (e.g. "expenses up 15%" with amber tile
-  // body but red trend).
-  const subColor = {
-    neutral: t.label,
-    red:     '#B91C1C',
-    green:   '#047857',
-  }[subTone] || t.label;
-
-  const inner = (
-    <div
-      className="rounded-2xl p-3.5 transition-all hover:scale-[1.02] active:scale-[0.99] border h-full"
-      style={{
-        background: t.surface,
-        borderColor: t.border,
-        boxShadow: t.shadow,
-      }}
-      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = t.hover; }}
-      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = t.shadow; }}
-    >
-      <p
-        className="text-[10px] uppercase tracking-[0.12em] font-bold mb-1.5"
-        style={{ color: t.label }}
-      >
-        {label}
-      </p>
-      <p
-        className="font-black tabular-nums leading-none"
-        style={{
-          color: t.value,
-          fontSize: 'clamp(1.5rem, 3.5vw, 2rem)',
-          fontWeight: 900,
-          letterSpacing: '-0.02em',
-        }}
-        dir={typeof value === 'string' && /[֐-׿]/.test(value) ? 'rtl' : 'ltr'}
-      >
-        {value}
-      </p>
-      {sub && (
-        <p className="text-[10px] mt-1.5 font-bold" style={{ color: subColor }}>
-          {sub}
-        </p>
-      )}
-      {/* Inline 6-month sparkline (only on tiles that pass `spark`).
-          Sits below the sub-line, consumes the full tile width. The
-          color matches the tile's value text so the chart reads as
-          part of the same data unit. */}
-      {Array.isArray(spark) && spark.length >= 2 && (
-        <div className="mt-2 -mx-1 opacity-90">
-          <Sparkline data={spark} color={t.value} height={26} />
-        </div>
-      )}
-    </div>
-  );
-  return to ? <Link to={to} className="block">{inner}</Link> : inner;
-}
 
 // FleetChip: one vehicle in the "Fleet at a glance" strip. Color
 // reflects its current state (healthy / soon / overdue). Hover lifts
@@ -985,59 +798,6 @@ function FleetChip({ vehicle, status, days }) {
   );
 }
 
-// ActionTile: vibrant action button. Primary = gradient emerald with
-// glow shadow. Secondary = mint-tinted surface with emerald icon.
-// Bigger touch target than the old pill, designed for quick recognition
-// from the hero's gravitational pull.
-function ActionTile({ to, icon: Icon, label, primary = false }) {
-  if (primary) {
-    return (
-      <Link
-        to={to}
-        className="rounded-2xl p-3 flex flex-col items-start gap-2 transition-all hover:scale-[1.03] active:scale-[0.98] group"
-        style={{
-          background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
-          boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
-        }}
-      >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:rotate-3"
-          style={{ background: 'rgba(255,255,255,0.25)', backdropFilter: 'blur(4px)' }}
-        >
-          <Icon className="w-4.5 h-4.5 text-white" />
-        </div>
-        <span className="text-sm font-bold text-white">{label}</span>
-      </Link>
-    );
-  }
-  return (
-    <Link
-      to={to}
-      className="rounded-2xl p-3 flex flex-col items-start gap-2 border transition-all hover:scale-[1.03] active:scale-[0.98] group"
-      style={{
-        background: '#FFFFFF',
-        borderColor: '#D1FAE5',
-        boxShadow: '0 2px 8px rgba(15,40,28,0.04)',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = '#10B981';
-        e.currentTarget.style.boxShadow = '0 6px 16px rgba(16,185,129,0.15)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = '#D1FAE5';
-        e.currentTarget.style.boxShadow = '0 2px 8px rgba(15,40,28,0.04)';
-      }}
-    >
-      <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
-        style={{ background: '#ECFDF5', color: '#10B981' }}
-      >
-        <Icon className="w-4.5 h-4.5" />
-      </div>
-      <span className="text-sm font-bold" style={{ color: '#0B2912' }}>{label}</span>
-    </Link>
-  );
-}
 
 function buildAttentionItems({
   overdueCount,
