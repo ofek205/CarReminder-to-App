@@ -42,8 +42,9 @@ import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import VehicleLabel, { vehicleDisplayText } from '@/components/shared/VehicleLabel';
 import VehiclePicker from '@/components/shared/VehiclePicker';
-import MobileBackButton from '@/components/shared/MobileBackButton';
 import { DateInput } from '@/components/ui/date-input';
+// Living Dashboard system - shared with all B2B pages.
+import { PageShell, Card } from '@/components/business/system';
 
 // ---------- formatters ------------------------------------------------
 
@@ -525,30 +526,31 @@ export default function Reports() {
   const loading = monthlyLoading || linesLoading;
 
   return (
-    <div dir="rtl" className="max-w-5xl mx-auto py-2">
-      <MobileBackButton />
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">דוחות וניתוחים</h1>
-          <p className="text-xs text-gray-500">סקירה כספית של תחזוקת הצי. הדלק לא נכלל — ראה /הוצאות.</p>
-        </div>
+    <PageShell
+      title="דוחות וניתוחים"
+      subtitle="סקירה כספית של תחזוקת הצי. הדלק לא נכלל — ראה /הוצאות."
+      actions={(
         <button
           type="button"
           onClick={handleExport}
           disabled={exporting || filteredLines.length === 0}
-          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#2D5233] text-white text-xs font-bold disabled:opacity-50 active:scale-[0.97] shadow-sm"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+          style={{
+            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            color: '#FFFFFF',
+            boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+          }}
         >
-          <Download className="h-3.5 w-3.5" />
+          <Download className="h-4 w-4" />
           {exporting ? 'מייצא...' : 'ייצא לאקסל'}
         </button>
-      </div>
-
-      {/* Filter bar */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-3 mb-3 space-y-2.5">
+      )}
+    >
+      {/* Filter bar — wrapped in a Card for the system surface */}
+      <Card className="mb-4 space-y-2.5">
         <div className="flex items-center gap-2">
-          <Filter className="h-3.5 w-3.5 text-gray-400" />
-          <span className="text-[11px] font-bold text-gray-600">תקופה:</span>
+          <Filter className="h-3.5 w-3.5" style={{ color: '#7A6E58' }} />
+          <span className="text-[11px] font-bold" style={{ color: '#4B5D52' }}>תקופה:</span>
           <div className="flex flex-wrap gap-1.5 flex-1">
             {PRESETS.map(p => {
               const active = !customActive && presetId === p.id;
@@ -557,11 +559,19 @@ export default function Reports() {
                   key={p.id}
                   type="button"
                   onClick={() => { setPresetId(p.id); setCustomFrom(''); setCustomTo(''); }}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all ${
-                    active
-                      ? 'bg-[#2D5233] text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all hover:scale-[1.03] active:scale-[0.97] border"
+                  style={active
+                    ? {
+                        background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                        color: '#FFFFFF',
+                        borderColor: '#065F46',
+                        boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
+                      }
+                    : {
+                        background: '#FFFFFF',
+                        color: '#4B5D52',
+                        borderColor: '#E5EDE8',
+                      }}
                 >
                   {p.label}
                 </button>
@@ -572,7 +582,7 @@ export default function Reports() {
         {/* On mobile + small tablets the date pickers and the rich
             VehiclePicker are too cramped side-by-side at 33% each.
             Stack until md so each control gets full row width. */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1 border-t border-gray-50">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1" style={{ borderTop: '1px solid #F0F7F4' }}>
           <DateField label="מתאריך" value={customFrom} onChange={setCustomFrom} />
           <DateField label="עד תאריך" value={customTo}   onChange={setCustomTo} />
           {/* Rich VehiclePicker — searchable, themed, shows icon +
@@ -588,12 +598,12 @@ export default function Reports() {
           />
         </div>
         {customActive && (
-          <p className="text-[10px] text-gray-400">תאריך מותאם פעיל — מתעלם מהקיצורים.</p>
+          <p className="text-[10px]" style={{ color: '#A7B3AB' }}>תאריך מותאם פעיל — מתעלם מהקיצורים.</p>
         )}
-      </div>
+      </Card>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <KpiCard
           icon={<Receipt className="h-3.5 w-3.5" />}
           label="סה״כ הוצאה"
@@ -637,13 +647,13 @@ export default function Reports() {
       </div>
 
       {/* Trend chart */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-3 mb-3">
+      <Card accent="emerald" className="mb-4">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-            <BarChart3 className="h-4 w-4 text-[#2D5233]" />
+          <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: '#0B2912' }}>
+            <BarChart3 className="h-4 w-4" style={{ color: '#10B981' }} />
             מגמת הוצאות חודשית
           </h2>
-          <span className="text-[10px] text-gray-400">ללא דלק</span>
+          <span className="text-[10px]" style={{ color: '#A7B3AB' }}>ללא דלק</span>
         </div>
         {loading ? (
           <p className="text-center text-xs text-gray-400 py-12">טוען נתונים...</p>
@@ -691,13 +701,13 @@ export default function Reports() {
             </ResponsiveContainer>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Splits — top vehicles + category breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-        <div className="bg-white border border-gray-100 rounded-2xl p-3">
-          <h2 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-1.5">
-            <Truck className="h-4 w-4 text-[#2D5233]" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+        <Card accent="amber">
+          <h2 className="text-sm font-bold mb-2 flex items-center gap-1.5" style={{ color: '#0B2912' }}>
+            <Truck className="h-4 w-4" style={{ color: '#F59E0B' }} />
             רכבים יקרים בתקופה
           </h2>
           {topVehicles.length === 0 ? (
@@ -723,19 +733,25 @@ export default function Reports() {
                         {fmtMoney(v.total)}
                       </span>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#2D5233]" style={{ width: pct + '%' }} />
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F0F7F4' }}>
+                      <div
+                        className="h-full"
+                        style={{
+                          width: pct + '%',
+                          background: 'linear-gradient(90deg, #065F46 0%, #10B981 100%)',
+                        }}
+                      />
                     </div>
                   </li>
                 );
               })}
             </ul>
           )}
-        </div>
+        </Card>
 
-        <div className="bg-white border border-gray-100 rounded-2xl p-3">
-          <h2 className="text-sm font-bold text-gray-900 mb-2 flex items-center gap-1.5">
-            <Package className="h-4 w-4 text-[#2D5233]" />
+        <Card accent="purple">
+          <h2 className="text-sm font-bold mb-2 flex items-center gap-1.5" style={{ color: '#0B2912' }}>
+            <Package className="h-4 w-4" style={{ color: '#A855F7' }} />
             פילוח לפי קטגוריה
           </h2>
           {categoryBreakdown.every(c => c.value === 0) ? (
@@ -756,7 +772,7 @@ export default function Reports() {
                         <span className="text-gray-400 font-normal ml-1">{c.pct.toFixed(0)}%</span>
                       </span>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F0F7F4' }}>
                       <div
                         className="h-full transition-all"
                         style={{ width: c.pct + '%', background: c.color }}
@@ -767,17 +783,17 @@ export default function Reports() {
               })}
             </ul>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* Line-item detail table */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-3">
+      <Card accent="blue">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
-            <Receipt className="h-4 w-4 text-[#2D5233]" />
+          <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: '#0B2912' }}>
+            <Receipt className="h-4 w-4" style={{ color: '#3B82F6' }} />
             פירוט שורות
           </h2>
-          <span className="text-[10px] text-gray-400">{filteredLines.length} שורות</span>
+          <span className="text-[10px]" style={{ color: '#A7B3AB' }}>{filteredLines.length} שורות</span>
         </div>
         {loading ? (
           <p className="text-center text-xs text-gray-400 py-6">טוען שורות...</p>
@@ -830,40 +846,47 @@ export default function Reports() {
               </tbody>
             </table>
             {sortedLines.length > 200 && (
-              <p className="text-[10px] text-gray-400 px-3 py-2 text-center">
+              <p className="text-[10px] px-3 py-2 text-center" style={{ color: '#A7B3AB' }}>
                 מוצגות 200 שורות ראשונות (מתוך {sortedLines.length}). הייצוא לאקסל כולל את כולן.
               </p>
             )}
           </div>
         )}
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }
 
 // ---------- helper components ----------------------------------------
 
-function KpiCard({ icon, label, value, sub, tone, delta, onClick, highlighted }) {
-  // Subtle tinted-tile style. Each KPI gets a different accent so the
-  // eye can jump straight to the metric it cares about — totals (green),
-  // operations (blue), costliest vehicle (orange), issues (red).
-  const toneCls = {
-    green:  'bg-[#E8F2EA] text-[#2D5233]',
-    blue:   'bg-blue-50   text-blue-700',
-    orange: 'bg-orange-50 text-orange-700',
-    red:    'bg-red-50    text-red-700',
-  }[tone] || 'bg-gray-50 text-gray-700';
+// Reports keeps its own KpiCard (rather than using the generic KpiTile)
+// because the BI page needs two extra behaviors that the system tile
+// doesn't carry: a delta chip ("Δ vs previous period") and click-to-
+// filter with a "highlighted" selected state. Visually it now lives in
+// the Living Dashboard family — same vivid surface gradient, same
+// borderless tone palette as KpiTile.
+const KPI_TONES = {
+  green:  { bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#A7F3D0', icon: '#065F46', text: '#0B2912' },
+  blue:   { bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#BFDBFE', icon: '#1E40AF', text: '#0B2912' },
+  orange: { bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: '#FCD34D', icon: '#92400E', text: '#0B2912' },
+  red:    { bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#FECACA', icon: '#991B1B', text: '#0B2912' },
+};
 
-  // delta chip: ▲ green when up vs prev period, ▼ green when down (less
-  // spend = good news for a fleet manager). Counter-intuitive in some
-  // domains, but here a smaller bill is what we want — color logic
-  // mirrors that.
+function KpiCard({ icon, label, value, sub, tone, delta, onClick, highlighted }) {
+  const t = KPI_TONES[tone] || KPI_TONES.blue;
+
+  // delta chip: ▼ emerald when down vs prev period (a smaller fleet bill
+  // is good news), ▲ red when up. Counter-intuitive in some domains, but
+  // here a smaller number wins — color logic mirrors that.
   const deltaChip = delta && (
-    <span className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold ${
-      delta.sign === 'down' ? 'bg-green-50 text-green-700'
-        : delta.sign === 'up' ? 'bg-red-50 text-red-700'
-        : 'bg-gray-100 text-gray-600'
-    }`}>
+    <span
+      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold"
+      style={
+        delta.sign === 'down' ? { background: '#D1FAE5', color: '#065F46' }
+          : delta.sign === 'up' ? { background: '#FEE2E2', color: '#991B1B' }
+          : { background: '#F0F7F4', color: '#4B5D52' }
+      }
+    >
       {delta.sign === 'down' ? '▼' : delta.sign === 'up' ? '▲' : '•'} {delta.label}
     </span>
   );
@@ -874,19 +897,33 @@ function KpiCard({ icon, label, value, sub, tone, delta, onClick, highlighted })
     <Wrap
       type={interactive ? 'button' : undefined}
       onClick={onClick || undefined}
-      className={`bg-white border rounded-xl p-2.5 text-right ${
-        highlighted ? 'border-[#2D5233] ring-2 ring-[#2D5233]/20' : 'border-gray-100'
-      } ${interactive ? 'active:scale-[0.98] transition-all hover:border-gray-200 cursor-pointer' : ''}`}
+      className={`relative rounded-2xl p-3 text-right transition-all border-2 ${
+        interactive ? 'hover:scale-[1.02] active:scale-[0.98] cursor-pointer' : ''
+      }`}
+      style={{
+        background: t.bg,
+        borderColor: highlighted ? t.icon : t.border,
+        boxShadow: highlighted
+          ? `0 0 0 3px ${t.icon}33, 0 4px 12px rgba(15,40,28,0.06)`
+          : '0 4px 12px rgba(15,40,28,0.04)',
+      }}
     >
-      <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold mb-1.5 ${toneCls}`}>
+      <div
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold mb-1.5"
+        style={{ background: 'rgba(255,255,255,0.6)', color: t.icon }}
+      >
         {icon}
         {label}
       </div>
-      <p className="text-base font-bold text-gray-900 leading-tight truncate" title={typeof value === 'string' ? value : undefined}>
+      <p
+        className="text-base font-bold leading-tight truncate tabular-nums"
+        style={{ color: t.text }}
+        title={typeof value === 'string' ? value : undefined}
+      >
         {value}
       </p>
-      {sub && <p className="text-[10px] text-gray-500 mt-0.5 truncate" title={sub}>{sub}</p>}
-      {deltaChip && <div className="mt-1">{deltaChip}</div>}
+      {sub && <p className="text-[10px] mt-0.5 truncate" style={{ color: '#4B5D52' }} title={sub}>{sub}</p>}
+      {deltaChip && <div className="mt-1.5">{deltaChip}</div>}
     </Wrap>
   );
 }
@@ -935,15 +972,6 @@ function SortHeader({ col, sortBy, sortDir, onClick, align, children }) {
         <span className={`text-[9px] ${active ? 'opacity-100' : 'opacity-40'}`}>{arrow}</span>
       </button>
     </th>
-  );
-}
-
-function FilterField({ label, children }) {
-  return (
-    <label className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white">
-      <span className="text-[10px] font-bold text-gray-500 shrink-0">{label}:</span>
-      {children}
-    </label>
   );
 }
 
