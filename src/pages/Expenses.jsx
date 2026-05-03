@@ -41,14 +41,22 @@ import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import VehicleLabel from '@/components/shared/VehicleLabel';
 import VehiclePicker from '@/components/shared/VehiclePicker';
-import MobileBackButton from '@/components/shared/MobileBackButton';
 import { DateInput } from '@/components/ui/date-input';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { uploadScanFile, deleteFile } from '@/lib/supabaseStorage';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
 import { validateUploadFile } from '@/lib/securityUtils';
+// Living Dashboard system - one language across all B2B pages.
+import {
+  PageShell,
+  Card,
+  KpiTile,
+  AnimatedCount,
+} from '@/components/business/system';
 
+// Each category gets a tone from the system palette so the expense
+// list reads as a colored mosaic, not a uniform gray list.
 const CATEGORY_LABELS = {
   fuel:      'דלק',
   repair:    'תיקון',
@@ -56,6 +64,20 @@ const CATEGORY_LABELS = {
   other:     'אחר',
 };
 const CATEGORY_ORDER = ['fuel', 'repair', 'insurance', 'other'];
+const CATEGORY_TONE  = {
+  fuel:      'amber',
+  repair:    'red',
+  insurance: 'blue',
+  other:     'emerald',
+};
+// Lightweight color hex for the category chip on each row. Matches the
+// Living Dashboard palette so chips and KpiTiles share visual identity.
+const CATEGORY_COLOR = {
+  fuel:      { bg: '#FEF3C7', text: '#78350F', accent: '#F59E0B' },
+  repair:    { bg: '#FEE2E2', text: '#7F1D1D', accent: '#EF4444' },
+  insurance: { bg: '#DBEAFE', text: '#1E3A8A', accent: '#3B82F6' },
+  other:     { bg: '#D1FAE5', text: '#065F46', accent: '#10B981' },
+};
 
 const fmtMoney = (n, c = 'ILS') =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: c }).format(n || 0);
@@ -129,94 +151,107 @@ export default function Expenses() {
 
   const vehicleById = Object.fromEntries(vehicles.map(v => [v.id, v]));
 
+  // Stats over the loaded page(s). Approximate; primarily a "what
+  // does the latest activity look like" summary for the eye, not an
+  // authoritative period total. The Reports page is the source of
+  // truth for that.
+  const totalThisView = expenses.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+  const byCategory = expenses.reduce((acc, e) => {
+    const k = e.category || 'other';
+    acc[k] = (acc[k] || 0) + (Number(e.amount) || 0);
+    return acc;
+  }, {});
+  const topCategoryKey = Object.keys(byCategory).sort((a, b) => byCategory[b] - byCategory[a])[0];
+  const topCategoryShare = topCategoryKey
+    ? Math.round((byCategory[topCategoryKey] / Math.max(1, totalThisView)) * 100)
+    : 0;
+
   return (
-    <div dir="rtl" className="max-w-3xl mx-auto py-2">
-      <MobileBackButton />
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">הוצאות תפעול</h1>
-          <p className="text-xs text-gray-500">דלק, ביטוח ועלויות תפעוליות נוספות של הצי</p>
-        </div>
+    <PageShell
+      title="הוצאות תפעול"
+      subtitle="דלק, ביטוח ועלויות תפעוליות נוספות של הצי"
+      actions={(
         <button
           type="button"
           onClick={() => setEditing({})}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98] shadow-sm"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+          style={{
+            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            color: '#FFFFFF',
+            boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+          }}
         >
           <Plus className="h-4 w-4" /> הוסף הוצאה
         </button>
-      </div>
+      )}
+    >
+      {/* KPI Strip — at-a-glance summary over the currently loaded page(s). */}
+      {expenses.length > 0 && (
+        <section className="grid grid-cols-3 gap-3 mb-5">
+          <KpiTile
+            label="סה״כ ברשימה"
+            value={<AnimatedCount value={totalThisView} format={fmtMoney} duration={1300} />}
+            sub={`${expenses.length} הוצאות`}
+            tone="amber"
+          />
+          <KpiTile
+            label="קטגוריה מובילה"
+            value={topCategoryKey ? CATEGORY_LABELS[topCategoryKey] : '—'}
+            sub={topCategoryKey ? `${topCategoryShare}% מהסכום` : null}
+            tone={CATEGORY_TONE[topCategoryKey] || 'blue'}
+          />
+          <KpiTile
+            label="ממוצע להוצאה"
+            value={<AnimatedCount value={Math.round(totalThisView / Math.max(1, expenses.length))} format={fmtMoney} duration={1300} />}
+            sub="ממוצע ברשימה"
+            tone="emerald"
+          />
+        </section>
+      )}
 
+      {/* List of expenses */}
       {isLoading ? (
-        <p className="text-center text-xs text-gray-400 py-6">טוען הוצאות...</p>
+        <Card className="text-center py-8">
+          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען הוצאות...</p>
+        </Card>
       ) : expenses.length === 0 ? (
-        <Empty
-          icon={<Receipt className="h-10 w-10 text-gray-300" />}
-          title="עוד אין הוצאות בחשבון"
-          text="הוסף הוצאה ראשונה: דלק, ביטוח או כל עלות אחרת. הסכומים יופיעו אוטומטית בדוחות."
-          embedded
-        />
+        <Card className="text-center py-12">
+          <Receipt className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
+          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+            עוד אין הוצאות בחשבון
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+            הוסף הוצאה ראשונה: דלק, ביטוח או כל עלות אחרת. הסכומים יופיעו אוטומטית בדוחות.
+          </p>
+        </Card>
       ) : (
-        <ul className="space-y-1.5">
-          {expenses.map(e => (
-            <li key={e.id} className="bg-white border border-gray-100 rounded-xl p-3">
-              <div className="flex items-start gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <span className="text-sm font-bold text-gray-900">{fmtMoney(e.amount, e.currency)}</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-700 font-bold">
-                      {CATEGORY_LABELS[e.category] || e.category}
-                    </span>
-                    <span className="text-[11px] text-gray-400">{fmtDate(e.expense_date)}</span>
-                    {e.receipt_url && (
-                      <a
-                        href={e.receipt_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#E8F2EA] text-[#2D5233] text-[10px] font-bold border border-[#2D5233]/20 hover:bg-[#2D5233]/10"
-                        onClick={(ev) => ev.stopPropagation()}
-                      >
-                        <FileText className="h-2.5 w-2.5" /> חשבונית
-                      </a>
-                    )}
-                  </div>
-                  <VehicleLabel
-                    vehicle={vehicleById[e.vehicle_id]}
-                    size="sm"
-                    showSubtitle={false}
-                  />
-                  {e.note && <p className="text-[11px] text-gray-700 mt-1.5">{e.note}</p>}
-                </div>
-                <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => setEditing(e)} className="p-1.5 rounded-lg hover:bg-gray-100">
-                    <Pencil className="h-3.5 w-3.5 text-gray-500" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!confirm('למחוק את ההוצאה? פעולה זו לא ניתנת לביטול.')) return;
-                      try {
-                        const { error } = await supabase.rpc('delete_vehicle_expense', { p_id: e.id });
-                        if (error) throw error;
-                        // Receipt blob cleanup is best-effort; if it
-                        // fails the row is already gone so the user is
-                        // none the wiser.
-                        if (e.receipt_storage_path) {
-                          deleteFile(e.receipt_storage_path).catch(() => {});
-                        }
-                        toast.success('ההוצאה נמחקה');
-                        await queryClient.invalidateQueries({ queryKey: ['expenses'] });
-                      } catch {
-                        toast.error('המחיקה נכשלה. נסה שוב.');
-                      }
-                    }}
-                    className="p-1.5 rounded-lg hover:bg-red-50">
-                    <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                  </button>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <>
+          <h2 className="text-sm font-bold mb-2.5" style={{ color: '#0B2912' }}>
+            כל ההוצאות
+          </h2>
+          <ul className="space-y-2">
+            {expenses.map(e => (
+              <ExpenseRow
+                key={e.id}
+                expense={e}
+                vehicle={vehicleById[e.vehicle_id]}
+                onEdit={() => setEditing(e)}
+                onDelete={async () => {
+                  if (!confirm('למחוק את ההוצאה? פעולה זו לא ניתנת לביטול.')) return;
+                  try {
+                    const { error } = await supabase.rpc('delete_vehicle_expense', { p_id: e.id });
+                    if (error) throw error;
+                    if (e.receipt_storage_path) deleteFile(e.receipt_storage_path).catch(() => {});
+                    toast.success('ההוצאה נמחקה');
+                    await queryClient.invalidateQueries({ queryKey: ['expenses'] });
+                  } catch {
+                    toast.error('המחיקה נכשלה. נסה שוב.');
+                  }
+                }}
+              />
+            ))}
+          </ul>
+        </>
       )}
 
       {expenses.length > 0 && hasNextPage && (
@@ -224,13 +259,18 @@ export default function Expenses() {
           type="button"
           disabled={isFetchingNextPage}
           onClick={() => fetchNextPage()}
-          className="w-full mt-3 py-2.5 rounded-xl bg-gray-100 text-xs font-bold text-gray-700 disabled:opacity-60"
+          className="w-full mt-3 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-60"
+          style={{
+            background: '#FFFFFF',
+            color: '#10B981',
+            border: '1.5px solid #D1FAE5',
+          }}
         >
           {isFetchingNextPage ? 'טוען...' : 'טען עוד הוצאות'}
         </button>
       )}
       {expenses.length > 0 && !hasNextPage && expenses.length >= PAGE_SIZE && (
-        <p className="text-center text-[10px] text-gray-400 mt-3">סוף הרשימה</p>
+        <p className="text-center text-[10px] mt-3" style={{ color: '#6B7C72' }}>סוף הרשימה</p>
       )}
 
       {editing && (
@@ -245,7 +285,83 @@ export default function Expenses() {
           }}
         />
       )}
-    </div>
+    </PageShell>
+  );
+}
+
+// ---------- ExpenseRow (system-aligned card with category accent) ─────
+
+function ExpenseRow({ expense, vehicle, onEdit, onDelete }) {
+  const cat = expense.category || 'other';
+  const tone = CATEGORY_COLOR[cat] || CATEGORY_COLOR.other;
+  // Map category to a Card accent color so the top stripe instantly
+  // signals "this row is a fuel expense / a repair / etc."
+  const accentMap = {
+    fuel: 'amber', repair: 'red', insurance: 'blue', other: 'emerald',
+  };
+  return (
+    <li>
+      <Card accent={accentMap[cat]} padding="p-3.5">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-2 mb-1.5 flex-wrap">
+              <span
+                className="text-base font-black tabular-nums"
+                style={{ color: '#0B2912' }}
+                dir="ltr"
+              >
+                {fmtMoney(expense.amount, expense.currency)}
+              </span>
+              <span
+                className="px-2 py-0.5 rounded-full text-[10px] font-black"
+                style={{ background: tone.bg, color: tone.text }}
+              >
+                {CATEGORY_LABELS[cat] || cat}
+              </span>
+              <span className="text-[11px]" style={{ color: '#6B7C72' }}>{fmtDate(expense.expense_date)}</span>
+              {expense.receipt_url && (
+                <a
+                  href={expense.receipt_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-colors hover:brightness-95"
+                  style={{ background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0' }}
+                  onClick={(ev) => ev.stopPropagation()}
+                >
+                  <FileText className="h-2.5 w-2.5" /> חשבונית
+                </a>
+              )}
+            </div>
+            {vehicle && (
+              <VehicleLabel vehicle={vehicle} size="sm" showSubtitle={false} />
+            )}
+            {expense.note && (
+              <p className="text-[11px] mt-1.5" style={{ color: '#4B5D52' }}>
+                {expense.note}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="p-1.5 rounded-lg transition-colors hover:bg-emerald-50"
+              aria-label="ערוך"
+            >
+              <Pencil className="h-3.5 w-3.5" style={{ color: '#10B981' }} />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="p-1.5 rounded-lg transition-colors hover:bg-red-50"
+              aria-label="מחק"
+            >
+              <Trash2 className="h-3.5 w-3.5" style={{ color: '#EF4444' }} />
+            </button>
+          </div>
+        </div>
+      </Card>
+    </li>
   );
 }
 
