@@ -18,7 +18,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, ScanLine, Receipt, Loader2, Wallet, ChevronDown, LayoutGrid, FileSpreadsheet } from 'lucide-react';
+import { Plus, ScanLine, Receipt, Loader2, Wallet, ChevronDown, LayoutGrid, FileSpreadsheet, Trophy } from 'lucide-react';
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
@@ -43,11 +43,12 @@ import ExpenseFormDialog from '@/components/expenses/ExpenseFormDialog';
 
 const LAST_USED_VEHICLE_KEY = 'my_expenses_last_used_vehicle_id';
 
-const fmtMoney = (n, currency = 'ILS') => new Intl.NumberFormat('he-IL', {
-  style: 'currency',
-  currency,
-  maximumFractionDigits: 0,
-}).format(Number(n) || 0);
+// Hebrew-friendly money formatter. Intl's currency-style adds bidi marks
+// that render the ₪ on the wrong side under dir="rtl"/"ltr" blends, so we
+// hand-build the string: rounded thousands separator + " ₪" suffix.
+//   1234   → "1,234 ₪"
+//   3491.6 → "3,492 ₪"
+const fmtMoney = (n) => `${Math.round(Number(n) || 0).toLocaleString('he-IL')} ₪`;
 
 function periodLabel(period) {
   if (!period) return '';
@@ -662,9 +663,28 @@ export default function MyExpenses() {
   );
 }
 
-/** Summary card — total + count + monthly average. In aggregate mode
- *  it also renders a per-vehicle breakdown (each row a tappable button
- *  that drills into that vehicle).
+/** Summary card — headline number + (in agg mode) per-vehicle breakdown.
+ *
+ *  Visual structure (RTL):
+ *    ┌─────────────────────────────────────────┐
+ *    │  [label small]                           │
+ *    │  3,491 ₪                                  │  ← headline
+ *    │  10 הוצאות · ממוצע 291 ₪ לחודש            │
+ *    └──── divider — slight inner shade ───────┘
+ *    │  פיצול לפי רכב           N רכבים          │
+ *    │  ┌───────────────────────────────────┐   │
+ *    │  │ [⊙] שם רכב          816 ₪  · 23%  │   │  ← row, clickable
+ *    │  │ 503-79-159                        │   │
+ *    │  │ ▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱▱   │   │  ← bar (vehicle theme)
+ *    │  └───────────────────────────────────┘   │
+ *    │  ...                                      │
+ *    └─────────────────────────────────────────┘
+ *
+ *  Each row is a button that drills into that vehicle. Top-spender
+ *  row has a Trophy badge + brighter ring, so the eye lands on it
+ *  first. Bars are colored with each vehicle's theme primary, so
+ *  scanning the list reads as a colored "fingerprint" rather than
+ *  identical yellow stripes.
  */
 function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, byVehicle, onVehicleClick }) {
   const label = isAggregate
@@ -673,8 +693,6 @@ function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, b
        : period?.type === 'month' ? `סך ההוצאות ב${HEBREW_MONTHS[period.month - 1]} ${period.year}`
        : 'סך ההוצאות בטווח שנבחר');
 
-  // Sorted entries [vehicle_id, info] descending by total. Empty in
-  // single-vehicle mode (we don't render the breakdown there).
   const entries = useMemo(() => {
     if (!isAggregate || !byVehicle) return [];
     return Object.entries(byVehicle)
@@ -683,71 +701,161 @@ function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, b
   }, [isAggregate, byVehicle]);
 
   const totalNum = Number(total) || 0;
+  const showBreakdown = isAggregate && !loading && entries.length > 0;
 
   return (
     <div
-      className="rounded-3xl p-4 sm:p-5"
+      className="rounded-3xl overflow-hidden"
       style={{
         background: 'linear-gradient(135deg, #2D5233 0%, #4B7A53 100%)',
         boxShadow: '0 8px 24px rgba(45,82,51,0.18)',
         color: '#fff',
       }}
     >
-      <p className="text-[11px] font-medium opacity-90">{label}</p>
-      <p className="text-3xl sm:text-4xl font-black tabular-nums mt-1" dir="ltr">
-        {loading ? '—' : fmtMoney(totalNum)}
-      </p>
-      <p className="text-xs opacity-90 mt-1">
-        {count > 0
-          ? <>{count} הוצאות{period?.type !== 'month' ? <> · ממוצע {fmtMoney(monthlyAvg)} לחודש</> : null}</>
-          : 'אין הוצאות בתקופה'}
-      </p>
+      {/* Headline — label + big amount + count line. Number sits in an
+          RTL flex so the ₪ symbol is on the right of the digits, the
+          natural Hebrew reading direction. */}
+      <div className="p-4 sm:p-5">
+        <p className="text-[11px] font-medium opacity-90">{label}</p>
+        <p className="text-3xl sm:text-4xl font-black tabular-nums mt-1">
+          {loading ? '—' : fmtMoney(totalNum)}
+        </p>
+        <p className="text-xs opacity-90 mt-1">
+          {count > 0
+            ? <>{count} הוצאות{period?.type !== 'month' ? <> · ממוצע {fmtMoney(monthlyAvg)} לחודש</> : null}</>
+            : 'אין הוצאות בתקופה'}
+        </p>
+      </div>
 
-      {/* Per-vehicle breakdown — agg mode only, only when there's data
-          to show. The card stays compact (max-h scrollable) so a user
-          with 8+ vehicles doesn't get a giant green card. */}
-      {isAggregate && !loading && entries.length > 0 && (
-        <div className="mt-4 pt-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.18)' }}>
-          <p className="text-[10px] font-bold uppercase tracking-wide opacity-80 mb-2">
-            פיצול לפי רכב
-          </p>
-          <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
-            {entries.map(([vid, info]) => {
-              const amt = Number(info?.total) || 0;
-              const pct = totalNum > 0 ? (amt / totalNum) * 100 : 0;
-              const name = info?.name || 'רכב';
-              const plate = info?.license_plate || '';
+      {/* Breakdown panel — visually separated by a slightly darker
+          inner gradient so the section reads as its own surface within
+          the card. */}
+      {showBreakdown && (
+        <div
+          className="px-4 sm:px-5 pb-4 sm:pb-5 pt-3.5"
+          style={{
+            background: 'linear-gradient(180deg, rgba(0,0,0,0.07) 0%, rgba(0,0,0,0.18) 100%)',
+            borderTop: '1px solid rgba(255,255,255,0.10)',
+          }}
+        >
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider opacity-75">
+              פיצול לפי רכב
+            </p>
+            <p className="text-[10px] opacity-60 tabular-nums">
+              {entries.length} {entries.length === 1 ? 'רכב' : 'רכבים'}
+            </p>
+          </div>
+
+          {/* Scrolling list. Custom scrollbar (Firefox + WebKit via inline
+              CSS) is muted white so it doesn't fight the green theme.
+              The negative margin + padding trick keeps the bars from
+              touching the scrollbar. */}
+          <div
+            className="space-y-2 max-h-[300px] overflow-y-auto -ml-1 pl-1 expense-breakdown-scroll"
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(255,255,255,0.22) transparent',
+            }}
+          >
+            {entries.map(([vid, info], idx) => {
+              const amt    = Number(info?.total) || 0;
+              const pct    = totalNum > 0 ? (amt / totalNum) * 100 : 0;
+              const name   = info?.name || 'רכב';
+              const plate  = info?.license_plate || '';
+              const T      = getTheme(info?.vehicle_type, info?.nickname, info?.manufacturer);
+              const isLeader = idx === 0 && entries.length > 1;
+
+              // Bar gradient — uses the vehicle's primary tinted into
+              // a brighter accent for visibility on the dark green
+              // background. Falls back to gold when the theme is too
+              // close to the card color (low contrast guard).
+              const barGradient = `linear-gradient(90deg, ${T.primary} 0%, ${T.yellow || '#FDE68A'} 100%)`;
+
               return (
                 <button
                   key={vid}
                   type="button"
                   onClick={() => onVehicleClick?.(vid)}
-                  className="w-full text-right rounded-xl px-2.5 py-2 transition-all active:scale-[0.99] hover:bg-white/10"
+                  className="w-full text-right rounded-xl p-2.5 transition-all active:scale-[0.99] hover:bg-white/10 group"
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${isLeader ? 'rgba(253,230,138,0.35)' : 'rgba(255,255,255,0.08)'}`,
+                  }}
                   aria-label={`עבור לרכב ${name}`}
                 >
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <span className="font-bold truncate">{name}</span>
+                  <div className="flex items-center gap-2.5">
+                    {/* Vehicle avatar — circle with the vehicle's icon,
+                        ring brightened on the leader. Acts as the
+                        primary color cue for scanning the list. */}
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                      style={{
+                        background: T.primary,
+                        boxShadow: isLeader
+                          ? '0 0 0 2px rgba(253,230,138,0.55), 0 2px 6px rgba(0,0,0,0.25)'
+                          : '0 0 0 1.5px rgba(255,255,255,0.18)',
+                      }}
+                    >
+                      <VehicleIcon
+                        vehicle={{
+                          vehicle_type: info?.vehicle_type,
+                          nickname:     info?.nickname,
+                          manufacturer: info?.manufacturer,
+                        }}
+                        className="w-4 h-4"
+                        style={{ color: '#fff' }}
+                      />
+                    </div>
+
+                    {/* Name + plate */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-bold truncate">{name}</span>
+                        {isLeader && (
+                          <span
+                            className="text-[9px] font-black px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5 shrink-0"
+                            style={{ background: 'rgba(253,230,138,0.22)', color: '#FDE68A' }}
+                            title="ההוצאה הגבוהה ביותר"
+                          >
+                            <Trophy className="w-2.5 h-2.5" />
+                            ראשון
+                          </span>
+                        )}
+                      </div>
                       {plate && (
-                        <span className="opacity-70 text-[10px] shrink-0" dir="ltr">· {plate}</span>
+                        <p
+                          className="text-[10px] opacity-65 mt-0.5 font-mono"
+                          dir="ltr"
+                        >
+                          {plate}
+                        </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="opacity-80 tabular-nums text-[11px]">
-                        {pct.toFixed(0)}%
-                      </span>
-                      <span className="font-black tabular-nums" dir="ltr">
+
+                    {/* Amount + % column */}
+                    <div className="text-left shrink-0">
+                      <p className="text-sm font-black tabular-nums leading-tight">
                         {fmtMoney(amt)}
-                      </span>
+                      </p>
+                      <p className="text-[10px] opacity-70 tabular-nums leading-tight mt-0.5">
+                        {pct.toFixed(0)}%
+                      </p>
                     </div>
                   </div>
-                  {/* Mini progress bar — width = % of total */}
-                  <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}>
+
+                  {/* Progress bar — colored by vehicle theme. Even at
+                      0.5% the bar gets a 3px floor so the user sees
+                      that data exists for the row. */}
+                  <div
+                    className="mt-2.5 h-1.5 rounded-full overflow-hidden"
+                    style={{ background: 'rgba(255,255,255,0.10)' }}
+                  >
                     <div
                       className="h-full rounded-full"
                       style={{
                         width: `${Math.max(2, pct)}%`,
-                        background: '#FDE68A',
+                        background: barGradient,
                       }}
                     />
                   </div>
