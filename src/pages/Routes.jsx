@@ -17,13 +17,15 @@ import { Link } from 'react-router-dom';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import {
   Plus, Briefcase, Calendar, Truck, ChevronLeft, AlertCircle,
-  CheckCircle2, Clock,
+  CheckCircle2, Clock, MapPin, Map as MapIcon,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { createPageUrl } from '@/utils';
+import NavigateButton from '@/components/map/NavigateButton';
+import { findNextStopIndex, isStopTerminal } from '@/components/map/stopColors';
 // Shared Living Dashboard system. Same components the BusinessDashboard
 // uses so every B2B page reads as one product.
 import {
@@ -117,6 +119,9 @@ export default function Routes() {
 
   // Driver view shows progress per route, so we fetch stops too.
   // Done client-side to avoid yet another database view migration.
+  // Extended in phase 12 to include sequence + title + address +
+  // coordinates so each card can show the next stop and offer a
+  // direct "navigate to next stop" CTA.
   const routeIds = routes.map(r => r.id);
   const { data: stops = [] } = useQuery({
     queryKey: ['routes-stops', accountId, routeIds.join(',')],
@@ -124,9 +129,10 @@ export default function Routes() {
       if (routeIds.length === 0) return [];
       const { data, error } = await supabase
         .from('route_stops')
-        .select('id, route_id, status')
+        .select('id, route_id, status, sequence, title, address_text, latitude, longitude')
         .eq('account_id', accountId)
-        .in('route_id', routeIds);
+        .in('route_id', routeIds)
+        .order('sequence', { ascending: true });
       if (error) throw error;
       return data || [];
     },
@@ -149,13 +155,26 @@ export default function Routes() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Build per-route stop stats.
+  // Build per-route stop stats + next-stop summary. The driver card uses
+  // both: progress bar from {total, completed}, and the "next stop"
+  // block + navigate CTA from the next-uncompleted entry.
   const stopsByRoute = useMemo(() => {
-    const m = {};
+    const grouped = {};
     for (const s of stops) {
-      if (!m[s.route_id]) m[s.route_id] = { total: 0, completed: 0 };
-      m[s.route_id].total++;
-      if (s.status === 'completed') m[s.route_id].completed++;
+      if (!grouped[s.route_id]) grouped[s.route_id] = [];
+      grouped[s.route_id].push(s);
+    }
+    const m = {};
+    for (const [rid, list] of Object.entries(grouped)) {
+      // Already ordered by sequence from the query, but defensive sort
+      // in case React Query merges in stale entries.
+      list.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+      const total = list.length;
+      const completed = list.filter(s => s.status === 'completed').length;
+      const nextIdx = findNextStopIndex(list);
+      const next = nextIdx >= 0 ? list[nextIdx] : null;
+      const allTerminal = total > 0 && list.every(s => isStopTerminal(s.status));
+      m[rid] = { total, completed, next, allTerminal };
     }
     return m;
   }, [stops]);
@@ -227,18 +246,27 @@ export default function Routes() {
       subtitle="תכנון, שיוך ומעקב אחרי משימות הצי"
       live
       actions={(
-        <Link
-          to={createPageUrl('CreateRoute')}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
-          style={{
-            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
-            color: '#FFFFFF',
-            boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          צור משימה
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            to={createPageUrl('FleetMap')}
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98] border border-[#2D5233]/20 bg-white text-[#2D5233]"
+          >
+            <MapIcon className="h-4 w-4" />
+            מפת משימות
+          </Link>
+          <Link
+            to={createPageUrl('CreateRoute')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+            style={{
+              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              color: '#FFFFFF',
+              boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            צור משימה
+          </Link>
+        </div>
       )}
     >
       {/* KPI Strip: 3-up status counters, color = meaning. */}
@@ -530,6 +558,8 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
   const total     = stats?.total || 0;
   const completed = stats?.completed || 0;
   const pct       = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const next      = stats?.next || null;
+  const allTerminal = !!stats?.allTerminal;
 
   const isActive    = variant === 'active';
   const isToday     = variant === 'today';
@@ -539,19 +569,32 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
             : isToday    ? 'התחל ←'
             : 'פרטים ←';
 
+  // Destination for "נווט לתחנה הבאה". Coordinates win when present;
+  // address is the fallback so Waze / Google can still navigate.
+  const navDest = next && (next.address_text || (next.latitude && next.longitude))
+    ? {
+        lat: next.latitude,
+        lng: next.longitude,
+        address: next.address_text || '',
+      }
+    : null;
+  const detailHref = createPageUrl('RouteDetail') + '?id=' + route.id;
+  const mapHref    = detailHref + '&map=1';
+  const mapLabel   = total > 1 ? 'הצג מסלול במפה' : 'הצג במפה';
+
   // Active task = full gradient hero with white text. Hits like a CTA
-  // by itself.
+  // by itself. Wraps the inner content in a div (not the Link) so the
+  // action buttons inside don't accidentally trigger the parent
+  // navigation when the driver taps "נווט לתחנה הבאה".
   if (isActive) {
     return (
-      <Link
-        to={createPageUrl('RouteDetail') + '?id=' + route.id}
-        className="block rounded-2xl p-4 transition-all hover:scale-[1.005] active:scale-[0.998] relative overflow-hidden group"
+      <div
+        className="rounded-2xl p-4 relative overflow-hidden group"
         style={{
           background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 70%, #60A5FA 100%)',
           boxShadow: '0 12px 28px -8px rgba(59,130,246,0.4), 0 4px 10px -2px rgba(59,130,246,0.2)',
         }}
       >
-        {/* Decorative blob */}
         <div
           aria-hidden
           className="absolute pointer-events-none transition-transform group-hover:scale-110"
@@ -562,40 +605,81 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
           }}
         />
         <div className="relative">
-          <p className="text-base font-black text-white truncate mb-1.5">{route.title}</p>
-          <div className="flex items-center gap-3 text-[12px] text-white/85 flex-wrap">
-            {vehicle && (
-              <span className="flex items-center gap-1">
-                <Truck className="h-3.5 w-3.5" />
-                {vehicle}
-              </span>
-            )}
-            {route.scheduled_for && (
-              <span className="flex items-center gap-1">
-                <Calendar className="h-3.5 w-3.5" />
-                {fmtDate(route.scheduled_for)}
-              </span>
-            )}
-          </div>
-          {total > 0 && (
-            <div className="mt-3">
-              <div className="flex items-center justify-between text-[11px] mb-1 text-white">
-                <span className="font-bold">התקדמות</span>
-                <span className="opacity-85 tabular-nums">{completed} מתוך {total} תחנות</span>
-              </div>
-              <div className="h-2 rounded-full overflow-hidden bg-white/20">
-                <div
-                  className="h-full transition-all duration-300 rounded-full"
-                  style={{ width: `${pct}%`, background: '#FFFFFF' }}
-                />
-              </div>
+          <Link to={detailHref} className="block">
+            <p className="text-base font-black text-white truncate mb-1.5">{route.title}</p>
+            <div className="flex items-center gap-3 text-[12px] text-white/85 flex-wrap">
+              {vehicle && (
+                <span className="flex items-center gap-1">
+                  <Truck className="h-3.5 w-3.5" />
+                  {vehicle}
+                </span>
+              )}
+              {route.scheduled_for && (
+                <span className="flex items-center gap-1">
+                  <Calendar className="h-3.5 w-3.5" />
+                  {fmtDate(route.scheduled_for)}
+                </span>
+              )}
             </div>
-          )}
-          <div className="mt-3 flex items-center justify-center py-2 rounded-xl bg-white/25 backdrop-blur-sm font-bold text-sm text-white">
-            {cta}
+            {total > 0 && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-[11px] mb-1 text-white">
+                  <span className="font-bold">התקדמות</span>
+                  <span className="opacity-85 tabular-nums">{completed} מתוך {total} תחנות</span>
+                </div>
+                <div className="h-2 rounded-full overflow-hidden bg-white/20">
+                  <div
+                    className="h-full transition-all duration-300 rounded-full"
+                    style={{ width: `${pct}%`, background: '#FFFFFF' }}
+                  />
+                </div>
+              </div>
+            )}
+            {next && (
+              <div className="mt-3 rounded-xl px-3 py-2 bg-white/15 backdrop-blur-sm border border-white/20">
+                <p className="text-[10px] font-bold text-white/80 mb-0.5">תחנה הבאה</p>
+                <p className="text-sm font-bold text-white truncate">{next.title}</p>
+                {next.address_text && (
+                  <p className="text-[11px] text-white/85 flex items-center gap-1 mt-0.5 truncate">
+                    <MapPin className="h-3 w-3 shrink-0" /> {next.address_text}
+                  </p>
+                )}
+              </div>
+            )}
+            {allTerminal && total > 0 && (
+              <div className="mt-3 rounded-xl px-3 py-2 bg-white/15 backdrop-blur-sm border border-white/20 text-center">
+                <p className="text-sm font-bold text-white">כל התחנות הושלמו</p>
+              </div>
+            )}
+          </Link>
+          <div className="mt-3 flex items-center gap-2">
+            <Link
+              to={detailHref}
+              className="flex-1 flex items-center justify-center py-2 rounded-xl bg-white/25 backdrop-blur-sm font-bold text-sm text-white active:scale-[0.98]"
+            >
+              {cta}
+            </Link>
+            {total > 0 && (
+              <Link
+                to={mapHref}
+                aria-label={mapLabel}
+                title={mapLabel}
+                className="px-3 py-2 rounded-xl bg-white/25 backdrop-blur-sm text-white active:scale-[0.95]"
+              >
+                <MapIcon className="h-4 w-4" />
+              </Link>
+            )}
+            {navDest && !allTerminal && (
+              <NavigateButton
+                destination={navDest}
+                variant="pill"
+                label="לתחנה הבאה"
+                className="!bg-white !text-[#1E3A8A] shrink-0"
+              />
+            )}
           </div>
         </div>
-      </Link>
+      </div>
     );
   }
 
@@ -606,11 +690,8 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
     : { background: '#F0FDF4', color: '#047857', border: '1.5px solid #D1FAE5' };
 
   return (
-    <Link
-      to={createPageUrl('RouteDetail') + '?id=' + route.id}
-      className="block transition-all hover:scale-[1.005] active:scale-[0.998]"
-    >
-      <Card accent={accent} padding="p-3.5" className={isCompleted ? 'opacity-90' : ''}>
+    <Card accent={accent} padding="p-3.5" className={isCompleted ? 'opacity-90' : ''}>
+      <Link to={detailHref} className="block">
         <div className="flex items-start gap-3 mb-2">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{route.title}</p>
@@ -655,16 +736,56 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
           </div>
         )}
 
-        {!isCompleted && (
-          <div
-            className="mt-3 text-center py-2 rounded-xl text-xs font-bold"
+        {/* Next stop preview — only for non-completed cards. */}
+        {!isCompleted && next && (
+          <div className="mt-2.5 rounded-xl px-2.5 py-2 border border-gray-100 bg-gray-50">
+            <p className="text-[10px] font-bold text-gray-500 mb-0.5">תחנה הבאה</p>
+            <p className="text-[12px] font-bold text-gray-900 truncate">{next.title}</p>
+            {next.address_text && (
+              <p className="text-[10px] text-gray-500 flex items-center gap-1 mt-0.5 truncate">
+                <MapPin className="h-2.5 w-2.5 shrink-0" /> {next.address_text}
+              </p>
+            )}
+          </div>
+        )}
+
+        {!isCompleted && allTerminal && total > 0 && (
+          <p className="mt-2 text-[11px] font-bold text-emerald-700 text-center">
+            כל התחנות הושלמו
+          </p>
+        )}
+      </Link>
+
+      {/* Action row — sits outside the Link so taps don't bubble up. */}
+      {!isCompleted && (
+        <div className="mt-3 flex items-center gap-2">
+          <Link
+            to={detailHref}
+            className="flex-1 text-center py-2 rounded-xl text-xs font-bold active:scale-[0.98]"
             style={ctaStyle}
           >
             {cta}
-          </div>
-        )}
-      </Card>
-    </Link>
+          </Link>
+          {total > 0 && (
+            <Link
+              to={mapHref}
+              aria-label={mapLabel}
+              title={mapLabel}
+              className="px-3 py-2 rounded-xl text-xs font-bold active:scale-[0.95] border border-gray-200 bg-white text-gray-700 flex items-center gap-1"
+            >
+              <MapIcon className="h-3.5 w-3.5" />
+            </Link>
+          )}
+          {navDest && !allTerminal && (
+            <NavigateButton
+              destination={navDest}
+              variant="compact"
+              label="נווט"
+            />
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
 

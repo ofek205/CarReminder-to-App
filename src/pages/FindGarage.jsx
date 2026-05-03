@@ -3,38 +3,26 @@ import { C } from '@/lib/designTokens';
 import { isVesselType } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { db } from '@/lib/supabaseEntities';
-import { MapPin, Wrench, Search, Loader2, MapPinOff, Phone, Star, ArrowUpDown, Anchor, Ship, Package, Settings, LocateFixed } from 'lucide-react';
-import { getCurrentPosition } from '@/lib/capacitor';
+import {
+  MapPin,
+  Wrench,
+  Search,
+  Loader2,
+  MapPinOff,
+  Phone,
+  ArrowUpDown,
+  Anchor,
+  Ship,
+  Package,
+  Settings,
+  LocateFixed,
+} from 'lucide-react';
 
-// Brand SVG marks. used on the directions buttons. Kept inline to avoid extra assets.
-const GoogleMapsMark = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M12 2C7.58 2 4 5.58 4 10c0 7 8 12 8 12s8-5 8-12c0-4.42-3.58-8-8-8z" fill="#EA4335"/>
-    <circle cx="12" cy="10" r="3" fill="#fff"/>
-  </svg>
-);
+import MapCore from '@/components/map/MapCore';
+import { useUserLocation } from '@/components/map/useUserLocation';
+import { NavButtonsCompact, NavButtonsRow } from '@/components/map/NavButtons';
 
-const WazeMark = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M12 3a8 8 0 0 1 8 8c0 1.5-.3 2.4-.8 3.2-.5.8-1 1.3-1 2.3 0 .8.2 1.3.2 1.8 0 .8-.6 1.2-1.3 1.2-.8 0-1.4-.4-2-1-.6-.5-1.2-1-2.1-1H9c-1 0-1.7.5-2.3 1-.6.5-1.2 1-2 1-.7 0-1.3-.4-1.3-1.2 0-.5.2-1 .2-1.8 0-1-.5-1.5-1-2.3S2 12.5 2 11a8 8 0 0 1 8-8h2z" fill="#33CCFF"/>
-    <circle cx="9" cy="11" r="1.2" fill="#fff"/>
-    <circle cx="15" cy="11" r="1.2" fill="#fff"/>
-    <path d="M9 14.5c.8.8 2 1.2 3 1.2s2.2-.4 3-1.2" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" fill="none"/>
-  </svg>
-);
-
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, Circle, useMap } from 'react-leaflet';
-
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
-
-//  Type definitions with colors & icons 
+//  Type definitions with colors & icons
 const TYPE_CONFIG = {
   garage: {
     label: 'מוסך',
@@ -70,7 +58,7 @@ const TYPE_CONFIG = {
   },
 };
 
-//  Marine type definitions (shown only when user has a vessel) 
+//  Marine type definitions (shown only when user has a vessel)
 const MARINE_TYPE_CONFIG = {
   marina: {
     label: 'מרינה',
@@ -111,39 +99,17 @@ const TYPE_DESC = {
 
 const ALL_TYPE_CONFIG = { ...TYPE_CONFIG, ...MARINE_TYPE_CONFIG };
 
-// Safe icon mapping (no dangerouslySetInnerHTML)
+// Lucide icon mapping for the result cards (the map markers use the inline
+// SVGs in TYPE_CONFIG.svg, rendered by MapCore via marker.iconSvg).
 const TYPE_ICONS = {
-  garage: Wrench, tire: Settings, parts: Package, mechanic: Settings,
-  marina: Anchor, boat_repair: Ship, marine_parts: Anchor,
+  garage: Wrench,
+  tire: Settings,
+  parts: Package,
+  mechanic: Settings,
+  marina: Anchor,
+  boat_repair: Ship,
+  marine_parts: Anchor,
 };
-
-function makeIcon(typeKey) {
-  const t = ALL_TYPE_CONFIG[typeKey] || TYPE_CONFIG.garage;
-  return new L.DivIcon({
-    className: '',
-    html: `<div style="width:38px;height:38px;border-radius:50%;background:${t.color};border:3px solid #fff;box-shadow:0 2px 10px ${t.color}60;display:flex;align-items:center;justify-content:center;">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${t.svg}</svg>
-    </div>`,
-    iconSize: [38, 38],
-    iconAnchor: [19, 19],
-    popupAnchor: [0, -22],
-  });
-}
-
-// Pre-build icons for all types (car + marine)
-const ICONS = {};
-Object.keys(ALL_TYPE_CONFIG).forEach(k => { ICONS[k] = makeIcon(k); });
-
-// Blue pulsing dot for user
-const userIcon = new L.DivIcon({
-  className: '',
-  html: `<div style="position:relative;width:20px;height:20px;">
-    <div style="position:absolute;inset:-6px;border-radius:50%;background:rgba(59,130,246,0.2);animation:pulse-ring 2s ease-out infinite;"></div>
-    <div style="width:20px;height:20px;border-radius:50%;background:#3B82F6;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>
-  </div><style>@keyframes pulse-ring{0%{transform:scale(1);opacity:1}100%{transform:scale(2.2);opacity:0}}</style>`,
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
-});
 
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -151,12 +117,6 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function RecenterMap({ center, zoom }) {
-  const map = useMap();
-  useEffect(() => { if (center) map.setView(center, zoom); }, [center, zoom, map]);
-  return null;
 }
 
 function classifyType(tags, isMarine = false) {
@@ -186,7 +146,7 @@ function classifyType(tags, isMarine = false) {
 // as a name (which made every unnamed POI look like a real result).
 function pickDisplayName(tags) {
   if (!tags) return null;
-  const heChar = /[\u0590-\u05FF]/;
+  const heChar = /[֐-׿]/;
   const candidates = [
     tags['name:he'],
     tags.name,                 // OSM `name` is supposed to be primary local language
@@ -222,10 +182,20 @@ const QUICK_CITIES = [
 
 export default function FindGarage() {
   const { isGuest, guestVehicles, isAuthenticated, user } = useAuth();
-  const [userLocation, setUserLocation] = useState(null);
+
+  // Geolocation moved to a shared hook. The hook keeps the same Tel Aviv
+  // fallback + permission-denied detection that lived inline before.
+  const {
+    location: userLocation,
+    loading,
+    denied: locationDenied,
+    error: gpsError,
+    retry: retryLocation,
+    setLocation: setUserLocation,
+  } = useUserLocation();
+
   const [garages, setGarages] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [locError, setLocError] = useState(null);
+  const [searchError, setSearchError] = useState(null); // city-search-only
   const [searchRadius, setSearchRadius] = useState(5000);
   const [fetching, setFetching] = useState(false);
   const [selectedGarage, setSelectedGarage] = useState(null);
@@ -237,6 +207,9 @@ export default function FindGarage() {
   const [hasVessel, setHasVessel] = useState(false);
   const mapRef = useRef(null);
   const retryRef = useRef(false);
+
+  // GPS-error from the hook auto-clears after 4s; city-search-error is local.
+  const locError = gpsError || searchError;
 
   // Detect if user has a vessel in their fleet
   useEffect(() => {
@@ -253,63 +226,16 @@ export default function FindGarage() {
     }
   }, [isGuest, guestVehicles, isAuthenticated, user]);
 
-  // Location state. Tracks both "using real GPS vs. Tel Aviv fallback"
-  // and whether we got here because permission was denied (so we can
-  // surface a distinct banner + "try again" button to the user). The
-  // old flow fell back to Tel Aviv silently whenever anything went
-  // wrong, which users interpreted as a bug.
-  // `usingGps` was driving a "GPS פעיל" pill on the removed top button
-  // and is no longer read anywhere — kept the setter calls as a no-op
-  // ref slot in case we add a future GPS-state pill back. State stripped.
-  const [locationDenied, setLocationDenied] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        // getCurrentPosition from @/lib/capacitor routes through the
-        // native Geolocation plugin on Android/iOS, which triggers the
-        // OS permission dialog if needed. On web it falls back to
-        // navigator.geolocation.
-        const pos = await getCurrentPosition();
-        if (cancelled) return;
-        setUserLocation({ lat: pos.latitude, lng: pos.longitude });
-        setLocationDenied(false);
-      } catch (err) {
-        if (cancelled) return;
-        // PERMISSION_DENIED = 1 on browser GeolocationPositionError.
-        // Native plugin throws an Error whose message contains "denied"
-        // or "not authorized" — sniff both so we can show the right UX.
-        const msg = String(err?.message || err || '').toLowerCase();
-        const denied = err?.code === 1 || msg.includes('denied') || msg.includes('not authorized');
-        setLocationDenied(denied);
-        // Keep the Tel Aviv fallback so the map is not blank, but the
-        // banner above makes the fallback clear instead of pretending
-        // this is the user's real location.
-        setUserLocation({ lat: 32.0853, lng: 34.7818 });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
+  // Floating "recenter to my location" handler. Runs the hook's GPS retry
+  // and snaps the map view to the result on success. The hook owns the
+  // permission-denied banner; this just nudges the camera.
   const retryGps = async () => {
-    setLocError(null);
-    try {
-      const pos = await getCurrentPosition();
-      setUserLocation({ lat: pos.latitude, lng: pos.longitude });
-      setLocationDenied(false);
-      // Snap the map back to the new location.
-      if (mapRef.current) {
-        try { mapRef.current.setView([pos.latitude, pos.longitude], 14, { animate: true }); } catch {}
-      }
-    } catch (err) {
-      const msg = String(err?.message || err || '').toLowerCase();
-      const denied = err?.code === 1 || msg.includes('denied') || msg.includes('not authorized');
-      setLocationDenied(denied);
-      setLocError(denied ? 'הרשאת מיקום נדחתה. אפשר לאפשר בהגדרות האפליקציה.' : 'לא הצלחנו לזהות מיקום');
-      setTimeout(() => setLocError(null), 4000);
+    setSearchError(null);
+    const next = await retryLocation();
+    if (next && mapRef.current) {
+      try {
+        mapRef.current.setView([next.lat, next.lng], 14, { animate: true });
+      } catch { /* underlying map not yet mounted */ }
     }
   };
 
@@ -553,15 +479,16 @@ export default function FindGarage() {
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ' ישראל')}&format=json&limit=1&countrycodes=il`, { headers: { 'Accept-Language': 'he' } });
       const data = await res.json();
-      if (data.length > 0) { setLocError(null); setUserLocation({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }); }
-      else { setLocError('לא נמצאה כתובת.'); }
-    } catch { setLocError('שגיאה בחיפוש.'); }
+      if (data.length > 0) {
+        setSearchError(null);
+        setUserLocation({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) });
+      } else {
+        setSearchError('לא נמצאה כתובת.');
+      }
+    } catch { setSearchError('שגיאה בחיפוש.'); }
     finally { setSearchingCity(false); }
   };
 
-  const openGoogleNav = (lat, lon) => window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`, '_blank');
-  const openWazeNav = (lat, lon) => window.open(`https://waze.com/ul?ll=${lat},${lon}&navigate=yes`, '_blank');
-  const openGoogleSearch = (name, lat, lon) => window.open(`https://www.google.com/maps/search/${encodeURIComponent(name)}/@${lat},${lon},17z`, '_blank');
   const scrollToCard = (id) => { const el = document.getElementById(`garage-card-${id}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
 
   // Filtered & sorted garages
@@ -574,7 +501,7 @@ export default function FindGarage() {
   const typeCounts = { all: garages.length };
   garages.forEach(g => { typeCounts[g.typeKey] = (typeCounts[g.typeKey] || 0) + 1; });
 
-  //  Loading 
+  //  Loading
   if (loading) {
     return (
       <div className="-mx-4 -mt-4 min-h-[85vh] flex flex-col items-center justify-center gap-5 relative overflow-hidden pb-24" dir="rtl">
@@ -594,7 +521,24 @@ export default function FindGarage() {
 
   // Error screen removed. we always fallback to Tel Aviv, so main view always shows
 
-  //  Main view 
+  // Map zoom derived from radius — wider search = more zoomed out.
+  const mapZoom = searchRadius <= 2000 ? 15 : searchRadius <= 5000 ? 14 : 12;
+
+  // Marker objects fed to MapCore. Each carries the original garage row
+  // attached as `garage` so renderTooltip / renderPopup can read it directly.
+  const mapMarkers = displayGarages.map(g => {
+    const tc = ALL_TYPE_CONFIG[g.typeKey] || TYPE_CONFIG.garage;
+    return {
+      id: g.id,
+      lat: g.lat,
+      lng: g.lon,
+      color: tc.color,
+      iconSvg: tc.svg,
+      garage: g,
+    };
+  });
+
+  //  Main view
   return (
     <div className="-mx-4 -mt-4" style={{ maxWidth: '100vw', overflowX: 'hidden' }} dir="rtl">
       {/* Hero header */}
@@ -752,78 +696,68 @@ export default function FindGarage() {
 
       {/* Map */}
       <div className="px-3">
-        <div>
-          <div className="rounded-2xl overflow-hidden shadow-md border" style={{ borderColor: C.border, height: '35vh', minHeight: '200px', maxHeight: '350px', position: 'relative', zIndex: 1 }}>
-            {userLocation && (
-              <MapContainer center={[userLocation.lat, userLocation.lng]} zoom={14} scrollWheelZoom={true}
-                style={{ height: '100%', width: '100%' }} ref={mapRef}>
-                <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <RecenterMap center={[userLocation.lat, userLocation.lng]} zoom={searchRadius <= 2000 ? 15 : searchRadius <= 5000 ? 14 : 12} />
-                <Circle center={[userLocation.lat, userLocation.lng]} radius={searchRadius}
-                  pathOptions={{ color: C.primary, fillColor: C.light, fillOpacity: 0.08, weight: 1.5, dashArray: '6 4' }} />
-                <Marker position={[userLocation.lat, userLocation.lng]} icon={userIcon}>
-                  <Popup><div className="text-center text-sm font-medium" dir="rtl">המיקום שלך</div></Popup>
-                </Marker>
-                {displayGarages.map(g => {
-                  const tc = ALL_TYPE_CONFIG[g.typeKey] || TYPE_CONFIG.garage;
-                  return (
-                  <Marker key={g.id} position={[g.lat, g.lon]} icon={ICONS[g.typeKey] || ICONS.garage}
-                    eventHandlers={{ click: () => { setSelectedGarage(g.id); scrollToCard(g.id); } }}>
-                    <Tooltip direction="top" offset={[0, -24]} sticky className="garage-tooltip">
-                      <div dir="rtl" style={{ minWidth: 160, fontFamily: 'inherit' }}>
-                        <div style={{ fontWeight: 800, fontSize: 13, color: tc.color, marginBottom: 2 }}>{g.name}</div>
-                        <div style={{ fontSize: 11, color: '#666' }}>{TYPE_DESC[g.typeKey] || tc.label}</div>
-                        <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{g.distance.toFixed(1)} ק"מ ממך</div>
-                      </div>
-                    </Tooltip>
-                    <Popup>
-                      <div dir="rtl" className="min-w-[200px]">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: tc.color }} />
-                          <p className="font-bold text-sm">{g.name}</p>
-                        </div>
-                        <p className="text-xs text-gray-500 mb-1">{tc.label} · {g.distance.toFixed(1)} ק"מ</p>
-                        {g.address && <p className="text-xs text-gray-400 mb-2">{g.address}</p>}
-                        <div className="flex gap-1.5">
-                          <button onClick={() => openGoogleNav(g.lat, g.lon)}
-                            className="flex-1 flex items-center justify-center gap-1 text-xs rounded-lg px-2 py-1.5 font-bold"
-                            style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#202124' }}>
-                            <GoogleMapsMark size={13} /> Google Maps
-                          </button>
-                          <button onClick={() => openWazeNav(g.lat, g.lon)}
-                            className="flex-1 flex items-center justify-center gap-1 text-xs rounded-lg px-2 py-1.5 font-bold"
-                            style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#0A73B8' }}>
-                            <WazeMark size={13} /> Waze
-                          </button>
-                        </div>
-                      </div>
-                    </Popup>
-                  </Marker>
-                  );
-                })}
-              </MapContainer>
-            )}
-
-            {/* Floating "recenter to my location" button. bottom-left of map in RTL feels natural for left-hand thumbs */}
-            {userLocation && (
-              <button
-                onClick={retryGps}
-                aria-label="חזרה למיקום שלי"
-                title="חזרה למיקום שלי"
-                className="absolute bottom-3 left-3 w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95"
-                style={{
-                  background: '#fff',
-                  border: `1.5px solid ${C.border}`,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  zIndex: 400,
-                  color: C.primary,
-                }}>
-                <LocateFixed className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-        </div>
+        <MapCore
+          markers={mapMarkers}
+          center={userLocation ? [userLocation.lat, userLocation.lng] : null}
+          zoom={mapZoom}
+          userLocation={userLocation}
+          showUserLocation={true}
+          showCircle={true}
+          circleColor={C.primary}
+          circleRadius={searchRadius}
+          mapRef={mapRef}
+          onMarkerClick={(m) => { setSelectedGarage(m.id); scrollToCard(m.id); }}
+          tooltipClassName="garage-tooltip"
+          mapHeight="35vh"
+          mapMinHeight="200px"
+          mapMaxHeight="350px"
+          renderTooltip={(m) => {
+            const g = m.garage;
+            const tc = ALL_TYPE_CONFIG[g.typeKey] || TYPE_CONFIG.garage;
+            return (
+              <div dir="rtl" style={{ minWidth: 160, fontFamily: 'inherit' }}>
+                <div style={{ fontWeight: 800, fontSize: 13, color: tc.color, marginBottom: 2 }}>{g.name}</div>
+                <div style={{ fontSize: 11, color: '#666' }}>{TYPE_DESC[g.typeKey] || tc.label}</div>
+                <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{g.distance.toFixed(1)} ק"מ ממך</div>
+              </div>
+            );
+          }}
+          renderPopup={(m) => {
+            const g = m.garage;
+            const tc = ALL_TYPE_CONFIG[g.typeKey] || TYPE_CONFIG.garage;
+            return (
+              <div dir="rtl" className="min-w-[200px]">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: tc.color }} />
+                  <p className="font-bold text-sm">{g.name}</p>
+                </div>
+                <p className="text-xs text-gray-500 mb-1">{tc.label} · {g.distance.toFixed(1)} ק"מ</p>
+                {g.address && <p className="text-xs text-gray-400 mb-2">{g.address}</p>}
+                <NavButtonsCompact lat={g.lat} lon={g.lon} />
+              </div>
+            );
+          }}
+        >
+          {/* Floating "recenter to my location" button. bottom-left of map
+              in RTL feels natural for left-hand thumbs. Lives inside MapCore
+              as an overlay child so it sits over the Leaflet canvas. */}
+          {userLocation && (
+            <button
+              onClick={retryGps}
+              aria-label="חזרה למיקום שלי"
+              title="חזרה למיקום שלי"
+              className="absolute bottom-3 left-3 w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95"
+              style={{
+                background: '#fff',
+                border: `1.5px solid ${C.border}`,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                zIndex: 400,
+                color: C.primary,
+              }}>
+              <LocateFixed className="w-5 h-5" />
+            </button>
+          )}
+        </MapCore>
       </div>
 
       {/* Results header */}
@@ -942,25 +876,8 @@ export default function FindGarage() {
                     )}
 
                     {/* Action buttons. compact for mobile */}
-                    <div className="flex gap-1 mt-2">
-                      <button onClick={e => { e.stopPropagation(); openGoogleNav(g.lat, g.lon); }}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-[0.95]"
-                        style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#202124' }}>
-                        <GoogleMapsMark size={14} />
-                        Google Maps
-                      </button>
-                      <button onClick={e => { e.stopPropagation(); openWazeNav(g.lat, g.lon); }}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-[0.95]"
-                        style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#0A73B8' }}>
-                        <WazeMark size={14} />
-                        Waze
-                      </button>
-                      <button onClick={e => { e.stopPropagation(); openGoogleSearch(g.name, g.lat, g.lon); }}
-                        className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-[0.95]"
-                        style={{ background: '#FFF8E1', color: '#F57F17' }}>
-                        <Star className="w-3 h-3" style={{ color: '#FBBC04' }} />
-                        דירוג
-                      </button>
+                    <div className="mt-2">
+                      <NavButtonsRow lat={g.lat} lon={g.lon} name={g.name} includeRating={true} />
                     </div>
                   </div>
                 </div>

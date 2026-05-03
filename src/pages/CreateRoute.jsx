@@ -1,24 +1,32 @@
 /**
- * Phase 6 — Create Task (Manager only).
+ * Phase 6 / 11 — Create Task (Manager only).
  *
  * Polished form for creating a workspace task. Each task has:
  *   - Title + scheduled date + optional notes
  *   - One vehicle (required)
  *   - One driver assignment (optional; defaults to the vehicle's
  *     permanent driver if one exists)
- *   - One or more stops. Single-stop tasks read as a "destination",
- *     multi-stop tasks as a "route".
+ *   - One or more stops on a route. Multi-stop UX (phase 11):
+ *       * First stop expanded by default; only essential fields shown.
+ *       * "אפשרויות נוספות" toggle reveals stop_type, planned_time,
+ *         contact name/phone, manager notes.
+ *       * Adding a stop collapses the previous one (only one expanded
+ *         at a time so the form stays short).
+ *       * Up/Down arrows reorder; trash deletes; pencil expands.
+ *       * Address can be validated via Nominatim ("בדוק כתובת"); if
+ *         that fails the form still saves with a non-blocking warning.
  *
- * Backend stays unchanged — calls create_route_with_stops RPC. The
- * "task" rename is UI-only (a task in the user's mental model maps
- * 1:1 to a route row in the DB).
+ * Backend: calls create_route_with_stops RPC. Phase 11 extended that RPC
+ * to accept the new optional per-stop fields without changing its
+ * signature, so old single-destination callers still work.
  */
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Trash2, Loader2, ArrowRight, Briefcase, Truck, User as UserIcon,
-  MapPin, ClipboardList, Search, Check, ChevronDown, X, Crown, Shield,
+  MapPin, ClipboardList, Search, Check, ChevronDown, ChevronUp, X,
+  Crown, Shield, Pencil, AlertTriangle, Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -32,6 +40,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { createPageUrl } from '@/utils';
 import VehiclePicker from '@/components/shared/VehiclePicker';
 import MobileBackButton from '@/components/shared/MobileBackButton';
+import { geocodeAddress } from '@/lib/geocode';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -41,6 +50,35 @@ const ROLE_TAG = {
   'driver':{ label: 'נהג',   icon: Truck,    cls: 'bg-orange-50 text-orange-700' },
   'שותף':  { label: 'צופה',  icon: UserIcon, cls: 'bg-blue-50 text-blue-700' },
 };
+
+const STOP_TYPE_OPTIONS = [
+  { value: '',                label: '— ללא סוג —' },
+  { value: 'pickup',          label: 'איסוף' },
+  { value: 'delivery',        label: 'מסירה' },
+  { value: 'meeting',         label: 'פגישה' },
+  { value: 'inspection',      label: 'בדיקה' },
+  { value: 'vehicle_service', label: 'טיפול ברכב' },
+  { value: 'other',           label: 'אחר' },
+];
+
+// Empty stop template. `geo_status` is UI-only — used to drive the badge
+// on the collapsed card and the warning under the address field. Never
+// sent to the RPC.
+const emptyStop = () => ({
+  title: '',
+  address_text: '',
+  driver_notes: '',
+  // advanced (revealed via "אפשרויות נוספות"):
+  stop_type: '',
+  planned_time: '',
+  contact_name: '',
+  contact_phone: '',
+  manager_notes: '',
+  // geocoding state:
+  latitude: null,
+  longitude: null,
+  geo_status: 'idle', // 'idle' | 'ok' | 'failed'
+});
 
 // ---------- main page ------------------------------------------------
 
@@ -57,7 +95,8 @@ export default function CreateRoute() {
   const [title, setTitle]               = useState('');
   const [notes, setNotes]               = useState('');
   const [scheduledFor, setScheduledFor] = useState('');
-  const [stops, setStops]               = useState([{ title: '', address_text: '', notes: '' }]);
+  const [stops, setStops]               = useState([emptyStop()]);
+  const [expandedIndex, setExpandedIndex] = useState(0);
   const [submitting, setSubmitting]     = useState(false);
 
   // Vehicles available in the workspace.
@@ -111,8 +150,6 @@ export default function CreateRoute() {
 
   // Auto-select the permanent driver the moment a vehicle with one is
   // chosen, but only if the manager hasn't already picked someone else.
-  // This makes the most common case (assigning to the regular driver)
-  // a one-tap flow without trapping the manager's manual choice.
   useEffect(() => {
     if (driverPickedManually) return;
     if (permanentDriver) {
@@ -137,39 +174,139 @@ export default function CreateRoute() {
     );
   }
 
-  // ---------- handlers ----------------------------------------------
+  // ---------- stop handlers ------------------------------------------
 
   const updateStop = (i, key, value) => {
-    setStops(prev => prev.map((s, idx) => idx === i ? { ...s, [key]: value } : s));
+    setStops(prev => prev.map((s, idx) => {
+      if (idx !== i) return s;
+      const next = { ...s, [key]: value };
+      // Editing the address invalidates a previous geocode.
+      if (key === 'address_text' && s.geo_status !== 'idle') {
+        next.geo_status = 'idle';
+        next.latitude = null;
+        next.longitude = null;
+      }
+      return next;
+    }));
   };
-  const addStop    = () => setStops(prev => [...prev, { title: '', address_text: '', notes: '' }]);
-  const removeStop = (i) => setStops(prev => prev.length === 1 ? prev : prev.filter((_, idx) => idx !== i));
 
-  const isMultiStop = stops.length > 1;
-  const stopsLabel  = isMultiStop ? 'תחנות במסלול' : 'יעד המשימה';
-  const stopsHelp   = isMultiStop
-    ? 'הנהג יסמן ביצוע לכל תחנה בנפרד.'
-    : 'משימה לנקודה אחת. אפשר להוסיף תחנה ולהפוך אותה למסלול עם רצף.';
+  const addStop = () => {
+    setStops(prev => {
+      const next = [...prev, emptyStop()];
+      setExpandedIndex(next.length - 1);
+      return next;
+    });
+  };
+
+  const removeStop = (i) => {
+    setStops(prev => {
+      if (prev.length === 1) return prev;
+      const next = prev.filter((_, idx) => idx !== i);
+      // Keep an editable card visible after deletion.
+      setExpandedIndex(Math.min(i, next.length - 1));
+      return next;
+    });
+  };
+
+  const moveStop = (from, to) => {
+    if (to < 0 || to >= stops.length) return;
+    setStops(prev => {
+      const next = prev.slice();
+      const [m] = next.splice(from, 1);
+      next.splice(to, 0, m);
+      return next;
+    });
+    // Keep the same card expanded as it moves.
+    if (expandedIndex === from) setExpandedIndex(to);
+    else if (expandedIndex === to) setExpandedIndex(from);
+  };
+
+  // Geocode a single stop on demand (the "בדוק כתובת" button) or at
+  // submit time. Returns the resolved status so submit-time orchestration
+  // can decide whether to warn.
+  const geocodeStop = async (i) => {
+    const stop = stops[i];
+    const q = (stop.address_text || '').trim();
+    if (!q) return 'idle';
+    const result = await geocodeAddress(q);
+    setStops(prev => prev.map((s, idx) => {
+      if (idx !== i) return s;
+      if (result) {
+        return { ...s, latitude: result.latitude, longitude: result.longitude, geo_status: 'ok' };
+      }
+      return { ...s, latitude: null, longitude: null, geo_status: 'failed' };
+    }));
+    return result ? 'ok' : 'failed';
+  };
+
+  // ---------- submit ------------------------------------------------
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const cleanTitle = title.trim();
     if (!cleanTitle)  { toast.error('יש להזין שם למשימה'); return; }
     if (!vehicleId)   { toast.error('יש לבחור רכב למשימה'); return; }
-    const cleanStops = stops
-      .map(s => ({
-        title:        s.title.trim(),
-        address_text: s.address_text.trim() || null,
-        notes:        s.notes.trim() || null,
-      }))
-      .filter(s => s.title || s.address_text);
-    if (cleanStops.length === 0) {
-      toast.error(isMultiStop ? 'הוסף לפחות תחנה אחת למשימה' : 'יש להזין יעד למשימה');
+
+    // Build the cleaned stop list. Drop stops that are entirely empty
+    // (a multi-stop form with one blank trailing card shouldn't fail
+    // the user — just ignore it).
+    const indexed = stops.map((s, i) => ({ ...s, _i: i }));
+    const populated = indexed.filter(s => s.title.trim() || s.address_text.trim());
+    if (populated.length === 0) {
+      toast.error('יש להזין יעד למשימה');
       return;
     }
 
     setSubmitting(true);
     try {
+      // Try to resolve any stop that has an address but never went
+      // through the manual "בדוק כתובת" button. Stops that already
+      // resolved or already failed are skipped — the user has been
+      // informed and accepted the warning.
+      //
+      // Critical: keep the resolved coords on a LOCAL `mergedStops`
+      // copy and use that to build the RPC payload. Reading `stops`
+      // straight from the closure here would see the pre-geocode
+      // snapshot and save NULL coords even when Nominatim succeeded.
+      //
+      // We also call Nominatim sequentially — its usage policy caps at
+      // ~1 request per second per IP, and parallel fan-out from one
+      // user is the fast way to get rate-limited.
+      let mergedStops = stops;
+      const needsGeocode = populated.filter(s =>
+        s.address_text.trim() && s.geo_status === 'idle'
+      );
+      for (const s of needsGeocode) {
+        const result = await geocodeAddress(s.address_text.trim());
+        mergedStops = mergedStops.map((p, idx) => {
+          if (idx !== s._i) return p;
+          if (result) {
+            return { ...p, latitude: result.latitude, longitude: result.longitude, geo_status: 'ok' };
+          }
+          return { ...p, latitude: null, longitude: null, geo_status: 'failed' };
+        });
+      }
+      if (needsGeocode.length > 0) setStops(mergedStops);
+
+      const finalStops = mergedStops
+        .filter(s => s.title.trim() || s.address_text.trim())
+        .map(s => ({
+          title:         s.title.trim(),
+          address_text:  s.address_text.trim() || null,
+          driver_notes:  s.driver_notes.trim() || null,
+          manager_notes: s.manager_notes.trim() || null,
+          contact_name:  s.contact_name.trim() || null,
+          contact_phone: s.contact_phone.trim() || null,
+          stop_type:     s.stop_type || null,
+          planned_time:  s.planned_time || null,
+          latitude:      s.latitude,
+          longitude:     s.longitude,
+        }));
+
+      const failedCount = mergedStops.filter(s =>
+        s.address_text.trim() && s.geo_status === 'failed'
+      ).length;
+
       const { data: newRouteId, error } = await supabase.rpc('create_route_with_stops', {
         p_account_id:              accountId,
         p_vehicle_id:              vehicleId,
@@ -177,15 +314,25 @@ export default function CreateRoute() {
         p_title:                   cleanTitle,
         p_notes:                   notes.trim() || null,
         p_scheduled_for:           scheduledFor || null,
-        p_stops:                   cleanStops,
+        p_stops:                   finalStops,
       });
       if (error) throw error;
       if (!newRouteId) throw new Error('no_id_returned');
 
       await queryClient.invalidateQueries({ queryKey: ['routes'] });
-      toast.success(driverUserId
-        ? 'המשימה נוצרה. הנהג יראה אותה ברשימת המשימות שלו.'
-        : 'המשימה נוצרה. אפשר לשייך נהג בכל שלב.');
+
+      if (failedCount > 0) {
+        const phrase = failedCount > 1
+          ? `${failedCount} כתובות לא זוהו במפה`
+          : 'כתובת אחת לא זוהתה במפה';
+        toast.success(
+          `המשימה נוצרה. ${phrase} — הנהג יראה את הטקסט כפי שנכתב.`
+        );
+      } else {
+        toast.success(driverUserId
+          ? 'המשימה נוצרה. הנהג יראה אותה ברשימת המשימות שלו.'
+          : 'המשימה נוצרה. אפשר לשייך נהג בכל שלב.');
+      }
       navigate(createPageUrl('RouteDetail') + '?id=' + newRouteId);
     } catch (err) {
       const code = err?.message || '';
@@ -201,9 +348,12 @@ export default function CreateRoute() {
     }
   };
 
-  // ---------- render ------------------------------------------------
+  // ---------- render helpers ----------------------------------------
 
   const todayISO = new Date().toISOString().slice(0, 10);
+  const selectedVehicle = vehicles.find(v => v.id === vehicleId);
+  const selectedDriver  = team.find(m => m.user_id === driverUserId);
+  const populatedStopsCount = stops.filter(s => s.title.trim() || s.address_text.trim()).length;
 
   return (
     <div dir="rtl" className="max-w-2xl mx-auto py-2">
@@ -262,8 +412,6 @@ export default function CreateRoute() {
               value={vehicleId}
               onChange={(id) => {
                 setVehicleId(id);
-                // Reset manual override so the auto-assign permanent
-                // driver effect can re-run with the new vehicle.
                 setDriverPickedManually(false);
               }}
             />
@@ -302,23 +450,33 @@ export default function CreateRoute() {
           </p>
         </Section>
 
-        {/* Section: יעד / תחנות */}
+        {/* Section: תחנות במסלול */}
         <Section
-          title={stopsLabel}
+          title="תחנות במסלול"
           icon={<MapPin className="h-4 w-4 text-[#2D5233]" />}
           headerExtra={
-            <span className="text-[10px] text-gray-400">{stopsHelp}</span>
+            <span className="text-[10px] text-gray-400">
+              {stops.length === 1
+                ? 'תחנה אחת. אפשר להוסיף עוד תחנות למסלול.'
+                : `${stops.length} תחנות. הנהג יסמן ביצוע לכל תחנה.`}
+            </span>
           }
         >
           <div className="space-y-2">
             {stops.map((s, i) => (
-              <StopRow
+              <StopCard
                 key={i}
                 index={i}
+                total={stops.length}
                 stop={s}
-                isMultiStop={isMultiStop}
+                isExpanded={expandedIndex === i}
+                onExpand={() => setExpandedIndex(i)}
+                onCollapse={() => setExpandedIndex(-1)}
                 onChange={(key, value) => updateStop(i, key, value)}
                 onRemove={() => removeStop(i)}
+                onMoveUp={() => moveStop(i, i - 1)}
+                onMoveDown={() => moveStop(i, i + 1)}
+                onGeocode={() => geocodeStop(i)}
                 canRemove={stops.length > 1}
               />
             ))}
@@ -328,10 +486,41 @@ export default function CreateRoute() {
               className="w-full py-2.5 rounded-xl border border-dashed border-gray-300 text-xs font-bold text-gray-600 active:bg-gray-50 hover:bg-gray-50 flex items-center justify-center gap-1.5 transition-all"
             >
               <Plus className="h-4 w-4" />
-              {isMultiStop ? 'הוסף תחנה' : 'הפוך למסלול עם תחנות'}
+              הוסף תחנה
             </button>
           </div>
         </Section>
+
+        {/* Task summary — compact recap right above the submit button */}
+        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3">
+          <p className="text-[11px] font-bold text-gray-500 mb-2">סיכום משימה</p>
+          <div className="space-y-1.5">
+            <SummaryRow
+              icon={<UserIcon className="h-3.5 w-3.5 text-gray-400" />}
+              label="נהג"
+              value={selectedDriver?.display_name || 'ללא שיוך'}
+              missing={!selectedDriver}
+            />
+            <SummaryRow
+              icon={<Truck className="h-3.5 w-3.5 text-gray-400" />}
+              label="רכב"
+              value={selectedVehicle ? (selectedVehicle.nickname || selectedVehicle.license_plate) : '—'}
+              missing={!selectedVehicle}
+            />
+            <SummaryRow
+              icon={<MapPin className="h-3.5 w-3.5 text-gray-400" />}
+              label="תחנות"
+              value={String(populatedStopsCount || 0)}
+              missing={populatedStopsCount === 0}
+            />
+            <SummaryRow
+              icon={<Calendar className="h-3.5 w-3.5 text-gray-400" />}
+              label="תאריך"
+              value={scheduledFor ? formatHebrewDate(scheduledFor) : 'לא נקבע'}
+              missing={!scheduledFor}
+            />
+          </div>
+        </div>
 
         {/* Submit */}
         <button
@@ -376,44 +565,276 @@ function Field({ label, required, children }) {
   );
 }
 
-// ---------- StopRow ---------------------------------------------------
-
-function StopRow({ index, stop, isMultiStop, onChange, onRemove, canRemove }) {
+function SummaryRow({ icon, label, value, missing }) {
   return (
-    <div className="bg-gray-50 rounded-xl p-3 space-y-2 border border-gray-100">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[11px] font-bold text-gray-500">
-          {isMultiStop ? `תחנה ${index + 1}` : 'יעד'}
-        </span>
-        {canRemove && (
+    <div className="flex items-center justify-between gap-2">
+      <span className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500">
+        {icon}
+        {label}
+      </span>
+      <span className={`text-[12px] truncate text-left ${missing ? 'text-gray-400 italic' : 'text-gray-800 font-medium'}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function formatHebrewDate(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// ---------- StopCard --------------------------------------------------
+//
+// Two visual states:
+//   - Collapsed: compact 1-row card showing number + title + address +
+//     validation badge + reorder/edit/delete buttons.
+//   - Expanded:  essentials (title, address, driver_notes) always visible;
+//     "אפשרויות נוספות" toggle reveals stop_type / planned_time /
+//     contact_name / contact_phone / manager_notes.
+
+function StopCard({
+  index, total, stop,
+  isExpanded,
+  onExpand, onCollapse,
+  onChange, onRemove, onMoveUp, onMoveDown, onGeocode,
+  canRemove,
+}) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [geoBusy, setGeoBusy] = useState(false);
+
+  const handleCheckAddress = async () => {
+    if (!stop.address_text.trim() || geoBusy) return;
+    setGeoBusy(true);
+    await onGeocode();
+    setGeoBusy(false);
+  };
+
+  // ---------- Collapsed --------------------------------------------
+  if (!isExpanded) {
+    return (
+      <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+        <div className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full bg-[#2D5233] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+            {index + 1}
+          </span>
           <button
             type="button"
-            onClick={onRemove}
-            aria-label={`הסר תחנה ${index + 1}`}
-            className="text-red-500 active:scale-90 p-1 rounded-md hover:bg-red-50"
+            onClick={onExpand}
+            className="flex-1 min-w-0 text-right active:opacity-70"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <p className="text-[13px] font-bold text-gray-900 truncate">
+              {stop.title.trim() || `תחנה ${index + 1}`}
+            </p>
+            <p className="text-[11px] text-gray-500 truncate">
+              {stop.address_text.trim() || 'ללא כתובת'}
+            </p>
           </button>
-        )}
+
+          {/* Validation badge */}
+          {stop.geo_status === 'ok' && (
+            <span title="הכתובת זוהתה במפה" className="shrink-0">
+              <Check className="w-3.5 h-3.5 text-green-600" />
+            </span>
+          )}
+          {stop.geo_status === 'failed' && (
+            <span title="הכתובת לא זוהתה במפה" className="shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+            </span>
+          )}
+
+          {/* Reorder */}
+          <div className="flex items-center shrink-0">
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={index === 0}
+              aria-label={`העבר את תחנה ${index + 1} למעלה`}
+              className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronUp className="w-3.5 h-3.5 text-gray-500" />
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={index === total - 1}
+              aria-label={`העבר את תחנה ${index + 1} למטה`}
+              className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+            </button>
+          </div>
+
+          {/* Edit */}
+          <button
+            type="button"
+            onClick={onExpand}
+            aria-label={`ערוך תחנה ${index + 1}`}
+            className="p-1 rounded hover:bg-gray-200 shrink-0"
+          >
+            <Pencil className="w-3.5 h-3.5 text-gray-600" />
+          </button>
+
+          {/* Delete */}
+          {canRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label={`מחק תחנה ${index + 1}`}
+              className="p-1 rounded hover:bg-red-50 shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+            </button>
+          )}
+        </div>
       </div>
+    );
+  }
+
+  // ---------- Expanded ---------------------------------------------
+  return (
+    <div className="bg-gray-50 rounded-xl p-3 border border-[#2D5233]/30 space-y-2.5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[11px] font-bold text-gray-700">
+          <span className="w-5 h-5 rounded-full bg-[#2D5233] text-white text-[10px] font-bold flex items-center justify-center">
+            {index + 1}
+          </span>
+          תחנה {index + 1}
+        </span>
+        <div className="flex items-center gap-1">
+          {canRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label={`מחק תחנה ${index + 1}`}
+              className="p-1 rounded hover:bg-red-50"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="כווץ תחנה"
+            className="p-1 rounded hover:bg-gray-200"
+          >
+            <ChevronUp className="w-3.5 h-3.5 text-gray-600" />
+          </button>
+        </div>
+      </div>
+
+      {/* Essential: title */}
       <Input
         value={stop.title}
         onChange={(e) => onChange('title', e.target.value)}
-        placeholder="לדוגמה: איסוף סחורה ממחסן"
+        placeholder="כותרת התחנה — לדוגמה: איסוף ממחסן"
         className="h-10 rounded-xl text-sm"
       />
-      <Input
-        value={stop.address_text}
-        onChange={(e) => onChange('address_text', e.target.value)}
-        placeholder="כתובת מדויקת — תיפתח אצל הנהג ישירות בוויז"
-        className="h-10 rounded-xl text-sm"
-      />
-      <Input
-        value={stop.notes}
-        onChange={(e) => onChange('notes', e.target.value)}
+
+      {/* Essential: address + check button */}
+      <div>
+        <Input
+          value={stop.address_text}
+          onChange={(e) => onChange('address_text', e.target.value)}
+          placeholder="כתובת מדויקת"
+          className="h-10 rounded-xl text-sm"
+        />
+        <div className="flex items-center justify-between gap-2 mt-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={handleCheckAddress}
+            disabled={geoBusy || !stop.address_text.trim()}
+            className="text-[11px] font-bold text-[#2D5233] disabled:opacity-40 flex items-center gap-1 active:opacity-70"
+          >
+            {geoBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <MapPin className="w-3 h-3" />}
+            בדוק כתובת
+          </button>
+          {stop.geo_status === 'ok' && (
+            <span className="text-[11px] text-green-700 flex items-center gap-1">
+              <Check className="w-3 h-3" />
+              הכתובת זוהתה במפה
+            </span>
+          )}
+          {stop.geo_status === 'failed' && (
+            <span className="text-[11px] text-amber-700 flex items-center gap-1 leading-snug max-w-full">
+              <AlertTriangle className="w-3 h-3 shrink-0" />
+              לא הצלחנו לזהות את הכתובת במפה. אפשר לשמור, אך מומלץ לדייק אותה.
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Essential: driver notes */}
+      <Textarea
+        value={stop.driver_notes}
+        onChange={(e) => onChange('driver_notes', e.target.value)}
         placeholder="הערות לנהג (לא חובה)"
-        className="h-10 rounded-xl text-sm"
+        rows={2}
+        className="rounded-xl text-sm"
       />
+
+      {/* Advanced toggle */}
+      <button
+        type="button"
+        onClick={() => setShowAdvanced(s => !s)}
+        className="w-full text-[11px] font-bold text-gray-600 flex items-center justify-center gap-1 py-1.5 hover:text-[#2D5233]"
+      >
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+        {showAdvanced ? 'הסתר אפשרויות נוספות' : 'אפשרויות נוספות'}
+      </button>
+
+      {showAdvanced && (
+        <div className="space-y-2 pt-2 border-t border-gray-200">
+          <Field label="סוג תחנה">
+            <select
+              value={stop.stop_type}
+              onChange={(e) => onChange('stop_type', e.target.value)}
+              className="w-full h-10 rounded-xl border border-gray-200 bg-white text-sm px-3"
+              dir="rtl"
+            >
+              {STOP_TYPE_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="זמן מתוכנן">
+            <Input
+              type="datetime-local"
+              value={stop.planned_time}
+              onChange={(e) => onChange('planned_time', e.target.value)}
+              className="h-10 rounded-xl text-sm"
+            />
+          </Field>
+          <Field label="שם איש קשר בתחנה">
+            <Input
+              value={stop.contact_name}
+              onChange={(e) => onChange('contact_name', e.target.value)}
+              placeholder="לדוגמה: יוסי מהמחסן"
+              className="h-10 rounded-xl text-sm"
+            />
+          </Field>
+          <Field label="טלפון איש קשר">
+            <Input
+              type="tel"
+              value={stop.contact_phone}
+              onChange={(e) => onChange('contact_phone', e.target.value)}
+              placeholder="050-1234567"
+              className="h-10 rounded-xl text-sm"
+              dir="ltr"
+            />
+          </Field>
+          <Field label="הערות פנימיות (רק למנהל)">
+            <Textarea
+              value={stop.manager_notes}
+              onChange={(e) => onChange('manager_notes', e.target.value)}
+              placeholder="הערות שהנהג לא רואה"
+              rows={2}
+              className="rounded-xl text-sm"
+            />
+          </Field>
+        </div>
+      )}
     </div>
   );
 }
@@ -522,7 +943,6 @@ function DriverPicker({ members, value, permanentDriverId, onChange }) {
             </div>
           </div>
           <div className="max-h-72 overflow-y-auto">
-            {/* "ללא שיוך" row first so the manager can quickly clear */}
             <button
               type="button"
               onClick={() => { onChange(''); setOpen(false); }}

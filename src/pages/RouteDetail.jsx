@@ -1,23 +1,29 @@
 /**
- * Phase 6 — Route Detail.
+ * Phase 6 / 12 — Route Detail.
  *
  * One page, two modes:
- *   - Manager: read-only timeline; can see status, stops, documentation.
+ *   - Manager: read-only timeline with optional map view.
  *   - Assigned driver: action buttons per stop —
- *       • סמן הושלם (mark completed)
- *       • דווח תקלה (report issue + note)
- *       • הוסף הערה (add note documentation)
+ *       • הגעתי     (sets arrived_at + status=in_progress)
+ *       • סמן הושלמה (status=completed, completed_at=now)
+ *       • דווח על תקלה (status=failed via the wider enum)
+ *       • הוסף הערה  (add documentation)
+ *       • נווט      (external Waze / Google Maps via NavigateButton)
+ *
+ * Map view is lazy-loaded only after the user clicks the toggle —
+ * Leaflet is heavy and the driver doesn't always need it.
  *
  * RLS makes the page robust by design: a user without read access to
  * the route gets an empty payload from supabase, which we render as
  * "route not found".
  */
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2, AlertTriangle, MessageSquarePlus,
-  Calendar, Truck, MapPin, Clock, Navigation,
+  Calendar, Truck, MapPin, Clock, Map as MapIcon, ChevronUp, ChevronDown,
+  Flag,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -26,6 +32,12 @@ import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useAuth } from '@/components/shared/GuestContext';
 import MobileBackButton from '@/components/shared/MobileBackButton';
 import { Textarea } from '@/components/ui/textarea';
+import NavigateButton from '@/components/map/NavigateButton';
+import { colorForStop, labelForStop, findNextStopIndex, isStopTerminal } from '@/components/map/stopColors';
+
+// MapCore is heavy (Leaflet + tiles). Pull it in only when the user
+// asks for the map.
+const MapCore = lazy(() => import('@/components/map/MapCore'));
 
 // Status pill labels per gender. The route is masculine in Hebrew
 // ("מסלול"), the stop is feminine ("תחנה") — that's why the same
@@ -37,10 +49,14 @@ const ROUTE_STATUS_PILL = {
   cancelled:   { label: 'בוטל',   cls: 'bg-red-100   text-red-700' },
 };
 const STOP_STATUS_PILL = {
-  pending:   { label: 'מתוזמנת',     cls: 'bg-gray-100   text-gray-700' },
-  completed: { label: 'הושלמה',      cls: 'bg-green-100  text-green-700' },
-  skipped:   { label: 'דולגה',       cls: 'bg-yellow-100 text-yellow-700' },
-  issue:     { label: 'תקלה מדווחת', cls: 'bg-red-100    text-red-700' },
+  pending:     { label: 'מתוזמנת',     cls: 'bg-gray-100   text-gray-700' },
+  in_progress: { label: 'בביצוע',      cls: 'bg-blue-100   text-blue-700' },
+  completed:   { label: 'הושלמה',      cls: 'bg-green-100  text-green-700' },
+  failed:      { label: 'נכשלה',       cls: 'bg-red-100    text-red-700' },
+  overdue:     { label: 'באיחור',      cls: 'bg-amber-100  text-amber-700' },
+  // Legacy values still rendered for old rows:
+  skipped:     { label: 'דולגה',       cls: 'bg-yellow-100 text-yellow-700' },
+  issue:       { label: 'תקלה מדווחת', cls: 'bg-red-100    text-red-700' },
 };
 
 const routePill = (status) => ROUTE_STATUS_PILL[status] || ROUTE_STATUS_PILL.pending;
@@ -53,7 +69,17 @@ export default function RouteDetail() {
   const location = useLocation();
   const queryClient = useQueryClient();
 
-  const routeId = new URLSearchParams(location.search).get('id');
+  const params = new URLSearchParams(location.search);
+  const routeId = params.get('id');
+  const mapAutoOpen = params.get('map') === '1';
+
+  const [mapOpen, setMapOpen] = useState(mapAutoOpen);
+
+  // Keep the auto-open in sync when the user navigates between routes
+  // without unmounting the page (driver list → detail flow).
+  useEffect(() => {
+    if (mapAutoOpen) setMapOpen(true);
+  }, [mapAutoOpen, routeId]);
 
   const { data: route, isLoading: routeLoading } = useQuery({
     queryKey: ['route', routeId],
@@ -96,6 +122,10 @@ export default function RouteDetail() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Index of the next un-terminal stop — used to highlight on the map
+  // and to drive the per-stop "הגעתי" button visibility.
+  const nextStopIndex = useMemo(() => findNextStopIndex(stops), [stops]);
+
   if (!routeId) {
     return <Empty text="הקישור חסר מזהה משימה. חזור לרשימת המשימות ונסה שוב." />;
   }
@@ -106,9 +136,6 @@ export default function RouteDetail() {
     return <Empty text="המשימה לא נמצאה, או שאין לך הרשאה לצפות בה." />;
   }
 
-  // Driver actions only allowed if the user is the assigned driver of
-  // THIS route (not just any 'driver' in the workspace) and active
-  // workspace matches the route's account.
   const isThisRoutesDriver =
     canDriveRoutes
     && user?.id
@@ -120,6 +147,9 @@ export default function RouteDetail() {
     queryClient.invalidateQueries({ queryKey: ['route', routeId] });
     queryClient.invalidateQueries({ queryKey: ['route-stops', routeId] });
     queryClient.invalidateQueries({ queryKey: ['routes'] });
+    queryClient.invalidateQueries({ queryKey: ['routes-paged'] });
+    queryClient.invalidateQueries({ queryKey: ['routes-driver'] });
+    queryClient.invalidateQueries({ queryKey: ['routes-stops'] });
   };
 
   const status = routePill(route.status);
@@ -128,6 +158,35 @@ export default function RouteDetail() {
   const progressPct    = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
   const assignedDriver = team.find(m => m.user_id === route.assigned_driver_user_id);
   const assignedDriverName = assignedDriver?.display_name || assignedDriver?.email || 'נהג משויך';
+
+  // Stops that have coordinates — only those can render on the map.
+  const mappableStops = stops.filter(s =>
+    Number.isFinite(s.latitude) && Number.isFinite(s.longitude)
+  );
+  const mapButtonLabel = stops.length === 1 ? 'הצג יעד במפה' : 'הצג מסלול במפה';
+  const mapAvailable   = mappableStops.length > 0;
+
+  // Map markers + the polyline connecting them. The "next" stop gets
+  // the `highlight: true` flag so MapCore wraps it with the pulse ring.
+  const mapMarkers = mappableStops.map((s) => {
+    const idx = stops.findIndex(x => x.id === s.id);
+    return {
+      id: s.id,
+      lat: s.latitude,
+      lng: s.longitude,
+      number: s.sequence,
+      color: colorForStop(s.status),
+      highlight: idx === nextStopIndex,
+      stop: s,
+    };
+  });
+  const mapRoutes = mappableStops.length >= 2
+    ? [{
+        id: routeId,
+        color: '#2D5233',
+        points: mappableStops.map(s => ({ lat: s.latitude, lng: s.longitude })),
+      }]
+    : [];
 
   return (
     <div dir="rtl" className="max-w-2xl mx-auto py-2">
@@ -169,15 +228,57 @@ export default function RouteDetail() {
         </div>
       </div>
 
-      <h2 className="text-sm font-bold text-gray-700 mb-2">תחנות במשימה</h2>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-sm font-bold text-gray-700">תחנות במשימה</h2>
+        {mapAvailable && (
+          <button
+            type="button"
+            onClick={() => setMapOpen(o => !o)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#E8F2EA] text-[#2D5233] text-xs font-bold border border-[#2D5233]/20 active:scale-[0.97]"
+          >
+            <MapIcon className="h-3.5 w-3.5" />
+            {mapOpen ? 'הסתר מפה' : mapButtonLabel}
+            {mapOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+        )}
+      </div>
+
+      {/* Inline map section. Lazy-loaded; only mounted when `mapOpen`. */}
+      {mapOpen && mapAvailable && (
+        <div className="mb-3">
+          <Suspense fallback={
+            <div className="rounded-2xl bg-gray-50 border border-gray-100 h-[35vh] min-h-[200px] flex items-center justify-center text-xs text-gray-500">
+              טוען מפה...
+            </div>
+          }>
+            <MapCore
+              markers={mapMarkers}
+              routes={mapRoutes}
+              fitToMarkers={true}
+              mapHeight="35vh"
+              mapMinHeight="220px"
+              mapMaxHeight="380px"
+              renderPopup={(m) => <StopMapPopup stop={m.stop} />}
+            />
+          </Suspense>
+          {mappableStops.length < stops.length && (
+            <p className="text-[10px] text-amber-700 mt-1.5 flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              {stops.length - mappableStops.length} תחנות ללא קואורדינטות לא מופיעות במפה.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="space-y-2">
         {stops.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-6">לא הוגדרו תחנות למשימה זו.</p>
         ) : (
-          stops.map(stop => (
+          stops.map((stop, idx) => (
             <StopCard
               key={stop.id}
               stop={stop}
+              isNext={idx === nextStopIndex}
               canActAsDriver={isThisRoutesDriver}
               canActAsManager={isThisRoutesManager}
               onChange={refresh}
@@ -189,7 +290,49 @@ export default function RouteDetail() {
   );
 }
 
-function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
+// Compact stop summary used in map popups. Keeps everything the driver
+// needs in one tap-target: title, address, status, planned time, and
+// nav buttons (Waze + Google).
+function StopMapPopup({ stop }) {
+  const status = stopPill(stop.status);
+  const dest = {
+    lat: stop.latitude,
+    lng: stop.longitude,
+    address: stop.address_text || '',
+  };
+  return (
+    <div dir="rtl" className="min-w-[200px]">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <p className="font-bold text-sm text-gray-900">
+          <span className="inline-block w-5 h-5 rounded-full bg-gray-200 text-[10px] font-bold leading-5 text-center ml-1.5">
+            {stop.sequence}
+          </span>
+          {stop.title}
+        </p>
+        <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${status.cls}`}>
+          {status.label}
+        </span>
+      </div>
+      {stop.address_text && (
+        <p className="text-xs text-gray-500 mb-1">{stop.address_text}</p>
+      )}
+      {stop.planned_time && (
+        <p className="text-[11px] text-gray-500 mb-1.5">
+          ⏱ {new Date(stop.planned_time).toLocaleString('he-IL')}
+        </p>
+      )}
+      <div className="flex flex-col gap-1.5 mt-2">
+        <NavigateButton
+          destination={dest}
+          variant="solid"
+          label="נווט עם Waze / Google Maps"
+        />
+      </div>
+    </div>
+  );
+}
+
+function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
   const status = stopPill(stop.status);
   const canAct = canActAsDriver || canActAsManager;
   const [busy, setBusy] = useState(false);
@@ -198,7 +341,7 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
   const [issueOpen, setIssueOpen] = useState(false);
   const [issueText, setIssueText] = useState('');
 
-  const callStopRpc = async (newStatus, completionNote) => {
+  const callStopRpc = async (newStatus, completionNote, successMsg) => {
     setBusy(true);
     try {
       const { error } = await supabase.rpc('update_stop_status', {
@@ -207,11 +350,12 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
         p_note:    completionNote || null,
       });
       if (error) throw error;
-      toast.success(newStatus === 'completed' ? 'התחנה סומנה כהושלמה' : 'סטטוס התחנה עודכן');
+      toast.success(successMsg || 'סטטוס התחנה עודכן');
       onChange?.();
     } catch (err) {
       const msg = err?.message || '';
       if (msg.includes('forbidden')) toast.error('אין לך הרשאה לעדכן את התחנה הזו');
+      else if (msg.includes('invalid_status')) toast.error('סטטוס לא תקף');
       else                            toast.error('עדכון התחנה נכשל. נסה שוב.');
       // eslint-disable-next-line no-console
       console.error('update_stop_status failed:', err);
@@ -247,11 +391,9 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
     if (!issueText.trim()) return;
     setBusy(true);
     try {
-      // Two writes: status flip + documentation entry. Status flip
-      // first; if documentation fails the manager still sees the issue.
       const { error: statusErr } = await supabase.rpc('update_stop_status', {
         p_stop_id: stop.id,
-        p_status:  'issue',
+        p_status:  'failed',
         p_note:    issueText.trim(),
       });
       if (statusErr) throw statusErr;
@@ -273,53 +415,59 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
     }
   };
 
-  const isDone = stop.status !== 'pending';
+  const terminal = isStopTerminal(stop.status);
+  const canArrive = canActAsDriver && !terminal && stop.status !== 'in_progress';
+  const showCompleteIssue = canAct && !terminal;
+
+  // Destination for the nav button. Coords win when present; otherwise
+  // the address text gets handed off to Waze / Google for fuzzy match.
+  const destination = (stop.address_text || (stop.latitude && stop.longitude))
+    ? {
+        lat: stop.latitude,
+        lng: stop.longitude,
+        address: stop.address_text || '',
+      }
+    : null;
 
   return (
-    <div className="bg-white border border-gray-100 rounded-xl p-3">
+    <div className={`bg-white border rounded-xl p-3 ${
+      isNext && !terminal ? 'border-[#2D5233]/40 ring-1 ring-[#2D5233]/20' : 'border-gray-100'
+    }`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-5 h-5 rounded-full bg-gray-100 text-[10px] font-bold flex items-center justify-center text-gray-600">
+            <span
+              className="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center text-white"
+              style={{ background: colorForStop(stop.status) }}
+            >
               {stop.sequence}
             </span>
             <p className="text-sm font-bold text-gray-900 truncate">{stop.title}</p>
+            {isNext && !terminal && (
+              <span className="text-[10px] font-bold text-[#2D5233] bg-[#E8F2EA] px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                <Flag className="h-2.5 w-2.5" />
+                תחנה הבאה
+              </span>
+            )}
           </div>
           {stop.address_text && (
-            <div className="mb-1.5">
-              <p className="text-[11px] text-gray-500 flex items-center gap-1 mb-1">
-                <MapPin className="h-3 w-3" /> {stop.address_text}
-              </p>
-              {/* Waze + Google Maps deep-links. The Waze "ul" universal
-                  link opens the native app on iOS/Android and falls
-                  back to the web client on desktop. Google Maps is
-                  the safety net for users who don't have Waze
-                  installed. Both are external links — open in a new
-                  context so the driver can flip back to the task
-                  card without losing their place. */}
-              <div className="flex flex-wrap gap-1.5">
-                <a
-                  href={`https://waze.com/ul?q=${encodeURIComponent(stop.address_text)}&navigate=yes`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#33CCFF]/10 text-[#0A8FB3] text-[10px] font-bold border border-[#33CCFF]/30 active:scale-[0.97]"
-                >
-                  <Navigation className="h-3 w-3" />
-                  פתח בוויז
-                </a>
-                <a
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.address_text)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-[10px] font-bold border border-gray-200 active:scale-[0.97]"
-                >
-                  <MapPin className="h-3 w-3" />
-                  Google Maps
-                </a>
-              </div>
-            </div>
+            <p className="text-[11px] text-gray-500 flex items-center gap-1 mb-1.5">
+              <MapPin className="h-3 w-3 shrink-0" /> {stop.address_text}
+              {!Number.isFinite(stop.latitude) && (
+                <span className="text-[10px] text-amber-700 mr-1 flex items-center gap-1">
+                  <AlertTriangle className="h-2.5 w-2.5" />
+                  כתובת לא אומתה במפה
+                </span>
+              )}
+            </p>
           )}
           {stop.notes && <p className="text-[11px] text-gray-600">{stop.notes}</p>}
+          {stop.planned_time && (
+            <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
+              <Clock className="h-3 w-3" />
+              {new Date(stop.planned_time).toLocaleString('he-IL')}
+            </p>
+          )}
           {stop.completion_note && (
             <p className="text-[11px] text-gray-700 bg-gray-50 rounded-md px-2 py-1 mt-1.5">
               📝 {stop.completion_note}
@@ -331,26 +479,41 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
         </span>
       </div>
 
-      {canAct && !isDone && (
+      {(showCompleteIssue || destination) && (
         <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-2">
-          <button
-            type="button" disabled={busy}
-            onClick={() => callStopRpc('completed', null)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
-            <CheckCircle2 className="h-3.5 w-3.5" /> סמן הושלמה
-          </button>
-          <button
-            type="button" disabled={busy}
-            onClick={() => setIssueOpen(o => !o)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
-            <AlertTriangle className="h-3.5 w-3.5" /> דווח על תקלה
-          </button>
-          <button
-            type="button" disabled={busy}
-            onClick={() => setNoteOpen(o => !o)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
-            <MessageSquarePlus className="h-3.5 w-3.5" /> כתוב הערה
-          </button>
+          {destination && (
+            <NavigateButton destination={destination} variant="compact" label="נווט" />
+          )}
+          {canArrive && (
+            <button
+              type="button" disabled={busy}
+              onClick={() => callStopRpc('in_progress', null, 'סומן: הגעתי לתחנה')}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
+              <Flag className="h-3.5 w-3.5" /> הגעתי
+            </button>
+          )}
+          {showCompleteIssue && (
+            <>
+              <button
+                type="button" disabled={busy}
+                onClick={() => callStopRpc('completed', null, 'התחנה סומנה כהושלמה')}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
+                <CheckCircle2 className="h-3.5 w-3.5" /> סמן הושלמה
+              </button>
+              <button
+                type="button" disabled={busy}
+                onClick={() => setIssueOpen(o => !o)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
+                <AlertTriangle className="h-3.5 w-3.5" /> דווח על תקלה
+              </button>
+              <button
+                type="button" disabled={busy}
+                onClick={() => setNoteOpen(o => !o)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
+                <MessageSquarePlus className="h-3.5 w-3.5" /> כתוב הערה
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -404,3 +567,7 @@ function Empty({ text }) {
     </div>
   );
 }
+
+// suppress unused-import lint when labelForStop is added later
+// eslint-disable-next-line no-unused-vars
+const _labelForStop = labelForStop;
