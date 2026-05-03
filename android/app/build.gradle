@@ -1,5 +1,22 @@
 apply plugin: 'com.android.application'
 
+import groovy.json.JsonSlurper
+
+// Single source of truth for the app version: the package.json at the
+// repo root. We bump it on every release (web + native bundle ship
+// from the same version), so the Android side picks the new value up
+// automatically — no manual edit of versionName here.
+//
+// versionCode (an integer Android uses for ordering) is derived from
+// the semver. "2.9.0" → 2_09_00 = 20900. The encoding leaves room
+// for ~99 minor / 99 patch per major so we can ship years before
+// running out. If a hotfix needs to bump only versionCode without a
+// new versionName (rare), do it manually below.
+def pkgJson = new JsonSlurper().parseText(file('../../package.json').text)
+def pkgVersionName = pkgJson.version
+def (semMajor, semMinor, semPatch) = pkgVersionName.replaceAll('[^0-9.]', '').tokenize('.').collect { it.toInteger() }
+def pkgVersionCode = semMajor * 10000 + semMinor * 100 + semPatch
+
 android {
     namespace = "com.carreminder.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +24,14 @@ android {
         applicationId "com.carreminder.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 29
-        versionName "2.8.1"
+        versionCode pkgVersionCode
+        versionName pkgVersionName
+        // Output filename carries the version so we never confuse two
+        // AAB/APK files in the Downloads folder. With this set:
+        //   release  → carreminder-2.9.0-release.aab
+        //   debug    → carreminder-2.9.0-debug.apk
+        // Without it Capacitor produces the generic `app-release.aab`.
+        setProperty("archivesBaseName", "carreminder-${pkgVersionName}")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
