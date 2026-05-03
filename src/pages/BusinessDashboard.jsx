@@ -329,314 +329,411 @@ export default function BusinessDashboard() {
   });
   const fleetHealthy = overdueCount === 0 && openIssues.length === 0;
 
-  // ── Render — "Boardroom Brief" ────────────────────────────────────
-  // Editorial-newspaper aesthetic: cream paper background, masthead with
-  // dotted leader date line, large tabular hero numeral, hairline rules
-  // between sections, and lettered section markers (A / B / C / D).
-  // Avoids the generic AI dashboard pattern of "icon-card × N in grid".
+  // ── Render — "Living Dashboard" ───────────────────────────────────
+  // Vibrant, breathing aesthetic. Mint-tinted background, gradient
+  // emerald hero number, colored KPI surfaces (not flat hairlines),
+  // pulsing live dot, soft colored shadows, smooth hover transitions.
+  // Replaces the previous "Boardroom Brief" cream/hairline look that
+  // read as too editorial-static for an active fleet management tool.
   return (
     <div
       dir="rtl"
-      className="max-w-5xl mx-auto pb-12"
+      className="max-w-5xl mx-auto pb-12 px-4 sm:px-6 pt-3"
       style={{
-        // Subtle warm cream — feels like a printed brief vs. pure white.
-        background: 'linear-gradient(180deg, #FAF7F0 0%, #FAF7F0 60%, #FFFFFF 100%)',
+        // Soft mint→white gradient with a subtle radial highlight at top.
+        // Gives the page warmth and depth without committing to a heavy
+        // theme color.
+        background: `
+          radial-gradient(ellipse at 70% -10%, rgba(16,185,129,0.08) 0%, transparent 50%),
+          linear-gradient(180deg, #F0F7F4 0%, #FFFFFF 60%)
+        `,
         minHeight: '100vh',
       }}
     >
       <MobileBackButton />
 
-      {/* ── A. Masthead ──────────────────────────────────────────── */}
-      <header className="px-4 sm:px-6 pt-4">
-        {/* Date strip with dotted leader */}
-        <div className="flex items-baseline gap-3 text-[11px] uppercase tracking-[0.18em] mb-3" style={{ color: '#7A6E58' }}>
-          <span className="font-bold">סקירה יומית</span>
-          <span className="flex-1 border-b border-dotted" style={{ borderColor: '#C9BBA0' }} />
-          <span className="tabular-nums" dir="rtl">{hebrewDate()}</span>
+      {/* ── A. Header ──────────────────────────────────────────── */}
+      <header className="mb-4">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          {/* Live indicator chip */}
+          <div
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide"
+            style={{ background: '#10B981', color: '#FFFFFF' }}
+          >
+            <span className="relative flex h-1.5 w-1.5">
+              <span
+                className="absolute inline-flex h-full w-full rounded-full opacity-75"
+                style={{ background: '#FFFFFF', animation: 'cr-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
+              />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+            </span>
+            LIVE
+          </div>
+          {/* Date pill */}
+          <div
+            className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
+            style={{ background: 'rgba(31,61,36,0.06)', color: '#1F3D24' }}
+          >
+            {hebrewDate()}
+          </div>
         </div>
 
-        {/* Workspace name as masthead — heavy display weight */}
         <h1
           className="font-black leading-none tracking-tight truncate"
           style={{
-            color: '#1F3D24',
+            color: '#0B2912',
             fontWeight: 900,
-            fontSize: 'clamp(2rem, 4.5vw, 3rem)',
-            letterSpacing: '-0.02em',
+            fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
+            letterSpacing: '-0.025em',
           }}
         >
           {workspaceName}
         </h1>
 
-        <p className="text-sm mt-2" style={{ color: '#5C5240' }}>
-          {greeting}{userFirstName ? `, ${userFirstName}` : ''}. תמונת מצב יומית של הצי.
+        <p className="text-sm mt-2" style={{ color: '#4B5D52' }}>
+          {greeting}{userFirstName ? `, ${userFirstName}` : ''} 👋
         </p>
-
-        {/* Hairline rule */}
-        <hr className="border-0 border-t mt-5" style={{ borderColor: '#C9BBA0', opacity: 0.5 }} />
       </header>
 
-      {/* ── B. Hero KPI: the headline number ─────────────────────── */}
-      <section className="px-4 sm:px-6 pt-7 pb-6">
-        <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6 lg:gap-10 items-start">
-          {/* The big number — fleet count */}
-          <Link
-            to={createPageUrl('Fleet')}
-            className="block group"
-            aria-label="צי הרכבים"
-          >
-            <div className="flex items-end gap-4 leading-none">
+      {/* ── B. Hero Card — gradient emerald ─────────────────────── */}
+      <section className="mb-4">
+        <Link
+          to={fleetHealthy ? createPageUrl('Fleet') : createPageUrl('Fleet')}
+          className="block rounded-3xl p-5 sm:p-6 transition-all hover:scale-[1.005] active:scale-[0.998] relative overflow-hidden group"
+          style={{
+            background: fleetHealthy
+              ? 'linear-gradient(135deg, #065F46 0%, #10B981 60%, #34D399 100%)'
+              : overdueCount > 0
+                ? 'linear-gradient(135deg, #7F1D1D 0%, #DC2626 60%, #F87171 100%)'
+                : 'linear-gradient(135deg, #92400E 0%, #F59E0B 60%, #FBBF24 100%)',
+            boxShadow: fleetHealthy
+              ? '0 20px 50px -12px rgba(16,185,129,0.4), 0 8px 16px -4px rgba(16,185,129,0.2)'
+              : overdueCount > 0
+                ? '0 20px 50px -12px rgba(220,38,38,0.4), 0 8px 16px -4px rgba(220,38,38,0.2)'
+                : '0 20px 50px -12px rgba(245,158,11,0.4), 0 8px 16px -4px rgba(245,158,11,0.2)',
+          }}
+        >
+          {/* Decorative blob */}
+          <div
+            aria-hidden
+            className="absolute pointer-events-none transition-transform group-hover:scale-110"
+            style={{
+              top: '-30%',
+              left: '-10%',
+              width: '300px',
+              height: '300px',
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%)',
+            }}
+          />
+
+          <div className="relative grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 sm:gap-8 items-center">
+            {/* Big number */}
+            <div className="flex items-end gap-3 leading-none">
               <span
-                className="font-black tabular-nums tracking-tight transition-colors group-hover:opacity-80"
+                className="font-black tabular-nums"
                 style={{
-                  color: '#1F3D24',
-                  fontSize: 'clamp(4.5rem, 12vw, 7.5rem)',
+                  color: '#FFFFFF',
+                  fontSize: 'clamp(4rem, 11vw, 6.5rem)',
                   fontWeight: 900,
-                  letterSpacing: '-0.04em',
+                  letterSpacing: '-0.05em',
                   lineHeight: 0.85,
+                  textShadow: '0 2px 20px rgba(0,0,0,0.15)',
                 }}
                 dir="ltr"
               >
                 {fmtNumber(vehicles.length)}
               </span>
               <div className="pb-2">
-                <p className="text-xs uppercase tracking-[0.15em] font-bold" style={{ color: '#7A6E58' }}>רכבים</p>
-                <p className="text-xs mt-0.5" style={{ color: '#1F3D24' }}>
+                <p className="text-xs uppercase tracking-[0.15em] font-bold opacity-90 text-white">
+                  רכבים
+                </p>
+                <p className="text-sm font-bold mt-0.5 text-white">
                   בצי הפעיל
                 </p>
               </div>
             </div>
-          </Link>
 
-          {/* Status panel — narrative summary */}
-          <div className="lg:border-r lg:pr-8" style={{ borderColor: '#C9BBA0' }}>
-            <p className="text-[11px] uppercase tracking-[0.18em] font-bold mb-3" style={{ color: '#7A6E58' }}>
-              מצב נוכחי
-            </p>
-            {fleetHealthy ? (
-              <div className="flex items-start gap-3">
-                <div
-                  className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center mt-0.5"
-                  style={{ background: '#1F3D24', color: '#FAF7F0' }}
-                >
-                  <CheckCircle2 className="w-5 h-5" />
+            {/* Status block */}
+            <div className="sm:border-r sm:pr-6 border-white/25">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-7 h-7 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center shrink-0">
+                  {fleetHealthy
+                    ? <CheckCircle2 className="w-4 h-4 text-white" />
+                    : <AlertTriangle className="w-4 h-4 text-white" />}
                 </div>
-                <div className="flex-1">
-                  <p className="text-base font-bold" style={{ color: '#1F3D24' }}>הצי במצב תקין</p>
-                  <p className="text-sm mt-0.5 leading-relaxed" style={{ color: '#5C5240' }}>
-                    אין רכבים שדורשים טיפול דחוף ואין תקלות פתוחות.
-                  </p>
-                </div>
+                <p className="text-base font-black text-white">
+                  {fleetHealthy
+                    ? 'הצי במצב תקין'
+                    : overdueCount > 0
+                      ? `${overdueCount} רכבים דחופים`
+                      : `${soonCount} רכבים בקרוב`}
+                </p>
               </div>
-            ) : (
-              <Link to={createPageUrl('Fleet')} className="flex items-start gap-3 group">
-                <div
-                  className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center mt-0.5"
-                  style={{
-                    background: overdueCount > 0 ? '#8B1A1A' : '#B8860B',
-                    color: '#FAF7F0',
-                  }}
-                >
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-base font-bold group-hover:underline" style={{ color: '#1F3D24' }}>
-                    {overdueCount > 0
-                      ? `${overdueCount} רכבים דורשים טיפול דחוף`
-                      : `${soonCount} רכבים דורשים טיפול בקרוב`}
-                  </p>
-                  <p className="text-sm mt-0.5 leading-relaxed" style={{ color: '#5C5240' }}>
-                    {openIssues.length > 0
-                      ? `יש גם ${openIssues.length} תקלות מדווחות שטרם טופלו.`
-                      : 'מומלץ לבדוק את צי הרכבים.'}
-                  </p>
-                </div>
-              </Link>
-            )}
+              <p className="text-sm leading-relaxed text-white/85">
+                {fleetHealthy
+                  ? 'אין רכבים שדורשים טיפול דחוף ואין תקלות פתוחות.'
+                  : openIssues.length > 0
+                    ? `יש גם ${openIssues.length} תקלות מדווחות שטרם טופלו.`
+                    : 'מומלץ לבדוק את צי הרכבים.'}
+              </p>
+            </div>
           </div>
-        </div>
+        </Link>
       </section>
 
-      {/* Hairline rule */}
-      <hr className="border-0 border-t mx-4 sm:mx-6" style={{ borderColor: '#C9BBA0', opacity: 0.5 }} />
-
-      {/* ── C. KPI Strip — supporting cast ───────────────────────── */}
-      <section className="px-4 sm:px-6 py-6">
-        <div className="grid grid-cols-3 gap-0">
-          <KpiCell
-            label="משימות פעילות"
-            value={fmtNumber(activeRoutes.length)}
-            sub={activeRoutes.length === 0 ? 'אין משימה פתוחה' : null}
-            to={createPageUrl('Routes')}
-          />
-          <KpiCell
-            label="הוצאות החודש"
-            value={fmtMoney(thisMonthTotal)}
-            sub={monthDeltaPct != null
-              ? `${monthDeltaPct > 0 ? '+' : ''}${monthDeltaPct}% מהחודש שעבר`
-              : null}
-            subTone={monthDeltaPct > 0 ? 'red' : monthDeltaPct < 0 ? 'green' : 'neutral'}
-            to={createPageUrl('Reports')}
-            withBorder
-          />
-          <KpiCell
-            label="תקלות פתוחות"
-            value={fmtNumber(openIssues.length)}
-            sub={openIssues.length > 0 ? 'דורשות טיפול' : 'הכל סגור'}
-            subTone={openIssues.length > 0 ? 'red' : 'neutral'}
-            to={createPageUrl('ActivityLog')}
-            withBorder
-          />
-        </div>
+      {/* ── C. KPI Trio — vivid colored surfaces ────────────────── */}
+      <section className="grid grid-cols-3 gap-3 mb-5">
+        <KpiTile
+          label="משימות פעילות"
+          value={fmtNumber(activeRoutes.length)}
+          sub={activeRoutes.length === 0 ? 'אין פתוחה' : 'בעבודה'}
+          tone="emerald"
+          to={createPageUrl('Routes')}
+        />
+        <KpiTile
+          label="הוצאות החודש"
+          value={fmtMoney(thisMonthTotal)}
+          sub={monthDeltaPct != null
+            ? `${monthDeltaPct > 0 ? '↑' : '↓'} ${Math.abs(monthDeltaPct)}% מהחודש שעבר`
+            : 'אין נתון'}
+          subTone={monthDeltaPct > 0 ? 'red' : monthDeltaPct < 0 ? 'green' : 'neutral'}
+          tone="amber"
+          to={createPageUrl('Reports')}
+        />
+        <KpiTile
+          label="תקלות פתוחות"
+          value={fmtNumber(openIssues.length)}
+          sub={openIssues.length > 0 ? 'דורשות טיפול' : 'הכל סגור'}
+          tone={openIssues.length > 0 ? 'red' : 'blue'}
+          to={createPageUrl('ActivityLog')}
+        />
       </section>
 
-      {/* Hairline rule */}
-      <hr className="border-0 border-t mx-4 sm:mx-6" style={{ borderColor: '#C9BBA0', opacity: 0.5 }} />
-
-      {/* ── D. Attention + Activity ─────────────────────────────── */}
-      <div className="grid lg:grid-cols-2 gap-6 lg:gap-10 px-4 sm:px-6 pt-6">
-
-        {/* Quick Actions + Attention list */}
-        <section>
-          <SectionMarker letter="ד" title="פעולות מהירות" />
-          <div className="grid grid-cols-2 gap-2 mb-6">
-            <ActionLink to={createPageUrl('CreateRoute')} icon={Plus}    label="צור משימה" primary />
-            <ActionLink to={createPageUrl('AddVehicle')}  icon={Truck}   label="הוסף רכב" />
-            <ActionLink to={createPageUrl('Drivers')}     icon={Users}   label="נהל נהגים" />
-            <ActionLink to={createPageUrl('Expenses')}    icon={Receipt} label="הוסף הוצאה" />
-          </div>
-
-          <SectionMarker letter="ה" title="דורש תשומת לב" />
-          {attentionItems.length === 0 ? (
-            <p
-              className="text-sm py-3 leading-relaxed border-r-2 pr-3"
-              style={{ color: '#5C5240', borderColor: '#1F3D24' }}
+      {/* ── D. Attention banner — only when needed ──────────────── */}
+      {attentionItems.length > 0 && (
+        <section
+          className="mb-5 rounded-2xl p-4 border"
+          style={{
+            background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+            borderColor: '#FCD34D',
+            boxShadow: '0 4px 12px rgba(245,158,11,0.12)',
+          }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: '#F59E0B' }}>
+              <AlertTriangle className="w-4 h-4 text-white" />
+            </div>
+            <h2 className="font-bold text-base" style={{ color: '#78350F' }}>
+              דורש תשומת לב
+            </h2>
+            <span
+              className="ml-auto inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black"
+              style={{ background: '#F59E0B', color: '#FFFFFF' }}
             >
-              הכל תחת שליטה. שום דבר לא דחוף עכשיו.
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {attentionItems.map((item, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <div className={`shrink-0 w-1 self-stretch ${item.barCls}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold leading-snug" style={{ color: '#1F3D24' }}>
-                      {item.text}
+              {attentionItems.length}
+            </span>
+          </div>
+          <ul className="space-y-2.5">
+            {attentionItems.map((item, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-3 rounded-xl bg-white/60 p-2.5 transition-colors hover:bg-white/90"
+              >
+                <div className={`shrink-0 w-1 self-stretch rounded-full ${item.barCls}`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold leading-snug" style={{ color: '#78350F' }}>
+                    {item.text}
+                  </p>
+                  {item.sub && (
+                    <p className="text-[12px] mt-0.5 leading-relaxed" style={{ color: '#92400E' }}>
+                      {item.sub}
                     </p>
-                    {item.sub && (
-                      <p className="text-[12px] mt-0.5 leading-relaxed" style={{ color: '#5C5240' }}>
-                        {item.sub}
+                  )}
+                </div>
+                {item.to && (
+                  <Link
+                    to={item.to}
+                    className="shrink-0 text-[11px] font-bold flex items-center gap-0.5 mt-0.5 px-2 py-1 rounded-full transition-colors hover:bg-amber-200/40"
+                    style={{ color: '#92400E' }}
+                  >
+                    לפרטים
+                    <ArrowLeft className="h-3 w-3" />
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* ── E. Quick Actions — vibrant grid ─────────────────────── */}
+      <section className="mb-6">
+        <h2 className="text-sm font-bold mb-2.5" style={{ color: '#0B2912' }}>פעולות מהירות</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <ActionTile to={createPageUrl('CreateRoute')} icon={Plus}    label="צור משימה" primary />
+          <ActionTile to={createPageUrl('AddVehicle')}  icon={Truck}   label="הוסף רכב" />
+          <ActionTile to={createPageUrl('Drivers')}     icon={Users}   label="נהל נהגים" />
+          <ActionTile to={createPageUrl('Expenses')}    icon={Receipt} label="הוסף הוצאה" />
+        </div>
+      </section>
+
+      {/* ── F. Activity feed ─────────────────────────────────────── */}
+      <section
+        className="rounded-2xl p-4 sm:p-5 border"
+        style={{
+          background: '#FFFFFF',
+          borderColor: '#E5EDE8',
+          boxShadow: '0 4px 16px rgba(15,40,28,0.04)',
+        }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold" style={{ color: '#0B2912' }}>פעילות אחרונה</h2>
+          <Link
+            to={createPageUrl('ActivityLog')}
+            className="text-[11px] font-bold flex items-center gap-0.5 px-2 py-1 rounded-full transition-colors"
+            style={{ color: '#10B981', background: 'rgba(16,185,129,0.08)' }}
+          >
+            לכל הפעילות
+            <ArrowLeft className="h-3 w-3" />
+          </Link>
+        </div>
+        {recentLogs.length === 0 ? (
+          <p className="text-sm py-6 text-center" style={{ color: '#6B7C72' }}>
+            עוד לא נרשמה פעילות. כל פעולה בחשבון תופיע כאן אוטומטית.
+          </p>
+        ) : (
+          <ol className="relative space-y-3 pr-5">
+            <span
+              className="absolute right-[7px] top-2 bottom-2 w-px"
+              style={{ background: '#E5EDE8' }}
+              aria-hidden
+            />
+            {recentLogs.map(log => {
+              const tone = ACTION_TONE[log.action] || 'gray';
+              const actorName = nameByUserId[log.actor_user_id] || log.actor_label;
+              return (
+                <li key={log.id} className="relative flex items-start gap-3">
+                  <span
+                    className={`absolute right-[2px] top-2 w-2.5 h-2.5 rounded-full ring-2 ring-white ${TONE_DOT[tone]}`}
+                    aria-hidden
+                  />
+                  <div className="flex-1 min-w-0 mr-2">
+                    <p className="text-sm" style={{ color: '#0B2912' }}>
+                      <span className="font-bold">{actorName}</span>
+                      <span style={{ color: '#6B7C72' }}>{` · `}</span>
+                      {ACTION_LABEL[log.action] || log.action}
+                    </p>
+                    {log.note && (
+                      <p className="text-[12px] truncate" style={{ color: '#4B5D52' }}>
+                        {log.note}
                       </p>
                     )}
+                    <p className="text-[11px] mt-0.5" style={{ color: '#6B7C72' }}>
+                      {fmtTimeShort(log.created_at)}
+                    </p>
                   </div>
-                  {item.to && (
-                    <Link
-                      to={item.to}
-                      className="shrink-0 text-[11px] font-bold flex items-center gap-0.5 mt-0.5 hover:underline"
-                      style={{ color: '#1F3D24' }}
-                    >
-                      לפרטים
-                      <ArrowLeft className="h-3 w-3" />
-                    </Link>
-                  )}
                 </li>
-              ))}
-            </ul>
-          )}
-        </section>
+              );
+            })}
+          </ol>
+        )}
+      </section>
 
-        {/* Activity feed */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <SectionMarker letter="ו" title="פעילות אחרונה" tight />
-            <Link
-              to={createPageUrl('ActivityLog')}
-              className="text-[11px] font-bold flex items-center gap-0.5 hover:underline"
-              style={{ color: '#1F3D24' }}
-            >
-              לכל הפעילות
-              <ArrowLeft className="h-3 w-3" />
-            </Link>
-          </div>
-          {recentLogs.length === 0 ? (
-            <p className="text-sm py-6 text-center" style={{ color: '#7A6E58' }}>
-              עוד לא נרשמה פעילות. כל פעולה בחשבון תופיע כאן אוטומטית.
-            </p>
-          ) : (
-            <ol className="relative space-y-4 pr-4">
-              <span
-                className="absolute right-[3px] top-2 bottom-2 w-px"
-                style={{ background: '#C9BBA0' }}
-                aria-hidden
-              />
-              {recentLogs.map(log => {
-                const tone = ACTION_TONE[log.action] || 'gray';
-                const actorName = nameByUserId[log.actor_user_id] || log.actor_label;
-                return (
-                  <li key={log.id} className="relative flex items-start gap-3">
-                    <span
-                      className={`absolute right-[-1.5px] top-2 w-2 h-2 rounded-full ${TONE_DOT[tone]}`}
-                      aria-hidden
-                    />
-                    <div className="flex-1 min-w-0 mr-2">
-                      <p className="text-sm" style={{ color: '#1F3D24' }}>
-                        <span className="font-bold">{actorName}</span>
-                        <span style={{ color: '#7A6E58' }}>{` · `}</span>
-                        {ACTION_LABEL[log.action] || log.action}
-                      </p>
-                      {log.note && (
-                        <p className="text-[12px] truncate" style={{ color: '#5C5240' }}>
-                          {log.note}
-                        </p>
-                      )}
-                      <p className="text-[11px] mt-0.5" style={{ color: '#7A6E58' }}>
-                        {fmtTimeShort(log.created_at)}
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </section>
-
-      </div>
+      {/* Live pulse animation keyframe — scoped global so the live
+          indicator chip has a visible breath. CSS variable form keeps
+          it overridable from theme later. */}
+      <style>{`
+        @keyframes cr-pulse {
+          0%, 100% { transform: scale(1); opacity: 0.75; }
+          50%      { transform: scale(2.5); opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }
 
 // ---------- subcomponents --------------------------------------------
-// "Boardroom Brief" components — restraint over decoration. Hairlines
-// instead of shadows. Tabular figures everywhere. Border-right column
-// dividers between KPI cells (replacing the four-card grid). All built
-// against the cream/forest/charcoal palette set on the page wrapper.
+// "Living Dashboard" components: vibrant colored surfaces, soft shadows,
+// smooth hover transitions. Each KPI tile carries its own theme color
+// (emerald / amber / blue / red) so the page reads as a colored data
+// arrangement rather than a monochrome list.
 
-// KpiCell: column in the 3-up KPI strip beneath the hero.
-// `withBorder` adds a hairline divider on the right (the SECOND and
-// THIRD cells). The first cell has none — it's flush with the hero.
-function KpiCell({ label, value, sub = null, subTone = 'neutral', to, withBorder = false }) {
+// KpiTile: vivid colored surface for each KPI. The `tone` prop drives
+// background gradient, text, and shadow color so the eye instantly
+// connects color → meaning (emerald = healthy/active, amber = financial,
+// red = problem, blue = info).
+function KpiTile({ label, value, sub = null, subTone = 'neutral', tone = 'emerald', to }) {
+  // Each tone is a triplet: surface gradient + dark text + shadow.
+  // Surfaces are LIGHT-tinted (10-20% saturation) so the page stays
+  // bright without screaming neon.
+  const TONES = {
+    emerald: {
+      surface: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+      border:  '#A7F3D0',
+      label:   '#047857',
+      value:   '#065F46',
+      shadow:  '0 4px 12px rgba(16,185,129,0.12)',
+      hover:   '0 8px 20px rgba(16,185,129,0.20)',
+    },
+    amber: {
+      surface: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+      border:  '#FCD34D',
+      label:   '#B45309',
+      value:   '#78350F',
+      shadow:  '0 4px 12px rgba(245,158,11,0.12)',
+      hover:   '0 8px 20px rgba(245,158,11,0.20)',
+    },
+    blue: {
+      surface: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+      border:  '#93C5FD',
+      label:   '#1D4ED8',
+      value:   '#1E3A8A',
+      shadow:  '0 4px 12px rgba(59,130,246,0.12)',
+      hover:   '0 8px 20px rgba(59,130,246,0.20)',
+    },
+    red: {
+      surface: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)',
+      border:  '#FCA5A5',
+      label:   '#B91C1C',
+      value:   '#7F1D1D',
+      shadow:  '0 4px 12px rgba(239,68,68,0.12)',
+      hover:   '0 8px 20px rgba(239,68,68,0.20)',
+    },
+  };
+  const t = TONES[tone] || TONES.emerald;
+
+  // sub-line color — independent of tile tone so a green tile can
+  // still flag a red sub-stat (e.g. "expenses up 15%" with amber tile
+  // body but red trend).
   const subColor = {
-    neutral: '#7A6E58',
-    red:     '#8B1A1A',
-    green:   '#2D5233',
-  }[subTone] || '#7A6E58';
+    neutral: t.label,
+    red:     '#B91C1C',
+    green:   '#047857',
+  }[subTone] || t.label;
 
   const inner = (
     <div
-      className={`px-4 py-2 transition-opacity hover:opacity-80 ${withBorder ? 'border-r' : ''}`}
-      style={withBorder ? { borderColor: '#C9BBA0', borderRightWidth: '1px' } : {}}
+      className="rounded-2xl p-3.5 transition-all hover:scale-[1.02] active:scale-[0.99] border h-full"
+      style={{
+        background: t.surface,
+        borderColor: t.border,
+        boxShadow: t.shadow,
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = t.hover; }}
+      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = t.shadow; }}
     >
       <p
-        className="text-[10px] uppercase tracking-[0.15em] font-bold mb-2"
-        style={{ color: '#7A6E58' }}
+        className="text-[10px] uppercase tracking-[0.12em] font-bold mb-1.5"
+        style={{ color: t.label }}
       >
         {label}
       </p>
       <p
         className="font-black tabular-nums leading-none"
         style={{
-          color: '#1F3D24',
-          fontSize: 'clamp(1.6rem, 3.5vw, 2.25rem)',
+          color: t.value,
+          fontSize: 'clamp(1.5rem, 3.5vw, 2rem)',
           fontWeight: 900,
           letterSpacing: '-0.02em',
         }}
@@ -645,7 +742,7 @@ function KpiCell({ label, value, sub = null, subTone = 'neutral', to, withBorder
         {value}
       </p>
       {sub && (
-        <p className="text-[11px] mt-1.5 font-medium" style={{ color: subColor }}>
+        <p className="text-[10px] mt-1.5 font-bold" style={{ color: subColor }}>
           {sub}
         </p>
       )}
@@ -654,54 +751,59 @@ function KpiCell({ label, value, sub = null, subTone = 'neutral', to, withBorder
   return to ? <Link to={to} className="block">{inner}</Link> : inner;
 }
 
-// ActionLink: replaces the old pill-style QuickAction. Bigger, more
-// confident card with text-only hierarchy + icon as accent.
-// `primary` = filled forest, `secondary` = outlined cream.
-function ActionLink({ to, icon: Icon, label, primary = false }) {
-  const baseStyle = primary
-    ? { background: '#1F3D24', color: '#FAF7F0', border: '1.5px solid #1F3D24' }
-    : { background: '#FFFFFF', color: '#1F3D24', border: '1.5px solid #1F3D24' };
+// ActionTile: vibrant action button. Primary = gradient emerald with
+// glow shadow. Secondary = mint-tinted surface with emerald icon.
+// Bigger touch target than the old pill, designed for quick recognition
+// from the hero's gravitational pull.
+function ActionTile({ to, icon: Icon, label, primary = false }) {
+  if (primary) {
+    return (
+      <Link
+        to={to}
+        className="rounded-2xl p-3 flex flex-col items-start gap-2 transition-all hover:scale-[1.03] active:scale-[0.98] group"
+        style={{
+          background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+          boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+        }}
+      >
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:rotate-3"
+          style={{ background: 'rgba(255,255,255,0.25)', backdropFilter: 'blur(4px)' }}
+        >
+          <Icon className="w-4.5 h-4.5 text-white" />
+        </div>
+        <span className="text-sm font-bold text-white">{label}</span>
+      </Link>
+    );
+  }
   return (
     <Link
       to={to}
-      className="rounded-md py-3 px-3 flex items-center gap-2 text-sm font-bold transition-all active:scale-[0.98] hover:opacity-90"
-      style={baseStyle}
+      className="rounded-2xl p-3 flex flex-col items-start gap-2 border transition-all hover:scale-[1.03] active:scale-[0.98] group"
+      style={{
+        background: '#FFFFFF',
+        borderColor: '#D1FAE5',
+        boxShadow: '0 2px 8px rgba(15,40,28,0.04)',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = '#10B981';
+        e.currentTarget.style.boxShadow = '0 6px 16px rgba(16,185,129,0.15)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = '#D1FAE5';
+        e.currentTarget.style.boxShadow = '0 2px 8px rgba(15,40,28,0.04)';
+      }}
     >
-      <Icon className="w-4 h-4 shrink-0" />
-      <span>{label}</span>
+      <div
+        className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+        style={{ background: '#ECFDF5', color: '#10B981' }}
+      >
+        <Icon className="w-4.5 h-4.5" />
+      </div>
+      <span className="text-sm font-bold" style={{ color: '#0B2912' }}>{label}</span>
     </Link>
   );
 }
-
-// SectionMarker: lettered prefix (א, ב, ג, ד, ה, ו) + section title.
-// Adds the editorial-newspaper feel — every section is a numbered
-// chapter rather than an arbitrary card.
-function SectionMarker({ letter, title, tight = false }) {
-  return (
-    <div className={`flex items-baseline gap-2 ${tight ? 'mb-0' : 'mb-3'}`}>
-      <span
-        className="font-black text-xs"
-        style={{
-          color: '#B8860B',
-          letterSpacing: '0.05em',
-        }}
-      >
-        {letter}.
-      </span>
-      <h2
-        className="font-bold text-base"
-        style={{ color: '#1F3D24' }}
-      >
-        {title}
-      </h2>
-    </div>
-  );
-}
-
-// Legacy components removed — replaced by the inline status panel in
-// the hero (HealthCard), the lettered SectionMarker (SectionHeader),
-// and pill-based QuickAction → ActionLink. The redesign uses hairlines
-// and typography for hierarchy instead of card-based grouping.
 
 function buildAttentionItems({
   overdueCount,
