@@ -80,18 +80,19 @@ const navItems = [
   { name: 'ActivityLog',        label: 'יומן פעילות', icon: FileText,        guestAllowed: false, businessOnly: true },
 
   // ====================================================================
-  // אישי — personal vehicle hat. The "אישי" header is businessOnly so
-  // it only renders for business users (separating their two contexts);
-  // personal-only users see no header here, which matches the legacy
-  // behavior where Dashboard/Vehicles were the first un-headered items.
+  // Personal-account top items. Each business user ALSO has a personal
+  // account, accessible via WorkspaceSwitcher — so we don't duplicate
+  // personal screens inside the business sidebar. The whole block is
+  // personalOnly; in business context it disappears entirely (no header
+  // either, intentionally — there is no "אישי" divider here, so
+  // personal users see these items unprefixed at the top of their
+  // sidebar, matching the legacy experience).
   // ====================================================================
-  { divider: true, title: 'אישי', businessOnly: true },
-  { name: 'Dashboard',          label: 'דף הבית', icon: LayoutDashboard, guestAllowed: true, hideForBusinessDriver: true },
-  { name: 'vehicle-check',      label: 'בדוק רכב', icon: Car,             guestAllowed: true },
-  { name: 'Vehicles',           label: 'רכבים',   icon: Car,             guestAllowed: true, hideForBusinessDriver: true },
+  { name: 'Dashboard',          label: 'דף הבית', icon: LayoutDashboard, guestAllowed: true, personalOnly: true },
+  { name: 'vehicle-check',      label: 'בדוק רכב', icon: Car,             guestAllowed: true, personalOnly: true },
+  { name: 'Vehicles',           label: 'רכבים',   icon: Car,             guestAllowed: true, personalOnly: true },
   // Vessels are a private-account feature (no fleet equivalent + the
-  // vessel-checklist UX assumes one owner). Hidden for any business
-  // workspace context, manager or driver, regardless of vesselOnly.
+  // vessel-checklist UX assumes one owner).
   { name: 'Vehicles?category=vessel', label: 'כלי שייט', icon: Ship,    guestAllowed: true, vesselOnly: true, personalOnly: true },
 
   // ====================================================================
