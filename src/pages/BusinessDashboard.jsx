@@ -13,9 +13,8 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Truck, Briefcase, MapPin, AlertTriangle, Receipt,
-  CheckCircle2, FileText, TrendingUp, TrendingDown, ArrowLeft,
-  Plus, Users,
+  Truck, Briefcase, AlertTriangle, Receipt,
+  CheckCircle2, TrendingUp, ArrowLeft, Plus, Users,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
@@ -330,110 +329,212 @@ export default function BusinessDashboard() {
   });
   const fleetHealthy = overdueCount === 0 && openIssues.length === 0;
 
+  // ── Render — "Boardroom Brief" ────────────────────────────────────
+  // Editorial-newspaper aesthetic: cream paper background, masthead with
+  // dotted leader date line, large tabular hero numeral, hairline rules
+  // between sections, and lettered section markers (A / B / C / D).
+  // Avoids the generic AI dashboard pattern of "icon-card × N in grid".
   return (
-    <div dir="rtl" className="max-w-5xl mx-auto pb-8">
+    <div
+      dir="rtl"
+      className="max-w-5xl mx-auto pb-12"
+      style={{
+        // Subtle warm cream — feels like a printed brief vs. pure white.
+        background: 'linear-gradient(180deg, #FAF7F0 0%, #FAF7F0 60%, #FFFFFF 100%)',
+        minHeight: '100vh',
+      }}
+    >
       <MobileBackButton />
 
-      {/* ── Hero ─────────────────────────────────────────────────── */}
-      <header className="mb-5">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <p className="text-sm text-gray-500">{greeting}{userFirstName ? `, ${userFirstName}` : ''}.</p>
-          <p className="text-sm text-gray-400">{hebrewDate()}</p>
+      {/* ── A. Masthead ──────────────────────────────────────────── */}
+      <header className="px-4 sm:px-6 pt-4">
+        {/* Date strip with dotted leader */}
+        <div className="flex items-baseline gap-3 text-[11px] uppercase tracking-[0.18em] mb-3" style={{ color: '#7A6E58' }}>
+          <span className="font-bold">סקירה יומית</span>
+          <span className="flex-1 border-b border-dotted" style={{ borderColor: '#C9BBA0' }} />
+          <span className="tabular-nums" dir="rtl">{hebrewDate()}</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mt-1 truncate">{workspaceName}</h1>
-        <p className="text-xs text-gray-500 mt-0.5">תמונת מצב יומית של הצי</p>
+
+        {/* Workspace name as masthead — heavy display weight */}
+        <h1
+          className="font-black leading-none tracking-tight truncate"
+          style={{
+            color: '#1F3D24',
+            fontWeight: 900,
+            fontSize: 'clamp(2rem, 4.5vw, 3rem)',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {workspaceName}
+        </h1>
+
+        <p className="text-sm mt-2" style={{ color: '#5C5240' }}>
+          {greeting}{userFirstName ? `, ${userFirstName}` : ''}. תמונת מצב יומית של הצי.
+        </p>
+
+        {/* Hairline rule */}
+        <hr className="border-0 border-t mt-5" style={{ borderColor: '#C9BBA0', opacity: 0.5 }} />
       </header>
 
-      {/* ── Quick Actions ────────────────────────────────────────── */}
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-        <QuickAction icon={<Plus className="h-3.5 w-3.5" />}     label="צור משימה"     to={createPageUrl('CreateRoute')} primary />
-        <QuickAction icon={<Truck className="h-3.5 w-3.5" />}    label="הוסף רכב"      to={createPageUrl('AddVehicle')} />
-        <QuickAction icon={<Users className="h-3.5 w-3.5" />}    label="נהל נהגים"     to={createPageUrl('Drivers')} />
-        <QuickAction icon={<Receipt className="h-3.5 w-3.5" />}  label="הוסף הוצאה"    to={createPageUrl('Expenses')} />
-      </div>
-
-      {/* ── KPI Cards ────────────────────────────────────────────── */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-5">
-        <Kpi
-          icon={<Truck className="h-5 w-5" />}
-          label="רכבים בצי"
-          value={fmtNumber(vehicles.length)}
-          to={createPageUrl('Fleet')}
-          tone="primary"
-        />
-        <Kpi
-          icon={<MapPin className="h-5 w-5" />}
-          label="משימות פעילות"
-          value={fmtNumber(activeRoutes.length)}
-          sub={activeRoutes.length === 0 ? 'אין משימה פתוחה' : null}
-          to={createPageUrl('Routes')}
-          tone="primary"
-        />
-        <Kpi
-          icon={<Receipt className="h-5 w-5" />}
-          label="הוצאות החודש"
-          value={fmtMoney(thisMonthTotal)}
-          delta={monthDeltaPct}
-          to={createPageUrl('Reports')}
-          tone="primary"
-        />
-        <Kpi
-          icon={<AlertTriangle className="h-5 w-5" />}
-          label="תקלות פתוחות"
-          value={fmtNumber(openIssues.length)}
-          to={createPageUrl('ActivityLog')}
-          tone={openIssues.length > 0 ? 'danger' : 'neutral'}
-        />
-      </section>
-
-      {/* ── Health Spotlight ─────────────────────────────────────── */}
-      <section className="mb-5">
-        {fleetHealthy ? (
-          <HealthCard
-            tone="green"
-            icon={<CheckCircle2 className="h-5 w-5" />}
-            title="הצי במצב תקין"
-            sub="אין רכבים שדורשים טיפול דחוף ואין תקלות פתוחות."
-          />
-        ) : (
-          <HealthCard
-            tone={overdueCount > 0 ? 'red' : 'yellow'}
-            icon={<AlertTriangle className="h-5 w-5" />}
-            title={overdueCount > 0
-              ? `${overdueCount} רכבים דורשים טיפול דחוף`
-              : `${soonCount} רכבים דורשים טיפול בקרוב`}
-            sub={openIssues.length > 0
-              ? `יש גם ${openIssues.length} תקלות מדווחות שטרם טופלו`
-              : 'מומלץ לבדוק את הצי בלשונית "צי הרכבים"'}
+      {/* ── B. Hero KPI: the headline number ─────────────────────── */}
+      <section className="px-4 sm:px-6 pt-7 pb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6 lg:gap-10 items-start">
+          {/* The big number — fleet count */}
+          <Link
             to={createPageUrl('Fleet')}
-          />
-        )}
+            className="block group"
+            aria-label="צי הרכבים"
+          >
+            <div className="flex items-end gap-4 leading-none">
+              <span
+                className="font-black tabular-nums tracking-tight transition-colors group-hover:opacity-80"
+                style={{
+                  color: '#1F3D24',
+                  fontSize: 'clamp(4.5rem, 12vw, 7.5rem)',
+                  fontWeight: 900,
+                  letterSpacing: '-0.04em',
+                  lineHeight: 0.85,
+                }}
+                dir="ltr"
+              >
+                {fmtNumber(vehicles.length)}
+              </span>
+              <div className="pb-2">
+                <p className="text-xs uppercase tracking-[0.15em] font-bold" style={{ color: '#7A6E58' }}>רכבים</p>
+                <p className="text-xs mt-0.5" style={{ color: '#1F3D24' }}>
+                  בצי הפעיל
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          {/* Status panel — narrative summary */}
+          <div className="lg:border-r lg:pr-8" style={{ borderColor: '#C9BBA0' }}>
+            <p className="text-[11px] uppercase tracking-[0.18em] font-bold mb-3" style={{ color: '#7A6E58' }}>
+              מצב נוכחי
+            </p>
+            {fleetHealthy ? (
+              <div className="flex items-start gap-3">
+                <div
+                  className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center mt-0.5"
+                  style={{ background: '#1F3D24', color: '#FAF7F0' }}
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-bold" style={{ color: '#1F3D24' }}>הצי במצב תקין</p>
+                  <p className="text-sm mt-0.5 leading-relaxed" style={{ color: '#5C5240' }}>
+                    אין רכבים שדורשים טיפול דחוף ואין תקלות פתוחות.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <Link to={createPageUrl('Fleet')} className="flex items-start gap-3 group">
+                <div
+                  className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center mt-0.5"
+                  style={{
+                    background: overdueCount > 0 ? '#8B1A1A' : '#B8860B',
+                    color: '#FAF7F0',
+                  }}
+                >
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-bold group-hover:underline" style={{ color: '#1F3D24' }}>
+                    {overdueCount > 0
+                      ? `${overdueCount} רכבים דורשים טיפול דחוף`
+                      : `${soonCount} רכבים דורשים טיפול בקרוב`}
+                  </p>
+                  <p className="text-sm mt-0.5 leading-relaxed" style={{ color: '#5C5240' }}>
+                    {openIssues.length > 0
+                      ? `יש גם ${openIssues.length} תקלות מדווחות שטרם טופלו.`
+                      : 'מומלץ לבדוק את צי הרכבים.'}
+                  </p>
+                </div>
+              </Link>
+            )}
+          </div>
+        </div>
       </section>
 
-      {/* ── Two-column area ──────────────────────────────────────── */}
-      <div className="grid lg:grid-cols-2 gap-4">
+      {/* Hairline rule */}
+      <hr className="border-0 border-t mx-4 sm:mx-6" style={{ borderColor: '#C9BBA0', opacity: 0.5 }} />
 
-        {/* Needs attention */}
-        <section className="bg-white border border-gray-100 rounded-2xl p-4">
-          <SectionHeader
-            icon={<AlertTriangle className="h-4 w-4 text-yellow-700" />}
-            title="דורש תשומת לב"
+      {/* ── C. KPI Strip — supporting cast ───────────────────────── */}
+      <section className="px-4 sm:px-6 py-6">
+        <div className="grid grid-cols-3 gap-0">
+          <KpiCell
+            label="משימות פעילות"
+            value={fmtNumber(activeRoutes.length)}
+            sub={activeRoutes.length === 0 ? 'אין משימה פתוחה' : null}
+            to={createPageUrl('Routes')}
           />
+          <KpiCell
+            label="הוצאות החודש"
+            value={fmtMoney(thisMonthTotal)}
+            sub={monthDeltaPct != null
+              ? `${monthDeltaPct > 0 ? '+' : ''}${monthDeltaPct}% מהחודש שעבר`
+              : null}
+            subTone={monthDeltaPct > 0 ? 'red' : monthDeltaPct < 0 ? 'green' : 'neutral'}
+            to={createPageUrl('Reports')}
+            withBorder
+          />
+          <KpiCell
+            label="תקלות פתוחות"
+            value={fmtNumber(openIssues.length)}
+            sub={openIssues.length > 0 ? 'דורשות טיפול' : 'הכל סגור'}
+            subTone={openIssues.length > 0 ? 'red' : 'neutral'}
+            to={createPageUrl('ActivityLog')}
+            withBorder
+          />
+        </div>
+      </section>
+
+      {/* Hairline rule */}
+      <hr className="border-0 border-t mx-4 sm:mx-6" style={{ borderColor: '#C9BBA0', opacity: 0.5 }} />
+
+      {/* ── D. Attention + Activity ─────────────────────────────── */}
+      <div className="grid lg:grid-cols-2 gap-6 lg:gap-10 px-4 sm:px-6 pt-6">
+
+        {/* Quick Actions + Attention list */}
+        <section>
+          <SectionMarker letter="ד" title="פעולות מהירות" />
+          <div className="grid grid-cols-2 gap-2 mb-6">
+            <ActionLink to={createPageUrl('CreateRoute')} icon={Plus}    label="צור משימה" primary />
+            <ActionLink to={createPageUrl('AddVehicle')}  icon={Truck}   label="הוסף רכב" />
+            <ActionLink to={createPageUrl('Drivers')}     icon={Users}   label="נהל נהגים" />
+            <ActionLink to={createPageUrl('Expenses')}    icon={Receipt} label="הוסף הוצאה" />
+          </div>
+
+          <SectionMarker letter="ה" title="דורש תשומת לב" />
           {attentionItems.length === 0 ? (
-            <p className="text-xs text-gray-500 py-4 text-center">
+            <p
+              className="text-sm py-3 leading-relaxed border-r-2 pr-3"
+              style={{ color: '#5C5240', borderColor: '#1F3D24' }}
+            >
               הכל תחת שליטה. שום דבר לא דחוף עכשיו.
             </p>
           ) : (
             <ul className="space-y-3">
               {attentionItems.map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <div className={`shrink-0 w-1 self-stretch rounded-full ${item.barCls}`} />
+                  <div className={`shrink-0 w-1 self-stretch ${item.barCls}`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-900">{item.text}</p>
-                    {item.sub && <p className="text-[11px] text-gray-500 leading-relaxed">{item.sub}</p>}
+                    <p className="text-sm font-bold leading-snug" style={{ color: '#1F3D24' }}>
+                      {item.text}
+                    </p>
+                    {item.sub && (
+                      <p className="text-[12px] mt-0.5 leading-relaxed" style={{ color: '#5C5240' }}>
+                        {item.sub}
+                      </p>
+                    )}
                   </div>
                   {item.to && (
-                    <Link to={item.to} className="shrink-0 text-[11px] font-bold text-[#2D5233] flex items-center gap-0.5 mt-0.5">
+                    <Link
+                      to={item.to}
+                      className="shrink-0 text-[11px] font-bold flex items-center gap-0.5 mt-0.5 hover:underline"
+                      style={{ color: '#1F3D24' }}
+                    >
                       לפרטים
                       <ArrowLeft className="h-3 w-3" />
                     </Link>
@@ -444,43 +545,53 @@ export default function BusinessDashboard() {
           )}
         </section>
 
-        {/* Recent activity */}
-        <section className="bg-white border border-gray-100 rounded-2xl p-4">
+        {/* Activity feed */}
+        <section>
           <div className="flex items-center justify-between mb-3">
-            <SectionHeader
-              icon={<FileText className="h-4 w-4 text-gray-500" />}
-              title="פעילות אחרונה"
-              tight
-            />
+            <SectionMarker letter="ו" title="פעילות אחרונה" tight />
             <Link
               to={createPageUrl('ActivityLog')}
-              className="text-[11px] font-bold text-[#2D5233] flex items-center gap-0.5"
+              className="text-[11px] font-bold flex items-center gap-0.5 hover:underline"
+              style={{ color: '#1F3D24' }}
             >
               לכל הפעילות
               <ArrowLeft className="h-3 w-3" />
             </Link>
           </div>
           {recentLogs.length === 0 ? (
-            <p className="text-xs text-gray-400 py-6 text-center">
+            <p className="text-sm py-6 text-center" style={{ color: '#7A6E58' }}>
               עוד לא נרשמה פעילות. כל פעולה בחשבון תופיע כאן אוטומטית.
             </p>
           ) : (
-            <ol className="relative space-y-3">
-              <span className="absolute right-1 top-2 bottom-2 w-px bg-gray-100" aria-hidden />
+            <ol className="relative space-y-4 pr-4">
+              <span
+                className="absolute right-[3px] top-2 bottom-2 w-px"
+                style={{ background: '#C9BBA0' }}
+                aria-hidden
+              />
               {recentLogs.map(log => {
                 const tone = ACTION_TONE[log.action] || 'gray';
                 const actorName = nameByUserId[log.actor_user_id] || log.actor_label;
                 return (
-                  <li key={log.id} className="relative flex items-start gap-3 pr-3">
-                    <span className={`absolute right-0 top-1.5 w-2 h-2 rounded-full ${TONE_DOT[tone]}`} aria-hidden />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-900">
+                  <li key={log.id} className="relative flex items-start gap-3">
+                    <span
+                      className={`absolute right-[-1.5px] top-2 w-2 h-2 rounded-full ${TONE_DOT[tone]}`}
+                      aria-hidden
+                    />
+                    <div className="flex-1 min-w-0 mr-2">
+                      <p className="text-sm" style={{ color: '#1F3D24' }}>
                         <span className="font-bold">{actorName}</span>
-                        <span className="text-gray-400">{` · `}</span>
+                        <span style={{ color: '#7A6E58' }}>{` · `}</span>
                         {ACTION_LABEL[log.action] || log.action}
                       </p>
-                      {log.note && <p className="text-[11px] text-gray-500 truncate">{log.note}</p>}
-                      <p className="text-[10px] text-gray-400 mt-0.5">{fmtTimeShort(log.created_at)}</p>
+                      {log.note && (
+                        <p className="text-[12px] truncate" style={{ color: '#5C5240' }}>
+                          {log.note}
+                        </p>
+                      )}
+                      <p className="text-[11px] mt-0.5" style={{ color: '#7A6E58' }}>
+                        {fmtTimeShort(log.created_at)}
+                      </p>
                     </div>
                   </li>
                 );
@@ -495,92 +606,102 @@ export default function BusinessDashboard() {
 }
 
 // ---------- subcomponents --------------------------------------------
+// "Boardroom Brief" components — restraint over decoration. Hairlines
+// instead of shadows. Tabular figures everywhere. Border-right column
+// dividers between KPI cells (replacing the four-card grid). All built
+// against the cream/forest/charcoal palette set on the page wrapper.
 
-function QuickAction({ icon, label, to, primary = false }) {
+// KpiCell: column in the 3-up KPI strip beneath the hero.
+// `withBorder` adds a hairline divider on the right (the SECOND and
+// THIRD cells). The first cell has none — it's flush with the hero.
+function KpiCell({ label, value, sub = null, subTone = 'neutral', to, withBorder = false }) {
+  const subColor = {
+    neutral: '#7A6E58',
+    red:     '#8B1A1A',
+    green:   '#2D5233',
+  }[subTone] || '#7A6E58';
+
+  const inner = (
+    <div
+      className={`px-4 py-2 transition-opacity hover:opacity-80 ${withBorder ? 'border-r' : ''}`}
+      style={withBorder ? { borderColor: '#C9BBA0', borderRightWidth: '1px' } : {}}
+    >
+      <p
+        className="text-[10px] uppercase tracking-[0.15em] font-bold mb-2"
+        style={{ color: '#7A6E58' }}
+      >
+        {label}
+      </p>
+      <p
+        className="font-black tabular-nums leading-none"
+        style={{
+          color: '#1F3D24',
+          fontSize: 'clamp(1.6rem, 3.5vw, 2.25rem)',
+          fontWeight: 900,
+          letterSpacing: '-0.02em',
+        }}
+        dir={typeof value === 'string' && /[֐-׿]/.test(value) ? 'rtl' : 'ltr'}
+      >
+        {value}
+      </p>
+      {sub && (
+        <p className="text-[11px] mt-1.5 font-medium" style={{ color: subColor }}>
+          {sub}
+        </p>
+      )}
+    </div>
+  );
+  return to ? <Link to={to} className="block">{inner}</Link> : inner;
+}
+
+// ActionLink: replaces the old pill-style QuickAction. Bigger, more
+// confident card with text-only hierarchy + icon as accent.
+// `primary` = filled forest, `secondary` = outlined cream.
+function ActionLink({ to, icon: Icon, label, primary = false }) {
+  const baseStyle = primary
+    ? { background: '#1F3D24', color: '#FAF7F0', border: '1.5px solid #1F3D24' }
+    : { background: '#FFFFFF', color: '#1F3D24', border: '1.5px solid #1F3D24' };
   return (
     <Link
       to={to}
-      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-[0.98] ${
-        primary
-          ? 'bg-[#2D5233] text-white'
-          : 'bg-white border border-gray-200 text-gray-700 hover:border-gray-300'
-      }`}
+      className="rounded-md py-3 px-3 flex items-center gap-2 text-sm font-bold transition-all active:scale-[0.98] hover:opacity-90"
+      style={baseStyle}
     >
-      {icon}
-      {label}
+      <Icon className="w-4 h-4 shrink-0" />
+      <span>{label}</span>
     </Link>
   );
 }
 
-function Kpi({ icon, label, value, sub = null, delta = null, to, tone = 'primary' }) {
-  const iconWrap = {
-    primary: 'bg-[#E8F2EA] text-[#2D5233]',
-    danger:  'bg-red-50    text-red-600',
-    neutral: 'bg-gray-100  text-gray-500',
-  }[tone] || 'bg-gray-100 text-gray-500';
-
-  const inner = (
-    <div className="bg-white border border-gray-100 rounded-2xl p-3.5 hover:border-gray-200 hover:shadow-sm transition-all h-full">
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${iconWrap}`}>
-        {icon}
-      </div>
-      <p className="text-[11px] text-gray-500 font-medium mb-0.5">{label}</p>
-      <p className="text-2xl font-bold text-gray-900 leading-tight tabular-nums">{value}</p>
-      {sub && <p className="text-[10px] text-gray-500 mt-1.5 truncate">{sub}</p>}
-      {delta != null && (
-        <div className={`mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold ${
-          delta > 0 ? 'text-red-600' : delta < 0 ? 'text-green-600' : 'text-gray-500'
-        }`}>
-          {delta > 0 ? <TrendingUp className="h-3 w-3" /> : delta < 0 ? <TrendingDown className="h-3 w-3" /> : null}
-          <span>{delta > 0 ? '+' : ''}{delta}% מהחודש שעבר</span>
-        </div>
-      )}
-    </div>
-  );
-  return to ? <Link to={to}>{inner}</Link> : inner;
-}
-
-function HealthCard({ tone, icon, title, sub, to = null }) {
-  const wrap = {
-    green:  'bg-gradient-to-l from-green-50 to-white border-green-100',
-    yellow: 'bg-gradient-to-l from-yellow-50 to-white border-yellow-100',
-    red:    'bg-gradient-to-l from-red-50 to-white border-red-100',
-  }[tone] || 'bg-white border-gray-100';
-
-  const iconCls = {
-    green:  'bg-green-100 text-green-700',
-    yellow: 'bg-yellow-100 text-yellow-800',
-    red:    'bg-red-100 text-red-700',
-  }[tone];
-
-  const Wrapper = ({ children }) => to
-    ? <Link to={to} className="block">{children}</Link>
-    : <div>{children}</div>;
-
+// SectionMarker: lettered prefix (א, ב, ג, ד, ה, ו) + section title.
+// Adds the editorial-newspaper feel — every section is a numbered
+// chapter rather than an arbitrary card.
+function SectionMarker({ letter, title, tight = false }) {
   return (
-    <Wrapper>
-      <div className={`border rounded-2xl p-4 flex items-center gap-3 transition-shadow ${wrap} ${to ? 'hover:shadow-sm' : ''}`}>
-        <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${iconCls}`}>
-          {icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-gray-900">{title}</p>
-          <p className="text-[11px] text-gray-600 mt-0.5">{sub}</p>
-        </div>
-        {to && <ArrowLeft className="h-4 w-4 text-gray-400 shrink-0" />}
-      </div>
-    </Wrapper>
-  );
-}
-
-function SectionHeader({ icon, title, tight = false }) {
-  return (
-    <div className={`flex items-center gap-2 ${tight ? '' : 'mb-3'}`}>
-      {icon}
-      <h2 className="text-sm font-bold text-gray-900">{title}</h2>
+    <div className={`flex items-baseline gap-2 ${tight ? 'mb-0' : 'mb-3'}`}>
+      <span
+        className="font-black text-xs"
+        style={{
+          color: '#B8860B',
+          letterSpacing: '0.05em',
+        }}
+      >
+        {letter}.
+      </span>
+      <h2
+        className="font-bold text-base"
+        style={{ color: '#1F3D24' }}
+      >
+        {title}
+      </h2>
     </div>
   );
 }
+
+// Legacy components removed — replaced by the inline status panel in
+// the hero (HealthCard), the lettered SectionMarker (SectionHeader),
+// and pill-based QuickAction → ActionLink. The redesign uses hairlines
+// and typography for hierarchy instead of card-based grouping.
 
 function buildAttentionItems({
   overdueCount,
