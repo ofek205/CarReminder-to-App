@@ -43,28 +43,30 @@ import { createClient } from '@supabase/supabase-js';
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Both clients share the same default storage key (project-ref based).
-// Earlier this caused a lock-contention crash on the main app: two
-// GoTrueClient instances racing on `lock:sb-<project-ref>-auth-token`,
-// throwing "Lock was released because another request stole it" and
-// breaking Dashboard init. The fix is to make supabaseRecovery a
-// stateless throw-away client:
+// supabaseRecovery is a stateless, isolated client. Three settings to
+// keep it from interfering with the main `supabase` client:
 //
-//   • persistSession: false   → never reads or writes to storage,
-//                                so it can't fight the main client
-//                                for the storage lock.
-//   • autoRefreshToken: false → no background timer trying to
-//                                refresh against shared storage.
+//   • persistSession: false   → never writes session data to storage.
+//   • autoRefreshToken: false → no background refresh timer.
+//   • storageKey: distinct    → its lock namespace is separate from the
+//                                main client's. Without this, both
+//                                clients race on `lock:sb-<project>-
+//                                auth-token` (same key derived from
+//                                project ref), which produced "Lock
+//                                was not released within 5000ms"
+//                                warnings and intermittent timing
+//                                bugs in updateUser/setSession.
 //
-// We still get a real Session object back from verifyOtp() on the
-// return trip; AuthPage.jsx then calls supabase.auth.setSession(...)
-// on the MAIN client to install that session into the canonical
-// storage. supabaseRecovery itself is fire-and-forget.
+// We still get a real Session back from verifyOtp() on the return
+// trip; AuthPage.jsx then calls supabase.auth.setSession(...) on the
+// MAIN client to install that session into canonical storage.
+// supabaseRecovery itself is fire-and-forget.
 export const supabaseRecovery = createClient(url, key, {
   auth: {
     persistSession:     false,
     autoRefreshToken:   false,
     detectSessionInUrl: false,
     flowType:           'implicit',
+    storageKey:         'sb-recovery-only',
   },
 });
