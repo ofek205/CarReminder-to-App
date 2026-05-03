@@ -43,14 +43,28 @@ import { createClient } from '@supabase/supabase-js';
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Both clients share the same default storage key (project-ref based).
+// Earlier this caused a lock-contention crash on the main app: two
+// GoTrueClient instances racing on `lock:sb-<project-ref>-auth-token`,
+// throwing "Lock was released because another request stole it" and
+// breaking Dashboard init. The fix is to make supabaseRecovery a
+// stateless throw-away client:
+//
+//   • persistSession: false   → never reads or writes to storage,
+//                                so it can't fight the main client
+//                                for the storage lock.
+//   • autoRefreshToken: false → no background timer trying to
+//                                refresh against shared storage.
+//
+// We still get a real Session object back from verifyOtp() on the
+// return trip; AuthPage.jsx then calls supabase.auth.setSession(...)
+// on the MAIN client to install that session into the canonical
+// storage. supabaseRecovery itself is fire-and-forget.
 export const supabaseRecovery = createClient(url, key, {
   auth: {
-    persistSession:      true,
-    autoRefreshToken:    true,
-    // The recovery flow handles its URL fragment explicitly inside
-    // AuthPage so we don't need the auto-detector here. (The main
-    // client keeps detectSessionInUrl=true for OAuth callbacks.)
-    detectSessionInUrl:  false,
-    flowType:            'implicit',
+    persistSession:     false,
+    autoRefreshToken:   false,
+    detectSessionInUrl: false,
+    flowType:           'implicit',
   },
 });
