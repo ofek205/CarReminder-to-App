@@ -210,7 +210,7 @@ export default function TasksSection({ vehicle }) {
         <div className="flex items-center justify-between px-4 py-3" style={{ background: T.light }}>
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4" style={{ color: T.primary }} />
-            <span className="text-sm font-black" style={{ color: T.text }}>משימות ותקלות</span>
+            <span className="text-sm font-bold" style={{ color: T.text }}>משימות ותקלות</span>
             {openTasks.length > 0 && (
               <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: T.primary, color: '#fff' }}>
                 {openTasks.length}

@@ -6,15 +6,18 @@ import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
-import { Plus, Car, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, Mountain, AlertCircle, ArrowUpDown, Search, X } from "lucide-react";
+import { Plus, Car, ChevronLeft, Bell, Calendar, Shield, Wrench, AlertTriangle, Clock, CheckCircle, Ship, Bike, Truck, Mountain, AlertCircle, ArrowUpDown, Search, X, Sparkles } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
+import VehicleImage, { hasVehiclePhoto } from "../components/shared/VehicleImage";
 import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { useAuth } from "../components/shared/GuestContext";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
 import { usesHours, usesKm } from "../components/shared/DateStatusUtils";
@@ -26,6 +29,7 @@ import LicensePlate from '../components/shared/LicensePlate';
 import FirstTimeTour from '../components/shared/FirstTimeTour';
 import SharedIndicator from '@/components/sharing/SharedIndicator';
 import { Share2 } from 'lucide-react';
+import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 // Lazy-loaded — only mounts on first card-share-tap so we don't pull
 // the dialog + its 9 RPC bindings into the dashboard's first paint.
 const ShareVehicleDialog = React.lazy(() => import('@/components/sharing/ShareVehicleDialog'));
@@ -58,121 +62,170 @@ function daysLabel(days) {
   return `בעוד ${months} ${months === 1 ? 'חודש' : 'חודשים'}`;
 }
 
-//  Urgent Banner 
-function UrgentBanner({ reminders, vehicles }) {
-  const allReminders = reminders || [];
-  const withDays = allReminders
+const QUICK_CHECK_PREFILL_KEY = 'vehicle_quick_check_prefill_plate';
+function normalizeQuickCheckPlateInput(value) {
+  return String(value || '').replace(/\D/g, '').slice(0, 8);
+}
+function isQuickCheckPlateReady(value) {
+  return value.length === 7 || value.length === 8;
+}
+
+//  Hero alerts card. Priority element when there's anything actionable —
+//  big count on the leading edge, breakdown line under a short headline,
+//  and a CTA on the trailing edge. The whole card is tappable so the
+//  hit area covers the full hero width on mobile.
+function getActionableReminders(reminders) {
+  return (reminders || [])
     .map(r => ({ ...r, days: daysUntil(r.date) }))
-    .filter(r => r.days !== null)
-    // Product rule: the banner is meant to prompt *action*, not inform about
-    // routine future events. Anything more than 30 days out isn't "coming
-    // soon" — surfacing it in a hero banner 2 months ahead is false urgency.
-    // Keep the item in the detailed list below where the user went looking,
-    // but don't hijack the top of the page for it.
-    .filter(r => r.days <= 30)
-    .sort((a, b) => a.days - b.days);
+    .filter(r => r.days !== null && r.days <= 30);
+}
+function hasUrgentReminders(reminders) {
+  return getActionableReminders(reminders).length > 0;
+}
 
-  // Show the nearest upcoming reminder
-  const urgent = withDays[0];
+function UrgentBanner({ reminders, onView }) {
+  const actionable = getActionableReminders(reminders);
+  const count = actionable.length;
 
-  // Log 'shown' once per mount when an urgent reminder exists. Has to be
-  // declared BEFORE the early-return so rules-of-hooks stays happy —
-  // the body is gated on `urgent` so it's a no-op when the banner is
-  // not actually rendered.
   useEffect(() => {
-    if (urgent) {
-      logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'shown');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- log once per mount
-  }, []);
+    if (count > 0) logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'shown');
+  }, [count]);
 
-  if (!urgent) return null;
+  if (count <= 0) return null;
+  const overdueCount  = actionable.filter(r => r.days < 0).length;
+  const upcomingCount = count - overdueCount;
+  const isCritical    = overdueCount > 0;
 
-  const isExpired = urgent.days < 0;
-  const isDanger = !isExpired && urgent.days <= 14; // 0-14 days
+  // Calmer than the previous gradient — single tone with a soft accent
+  // gradient. Keeps the urgency without competing visually with the
+  // green Quick-Check card directly below it.
+  const palette = isCritical
+    ? { bg: 'linear-gradient(135deg, #B91C1C 0%, #DC2626 100%)', shadow: 'rgba(185,28,28,0.32)' }
+    : { bg: 'linear-gradient(135deg, #B45309 0%, #D97706 100%)', shadow: 'rgba(180,83,9,0.32)' };
 
-  const urgentVehicle = vehicles?.find(v => v.id === urgent.vehicle_id);
-  const isUrgentVessel = isVesselType(urgentVehicle?.vehicle_type, urgentVehicle?.nickname);
-  const vehicleName = urgentVehicle?.nickname || urgentVehicle?.manufacturer || '';
-  const T = getTheme(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
-
-  // Urgency palette. Kept intentionally narrow now that >30d is filtered out:
-  //   expired (< 0) → red hero + red "פג תוקף!" badge
-  //   danger  (0-14) → themed hero + red "דחוף" badge
-  //   else    (15-30) → themed hero + amber "בקרוב" badge
-  const urgencyConfig = isExpired ? {
-    badgeBg: '#FEF2F2', badgeColor: '#DC2626', badgeBorder: '#FECACA',
-    badgeIcon: AlertTriangle, badgeText: 'פג תוקף!',
-    bannerBg: 'linear-gradient(135deg, #991B1B 0%, #DC2626 100%)',
-    bannerShadow: 'rgba(153,27,27,0.4)',
-  } : isDanger ? {
-    badgeBg: '#FEF2F2', badgeColor: '#DC2626', badgeBorder: '#FECACA',
-    badgeIcon: AlertTriangle, badgeText: 'דחוף',
-    bannerBg: T.grad,
-    bannerShadow: `${T.primary}40`,
-  } : {
-    badgeBg: '#FFF8E1', badgeColor: '#D97706', badgeBorder: '#FDE68A',
-    badgeIcon: Clock, badgeText: 'בקרוב',
-    bannerBg: T.grad,
-    bannerShadow: `${T.primary}40`,
-  };
-
-  // Build vehicle type name for the banner (e.g. "הטרקטורון", "האופנוע", "הרכב")
-  const vType = urgentVehicle?.vehicle_type || '';
-  const vCat = getVehicleCategory(urgentVehicle?.vehicle_type, urgentVehicle?.nickname, urgentVehicle?.manufacturer);
-  const vehicleTypeLabel = vCat === 'vessel' ? '' : vCat === 'motorcycle' ? 'האופנוע' : vCat === 'truck' ? 'המשאית' : vCat === 'offroad' ? ('ה' + (vType || 'כלי שטח')) : 'הרכב';
-
-  // Headline is the *action* required. the "expired" urgency is already
-  // communicated by the red badge above, so avoid repeating "פג תוקף" here.
-  const typeLabel = isExpired ? ({
-    insurance: isUrgentVessel ? 'חידוש ביטוח ימי נדרש' : 'חידוש ביטוח נדרש',
-    test:      isUrgentVessel ? 'חידוש כושר שייט נדרש' : `חידוש טסט ${vehicleTypeLabel} נדרש`,
-    maintenance: 'טיפול תקופתי נדרש',
-  }[urgent.type] || urgent.title) : ({
-    insurance: isUrgentVessel ? 'חידוש ביטוח ימי מתקרב' : 'חידוש ביטוח מתקרב',
-    test:      isUrgentVessel ? 'כושר שייט מתקרב' : `טסט ${vehicleTypeLabel} מתקרב`,
-    maintenance: 'טיפול תקופתי מתקרב',
-  }[urgent.type] || urgent.title);
-
-  const BadgeIcon = urgencyConfig.badgeIcon;
-
-  // (urgentBanner 'shown' impression is logged near the top of the
-  // function, BEFORE the `if (!urgent) return null;` guard, so React's
-  // rules-of-hooks stays satisfied. The body of that effect is gated
-  // on `urgent` so it's a no-op when there's nothing to render.)
+  let subtitle;
+  if (overdueCount > 0 && upcomingCount > 0) subtitle = `${overdueCount} באיחור · ${upcomingCount} קרובות`;
+  else if (overdueCount > 0)                 subtitle = `${overdueCount} באיחור`;
+  else                                       subtitle = `${upcomingCount} ב-30 הימים הקרובים`;
 
   return (
-    <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"
-      style={{ background: urgencyConfig.bannerBg, boxShadow: `0 8px 32px ${urgencyConfig.bannerShadow}` }}>
-      <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-      <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full" style={{ background: `${T.yellow}20` }} />
-
-      <div className="relative z-10">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5"
-            style={{ background: urgencyConfig.badgeBg, color: urgencyConfig.badgeColor, border: `1.5px solid ${urgencyConfig.badgeBorder}` }}>
-            <BadgeIcon className="w-3.5 h-3.5" />
-            {urgencyConfig.badgeText}
-          </span>
-        </div>
-        <h2 className="font-black text-[1.5rem] sm:text-2xl mb-1.5 leading-tight text-white" dir="rtl">
-          {typeLabel}
-        </h2>
-        {vehicleName && urgentVehicle && (
-          <Link to={`${createPageUrl('VehicleDetail')}?id=${urgentVehicle.id}`}
-            className="text-base font-semibold mb-5 block underline decoration-white/30 hover:decoration-white/60 transition-all" style={{ color: 'rgba(255,255,255,0.85)' }} dir="rtl">
-            {vehicleName} &bull; {daysLabel(urgent.days)}
-          </Link>
-        )}
-        <Link to={createPageUrl('Notifications')}
-          onClick={() => logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'clicked')}>
-          <button className="w-full py-3.5 rounded-2xl font-bold text-base transition-all active:scale-[0.98]"
-            style={{ background: T.yellow, color: T.primary }}>
-            צפה בתזכורות
-          </button>
-        </Link>
+    <button
+      type="button"
+      onClick={() => {
+        logSystemPopupEvent(SYSTEM_POPUP_IDS.urgentBanner, 'clicked');
+        onView?.();
+      }}
+      className="w-full mb-3 rounded-3xl px-4 py-4 flex items-center gap-3 text-right transition-transform active:scale-[0.99]"
+      style={{ background: palette.bg, boxShadow: `0 10px 28px ${palette.shadow}` }}
+      dir="rtl"
+    >
+      {/* Big count block — RTL leading edge, separator on its left */}
+      <div className="flex flex-col items-center justify-center shrink-0 pl-3 border-l border-white/25 leading-none">
+        <span className="text-white font-black text-4xl sm:text-5xl tabular-nums tracking-tight">
+          {count}
+        </span>
+        <span className="text-white/85 text-[10px] font-semibold mt-1 tracking-wide">
+          התראות
+        </span>
       </div>
-    </div>
+
+      {/* Body */}
+      <div className="flex-1 min-w-0">
+        <p className="text-white font-bold text-base sm:text-lg leading-tight">
+          {isCritical ? 'דרושה התייחסות מיידית' : 'דרושה התייחסות'}
+        </p>
+        <p className="text-white/90 text-xs sm:text-[13px] mt-1 leading-snug">
+          {subtitle}
+        </p>
+      </div>
+
+      {/* CTA — visual only, the whole card is the actual button */}
+      <div className="shrink-0 flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-2 text-white text-xs sm:text-sm font-bold">
+        טפל עכשיו
+        <ChevronLeft className="w-4 h-4" />
+      </div>
+    </button>
+  );
+}
+
+// Quick-Check hero on the dashboard. Mirrors the dedicated /VehicleCheck
+// page layout (pill badge → centered heading → centered subtitle → grid
+// row with plate on the RTL leading edge and a Search-iconed button on
+// the trailing edge), just at smaller proportions so it fits inside the
+// dashboard alongside the alerts banner and vehicle list.
+//   - expanded (compact=false): hero look, primary on the dashboard when
+//     nothing urgent is happening.
+//   - compact  (compact=true):  same layout, tighter typography/padding,
+//     used when the UrgentBanner is leading the page.
+function VehicleCheckHero({ plate, onPlateChange, onSubmit, submitting, compact = false }) {
+  // The button needs to gate on plate validity, not just submitting.
+  // Without this gate the click handler (openQuickCheck) silently
+  // returns when the plate is empty/incomplete — which on Android
+  // looked like a dead button to users (no feedback, no toast).
+  // Now: disabled when plate is empty or not 7-8 digits, opacity
+  // makes it visually clear, and any tap that does land triggers
+  // onSubmit which still validates a second time at the page level.
+  const plateDigits = String(plate || '').replace(/\D/g, '');
+  const plateReady  = plateDigits.length === 7 || plateDigits.length === 8;
+  const disabled    = submitting || !plateReady;
+  return (
+    <section
+      className={`rounded-3xl border bg-white text-center mb-4 ${compact ? 'p-4' : 'p-5 sm:p-6'}`}
+      style={{ borderColor: '#E2E8E2', boxShadow: '0 4px 16px rgba(45,82,51,0.06)' }}
+      dir="rtl"
+    >
+      {/* Pill badge */}
+      <div
+        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F2EA] text-[#2D5233] font-bold ${
+          compact ? 'text-[10px] mb-2' : 'text-[11px] sm:text-xs mb-3'
+        }`}
+      >
+        <Sparkles className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
+        בדיקה חכמה תוך שניות
+      </div>
+
+      {/* Heading */}
+      <h2
+        className={`font-bold text-[#1C2E20] leading-tight mb-1.5 ${
+          compact ? 'text-lg' : 'text-xl sm:text-2xl'
+        }`}
+      >
+        בדיקת רכב לפי מספר רישוי
+      </h2>
+
+      {/* Subtitle */}
+      <p
+        className={`text-gray-500 leading-relaxed mx-auto max-w-md ${
+          compact ? 'text-[11px] mb-3' : 'text-xs sm:text-sm mb-4'
+        }`}
+      >
+        הזן מספר רישוי וקבל סיכום מובנה, תובנות ומפרט טכני.
+      </p>
+
+      {/* Plate (RTL leading) + CTA (RTL trailing). Single column on mobile
+          so neither element gets squeezed; side-by-side from sm: up. */}
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2.5 items-center">
+        <VehicleCheckPlateInput
+          value={plate}
+          onChange={onPlateChange}
+          onEnter={onSubmit}
+          disabled={submitting}
+          compact
+        />
+        <button
+          type="button"
+          onClick={() => onSubmit?.()}
+          disabled={disabled}
+          aria-label={plateReady ? 'בדוק רכב' : 'הזן 7 או 8 ספרות לבדיקה'}
+          title={plateReady ? '' : 'הזן 7 או 8 ספרות לבדיקה'}
+          className="h-10 rounded-xl px-4 font-bold text-white bg-[#2D5233] hover:bg-[#1E3D24] transition-colors disabled:opacity-60 active:scale-[0.99] flex items-center justify-center gap-2 shrink-0 text-sm"
+          style={{ boxShadow: '0 4px 12px rgba(45,82,51,0.18)' }}
+        >
+          <Search className="w-4 h-4" />
+          {submitting ? 'מעביר...' : 'בדוק רכב'}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -202,7 +255,7 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
   const model = vehicle.model || '';
   const detailUrl = `${createPageUrl('VehicleDetail')}?id=${vehicle.id}`;
 
-  const hasPhoto = !!vehicle.vehicle_photo;
+  const hasPhoto = hasVehiclePhoto(vehicle);
 
   return (
     <>
@@ -214,7 +267,7 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
         <div className="relative" style={{ height: '220px' }}>
           {/* Background */}
           {hasPhoto ? (
-            <img src={vehicle.vehicle_photo} alt={name}
+            <VehicleImage vehicle={vehicle} alt={name}
               loading="lazy" decoding="async"
               className="absolute inset-0 w-full h-full object-cover"
               style={{ objectPosition: '50% 55%' }} />
@@ -240,12 +293,12 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
           {/* Demo / Guest badge */}
           {(isDemo || isGuestVehicle) && (
             <div className="absolute top-4 left-4 z-10">
-              <span className="text-xs font-black px-3 py-1.5 rounded-full backdrop-blur-md flex items-center gap-1"
+              <span className="text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-md flex items-center gap-1"
                 style={isDemo
                   ? { background: '#FFBF00', color: '#92400E', boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }
                   : { background: 'rgba(255,255,255,0.9)', color: '#2D5233', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }
                 }>
-                {isDemo ? '👀 לדוגמה' : '💾 שמור זמנית'}
+                {isDemo ? 'לדוגמה' : 'שמור זמנית'}
               </span>
             </div>
           )}
@@ -289,7 +342,7 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
 
           {/* Vehicle name on image */}
           <div className="absolute bottom-4 right-4 left-4 z-10" dir="rtl">
-            <h3 className="font-black text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+            <h3 className="font-bold text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
               {name}
             </h3>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -310,16 +363,19 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
           )}
         </div>
 
-        {/* Stats bar */}
+        {/* Stats bar — use usesHours() instead of isVessel so off-road
+            and CME vehicles edited into engine-hours mode show "שעות
+            מנוע" with their engine hours instead of "קילומטראז'" with
+            an empty / stale km. */}
         <div className="grid grid-cols-3" style={{ background: T.card }} dir="rtl">
           {[
-            { label: isVessel ? 'שעות מנוע' : 'קילומטראז\'', value: isVessel ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '-') : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '-') },
+            { label: usesHours(vehicle) ? 'שעות מנוע' : 'קילומטראז\'', value: usesHours(vehicle) ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '-') : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '-') },
             { label: 'שנת יצור', value: vehicle.year || '-' },
             { label: isVessel ? 'כושר שייט' : 'טיפול הבא', value: testDays !== null ? daysLabel(testDays) : '-' },
           ].map((stat, i) => (
             <div key={i} className={`py-4 px-3 text-center ${i < 2 ? 'border-l' : ''}`}
               style={{ borderColor: T.border }}>
-              <p className="font-black text-base sm:text-lg" style={{ color: T.text }}>{stat.value}</p>
+              <p className="font-bold text-base sm:text-lg" style={{ color: T.text }}>{stat.value}</p>
               <p className="text-sm mt-1 font-bold" style={{ color: T.muted }}>{stat.label}</p>
             </div>
           ))}
@@ -364,7 +420,7 @@ function InfoTile({ icon: Icon, label, value, status }) {
       </div>
       <div dir="rtl" className="relative z-10">
         <p className="text-sm font-bold" style={{ color: 'rgba(255,255,255,0.8)' }}>{label}</p>
-        <p className="font-black text-lg mt-1 text-white">{value}</p>
+        <p className="font-bold text-lg mt-1 text-white">{value}</p>
       </div>
     </div>
   );
@@ -476,7 +532,7 @@ function StatusSummary({ vehicles }) {
               className="rounded-2xl py-3 px-2 flex flex-col items-center gap-1.5 transition-transform active:scale-[0.97] disabled:cursor-default"
               style={{ background: item.bg, opacity: clickable ? 1 : 0.7 }}>
               <div className="flex items-center gap-1.5">
-                <span className="font-black text-2xl" style={{ color: item.color }}>{item.count}</span>
+                <span className="font-bold text-2xl" style={{ color: item.color }}>{item.count}</span>
                 <item.icon className="w-5 h-5" style={{ color: item.color }} />
               </div>
               <span className="text-xs font-bold" style={{ color: item.color }}>{item.label}</span>
@@ -539,7 +595,7 @@ function StatusDrilldownDialog({ open, status, rows, onClose }) {
         <div className="px-4 pr-14 py-3.5 flex items-center gap-2 border-b"
           style={{ background: meta.bg, borderColor: meta.color + '20' }}>
           <Icon className="w-5 h-5 shrink-0" style={{ color: meta.color }} />
-          <p className="font-black text-[15px] leading-tight" style={{ color: meta.color }}>{meta.title}</p>
+          <p className="font-bold text-[15px] leading-tight" style={{ color: meta.color }}>{meta.title}</p>
           <span className="mr-auto text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0"
             style={{ color: meta.color, background: '#fff' }}>
             {rows.length}
@@ -670,8 +726,8 @@ function VehicleRow({ vehicle }) {
         {/* Vehicle thumbnail */}
         <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0"
           style={{ background: T.light }}>
-          {vehicle.vehicle_photo ? (
-            <img src={vehicle.vehicle_photo} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+          {hasVehiclePhoto(vehicle) ? (
+            <VehicleImage vehicle={vehicle} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <VehicleIcon className="w-7 h-7" style={{ color: T.accent, opacity: 0.6 }} />
@@ -681,7 +737,7 @@ function VehicleRow({ vehicle }) {
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <h3 className="font-extrabold text-base truncate" style={{ color: T.text }}>{name}</h3>
+          <h3 className="font-bold text-base truncate" style={{ color: T.text }}>{name}</h3>
           <p className="text-sm mt-0.5 truncate font-medium" style={{ color: T.muted }}>{subtitle}</p>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             {isHoursVehicle ? (
@@ -764,6 +820,25 @@ import useNotificationScheduler from '@/hooks/useNotificationScheduler';
 export default function Dashboard() {
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles, getStoredGuestVehicles,
     getStoredGuestDocuments, getStoredGuestReminderSettings, clearGuestData, isDemoDismissed } = useAuth();
+  // Phase 9 step 5: when active workspace is business, route by role.
+  //   manager / viewer / owner → /BusinessDashboard
+  //   driver                   → /MyVehicles  (their assigned vehicles)
+  // Without the driver branch, drivers fell through BusinessDashboard's
+  // manager-only guard and saw "אין הרשאה לדשבורד" — and crucially,
+  // they never reached the per-driver vehicle filter, so the personal
+  // Dashboard ended up showing them every vehicle in the workspace.
+  const navigateRef = useNavigate();
+  const { activeWorkspace } = useWorkspace();
+  const { isDriver, canManageRoutes } = useWorkspaceRole();
+  useEffect(() => {
+    if (isGuest) return;
+    if (activeWorkspace?.account_type !== 'business') return;
+    if (isDriver && !canManageRoutes) {
+      navigateRef(createPageUrl('MyVehicles'), { replace: true });
+    } else {
+      navigateRef(createPageUrl('BusinessDashboard'), { replace: true });
+    }
+  }, [activeWorkspace, isGuest, isDriver, canManageRoutes, navigateRef]);
   const [accountId, setAccountId] = useState(null);
   const [filteredVehicles, setFilteredVehicles] = useState(null);
   // Dashboard list sort. Default: newest-added first.
@@ -779,12 +854,26 @@ export default function Dashboard() {
   const [showSignUp, setShowSignUp] = useState(false);
   const [showCompleteProfile, setShowCompleteProfile] = useState(false);
   const [profileMissing, setProfileMissing] = useState(false);
+  const [quickCheckPlate, setQuickCheckPlate] = useState('');
+  const [quickCheckSubmitting, setQuickCheckSubmitting] = useState(false);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const openQuickCheck = (plateValue = quickCheckPlate) => {
+    // Defensive: if a SyntheticEvent slips in (e.g. an `onClick={onSubmit}`
+    // wiring elsewhere), fall back to the controlled state instead of
+    // silently failing on String(event) → empty digits.
+    const safeValue = typeof plateValue === 'string' ? plateValue : quickCheckPlate;
+    const normalized = normalizeQuickCheckPlateInput(safeValue);
+    if (!isQuickCheckPlateReady(normalized)) return;
+    try { sessionStorage.setItem(QUICK_CHECK_PREFILL_KEY, normalized); } catch {}
+    setQuickCheckSubmitting(true);
+    navigate(createPageUrl('vehicle-check'));
+  };
+
   // Pull-to-refresh
   const { pulling, progress } = usePullToRefresh(async () => {
-    await queryClient.invalidateQueries();
+    await queryClient.invalidateQueries({ queryKey: ['my-vehicles', user?.id, accountId] });
     await new Promise(r => setTimeout(r, 500));
   });
 
@@ -925,11 +1014,18 @@ export default function Dashboard() {
   // accepting an invite. The view also exposes is_shared_with_me +
   // share_role columns so card components can render the indicator.
   const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery({
-    queryKey: ['my-vehicles', user?.id],
+    queryKey: ['my-vehicles', user?.id, accountId],
     queryFn: async () => {
       const { data, error } = await supabase.from('my_vehicles_v').select('*');
       if (error) throw error;
-      return data || [];
+      // Phase 9 fix: scope to the active workspace so a user with both
+      // personal + business memberships doesn't see vehicles from the
+      // other workspace mixed into the personal Dashboard. Shared
+      // vehicles (vehicle_shares) keep showing because they're a
+      // personal-flow feature; business workspace users are redirected
+      // to /BusinessDashboard above so this filter only runs in
+      // personal context.
+      return (data || []).filter(v => v.is_shared_with_me || v.account_id === accountId);
     },
     enabled: !!user?.id && !!accountId,
     // Bumped from 2 min → 10 min. Real changes invalidate the cache
@@ -949,6 +1045,14 @@ export default function Dashboard() {
   const { unreadCount } = useNotificationScheduler(vehicles || [], accountId);
 
   if (isLoading) return <LoadingSpinner />;
+  // Driver in business workspace — the redirect useEffect above sends
+  // them to /MyVehicles, but it runs after the first paint. Without
+  // this short-circuit they briefly see the manager-style vehicle
+  // list (every car in the workspace) before the URL changes. Return
+  // a spinner so nothing leaks during that one render.
+  if (activeWorkspace?.account_type === 'business' && isDriver && !canManageRoutes) {
+    return <LoadingSpinner />;
+  }
 
   //  GUEST MODE 
   if (isGuest) {
@@ -1009,15 +1113,30 @@ export default function Dashboard() {
           reason="כדי לשמור את הרכבים שלך לצמיתות ולגשת אליהם מכל מכשיר" />
 
         <div className="px-4 pt-6">
-
-          {/* Urgent banner */}
-          <UrgentBanner reminders={upcomingReminders} vehicles={vehiclesToShow} />
+          {/* Banner-first: when something needs action it leads the page,
+              and the Quick Check below it switches to compact mode so the
+              eye lands on the urgency, not on the lookup tool. */}
+          <UrgentBanner
+            reminders={upcomingReminders}
+            onView={() => {
+              const remindersTitle = document.getElementById('dashboard-reminders-title');
+              remindersTitle?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          />
+          <VehicleCheckHero
+            hasVehicles={hasGuestVehicles}
+            plate={quickCheckPlate}
+            onPlateChange={setQuickCheckPlate}
+            onSubmit={openQuickCheck}
+            submitting={quickCheckSubmitting}
+            compact={hasUrgentReminders(upcomingReminders)}
+          />
 
           {/* Section header */}
           <div className="flex items-center justify-between mb-4" dir="rtl">
-            <h2 className="font-black text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
+            <h2 className="font-bold text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
             <Link to={createPageUrl('Vehicles')}
-              className="flex items-center gap-1 text-base font-extrabold" style={{ color: C.green }}>
+              className="flex items-center gap-1 text-base font-bold" style={{ color: C.green }}>
               ניהול <ChevronLeft className="w-4 h-4" />
             </Link>
           </div>
@@ -1029,10 +1148,10 @@ export default function Dashboard() {
               <div className="flex items-center gap-3" dir="rtl">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                   style={{ background: '#FFBF00' }}>
-                  <span className="text-lg">👀</span>
+                  <Car className="w-5 h-5" style={{ color: '#92400E' }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black" style={{ color: '#92400E' }}>אלו רכבים לדוגמה בלבד</p>
+                  <p className="text-sm font-bold" style={{ color: '#92400E' }}>אלו רכבים לדוגמה בלבד</p>
                   <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>כך ייראה המסך שלך - הוסף את כלי התחבורה האמיתי שלך</p>
                 </div>
               </div>
@@ -1056,7 +1175,7 @@ export default function Dashboard() {
           {/* Upcoming reminders */}
           {upcomingReminders.length > 0 && (
             <div>
-              <h2 className="font-black text-2xl mb-4" style={{ color: C.text }} dir="rtl">
+              <h2 id="dashboard-reminders-title" className="font-bold text-2xl mb-4" style={{ color: C.text }} dir="rtl">
                 טיפולים קרובים
               </h2>
               <div>
@@ -1196,14 +1315,26 @@ export default function Dashboard() {
         return <FirstTimeTour enabled={shouldTour} />;
       })()}
       <div className="px-4 pt-6">
-
-        {/* Urgent banner - only if something is urgent */}
-        <UrgentBanner reminders={allReminders} vehicles={vehicles} />
+        {/* Banner-first when there's anything urgent — Quick Check below
+            switches to compact mode so it stays accessible without
+            stealing focus from the alerts. */}
+        <UrgentBanner
+          reminders={allReminders}
+          onView={() => navigate(createPageUrl('Notifications'))}
+        />
+        <VehicleCheckHero
+          hasVehicles={vehicles.length > 0}
+          plate={quickCheckPlate}
+          onPlateChange={setQuickCheckPlate}
+          onSubmit={openQuickCheck}
+          submitting={quickCheckSubmitting}
+          compact={hasUrgentReminders(allReminders)}
+        />
 
         {/* Header with vehicle count */}
         <div className="flex items-center justify-between mb-3" dir="rtl">
           <div>
-            <h2 className="font-black text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
+            <h2 className="font-bold text-2xl" style={{ color: C.text }}>כלי התחבורה שלי</h2>
           </div>
           <Link to={createPageUrl('Vehicles')}
             className="flex items-center gap-1 text-sm font-bold" style={{ color: C.green }}>
@@ -1289,7 +1420,7 @@ export default function Dashboard() {
             {/* Upcoming reminders from all vehicles */}
             {allReminders.length > 0 && (
               <div>
-                <h2 className="font-black text-2xl mb-4" style={{ color: C.text }} dir="rtl">
+                <h2 id="dashboard-reminders-title" className="font-bold text-2xl mb-4" style={{ color: C.text }} dir="rtl">
                   תזכורות קרובות
                 </h2>
                 <div className="rounded-3xl px-4" style={{ background: C.card, border: `1px solid ${C.border}`, boxShadow: '0 2px 16px rgba(45,82,51,0.07)' }}>

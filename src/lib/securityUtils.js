@@ -19,13 +19,36 @@ const TRUSTED_FILE_DOMAINS = [
 ];
 
 /**
- * Returns true only if the URL is:
- * 1. A valid URL
- * 2. Uses HTTPS
- * 3. Hosted on a trusted domain
+ * MIME types we are willing to display from a `data:` URL inline.
+ * MUST be a strict subset of ALLOWED_DOC_MIME_TYPES (no SVG / no HTML —
+ * those can carry executable script and would break the noopener guarantee).
+ */
+const ALLOWED_DATA_URL_MIMES = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
+  'application/pdf',
+]);
+
+/** Matches the prefix of a base64 data URL: `data:<mime>;base64,...` */
+const DATA_URL_PREFIX_RE = /^data:([\w./+-]+);base64,/i;
+
+/**
+ * Returns true only if the URL is one of:
+ * 1. https:// hosted on a trusted domain (Supabase, S3, GCS, etc.)
+ * 2. data:<mime>;base64,... where <mime> is whitelisted (image/* + PDF)
+ *
+ * The data: branch exists because legacy documents (pre-Storage migration)
+ * are persisted in the DB as base64 data URLs. They are safe to open as a
+ * Blob in a new tab — the contents never reached an external origin and
+ * the MIME whitelist excludes script-bearing types like SVG/HTML/JS.
  */
 export function isSafeFileUrl(url) {
   if (!url || typeof url !== 'string') return false;
+
+  const dataMatch = DATA_URL_PREFIX_RE.exec(url);
+  if (dataMatch) {
+    return ALLOWED_DATA_URL_MIMES.has(dataMatch[1].toLowerCase());
+  }
+
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== 'https:') return false;
@@ -36,18 +59,55 @@ export function isSafeFileUrl(url) {
 }
 
 /**
+ * Convert a `data:<mime>;base64,<payload>` URL to a Blob URL the browser
+ * is willing to open in a new tab. Modern browsers (Chrome 60+, Firefox 59+)
+ * block top-level navigation to `data:` URLs as an anti-phishing measure,
+ * which is exactly the failure mode behind the "כתובת לא מאובטחת" toast.
+ *
+ * The Blob URL is short-lived; we revoke it after 60 seconds, which is more
+ * than enough for the new tab to load and decode the file.
+ */
+function openDataUrlAsBlob(url) {
+  const match = /^data:([^;]+);base64,(.+)$/.exec(url);
+  if (!match) return false;
+  const [, mime, b64] = match;
+  try {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime });
+    const blobUrl = URL.createObjectURL(blob);
+    const win = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    // 60s gives the new tab time to load + render before we revoke.
+    // Using a fixed timeout (instead of waiting for win.onload) avoids
+    // cross-origin handle access issues with noopener-opened windows.
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    return !!win;
+  } catch (err) {
+    console.warn('[security] Failed to convert data URL to Blob:', err);
+    return false;
+  }
+}
+
+/**
  * Open a file URL safely.
- * - Validates domain before opening
- * - Uses noopener,noreferrer to prevent reverse tabnapping
- * - Returns false if URL is not trusted
+ * - Validates origin / data-URL MIME before opening
+ * - Uses noopener,noreferrer to prevent reverse tabnabbing
+ * - Converts whitelisted data: URLs to Blob URLs (modern browsers refuse
+ *   top-level navigation to data: URLs since 2017)
+ * - Returns false if URL is not trusted, or if a popup blocker prevented
+ *   window.open() (caller can show a fallback toast)
  */
 export function openFileUrlSafely(url) {
   if (!isSafeFileUrl(url)) {
     console.warn('[security] Blocked attempt to open untrusted URL:', url);
     return false;
   }
-  window.open(url, '_blank', 'noopener,noreferrer');
-  return true;
+  if (typeof url === 'string' && url.startsWith('data:')) {
+    return openDataUrlAsBlob(url);
+  }
+  const win = window.open(url, '_blank', 'noopener,noreferrer');
+  return !!win;
 }
 
 //  File upload validation 

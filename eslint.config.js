@@ -72,6 +72,114 @@ export default [
         { ignore: ["cmdk-input-wrapper", "toast-close"] },
       ],
       "react-hooks/rules-of-hooks": "error",
+      // TDZ catcher — fires when a `let`/`const` is referenced before
+      // its declaration in the same scope. Real bug magnet: this is what
+      // crashed the AI Assistant page in Sprint A (`const expert = ...`
+      // used in derived constants several lines above the declaration).
+      // Hoisted function declarations are intentionally allowed because
+      // there's no TDZ for those, and forbidding them would force a
+      // mass refactor of helper-below-component patterns.
+      //
+      // Set to "warn" because the codebase carries ~20 pre-existing
+      // violations (Auth.jsx, Expenses.jsx, FontScaleProvider.jsx, etc).
+      // Each one is a latent TDZ bug waiting for a minifier to rename
+      // it into a crash. Promote to "error" after the warnings list is
+      // cleaned (tracked in the same backlog as the base64 migration).
+      "no-use-before-define": [
+        "warn",
+        {
+          functions: false,
+          classes: false,
+          variables: true,
+          allowNamedExports: true,
+        },
+      ],
+    },
+  },
+  // ----------------------------------------------------------------
+  // Sprint 1 — design-system enforcement (warning only).
+  // ----------------------------------------------------------------
+  // Goal: surface every inline hex/rgb color in src/pages/* so the
+  // sprint 2 visual-polish migration has a concrete to-do list. Set
+  // to "warn" intentionally — flipping to "error" before the migration
+  // would make `npm run lint` fail across ~200 spots immediately.
+  //
+  // The rule is a `no-restricted-syntax` matcher that fires on JSX
+  // string literals (style="..." / className="...") AND on Object
+  // expressions inside `style={{ }}` whose values look like a hex code.
+  // Files in src/pages/_dev/ and the design system itself are exempt.
+  {
+    files: ["src/pages/**/*.{js,mjs,cjs,jsx}"],
+    ignores: [
+      "src/pages/DevComponents.jsx",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "warn",
+        {
+          // Inline style object: style={{ background: '#FEF2F2' }}
+          selector: "JSXAttribute[name.name='style'] Property > Literal[value=/^(#[0-9A-Fa-f]{3,8}|rgb\\(|rgba\\()/]",
+          message:
+            "Inline hex/rgb in style is forbidden in src/pages/*. Use a design token from @/design/tokens.css " +
+            "(e.g. var(--cr-status-danger-bg)) or a Tailwind class (bg-cr-status-danger-bg). " +
+            "See /dev/components for the full token catalog.",
+        },
+      ],
+    },
+  },
+  // ----------------------------------------------------------------
+  // Sprint A — anti-base64-in-DB enforcement (warning only).
+  // ----------------------------------------------------------------
+  // Goal: surface every `FileReader.readAsDataURL()` call in the app
+  // so the Sprint A migration can pick them off one by one. Each such
+  // call typically ends with the resulting data: URL being saved into
+  // a Postgres column, which is the exact pattern that bloated the
+  // documents/vehicles/accidents tables and broke the document-viewer
+  // ("כתובת לא מאובטחת"). The replacement is `useFileUpload()` →
+  // upload to Storage → save the storage_path.
+  //
+  // Set to "warn" intentionally — flipping to "error" right now would
+  // make `npm run lint` fail in 13 existing files (Documents.jsx,
+  // AddVehicle.jsx, AddAccident.jsx, EditVehicle.jsx, ...). We escalate
+  // to "error" once the migration removes them.
+  {
+    files: [
+      "src/components/**/*.{js,mjs,cjs,jsx}",
+      "src/pages/**/*.{js,mjs,cjs,jsx}",
+      "src/hooks/**/*.{js,mjs,cjs,jsx}",
+    ],
+    // Mirrors the ignore list of the main config block. Without these,
+    // ESLint walks into shadcn/ui primitives that live outside our
+    // parser config and fails with "Unexpected token <" on every JSX.
+    ignores: [
+      "scripts/**",
+      "src/components/ui/**/*",
+      "src/lib/**/*",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "warn",
+        {
+          // Inline style object: style={{ background: '#FEF2F2' }}
+          // (duplicated from the rule above because no-restricted-syntax
+          // entries are merged per-file and we want both to fire here.)
+          selector: "JSXAttribute[name.name='style'] Property > Literal[value=/^(#[0-9A-Fa-f]{3,8}|rgb\\(|rgba\\()/]",
+          message:
+            "Inline hex/rgb in style is forbidden. Use a design token from @/design/tokens.css " +
+            "or a Tailwind cr-* class. See /dev/components for the catalog.",
+        },
+        {
+          // FileReader.readAsDataURL(file) — the Base44-era pattern that
+          // ends up persisting a base64 data: URL into the DB. Replace
+          // with: const { upload } = useFileUpload({ accountId, ... });
+          // const { fileUrl, storagePath } = await upload(file);
+          selector: "CallExpression[callee.type='MemberExpression'][callee.property.name='readAsDataURL']",
+          message:
+            "readAsDataURL() is forbidden — it produces base64 strings that get saved into the DB " +
+            "and bloat tables. Use `useFileUpload()` from @/hooks/useFileUpload to upload to Supabase " +
+            "Storage and persist the storage_path. See supabase-base64-to-storage-migration.sql.",
+        },
+      ],
     },
   },
 ];

@@ -88,7 +88,7 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
               <p className="text-xs font-bold" style={{ color: '#6B7280' }}>{sectionLabel}</p>
               {currentValue ? (
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-xl font-black" style={{ color: '#111827' }}>
+                  <span className="text-xl font-bold" style={{ color: '#111827' }}>
                     {Number(currentValue).toLocaleString()}
                   </span>
                   <span className="text-xs font-bold" style={{ color: '#9CA3AF' }}>{unit}</span>

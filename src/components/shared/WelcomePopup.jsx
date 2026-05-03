@@ -78,7 +78,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
           </p>
 
           {/* Title */}
-          <h2 className="text-center mt-1.5 text-2xl font-black text-white leading-tight relative z-10">
+          <h2 className="text-center mt-1.5 text-2xl font-bold text-white leading-tight relative z-10">
             {title}
           </h2>
         </div>
@@ -176,7 +176,7 @@ function FeatureRow({ icon: Icon, title, body, bg, accent, tileShadow }) {
         <Icon className="w-5 h-5 text-white" strokeWidth={2.3} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[15px] font-extrabold" style={{ color: '#1C3620' }}>{title}</p>
+        <p className="text-[15px] font-bold" style={{ color: '#1C3620' }}>{title}</p>
         <p className="text-xs text-gray-600 mt-1 leading-relaxed">{body}</p>
       </div>
     </div>
@@ -204,7 +204,7 @@ function PremiumCta({ onClick, label }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-white font-extrabold transition-all active:translate-y-px"
+      className="w-full text-white font-bold transition-all active:translate-y-px"
       style={{
         height: 52,
         borderRadius: 16,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
-import { useQuery } from '@tanstack/react-query';
-import { Plus, AlertTriangle, ChevronLeft, Camera, Phone, Calendar, MapPin, Car, CheckCircle, Clock, Shield } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, AlertTriangle, ChevronLeft, Camera, Phone, Calendar, MapPin, Car, CheckCircle, Clock, Shield, Download } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
@@ -9,7 +9,11 @@ import { useAuth } from '../components/shared/GuestContext';
 import { C, getTheme } from '@/lib/designTokens';
 import { getVehicleLabels } from '../components/shared/DateStatusUtils';
 import { DEMO_ACCIDENTS, DEMO_VEHICLE } from '../components/shared/demoVehicleData';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, parseISO } from 'date-fns';
+import AccidentPrintReport, { AccidentPrintStyles } from '../components/accidents/AccidentPrintReport';
+import AccidentReportModal from '../components/accidents/AccidentReportModal';
+import { toast } from 'sonner';
 
 function fmtDate(dateStr) {
   if (!dateStr) return '';
@@ -39,7 +43,7 @@ function StatusSummary({ accidents }) {
         <div key={item.key} className="rounded-2xl py-3 px-2 flex flex-col items-center gap-1.5"
           style={{ background: item.bg }}>
           <div className="flex items-center gap-1.5">
-            <span className="font-black text-2xl" style={{ color: item.color }}>{item.count}</span>
+            <span className="font-bold text-2xl" style={{ color: item.color }}>{item.count}</span>
             <item.icon className="w-5 h-5" style={{ color: item.color }} />
           </div>
           <span className="text-xs font-bold" style={{ color: item.color }}>{item.label}</span>
@@ -49,13 +53,32 @@ function StatusSummary({ accidents }) {
   );
 }
 
-//  Accident Card (premium) 
-function AccidentRow({ accident, vehicleName, vehicle }) {
+//  Accident Card (premium)
+//
+// Quick actions (status update + PDF export) live in the bottom-left
+// action row alongside the "לחץ לפרטים" hint. Both use stopPropagation
+// + preventDefault so tapping them never navigates into the detail
+// page — the card body keeps the navigate-on-click affordance.
+//
+// Status update is a Popover with the 3 canonical states
+// (פתוח / בטיפול / סגור). Selecting one fires onStatusChange — the
+// page-level handler does the DB update + cache invalidation.
+//
+// PDF export delegates to onExport — the page renders the modal and
+// the print component once, shared across all rows.
+function AccidentRow({ accident, vehicleName, vehicle, onStatusChange, onExport, isDemo }) {
   const status = STATUS_MAP[accident.status] || STATUS_MAP['פתוח'];
   const hasPhotos = accident.photos?.length > 0;
   const StatusIcon = status.icon;
   const T = getTheme(vehicle?.vehicle_type, vehicle?.nickname, vehicle?.manufacturer);
   const labels = getVehicleLabels(vehicle?.vehicle_type, vehicle?.nickname);
+  const [statusOpen, setStatusOpen] = useState(false);
+
+  // Stop both click-propagation AND the parent <Link>'s default nav.
+  // We need both: stopPropagation alone leaves the Link's onClick fire,
+  // and preventDefault alone leaves bubbling that closes the Popover
+  // on iOS Safari due to a backdrop click handler upstream.
+  const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
 
   return (
     <Link to={`${createPageUrl('AddAccident')}?id=${accident.id}`}>
@@ -94,7 +117,7 @@ function AccidentRow({ accident, vehicleName, vehicle }) {
             )}
             {/* Vehicle + driver on photo */}
             <div className="absolute bottom-3 right-3 left-3 z-10">
-              <h3 className="font-black text-white text-base leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+              <h3 className="font-bold text-white text-base leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
                 {vehicleName || labels.vehicleFallback}
                 {accident.other_driver_name && ` - ${accident.other_driver_name}`}
               </h3>
@@ -172,12 +195,84 @@ function AccidentRow({ accident, vehicleName, vehicle }) {
           </div>
         </div>
 
-        {/* Bottom arrow hint */}
-        <div className="px-4 pb-3 flex justify-start">
+        {/* Bottom action row — quick actions on the LTR-trailing edge,
+            "לחץ לפרטים" hint on the leading edge. Both quick-action
+            buttons block navigation so the user gets the action without
+            a round-trip to the detail page. */}
+        <div className="px-4 pb-3 flex items-center justify-between">
           <span className="text-xs font-medium flex items-center gap-1" style={{ color: T.muted }}>
             <ChevronLeft className="w-3.5 h-3.5" />
             לחץ לפרטים
           </span>
+
+          <div className="flex items-center gap-1.5">
+            {/* Status quick-update — Popover portals out so the wrapping
+                Link doesn't capture its content's clicks. */}
+            {!isDemo && (
+              <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={stop}
+                    className="flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg transition-colors"
+                    style={{ background: status.bg, color: status.color, border: `1px solid ${status.color}25` }}
+                    aria-label="עדכון סטטוס"
+                  >
+                    <StatusIcon className="w-3 h-3" />
+                    שנה סטטוס
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="w-44 p-1.5 rounded-xl"
+                  dir="rtl"
+                  onClick={stop}
+                >
+                  <p className="text-[10px] font-bold px-2 pt-1 pb-1.5" style={{ color: T.muted }}>
+                    שנה סטטוס:
+                  </p>
+                  <div className="space-y-0.5">
+                    {Object.entries(STATUS_MAP).map(([key, s]) => {
+                      const Icon = s.icon;
+                      const selected = key === accident.status;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={(e) => {
+                            stop(e);
+                            setStatusOpen(false);
+                            if (!selected) onStatusChange(accident, key);
+                          }}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-bold text-right transition-colors hover:bg-gray-50"
+                          style={selected
+                            ? { background: s.bg, color: s.color }
+                            : { color: '#374151' }}
+                        >
+                          <Icon className="w-3.5 h-3.5" style={{ color: s.color }} />
+                          {s.label}
+                          {selected && <CheckCircle className="w-3 h-3 mr-auto" style={{ color: s.color }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {/* PDF export — delegates to page-level handler so the modal
+                + hidden print component live in one place. */}
+            <button
+              type="button"
+              onClick={(e) => { stop(e); onExport(accident); }}
+              className="flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg transition-colors"
+              style={{ background: T.light, color: T.primary, border: `1px solid ${T.border}` }}
+              aria-label="ייצוא דוח PDF"
+            >
+              <Download className="w-3 h-3" />
+              דוח
+            </button>
+          </div>
         </div>
       </div>
     </Link>
@@ -200,7 +295,7 @@ function EmptyState() {
             style={{ background: '#FECACA' }}>
             <AlertTriangle className="w-10 h-10" style={{ color: '#DC2626' }} />
           </div>
-          <h3 className="font-black text-xl mb-2" style={{ color: C.text }}>אין תאונות רשומות</h3>
+          <h3 className="font-bold text-xl mb-2" style={{ color: C.text }}>אין תאונות רשומות</h3>
           <p className="text-sm mb-6 max-w-xs mx-auto leading-relaxed" style={{ color: C.muted }}>
             תיעוד תאונות עוזר לעקוב אחר פרטי הנזק, הנהג השני והביטוח
           </p>
@@ -221,10 +316,18 @@ function EmptyState() {
   );
 }
 
-//  Main Page 
+//  Main Page
 export default function Accidents() {
-  const { isAuthenticated, isGuest, isLoading, user, guestVehicles, guestAccidents } = useAuth();
+  const { isAuthenticated, isGuest, isLoading, user, guestVehicles, guestAccidents,
+    updateGuestAccident } = useAuth();
+  const queryClient = useQueryClient();
   const [accountId, setAccountId] = useState(null);
+  // Page-level state for the export-PDF flow. We render exactly ONE
+  // hidden <AccidentPrintReport variant="print" /> + ONE modal for the
+  // whole list — when the user taps "דוח" on a row we point those at
+  // that accident.
+  const [reportAccident, setReportAccident] = useState(null);
+  const [reportMode, setReportMode] = useState(null); // 'options' | 'preview' | null
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
@@ -277,6 +380,38 @@ export default function Accidents() {
 
   const loading = isAuthenticated && accidentsLoading;
 
+  // ── Quick-action handlers ────────────────────────────────────────
+  // Status update: writes the new status to the row (DB or guest store)
+  // and invalidates the list so the pill in-place reflects immediately.
+  const handleStatusChange = async (accident, newStatus) => {
+    if (!accident?.id || newStatus === accident.status) return;
+    try {
+      if (isGuest) {
+        updateGuestAccident?.(accident.id, { ...accident, status: newStatus });
+      } else {
+        await db.accidents.update(accident.id, { status: newStatus });
+        await queryClient.invalidateQueries({ queryKey: ['accidents', accountId] });
+      }
+      toast.success(`הסטטוס עודכן ל-${newStatus}`);
+    } catch (err) {
+      console.error('Status update failed:', err);
+      toast.error('שגיאה בעדכון הסטטוס');
+    }
+  };
+
+  // Export: open the modal for the chosen accident.
+  const handleExport = (accident) => {
+    setReportAccident(accident);
+    setReportMode('options');
+  };
+  const handleDownload = () => {
+    window.setTimeout(() => window.print(), 50);
+  };
+  const closeReport = () => {
+    setReportMode(null);
+    setReportAccident(null);
+  };
+
   return (
     <div dir="rtl">
       {/* Header with gradient banner */}
@@ -295,7 +430,7 @@ export default function Accidents() {
                   <AlertTriangle className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-black text-white">תאונות</h1>
+                  <h1 className="text-xl font-bold text-white">תאונות</h1>
                   <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
                     {sortedAccidents.length} {sortedAccidents.length === 1 ? 'תאונה' : 'תאונות'}
                     {isGuest ? ' (זמני)' : ''}
@@ -342,10 +477,39 @@ export default function Accidents() {
                 accident={accident}
                 vehicle={getVehicle(accident.vehicle_id)}
                 vehicleName={getVehicleName(accident.vehicle_id)}
+                onStatusChange={handleStatusChange}
+                onExport={handleExport}
+                isDemo={isGuest && !hasGuestAccidents}
               />
             ))}
           </div>
         </>
+      )}
+
+      {/* Print styles + hidden print element. Only mounts when the user
+          opened a report — saves DOM weight on the list page in steady
+          state. */}
+      {reportAccident && <AccidentPrintStyles />}
+      {reportAccident && (
+        <AccidentPrintReport
+          accident={reportAccident}
+          vehicle={getVehicle(reportAccident.vehicle_id)}
+          reporter={{ name: user?.user_metadata?.full_name || user?.email, phone: user?.user_metadata?.phone }}
+          variant="print"
+        />
+      )}
+
+      {/* Action picker / preview modal */}
+      {reportAccident && reportMode && (
+        <AccidentReportModal
+          mode={reportMode}
+          accident={reportAccident}
+          vehicle={getVehicle(reportAccident.vehicle_id)}
+          reporter={{ name: user?.user_metadata?.full_name || user?.email, phone: user?.user_metadata?.phone }}
+          onClose={closeReport}
+          onPreview={() => setReportMode('preview')}
+          onDownload={handleDownload}
+        />
       )}
     </div>
   );

@@ -41,7 +41,7 @@ export default function SharingHelpButton({ size = 'md', className = '' }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black flex items-center gap-2">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Info className="w-5 h-5" style={{ color: '#B45309' }} />
               שיתוף רכב
             </DialogTitle>

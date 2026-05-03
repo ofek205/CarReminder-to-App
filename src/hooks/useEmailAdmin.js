@@ -352,6 +352,8 @@ export function useRevertToVersion() {
 
 //  User-facing email preferences (Phase 4) 
 
+const ALWAYS_EMAIL_KEYS = new Set(['invite']);
+
 // Hook for the end-user NotificationPreferences page. Returns the full
 // list of notifications + the current user's prefs merged in. Notifications
 // with category='auth' are excluded (users can't opt out of auth emails).
@@ -376,8 +378,12 @@ export function useMyEmailPreferences() {
         userId: user?.id || null,
         items: (notifs || []).map(n => ({
           ...n,
-          // Merge: explicit preference row wins; otherwise opt-in by default.
-          subscribed: prefsMap[n.key] ? !!prefsMap[n.key].email_enabled : true,
+          mandatory: ALWAYS_EMAIL_KEYS.has(n.key),
+          // Merge: mandatory emails stay on; explicit preference wins for
+          // optional emails; no row means opt-out until the user turns it on.
+          subscribed: ALWAYS_EMAIL_KEYS.has(n.key)
+            ? true
+            : prefsMap[n.key] ? !!prefsMap[n.key].email_enabled : false,
           raw: prefsMap[n.key] || null,
         })),
       };
@@ -391,6 +397,7 @@ export function useUpdateMyEmailPreference() {
   return useMutation({
     mutationFn: async ({ userId, notificationKey, subscribed }) => {
       if (!userId) throw new Error('not signed in');
+      if (ALWAYS_EMAIL_KEYS.has(notificationKey)) return;
       const { error } = await supabase
         .from('user_notification_preferences')
         .upsert(

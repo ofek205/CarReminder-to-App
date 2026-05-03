@@ -4,15 +4,17 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '../components/shared/GuestContext';
 import { aiRequest } from '@/lib/aiProxy';
 import { hapticFeedback } from '@/lib/capacitor';
-import { C, getVehicleVisual } from '@/lib/designTokens';
+import { C, getVehicleVisual, getVehicleCategory } from '@/lib/designTokens';
 import VehicleIcon from '../components/shared/VehicleIcon';
-import { isVessel, getDateStatus } from '../components/shared/DateStatusUtils';
+import VehicleImage, { hasVehiclePhoto } from '../components/shared/VehicleImage';
+import { isVessel, getDateStatus, getVehicleLabels } from '../components/shared/DateStatusUtils';
 import { getAiExpert } from '@/lib/aiExpert';
 import { Send, Wrench, Loader2, Sparkles, Trash2, AlertTriangle, Check, ChevronDown, X, Copy, RotateCcw, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import AiProviderBadge from '@/components/shared/AiProviderBadge';
+import useAccountRole from '@/hooks/useAccountRole';
 
 const STORAGE_KEY_PREFIX = 'yossi_chat_';
 const CHAT_EXPIRY_DAYS = 30;
@@ -21,7 +23,7 @@ const MIN_LEN = 2;
 const MAX_LEN = 800;
 const MIN_INTERVAL_MS = 1500; // rate limit between sends
 
-const SUGGESTED_PROMPTS_GENERAL = [
+const SUGGESTED_PROMPTS_GENERAL_CAR = [
   'מה חשוב לבדוק לפני קניית רכב יד שניה?',
   'מה המחיר הממוצע להחלפת בלמים?',
   'איך מטפלים בנורית check engine?',
@@ -30,12 +32,64 @@ const SUGGESTED_PROMPTS_GENERAL = [
   'מהן בעיות נפוצות ברכבי 2018-2020?',
 ];
 
-const SUGGESTED_PROMPTS_VEHICLE = [
+const SUGGESTED_PROMPTS_GENERAL_VESSEL = [
+  'מה חשוב לבדוק לפני קניית כלי שייט יד שנייה?',
+  'מתי להחליף שמן במנוע ימי?',
+  'מה לבדוק לפני יציאה לים?',
+  'איזה ציוד בטיחות חובה בסירה?',
+  'איך מכינים כלי שייט לכושר שייט?',
+  'תקלות נפוצות במנועים חוץ-ימיים',
+];
+
+const SUGGESTED_PROMPTS_VEHICLE_CAR = [
   'מה הטיפולים הקרובים שצריך לעשות?',
   'איזה בעיות נפוצות יש לדגם הזה?',
   'מתי כדאי להחליף צמיגים?',
   'מה המחיר המוערך לטיפול הבא?',
   'יש לי רעש מוזר, מה זה יכול להיות?',
+];
+
+const SUGGESTED_PROMPTS_VEHICLE_VESSEL = [
+  'מה הטיפולים הקרובים שצריך לעשות?',
+  'איזה תקלות נפוצות יש בכלי הזה?',
+  'מתי כדאי לעלות למספנה?',
+  'מה המחיר המוערך לטיפול הבא?',
+  'יש לי רעש/רעידה במנוע, מה זה יכול להיות?',
+];
+
+const SUGGESTED_PROMPTS_VEHICLE_MOTORCYCLE = [
+  'מה הטיפולים הקרובים שצריך לעשות?',
+  'מתי כדאי להחליף שרשרת ושמן מנוע?',
+  'איזה צמיגים מתאימים לדגם הזה?',
+  'מה המחיר המוערך לטסט שנתי?',
+  'יש לי רעידה בכידון, מה זה יכול להיות?',
+];
+
+const SUGGESTED_PROMPTS_VEHICLE_TRUCK = [
+  'מה הטיפולים הקרובים שצריך לעשות?',
+  'מתי הטיפול הבא של מערכת הבלמים?',
+  'מה לבדוק לפני נסיעה ארוכה?',
+  'מתי כדאי להחליף שמן הילוכים ודיפרנציאל?',
+  'יש דליפת אוויר במערכת הבלמים, מה לבדוק?',
+];
+
+// CME = Construction & Material Equipment (מלגזה, מחפר, טרקטור, מנוף וכו')
+// — שעות מנוע במקום ק"מ, טיפולים אחרים לחלוטין מרכב כביש.
+const SUGGESTED_PROMPTS_VEHICLE_CME = [
+  'מה הטיפולים הקרובים לפי שעות מנוע?',
+  'איזה תקלות נפוצות בכלי הזה?',
+  'מה לבדוק לפני יום עבודה?',
+  'מתי כדאי להחליף שמן הידראולי ופילטרים?',
+  'יש רעש מהמערכת ההידראולית, מה זה יכול להיות?',
+];
+
+// Off-road recreational — טרקטורון, באגי, ATV, אופנוע שטח
+const SUGGESTED_PROMPTS_VEHICLE_OFFROAD = [
+  'מה הטיפולים הקרובים שצריך לעשות?',
+  'איזה תקלות נפוצות בכלי הזה?',
+  'מה לבדוק אחרי יציאה לשטח?',
+  'מתי כדאי להחליף שמן, פילטרים ושרשרת/רצועה?',
+  'יש רעש מהתמסורת או מהשרשרת, מה זה יכול להיות?',
 ];
 
 // Sanitize message text. strip HTML, control chars
@@ -58,6 +112,7 @@ function timeFmt(ts) {
 
 export default function AiAssistant() {
   const { user, isAuthenticated } = useAuth();
+  const { accountId: activeAccountId } = useAccountRole();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -69,6 +124,7 @@ export default function AiAssistant() {
   const [error, setError] = useState(null);
   const lastSendRef = useRef(0);
   const scrollRef = useRef(null);
+  const messagesEndRef = useRef(null); // sentinel at bottom of message list — anchor for scrollIntoView
   const inputRef = useRef(null);
 
   // Load chat history. works for both guests and authenticated users
@@ -102,19 +158,18 @@ export default function AiAssistant() {
     } catch {}
   }, [messages, user?.id]);
 
-  // Load user vehicles
+  // Phase 3: vehicles for the active workspace.
   useEffect(() => {
     if (!isAuthenticated || !user) return;
+    if (!activeAccountId) { setVehicles([]); setHasVessel(false); return; }
     (async () => {
       try {
-        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-        if (members.length === 0) return;
-        const vs = await db.vehicles.filter({ account_id: members[0].account_id });
+        const vs = await db.vehicles.filter({ account_id: activeAccountId });
         setVehicles(vs || []);
         setHasVessel((vs || []).some(v => isVessel(v.vehicle_type, v.nickname)));
       } catch {}
     })();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, activeAccountId]);
 
   // Load maintenance logs for selected vehicle
   useEffect(() => {
@@ -133,27 +188,51 @@ export default function AiAssistant() {
   }, [selectedVehicleId]);
 
   // Auto-scroll on new message.
-  // The previous version set scrollTop synchronously inside the effect,
-  // which fired before the browser had painted the new message bubble.
-  // Markdown content (badges, tool results, multi-line replies) often
-  // grows the container *after* the effect runs, so the scroll landed
-  // on a still-stale scrollHeight and the new bubble stayed off-screen.
-  // Two animation frames + smooth behavior covers paint timing and
-  // gives the user a visible motion cue that a new message arrived.
+  //
+  // We use a sentinel <div ref={messagesEndRef}> at the bottom of the
+  // list and call scrollIntoView on it. That's more reliable than
+  // computing scrollHeight on the parent — it works regardless of
+  // which element is actually the scroll container (inner overflow div
+  // vs the document itself), which matters on Android Capacitor where
+  // adjustResize changes who's scrolling when the keyboard opens.
+  //
+  // Two animation frames cover the paint-timing trap: markdown bubbles
+  // (badges, tool blocks, multi-line replies) grow the container AFTER
+  // the effect runs, so a single rAF would land on a still-stale layout
+  // and leave the new bubble off-screen. We also fire one final scroll
+  // 250ms later as a safety net for slow Android paints.
+  const scrollChatToBottom = useCallback((behavior = 'smooth') => {
+    const el = messagesEndRef.current;
+    if (!el) return;
+    try { el.scrollIntoView({ behavior, block: 'end' }); } catch { /* old browsers */ }
+  }, []);
+
   useEffect(() => {
-    if (!scrollRef.current) return;
     let cancelled = false;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (cancelled || !scrollRef.current) return;
-        scrollRef.current.scrollTo({
-          top: scrollRef.current.scrollHeight,
-          behavior: 'smooth',
-        });
+        if (cancelled) return;
+        scrollChatToBottom('smooth');
       });
     });
-    return () => { cancelled = true; };
-  }, [messages, sending]);
+    const t = setTimeout(() => { if (!cancelled) scrollChatToBottom('auto'); }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [messages, sending, scrollChatToBottom]);
+
+  // When the input is focused (keyboard opens on mobile), the layout
+  // re-flows. Re-anchor to the bottom so the latest message is visible
+  // above the keyboard instead of leaving the user mid-thread.
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const onFocus = () => {
+      // Three timed retries — keyboard animations on Android take
+      // 100-300ms to settle, and the WebView resize fires partway through.
+      [120, 280, 450].forEach(ms => setTimeout(() => scrollChatToBottom('auto'), ms));
+    };
+    input.addEventListener('focus', onFocus);
+    return () => input.removeEventListener('focus', onFocus);
+  }, [scrollChatToBottom]);
 
   const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
 
@@ -162,9 +241,12 @@ export default function AiAssistant() {
     const v = selectedVehicle;
     const lines = [];
 
-    // Identity
-    const vName = v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'הרכב';
-    lines.push(`### רכב הנדון: ${vName}`);
+    // Identity. Header uses the vehicle-type-aware noun so the model
+    // sees "כלי שייט הנדון" / "מלגזה הנדונה" instead of always "רכב",
+    // matching the in-page UI labels.
+    const ctxLabels = getVehicleLabels(v.vehicle_type, v.nickname);
+    const vName = v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim() || ctxLabels.vehicleFallback;
+    lines.push(`### ${ctxLabels.vehicleWord} הנדון: ${vName}`);
 
     // Specs
     const specs = [];
@@ -425,14 +507,59 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
     toast.success('היסטוריה נמחקה');
   };
 
+  // All hooks first (Rules of Hooks: same order every render, no
+  // hook may sit below a derived `const` that could short-circuit).
+  const [showAllPrompts, setShowAllPrompts] = useState(false);
+
+  // Expert identity for the currently-selected vehicle (or the default
+  // ברוך for general questions). MUST come before any `const` that
+  // reads `expert.*` — a previous version had the `expert.domain` check
+  // above this line, which crashed at runtime as a TDZ ("Cannot access
+  // 'u' before initialization" in the minified bundle).
+  const expert = getAiExpert(selectedVehicle);
+  const isVesselExpert = expert.domain === 'vessel';
+
+  // Context-aware noun for "this vehicle" — vessel/forklift/tractor users
+  // were seeing "רכב" everywhere on this page, which jarred. labels.vehicleWord
+  // returns the right Hebrew (כלי שייט / מלגזה / טרקטורון / רכב) per type.
+  const labels = getVehicleLabels(selectedVehicle?.vehicle_type, selectedVehicle?.nickname);
+  const itemNoun = selectedVehicle ? labels.vehicleWord : 'רכב';
+
+  // Input validation
   const charsLeft = MAX_LEN - input.length;
   const isInputValid = input.trim().length >= MIN_LEN && input.length <= MAX_LEN;
-  const allSuggestedPrompts = selectedVehicle ? SUGGESTED_PROMPTS_VEHICLE : SUGGESTED_PROMPTS_GENERAL;
-  // The expert identity for the currently-selected vehicle (or the default ברוך
-  // for a general question). Used for every place in the UI that names the AI.
-  const expert = getAiExpert(selectedVehicle);
-  const [showAllPrompts, setShowAllPrompts] = useState(false);
+
+  // Category-aware derivations. We use getVehicleCategory() (the same
+  // helper that powers icon/theme picking) so chip prompts AND the
+  // disclaimer text ("התייעץ עם...") match the actual kind of vehicle:
+  // a forklift gets hour-meter prompts and a "טכנאי כלי הנדסה" hint, a
+  // truck gets brake-system prompts, an ATV gets off-road prompts, etc.
+  const vehicleCategory = selectedVehicle
+    ? getVehicleCategory(selectedVehicle.vehicle_type, selectedVehicle.nickname, selectedVehicle.manufacturer)
+    : null;
+
+  // Suggested prompts. General prompts (no vehicle picked) still split
+  // car↔vessel on the active expert (יוסי vs ברוך) — that's the only
+  // meaningful distinction before a specific vehicle is chosen.
+  const generalPrompts = isVesselExpert ? SUGGESTED_PROMPTS_GENERAL_VESSEL : SUGGESTED_PROMPTS_GENERAL_CAR;
+  let vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_CAR;
+  if      (vehicleCategory === 'vessel')     vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_VESSEL;
+  else if (vehicleCategory === 'motorcycle') vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_MOTORCYCLE;
+  else if (vehicleCategory === 'truck')      vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_TRUCK;
+  else if (vehicleCategory === 'cme')        vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_CME;
+  else if (vehicleCategory === 'offroad')    vehiclePrompts = SUGGESTED_PROMPTS_VEHICLE_OFFROAD;
+  // 'special' / 'car' / null fall through to the car bucket — generic enough.
+  const allSuggestedPrompts = selectedVehicle ? vehiclePrompts : generalPrompts;
   const suggestedPrompts = showAllPrompts ? allSuggestedPrompts : allSuggestedPrompts.slice(0, 3);
+
+  // Right kind of professional to recommend. Replaces the old
+  // "מוסך מוסמך / טכנאי כלי שייט" binary.
+  let repairProfessional = 'מוסך מוסמך';
+  if      (vehicleCategory === 'vessel')     repairProfessional = 'טכנאי כלי שייט / מספנה מוסמכת';
+  else if (vehicleCategory === 'motorcycle') repairProfessional = 'מוסך אופנועים מוסמך';
+  else if (vehicleCategory === 'truck')      repairProfessional = 'מוסך משאיות מוסמך';
+  else if (vehicleCategory === 'cme')        repairProfessional = 'טכנאי כלי הנדסה מוסמך';
+  else if (vehicleCategory === 'offroad')    repairProfessional = 'מוסך מוסמך לכלי שטח';
 
   return (
     <div dir="rtl" className="-mx-4 -mt-4 flex flex-col" style={{ background: '#F9FAFB', minHeight: '100dvh' }}>
@@ -441,12 +568,6 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
           top bar is the only thing pinned. Sticky here was overlapping the
           chat under the global bar at z-9998. */}
       <div className="relative overflow-hidden pb-6" style={{ background: C.grad }}>
-        {/* Decorative circles */}
-        <div className="absolute -top-12 -left-16 w-48 h-48 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
-        <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full" style={{ background: 'rgba(255,191,0,0.18)' }} />
-        <div className="absolute top-10 right-1/3 w-2 h-2 rounded-full bg-white/30 animate-pulse" />
-        <div className="absolute top-16 right-1/4 w-1.5 h-1.5 rounded-full bg-yellow-300/60" />
-
         <div className="relative z-10 px-4 pt-4">
           <div className="flex items-center justify-between mb-2">
             {/* Left avatar. yellow accent */}
@@ -457,7 +578,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
 
             {/* Center title */}
             <div className="text-center flex-1">
-              <h1 className="text-base font-black text-white">התייעצות עם מומחה AI</h1>
+              <h1 className="text-base font-bold text-white">התייעצות עם מומחה AI</h1>
               <div className="flex items-center justify-center gap-1.5 mt-0.5">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -480,7 +601,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
           </div>
 
           <p className="text-[11px] font-medium text-center mt-2" style={{ color: 'rgba(255,255,255,0.85)' }}>
-            {expert.emoji} {expert.shortRole} AI עם 25 שנות ניסיון - שאל הכל
+            {expert.shortRole} AI עם 25 שנות ניסיון - שאל הכל
           </p>
         </div>
       </div>
@@ -498,7 +619,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
           <PopoverTrigger asChild>
             {(() => {
               const selTheme = selectedVehicle ? getVehicleVisual(selectedVehicle).theme : null;
-              const hasPhoto = !!selectedVehicle?.vehicle_photo;
+              const hasPhoto = hasVehiclePhoto(selectedVehicle);
               return (
                 <button className="w-full flex items-center justify-between p-3.5 rounded-2xl transition-all active:scale-[0.99] hover:shadow-md"
                   style={{
@@ -512,18 +633,18 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                         <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center shrink-0"
                           style={{ background: selTheme.light }}>
                           {hasPhoto
-                            ? <img src={selectedVehicle.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                            ? <VehicleImage vehicle={selectedVehicle} alt="" className="w-full h-full object-cover" />
                             : <VehicleIcon vehicle={selectedVehicle} className="w-6 h-6" style={{ color: selTheme.primary }} />}
                         </div>
                         <div className="text-right min-w-0">
-                          <p className="text-[14px] font-black truncate" style={{ color: '#111827' }}>
+                          <p className="text-[14px] font-bold truncate" style={{ color: '#111827' }}>
                             {selectedVehicle.nickname || `${selectedVehicle.manufacturer || ''} ${selectedVehicle.model || ''}`.trim()}
                           </p>
                           <p className="text-[11px] font-bold flex items-center gap-1 mt-0.5" style={{ color: selTheme.primary }}>
                             <Sparkles className="w-3 h-3" />
                             {maintenanceLogs.length > 0
                               ? `${expert.firstName} יודע על ${maintenanceLogs.length} טיפולים אחרונים`
-                              : `${expert.firstName} יענה מותאם לרכב הזה`}
+                              : `${expert.firstName} יענה מותאם ל${itemNoun} הזה`}
                           </p>
                         </div>
                       </>
@@ -534,11 +655,11 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                           <Sparkles className="w-6 h-6 text-white" />
                         </div>
                         <div className="text-right">
-                          <p className="text-[14px] font-black" style={{ color: '#111827' }}>
+                          <p className="text-[14px] font-bold" style={{ color: '#111827' }}>
                             התייעץ על כלי תחבורה ספציפי
                           </p>
                           <p className="text-[11px] font-semibold mt-0.5" style={{ color: C.primary }}>
-                            קבל תשובה מותאמת לרכב שלך
+                            קבל תשובה מותאמת לכלי התחבורה שלך
                             {vehicles.length > 0 ? ` · ${vehicles.length} ${vehicles.length === 1 ? 'כלי זמין' : 'כלים זמינים'}` : ''}
                           </p>
                         </div>
@@ -571,7 +692,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                 </div>
                 <div className="flex-1 text-right">
                   <p className="text-[13px] font-bold" style={{ color: '#374151' }}>שאלה כללית</p>
-                  <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לרכב מסוים</p>
+                  <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לכלי תחבורה מסוים</p>
                 </div>
                 {!selectedVehicle && <Check className="w-4 h-4" style={{ color: C.primary }} />}
               </button>
@@ -579,14 +700,14 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
               {vehicles.map(v => {
                 const { theme } = getVehicleVisual(v);
                 const sel = selectedVehicleId === v.id;
-                const vPhoto = !!v.vehicle_photo;
+                const vPhoto = hasVehiclePhoto(v);
                 return (
                   <button key={v.id} onClick={() => { setSelectedVehicleId(v.id); setPickerOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all hover:bg-gray-50"
                     style={{ background: sel ? theme.light : 'transparent', border: sel ? `1.5px solid ${theme.primary}40` : '1.5px solid transparent' }}>
                     <div className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0" style={{ background: theme.light }}>
                       {vPhoto
-                        ? <img src={v.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                        ? <VehicleImage vehicle={v} alt="" className="w-full h-full object-cover" />
                         : <VehicleIcon vehicle={v} className="w-4 h-4" style={{ color: theme.primary }} />}
                     </div>
                     <div className="flex-1 text-right min-w-0">
@@ -604,7 +725,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                 );
               })}
               {vehicles.length === 0 && (
-                <p className="text-[11px] text-center py-3" style={{ color: '#9CA3AF' }}>אין רכבים שמורים</p>
+                <p className="text-[11px] text-center py-3" style={{ color: '#9CA3AF' }}>אין כלי תחבורה שמורים</p>
               )}
             </div>
           </PopoverContent>
@@ -633,7 +754,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
             <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#92400E' }} />
           </div>
           <p className="text-[10px] leading-relaxed font-medium" style={{ color: '#78350F' }}>
-            <span className="font-bold">לתשומת לב:</span> התשובות לצורך התרשמות בלבד. AI עלול לטעות - מומלץ להתייעץ עם מוסך מוסמך.
+            <span className="font-bold">לתשומת לב:</span> התשובות לצורך התרשמות בלבד. AI עלול לטעות - מומלץ להתייעץ עם {repairProfessional}.
           </p>
         </div>
       </div>
@@ -659,7 +780,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                   <Check className="w-4 h-4 text-white" strokeWidth={3} />
                 </div>
               </div>
-              <h3 className="text-lg font-black mb-1" style={{ color: '#1F2937' }}>שלום! אני {expert.firstName} {expert.emoji}</h3>
+              <h3 className="text-lg font-bold mb-1" style={{ color: '#1F2937' }}>שלום! אני {expert.firstName}</h3>
               <p className="text-sm leading-relaxed max-w-[300px] mx-auto" style={{ color: '#6B7280' }}>
                 {expert.role}.{' '}
                 {expert.domain === 'vessel'
@@ -681,8 +802,8 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <p className="text-[11px] font-bold leading-tight" style={{ color: '#3730A3' }}>
-                  רוצה תשובה ספציפית לרכב שלך?<br />
-                  <span className="font-medium" style={{ color: '#6366F1' }}>בחר רכב מהרשימה למעלה</span>
+                  רוצה תשובה ספציפית לכלי שלך?<br />
+                  <span className="font-medium" style={{ color: '#6366F1' }}>בחר מהרשימה למעלה</span>
                 </p>
               </div>
             )}
@@ -690,8 +811,8 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
             <div className="space-y-2 mt-5 px-1">
               <div className="flex items-center gap-2 mb-2 px-1">
                 <Sparkles className="w-3.5 h-3.5" style={{ color: C.primary }} />
-                <p className="text-[11px] font-black" style={{ color: '#1F2937' }}>
-                  {selectedVehicle ? `הצעות לרכב הזה:` : 'הצעות לשאלה:'}
+                <p className="text-[11px] font-bold" style={{ color: '#1F2937' }}>
+                  {selectedVehicle ? `הצעות ל${itemNoun} הזה:` : 'הצעות לשאלה:'}
                 </p>
               </div>
               {suggestedPrompts.map((p, i) => (
@@ -799,6 +920,12 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
             </div>
           </div>
         )}
+
+        {/* Anchor for scrollIntoView — always the last child so auto-scroll
+            lands on a stable element regardless of which element is the
+            actual scroll container (inner div on desktop, body on Android
+            after adjustResize). */}
+        <div ref={messagesEndRef} aria-hidden="true" style={{ height: 1 }} />
       </div>
 
       {/* Input area. premium */}
@@ -825,7 +952,7 @@ ${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${us
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={selectedVehicle
               ? `שאל את ${expert.firstName} על ${selectedVehicle.nickname || selectedVehicle.manufacturer}...`
-              : `שאל את ${expert.firstName} על הרכב שלך...`}
+              : `שאל את ${expert.firstName} על כלי התחבורה שלך...`}
             disabled={sending}
             maxLength={MAX_LEN}
             className="flex-1 h-11 rounded-full px-4 text-[13px] focus-visible:ring-2 focus-visible:ring-offset-0 transition-all"

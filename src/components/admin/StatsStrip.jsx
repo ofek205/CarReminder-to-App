@@ -61,7 +61,7 @@ function Stat({ icon: Icon, label, value, rate, fg, bg, warn }) {
         <Icon className="w-3.5 h-3.5" style={{ color: fg }} />
         <span className="text-[10px] font-semibold" style={{ color: fg }}>{label}</span>
       </div>
-      <div className="text-xl font-black leading-tight" style={{ color: fg }}>{v.toLocaleString('he-IL')}</div>
+      <div className="text-xl font-bold leading-tight" style={{ color: fg }}>{v.toLocaleString('he-IL')}</div>
       {rate !== undefined && v > 0 && (
         <div className="text-[10px]" style={{ color: fg, opacity: 0.7 }}>{rate}%</div>
       )}

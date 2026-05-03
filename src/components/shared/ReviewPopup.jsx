@@ -169,7 +169,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
             CARREMINDER
           </p>
 
-          <h2 className="text-center mt-1.5 text-xl font-black text-white leading-tight relative z-10">
+          <h2 className="text-center mt-1.5 text-xl font-bold text-white leading-tight relative z-10">
             איך החוויה שלך עד עכשיו?
           </h2>
 
@@ -255,7 +255,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
               לא עכשיו
             </Button>
             <Button onClick={handleSubmit} disabled={!canSubmit}
-              className="flex-1 gap-1.5 rounded-xl h-11 text-[14px] font-extrabold transition-all active:translate-y-px"
+              className="flex-1 gap-1.5 rounded-xl h-11 text-[14px] font-bold transition-all active:translate-y-px"
               style={{
                 background: canSubmit
                   ? 'linear-gradient(135deg, #2D5233 0%, #4A8C5C 100%)'

@@ -99,7 +99,7 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
     const payload = { ...serializable };
     if (nextStatus) payload.status = nextStatus;
     if (nextStatus === 'active' && !canPublish) {
-      toast.error('לא ניתן לפרסם — יש שדות חובה שחסרים');
+      toast.error('לא ניתן לפרסם, יש שדות חובה שחסרים');
       return;
     }
     const setter = nextStatus === 'active' ? setPublishing : setSaving;
@@ -128,7 +128,7 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
       return;
     }
     window.dispatchEvent(new CustomEvent('cr:popup:manual', { detail: { popupId: popup.id } }));
-    toast.success('שלוח — הפופ-אפ יופיע עכשיו בסשן שלך');
+    toast.success('שלוח, הפופ-אפ יופיע עכשיו בסשן שלך');
   };
 
   //  Previewable popup (live updates from form)
@@ -149,7 +149,7 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
           <button onClick={onClose} className="flex items-center gap-1 px-3 h-9 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100">
             <ArrowRight className="w-3.5 h-3.5" /> חזרה
           </button>
-          <h2 className="text-base font-black text-gray-900">
+          <h2 className="text-base font-bold text-gray-900">
             {popup ? `עריכה: ${popup.name}` : 'פופ-אפ חדש'}
           </h2>
         </div>
@@ -185,7 +185,7 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
         <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-3">
           <Eye className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
           <div className="text-xs leading-relaxed text-amber-800">
-            <p className="font-bold">פופ-אפ של המערכת — צפייה בלבד</p>
+            <p className="font-bold">פופ-אפ של המערכת. צפייה בלבד</p>
             <p className="mt-0.5">
               התוכן והטיימינג של הפופ-אפ הזה מנוהלים בקוד (לוגיקה דינאמית שלא ניתן לבטא בעורך).
               הדף הזה מציג את ההגדרות הנוכחיות ומאפשר לעקוב אחר הסטטיסטיקה.
@@ -273,7 +273,7 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
 
             <div className="rounded-xl border border-gray-100 p-3 bg-gray-50">
               <p className="text-xs font-bold text-gray-700 mb-2">כפתור משני (אופציונלי)</p>
-              <Input placeholder='טקסט (למשל "לא עכשיו") — השאר ריק כדי להסתיר'
+              <Input placeholder='טקסט (למשל "לא עכשיו"). השאר ריק כדי להסתיר'
                 value={form.content.secondary_cta?.label || ''}
                 onChange={e => setForm(f => ({ ...f, content: { ...f.content, secondary_cta: { label: e.target.value } } }))} />
             </div>
@@ -296,7 +296,7 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
             </div>
           </Section>
 
-          <Section title="4. טריגר — מתי מוצג" open={open.trigger} onToggle={() => toggleSection('trigger')}>
+          <Section title="4. טריגר. מתי מוצג" open={open.trigger} onToggle={() => toggleSection('trigger')}>
             <Field label="סוג טריגר" error={errors.trigger}>
               <Select value={form.trigger.kind} onValueChange={v => setForm(f => ({ ...f, trigger: { ...f.trigger, kind: v } }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -336,7 +336,7 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
             </div>
           </Section>
 
-          <Section title="5. תנאי תצוגה — למי מוצג" open={open.conditions} onToggle={() => toggleSection('conditions')}>
+          <Section title="5. תנאי תצוגה. למי מוצג" open={open.conditions} onToggle={() => toggleSection('conditions')}>
             <div className="grid grid-cols-2 gap-3">
               <Field label="סוג משתמש">
                 <Select value={form.conditions.user_type || 'all'} onValueChange={v => setForm(f => ({ ...f, conditions: { ...f.conditions, user_type: v } }))}>
@@ -364,7 +364,7 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
             </Field>
           </Section>
 
-          <Section title="6. תדירות — כמה פעמים" open={open.frequency} onToggle={() => toggleSection('frequency')}>
+          <Section title="6. תדירות. כמה פעמים" open={open.frequency} onToggle={() => toggleSection('frequency')}>
             <Field label="סוג">
               <Select value={form.frequency.kind} onValueChange={v => setForm(f => ({ ...f, frequency: { ...f.frequency, kind: v } }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>

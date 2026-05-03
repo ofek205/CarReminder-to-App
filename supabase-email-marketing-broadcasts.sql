@@ -107,8 +107,8 @@ UPDATE public.email_templates t
 -- Returns the list of (user_id, email, first_name) tuples for a
 -- broadcast. Respects:
 --   • email_notifications.enabled (admin master switch per type)
---   • user_notification_preferences.email_enabled (user opt-out for
---     THIS specific notification, defaults to true if no row)
+--   • user_notification_preferences.email_enabled (explicit opt-in for
+--     THIS specific notification, defaults to false if no row)
 --   • Excludes users without a confirmed email
 --   • Deduplicates by email
 
@@ -139,7 +139,7 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
   WHERE notif.enabled = true
     AND u.email IS NOT NULL
     AND u.email_confirmed_at IS NOT NULL
-    AND COALESCE(p.email_enabled, true) = true;
+    AND COALESCE(p.email_enabled, false) = true;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.email_broadcast_recipients(text) TO service_role, authenticated;

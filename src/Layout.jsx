@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Wrench, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Wrench, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -17,6 +17,9 @@ import useReviewPromptSchedule from "@/hooks/useReviewPromptSchedule";
 import PopupEngine from "@/components/shared/PopupEngine";
 import { SafeComponent } from "@/components/shared/SafeComponent";
 import { GuestProvider, useAuth } from "@/components/shared/GuestContext";
+import { WorkspaceProvider, useWorkspace } from "@/contexts/WorkspaceContext";
+import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
+import useWorkspaceRole from "@/hooks/useWorkspaceRole";
 import { AccessibilityProvider } from "@/components/shared/AccessibilityContext";
 import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
@@ -32,40 +35,114 @@ const NotificationBell = React.lazy(() => import("@/components/shared/Notificati
 // Bottom nav paths (duplicated in mobile sidebar. hide from sidebar on mobile)
 const BOTTOM_NAV_PATHS = new Set(['Dashboard', 'Documents', 'FindGarage', 'Accidents', 'AiAssistant']);
 
+// Side-drawer items in render order. The filter at visibleItems below
+// preserves array order, so the order here IS the order in the drawer.
+//
+// Layout philosophy (UX + product):
+//   1. Business-workspace items at TOP — when a manager/driver opens
+//      the drawer the first thing they see is "what's my job today".
+//      Personal users don't see this block at all (businessOnly).
+//   2. Personal vehicle-management block follows. For a personal-only
+//      user it floats to the top of THEIR drawer (no businessOnly
+//      sections rendered above), preserving their existing experience.
+//      For a business manager it sits below the work block, prefaced
+//      by an "אישי" divider that only renders in business mode.
+//   3. Account-level items (settings, contact) near the bottom.
+//   4. Super-admin section ALWAYS last — heavy tools shouldn't dominate
+//      day-to-day navigation, even for admins.
+//
+// Copy rules: short, scannable labels. No "ה" filler ("דף הבית שלי" →
+// "דף הבית"). No bureaucratic suffixes ("ניתוחים", "תפעול",
+// "החשבון העסקי") when the section header already provides context.
 const navItems = [
-  //  ניווט 
-  { name: 'Dashboard',             label: 'דף הבית שלי',     icon: LayoutDashboard, guestAllowed: true },
-  { name: 'Vehicles',              label: 'רכבים',            icon: Car,             guestAllowed: true },
-  { name: 'Vehicles?category=vessel', label: 'כלי שייט',      icon: Ship,            guestAllowed: true, vesselOnly: true },
-  //  ניהול 
-  { divider: true, title: 'ניהול' },
-  { name: 'MaintenanceTemplates',  label: 'טיפולים ותיקונים', icon: Wrench,          guestAllowed: true },
-  { name: 'Documents',             label: 'מסמכים',           icon: FileText,        guestAllowed: true },
-  { name: 'Accidents',             label: 'תאונות',           icon: AlertTriangle,   guestAllowed: true },
-  //  קהילה 
-  { divider: true, title: 'קהילה' },
-  { name: 'Community',             label: 'קהילה וייעוץ',    icon: Users,           guestAllowed: true },
-  { name: 'AiAssistant',           label: 'התייעצות עם מומחה AI', icon: Sparkles,    guestAllowed: true },
-  //  כלים 
-  { divider: true, title: 'כלים' },
-  { name: 'FindGarage',            label: 'מצא מוסך',        icon: MapPin,          guestAllowed: true },
-  //  חשבון 
+  // ====================================================================
+  // עבודה — business work surfaces. Routes is shared by manager + driver
+  // so it sits high up; manager-only and driver-only items render
+  // conditionally in the same block.
+  // ====================================================================
+  { divider: true, title: 'עבודה', businessOnly: true },
+  { name: 'BusinessDashboard',  label: 'דשבורד עסקי',  icon: LayoutDashboard, guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'MyVehicles',         label: 'הרכבים שלי',   icon: Truck,           guestAllowed: false, businessOnly: true, driverOnly: true },
+  { name: 'Routes',             label: 'משימות',       icon: MapPin,          guestAllowed: false, businessOnly: true },
+  { name: 'Fleet',              label: 'צי הרכבים',    icon: Truck,           guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'Drivers',            label: 'נהגים',        icon: Users,           guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'Team',               label: 'הצוות שלי',    icon: Users,           guestAllowed: false, businessOnly: true, driverOnly: true },
+
+  // ====================================================================
+  // ניתוח ובקרה — analytical, not action-taking. Driver sees only
+  // ActivityLog (the only non-managerOnly item); the orphan-divider
+  // filter trims this header for them if no items remain.
+  // ====================================================================
+  { divider: true, title: 'ניתוח ובקרה', businessOnly: true },
+  { name: 'DrivingLog',         label: 'יומן נסיעות', icon: FileText,        guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'Reports',            label: 'דוחות',       icon: TrendingUp,      guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'Expenses',           label: 'הוצאות',      icon: Receipt,         guestAllowed: false, businessOnly: true, managerOnly: true },
+  { name: 'ActivityLog',        label: 'יומן פעילות', icon: FileText,        guestAllowed: false, businessOnly: true },
+
+  // ====================================================================
+  // Personal-account top items. Each business user ALSO has a personal
+  // account, accessible via WorkspaceSwitcher — so we don't duplicate
+  // personal screens inside the business sidebar. The whole block is
+  // personalOnly; in business context it disappears entirely (no header
+  // either, intentionally — there is no "אישי" divider here, so
+  // personal users see these items unprefixed at the top of their
+  // sidebar, matching the legacy experience).
+  // ====================================================================
+  { name: 'Dashboard',          label: 'דף הבית', icon: LayoutDashboard, guestAllowed: true, personalOnly: true },
+  { name: 'vehicle-check',      label: 'בדוק רכב', icon: Car,             guestAllowed: true, personalOnly: true },
+  { name: 'Vehicles',           label: 'רכבים',   icon: Car,             guestAllowed: true, personalOnly: true },
+  // Vessels are a private-account feature (no fleet equivalent + the
+  // vessel-checklist UX assumes one owner).
+  { name: 'Vehicles?category=vessel', label: 'כלי שייט', icon: Ship,    guestAllowed: true, vesselOnly: true, personalOnly: true },
+
+  // ====================================================================
+  // תחזוקה — vehicle care. FindGarage moved here from its own "כלים"
+  // section; one-item sections waste a divider line and add visual
+  // noise without conveying structure.
+  // ====================================================================
+  { divider: true, title: 'תחזוקה' },
+  { name: 'MaintenanceTemplates', label: 'טיפולים', icon: Wrench,        guestAllowed: true },
+  // MyExpenses (מחשבון הוצאות) is the PRIVATE-account expenses screen;
+  // the page itself redirects business users to /Expenses, so leaving
+  // it in the menu was misleading. personalOnly hides it from every
+  // business workspace context.
+  { name: 'MyExpenses',         label: 'מחשבון הוצאות', icon: Wallet,    guestAllowed: false, personalOnly: true },
+  { name: 'Documents',          label: 'מסמכים',  icon: FileText,        guestAllowed: true },
+  { name: 'Accidents',          label: 'תאונות',  icon: AlertTriangle,   guestAllowed: true },
+  { name: 'FindGarage',         label: 'מצא מוסך', icon: MapPin,         guestAllowed: true },
+
+  // ====================================================================
+  // קהילה — Community + Expert AI. Both are private-flow surfaces with
+  // no business equivalent. Hidden from every business context (manager
+  // + driver) via personalOnly. A manager who wants them can switch to
+  // their personal workspace via WorkspaceSwitcher.
+  // ====================================================================
+  { divider: true, title: 'קהילה', personalOnly: true },
+  { name: 'Community',          label: 'קהילה וייעוץ', icon: Users,    guestAllowed: true, personalOnly: true },
+  { name: 'AiAssistant',        label: 'מומחה AI',      icon: Sparkles, guestAllowed: true, personalOnly: true },
+
+  // ====================================================================
+  // חשבון — settings, account-level actions. The unified Settings hub
+  // replaces three legacy entries (אזור אישי / שיתוף / תזכורות); old
+  // deep-links still work, they just aren't surfaced in the drawer.
+  // ====================================================================
   { divider: true, title: 'חשבון' },
-  // Unified Settings hub replaces three separate entries (אזור אישי /
-  // שיתוף חשבון / הגדרות תזכורות). The old routes still work as
-  // deep-link targets (e.g. from push notifications), they just aren't
-  // surfaced in the menu any more.
-  { name: 'Settings',              label: 'הגדרות',           icon: Settings,        guestAllowed: true },
-  { name: 'AdminReviews',          label: 'חוות דעת',         icon: Star,            guestAllowed: true },
-  { name: 'Contact',               label: 'צור קשר',          icon: MessageSquare,   guestAllowed: true },
-  //  ניהול אדמין — visible only when useIsAdmin() resolves true. The
-  //  adminOnly flag is already honored by the menu renderer further down
-  //  in this file; the divider title is only shown when at least one
-  //  admin item is about to render (see filter logic below).
-  { divider: true, title: 'ניהול אדמין', adminOnly: true },
-  { name: 'AdminDashboard',        label: 'לוח ניהול',        icon: ShieldCheck,     guestAllowed: false, adminOnly: true },
-  { name: 'EmailCenter',           label: 'ניהול מיילים',      icon: Mail,            guestAllowed: false, adminOnly: true },
-  { name: 'AdminAiSettings',       label: 'הגדרות AI',         icon: Sparkles,        guestAllowed: false, adminOnly: true },
+  { name: 'Settings',           label: 'הגדרות',         icon: Settings,        guestAllowed: true },
+  { name: 'BusinessSettings',   label: 'הגדרות עסקיות', icon: Briefcase,       guestAllowed: false, businessOnly: true, ownerOnly: true },
+  { name: 'AdminReviews',       label: 'חוות דעת',       icon: Star,            guestAllowed: true },
+  { name: 'Contact',            label: 'צור קשר',        icon: MessageSquare,   guestAllowed: true },
+
+  // ====================================================================
+  // ניהול מערכת — super-admin (Ofek) only. Always last per project
+  // rule: powerful tools shouldn't dominate day-to-day nav.
+  // Renamed from "ניהול אדמין" — distinguishes from workspace-level
+  // "מנהל" (account manager); this section is system-level admin.
+  // ====================================================================
+  { divider: true, title: 'ניהול מערכת', adminOnly: true },
+  { name: 'AdminDashboard',     label: 'לוח ניהול',     icon: ShieldCheck, guestAllowed: false, adminOnly: true },
+  { name: 'EmailCenter',        label: 'מיילים',        icon: Mail,        guestAllowed: false, adminOnly: true },
+  { name: 'AdminAiSettings',    label: 'הגדרות AI',     icon: Sparkles,    guestAllowed: false, adminOnly: true },
+  { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase, guestAllowed: false, adminOnly: true },
 ];
 
 
@@ -170,16 +247,48 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   // for users the page would block, or vice-versa.
   const adminCheck = useIsAdmin();
   const isAdmin = adminCheck === true;
+  // Phase 6 — workspace-aware nav gating. isBusiness becomes true only
+  // when the active workspace is a business workspace; private users
+  // never see businessOnly items.
+  // Phase 9 step 8 — owners-only items + driver-hide flags driven by
+  // accounts.business_meta toggles set in /BusinessSettings.
+  const { isBusiness, isDriver, isOwner, canManageRoutes, canDriveRoutes, businessMeta, isLoading: roleLoading } = useWorkspaceRole();
+  const businessAccess = canManageRoutes || canDriveRoutes;
+  // While role is still resolving, don't render any nav items —
+  // otherwise a driver in a business workspace briefly sees the
+  // personal-flow items (Dashboard / Vehicles / Community / AI) before
+  // the filter kicks in and hides them. Empty array = empty drawer
+  // for ~200ms instead of a flash of the wrong content.
+  // (Empty results below still render the chrome / dividers, just no
+  // links until role is known.)
   // On mobile, hide items that are already in the bottom nav
-  const visibleItems = navItems.filter(item =>
-    // Dividers with adminOnly=true disappear for non-admins so we don't
-    // render an empty "ניהול אדמין" header. Regular dividers always pass
-    // this stage; the orphan-divider pass below removes ones with nothing
-    // after them.
-    (item.divider ? (!item.adminOnly || isAdmin) : (
+  const visibleItems = roleLoading ? [] : navItems.filter(item =>
+    (item.divider ? (
+      (!item.adminOnly    || isAdmin) &&
+      (!item.businessOnly || (isBusiness && businessAccess)) &&
+      // Personal-only dividers (e.g. "קהילה") disappear in every
+      // business context; the orphan-divider trim further down would
+      // also remove them, but explicit is clearer.
+      (!item.personalOnly || !isBusiness)
+    ) : (
       (isAuthenticated || item.guestAllowed) &&
-      (!item.adminOnly || isAdmin) &&
-      (!item.vesselOnly || hasVessel) &&
+      (!item.adminOnly     || isAdmin) &&
+      (!item.businessOnly  || (isBusiness && businessAccess)) &&
+      (!item.managerOnly   || canManageRoutes) &&
+      (!item.driverOnly    || canDriveRoutes) &&
+      (!item.ownerOnly     || isOwner) &&
+      (!item.vesselOnly    || hasVessel) &&
+      // Personal-flow items that have no business equivalent or have
+      // a business equivalent elsewhere. Hidden for every business
+      // workspace context (manager + driver) — the user can switch to
+      // a personal workspace via WorkspaceSwitcher to access them.
+      (!item.personalOnly  || !isBusiness) &&
+      // Driver in business workspace — hide items the manager flagged.
+      !(isBusiness && isDriver && item.driverHidesIfFlag && businessMeta?.[item.driverHidesIfFlag]) &&
+      // Items with no business semantics for a driver (the personal
+      // Dashboard / Vehicles surface every workspace vehicle, which
+      // breaks the assignment model). MyVehicles takes their place.
+      !(isBusiness && isDriver && item.hideForBusinessDriver) &&
       (!isMobile || !BOTTOM_NAV_PATHS.has(item.name))
     ))
   // Remove dividers that have no items after them (orphan dividers)
@@ -231,6 +340,7 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
             </div>
           </div>
         )}
+        {isAuthenticated && !isMobile && <WorkspaceSwitcher />}
       </div>
 
       {/* Navigation - scrollable.
@@ -400,7 +510,19 @@ function LayoutInner({ children }) {
   const [mileageReminderOpen, setMileageReminderOpen] = useState(false);
   const [mileageCheckDone, setMileageCheckDone] = useState(false);
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles } = useAuth();
+  const { activeWorkspace } = useWorkspace();
   const [hasVessel, setHasVessel] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)').matches : false
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsDesktop(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, []);
 
   // Real-time sync between participants of a shared vehicle. The hook
   // self-gates on `isGuest`/`!user` so it's a no-op for guests; when
@@ -451,19 +573,26 @@ function LayoutInner({ children }) {
     } else if (isAuthenticated && user) {
       (async () => {
         try {
-          const { db } = await import('@/lib/supabaseEntities');
-          const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-          if (members.length > 0) {
-            const vehicles = await db.vehicles.filter({ account_id: members[0].account_id });
-            setHasVessel(vehicles.some(isVesselVehicle));
+          if (!activeWorkspace?.account_id) {
+            setHasVessel(false);
+            return;
           }
+          const { data, error } = await supabase
+            .from('vehicles')
+            .select('id, vehicle_type, manufacturer')
+            .eq('account_id', activeWorkspace.account_id);
+          if (error) throw error;
+          setHasVessel((data || []).some(isVesselVehicle));
         } catch {}
       })();
     }
-  }, [isGuest, isAuthenticated, user, guestVehicles, location.pathname]);
+  }, [isGuest, isAuthenticated, user, guestVehicles, activeWorkspace?.account_id, location.pathname]);
 
-  // Pages that don't require authentication (legal/compliance pages for app stores)
-  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
+  // Pages that don't require authentication (legal/compliance pages for app stores).
+  // /dev/components is the design-system style guide — kept public so you can
+  // open it on any browser/device without juggling logins, including on staging
+  // QA devices that might not have a workspace yet.
+  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components'];
   const isPublicRoute = PUBLIC_PAGES.includes(location.pathname);
   const isAuthRoute = location.pathname === '/Auth' || location.pathname === '/';
 
@@ -491,6 +620,12 @@ function LayoutInner({ children }) {
     const isFirstTime = ageMs < 60 * 60 * 1000; // account < 1h old
     setWelcomeState({ isReturning: !isFirstTime, userName: user.full_name || '' });
     try { localStorage.setItem(storageKey, today); } catch {}
+    // Close the side drawer (and any other open popovers) so the welcome
+    // modal isn't covered by the menu sheet. New users on a phone often
+    // tap the hamburger before they realise the welcome popup is meant
+    // to be the focal point — the cr:close-popups listener inside the
+    // drawer state hook handles the dismiss.
+    try { window.dispatchEvent(new CustomEvent('cr:close-popups')); } catch {}
   }, [isAuthenticated, user]);
 
   // Mileage reminder. skip for now (database not migrated yet)
@@ -507,8 +642,15 @@ function LayoutInner({ children }) {
   }, [isGuest, isAuthRoute, isPublicRoute, navigate]);
 
   // Auth page + public legal pages render standalone - no chrome, no auth required
-  const STANDALONE_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
+  const STANDALONE_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components'];
   if (STANDALONE_PAGES.includes(location.pathname) && !isAuthenticated && !isGuest) {
+    return <>{children}</>;
+  }
+  // /dev/components is a developer-facing style guide. Render it raw —
+  // no chrome, no welcome popup, no guest banner — even when the visitor
+  // happens to be authenticated or in guest mode. Otherwise the screenshots
+  // and design checks get polluted with the app shell.
+  if (location.pathname === '/dev/components') {
     return <>{children}</>;
   }
   // Auth page for guests too
@@ -571,7 +713,7 @@ function LayoutInner({ children }) {
           opposite corner from the sidebar so the bell + bell-popover
           don't overlap. Hidden on mobile because the mobile top bar
           below has its own bell already. */}
-      {isAuthenticated && (
+      {isAuthenticated && isDesktop && (
         <div className="hidden lg:block fixed top-4 left-4 z-40">
           <React.Suspense fallback={<div className="w-10 h-10" />}>
             <NotificationBell />
@@ -620,7 +762,8 @@ function LayoutInner({ children }) {
             <span className="text-sm font-bold text-gray-900">CarReminder</span>
           </Link>
           <div className="flex-1" />
-          {isAuthenticated && (
+          {isAuthenticated && <WorkspaceSwitcher />}
+          {isAuthenticated && !isDesktop && (
             <React.Suspense fallback={<div className="w-10 h-10" />}>
               <NotificationBell />
             </React.Suspense>
@@ -654,7 +797,9 @@ export default function Layout({ children }) {
     <AccessibilityProvider>
       <FontScaleProvider>
         <GuestProvider>
-          <LayoutInner>{children}</LayoutInner>
+          <WorkspaceProvider>
+            <LayoutInner>{children}</LayoutInner>
+          </WorkspaceProvider>
         </GuestProvider>
       </FontScaleProvider>
     </AccessibilityProvider>

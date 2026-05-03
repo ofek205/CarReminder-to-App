@@ -38,16 +38,51 @@ const DISPATCH_SECRET = Deno.env.get('DISPATCH_SECRET');
 // Allowed origin for browser-initiated calls (admin EmailCenter UI).
 const ALLOWED_ORIGIN  = Deno.env.get('APP_ORIGIN') || 'https://car-reminder.app';
 
+// Local web dev/preview origins. Mirrored across all browser-callable
+// Edge Functions — keep in sync with ai-proxy / dispatch-broadcast /
+// send-email when adjusting.
+const LOCAL_WEB_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+];
+
+// Vercel branch-preview URLs of THIS project. Vercel generates dynamic
+// per-branch hostnames `{project}-git-{branch}-{teamslug}.vercel.app`
+// that can't be enumerated in ALLOWED_ORIGIN. Requiring the literal
+// `-git-` segment after the project prefix means an attacker can't just
+// register a Vercel project starting with `car-reminder-to-app-` and
+// inherit our CORS allow-list — they'd need ownership of a project named
+// exactly `car-reminder-to-app` (already ours) or `car-manage-hub`.
+function isTrustedVercelPreview(origin: string): boolean {
+  if (!origin) return false;
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (protocol !== 'https:') return false;
+    if (!hostname.endsWith('.vercel.app')) return false;
+    return (
+      hostname.startsWith('car-reminder-to-app-git-') ||
+      hostname.startsWith('car-manage-hub-git-')
+    );
+  } catch {
+    return false;
+  }
+}
+
 function buildCors(req: Request): HeadersInit {
   const origin = req.headers.get('origin') || '';
   // Fail-closed: non-matching origin → 'null' so browser blocks the
   // response. Previously echoed ALLOWED_ORIGIN for every request, which
   // defeated CORS entirely.
-  const allowList = ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
-  const allow  = allowList.includes(origin) ? origin : 'null';
+  const allowList = [
+    ...ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean),
+    ...LOCAL_WEB_ORIGINS,
+  ];
+  const allow = (allowList.includes(origin) || isTrustedVercelPreview(origin)) ? origin : 'null';
   return {
     'Access-Control-Allow-Origin':  allow,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-dispatch-secret',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, x-client-ip, apikey, content-type, x-dispatch-secret',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary':                         'Origin',
   };

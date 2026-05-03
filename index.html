@@ -13,7 +13,40 @@
     <title>CarReminders</title>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      Inline boot loader. React replaces #root contents on mount, but if
+      anything in main.jsx throws synchronously OR the JS bundle takes >2s
+      to parse on a cold native launch, this branded screen is what the
+      user sees instead of pure white. App Review explicitly flagged the
+      previous white screen as Guideline 2.1(a) "blank screen on launch".
+
+      All styles are inline (zero external dependencies) so this works
+      even if the CSS bundle hasn't loaded yet.
+    -->
+    <div id="root">
+      <div id="cr-boot-fallback" dir="rtl" style="
+        position:fixed;inset:0;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;
+        background:#16A34A;color:#FFFFFF;font-family:system-ui,-apple-system,sans-serif;
+        z-index:0;">
+        <div style="
+          width:64px;height:64px;border-radius:50%;
+          background:#FFFFFF;display:flex;align-items:center;justify-content:center;
+          margin-bottom:20px;box-shadow:0 4px 16px rgba(0,0,0,0.15);">
+          <div style="
+            width:32px;height:32px;border:3px solid #D8E5D9;
+            border-top-color:#2D5233;border-radius:50%;
+            animation:cr-boot-spin 0.8s linear infinite;"></div>
+        </div>
+        <div style="font-size:20px;font-weight:800;letter-spacing:0.3px;margin-bottom:6px;">
+          CarReminders
+        </div>
+        <div style="font-size:13px;opacity:0.85;">טוען...</div>
+      </div>
+    </div>
+    <style>
+      @keyframes cr-boot-spin { to { transform: rotate(360deg); } }
+    </style>
     <script type="module" src="./src/main.jsx"></script>
   </body>
 </html>

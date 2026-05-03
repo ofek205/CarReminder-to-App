@@ -9,6 +9,7 @@ import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import ReviewPopup from "../components/shared/ReviewPopup";
 import { useAuth } from "../components/shared/GuestContext";
+import useIsAdmin from "@/hooks/useIsAdmin";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Star, Search, PlusCircle, LogIn, BadgeCheck, Car, Ship, Bike, Truck } from "lucide-react";
@@ -101,7 +102,7 @@ function ReviewsHero({ reviews }) {
       <div className="rounded-2xl p-6 mb-5 text-center"
         style={{ background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)', border: '1.5px solid #BBF7D0' }}>
         <div className="text-5xl mb-2">💬</div>
-        <p className="font-black text-lg" style={{ color: C.greenDark }}>היה הראשון/ה לשתף</p>
+        <p className="font-bold text-lg" style={{ color: C.greenDark }}>היה הראשון/ה לשתף</p>
         <p className="text-sm text-gray-600 mt-1">עדיין אין חוות דעת. הדעה שלך תעזור לאחרים</p>
       </div>
     );
@@ -113,7 +114,7 @@ function ReviewsHero({ reviews }) {
       <div className="flex items-center gap-5">
         {/* Big average number */}
         <div className="text-center shrink-0">
-          <div className="text-5xl font-black leading-none" style={{ color: '#B45309' }}>
+          <div className="text-5xl font-bold leading-none" style={{ color: '#B45309' }}>
             {avg.toFixed(1)}
           </div>
           <div className="mt-2 flex justify-center">
@@ -199,18 +200,25 @@ export default function AdminReviews() {
   const [searchText, setSearchText]     = useState('');
   const [sortOrder, setSortOrder]       = useState('desc');
   const [currentUser, setCurrentUser]   = useState(null);
-  const [isAdmin, setIsAdmin]           = useState(null);
   const [showReviewPopup, setShowReviewPopup] = useState(false);
 
+  // Server-side admin check (is_admin() RPC). Replaces the earlier inline
+  // user.user_metadata?.role + email fallback — that pattern could be
+  // spoofed by setting role on signup. The hook returns null while
+  // loading and false for guests, matching the loading-screen guard
+  // below so behaviour is unchanged for real admins / non-admins.
+  const isAdmin = useIsAdmin();
+
+  // Resolve currentUser separately — it feeds the ReviewPopup author
+  // fields and isn't gated on admin status.
   useEffect(() => {
-    if (isGuest) { setIsAdmin(false); setCurrentUser(null); return; }
+    if (isGuest) { setCurrentUser(null); return; }
     (async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setIsAdmin(false); setCurrentUser(null); return; }
+        if (!user) { setCurrentUser(null); return; }
         setCurrentUser({ id: user.id, email: user.email, full_name: user.user_metadata?.full_name });
-        setIsAdmin(user.email === 'ofek205@gmail.com' || user.user_metadata?.role === 'admin');
-      } catch { setIsAdmin(false); setCurrentUser(null); }
+      } catch { setCurrentUser(null); }
     })();
   }, [isGuest]);
 

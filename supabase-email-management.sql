@@ -177,6 +177,11 @@ CREATE POLICY "admins manage notifications" ON public.email_notifications
   USING (public.is_current_user_admin())
   WITH CHECK (public.is_current_user_admin());
 
+DROP POLICY IF EXISTS "users read notification catalog" ON public.email_notifications;
+CREATE POLICY "users read notification catalog" ON public.email_notifications
+  FOR SELECT TO authenticated
+  USING (true);
+
 DROP POLICY IF EXISTS "admins manage templates" ON public.email_templates;
 CREATE POLICY "admins manage templates" ON public.email_templates
   FOR ALL TO authenticated

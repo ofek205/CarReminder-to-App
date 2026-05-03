@@ -50,11 +50,12 @@ begin
   -- account if one exists — falling back to the oldest by joined_at
   -- only catches the edge case where someone accepted an invite
   -- before they ever got an owner account of their own.
-  select account_id into existing_account_id
-    from public.account_members
-   where user_id = uid
-     and status = 'פעיל'
-   order by (role = 'בעלים') desc, joined_at asc nulls last
+  select a.id into existing_account_id
+    from public.account_members am
+    join public.accounts a on a.id = am.account_id
+   where am.user_id = uid
+     and am.status  = 'פעיל'
+     and a.type     = 'personal'
    limit 1;
 
   if existing_account_id is not null then
@@ -94,9 +95,20 @@ declare
 begin
   -- If the user already has a membership (e.g. provisioned by a
   -- migration script before the trigger landed), do nothing.
+  -- Skip only if the user already has a PERSONAL account. A user who
+  -- was pre-added to a business workspace as driver/viewer before
+  -- they signed up still needs their own personal account — without
+  -- it the workspace switcher has no personal fallback, and the
+  -- personal-flow pages (Dashboard, Vehicles, Documents…) have no
+  -- account to scope to. The previous "any membership" check let
+  -- pre-invited drivers slip through with no personal workspace.
   if exists (
-    select 1 from public.account_members
-     where user_id = new.id and status = 'פעיל'
+    select 1
+    from public.account_members am
+    join public.accounts a on a.id = am.account_id
+    where am.user_id = new.id
+      and a.type    = 'personal'
+      and am.status = 'פעיל'
   ) then
     return new;
   end if;

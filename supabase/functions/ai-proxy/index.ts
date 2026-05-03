@@ -68,10 +68,43 @@ const CAPACITOR_ORIGINS = [
   'ionic://localhost',
 ];
 
+const LOCAL_WEB_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+];
+
+function isTrustedVercelPreview(origin: string): boolean {
+  if (!origin) return false;
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (protocol !== 'https:') return false;
+    if (!hostname.endsWith('.vercel.app')) return false;
+    // Only match Vercel branch-preview URLs of THIS project. Vercel
+    // generates preview hostnames as `{project}-git-{branch}-{teamslug}.vercel.app`.
+    // Requiring the literal `-git-` segment after the project prefix
+    // means an attacker can't just register a Vercel project starting
+    // with `car-reminder-to-app-` and inherit our CORS allow-list — they
+    // would need ownership of a project literally named
+    // `car-reminder-to-app` (already ours) or `car-manage-hub`.
+    // Examples that match:
+    //   car-reminder-to-app-git-staging-abc123-myteam.vercel.app
+    //   car-manage-hub-git-staging-xyz.vercel.app
+    return (
+      hostname.startsWith('car-reminder-to-app-git-') ||
+      hostname.startsWith('car-manage-hub-git-')
+    );
+  } catch {
+    return false;
+  }
+}
+
 function buildCors(req: Request): HeadersInit {
   const origin = req.headers.get('origin') || '';
   const allowList = [
     ...ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean),
+    ...LOCAL_WEB_ORIGINS,
     ...CAPACITOR_ORIGINS,
   ];
   // Only echo the caller's origin if it's in the whitelist. Otherwise
@@ -80,14 +113,14 @@ function buildCors(req: Request): HeadersInit {
   // Fail-closed: unauthorised origins get 'null' so the browser's CORS check
   // rejects. (The old `allowList[0]` fallback still echoed an allowed
   // origin, letting unauthorised callers see headers they shouldn't.)
-  const allow = allowList.includes(origin) ? origin : 'null';
+  const allow = (allowList.includes(origin) || isTrustedVercelPreview(origin)) ? origin : 'null';
   return {
     'Access-Control-Allow-Origin':  allow,
     // supabase-js invoke() attaches apikey + x-client-info on every call;
     // without them in the allow-list the browser blocks the preflight and
     // the invoke() helper returns "Failed to send a request" even though
     // the function is up. authorization + content-type cover raw fetch too.
-    'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
+    'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info, x-client-ip',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin',
   };

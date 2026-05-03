@@ -77,7 +77,7 @@ export default function NotificationPreferences() {
         {/* Info banner */}
         <div className="rounded-2xl p-3 mb-5 text-xs"
           style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E3A8A' }}>
-          <strong>הערה:</strong> מיילי אימות והתחברות תמיד נשלחים (נדרשים לאבטחה). את השאר אפשר להשבית כאן.
+          <strong>הערה:</strong> מיילי אימות, התחברות וסוגים חיוניים שנבחר מראש נשלחים תמיד. כל שאר המיילים כבויים כברירת מחדל, ואפשר להפעיל אותם כאן.
         </div>
 
         {Object.keys(groups).length === 0 ? (
@@ -104,6 +104,9 @@ export default function NotificationPreferences() {
                         {!item.enabled && (
                           <span className="mr-2 text-[10px] font-normal text-gray-400">(כבוי באופן גלובלי)</span>
                         )}
+                        {item.mandatory && (
+                          <span className="mr-2 text-[10px] font-bold text-blue-600">(נשלח תמיד)</span>
+                        )}
                       </h3>
                       <p className="text-xs text-gray-500 leading-relaxed">
                         {item.description}
@@ -111,7 +114,7 @@ export default function NotificationPreferences() {
                     </div>
                     <Switch
                       checked={item.subscribed}
-                      disabled={updatePref.isPending || !item.enabled}
+                      disabled={updatePref.isPending || !item.enabled || item.mandatory}
                       onCheckedChange={(v) => handleToggle(item.key, v)}
                     />
                   </div>

@@ -136,7 +136,7 @@ export default function AdminAiSettings() {
         </button>
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-[#D97706]" />
-          <h1 className="text-xl sm:text-2xl font-black text-[#1F2937]">הגדרות AI</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#1F2937]">הגדרות AI</h1>
         </div>
       </div>
 

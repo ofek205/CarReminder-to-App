@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
+import useFileUpload from '@/hooks/useFileUpload';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { Input } from "@/components/ui/input";
@@ -11,13 +12,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine } from "lucide-react";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
-import { normalizePlate, isVintageVehicle, isOffroad, usesHours } from "../components/shared/DateStatusUtils";
+import { normalizePlate, isVintageVehicle, isOffroad, usesHours, isCme } from "../components/shared/DateStatusUtils";
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
 import { C, getTheme, isVesselType } from '@/lib/designTokens';
 import useAccountRole from '@/hooks/useAccountRole';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
 import AiDateScan from '../components/shared/AiDateScan';
@@ -36,6 +38,17 @@ export default function EditVehicle() {
   const queryClient = useQueryClient();
   const { isGuest, guestVehicles, updateGuestVehicle } = useAuth();
   const { role, isGuest: isGuestRole } = useAccountRole();
+  // Drivers don't own vehicles in a business workspace — they USE
+  // them. The vehicle metadata (test date, insurance, plate, etc.)
+  // is the manager's responsibility. Bouncing drivers off this page
+  // prevents the "I changed something and the form silently rejected
+  // my save" confusion when the underlying RPC blocks them anyway.
+  const { isBusiness, isDriver, canManageRoutes } = useWorkspaceRole();
+  useEffect(() => {
+    if (isBusiness && isDriver && !canManageRoutes) {
+      navigate(createPageUrl('MyVehicles'), { replace: true });
+    }
+  }, [isBusiness, isDriver, canManageRoutes, navigate]);
 
   // Guard for the bad-id case is rendered DOWN BELOW, after every hook
   // is declared. Returning here would skip useState/useEffect on the
@@ -45,6 +58,19 @@ export default function EditVehicle() {
   const [photoPreview, setPhotoPreview] = useState(null);
   const [form, setForm] = useState(null);
   const [accountId, setAccountId] = useState(null);
+  // Sprint A.B-2: storage-backed photo upload for authenticated users.
+  // Guests still use the legacy compress-then-base64 path inside handlePhoto;
+  // for them this hook is unused (handlePhoto branches before calling upload).
+  // vehicleId is required so the path becomes `{accountId}/{vehicleId}/...`,
+  // which is what the vehicle_files_insert RLS policy expects. Without it
+  // the hook falls back to `scans/{accountId}` which RLS rejects (the scans
+  // branch checks auth.uid(), not account_id).
+  const { upload: uploadPhotoToStorage } = useFileUpload({
+    accountId,
+    vehicleId,
+    mode: 'photo',
+    maxMB: 10,
+  });
   const [usageMetric, setUsageMetric] = useState('קילומטרים');
   const [tireQuestion, setTireQuestion] = useState(null);
   const [shipyardQuestion, setShipyardQuestion] = useState(null);
@@ -70,6 +96,11 @@ export default function EditVehicle() {
     current_km: v.current_km || '',
     current_engine_hours: v.current_engine_hours || '',
     vehicle_photo: v.vehicle_photo || '',
+    // Sprint A.B-2: Storage path for the vehicle photo. Pre-load from the
+    // existing row so a user who only edits, say, the nickname keeps their
+    // photo intact (the path is what lets the read-side refresh expired
+    // signed URLs). Empty for guest rows or pre-migration vehicles.
+    vehicle_photo_storage_path: v.vehicle_photo_storage_path || '',
     last_tire_change_date: v.last_tire_change_date || '',
     km_since_tire_change: v.km_since_tire_change || '',
     tires_changed_count: v.tires_changed_count || 4,
@@ -214,22 +245,49 @@ export default function EditVehicle() {
     if (!file) return;
     const validation = validateUploadFile(file, 'photo', 10);
     if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
-    try {
-      // Shared compressor. WebP when supported, JPEG fallback. Keeps the
-      // final data URL small so the row fits comfortably.
-      const small = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.75 });
-      const base64 = await new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = (ev) => resolve(ev.target.result);
-        r.onerror = reject;
-        r.readAsDataURL(small);
-      });
-      setPhotoPreview(base64);
-      handleChange('vehicle_photo', base64);
-      toast.success('התמונה נטענה');
-    } catch (err) {
-      console.error('Photo load error:', err);
-      toast.error('שגיאה בטעינת התמונה');
+
+    // Sprint A.B-2: split the photo flow.
+    //   • Guests have no Supabase auth and persist everything to localStorage,
+    //     so they keep the legacy "compress + base64" path. The data: URL is
+    //     intentionally NOT written to the DB (guests have no DB writes), so
+    //     the no-restricted-syntax rule's spirit is preserved.
+    //   • Authenticated users upload to Supabase Storage and persist BOTH the
+    //     resulting signed URL (for cheap immediate display) and the
+    //     storage_path (for re-signing when the URL expires after 7 days).
+    if (isGuest) {
+      try {
+        const small = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.75 });
+        const base64 = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = (ev) => resolve(ev.target.result);
+          r.onerror = reject;
+          // eslint-disable-next-line no-restricted-syntax -- guest vehicles never reach the DB; data: URL is stored in localStorage only.
+          r.readAsDataURL(small);
+        });
+        setPhotoPreview(base64);
+        handleChange('vehicle_photo', base64);
+        toast.success('התמונה נטענה');
+      } catch (err) {
+        console.error('Photo load error:', err);
+        toast.error('שגיאה בטעינת התמונה');
+      }
+    } else {
+      try {
+        const { fileUrl, storagePath } = await uploadPhotoToStorage(file);
+        setPhotoPreview(fileUrl);
+        // Update both fields together so they never drift out of sync —
+        // a row with storage_path but a stale vehicle_photo (or vice versa)
+        // produces broken images on read.
+        setForm(prev => ({
+          ...prev,
+          vehicle_photo: fileUrl,
+          vehicle_photo_storage_path: storagePath,
+        }));
+        toast.success('התמונה נטענה');
+      } catch (err) {
+        console.error('Photo upload error:', err);
+        toast.error(err?.message || 'שגיאה בהעלאת התמונה');
+      }
     }
     e.target.value = '';
   };
@@ -267,7 +325,7 @@ export default function EditVehicle() {
     // Only send columns that exist in Supabase
     const DB_COLUMNS = ['vehicle_type','manufacturer','model','year',
       'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
-      'current_km','current_engine_hours','vehicle_photo','fuel_type',
+      'current_km','current_engine_hours','vehicle_photo','vehicle_photo_storage_path','fuel_type',
       'last_tire_change_date','km_since_tire_change','tires_changed_count',
       'flag_country','marina','marina_abroad','engine_manufacturer',
       'pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
@@ -277,7 +335,9 @@ export default function EditVehicle() {
       'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
       'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
       'offroad_equipment','offroad_usage_type','last_offroad_service_date',
-      'inspection_report_expiry_date'];
+      'inspection_report_expiry_date',
+      'ownership_hand','ownership_history',
+      'is_personal_import','personal_import_type'];
 
     const data = {};
     DB_COLUMNS.forEach(k => { if (form[k] !== undefined && form[k] !== null) data[k] = form[k]; });
@@ -293,6 +353,21 @@ export default function EditVehicle() {
     }
     if (form.current_km) data.current_km = Number(form.current_km);
     if (form.current_engine_hours) data.current_engine_hours = Number(form.current_engine_hours);
+    // Off-road toggleable types (jeep / ATV / dune buggy / dirt-bike)
+    // can use either km or engine hours. The picker (`usesHours()`)
+    // decides per row by checking that ONLY the chosen column is set —
+    // if both are populated it falls back to km, which is exactly the
+    // bug a user hit: they edited from km to hours, but the original
+    // current_km row from MoT was never cleared, so the dashboard
+    // still rendered "קילומטראז'". Clear the unused column on save
+    // so the picker reads the user's actual choice.
+    if (offroadMode) {
+      if (usageMetric === 'שעות מנוע') {
+        data.current_km = null;
+      } else {
+        data.current_engine_hours = null;
+      }
+    }
     if (form.km_since_tire_change) data.km_since_tire_change = Number(form.km_since_tire_change);
     if (form.insurance_company === 'אחר') data.insurance_company = form.insurance_company_other;
     // Same pattern for fuel type: if user picked "אחר" and typed a custom
@@ -350,7 +425,7 @@ export default function EditVehicle() {
       try {
         const CORE = ['vehicle_type','manufacturer','model','year','nickname','license_plate',
           'test_due_date','insurance_due_date','insurance_company','current_km','current_engine_hours',
-          'vehicle_photo','fuel_type','is_vintage','last_tire_change_date','km_since_tire_change','tires_changed_count',
+          'vehicle_photo','vehicle_photo_storage_path','fuel_type','is_vintage','last_tire_change_date','km_since_tire_change','tires_changed_count',
           'flag_country','marina','marina_abroad','engine_manufacturer',
           'pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
           'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
@@ -400,7 +475,7 @@ export default function EditVehicle() {
       <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
         <div className="max-w-sm w-full text-center">
           <div className="text-7xl mb-4" role="img" aria-hidden="true">✏️</div>
-          <h1 className="text-xl font-black mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב לעריכה</h1>
+          <h1 className="text-xl font-bold mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב לעריכה</h1>
           <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
             בחר רכב מהרשימה כדי לערוך אותו.
           </p>
@@ -432,6 +507,7 @@ export default function EditVehicle() {
   const T = getTheme(form.vehicle_type, form.nickname, form.manufacturer);
   const vesselMode = isVesselType(form.vehicle_type, form.nickname);
   const offroadMode = isOffroad(form.vehicle_type);
+  const cmeMode = isCme(form.vehicle_type);
   const hasOffroadData = (form.offroad_equipment?.length > 0 || form.offroad_usage_type || form.last_offroad_service_date);
 
   const VehicleIcon = vesselMode ? Ship : Car;
@@ -452,7 +528,7 @@ export default function EditVehicle() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-black text-white">{vesselMode ? 'עריכת כלי שייט' : 'עריכת רכב'}</h1>
+            <h1 className="text-lg font-bold text-white">{vesselMode ? 'עריכת כלי שייט' : 'עריכת רכב'}</h1>
             <p className="text-[11px] font-medium truncate" style={{ color: 'rgba(255,255,255,0.65)' }}>
               {form.nickname || [form.manufacturer, form.model].filter(Boolean).join(' ') || 'עדכון פרטים'}
             </p>
@@ -588,12 +664,14 @@ export default function EditVehicle() {
             </div>
           </div>
 
-          {/* תסקיר — periodic inspection certificate. Hidden for
-              vessels (they have כושר שייט). Optional everywhere else;
-              relevant primarily for construction equipment but exposed
-              for any non-vessel since forklifts/lifts under different
-              top-level categories also legally require it. */}
-          {!vesselMode && (
+          {/* תסקיר — periodic safety certificate required by law for
+              כלי צמ"ה only (forklifts, excavators, telehandlers,
+              cranes, rollers). Hidden for every other category since
+              a private car / motorcycle / vessel owner has no use
+              for this date and the field just cluttered the form.
+              Existing data on a non-CME vehicle stays in the row
+              (we don't drop it on save), it just isn't shown. */}
+          {cmeMode && (
             <div data-field="inspection_report_expiry_date" className="rounded-xl p-1 -m-1 transition-all">
               <Label>תסקיר (אופציונלי)</Label>
               <DateInput
@@ -795,12 +873,18 @@ export default function EditVehicle() {
                   <div className="pt-1">
                     <Label>כמה צמיגים הוחלפו?</Label>
                     <div className="flex gap-2 mt-1.5" dir="rtl">
-                      {[
-                        { val: 4, label: 'כל ה-4' },
-                        { val: 2, label: '2 צמיגים' },
-                        { val: 1, label: '1 צמיג' },
-                        { val: 3, label: '3 צמיגים' },
-                      ].map(opt => (
+                      {(['אופנוע כביש', 'אופנוע שטח', 'קטנוע'].includes(form.vehicle_type)
+                        ? [
+                            { val: 2, label: 'שני הצמיגים' },
+                            { val: 1, label: 'צמיג אחד' },
+                          ]
+                        : [
+                            { val: 4, label: 'כל ה-4' },
+                            { val: 2, label: '2 צמיגים' },
+                            { val: 1, label: '1 צמיג' },
+                            { val: 3, label: '3 צמיגים' },
+                          ]
+                      ).map(opt => (
                         <button
                           key={opt.val}
                           type="button"
@@ -818,7 +902,16 @@ export default function EditVehicle() {
                   </div>
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div><Label>תאריך החלפה</Label><DateInput value={form.last_tire_change_date} onChange={e => handleChange('last_tire_change_date', e.target.value)} /></div>
-                    <div><Label>ק"מ בעת ההחלפה</Label><Input type="number" dir="ltr" value={form.km_since_tire_change} onChange={e => handleChange('km_since_tire_change', e.target.value)} placeholder="0" /></div>
+                    <div>
+                      <Label>{usageMetric === 'שעות מנוע' ? 'שעות מנוע בעת ההחלפה' : 'ק"מ בעת ההחלפה'}</Label>
+                      <Input
+                        type="number"
+                        dir="ltr"
+                        value={form.km_since_tire_change}
+                        onChange={e => handleChange('km_since_tire_change', e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
                   </div>
                 </>
               )}
@@ -873,7 +966,7 @@ export default function EditVehicle() {
           )}
 
           <button type="submit" disabled={saving}
-            className="w-full h-14 rounded-2xl font-black text-base transition-all active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
+            className="w-full h-14 rounded-2xl font-bold text-base transition-all active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
             style={{ background: T.grad || T.primary, color: '#fff', boxShadow: `0 6px 24px ${T.primary}35` }}>
             {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
             {saving ? 'שומר...' : offroadMode ? 'עדכן כלי שטח' : vesselMode ? 'עדכן כלי שייט' : 'שמור שינויים'}

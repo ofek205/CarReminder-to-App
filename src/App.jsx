@@ -12,15 +12,76 @@ const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
-const SuspenseFallback = () => (
-  <div dir="rtl" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', fontFamily: 'system-ui' }}>
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ width: 40, height: 40, border: '3px solid #D8E5D9', borderTopColor: '#2D5233', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-      <p style={{ color: '#6B7280', fontSize: 14 }}>טוען...</p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+// Suspense fallback shown while a lazy chunk is loading.
+//
+// Belt-and-suspenders against a class of bugs we hit on iOS Capacitor +
+// WKWebView (iPadOS / iOS 26): dynamic `import()` for a lazy chunk
+// occasionally hangs indefinitely — the fetch never resolves and never
+// rejects, so React's Suspense stays "pending" forever and the user is
+// trapped on a white-screen-with-spinner. The native splash has already
+// been dismissed by then, the JS bundle is loaded, but the route's
+// sub-bundle never lands. App Review flagged exactly this state as
+// Guideline 2.1(a) "blank screen on launch".
+//
+// Recovery strategy:
+//   - 5s: surface a discreet "still loading..." copy + a manual reload
+//         button, so the user has agency before we auto-act.
+//   - 8s: hard reload the WebView. WKWebView's module loader resets
+//         on reload, so the second attempt almost always lands the
+//         chunk. A sessionStorage TTL guard prevents reload loops if
+//         the chunk is genuinely broken (we fall through to the
+//         AppErrorBoundary's "משהו השתבש" UI on the third strike).
+const SUSPENSE_AUTO_RELOAD_MS = 8000;
+const SUSPENSE_HINT_AFTER_MS = 5000;
+const SUSPENSE_RELOAD_TTL_MS = 30 * 1000;
+
+const SuspenseFallback = () => {
+  const [phase, setPhase] = React.useState('loading');
+
+  React.useEffect(() => {
+    const hintTimer = setTimeout(() => setPhase('slow'), SUSPENSE_HINT_AFTER_MS);
+    const reloadTimer = setTimeout(() => {
+      try {
+        const lastAt = Number(sessionStorage.getItem('cr:suspense-reload-at') || 0);
+        if (Date.now() - lastAt > SUSPENSE_RELOAD_TTL_MS) {
+          sessionStorage.setItem('cr:suspense-reload-at', String(Date.now()));
+          try { console.warn('[suspense] hung > 8s, auto-reloading WebView'); } catch {}
+          window.location.reload();
+        } else {
+          // Already auto-reloaded in the last 30s and we're hung again.
+          // Don't loop — leave the manual button visible.
+          setPhase('stuck');
+        }
+      } catch {
+        setPhase('stuck');
+      }
+    }, SUSPENSE_AUTO_RELOAD_MS);
+    return () => { clearTimeout(hintTimer); clearTimeout(reloadTimer); };
+  }, []);
+
+  return (
+    <div dir="rtl" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', fontFamily: 'system-ui' }}>
+      <div style={{ textAlign: 'center', maxWidth: 280 }}>
+        <div style={{ width: 40, height: 40, border: '3px solid #D8E5D9', borderTopColor: '#2D5233', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+        <p style={{ color: '#6B7280', fontSize: 14, marginBottom: 6 }}>טוען...</p>
+        {phase !== 'loading' && (
+          <>
+            <p style={{ color: '#9CA3AF', fontSize: 12, marginBottom: 14 }}>
+              {phase === 'slow' ? 'הטעינה לוקחת יותר מהרגיל' : 'הטעינה נתקעה. נסה לרענן.'}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              style={{ padding: '8px 22px', borderRadius: 10, background: '#2D5233', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: 13 }}
+            >
+              רענן
+            </button>
+          </>
+        )}
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const LayoutWrapper = ({ children, currentPageName }) => {
   return Layout ? (

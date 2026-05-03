@@ -178,7 +178,7 @@ export default function JoinInvite() {
               style={{ background: C.light }}>
               <Users className="h-10 w-10" style={{ color: C.primary }} />
             </div>
-            <h2 className="font-black text-xl text-gray-900">הוזמנת להצטרף לחשבון!</h2>
+            <h2 className="font-bold text-xl text-gray-900">הוזמנת להצטרף לחשבון!</h2>
             <p className="text-base text-gray-500">{message}</p>
             <Button onClick={goToAuth}
               className="w-full h-14 rounded-2xl font-bold text-base gap-2"
@@ -209,7 +209,7 @@ export default function JoinInvite() {
             {shareContext ? (
               <>
                 <div className="space-y-2">
-                  <h2 className="font-black text-xl text-gray-900">השיתוף אושר</h2>
+                  <h2 className="font-bold text-xl text-gray-900">השיתוף אושר</h2>
                   <p className="text-base text-gray-700 leading-relaxed">
                     <strong>{shareContext.inviter_name}</strong>
                     {' '}שיתף/ה איתך את <strong>{shareContext.vehicle_label}</strong>
@@ -241,7 +241,7 @@ export default function JoinInvite() {
               </>
             ) : (
               <>
-                <h2 className="font-black text-xl text-gray-900">{message}</h2>
+                <h2 className="font-bold text-xl text-gray-900">{message}</h2>
                 {roleInfo && (
                   <div className="rounded-2xl p-4 inline-block" style={{ background: roleInfo.bg }}>
                     <p className="text-sm font-bold" style={{ color: roleInfo.color }}>
@@ -267,7 +267,7 @@ export default function JoinInvite() {
               style={{ background: '#FEF2F2' }}>
               <XCircle className="h-10 w-10 text-red-500" />
             </div>
-            <h2 className="font-black text-xl text-gray-900">{message}</h2>
+            <h2 className="font-bold text-xl text-gray-900">{message}</h2>
             <Button onClick={() => navigate(createPageUrl('Dashboard'))}
               variant="outline"
               className="w-full h-12 rounded-2xl font-bold text-base">

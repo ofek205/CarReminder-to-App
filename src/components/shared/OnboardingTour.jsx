@@ -107,7 +107,7 @@ export default function OnboardingTour({ onComplete }) {
             style={{ background: current.bg }}>
             <Icon className="w-12 h-12" style={{ color: current.color }} aria-hidden="true" />
           </div>
-          <h2 id="onboarding-title" className="text-xl font-black mb-1" style={{ color: '#1C2E20' }}>
+          <h2 id="onboarding-title" className="text-xl font-bold mb-1" style={{ color: '#1C2E20' }}>
             {current.title}
           </h2>
           <p className="text-xs font-bold mb-4" style={{ color: current.color }}>
@@ -146,7 +146,7 @@ export default function OnboardingTour({ onComplete }) {
             </button>
           )}
           <button onClick={next}
-            className="flex-1 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            className="flex-1 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             style={{
               background: `linear-gradient(135deg, ${current.color} 0%, ${current.color}dd 100%)`,
               color: '#fff',

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
+import { supabaseRecovery } from '@/lib/supabaseRecovery';
 import { useAuth } from '@/components/shared/GuestContext';
 import { isNative } from '@/lib/capacitor';
 import logo from '@/assets/logo.png';
@@ -23,6 +24,8 @@ const C = {
   success:   '#16A34A',
   successBg: '#F0FDF4',
 };
+
+const QUICK_CHECK_RETURN_KEY = 'vehicle_quick_check_return';
 
 //  Google icon 
 const GoogleIcon = () => (
@@ -89,7 +92,6 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth();
 
-  const [showForm, setShowForm] = useState(false);
   // Modes:
   //   login, signup, reset  — email-based flows.
   //   update-password        — user clicked a password-reset email link.
@@ -143,6 +145,43 @@ export default function AuthPage() {
       if (sessionStorage.getItem('cr_pending_verify_email')) return 'verify-email';
     } catch {}
     return 'login';
+  });
+  // showForm decides whether the user sees the welcome screen
+  // (login/signup/google buttons) or the actual form. For email-driven
+  // flows (update-password, verify-email) we MUST jump straight into
+  // the form — landing on the welcome screen looks like the link is
+  // broken. The init function mirrors `mode`'s URL inspection so the
+  // first render already shows the right thing; a useEffect below
+  // covers later transitions (e.g. PASSWORD_RECOVERY listener flipping
+  // mode after a PKCE exchange).
+  const [showForm, setShowForm] = useState(() => {
+    try {
+      const u = new URL(window.location.href);
+      const m = u.searchParams.get('mode');
+      if (m === 'update-password' || m === 'verify-email') return true;
+      const hash = (window.location.hash || '').replace(/^#/, '');
+      if (hash) {
+        const hp = new URLSearchParams(hash);
+        const t  = hp.get('type');
+        if (t === 'recovery') return true;
+        if (hp.get('access_token') && (t === 'recovery' || u.searchParams.get('type') === 'recovery')) {
+          return true;
+        }
+      }
+      if (u.searchParams.get('type') === 'recovery') return true;
+      // PKCE recovery callback: ?code=… + fresh marker.
+      if (u.searchParams.get('code')) {
+        const at = Number(localStorage.getItem('cr_pending_recovery_at') || 0);
+        const TEN_MIN = 10 * 60 * 1000;
+        if (at && (Date.now() - at) < TEN_MIN) return true;
+      }
+      // Direct token_hash recovery link from the email template.
+      if (u.searchParams.get('token_hash') && u.searchParams.get('type') === 'recovery') {
+        return true;
+      }
+      if (sessionStorage.getItem('cr_pending_verify_email')) return true;
+    } catch {}
+    return false;
   });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -221,16 +260,43 @@ export default function AuthPage() {
         try {
           let error;
           if (tokenHash.startsWith('pkce_')) {
+            // Legacy PKCE-bound token (from before we switched the
+            // recovery flow to implicit). Still works in the originating
+            // browser; fails cross-device. Keep the branch so any
+            // pending old emails in the wild can still reset.
             const r = await supabase.auth.exchangeCodeForSession(tokenHash);
             error = r.error;
           } else {
-            const r = await supabase.auth.verifyOtp({
+            // Implicit-flow token: verifyOtp validates server-side
+            // without any browser-local state. Works on any device.
+            // We use supabaseRecovery (same storage as `supabase`) so
+            // the resulting session is shared with the rest of the app.
+            const r = await supabaseRecovery.auth.verifyOtp({
               token_hash: tokenHash,
               type: 'recovery',
             });
             error = r.error;
           }
           if (!error) {
+            // Mirror the freshly-verified session into the main
+            // `supabase` client. Without this, the main client's
+            // in-memory state stays empty until the next page load,
+            // and the immediate `updateUser({ password })` call below
+            // can fail with "no session". Both clients share the
+            // same storage key, so setSession just hydrates the
+            // in-memory Session from the same tokens.
+            try {
+              const { data } = await supabaseRecovery.auth.getSession();
+              if (data?.session) {
+                await supabase.auth.setSession({
+                  access_token:  data.session.access_token,
+                  refresh_token: data.session.refresh_token,
+                });
+              }
+            } catch (e) {
+              // eslint-disable-next-line no-console
+              console.warn('session mirror failed:', e?.message);
+            }
             setMode('update-password');
             setHoldForRecovery(false);
             // Strip the token from the visible URL so a hard refresh
@@ -239,12 +305,28 @@ export default function AuthPage() {
             // the refresh.
             window.history.replaceState({}, '', '/Auth?mode=update-password');
           } else {
+            // Token expired, already used, malformed, or PKCE verifier
+            // missing (e.g. user opened the link in a different browser
+            // than the one they requested it from). Bounce back to the
+            // request-reset form with a clear message so they don't
+            // sit confused on a password form whose submit will fail.
             // eslint-disable-next-line no-console
             console.warn('recovery verify failed:', error.message);
+            setError('הקישור לאיפוס הסיסמה פג תוקף או כבר נוצל. בקש קישור חדש למטה.');
+            setMode('reset');
+            setShowForm(true);
+            setHoldForRecovery(false);
+            // Strip the bad token from the URL so the failure isn't
+            // re-attempted on every render.
+            window.history.replaceState({}, '', '/Auth?mode=reset');
           }
         } catch (err) {
           // eslint-disable-next-line no-console
           console.warn('recovery verify threw:', err?.message);
+          setError('הקישור לאיפוס הסיסמה פג תוקף או כבר נוצל. בקש קישור חדש למטה.');
+          setMode('reset');
+          setShowForm(true);
+          setHoldForRecovery(false);
         }
       })();
     } catch {}
@@ -260,6 +342,13 @@ export default function AuthPage() {
   // log in without ever proving they know (or set) a password.
   useEffect(() => {
     if (isAuthenticated && mode !== 'update-password' && !holdForRecovery) {
+      try {
+        if (sessionStorage.getItem(QUICK_CHECK_RETURN_KEY) === '1') {
+          sessionStorage.removeItem(QUICK_CHECK_RETURN_KEY);
+          navigate('/vehicle-check', { replace: true });
+          return;
+        }
+      } catch {}
       navigate(createPageUrl('Dashboard'), { replace: true });
     }
   }, [isAuthenticated, mode, navigate, holdForRecovery]);
@@ -290,6 +379,18 @@ export default function AuthPage() {
     const t = setTimeout(() => setResendCooldown(s => s - 1), 1000);
     return () => clearTimeout(t);
   }, [resendCooldown]);
+
+  // Belt-and-suspenders: any time mode flips into an email-driven flow
+  // (update-password from PASSWORD_RECOVERY, verify-email from a fresh
+  // signup), force the form to be visible. Without this, a user whose
+  // initial URL didn't match the regex (e.g. hash-only fragment that
+  // a redirector stripped) but who later receives a PASSWORD_RECOVERY
+  // event would stay stuck on the welcome screen.
+  useEffect(() => {
+    if (mode === 'update-password' || mode === 'verify-email') {
+      setShowForm(true);
+    }
+  }, [mode]);
 
   // Auto-focus first input when form opens
   useEffect(() => {
@@ -501,7 +602,12 @@ export default function AuthPage() {
       }
       if (mode === 'reset') {
         if (!email.trim()) { setError('יש להזין כתובת אימייל'); setLoading(false); return; }
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        // Routed through `supabaseRecovery` (implicit flow) so the
+        // email's token isn't PKCE-bound to this browser's
+        // localStorage. The user can open the link on a different
+        // device/browser/incognito and verifyOtp will succeed. See
+        // src/lib/supabaseRecovery.js for the rationale.
+        const { error } = await supabaseRecovery.auth.resetPasswordForEmail(email, {
           redirectTo: getEmailRedirectBase() + '/Auth?mode=update-password',
         });
         if (error) {
@@ -684,7 +790,7 @@ export default function AuthPage() {
           <div className="w-full" style={{ marginTop: '4px' }}>
             {/* Headline + subtitle */}
             <div className="text-center mb-8">
-              <h1 className="font-black leading-tight mb-2" style={{ fontSize: '1.65rem', color: C.text, letterSpacing: '-0.02em' }}>
+              <h1 className="font-bold leading-tight mb-2" style={{ fontSize: '1.65rem', color: C.text, letterSpacing: '-0.02em' }}>
                 נהל את הרכב שלך<br />בלי לשכוח דבר
               </h1>
               <div className="w-14 h-1.5 mx-auto rounded-full mb-3" style={{ background: C.yellow }} />
@@ -767,14 +873,14 @@ export default function AuthPage() {
                   • everything else: normal login/signup/reset tab toggle */}
               {mode === 'update-password' ? (
                 <div className="text-center mb-6">
-                  <h2 className="text-lg font-black" style={{ color: C.greenDark }}>בחירת סיסמה חדשה</h2>
+                  <h2 className="text-lg font-bold" style={{ color: C.greenDark }}>בחירת סיסמה חדשה</h2>
                   <p className="text-xs mt-1" style={{ color: C.muted }}>
                     לפחות 8 תווים, עם אות וספרה.
                   </p>
                 </div>
               ) : mode === 'verify-email' ? (
                 <div className="text-center mb-6">
-                  <h2 className="text-lg font-black" style={{ color: C.greenDark }}>אימות האימייל</h2>
+                  <h2 className="text-lg font-bold" style={{ color: C.greenDark }}>אימות האימייל</h2>
                   <p className="text-xs mt-2 leading-relaxed" style={{ color: C.muted }}>
                     שלחנו קוד בן 6 ספרות אל
                   </p>
@@ -822,7 +928,7 @@ export default function AuthPage() {
                         autoComplete="one-time-code"
                         autoFocus
                         dir="ltr"
-                        className="w-full text-center text-2xl font-black tracking-[0.5em] py-4 rounded-2xl outline-none transition-all"
+                        className="w-full text-center text-2xl font-bold tracking-[0.5em] py-4 rounded-2xl outline-none transition-all"
                         style={{
                           background: '#FAFDF6',
                           border: `2px solid ${verificationCode.length === 6 ? C.green : C.border}`,

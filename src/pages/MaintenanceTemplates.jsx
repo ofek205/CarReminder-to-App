@@ -80,8 +80,8 @@ function GuestView() {
 // 
 
 function AuthenticatedView() {
-  const [userId, setUserId] = useState(null);
-  useEffect(() => { supabase.auth.getUser().then(({ data }) => setUserId(data?.user?.id || null)); }, []);
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
   const qc = useQueryClient();
   const { data: prefs = [], isLoading: prefsLoading } = useQuery({
@@ -96,7 +96,13 @@ function AuthenticatedView() {
   });
   const { data: vehicles = [] } = useQuery({
     queryKey: ['my-vehicles-for-templates', userId],
-    queryFn: () => db.vehicles.list(),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('id, vehicle_type');
+      if (error) throw error;
+      return data || [];
+    },
     enabled: !!userId,
   });
 
@@ -105,7 +111,15 @@ function AuthenticatedView() {
   // membership) and build a name → latest-date map below.
   const { data: logs = [] } = useQuery({
     queryKey: ['my-maintenance-logs', userId],
-    queryFn: () => db.maintenance_logs.list(),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('maintenance_logs')
+        .select('id, title, selected_items, performed_at, date, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1000);
+      if (error) throw error;
+      return data || [];
+    },
     enabled: !!userId,
   });
 

@@ -23,6 +23,36 @@ const CME_RESOURCE_ID = '58dc4654-16b1-42ed-8170-98fadec153ea';
 // (vintage / keepsake / etc.) — but flag it so the UI can warn
 // before silently filling the form.
 const INACTIVE_RESOURCE_ID = '851ecab1-0622-4dbe-a6c7-f950cf82abf9';
+// "תוצאות מבחני רישוי שנתיים" — yearly inspection (test) results
+// keyed by mispar_rechev. The headline field for our purposes is
+// `kilometraj_test_aharon` — odometer reading recorded at the last
+// annual test. We use it to seed `current_km` on AddVehicle for plates
+// that don't already carry one. Tens of millions of rows; we always
+// query with an exact mispar_rechev filter (not q=fulltext) and limit
+// 1 record back. Values of 0 are stored when the inspector didn't
+// record a reading — treated as "no value" and ignored.
+const LAST_TEST_KM_RESOURCE_ID = '56063a99-8a3e-4ff4-912e-5966c0279bad';
+// "היסטוריית כלי רכב פרטיים" — one row per ownership episode for a plate.
+// The number of rows for a given mispar_rechev IS the vehicle's hand
+// number (3 rows = יד שלישית). The `baalut` column on each row tells
+// us what kind of ownership that episode was (פרטי / ליסינג /
+// מסחרי / השכרה / ...). Used to populate ownership_hand and the
+// expandable ownership_history list.
+const OWNERSHIP_HISTORY_RESOURCE_ID = 'bb2355dc-9ec7-4f06-9c3f-3344672171da';
+// "כלי רכב ביבוא אישי" — 27K-row registry of vehicles that entered
+// Israel via personal import. Presence of a record means the plate
+// IS personally imported; the `sug_yevu` column gives the variant
+// ("יבוא אישי-משומש" / "יבוא אישי-חדש"). We surface this as a small
+// informational badge next to the existing vintage chip — no logic
+// or reminders depend on it.
+const PERSONAL_IMPORT_RESOURCE_ID = '03adc637-b6fe-402b-9937-7c3d3afc9140';
+// "כלי רכב שלא ביצעו ריקול - קריאות שירות" — vehicles with an OPEN
+// (unfulfilled) recall service call. Match by MISPAR_RECHEV; presence
+// of any record means the plate has at least one outstanding recall.
+// Headline fields: TEUR_TAKALA (defect description in Hebrew),
+// SUG_TAKALA (defect type — typically "ליקוי בטיחותי"), TAARICH_PTICHA
+// (recall opening date). 137K records as of 2026-05.
+const OPEN_RECALL_RESOURCE_ID = '36bf1404-0be4-49d2-82dc-2f1ead4a8b93';
 import { isNative } from '@/lib/capacitor';
 
 // In dev browser, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
@@ -410,6 +440,249 @@ function mapSpecRecord(r) {
 }
 
 /**
+ * Fetch last-test odometer reading for a plate. Uses an exact filter
+ * on mispar_rechev (not q=fulltext) so we never get a spurious match
+ * against a record where the plate digits happen to appear in some
+ * other column.
+ *
+ * Returns the kilometers as a positive integer, or null if:
+ *   • the plate isn't in the dataset
+ *   • the odometer field is missing/zero (inspector didn't record)
+ *   • the API call fails or times out (we never fail the parent
+ *     lookup just because this enrichment didn't land)
+ *
+ * Wrapped in its own try/catch so a failure here can't escape and
+ * crash the main lookup — current_km is a nice-to-have, not critical.
+ */
+async function fetchLastTestKm(plateDigits) {
+  try {
+    const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
+    const url = `${API_BASE}?resource_id=${encodeURIComponent(LAST_TEST_KM_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const record = json?.result?.records?.[0];
+    if (!record) return null;
+    // Verified column name from the dataset's `fields` schema:
+    // `kilometer_test_aharon` (numeric, the odometer reading at the
+    // last annual test). The other names are kept as fallbacks in
+    // case the dataset is ever renamed — costs nothing to check.
+    const raw = record.kilometer_test_aharon
+             ?? record.kilometraj_test_aharon
+             ?? record.km_test_aharon
+             ?? record.kmrut_test_aharon;
+    const km = Number(raw);
+    if (!Number.isFinite(km) || km <= 0) return null;
+    return Math.round(km);
+  } catch {
+    return null;   // never throws — current_km is best-effort
+  }
+}
+
+/**
+ * Fetch ownership history for a plate. Returns:
+ *   {
+ *     hand:    integer 1+    — count of ownership episodes
+ *     history: array of      — chronological list (oldest first)
+ *       { baalut: 'פרטי', date: 'YYYY-MM-DD' | null }
+ *     current: 'פרטי'        — most recent baalut value (for the
+ *                              ownership field; only used as fallback
+ *                              when the registration record didn't
+ *                              already give us one)
+ *   }
+ *
+ * Returns null on any error / empty result. Best-effort: never throws,
+ * never blocks the parent lookup. The dataset has no documented field
+ * for ownership-start date — we try a few plausible names and gracefully
+ * leave date=null if none is found.
+ */
+async function fetchOwnershipHistory(plateDigits) {
+  try {
+    // We DON'T use a filters= query here because the gov.il datastore_search
+    // exact-match filter on this dataset has flaky behavior with 7-digit
+    // numerics — depending on whether the column is stored as int or
+    // text we get either a hit or 0 results. Using q=fulltext on the
+    // plate number works reliably across both. We then filter the
+    // returned records client-side to the exact plate.
+    const url = `${API_BASE}?resource_id=${encodeURIComponent(OWNERSHIP_HISTORY_RESOURCE_ID)}&q=${encodeURIComponent(plateDigits)}&limit=50`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const records = json?.result?.records || [];
+    if (records.length === 0) return null;
+
+    // Tighten to records whose plate column matches exactly. Cheap
+    // safeguard against fulltext bleed (e.g. "1234567" matching a VIN
+    // suffix in another row).
+    const exact = records.filter(r =>
+      String(r.mispar_rechev || '').replace(/\D/g, '') === plateDigits
+    );
+    if (exact.length === 0) return null;
+
+    // Verified column from the dataset's `fields` schema:
+    // `baalut_dt` numeric in YYYYMM format (e.g. 201709 = Sept 2017).
+    // We normalize to YYYY-MM-01 ISO so the UI's date formatter renders
+    // it consistently with the rest of the form's dates. Other names
+    // are kept as fallbacks against future schema drift.
+    const dateOf = (r) =>
+      r.baalut_dt ?? r.taarich_baalut ?? r.tarich_baalut
+      ?? r.tarich_haskara ?? r.taarich_aliya ?? r.moed_baalut ?? null;
+
+    const normalizeDate = (raw) => {
+      if (raw == null) return null;
+      const s = String(raw);
+      // YYYYMM (6 digits) → YYYY-MM-01
+      if (/^\d{6}$/.test(s)) {
+        return `${s.slice(0, 4)}-${s.slice(4, 6)}-01`;
+      }
+      // YYYY-MM-DD or YYYY-MM-DD HH:MM:SS → keep date portion
+      return safeDate(s) || null;
+    };
+
+    // Sort chronologically (oldest first) by the raw value — works
+    // regardless of whether the column is YYYYMM int or ISO string.
+    const sorted = [...exact].sort((a, b) => {
+      const da = String(dateOf(a) ?? '');
+      const db = String(dateOf(b) ?? '');
+      return da.localeCompare(db);
+    });
+
+    const history = sorted.map(r => ({
+      baalut: safeStr(r.baalut || '', 30) || null,
+      date:   normalizeDate(dateOf(r)),
+    }));
+
+    // "יד" counts only real owners. By Israeli used-car convention the
+    // dealer (סוחר) doesn't count as a hand — the dealer holds the car
+    // for resale rather than driving it, so the buyer-facing hand
+    // number treats those rows as pass-through. Every other ownership
+    // type (פרטי / ליסינג / השכרה / מסחרי / מונית / ...) DOES count.
+    // The full history list is still returned verbatim so the
+    // breakdown UI can show every episode with its real baalut tag.
+    // Data.gov ownership labels aren't always a clean literal "סוחר".
+    // In practice we may get variants like:
+    //   "סוחר רכב", "סוחר-רכב", "סוחר/פרטי", extra spaces, punctuation, etc.
+    // Business rule from PM: ANY dealer episode should not count as a hand.
+    const normalizeOwnershipLabel = (value) =>
+      String(value || '')
+        .trim()
+        .replace(/[\u0591-\u05C7]/g, '') // Hebrew niqqud/marks
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+    const isDealerEpisode = (b) => {
+      const label = normalizeOwnershipLabel(b);
+      return label.includes('סוחר');
+    };
+    const handCount = history.filter(h => !isDealerEpisode(h.baalut)).length;
+
+    return {
+      hand:    handCount,
+      history,
+      current: history[history.length - 1]?.baalut || null,
+    };
+  } catch {
+    return null;   // never throws — enrichment is best-effort
+  }
+}
+
+/**
+ * Map a personal-import dataset row to sanitized form fields. The
+ * dataset has plenty of overlap with the standard car schema — we use
+ * it as a primary record source for plates that aren't in the active
+ * private-car registry (vintage personal-imports often live ONLY here).
+ */
+function mapPersonalImportRecord(r) {
+  const fields = {};
+
+  if (r.mispar_rechev)      fields.license_plate           = formatPlate(r.mispar_rechev);
+  if (r.tozeret_nm)         fields.manufacturer            = safeStr(r.tozeret_nm, 60);
+  if (r.degem_nm)           fields.model                   = safeStr(r.degem_nm, 60);
+  if (r.shnat_yitzur)       fields.year                    = safeYear(r.shnat_yitzur);
+  if (r.sug_delek_nm)       fields.fuel_type               = safeStr(r.sug_delek_nm, 40);
+  if (r.tozeret_eretz_nm)   fields.country_of_origin       = safeStr(r.tozeret_eretz_nm, 40);
+  if (r.degem_manoa)        fields.engine_model            = safeStr(r.degem_manoa, 60);
+  if (r.shilda)             fields.vin                     = safeStr(String(r.shilda), 30);
+  if (r.sug_rechev_nm)      fields.vehicle_class           = safeStr(r.sug_rechev_nm, 40);
+  if (r.nefach_manoa && Number(r.nefach_manoa) > 0) {
+    fields.engine_cc = safeNum(r.nefach_manoa) + ' סמ"ק';
+  }
+  if (r.mishkal_kolel && Number(r.mishkal_kolel) > 0) {
+    fields.total_weight = safeNum(r.mishkal_kolel) + ' ק"ג';
+  }
+  if (r.tokef_dt)               fields.test_due_date           = safeDate(r.tokef_dt);
+  if (r.mivchan_acharon_dt)     fields.last_test_date          = safeDate(r.mivchan_acharon_dt);
+  if (r.moed_aliya_lakvish) {
+    const raw = String(r.moed_aliya_lakvish);
+    // moed_aliya_lakvish in this dataset can be "YYYY-MM" or "YYYY-MM-DD".
+    const match = raw.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
+    if (match) {
+      const [, yr, mo, dy] = match;
+      const d = new Date(Number(yr), Number(mo) - 1, Number(dy || 1));
+      if (!isNaN(d.getTime())) {
+        fields.first_registration_date = d.toISOString().split('T')[0];
+      }
+    }
+  }
+
+  // Pre-flag the import status so the parallel enrichment doesn't have
+  // to call the dataset a second time (we already know it's positive).
+  fields.is_personal_import   = true;
+  if (r.sug_yevu) {
+    fields.personal_import_type = safeStr(r.sug_yevu, 30);
+  }
+
+  return fields;
+}
+
+/**
+ * Fetch the raw personal-import record for a plate (or null). Used in
+ * two ways:
+ *   1. As a fallback PRIMARY source — when the plate isn't in the
+ *      active registry but IS a personal import (vintage Mercedes etc.),
+ *      we map the record to fields and treat it as the lookup result.
+ *   2. As an ENRICHMENT — when the plate IS in the active registry,
+ *      we still want to know it's a personal import to surface the
+ *      badge. The caller in that path only reads sug_yevu.
+ *
+ * Exact mispar_rechev filter — never substring/fulltext, to avoid
+ * matching rows where the digits happen to appear in a VIN.
+ */
+async function fetchPersonalImportRecord(plateDigits) {
+  try {
+    const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
+    const url = `${API_BASE}?resource_id=${encodeURIComponent(PERSONAL_IMPORT_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.result?.records?.[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lightweight wrapper for the parallel-enrichment path. Returns just
+ * the flag + type, or null. Kept for clarity at the call site.
+ */
+async function fetchPersonalImport(plateDigits) {
+  const record = await fetchPersonalImportRecord(plateDigits);
+  if (!record) return null;
+  return {
+    is_personal_import:   true,
+    personal_import_type: safeStr(record.sug_yevu || '', 30) || 'יבוא אישי',
+  };
+}
+
+/**
  * Fetch detailed tech specs from the דגמי רכב API using tozeret_cd + degem_cd + year.
  */
 async function fetchDetailedSpecs(tozeretCd, degemCd, year) {
@@ -425,6 +698,120 @@ async function fetchDetailedSpecs(tozeretCd, degemCd, year) {
     const json = await res.json();
     if (!json.success || !json.result?.records?.length) return null;
     return mapSpecRecord(json.result.records[0]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch "anecdote" market stats for private cars:
+ *   - how many ACTIVE vehicles exist בישראל מאותו דגם
+ *   - how many ACTIVE vehicles exist מאותו דגם + אותו צבע
+ *
+ * Scope is intentionally the active private-car registry only
+ * (RESOURCE_ID). For motorcycles/heavy/CME datasets we skip to avoid
+ * misleading counts from schema mismatch.
+ */
+async function fetchActiveModelAnecdote(source, record) {
+  // Supported sources that can be mapped back to the active private-car
+  // registry with stable model identifiers.
+  const supported = source === 'car' || source === 'inactive' || source === 'personal_import';
+  if (!supported) return null;
+
+  const tozeretCd = Number(record?.tozeret_cd);
+  const degemCd = Number(record?.degem_cd);
+  if (!Number.isFinite(tozeretCd) || !Number.isFinite(degemCd) || tozeretCd <= 0 || degemCd <= 0) {
+    return null;
+  }
+
+  const modelFilters = { tozeret_cd: tozeretCd, degem_cd: degemCd };
+  const colorRaw = safeStr(record?.tzeva_rechev || '', 30) || null;
+
+  const fetchCount = async (filters) => {
+    const url = `${API_BASE}?resource_id=${encodeURIComponent(RESOURCE_ID)}&filters=${encodeURIComponent(JSON.stringify(filters))}&limit=0`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const total = Number(json?.result?.total);
+      return Number.isFinite(total) && total >= 0 ? total : null;
+    } catch {
+      clearTimeout(timeoutId);
+      return null;
+    }
+  };
+
+  // Ownership-mix breakdown — same model, split by baalut. We only
+  // probe the four most common values in the registry (private/leasing/
+  // rental/commercial); anything else is too rare to be useful as a
+  // percentage and would just inflate API load. All 6 calls fire in
+  // parallel, all best-effort. If any fails we degrade gracefully —
+  // the breakdown is informational, never load-bearing.
+  const BAALUT_BREAKDOWN_KEYS = ['פרטי', 'ליסינג', 'השכרה', 'מסחרי'];
+
+  const [sameModelCount, sameModelColorCount, ...baalutCounts] = await Promise.all([
+    fetchCount(modelFilters),
+    colorRaw ? fetchCount({ ...modelFilters, tzeva_rechev: colorRaw }) : Promise.resolve(null),
+    ...BAALUT_BREAKDOWN_KEYS.map(b => fetchCount({ ...modelFilters, baalut: b })),
+  ]);
+
+  if (!Number.isFinite(sameModelCount) && !Number.isFinite(sameModelColorCount)) return null;
+
+  // Build breakdown only when we have a reliable total to divide by AND
+  // at least one band landed. Skip the percentage rounding when total
+  // is too small to be meaningful (<100) — at low N the % swings wildly
+  // and looks like noise.
+  let ownership_distribution = null;
+  if (Number.isFinite(sameModelCount) && sameModelCount >= 100) {
+    const entries = BAALUT_BREAKDOWN_KEYS
+      .map((label, i) => ({ label, count: Number(baalutCounts[i]) }))
+      .filter(e => Number.isFinite(e.count) && e.count > 0)
+      .map(e => ({ label: e.label, count: e.count, percent: Math.round((e.count / sameModelCount) * 100) }))
+      .filter(e => e.percent >= 1)
+      .sort((a, b) => b.count - a.count);
+    if (entries.length > 0) ownership_distribution = entries;
+  }
+
+  return {
+    active_same_model_count: Number.isFinite(sameModelCount) ? sameModelCount : null,
+    active_same_model_color_count: Number.isFinite(sameModelColorCount) ? sameModelColorCount : null,
+    active_same_model_color_name: colorRaw,
+    ownership_distribution,
+  };
+}
+
+/**
+ * Open-recall lookup. Best-effort: never throws, returns null on any
+ * failure or empty result so the parent lookup can keep going. We do
+ * an exact filter on MISPAR_RECHEV (the dataset uses an uppercase
+ * field name) and ask for up to 10 rows — a single plate can have
+ * multiple recalls open if the manufacturer issued several over time.
+ *
+ * Returns an array of { id, type, defectType, description, openedDate }
+ * or null when the plate has no open recalls (or the call failed).
+ */
+async function fetchOpenRecalls(plateDigits) {
+  try {
+    const filters = JSON.stringify({ MISPAR_RECHEV: Number(plateDigits) });
+    const url = `${API_BASE}?resource_id=${encodeURIComponent(OPEN_RECALL_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=10`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const records = json?.result?.records;
+    if (!Array.isArray(records) || records.length === 0) return null;
+    return records.map(r => ({
+      id:           r.RECALL_ID != null ? String(r.RECALL_ID) : null,
+      type:         safeStr(r.SUG_RECALL, 60),
+      defectType:   safeStr(r.SUG_TAKALA, 60),
+      description:  safeStr(r.TEUR_TAKALA, 400),
+      openedDate:   safeDate(r.TAARICH_PTICHA),
+    }));
   } catch {
     return null;
   }
@@ -507,21 +894,37 @@ export async function lookupVehicleByPlate(plate) {
     if (records) source = 'inactive';
   }
 
-  if (!records) return null;
+  // Final fallback — the personal-import registry. Plates of
+  // privately-imported cars (often older Mercedes / BMW / etc.) live
+  // ONLY here; without this tier they'd return "not found" even
+  // though the gov knows about them. Tried for any plate length.
+  let personalImportRecordRaw = null;
+  if (!records) {
+    personalImportRecordRaw = await fetchPersonalImportRecord(clean);
+    if (personalImportRecordRaw) source = 'personal_import';
+  }
+
+  if (!records && !personalImportRecordRaw) return null;
 
   // CME records key on mispar_tzama, all other tiers on mispar_rechev.
-  const plateField = source === 'cme' ? 'mispar_tzama' : 'mispar_rechev';
-  const exact = records.find(
-    r => String(r[plateField]).replace(/\D/g, '') === clean
-  );
-  const record = exact ?? records[0];
+  let record;
+  if (source === 'personal_import') {
+    record = personalImportRecordRaw;
+  } else {
+    const plateField = source === 'cme' ? 'mispar_tzama' : 'mispar_rechev';
+    const exact = records.find(
+      r => String(r[plateField]).replace(/\D/g, '') === clean
+    );
+    record = exact ?? records[0];
+  }
 
   // Pick the matching mapper. The `inactive` (off-road / cancelled)
   // dataset uses the same private-car schema, so mapRecord is reused;
   // the cancellation date is appended after.
-  const fields = source === 'moto'     ? mapMotoRecord(record)
-              : source === 'heavy'    ? mapHeavyRecord(record)
-              : source === 'cme'      ? mapCmeRecord(record)
+  const fields = source === 'moto'           ? mapMotoRecord(record)
+              : source === 'heavy'          ? mapHeavyRecord(record)
+              : source === 'cme'            ? mapCmeRecord(record)
+              : source === 'personal_import' ? mapPersonalImportRecord(record)
               : mapRecord(record); // 'car' OR 'inactive'
 
   // Inactive-registry hit → tag the result so AddVehicle can warn the
@@ -535,19 +938,97 @@ export async function lookupVehicleByPlate(plate) {
     }
   }
 
-  // Detailed specs lookup. The דגמי רכב table carries entries for
-  // cars, heavies, and even some inactive/cancelled rows (the model
-  // table is mostly model-not-status keyed), so we call it whenever
-  // tozeret_cd is present. Motorcycles already have specs inline.
-  // CME has its own complete record so no second call. Specs are
-  // merged non-destructively — never overwrite a value the
-  // registration record already provided.
-  if (source !== 'moto' && source !== 'cme' && fields._tozeret_cd) {
-    const specs = await fetchDetailedSpecs(fields._tozeret_cd, fields._degem_cd, fields.year);
-    if (specs) {
-      Object.entries(specs).forEach(([k, v]) => {
-        if (v && !fields[k]) fields[k] = v;
-      });
+  // Detailed specs lookup + last-test odometer enrichment. Both run
+  // in parallel — they're independent calls against different
+  // datasets. Either failing leaves the rest of the result intact;
+  // current_km is a "nice if we have it" enrichment, the user can
+  // also enter it manually.
+  //
+  // Coverage:
+  //   • specs: cars + heavies (private-car + inactive use the same
+  //     schema; motorcycles carry specs inline; CME has a complete
+  //     record so neither needs the second call)
+  //   • test-km: cars + heavies + inactive (all keyed on
+  //     mispar_rechev). Motorcycles have their own dataset; CME plates
+  //     are a different namespace entirely (mispar_tzama).
+  const enrichments = await Promise.all([
+    (source !== 'moto' && source !== 'cme' && fields._tozeret_cd)
+      ? fetchDetailedSpecs(fields._tozeret_cd, fields._degem_cd, fields.year)
+      : Promise.resolve(null),
+    (source !== 'moto' && source !== 'cme')
+      ? fetchLastTestKm(clean)
+      : Promise.resolve(null),
+    (source !== 'moto' && source !== 'cme')
+      ? fetchOwnershipHistory(clean)
+      : Promise.resolve(null),
+    // Skip when personal_import is already the primary source — we
+     // already have those fields. Skip CME (different plate namespace).
+    (source !== 'cme' && source !== 'personal_import')
+      ? fetchPersonalImport(clean)
+      : Promise.resolve(null),
+    fetchActiveModelAnecdote(source, record),
+    // Open-recall lookup — same MISPAR_RECHEV namespace as cars, motos,
+    // heavies, and inactives. CME plates are a different namespace
+    // (mispar_tzama) so we skip; personal-import plates ARE in the
+    // car namespace so they're included.
+    (source !== 'cme') ? fetchOpenRecalls(clean) : Promise.resolve(null),
+  ]);
+  const [specs, lastTestKm, ownership, personalImport, modelAnecdote, openRecalls] = enrichments;
+
+  if (specs) {
+    Object.entries(specs).forEach(([k, v]) => {
+      if (v && !fields[k]) fields[k] = v;
+    });
+  }
+  // Merge non-destructively — if the user already populated current_km
+  // (e.g. from a previous form session) we don't overwrite it. The
+  // value is the odometer at the LAST test, which is the most recent
+  // ground-truth reading we have for the plate.
+  if (lastTestKm && !fields.current_km) {
+    fields.current_km = String(lastTestKm);
+  }
+  // Ownership enrichment — the dedicated history dataset is the
+  // primary source for hand + history. Current `ownership` (baalut)
+  // is taken from the registration record first; we only fall back
+  // to the history's most-recent entry if the registration didn't
+  // carry one (e.g. CME / heavy where it isn't included).
+  if (ownership) {
+    fields.ownership_hand    = ownership.hand;
+    fields.ownership_history = ownership.history;
+    if (!fields.ownership && ownership.current) {
+      fields.ownership = ownership.current;
+    }
+  }
+  // Personal-import flag — informational only. Whether the plate
+  // appears in the dedicated registry → boolean + a short label
+  // (e.g. "יבוא אישי-משומש"). Surfaced as a badge in VehicleDetail
+  // alongside the vintage chip; no business logic depends on it.
+  if (personalImport) {
+    fields.is_personal_import   = true;
+    fields.personal_import_type = personalImport.personal_import_type;
+  }
+  // Open recalls — actionable warning for buyers. Surface BOTH the
+  // count (drives the insight tone) and the array of full records (so
+  // the UI can show the actual defect descriptions, not just a count).
+  if (Array.isArray(openRecalls) && openRecalls.length > 0) {
+    fields.open_recalls       = openRecalls;
+    fields.open_recalls_count = openRecalls.length;
+  }
+
+  // Friendly "market context" anecdote for Vehicle Quick Check:
+  // active vehicles בישראל with the same model (+ same color). Best-effort.
+  if (modelAnecdote) {
+    if (Number.isFinite(modelAnecdote.active_same_model_count)) {
+      fields.active_same_model_count = modelAnecdote.active_same_model_count;
+    }
+    if (Number.isFinite(modelAnecdote.active_same_model_color_count)) {
+      fields.active_same_model_color_count = modelAnecdote.active_same_model_color_count;
+    }
+    if (modelAnecdote.active_same_model_color_name) {
+      fields.active_same_model_color_name = modelAnecdote.active_same_model_color_name;
+    }
+    if (Array.isArray(modelAnecdote.ownership_distribution) && modelAnecdote.ownership_distribution.length) {
+      fields.ownership_distribution = modelAnecdote.ownership_distribution;
     }
   }
 
@@ -572,6 +1053,11 @@ export async function lookupVehicleByPlate(plate) {
     if (tk.startsWith('O'))      detectedType = 'trailer';
     else if (tk === 'M2' || tk === 'M3') detectedType = 'bus';
     else                         detectedType = 'truck';
+  } else if (source === 'personal_import') {
+    // Personal-import dataset is private-car-only (sug_rechev_nm =
+    // "פרטי נוסעים" on every row I sampled). Mapping to 'car' surfaces
+    // the right category in the AddVehicle category selector.
+    detectedType = 'car';
   } else {
     // Private-car dataset OR inactive-vehicle dataset (same schema).
     // The inactive dataset uses sug_rechev_nm instead of sug_degem

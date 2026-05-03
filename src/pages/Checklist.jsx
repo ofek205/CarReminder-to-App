@@ -477,7 +477,7 @@ export default function Checklist() {
             )}
           </div>
           <div className="mt-2 flex items-center justify-between">
-            <h1 className="font-black text-lg text-slate-800">{PHASE_LABELS[phase]}</h1>
+            <h1 className="font-bold text-lg text-slate-800">{PHASE_LABELS[phase]}</h1>
             <div className="text-xs font-bold flex items-center gap-1.5" style={{ color: THEME.primary }}>
               {saving && <span className="text-amber-600 text-[10px]">שומר…</span>}
               {!saving && items.length > 0 && <CheckCircle2 className="w-3 h-3" />}
@@ -492,7 +492,7 @@ export default function Checklist() {
       <div className="px-4 pt-4 space-y-5">
         {groups.map((g) => (
           <div key={g.name}>
-            <h2 className="text-xs font-black uppercase tracking-wide text-slate-500 mb-2">{g.name}</h2>
+            <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">{g.name}</h2>
             <div className="space-y-2">
               {g.items.map(it => (
                 <ItemRow key={it.id} item={it}
@@ -515,7 +515,7 @@ export default function Checklist() {
         style={{ paddingBottom: '12px' }}>
         <button onClick={handleFinish}
           disabled={finishing || !items.length}
-          className="w-full h-12 rounded-2xl font-extrabold text-base text-white active:translate-y-px transition-all disabled:opacity-50"
+          className="w-full h-12 rounded-2xl font-bold text-base text-white active:translate-y-px transition-all disabled:opacity-50"
           style={{ background: THEME.grad, boxShadow: '0 6px 18px rgba(12,123,147,0.3)' }}>
           {finishing ? 'שומר…' : 'סיום ושמירה'}
         </button>

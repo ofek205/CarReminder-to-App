@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Card } from "@/components/ui/card";
@@ -326,7 +326,7 @@ export default function DemoVehicleDetail() {
         style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
         <span className="text-lg">👀</span>
         <div className="flex-1">
-          <p className="text-sm font-black" style={{ color: '#92400E' }}>רכב לדוגמה</p>
+          <p className="text-sm font-bold" style={{ color: '#92400E' }}>רכב לדוגמה</p>
           <p className="text-xs" style={{ color: '#B45309' }}>כך ייראה הניהול שלך - הוסף את כלי התחבורה האמיתי שלך כדי להתחיל</p>
         </div>
       </div>

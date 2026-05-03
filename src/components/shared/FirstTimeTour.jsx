@@ -359,7 +359,7 @@ export default function FirstTimeTour({
           {step + 1} מתוך {totalSteps}
         </div>
 
-        <h3 id="cr-tour-title" className="text-[15px] font-black mt-2" style={{ color: T.titleColor }}>
+        <h3 id="cr-tour-title" className="text-[15px] font-bold mt-2" style={{ color: T.titleColor }}>
           {current.title}
         </h3>
         <p className="text-[13px] mt-1.5 leading-relaxed text-gray-600">
@@ -404,7 +404,7 @@ export default function FirstTimeTour({
           </div>
 
           <button ref={nextBtnRef} onClick={isLast ? finish : next}
-            className="text-white font-extrabold text-[13px] px-4 transition-all active:translate-y-px flex items-center"
+            className="text-white font-bold text-[13px] px-4 transition-all active:translate-y-px flex items-center"
             style={{
               height: 38,
               borderRadius: 12,

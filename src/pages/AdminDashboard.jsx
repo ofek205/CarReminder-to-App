@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
+import useIsAdmin from '@/hooks/useIsAdmin';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import AdminPopupsTab from '../components/admin/AdminPopupsTab';
 import {
@@ -326,7 +327,7 @@ function HeroKpi({ icon: Icon, label, value, delta, deltaUnit = '%', deltaLabel,
       </div>
       <div>
         <p className="text-[12px] font-semibold text-gray-500 leading-tight">{label}</p>
-        <p className="text-3xl font-black text-gray-900 mt-1 tabular-nums leading-none">
+        <p className="text-3xl font-bold text-gray-900 mt-1 tabular-nums leading-none">
           {typeof value === 'number' ? value.toLocaleString() : value}
         </p>
         <p className="text-[10px] text-gray-400 mt-1.5 leading-tight">
@@ -412,7 +413,13 @@ function FunnelWeakestStep({ funnel }) {
 //
 
 export default function AdminDashboard() {
-  const [isAdmin, setIsAdmin]       = useState(null);
+  // Server-side admin check (is_admin() RPC). Returns null while loading,
+  // true / false after. Replaces an earlier inline read of
+  // user.user_metadata?.role === 'admin' which a self-set signup metadata
+  // could spoof. Server-side enforcement (RLS + RPC) was already the
+  // actual gatekeeper for every admin action; this aligns the UI gate
+  // with the same source of truth used by Layout's nav.
+  const isAdmin = useIsAdmin();
   const [filter, setFilter]         = useState('week');
   const [segment, setSegment]       = useState('all'); // all | car | motorcycle | truck | vessel | offroad
   const [adminTab, setAdminTab]     = useState('stats'); // stats | users | messages | bugs
@@ -428,22 +435,9 @@ export default function AdminDashboard() {
   const [documents, setDocuments]   = useState([]);
   const [analyticsData, setAnalyticsData] = useState([]);
 
-  // Step 1: verify admin role (using Supabase user metadata)
-  useEffect(() => {
-    async function checkAdmin() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setIsAdmin(false); return; }
-        // Check user_metadata role or account_members for admin flag
-        const isAdminUser = user.user_metadata?.role === 'admin'
-          || user.email === 'ofek205@gmail.com'; // fallback: app owner
-        setIsAdmin(isAdminUser);
-      } catch {
-        setIsAdmin(false);
-      }
-    }
-    checkAdmin();
-  }, []);
+  // (admin role check moved to the useIsAdmin() hook above; the previous
+  // useEffect that read user.user_metadata?.role + an email fallback has
+  // been removed.)
 
   // Track the last successful refresh so the UI can show "updated N
   // minutes ago". transparency matters in an admin dashboard.
@@ -1759,7 +1753,7 @@ function InsightCard({ label, value, sub, delta, deltaSuffix = '%', tone = 'blue
         <p className="text-[11px] font-bold text-gray-500">{label}</p>
         <span className="w-1.5 h-1.5 rounded-full mt-1" style={{ background: t.dot }} />
       </div>
-      <p className="text-2xl font-black text-gray-900 tracking-tight">{value}</p>
+      <p className="text-2xl font-bold text-gray-900 tracking-tight">{value}</p>
       <div className="flex items-center justify-between gap-2 mt-2">
         {sub && <p className="text-[10px] text-gray-400 truncate">{sub}</p>}
         {hasDelta && (
@@ -1785,7 +1779,7 @@ function StatPill({ label, value, tone = 'blue' }) {
   return (
     <div className={`rounded-xl border px-3 py-2 ${bg}`}>
       <p className="text-[10px] font-bold opacity-80">{label}</p>
-      <p className="text-lg font-black leading-tight">{value}</p>
+      <p className="text-lg font-bold leading-tight">{value}</p>
     </div>
   );
 }

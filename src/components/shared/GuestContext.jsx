@@ -12,6 +12,7 @@ const SETTINGS_KEY         = 'fleet_guest_reminder_settings';
 const ACCIDENTS_KEY        = 'fleet_guest_accidents';
 const VESSEL_ISSUES_KEY    = 'fleet_guest_vessel_issues';
 const CORK_NOTES_KEY       = 'fleet_guest_cork_notes';
+const FORCE_GUEST_ONCE_KEY = 'cr_force_guest_once';
 
 const DEFAULT_REMINDER_SETTINGS = {
   remind_test_days_before:       14,
@@ -141,7 +142,9 @@ export function GuestProvider({ children }) {
         'model_code','trim_level','vin','pollution_group','vehicle_class','safety_rating',
         'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
         'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
-        'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
+        'offroad_equipment','offroad_usage_type','last_offroad_service_date',
+        'ownership_hand','ownership_history',
+        'is_personal_import','personal_import_type'];
 
       let migrated = 0;
       for (const guestVehicle of toMigrate) {
@@ -213,16 +216,74 @@ export function GuestProvider({ children }) {
       } catch { /* fall through; pages will surface the error */ }
     };
 
-    // Check initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    // Emergency recovery path from main.jsx watchdog. If set, we skip
+    // session restoration exactly once and enter guest mode immediately.
+    try {
+      if (sessionStorage.getItem(FORCE_GUEST_ONCE_KEY) === '1') {
+        sessionStorage.removeItem(FORCE_GUEST_ONCE_KEY);
+        setAuthState('guest');
+        try { window.__crAuthResolvedAt = Date.now(); } catch {}
+        return undefined;
+      }
+    } catch {}
+
+    // iOS hot-fix: on some WKWebView cold starts, Supabase
+    // auth.getSession() can stall while reading persisted auth data
+    // from the native storage bridge. If we await it forever, authState
+    // never leaves "loading" and AuthPage shows the spinner forever.
+    // We cap the initial bootstrap wait and degrade gracefully to guest.
+    const getSessionWithTimeout = async (timeoutMs = 8000) => {
+      try {
+        const timeout = new Promise(resolve =>
+          setTimeout(() => resolve({ data: { session: null }, error: new Error('getSession timeout') }), timeoutMs)
+        );
+        const result = await Promise.race([supabase.auth.getSession(), timeout]);
+        return result || { data: { session: null }, error: null };
+      } catch (err) {
+        return { data: { session: null }, error: err };
+      }
+    };
+
+    let cancelled = false;
+    let retryTimer = null;
+    const initAuthBootstrap = async () => {
+      const { data, error } = await getSessionWithTimeout();
+      if (cancelled) return;
+      const session = data?.session || null;
+
       if (session?.user) {
         setUser(normalizeUser(session.user));
         await provisionIfNeeded();
-        setAuthState('authenticated');
-      } else {
-        setAuthState('guest');
+        if (!cancelled) {
+          setAuthState('authenticated');
+          try { window.__crAuthResolvedAt = Date.now(); } catch {}
+        }
+        return;
       }
-    });
+
+      if (error && import.meta.env.DEV) {
+        console.warn('Auth bootstrap fallback to guest:', error?.message || error);
+      }
+      setAuthState('guest');
+      try { window.__crAuthResolvedAt = Date.now(); } catch {}
+
+      // Soft recovery: if storage was merely slow (not dead), try one
+      // delayed pass to restore an existing authenticated session without
+      // forcing the user to sign in again.
+      retryTimer = setTimeout(async () => {
+        if (cancelled) return;
+        const retry = await getSessionWithTimeout(6000);
+        const retrySession = retry?.data?.session || null;
+        if (!retrySession?.user || cancelled) return;
+        setUser(normalizeUser(retrySession.user));
+        await provisionIfNeeded();
+        if (!cancelled) {
+          setAuthState('authenticated');
+          try { window.__crAuthResolvedAt = Date.now(); } catch {}
+        }
+      }, 2000);
+    };
+    initAuthBootstrap();
 
     // Listen for auth state changes. Provisioning runs only on the
     // events where it can actually matter (first sign-in / restored
@@ -239,15 +300,21 @@ export function GuestProvider({ children }) {
           await provisionIfNeeded();
         }
         setAuthState('authenticated');
+        try { window.__crAuthResolvedAt = Date.now(); } catch {}
         // Migrate guest data after login/signup (non-blocking).
         migrateGuestDataIfNeeded(newUser);
       } else {
         setUser(null);
         setAuthState('guest');
+        try { window.__crAuthResolvedAt = Date.now(); } catch {}
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {

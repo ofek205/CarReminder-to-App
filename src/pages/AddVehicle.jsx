@@ -1,8 +1,10 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
+import useFileUpload from '@/hooks/useFileUpload';
 import FirstTimeTour from '@/components/shared/FirstTimeTour';
+import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 
 // Mini tour shown the first time a user lands on /AddVehicle with no
 // vehicles yet. Kept intentionally short: two steps, plain Hebrew,
@@ -47,6 +49,7 @@ import { C as defaultC, getTheme } from '@/lib/designTokens';
 import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { useQueryClient } from '@tanstack/react-query';
 import useAccountRole from '@/hooks/useAccountRole';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
 import FileOrCameraUpload from '@/components/ui/file-or-camera-upload';
@@ -71,6 +74,21 @@ const EMPTY_FORM = {
   current_km: '',
   current_engine_hours: '',
   vehicle_photo: '',
+  // Sprint A.B-2: Storage path for the vehicle photo. Set when an
+  // authenticated user uploads a photo (vehicle_photo holds the
+  // current signed URL; storage_path lets readers refresh that URL
+  // after it expires). Stays empty for guests — they persist a
+  // base64 data: URL in vehicle_photo only, in localStorage.
+  vehicle_photo_storage_path: '',
+  // Ownership history (auto-filled from gov.il during plate lookup;
+  // never user-entered manually, but kept here so handleChange can
+  // reset it if the user re-runs the lookup with a different plate).
+  ownership_hand: '',
+  ownership_history: null,
+  // Personal-import flag (gov.il "כלי רכב ביבוא אישי" registry).
+  // Informational badge only — not user-editable.
+  is_personal_import: false,
+  personal_import_type: '',
   last_tire_change_date: '',
   km_since_tire_change: '',
   tires_changed_count: 4,  // default assumption: a "tire change" event replaces all 4. User can narrow down.
@@ -102,13 +120,16 @@ const EMPTY_FORM = {
   inspection_report_expiry_date: '',
 };
 
-// Autofill visual helper - renders "מולא אוטומטית" hint if field was autofilled
-function AutofillHint({ name, autofillFields }) {
+// Autofill visual helper - renders "מולא אוטומטית" hint if field was autofilled.
+// `message` overrides the default copy — used by fields with a more
+// specific provenance the user benefits from knowing (e.g. current_km
+// comes from the gov.il last-test dataset, not the registration card).
+function AutofillHint({ name, autofillFields, message }) {
   if (!autofillFields.has(name)) return null;
   return (
     <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
       <CheckCircle2 className="h-3 w-3 shrink-0" />
-      מולא אוטומטית (ניתן לערוך)
+      {message || 'מולא אוטומטית (ניתן לערוך)'}
     </p>
   );
 }
@@ -123,6 +144,17 @@ export default function AddVehicle() {
   const queryClient = useQueryClient();
   const { isAuthenticated, isGuest, user, addGuestVehicle, guestVehicles } = useAuth();
   const { role, isGuest: isGuestRole } = useAccountRole();
+  // Drivers in a business workspace cannot add vehicles to the fleet —
+  // that's the manager's responsibility. Without this gate the driver
+  // would fill the whole form and only learn it failed on save (RLS
+  // rejection). Bounce them upfront to MyVehicles. Owners / managers /
+  // viewers in business + every personal-account user keep access.
+  const { isBusiness: isWsBusiness, isDriver: isWsDriver, canManageRoutes: wsCanManage } = useWorkspaceRole();
+  useEffect(() => {
+    if (isWsBusiness && isWsDriver && !wsCanManage) {
+      navigate(createPageUrl('MyVehicles'), { replace: true });
+    }
+  }, [isWsBusiness, isWsDriver, wsCanManage, navigate]);
   const [saving, setSaving] = useState(false);
   const [accountId, setAccountId] = useState(null);
   const [userId, setUserId] = useState(null);
@@ -148,6 +180,18 @@ export default function AddVehicle() {
   const [selectedMethod, setSelectedMethod] = useState(null); // null | 'plate' | 'scan' | 'manual'
   const [autofillFields, setAutofillFields] = useState(new Set());
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  // Sprint A.B-2: storage-backed photo upload for authenticated users.
+  // Guests don't get an accountId so the hook is effectively idle for them
+  // (handlePhoto branches into the guest base64 path before calling upload).
+  // userId is required because the vehicle doesn't exist yet — uploads
+  // land under scans/{userId} which the bucket RLS policy permits for
+  // pre-creation assets.
+  const { upload: uploadPhotoToStorage } = useFileUpload({
+    accountId,
+    userId: user?.id,
+    mode: 'photo',
+    maxMB: 10,
+  });
   const formRef = useRef(null);
   // Submit guard — synchronous check prevents double-submit in the ~frame
   // window between button click and `saving` state commit. Without this,
@@ -205,7 +249,28 @@ export default function AddVehicle() {
   // Dynamic theme - switches to marine when כלי שייט is selected
   const isVesselCategory = selectedCategory?.label === 'כלי שייט';
   const isOffroadCategory = selectedCategory?.label === 'כלי שטח';
+  // תסקיר (periodic safety inspection) is a regulatory requirement
+  // specific to construction equipment (forklifts, excavators, cranes,
+  // telehandlers, rollers). Showing it for every vehicle clutters the
+  // form for a private car owner who has no use for the field.
+  const isCmeCategory = selectedCategory?.label === 'כלי צמ"ה';
   const isJeepOffroad = selectedSubcategory?.dbName === "ג'יפ שטח";
+  // Two-wheelers (road motorcycle, scooter, off-road motorcycle) only
+  // ever have 2 tires — showing the 1/2/3/4 selector for them was
+  // confusing and let users pick "כל ה-4" by accident on an אופנוע.
+  const isTwoWheeler =
+    selectedCategory?.label === 'אופנועים' ||
+    ['אופנוע כביש', 'אופנוע שטח', 'קטנוע'].includes(form.vehicle_type);
+  // Normalise tires_changed_count when the user lands on a two-wheeler
+  // category — EMPTY_FORM defaults to 4, which is illegal for a
+  // motorcycle. We don't override an explicit 1 the user already
+  // picked, only the impossible 3/4 values.
+  useEffect(() => {
+    if (isTwoWheeler && (form.tires_changed_count === 4 || form.tires_changed_count === 3)) {
+      handleChange('tires_changed_count', 2);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTwoWheeler]);
   const [showOffroadSection, setShowOffroadSection] = useState(false);
   const T = isVesselCategory ? getTheme('כלי שייט') : defaultC;
 
@@ -285,22 +350,49 @@ export default function AddVehicle() {
     if (!file) return;
     const validation = validateUploadFile(file, 'photo', 10);
     if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
-    try {
-      // Shared compressor (WebP when supported, JPEG fallback) keeps the
-      // data URL small enough to store comfortably in the row.
-      const small = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.75 });
-      const base64 = await new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = (ev) => resolve(ev.target.result);
-        r.onerror = reject;
-        r.readAsDataURL(small);
-      });
-      setPhotoPreview(base64);
-      handleChange('vehicle_photo', base64);
-      toast.success('התמונה נטענה');
-    } catch (err) {
-      console.error('Photo load error:', err);
-      toast.error('שגיאה בטעינת התמונה');
+
+    // Sprint A.B-2: split the photo flow.
+    //   • Guests have no Supabase auth and persist everything to localStorage,
+    //     so they keep the legacy "compress + base64" path. The data: URL is
+    //     intentionally NOT written to the DB (there is no DB write for guest
+    //     vehicles), so the no-restricted-syntax rule's spirit is preserved.
+    //   • Authenticated users upload to Supabase Storage and persist BOTH the
+    //     resulting signed URL (for cheap immediate display) and the
+    //     storage_path (for re-signing when the URL expires after 7 days).
+    if (isGuest) {
+      try {
+        const small = await compressImage(file, { maxWidth: 800, maxHeight: 800, quality: 0.75 });
+        const base64 = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = (ev) => resolve(ev.target.result);
+          r.onerror = reject;
+          // eslint-disable-next-line no-restricted-syntax -- guest vehicles never reach the DB; data: URL is stored in localStorage only.
+          r.readAsDataURL(small);
+        });
+        setPhotoPreview(base64);
+        handleChange('vehicle_photo', base64);
+        toast.success('התמונה נטענה');
+      } catch (err) {
+        console.error('Photo load error:', err);
+        toast.error('שגיאה בטעינת התמונה');
+      }
+    } else {
+      try {
+        const { fileUrl, storagePath } = await uploadPhotoToStorage(file);
+        setPhotoPreview(fileUrl);
+        // Update both fields together so they never drift out of sync —
+        // a row with storage_path but a stale vehicle_photo (or vice versa)
+        // produces broken images on read.
+        setForm(prev => ({
+          ...prev,
+          vehicle_photo: fileUrl,
+          vehicle_photo_storage_path: storagePath,
+        }));
+        toast.success('התמונה נטענה');
+      } catch (err) {
+        console.error('Photo upload error:', err);
+        toast.error(err?.message || 'שגיאה בהעלאת התמונה');
+      }
     }
     e.target.value = '';
   };
@@ -462,6 +554,22 @@ export default function AddVehicle() {
     // Other tiers don't return it and the empty default leaves the
     // existing value alone.
     inspection_report_expiry_date: fields.inspection_report_expiry_date || '',
+    // Odometer reading at the last annual test, sourced from the
+    // yearly inspection-results dataset. Pre-fills current_km so the
+    // user doesn't have to copy it from the registration card —
+    // they can still override before submitting if they've driven
+    // since the last test.
+    current_km: fields.current_km || '',
+    // Ownership-history derived fields. ownership_hand is the count
+    // of episodes ("יד שלישית" = 3); ownership_history is the full
+    // chronological list rendered in the expandable specs panel.
+    // Both come from the gov.il "היסטוריית כלי רכב" dataset.
+    ownership_hand:    fields.ownership_hand    || '',
+    ownership_history: fields.ownership_history || null,
+    // Personal-import flag (gov.il "יבוא אישי" registry). Surfaced
+    // as a small informational badge — no functional impact.
+    is_personal_import:    fields.is_personal_import    || false,
+    personal_import_type:  fields.personal_import_type  || '',
   });
 
   // Apply lookup result to the form + UI state
@@ -693,7 +801,7 @@ export default function AddVehicle() {
       // Only keep known DB columns - strip everything else
       const DB_COLUMNS = ['account_id','vehicle_type','manufacturer','model','year',
         'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
-        'current_km','current_engine_hours','vehicle_photo','fuel_type','is_vintage',
+        'current_km','current_engine_hours','vehicle_photo','vehicle_photo_storage_path','fuel_type','is_vintage',
         'last_tire_change_date','km_since_tire_change','tires_changed_count',
         'flag_country','marina','marina_abroad','engine_manufacturer','pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
         'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
@@ -702,7 +810,9 @@ export default function AddVehicle() {
         'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
         'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
         'offroad_equipment','offroad_usage_type','last_offroad_service_date',
-        'inspection_report_expiry_date'];
+        'inspection_report_expiry_date',
+        'ownership_hand','ownership_history',
+        'is_personal_import','personal_import_type'];
       const cleanData = { account_id: accountId };
       DB_COLUMNS.forEach(k => { if (data[k] !== undefined && data[k] !== null && data[k] !== '') cleanData[k] = data[k]; });
 
@@ -868,13 +978,13 @@ export default function AddVehicle() {
               <span className="text-3xl" role="img" aria-label="warning">⚠️</span>
             </div>
             <div className="text-center space-y-2">
-              <h2 id="mismatch-title" className="text-lg font-black text-gray-900">
+              <h2 id="mismatch-title" className="text-lg font-bold text-gray-900">
                 סוג הרכב לא תואם לקטגוריה
               </h2>
               <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
                 המספר <span dir="ltr" className="font-mono font-bold" style={{ color: '#DC2626' }}>{typeMismatch.pendingFields.license_plate || plateQuery}</span>
                 {' '}שייך לפי משרד התחבורה ל
-                <span className="font-black" style={{ color: '#2D5233' }}>{typeMismatch.detectedLabel}</span>,
+                <span className="font-bold" style={{ color: '#2D5233' }}>{typeMismatch.detectedLabel}</span>,
                 {' '}אבל בחרת בקטגוריה <span className="font-bold">{selectedCategory?.label}</span>.
               </p>
               <p className="text-xs" style={{ color: '#9CA3AF' }}>
@@ -914,7 +1024,7 @@ export default function AddVehicle() {
               style={{ background: T.grad || T.primary, width: 72, height: 72, boxShadow: `0 8px 32px ${T.primary}40` }}>
               <PartyPopper className="h-9 w-9 text-white" />
             </div>
-            <h2 className="text-xl font-black text-gray-900">
+            <h2 className="text-xl font-bold text-gray-900">
               {isVesselCategory ? 'כלי השייט נוסף' : 'הרכב נוסף'}
             </h2>
             <p className="text-gray-500 text-sm leading-relaxed">
@@ -950,7 +1060,7 @@ export default function AddVehicle() {
               style={{ background: T.grad || C.grad, boxShadow: `0 6px 20px ${T.primary}30` }}>
               <CheckCircle2 className="w-7 h-7 text-white" />
             </div>
-            <h2 className="text-lg font-black text-gray-900">{isVesselCategory ? 'כלי השייט נשמר!' : 'הרכב נשמר!'}</h2>
+            <h2 className="text-lg font-bold text-gray-900">{isVesselCategory ? 'כלי השייט נשמר!' : 'הרכב נשמר!'}</h2>
             <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
               הפרטים נשמרו זמנית במכשיר שלך.
               <br />
@@ -990,7 +1100,7 @@ export default function AddVehicle() {
               </div>
             </Link>
             <div>
-              <h1 className="text-lg font-black text-white">הוספת כלי תחבורה</h1>
+              <h1 className="text-lg font-bold text-white">הוספת כלי תחבורה</h1>
               <p className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>בחר סוג ומלא פרטים</p>
             </div>
           </div>
@@ -1012,7 +1122,7 @@ export default function AddVehicle() {
 
       {/*  Step 1: Vehicle type  */}
       <div className="mb-6" data-tour="av-category">
-        <h2 className="font-black text-lg mb-3 text-center" style={{ color: '#1C2E20' }}>בחר סוג כלי רכב</h2>
+        <h2 className="font-bold text-lg mb-3 text-center" style={{ color: '#1C2E20' }}>בחר סוג כלי רכב</h2>
         <VehicleTypeSelector
           variant="tabs"
           value={form.vehicle_type_id}
@@ -1166,7 +1276,7 @@ export default function AddVehicle() {
 
       {/*  Step 2: Method selection  */}
       <div className={`transition-all duration-300 ${categoryReady ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-      <h2 className="font-black text-lg mb-4 text-center" style={{ color: '#1C2E20' }}>איך תרצה להוסיף?</h2>
+      <h2 className="font-bold text-lg mb-4 text-center" style={{ color: '#1C2E20' }}>איך תרצה להוסיף?</h2>
       <div className="space-y-3 mb-6" data-tour="av-methods">
 
         {/* 1. Plate lookup - only if category supports it */}
@@ -1187,38 +1297,28 @@ export default function AddVehicle() {
             </div>
           </div>
 
-          {/* Plate input - only shown when this card is selected */}
+          {/* Plate input - only shown when this card is selected. Uses the
+              shared <VehicleCheckPlateInput /> so the IL strip + flag here
+              matches every other plate in the app (LicensePlate display,
+              Dashboard hero, VehicleCheck page). */}
           {isSelected('plate') && (
-            <div className="mt-4">
+            <div className="mt-4" onClick={e => e.stopPropagation()}>
               <div className="flex gap-2 items-stretch">
-                <div className="relative flex-1">
-                  <div className="absolute right-0 top-0 bottom-0 w-9 rounded-r-lg bg-[#003DA5] flex flex-col items-center justify-center gap-0.5 pointer-events-none z-10">
-                    <span className="text-white text-[8px] font-bold leading-none tracking-wider">IL</span>
-                    <svg viewBox="0 0 60 40" className="w-5 h-3 mt-0.5">
-                      <rect width="60" height="40" fill="white"/>
-                      <rect y="4" width="60" height="5" fill="#003DA5"/>
-                      <rect y="31" width="60" height="5" fill="#003DA5"/>
-                      <polygon points="30,10 34.5,21 25.5,21" fill="none" stroke="#003DA5" strokeWidth="2"/>
-                      <polygon points="30,26 25.5,15 34.5,15" fill="none" stroke="#003DA5" strokeWidth="2"/>
-                    </svg>
-                  </div>
-                  <input
-                    type="text"
-                    dir="ltr"
+                <div className="flex-1">
+                  <VehicleCheckPlateInput
                     value={plateQuery}
-                    onChange={e => { setPlateQuery(e.target.value); setLookupStatus('idle'); }}
-                    onKeyDown={e => e.key === 'Enter' && handleLookup()}
-                    onClick={e => e.stopPropagation()}
+                    onChange={v => { setPlateQuery(v); setLookupStatus('idle'); }}
+                    onEnter={handleLookup}
+                    disabled={lookupStatus === 'loading'}
                     autoFocus
-                    placeholder="12-345-67"
-                    className="w-full h-12 pr-11 pl-3 text-center text-xl font-bold tracking-widest bg-[#FFD600] border-2 border-yellow-400 rounded-lg focus:outline-none focus:border-[#003DA5] placeholder:text-yellow-700/50"
+                    compact
                   />
                 </div>
                 <Button
                   type="button"
                   onClick={e => { e.stopPropagation(); handleLookup(); }}
                   disabled={lookupStatus === 'loading' || !plateQuery.trim()}
-                  className="bg-[#003DA5] hover:bg-[#002d7a] text-white h-12 px-4 gap-2 shrink-0"
+                  className="bg-[#003DA5] hover:bg-[#002d7a] text-white h-10 px-4 gap-2 shrink-0"
                 >
                   {lookupStatus === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   מצא רכב
@@ -1320,7 +1420,7 @@ export default function AddVehicle() {
             {/* Step header - premium */}
             <div className="flex items-center justify-between mb-4" dir="rtl">
               <div className="flex items-center gap-2">
-                <h2 className="font-black text-xl" style={{ color: T.text }}>פרטי הרכב</h2>
+                <h2 className="font-bold text-xl" style={{ color: T.text }}>פרטי הרכב</h2>
                 {draft.showSaved && (
                   <span className="text-[10px] font-bold flex items-center gap-1 draft-saved"
                     style={{ color: '#059669' }}>
@@ -1536,14 +1636,14 @@ export default function AddVehicle() {
                     </div>
                   </div>
 
-                  {/* Inspection report ("תסקיר") — optional date.
-                      Promoted into the form for any non-vessel category
-                      since forklifts, telehandlers, excavators and other
-                      construction equipment legally require a periodic
-                      inspection certificate. Hidden for vessels (they
-                      have their own כושר שייט slot above). NULL = no
-                      reminder fires, so leaving blank is fine. */}
-                  {!isVesselCategory && (
+                  {/* Inspection report ("תסקיר") — periodic safety
+                      certificate required by law for כלי צמ"ה only
+                      (forklifts, excavators, telehandlers, cranes,
+                      rollers). Hidden for every other category
+                      including private cars / motorcycles / vessels —
+                      previously the field appeared everywhere and just
+                      cluttered the form. NULL = no reminder fires. */}
+                  {isCmeCategory && (
                     <div>
                       <Label>תסקיר (אופציונלי)</Label>
                       <DateInput
@@ -1572,7 +1672,21 @@ export default function AddVehicle() {
                       {usageMetric === 'שעות מנוע' ? (
                         <Input type="number" value={form.current_engine_hours} onChange={e => handleChange('current_engine_hours', e.target.value)} placeholder="0" dir="ltr" />
                       ) : (
-                        <Input type="number" value={form.current_km} onChange={e => handleChange('current_km', e.target.value)} placeholder="0" dir="ltr" />
+                        <>
+                          <Input
+                            type="number"
+                            value={form.current_km}
+                            onChange={e => handleChange('current_km', e.target.value)}
+                            placeholder="0"
+                            dir="ltr"
+                            className={autofillCls('current_km', autofillFields)}
+                          />
+                          <AutofillHint
+                            name="current_km"
+                            autofillFields={autofillFields}
+                            message="ק&quot;מ אחרון מתוצאות הטסט במשרד התחבורה"
+                          />
+                        </>
                       )}
                     </div>
                     <div>
@@ -1750,12 +1864,18 @@ export default function AddVehicle() {
                         <div className="pt-1">
                           <Label>כמה צמיגים הוחלפו?</Label>
                           <div className="flex gap-2 mt-1.5" dir="rtl">
-                            {[
-                              { val: 4, label: 'כל ה-4' },
-                              { val: 2, label: '2 צמיגים' },
-                              { val: 1, label: '1 צמיג' },
-                              { val: 3, label: '3 צמיגים' },
-                            ].map(opt => (
+                            {(isTwoWheeler
+                              ? [
+                                  { val: 2, label: 'שני הצמיגים' },
+                                  { val: 1, label: 'צמיג אחד' },
+                                ]
+                              : [
+                                  { val: 4, label: 'כל ה-4' },
+                                  { val: 2, label: '2 צמיגים' },
+                                  { val: 1, label: '1 צמיג' },
+                                  { val: 3, label: '3 צמיגים' },
+                                ]
+                            ).map(opt => (
                               <button
                                 key={opt.val}
                                 type="button"
@@ -1771,9 +1891,13 @@ export default function AddVehicle() {
                             ))}
                           </div>
                           <p className="text-[11px] mt-1" style={{ color: '#7A8A7C' }}>
-                            {form.tires_changed_count === 4
-                              ? 'נשער ש-4 צמיגים חדשים באותה נקודה'
-                              : `נעקוב אחר ${form.tires_changed_count} צמיגים חדשים. לצמיגים שלא הוחלפו, הגיל נמדד מהרכב עצמו.`}
+                            {isTwoWheeler
+                              ? (form.tires_changed_count === 2
+                                  ? 'נשער ששני הצמיגים חדשים באותה נקודה'
+                                  : 'נעקוב אחר צמיג אחד חדש. לצמיג שלא הוחלף, הגיל נמדד מהרכב עצמו.')
+                              : (form.tires_changed_count === 4
+                                  ? 'נשער ש-4 צמיגים חדשים באותה נקודה'
+                                  : `נעקוב אחר ${form.tires_changed_count} צמיגים חדשים. לצמיגים שלא הוחלפו, הגיל נמדד מהרכב עצמו.`)}
                           </p>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -1782,8 +1906,13 @@ export default function AddVehicle() {
                             <DateInput value={form.last_tire_change_date} onChange={e => handleChange('last_tire_change_date', e.target.value)} />
                           </div>
                           <div>
-                            <Label>קילומטראז׳ בעת ההחלפה (אופציונלי)</Label>
-                            <Input type="number" value={form.km_since_tire_change} onChange={e => handleChange('km_since_tire_change', e.target.value)} placeholder="מד הק״מ ביום ההחלפה" />
+                            <Label>{usageMetric === 'שעות מנוע' ? 'שעות מנוע בעת ההחלפה (אופציונלי)' : 'קילומטראז׳ בעת ההחלפה (אופציונלי)'}</Label>
+                            <Input
+                              type="number"
+                              value={form.km_since_tire_change}
+                              onChange={e => handleChange('km_since_tire_change', e.target.value)}
+                              placeholder={usageMetric === 'שעות מנוע' ? 'מד שעות המנוע ביום ההחלפה' : 'מד הק״מ ביום ההחלפה'}
+                            />
                           </div>
                         </div>
                       </>
@@ -1904,7 +2033,7 @@ export default function AddVehicle() {
                   disabled={saving
                     || (!form?.vehicle_type_id && !form?.vehicle_type)
                     || (!isGuest && (!vehiclesLoaded || !accountId))}
-                  className="w-full h-14 rounded-2xl font-black text-base transition-all duration-200 active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
+                  className="w-full h-14 rounded-2xl font-bold text-base transition-all duration-200 active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
                   style={{
                     background: T.grad || T.primary,
                     color: '#fff',

@@ -21,8 +21,12 @@ const SHELL_URLS = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
+  // Match the actual filenames on disk (public/icons/icon-<size>x<size>.png).
+  // Earlier versions referenced ./icons/icon-192.png which doesn't exist —
+  // pre-cache silently 404'd and the shell-cache stayed incomplete, so a
+  // truly-offline reload had to fall back to the network for these assets.
+  './icons/icon-192x192.png',
+  './icons/icon-512x512.png',
 ];
 
 // ── Install: pre-cache the app shell ─────────────────────────────────────────

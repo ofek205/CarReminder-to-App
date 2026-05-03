@@ -194,7 +194,7 @@ function NoteDialog({ open, onClose, note, onSave, onDelete, categories, T }) {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-sm mx-4" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-lg font-black">
+          <DialogTitle className="text-lg font-bold">
             {isEdit ? 'עריכת פתק' : 'פתק חדש'} 📌
           </DialogTitle>
         </DialogHeader>

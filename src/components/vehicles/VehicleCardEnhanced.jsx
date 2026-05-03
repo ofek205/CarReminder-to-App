@@ -7,6 +7,7 @@ import { Car, Ship, Bike, Truck, ChevronLeft, Gauge, Clock, MoreVertical, Edit, 
 import VehicleAccessModal from '@/components/sharing/VehicleAccessModal';
 import { getTheme, getVehicleCategory, C } from '@/lib/designTokens';
 import VehicleIcon from '../shared/VehicleIcon';
+import VehicleImage, { hasVehiclePhoto } from '../shared/VehicleImage';
 import { getDateStatus, usesKm, usesHours, getVehicleLabels, isVessel } from '../shared/DateStatusUtils';
 import StatusBadge from '../shared/StatusBadge';
 import LicensePlate from '../shared/LicensePlate';
@@ -232,8 +233,8 @@ function VehicleCardEnhanced({ vehicle }) {
 
           {/* Photo */}
           <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0" style={{ background: T.light }}>
-            {vehicle.vehicle_photo ? (
-              <img src={vehicle.vehicle_photo} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+            {hasVehiclePhoto(vehicle) ? (
+              <VehicleImage vehicle={vehicle} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <VehicleIcon vehicle={vehicle} className="w-8 h-8" style={{ color: T.accent, opacity: 0.5 }} />
@@ -247,9 +248,9 @@ function VehicleCardEnhanced({ vehicle }) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-extrabold text-base truncate" style={{ color: C.text }}>{name}</h3>
+                  <h3 className="font-bold text-base truncate" style={{ color: C.text }}>{name}</h3>
                   {vehicle._isDemo && (
-                    <span className="text-xs font-black px-2 py-0.5 rounded-full shrink-0"
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0"
                       style={{ background: '#FFBF00', color: '#92400E' }}>
                       לדוגמה
                     </span>
@@ -400,6 +401,11 @@ export default React.memo(VehicleCardEnhanced, (prev, next) => {
     a.current_km === b.current_km &&
     a.current_engine_hours === b.current_engine_hours &&
     a.vehicle_photo === b.vehicle_photo &&
+    // Sprint A.B-2: storage_path is the durable identity for the photo;
+    // vehicle_photo is just the most-recently-signed URL. If we only
+    // diffed vehicle_photo, a freshly-resigned URL (same path, new token)
+    // would force a re-render even though the image is unchanged.
+    a.vehicle_photo_storage_path === b.vehicle_photo_storage_path &&
     a.license_plate === b.license_plate &&
     // Sharing fields from my_vehicles_v — re-render the badge when the
     // owner adds/removes a sharee or a recipient leaves.

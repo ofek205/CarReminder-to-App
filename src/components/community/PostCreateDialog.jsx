@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
 import { getVehicleVisual } from '@/lib/designTokens';
 import VehicleIcon from '../shared/VehicleIcon';
+import VehicleImage, { hasVehiclePhoto } from '../shared/VehicleImage';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import useFormDraft from '@/hooks/useFormDraft';
@@ -222,7 +223,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
               <div className="flex items-center gap-2">
                 <DomainIcon className="w-4 h-4 text-white opacity-90" />
-                <h2 className="text-lg font-black text-white">
+                <h2 className="text-lg font-bold text-white">
                   {domain === 'vessel' ? 'פוסט חדש - כלי שייט' : 'פוסט חדש - רכבים'}
                 </h2>
               </div>
@@ -260,7 +261,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
            * and a one-line confirmation ("ברוך יענה מותאם לרכב הזה"). */}
           {vehicles && vehicles.length > 0 && (() => {
             const selTheme = selectedVehicle ? getVehicleVisual(selectedVehicle).theme : null;
-            const hasPhoto = !!selectedVehicle?.vehicle_photo;
+            const hasPhoto = hasVehiclePhoto(selectedVehicle);
             return (
               <div dir="rtl">
                 <button type="button" onClick={() => setPickerOpen(o => !o)}
@@ -277,14 +278,14 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                         <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 ring-2"
                           style={{ background: selTheme.light, ringColor: selTheme.primary }}>
                           {hasPhoto
-                            ? <img src={selectedVehicle.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                            ? <VehicleImage vehicle={selectedVehicle} alt="" className="w-full h-full object-cover" />
                             : <div className="w-full h-full flex items-center justify-center">
                                 <VehicleIcon vehicle={selectedVehicle} className="w-6 h-6" style={{ color: selTheme.primary }} />
                               </div>
                           }
                         </div>
                         <div className="text-right min-w-0">
-                          <p className="text-[14px] font-black truncate" style={{ color: '#111827' }}>
+                          <p className="text-[14px] font-bold truncate" style={{ color: '#111827' }}>
                             {selectedVehicle.nickname || `${selectedVehicle.manufacturer || ''} ${selectedVehicle.model || ''}`.trim()}
                           </p>
                           <p className="text-[11px] font-bold flex items-center gap-1 mt-0.5" style={{ color: selTheme.primary }}>
@@ -299,7 +300,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                           <Sparkles className="w-6 h-6 text-white" />
                         </div>
                         <div className="text-right">
-                          <p className="text-[14px] font-black" style={{ color: '#111827' }}>
+                          <p className="text-[14px] font-bold" style={{ color: '#111827' }}>
                             התייעץ על כלי תחבורה ספציפי
                           </p>
                           <p className="text-[11px] font-semibold mt-0.5" style={{ color: T.primary }}>
@@ -341,14 +342,14 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                       {vehicles.map(v => {
                         const { theme } = getVehicleVisual(v);
                         const sel = linkedVehicleId === v.id;
-                        const vPhoto = !!v.vehicle_photo;
+                        const vPhoto = hasVehiclePhoto(v);
                         return (
                           <button type="button" key={v.id} onClick={() => { setLinkedVehicleId(v.id); setPickerOpen(false); }}
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all active:bg-gray-50 hover:bg-gray-50"
                             style={{ background: sel ? theme.light : 'transparent', border: sel ? `1.5px solid ${theme.primary}40` : '1.5px solid transparent' }}>
                             <div className="w-9 h-9 rounded-lg overflow-hidden flex items-center justify-center shrink-0" style={{ background: theme.light }}>
                               {vPhoto
-                                ? <img src={v.vehicle_photo} alt="" className="w-full h-full object-cover" />
+                                ? <VehicleImage vehicle={v} alt="" className="w-full h-full object-cover" />
                                 : <VehicleIcon vehicle={v} className="w-4 h-4" style={{ color: theme.primary }} />}
                             </div>
                             <div className="flex-1 text-right min-w-0">
@@ -532,7 +533,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
         {/*  Bottom submit button. bold gradient with shimmer  */}
         <div className="px-4 pb-4 pt-2">
           <button onClick={handleSubmit} disabled={!isValid || saving}
-            className="w-full py-4 rounded-2xl font-black text-base transition-all active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"
+            className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"
             style={{
               background: isValid ? (T.grad || T.primary) : '#E5E7EB',
               color: isValid ? '#fff' : '#9CA3AF',

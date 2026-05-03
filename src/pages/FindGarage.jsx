@@ -3,7 +3,7 @@ import { C } from '@/lib/designTokens';
 import { isVesselType } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { db } from '@/lib/supabaseEntities';
-import { MapPin, Navigation, Wrench, Search, Loader2, MapPinOff, Phone, Star, ArrowUpDown, Anchor, Ship, Package, Settings, LocateFixed } from 'lucide-react';
+import { MapPin, Wrench, Search, Loader2, MapPinOff, Phone, Star, ArrowUpDown, Anchor, Ship, Package, Settings, LocateFixed } from 'lucide-react';
 import { getCurrentPosition } from '@/lib/capacitor';
 
 // Brand SVG marks. used on the directions buttons. Kept inline to avoid extra assets.
@@ -258,7 +258,9 @@ export default function FindGarage() {
   // surface a distinct banner + "try again" button to the user). The
   // old flow fell back to Tel Aviv silently whenever anything went
   // wrong, which users interpreted as a bug.
-  const [usingGps, setUsingGps] = useState(false);
+  // `usingGps` was driving a "GPS פעיל" pill on the removed top button
+  // and is no longer read anywhere — kept the setter calls as a no-op
+  // ref slot in case we add a future GPS-state pill back. State stripped.
   const [locationDenied, setLocationDenied] = useState(false);
 
   useEffect(() => {
@@ -272,7 +274,6 @@ export default function FindGarage() {
         const pos = await getCurrentPosition();
         if (cancelled) return;
         setUserLocation({ lat: pos.latitude, lng: pos.longitude });
-        setUsingGps(true);
         setLocationDenied(false);
       } catch (err) {
         if (cancelled) return;
@@ -298,7 +299,6 @@ export default function FindGarage() {
     try {
       const pos = await getCurrentPosition();
       setUserLocation({ lat: pos.latitude, lng: pos.longitude });
-      setUsingGps(true);
       setLocationDenied(false);
       // Snap the map back to the new location.
       if (mapRef.current) {
@@ -323,23 +323,25 @@ export default function FindGarage() {
   //   Key: rounded lat/lng (1km grid) + radius + vessel flag
   //   TTL: 24h. garages don't appear/disappear often; users can pull-to-refresh
   //   Strategy: on hit, render cached results instantly + fetch in background
-  // Bumped to v2 when we tightened the Overpass query (drop craft=mechanic,
-  // require name, include ways/relations). Old v1 payloads contained
-  // unnamed/off-topic entries that the new code would now filter out — but
-  // we render straight from the cached array, so without a version bump
-  // users would keep seeing yesterday's bad results until TTL expiry.
-  const CACHE_VERSION = 'fg_v2';
+  // Bumped to v3 when we removed the expensive `[~"^name(:he)?$"~"."]`
+  // regex from the Overpass query — the regex was pushing the merged
+  // query past Overpass's 25s ceiling and every request came back with
+  // `remark: timeout, elements: []`. The legacy `fetchFromServers`
+  // treated that 200-OK as success, cached the empty array, and v2
+  // users got "no results" for 24h until TTL expiry. v3 cache is
+  // populated only by responses that actually contained data.
+  const CACHE_VERSION = 'fg_v3';
 
-  // Sweep stale v1 cache rows once per mount. localStorage on iOS
+  // Sweep stale v1/v2 cache rows once per mount. localStorage on iOS
   // WebView has a tight quota — if we only bumped the key prefix without
-  // cleaning, every v1 payload would sit there until the user clears
+  // cleaning, every old payload would sit there until the user clears
   // app data. Single linear scan, runs only on this page.
   useEffect(() => {
     try {
       const stale = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('fg_v1:')) stale.push(k);
+        if (k && (k.startsWith('fg_v1:') || k.startsWith('fg_v2:'))) stale.push(k);
       }
       stale.forEach(k => localStorage.removeItem(k));
     } catch { /* no-op: quota errors / private mode */ }
@@ -394,37 +396,47 @@ export default function FindGarage() {
       //     cover industrial mechanics / tyre-makers, not vehicle service).
       //   * Added `service:vehicle:*` namespace (modern OSM convention
       //     for gas stations / dealerships that also do repair).
-      // Name-presence filter. `["name"]` matches only the bare `name`
-      // key, which would silently exclude Israeli POIs that only have
-      // `name:he`. The regex matches either key with any non-empty
-      // value — `pickDisplayName` will still prefer Hebrew at render.
-      const nameAny = `[~"^name(:he)?$"~"."]`;
-
+      // No Overpass-side name filter. The previous version applied a
+      // regex `[~"^name(:he)?$"~"."]` to every union sub-query so that
+      // Hebrew-only POIs (only `name:he`) would still match — but the
+      // regex evaluation pushed the merged query past Overpass's 25s
+      // runtime ceiling and the server returned `runtime error: Query
+      // timed out` with zero results.
+      //
+      // We rely on JS-side filtering instead: `toRow` already drops
+      // any entry whose `pickDisplayName(tags)` returns empty, so
+      // unnamed rows never reach the UI. The extra ~10-50 unnamed
+      // entries that come back per query are filtered in O(n) JS
+      // and the response is fast.
       const carQuery = `[out:json][timeout:25];(`
-        + `nwr["shop"="car_repair"]${nameAny}(around:${r},${lat},${lng});`
-        + `nwr["shop"="tyres"]${nameAny}(around:${r},${lat},${lng});`
-        + `nwr["shop"="car_parts"]${nameAny}(around:${r},${lat},${lng});`
-        + `nwr["service:vehicle:car_repair"="yes"]${nameAny}(around:${r},${lat},${lng});`
-        + `nwr["service:vehicle:tyres"="yes"]${nameAny}(around:${r},${lat},${lng});`
-        + `nwr["service:vehicle:body_repair"="yes"]${nameAny}(around:${r},${lat},${lng});`
+        + `nwr["shop"="car_repair"](around:${r},${lat},${lng});`
+        + `nwr["shop"="tyres"](around:${r},${lat},${lng});`
+        + `nwr["shop"="car_parts"](around:${r},${lat},${lng});`
+        + `nwr["service:vehicle:car_repair"="yes"](around:${r},${lat},${lng});`
+        + `nwr["service:vehicle:tyres"="yes"](around:${r},${lat},${lng});`
+        + `nwr["service:vehicle:body_repair"="yes"](around:${r},${lat},${lng});`
         + `);out center tags;`;
 
-      // Marine query (only if user has vessels). Same hardening: nwr,
-      // require name (Hebrew or default), out center tags;.
+      // Marine query (only if user has vessels). Same logic — drop the
+      // server-side name regex; `toRow` filters unnamed entries in JS.
       const marineQuery = hasVessel
         ? `[out:json][timeout:25];(`
-          + `nwr["leisure"="marina"]${nameAny}(around:${r},${lat},${lng});`
-          + `nwr["shop"="boat"]${nameAny}(around:${r},${lat},${lng});`
-          + `nwr["shop"="ship_chandler"]${nameAny}(around:${r},${lat},${lng});`
-          + `nwr["craft"="boatbuilder"]${nameAny}(around:${r},${lat},${lng});`
-          + `nwr["seamark:type"="harbour"]${nameAny}(around:${r},${lat},${lng});`
-          + `nwr["shop"="fishing"]${nameAny}(around:${r},${lat},${lng});`
+          + `nwr["leisure"="marina"](around:${r},${lat},${lng});`
+          + `nwr["shop"="boat"](around:${r},${lat},${lng});`
+          + `nwr["shop"="ship_chandler"](around:${r},${lat},${lng});`
+          + `nwr["craft"="boatbuilder"](around:${r},${lat},${lng});`
+          + `nwr["seamark:type"="harbour"](around:${r},${lat},${lng});`
+          + `nwr["shop"="fishing"](around:${r},${lat},${lng});`
           + `);out center tags;`
         : null;
 
       const hdrs = { 'Content-Type': 'application/x-www-form-urlencoded' };
 
-      // Fetch car results
+      // Fetch with multi-server fallback. Overpass returns HTTP 200 with
+      // `{remark: "runtime error: Query timed out ..."}` and an empty
+      // `elements` array when a query exceeds the timeout — we treat
+      // that as a failure (try next server) so we never cache an empty
+      // payload from a server-side timeout.
       const fetchFromServers = async (q) => {
         for (const server of OVERPASS_SERVERS) {
           try {
@@ -432,7 +444,11 @@ export default function FindGarage() {
             if (!res.ok) continue;
             const ct = res.headers.get('content-type') || '';
             if (!ct.includes('json')) continue;
-            return await res.json();
+            const json = await res.json();
+            if (json && typeof json.remark === 'string' && /timed out|runtime error/i.test(json.remark)) {
+              continue; // Server-side timeout/runtime error — try next server
+            }
+            return json;
           } catch { /* try next server */ }
         }
         return null;
@@ -593,7 +609,7 @@ export default function FindGarage() {
               <MapPin className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-lg font-black text-white truncate">{hasVessel ? 'מצא מוסך / מרינה' : 'מצא מוסך קרוב'}</h1>
+              <h1 className="text-lg font-bold text-white truncate">{hasVessel ? 'מצא מוסך / מרינה' : 'מצא מוסך קרוב'}</h1>
               <p className="text-[10px] font-medium truncate" style={{ color: 'rgba(255,255,255,0.65)' }}>
                 {hasVessel ? 'מוסכים, חלפים, מרינות ושירותי שייט' : 'מוסכים, מכונאים וחנויות חלפים'}
               </p>
@@ -602,7 +618,9 @@ export default function FindGarage() {
 
           {/* Location-denied banner. Shown when the OS permission was
               refused so the user knows why the map is parked on Tel Aviv.
-              Clicking the button retriggers the native prompt. */}
+              The user can retry GPS via the floating "recenter to my
+              location" button on the map (LocateFixed icon, bottom-left)
+              or pick a city from the search/chips below. */}
           {locationDenied && (
             <div className="mb-2 rounded-lg px-3 py-2 flex items-start gap-2"
               style={{ background: 'rgba(255,191,0,0.15)', border: '1px solid rgba(255,191,0,0.3)' }}>
@@ -610,20 +628,16 @@ export default function FindGarage() {
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] font-bold text-white">הרשאת מיקום חסרה</p>
                 <p className="text-[10px] leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>
-                  אנחנו מציגים את תל אביב כברירת מחדל. אשר גישה למיקום בהגדרות או לחץ "מיקום" למטה.
+                  אנחנו מציגים את תל אביב כברירת מחדל. אשר גישה למיקום בהגדרות או חפש עיר אחרת למטה.
                 </p>
               </div>
             </div>
           )}
 
-          {/* Location: GPS + City search */}
+          {/* City search — the "מיקום" GPS-retry button used to live here
+              too, but the floating LocateFixed button on the map already
+              covers that action, so we removed the redundant copy. */}
           <div className="flex gap-1.5 mb-2">
-            <button onClick={retryGps}
-              className="h-9 flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-bold shrink-0 transition-all active:scale-[0.95]"
-              style={{ background: usingGps ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.12)', color: '#fff', border: `1px solid ${usingGps ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.15)'}` }}>
-              <Navigation className="w-3 h-3" />
-              {usingGps ? 'GPS פעיל' : 'מיקום'}
-            </button>
             <div className="relative flex-1 min-w-0">
               <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/50" />
               <input
@@ -647,7 +661,7 @@ export default function FindGarage() {
           <div className="flex gap-1 overflow-x-auto scrollbar-hide mb-2 -mx-0.5 px-0.5">
             {QUICK_CITIES.map(city => (
               <button key={city.name}
-                onClick={() => { setCityQuery(''); setUsingGps(false); setUserLocation({ lat: city.lat, lng: city.lng }); }}
+                onClick={() => { setCityQuery(''); setUserLocation({ lat: city.lat, lng: city.lng }); }}
                 className="px-2.5 py-1 rounded-md text-[10px] font-bold shrink-0 transition-all active:scale-[0.95]"
                 style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' }}>
                 {city.name}
@@ -661,7 +675,7 @@ export default function FindGarage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-0.5">
                 <span className="text-[10px] text-white/60">רדיוס:</span>
-                <span className="text-[11px] font-black text-white">{(searchRadius / 1000).toFixed(0)} ק"מ</span>
+                <span className="text-[11px] font-bold text-white">{(searchRadius / 1000).toFixed(0)} ק"מ</span>
               </div>
               <input
                 type="range" min={RADIUS_MIN} max={RADIUS_MAX} step={RADIUS_STEP} value={searchRadius}
@@ -702,7 +716,7 @@ export default function FindGarage() {
               }}>
               {f.label}
               {typeCounts[f.key] > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black"
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
                   style={{ background: filterType === f.key ? 'rgba(255,255,255,0.3)' : f.color + '20', color: filterType === f.key ? '#fff' : f.color }}>
                   {typeCounts[f.key]}
                 </span>
@@ -901,13 +915,13 @@ export default function FindGarage() {
                     {/* Name + distance */}
                     <div className="flex items-start justify-between gap-1.5 mb-0.5">
                       <div className="min-w-0">
-                        <h3 className="font-black text-[13px] truncate" style={{ color: C.text }}>{g.name}</h3>
+                        <h3 className="font-bold text-[13px] truncate" style={{ color: C.text }}>{g.name}</h3>
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-0.5"
                           style={{ background: tc.bg, color: tc.color }}>
                           {tc.label}
                         </span>
                       </div>
-                      <span className="text-[11px] font-black px-2 py-0.5 rounded-md shrink-0"
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0"
                         style={{ background: tc.bg, color: tc.color }}>
                         {g.distance.toFixed(1)} ק"מ
                       </span>

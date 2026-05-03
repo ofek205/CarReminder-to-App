@@ -11,12 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, FileText, Upload, Trash2, Eye, Download, Loader2, Sparkles, CheckCircle2, X, ChevronDown, ChevronUp, Camera } from "lucide-react";
+import { Plus, FileText, Upload, Trash2, Eye, Download, Loader2, Sparkles, CheckCircle2, X, ChevronDown, ChevronUp, Camera, Car, Lock, Shield, User, Wrench, Anchor } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import PageHeader from "../components/shared/PageHeader";
 import { ListSkeleton } from "../components/shared/Skeletons";
 import { hapticFeedback } from "@/lib/capacitor";
-import { compressImage } from "@/lib/imageCompress";
+import useFileUpload from "@/hooks/useFileUpload";
+import { getSignedUrl } from "@/hooks/useSignedUrl";
 import EmptyState from "../components/shared/EmptyState";
 import { formatDateHe, isVessel } from "../components/shared/DateStatusUtils";
 import { daysLabel, daysUntil } from "../components/shared/ReminderEngine";
@@ -25,6 +26,7 @@ import VehicleScanWizard from "../components/vehicle/VehicleScanWizard";
 import ConfirmDeleteDialog from "../components/shared/ConfirmDeleteDialog";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import useAccountRole from '@/hooks/useAccountRole';
 import { canEdit } from '@/lib/permissions';
 
@@ -63,6 +65,18 @@ function getCat(type) {
     || DOC_CATEGORIES[DOC_CATEGORIES.length - 1];
 }
 
+function renderDocCategoryIcon(cat) {
+  const cls = "w-4 h-4";
+  if (cat.type.includes('ביטוח')) {
+    return cat.type.includes('מקיף') ? <Lock className={cls} /> : <Shield className={cls} />;
+  }
+  if (cat.type.includes('רישיון') && cat.type.includes('שייט')) return <Anchor className={cls} />;
+  if (cat.type.includes('רישיון') && cat.type.includes('נהיגה')) return <User className={cls} />;
+  if (cat.type.includes('רישיון')) return <Car className={cls} />;
+  if (cat.type.includes('טיפול') || cat.type.includes('טסט') || cat.type.includes('כושר')) return <Wrench className={cls} />;
+  return <FileText className={cls} />;
+}
+
 //  Parse DD/MM/YYYY → YYYY-MM-DD 
 function parseDocDate(str) {
   if (!str) return '';
@@ -74,15 +88,35 @@ function parseDocDate(str) {
   return isNaN(new Date(result).getTime()) ? '' : result;
 }
 
-const EMPTY_FORM = { document_type: 'מסמך אחר', title: '', description: '', vehicle_id: '', issue_date: '', expiry_date: '', file_url: '' };
+const EMPTY_FORM = { document_type: 'מסמך אחר', title: '', description: '', vehicle_id: '', issue_date: '', expiry_date: '', file_url: '', storage_path: '' };
 
 //  Upload dialog (shared logic wrapper) 
-function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, saving, isGuest = false }) {
+function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, saving, isGuest = false, accountId = null, userId = null }) {
   const [form, setForm] = useState({ ...EMPTY_FORM, vehicle_id: vehicleIdParam || '' });
-  const [uploading, setUploading] = useState(false);
+  // fileDataUrl holds a base64 data: URL ONLY for the AI vision call —
+  // never persisted to the DB. The DB sees `form.file_url` (a Storage
+  // signed URL) and `form.storage_path` (the bucket key, used to refresh
+  // the URL after 7 days). Sprint A.B keeps base64 strictly in-memory.
+  const [fileDataUrl, setFileDataUrl] = useState('');
   const [aiScanning, setAiScanning] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [fileName, setFileName] = useState('');
+
+  // Storage upload hook. Wraps validation + (re-)compression + signed
+  // URL fetch. We give it mode='doc' (PDF + images) and a 5MB cap that
+  // matches the existing UX copy ("PDF / JPG / PNG עד 5MB").
+  // accountId is null for guests — guests never call hookUpload, so
+  // the hook's "missing accountId" check never fires.
+  // Pass current vehicle_id (form or URL param) so the upload lands at
+  // {accountId}/{vehicleId}/... — the path the bucket RLS policy
+  // expects. Falls back to scans/{userId} when neither vehicle is set.
+  const { upload: hookUpload, uploading, error: uploadError, reset: resetUpload } = useFileUpload({
+    accountId,
+    vehicleId: form.vehicle_id || vehicleIdParam || undefined,
+    userId,
+    mode: 'doc',
+    maxMB: 5,
+  });
 
   // Vehicle-aware document categories
   const selectedVehicle = vehicles?.find(v => v.id === (form.vehicle_id || vehicleIdParam));
@@ -93,56 +127,94 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
       setForm({ ...EMPTY_FORM, vehicle_id: vehicleIdParam || '' });
       setAiResult(null);
       setFileName('');
+      setFileDataUrl('');
+      resetUpload();
     }
-  }, [open, vehicleIdParam]);
+  }, [open, vehicleIdParam, resetUpload]);
 
-  const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
-  const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.pdf'];
-  const MAX_FILE_SIZE = 5 * 1024 * 1024;
+  // Surface upload errors as toasts so the user understands why the
+  // upload card isn't switching to the green "uploaded" state.
+  useEffect(() => {
+    if (uploadError) toast.error(uploadError);
+  }, [uploadError]);
+
+  // Read a File into a base64 data: URL. ONLY used to feed the AI vision
+  // call (handleAiScan). Result is held in component state, never persisted.
+  // Kept as a tiny helper because we need it on both the auth and guest
+  // paths (auth: AI scan; guest: AI scan + DB-of-localStorage persistence).
+  const readAsBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => resolve(ev.target.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file); // eslint-disable-line no-restricted-syntax
+  });
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > MAX_FILE_SIZE) { toast.error('הקובץ גדול מ-5MB'); e.target.value = ''; return; }
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) { toast.error('ניתן להעלות רק JPG, PNG, PDF'); e.target.value = ''; return; }
-    const ext = '.' + file.name.split('.').pop().toLowerCase();
-    if (!ALLOWED_EXTENSIONS.includes(ext)) { toast.error('סיומת קובץ לא מותרת'); e.target.value = ''; return; }
-    const mimeToExtMap = { 'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'], 'application/pdf': ['.pdf'] };
-    if (!(mimeToExtMap[file.type] || []).includes(ext)) { toast.error('סוג הקובץ אינו תואם לסיומת'); e.target.value = ''; return; }
 
-    setUploading(true);
+    // We always run the AI-scan-friendly base64 read against the ORIGINAL
+    // file in parallel with the upload — the upload path internally
+    // compresses, but for the AI vision payload we want the user's actual
+    // photo at the same fidelity the user picked it. Both branches set
+    // `fileName` so the green "הקובץ הועלה בהצלחה" card has a name to show.
+    if (isGuest) {
+      // Guest path is unchanged: their data only ever lives in localStorage,
+      // never in our DB or Storage. base64 is the simplest representation.
+      try {
+        // Validate via the same helper the hook uses, just so guests get
+        // identical error copy as auth users.
+        const { validateUploadFile } = await import('@/lib/securityUtils');
+        const v = validateUploadFile(file, 'doc', 5);
+        if (!v.ok) { toast.error(v.error); e.target.value = ''; return; }
+        const base64 = await readAsBase64(file);
+        setFileName(file.name);
+        setFileDataUrl(base64);
+        setForm(f => ({ ...f, file_url: base64, storage_path: '' }));
+      } catch (err) {
+        console.error('Guest file read error:', err);
+        toast.error('שגיאה בקריאת הקובץ');
+      }
+      return;
+    }
+
+    // Auth path: upload to Supabase Storage, persist signed URL +
+    // storage_path. Validation, compression and the signed-URL fetch are
+    // all inside the hook — handleFile just orchestrates state.
     try {
-      // Compress images before storing (PDFs pass through unchanged). A 4MB phone
-      // photo typically shrinks to ~300KB WebP. keeps base64 payloads sane.
-      const fileForUpload = file.type.startsWith('image/') ? await compressImage(file) : file;
-
-      const reader = new FileReader();
-      const base64 = await new Promise((resolve, reject) => {
-        reader.onload = (ev) => resolve(ev.target.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(fileForUpload);
-      });
-      setFileName(fileForUpload.name);
-      setForm(f => ({ ...f, file_url: base64 }));
-    } catch (err) {
-      console.error('File read error:', err);
-      toast.error('שגיאה בקריאת הקובץ');
-    } finally {
-      setUploading(false);
+      const [uploadResult, base64] = await Promise.all([
+        hookUpload(file),
+        readAsBase64(file).catch(() => ''), // AI is optional; don't fail upload
+      ]);
+      if (!uploadResult) return; // hook already toasted via uploadError effect
+      setFileName(file.name);
+      setFileDataUrl(base64);
+      setForm(f => ({ ...f, file_url: uploadResult.fileUrl, storage_path: uploadResult.storagePath }));
+    } catch {
+      // hookUpload already pushes the message into uploadError → toast effect.
+      // Caught here so a thrown promise doesn't bubble into React's error boundary.
     }
   };
 
   const handleAiScan = async () => {
-    if (!form.file_url) return;
+    // Read AI source from `fileDataUrl` (in-memory base64), NOT from
+    // `form.file_url` (which is a Storage signed URL after Sprint A.B —
+    // it would split('') into garbage). Falls back to file_url for the
+    // guest path where file_url IS still base64.
+    const aiSource = fileDataUrl || form.file_url;
+    if (!aiSource || !aiSource.startsWith('data:')) {
+      toast.error('הקובץ עדיין נטען. נסה שוב בעוד שנייה.');
+      return;
+    }
     setAiScanning(true);
     setAiResult(null);
     try {
       const { aiRequest } = await import('@/lib/aiProxy');
       // Detect real MIME type instead of assuming PNG/JPEG — uploads
       // are often PDFs (contracts, vehicle licenses) or WEBP.
-      const mimeMatch = form.file_url.match(/^data:([^;]+);base64,/);
+      const mimeMatch = aiSource.match(/^data:([^;]+);base64,/);
       const mediaType = mimeMatch?.[1] || 'image/jpeg';
-      const imageData = form.file_url.split(',')[1];
+      const imageData = aiSource.split(',')[1];
       if (!imageData) { toast.error('לא ניתן לקרוא את הקובץ'); setAiScanning(false); return; }
       const isPdf = mediaType === 'application/pdf';
       const sourcePart = isPdf
@@ -352,7 +424,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
                       : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                     }`}
                 >
-                  <span className="text-base">{cat.emoji}</span>
+                  {renderDocCategoryIcon(cat)}
                   <span className="truncate">{cat.type}</span>
                 </button>
               ))}
@@ -458,16 +530,41 @@ function ExpiryPill({ expiryDate }) {
   );
 }
 
-//  Document card 
-function DocCard({ doc, vehicle, onOpen, onDelete, openingId }) {
+//  Document card
+//
+// Both `onOpen` and `onDownload` accept the full doc and resolve the URL
+// internally (parent uses storage_path + getSignedUrl to refresh on demand).
+// The card just renders buttons and reports clicks. Falls back gracefully
+// when `onDownload` isn't provided (guest path) — uses the inline file_url
+// link, which for guests is the base64 data: URL stored locally.
+function DocCard({ doc, vehicle, onOpen, onDownload, onDelete, openingId }) {
   const cat = getCat(doc.document_type);
+
+  // The card has *some* payload to view/download if either column has it.
+  // After Sprint A.B, auth rows have file_url+storage_path; legacy rows
+  // and guest rows have file_url only.
+  const hasFile = !!(doc.file_url || doc.storage_path);
+
+  const handleDownloadClick = () => {
+    if (onDownload) { onDownload(doc); return; }
+    // Guest fallback: legacy inline-anchor click on doc.file_url.
+    if (!doc.file_url) return;
+    const a = document.createElement('a');
+    a.href = doc.file_url;
+    a.download = doc.title || 'document';
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   return (
     <Card className="p-4 border border-gray-100">
       <div className="flex items-start justify-between gap-3" dir="rtl">
         <div className="flex items-start gap-3 min-w-0 flex-1">
-          <div className={`w-10 h-10 rounded-xl ${cat.bg} flex items-center justify-center shrink-0 text-lg`}>
-            {cat.emoji}
+          <div className={`w-10 h-10 rounded-xl ${cat.bg} flex items-center justify-center shrink-0`}>
+            {renderDocCategoryIcon(cat)}
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-gray-900 truncate">{doc.title || doc.document_type}</p>
@@ -492,7 +589,7 @@ function DocCard({ doc, vehicle, onOpen, onDelete, openingId }) {
         </div>
 
         <div className="flex gap-1 shrink-0 mt-0.5">
-          {doc.file_url && onOpen && (
+          {hasFile && onOpen && (
             <>
               <Button
                 variant="outline"
@@ -508,16 +605,7 @@ function DocCard({ doc, vehicle, onOpen, onDelete, openingId }) {
                 variant="outline"
                 size="sm"
                 className="gap-1.5 text-green-600 border-green-200 hover:bg-green-50 h-8 px-2"
-                onClick={() => {
-                  const a = document.createElement('a');
-                  a.href = doc.file_url;
-                  a.download = doc.title || 'document';
-                  a.target = '_blank';
-                  a.rel = 'noopener noreferrer';
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                }}
+                onClick={handleDownloadClick}
               >
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline text-xs">הורדה</span>
@@ -537,7 +625,7 @@ function DocCard({ doc, vehicle, onOpen, onDelete, openingId }) {
 // Wraps GroupedDocList inside a per-vehicle section so the user can scan
 // "which docs belong to which vehicle" at a glance, instead of a flat
 // category list that mixes all vehicles' docs together.
-function VehicleGroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
+function VehicleGroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingId }) {
   const [collapsed, setCollapsed] = useState({});
 
   // Partition docs by vehicle id. "Unassigned" docs (no vehicle_id) fall
@@ -580,7 +668,7 @@ function VehicleGroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) 
               className="w-full flex items-center justify-between gap-2 mb-2"
               onClick={() => setCollapsed(c => ({ ...c, [key]: !c[key] }))}>
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-base">{vehicle ? '🚗' : '📂'}</span>
+                {vehicle ? <Car className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                 <div className="text-right min-w-0">
                   <p className="text-sm font-bold truncate" style={{ color: '#1C2E20' }}>{name}</p>
                   {sub && <p className="text-[10px]" dir="ltr" style={{ color: '#9CA3AF' }}>{sub}</p>}
@@ -597,7 +685,8 @@ function VehicleGroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) 
             {!isCollapsed && (
               <div className="mt-2">
                 <GroupedDocList docs={vDocs} vehicles={vehicles}
-                  onOpen={onOpen} onDelete={onDelete} openingId={openingId} />
+                  onOpen={onOpen} onDownload={onDownload}
+                  onDelete={onDelete} openingId={openingId} />
               </div>
             )}
           </div>
@@ -608,7 +697,7 @@ function VehicleGroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) 
 }
 
 //  Grouped document list 
-function GroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
+function GroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingId }) {
   const [collapsed, setCollapsed] = useState({});
 
   const allCategories = [...DOC_CATEGORIES, ...VESSEL_DOC_CATEGORIES];
@@ -641,7 +730,7 @@ function GroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
               onClick={() => setCollapsed(c => ({ ...c, [cat.type]: !c[cat.type] }))}
             >
               <div className="flex items-center gap-2">
-                <span className="text-base">{cat.emoji}</span>
+                {renderDocCategoryIcon(cat)}
                 <span className={`text-sm font-semibold ${cat.text}`}>{cat.type}</span>
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${cat.bg} ${cat.text} border ${cat.border}`}>
                   {catDocs.length}
@@ -676,6 +765,7 @@ function GroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
                       doc={latest}
                       vehicle={vehicles.find(v => v.id === latest.vehicle_id)}
                       onOpen={onOpen}
+                      onDownload={onDownload}
                       onDelete={onDelete}
                       openingId={openingId}
                     />
@@ -695,6 +785,7 @@ function GroupedDocList({ docs, vehicles, onOpen, onDelete, openingId }) {
                             doc={doc}
                             vehicle={vehicles.find(v => v.id === doc.vehicle_id)}
                             onOpen={onOpen}
+                            onDownload={onDownload}
                             onDelete={onDelete}
                             openingId={openingId}
                           />
@@ -767,9 +858,13 @@ function GuestDocuments({ vehicleIdParam }) {
       {/* Guest banner - single combined banner */}
       <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
         style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
-        <span className="text-lg">{docs.some(d => d._isDemo) ? '👀' : '🔒'}</span>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#FDE68A' }}>
+          {docs.some(d => d._isDemo)
+            ? <Eye className="w-4 h-4" style={{ color: '#92400E' }} />
+            : <Lock className="w-4 h-4" style={{ color: '#92400E' }} />}
+        </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-black" style={{ color: '#92400E' }}>
+          <p className="text-sm font-bold" style={{ color: '#92400E' }}>
             {docs.some(d => d._isDemo) ? 'מסמכים לדוגמה' : 'מסמכים זמניים'}
           </p>
           <p className="text-xs" style={{ color: '#B45309' }}>
@@ -821,9 +916,9 @@ function GuestDocuments({ vehicleIdParam }) {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
           <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
             <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: '#FFF8E1' }}>
-              <span className="text-2xl">🔒</span>
+              <Lock className="w-6 h-6" style={{ color: '#92400E' }} />
             </div>
-            <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
+            <h2 className="text-lg font-bold text-gray-900">הירשם כדי לשמור</h2>
             <p className="text-sm" style={{ color: '#6B7280' }}>
               הרשמה בחינם תוך שניות - ותוכל לשמור מסמכים, לקבל תזכורות ולגשת מכל מכשיר
             </p>
@@ -858,9 +953,15 @@ export default function Documents() {
   return <AuthDocuments vehicleIdParam={vehicleIdParam} />;
 }
 
-//  Auth Documents 
+//  Auth Documents
 function AuthDocuments({ vehicleIdParam }) {
   const { role } = useAccountRole();
+  // Drivers in a business workspace must only see documents that
+  // belong to vehicles they're actively assigned to. Without this
+  // scoping the page leaks every document a manager uploaded for the
+  // whole fleet — privacy + clutter problem.
+  const { isBusiness, isDriver, canManageRoutes } = useWorkspaceRole();
+  const restrictToDriverAssignments = isBusiness && isDriver && !canManageRoutes;
   const [accountId, setAccountId] = useState(null);
   const [userId, setUserId] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -881,28 +982,60 @@ function AuthDocuments({ vehicleIdParam }) {
     init();
   }, []);
 
+  // Driver assignments — used to scope both the documents query and
+  // the vehicles dropdown so drivers only see what's theirs.
+  const { data: driverAssignedVehicleIds = null } = useQuery({
+    queryKey: ['driver-assigned-vehicle-ids', accountId, userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('driver_assignments')
+        .select('vehicle_id')
+        .eq('account_id', accountId)
+        .eq('driver_user_id', userId)
+        .eq('status', 'active');
+      if (error) return [];
+      return (data || []).map(a => a.vehicle_id);
+    },
+    enabled: !!accountId && !!userId && restrictToDriverAssignments,
+    staleTime: 60 * 1000,
+  });
+
   const { data: documents = [], isLoading } = useQuery({
-    queryKey: ['documents', accountId, vehicleIdParam],
+    queryKey: ['documents', accountId, vehicleIdParam, restrictToDriverAssignments, driverAssignedVehicleIds?.join(',')],
     queryFn: async () => {
       try {
         const filter = { account_id: accountId };
         if (vehicleIdParam) filter.vehicle_id = vehicleIdParam;
-        // Keep file_url for now (inline view/download buttons depend on it)
-        // but cap the page and order by newest so giant historical blobs
-        // don't dominate egress on every refresh.
-        return await db.documents.filter(filter, {
+        const all = await db.documents.filter(filter, {
           order: { column: 'created_at', ascending: false },
           limit: 200,
         });
+        // Driver scoping happens client-side because Supabase's filter
+        // helper takes equality only. The result set is already
+        // capped at 200 so the post-filter is cheap.
+        if (restrictToDriverAssignments) {
+          const allowed = new Set(driverAssignedVehicleIds || []);
+          return all.filter(d => d.vehicle_id && allowed.has(d.vehicle_id));
+        }
+        return all;
       } catch { return []; }
     },
-    enabled: !!accountId,
+    // For drivers we wait for assignments to resolve so the first
+    // render isn't a flash of unfiltered manager-style data.
+    enabled: !!accountId && (!restrictToDriverAssignments || driverAssignedVehicleIds !== null),
   });
 
   const { data: vehicles = [] } = useQuery({
-    queryKey: ['vehicles-list', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
-    enabled: !!accountId,
+    queryKey: ['vehicles-list', accountId, restrictToDriverAssignments, driverAssignedVehicleIds?.join(',')],
+    queryFn: async () => {
+      const all = await db.vehicles.filter({ account_id: accountId });
+      if (restrictToDriverAssignments) {
+        const allowed = new Set(driverAssignedVehicleIds || []);
+        return (all || []).filter(v => allowed.has(v.id));
+      }
+      return all;
+    },
+    enabled: !!accountId && (!restrictToDriverAssignments || driverAssignedVehicleIds !== null),
   });
 
   const handleSave = async (form) => {
@@ -929,24 +1062,22 @@ function AuthDocuments({ vehicleIdParam }) {
       console.info('[Documents.save] authUser=%s accountId=%s role=%s status=%s',
         authUser.id, accountId, myMember.role, myMember.status);
 
-      // Only keep known DB columns. The form has a `description` field that
-      // the DB stores as `notes`. map it explicitly so the user's notes
-      // aren't silently dropped during save.
-      const DOC_COLUMNS = ['document_type','title','issue_date','expiry_date','vehicle_id','file_url','notes'];
+      // Only keep known DB columns. The form field is `description`, which
+      // matches the DB column 1:1 — no remapping needed.
+      // (Historical note: an earlier version mapped `description` → `notes`
+      // on the assumption the DB column was named `notes`. That column does
+      // NOT exist in this schema; PostgREST rejected every save where the
+      // user populated the description field. Removed during Sprint A.B-1
+      // smoke testing — caught by an end-to-end insert that wrote to `notes`
+      // and got back: "Could not find the 'notes' column of 'documents'".)
+      // Sprint A.B: `storage_path` is now persisted alongside `file_url` so
+      // the document viewer can refresh expired signed URLs without losing
+      // track of the underlying Storage object.
+      const DOC_COLUMNS = ['document_type','title','issue_date','expiry_date','vehicle_id','file_url','storage_path','description'];
       const data = { account_id: accountId };
       DOC_COLUMNS.forEach(k => {
         if (form[k] !== undefined && form[k] !== null && form[k] !== '') data[k] = form[k];
       });
-      // Map form.description → DB column `notes`
-      if (form.description && !data.notes) data.notes = form.description;
-
-      // Guard against oversized uploads. Supabase rejects >10MB JSON payloads,
-      // and base64 inflates by ~33%, so a 5MB file is ~6.7MB as base64. fine,
-      // but anything bigger will fail silently and the user will just see
-      // "Save failed" with no hint. Check before we try.
-      if (data.file_url && typeof data.file_url === 'string' && data.file_url.length > 8 * 1024 * 1024) {
-        throw new Error('הקובץ גדול מדי. נסה קובץ קטן יותר (עד 5MB)');
-      }
 
       const created = await db.documents.create(data);
       if (!created) throw new Error('שמירה נכשלה');
@@ -980,26 +1111,54 @@ function AuthDocuments({ vehicleIdParam }) {
     }
   };
 
+  // Resolve the most-current URL for a document. Sprint A.B rows have a
+  // storage_path → we sign a fresh URL each time we open them (the
+  // persisted file_url is good for 7 days but we don't want to depend
+  // on that). Legacy rows have file_url only (typically a base64 data:
+  // URL whitelisted by openFileUrlSafely), so they pass through unchanged.
+  const resolveDocUrl = async (doc) => {
+    if (doc?.storage_path) {
+      try {
+        return await getSignedUrl(doc.storage_path);
+      } catch (err) {
+        console.warn('signed URL refresh failed, falling back to file_url', err);
+        return doc.file_url || null;
+      }
+    }
+    return doc?.file_url || null;
+  };
+
   const handleOpenDocument = async (doc) => {
     setOpeningDocId(doc.id);
     try {
-      // If the document already has a stored file_url, validate and open it directly
-      if (doc.file_url) {
-        const opened = openFileUrlSafely(doc.file_url);
-        if (!opened) toast.error('לא ניתן לפתוח את הקובץ - כתובת לא מאובטחת');
+      const url = await resolveDocUrl(doc);
+      if (!url) {
+        toast.error('הקובץ לא זמין');
         return;
       }
-      // TODO: migrate signed URL generation to Supabase Edge Function
-      // const res = await supabase.functions.invoke('getDocumentSignedUrl', { body: { document_id: doc.id } });
-      // const url = res.data?.signed_url;
-      const url = null;
-      if (url) {
-        const opened = openFileUrlSafely(url);
-        if (!opened) toast.error('לא ניתן לפתוח את הקובץ - כתובת לא מאובטחת');
-      }
+      const opened = openFileUrlSafely(url);
+      if (!opened) toast.error('לא ניתן לפתוח את הקובץ - כתובת לא מאובטחת');
     } finally {
       setOpeningDocId(null);
     }
+  };
+
+  // Same URL resolution used by the download button. Returned to DocCard
+  // via a callback so the card itself doesn't need to import getSignedUrl.
+  const handleDownloadDocument = async (doc) => {
+    const url = await resolveDocUrl(doc);
+    if (!url) {
+      toast.error('הקובץ לא זמין להורדה');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = doc.title || 'document';
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const handleDelete = async (id) => {
@@ -1055,6 +1214,7 @@ function AuthDocuments({ vehicleIdParam }) {
           docs={documents}
           vehicles={vehicles}
           onOpen={handleOpenDocument}
+          onDownload={handleDownloadDocument}
           onDelete={id => setDeleteTarget(id)}
           openingId={openingDocId}
         />
@@ -1063,6 +1223,7 @@ function AuthDocuments({ vehicleIdParam }) {
           docs={documents}
           vehicles={vehicles}
           onOpen={handleOpenDocument}
+          onDownload={handleDownloadDocument}
           onDelete={id => setDeleteTarget(id)}
           openingId={openingDocId}
         />
@@ -1081,6 +1242,8 @@ function AuthDocuments({ vehicleIdParam }) {
         vehicleIdParam={vehicleIdParam}
         vehicles={vehicles}
         saving={saving}
+        accountId={accountId}
+        userId={userId}
       />
     </div>
   );

@@ -188,17 +188,21 @@ GRANT EXECUTE ON FUNCTION public.email_dispatch_candidates(text) TO service_role
 
 
 -- ── 5. Per-user notification preferences ──────────────────────────────────
--- One row per (user, notification_key). Absence of a row means "use
--- default for that type". Users manage this via a self-service page;
--- the dispatcher joins against it to skip opted-out users.
+-- One row per (user, notification_key). Absence of a row means "email
+-- disabled" unless that notification is hard-coded as mandatory in the
+-- application dispatch path. Users manage optional emails via a
+-- self-service page.
 
 CREATE TABLE IF NOT EXISTS public.user_notification_preferences (
   user_id           uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   notification_key  text NOT NULL REFERENCES public.email_notifications(key) ON DELETE CASCADE,
-  email_enabled     boolean NOT NULL DEFAULT true,
+  email_enabled     boolean NOT NULL DEFAULT false,
   updated_at        timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, notification_key)
 );
+
+ALTER TABLE public.user_notification_preferences
+  ALTER COLUMN email_enabled SET DEFAULT false;
 
 DROP TRIGGER IF EXISTS trg_user_notification_prefs_updated_at ON public.user_notification_preferences;
 CREATE TRIGGER trg_user_notification_prefs_updated_at

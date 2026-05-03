@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import StatusBadge from "../shared/StatusBadge";
+import VehicleImage, { hasVehiclePhoto } from "../shared/VehicleImage";
 import { getDateStatus, getVehicleTypeIcon, usesKm, getVehicleLabels, isVessel } from "../shared/DateStatusUtils";
 import { getCatalogForVehicleType } from "../shared/MaintenanceCatalog";
 import { getTheme } from '@/lib/designTokens';
@@ -116,8 +117,8 @@ export default function VehicleStatusCard({ vehicle }) {
                 }
               </div>
             </div>
-            {vehicle.vehicle_photo ?
-            <img src={vehicle.vehicle_photo} alt="" loading="lazy" decoding="async" className="bg-gray-100 rounded-xl w-14 h-14 sm:w-16 sm:h-16 object-cover shrink-0" /> :
+            {hasVehiclePhoto(vehicle) ?
+            <VehicleImage vehicle={vehicle} alt="" loading="lazy" decoding="async" className="bg-gray-100 rounded-xl w-14 h-14 sm:w-16 sm:h-16 object-cover shrink-0" /> :
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-gray-50 flex items-center justify-center text-2xl shrink-0">
                 {icon}
               </div>

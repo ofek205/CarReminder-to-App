@@ -9,7 +9,9 @@ import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ManufacturerSelector from '@/components/vehicle/ManufacturerSelector';
-import { Camera, Loader2, Search, CheckCircle2, X, AlertTriangle, Car, FileText, Shield, Calendar, ZoomIn, LocateFixed } from 'lucide-react';
+import { Camera, Loader2, Search, CheckCircle2, X, AlertTriangle, Car, FileText, Shield, Calendar, ZoomIn, LocateFixed, Download } from 'lucide-react';
+import AccidentPrintReport, { AccidentPrintStyles } from '../components/accidents/AccidentPrintReport';
+import AccidentReportModal from '../components/accidents/AccidentReportModal';
 import { getCurrentPosition } from '@/lib/capacitor';
 import { Link } from 'react-router-dom';
 import { lookupVehicleByPlate } from '../services/vehicleLookup';
@@ -35,10 +37,33 @@ const INSURANCE_COMPANIES = [
 const EMPTY_FORM = {
   vehicle_id: '',
   date: '',
+  // Time of accident (HH:MM). Optional but valuable for the
+  // insurance/police report. UI exposes a "עכשיו" button that fills
+  // it with the current local time in one tap.
+  time: '',
   location: '',
+  // GPS coords captured silently when the user presses the "current
+  // location" button. Surfaces only in the exported PDF for an
+  // unambiguous incident location.
+  latitude: null,
+  longitude: null,
   description: '',
+  // Damage description for the user's own vehicle. Insurance forms
+  // typically want this split from the general accident description.
+  damage_description: '',
   status: 'פתוח',
   photos: [],
+  // Injuries reporting. `injured` is the on/off toggle that drives
+  // whether the details textarea is rendered/saved.
+  injured: false,
+  injuries_details: '',
+  // Police report fields. Both optional, only populated when the
+  // accident was reported to the police.
+  police_report_number: '',
+  police_station: '',
+  // Up to 3 witnesses, each {name, phone, statement}. JSONB column
+  // in the DB.
+  witnesses: [],
   other_driver_name: '',
   other_driver_phone: '',
   other_driver_plate: '',
@@ -85,6 +110,9 @@ export default function AddAccident() {
   const [loading, setLoading] = useState(isEdit);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  // PDF report dialog. null = closed, 'options' = the action picker,
+  // 'preview' = the in-app preview before printing.
+  const [reportMode, setReportMode] = useState(null);
 
   const draft = useFormDraft({
     key: isEdit ? `edit_accident_${editId}` : 'add_accident',
@@ -124,7 +152,14 @@ export default function AddAccident() {
           else if (json.display_name) display = String(json.display_name).slice(0, 120);
         }
       } catch { /* keep lat,lng fallback */ }
-      handleChange('location', display);
+      // Persist BOTH the human-readable address AND the raw coords.
+      // Coords are silent — used only by the exported PDF report.
+      setForm(prev => ({
+        ...prev,
+        location: display,
+        latitude: latitude,
+        longitude: longitude,
+      }));
       toast.success('מיקום נוסף');
     } catch (e) {
       toast.error(e?.message?.includes('denied') ? 'נדרשת הרשאת מיקום' : 'לא הצלחנו לזהות מיקום');
@@ -324,7 +359,7 @@ export default function AddAccident() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </div>
           </Link>
-          <h1 className="text-lg font-black text-white">
+          <h1 className="text-lg font-bold text-white">
             {isDemo ? 'תאונה לדוגמה' : isEdit ? 'עריכת תאונה' : 'תיעוד תאונה חדשה'}
           </h1>
         </div>
@@ -386,32 +421,58 @@ export default function AddAccident() {
             <Calendar className="w-4 h-4" style={{ color: C.primary }} />
             <span className="font-bold text-sm" style={{ color: C.text }}>מתי ואיפה</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Date + time always on the same row — short fields, no need
+              to stack them on mobile. Location takes the full width
+              below since the address can be long. */}
+          <div className="grid grid-cols-2 gap-3">
             <div data-field="date">
               <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>תאריך התאונה <span className="text-red-400">*</span></Label>
               <DateInput value={form.date} onChange={e => { handleChange('date', e.target.value); clearError('date'); }} className={`rounded-xl ${errors.date ? 'border-red-400' : ''}`} />
               <FieldError message={errors.date} />
             </div>
             <div>
-              <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>מיקום</Label>
+              <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>שעה</Label>
               <div className="relative">
                 <Input
-                  value={form.location}
-                  onChange={e => handleChange('location', e.target.value)}
-                  placeholder="כתובת / צומת / כביש"
-                  className="rounded-xl pl-10"
+                  type="time"
+                  value={form.time || ''}
+                  onChange={e => handleChange('time', e.target.value)}
+                  className="rounded-xl pl-14"
                 />
                 <button
                   type="button"
-                  onClick={handleUseCurrentLocation}
-                  disabled={fetchingLoc}
-                  aria-label="השתמש במיקום הנוכחי"
-                  title="השתמש במיקום הנוכחי"
-                  className="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-50"
+                  onClick={() => {
+                    const now = new Date();
+                    const hh = String(now.getHours()).padStart(2, '0');
+                    const mm = String(now.getMinutes()).padStart(2, '0');
+                    handleChange('time', `${hh}:${mm}`);
+                  }}
+                  className="absolute left-1 top-1/2 -translate-y-1/2 h-8 px-2 rounded-lg text-[10px] font-bold transition-colors active:scale-95"
                   style={{ background: C.light, color: C.primary }}>
-                  {fetchingLoc ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
+                  עכשיו
                 </button>
               </div>
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>מיקום</Label>
+            <div className="relative">
+              <Input
+                value={form.location}
+                onChange={e => handleChange('location', e.target.value)}
+                placeholder="כתובת / צומת / כביש"
+                className="rounded-xl pl-10"
+              />
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={fetchingLoc}
+                aria-label="השתמש במיקום הנוכחי"
+                title="השתמש במיקום הנוכחי"
+                className="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-50"
+                style={{ background: C.light, color: C.primary }}>
+                {fetchingLoc ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
+              </button>
             </div>
           </div>
         </div>
@@ -632,11 +693,146 @@ export default function AddAccident() {
           <textarea
             value={form.description}
             onChange={e => handleChange('description', e.target.value)}
-            placeholder="תאר מה קרה - איך הגעת, מי פגע במי, נזקים שנגרמו..."
+            placeholder="תאר מה קרה: איך הגעת, מי פגע במי, נזקים שנגרמו..."
             className="w-full rounded-xl border p-3 text-sm min-h-[100px] resize-y"
             style={{ borderColor: C.border }}
             dir="rtl"
           />
+        </div>
+
+        {/*  Optional fields for the official PDF report. Compact 2-col
+            grid same as AddVehicle's pattern — no big section header,
+            short labels above each input, group lives inside one
+            beige tile for visual cohesion. Each field is optional;
+            absent fields are simply skipped in the exported PDF. */}
+        <div className="rounded-2xl p-4 space-y-3" style={{ background: '#F5F1EB', border: `1px solid ${C.border}` }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>מספר דוח משטרה</Label>
+              <Input
+                value={form.police_report_number || ''}
+                onChange={e => handleChange('police_report_number', e.target.value)}
+                placeholder="אם הוגש"
+                className="rounded-xl"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>תחנת משטרה</Label>
+              <Input
+                value={form.police_station || ''}
+                onChange={e => handleChange('police_station', e.target.value)}
+                placeholder="אם הוגש"
+                className="rounded-xl"
+              />
+            </div>
+          </div>
+
+          {/* Injuries — Yes/No segmented buttons inline. When "כן",
+              a textarea slides down for details. */}
+          <div>
+            <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>היו נפגעים?</Label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleChange('injured', false)}
+                className={`flex-1 h-10 rounded-xl text-sm font-bold transition-colors ${form.injured ? 'bg-white border' : 'text-white'}`}
+                style={form.injured
+                  ? { borderColor: C.border, color: C.text }
+                  : { background: C.primary }}>
+                לא
+              </button>
+              <button
+                type="button"
+                onClick={() => handleChange('injured', true)}
+                className={`flex-1 h-10 rounded-xl text-sm font-bold transition-colors ${!form.injured ? 'bg-white border' : 'text-white'}`}
+                style={!form.injured
+                  ? { borderColor: C.border, color: C.text }
+                  : { background: '#DC2626' }}>
+                כן
+              </button>
+            </div>
+            {form.injured && (
+              <textarea
+                value={form.injuries_details || ''}
+                onChange={e => handleChange('injuries_details', e.target.value)}
+                placeholder="פרט את הנפגעים: מי, סוג הפציעה, האם פונה לבית חולים..."
+                className="w-full rounded-xl border p-3 text-sm min-h-[60px] resize-y mt-2"
+                style={{ borderColor: C.border }}
+                dir="rtl"
+              />
+            )}
+          </div>
+
+          {/* Damage description — short textarea, full width. Stays
+              "the larger field" the user mentioned. */}
+          <div>
+            <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>נזק לרכב שלי</Label>
+            <textarea
+              value={form.damage_description || ''}
+              onChange={e => handleChange('damage_description', e.target.value)}
+              placeholder="תיאור קצר של הנזק (כנף, פנס, דלת...)"
+              className="w-full rounded-xl border p-3 text-sm min-h-[64px] resize-y"
+              style={{ borderColor: C.border }}
+              dir="rtl"
+            />
+          </div>
+
+          {/* Witnesses — one compact row per witness. Each row has
+              name + phone inline; statement is a thinner secondary input. */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-xs font-medium" style={{ color: C.muted }}>
+                עדים ({(form.witnesses || []).length}/3)
+              </Label>
+              {(form.witnesses || []).length < 3 && (
+                <button
+                  type="button"
+                  onClick={() => handleChange('witnesses', [...(form.witnesses || []), { name: '', phone: '', statement: '' }])}
+                  className="text-[11px] font-bold rounded-lg px-2 py-1"
+                  style={{ background: C.light, color: C.primary }}
+                >
+                  + הוסף
+                </button>
+              )}
+            </div>
+            {(form.witnesses || []).length > 0 && (
+              <div className="space-y-1.5">
+                {form.witnesses.map((w, i) => (
+                  <div key={i} className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        value={w.name || ''}
+                        onChange={e => handleChange('witnesses', form.witnesses.map((x, idx) => idx === i ? { ...x, name: e.target.value } : x))}
+                        placeholder="שם"
+                        className="rounded-lg text-sm h-9"
+                      />
+                      <Input
+                        value={w.phone || ''}
+                        onChange={e => handleChange('witnesses', form.witnesses.map((x, idx) => idx === i ? { ...x, phone: e.target.value } : x))}
+                        placeholder="טלפון"
+                        className="rounded-lg text-sm h-9 w-32"
+                        dir="ltr"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleChange('witnesses', form.witnesses.filter((_, idx) => idx !== i))}
+                        className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                        aria-label="הסר עד"
+                      >
+                        <X className="w-4 h-4" style={{ color: '#DC2626' }} />
+                      </button>
+                    </div>
+                    <Input
+                      value={w.statement || ''}
+                      onChange={e => handleChange('witnesses', form.witnesses.map((x, idx) => idx === i ? { ...x, statement: e.target.value } : x))}
+                      placeholder="מה ראה (אופציונלי)"
+                      className="rounded-lg text-sm h-9"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/*  Status  */}
@@ -654,16 +850,63 @@ export default function AddAccident() {
           </Select>
         </div>
 
-        {/*  Submit  */}
+        {/*  Submit + (edit mode only) export PDF report  */}
         {!isDemo && (
-          <button type="submit" disabled={saving}
-            className="w-full py-3.5 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-            style={{ background: C.yellow, color: C.greenDark, boxShadow: `0 4px 16px ${C.yellow}50` }}>
-            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-            {isEdit ? 'עדכן תאונה' : 'שמור תאונה'}
-          </button>
+          <div className="space-y-2">
+            <button type="submit" disabled={saving}
+              className="w-full py-3.5 rounded-2xl font-bold text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              style={{ background: C.yellow, color: C.greenDark, boxShadow: `0 4px 16px ${C.yellow}50` }}>
+              {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+              {isEdit ? 'עדכן תאונה' : 'שמור תאונה'}
+            </button>
+            {/* Export to PDF — only after the accident exists in the DB.
+                We don't show it on a fresh form because the report needs
+                a saved accident id and saved data (the user's text might
+                not be flushed yet). After "שמור" the user lands back on
+                Accidents.jsx and re-enters in edit mode where this is
+                visible. */}
+            {isEdit && (
+              <button
+                type="button"
+                onClick={() => setReportMode('options')}
+                className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+                style={{ background: '#fff', color: C.primary, border: `1.5px solid ${C.border}` }}>
+                <Download className="w-4 h-4" />
+                ייצוא דוח רשמי (PDF)
+              </button>
+            )}
+          </div>
         )}
       </form>
+
+      {/* Print styles — must be in the DOM whenever the print component
+          might render so window.print() picks them up correctly. */}
+      <AccidentPrintStyles />
+
+      {/* Hidden print element — invisible on screen, shown only by the
+          @media print CSS rules. Always rendered when the user is on
+          a saved accident so window.print() has something to flush. */}
+      {isEdit && (
+        <AccidentPrintReport
+          accident={form}
+          vehicle={vehicles.find(v => v.id === form.vehicle_id) || null}
+          reporter={{ name: user?.user_metadata?.full_name || user?.email, phone: user?.user_metadata?.phone }}
+          variant="print"
+        />
+      )}
+
+      {/* Action picker / preview modal */}
+      {reportMode && (
+        <AccidentReportModal
+          mode={reportMode}
+          accident={form}
+          vehicle={vehicles.find(v => v.id === form.vehicle_id) || null}
+          reporter={{ name: user?.user_metadata?.full_name || user?.email, phone: user?.user_metadata?.phone }}
+          onClose={() => setReportMode(null)}
+          onPreview={() => setReportMode('preview')}
+          onDownload={() => { window.setTimeout(() => window.print(), 50); }}
+        />
+      )}
 
       {/* Image Viewer */}
       <ImageViewer
@@ -681,7 +924,7 @@ export default function AddAccident() {
             <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: '#FFF8E1' }}>
               <span className="text-2xl">🔒</span>
             </div>
-            <h2 className="text-lg font-black text-gray-900">הירשם כדי לשמור</h2>
+            <h2 className="text-lg font-bold text-gray-900">הירשם כדי לשמור</h2>
             <p className="text-sm" style={{ color: '#6B7280' }}>
               הרשמה בחינם - ותוכל לתעד תאונות, לשמור תמונות ולגשת מכל מכשיר
             </p>
@@ -705,3 +948,7 @@ export default function AddAccident() {
     </div>
   );
 }
+
+// AccidentReportModal lives in src/components/accidents/ — shared with
+// the Accidents list page so a single source-of-truth dialog handles
+// both entry points.

@@ -9,6 +9,7 @@ import { Users, UserPlus, Copy, Trash2, Crown, Shield, User, Loader2, Share2, Ch
 import { toast } from "sonner";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
+import VehicleImage, { hasVehiclePhoto } from "../components/shared/VehicleImage";
 import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from "@/hooks/useAccountRole";
 import { canManage, isOwner, ROLE_INFO } from "@/lib/permissions";
@@ -64,7 +65,7 @@ function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChang
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="font-extrabold text-base text-gray-900 truncate">
+            <p className="font-bold text-base text-gray-900 truncate">
               {memberName || 'משתמש'}
             </p>
             {isMe && (
@@ -142,7 +143,7 @@ function GuestAccountSettings({ embedded = false }) {
           style={{ background: C.grad }}>
           <Users className="h-10 w-10 text-white" />
         </div>
-        <h2 className="font-black text-xl text-gray-900">שתף את הרכבים שלך</h2>
+        <h2 className="font-bold text-xl text-gray-900">שתף את הרכבים שלך</h2>
         <p className="text-base text-gray-500 leading-relaxed">
           הזמן אנשים לצפות ולנהל את הרכבים שלך - בני משפחה, שותפים, או עובדים.
           הירשם כדי להתחיל.
@@ -434,7 +435,7 @@ function AuthAccountSettings({ embedded = false }) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="font-black text-xl text-white">החשבון שלי</h1>
+                  <h1 className="font-bold text-xl text-white">החשבון שלי</h1>
                   <SharingHelpButton size="sm" />
                 </div>
                 <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
@@ -660,7 +661,7 @@ function AuthAccountSettings({ embedded = false }) {
       <Dialog open={showInvite} onOpenChange={resetInviteDialog}>
         <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black">הזמנת חבר חדש</DialogTitle>
+            <DialogTitle className="text-xl font-bold">הזמנת חבר חדש</DialogTitle>
           </DialogHeader>
           <div className="space-y-5 pt-2">
             {/* Role selection */}
@@ -758,8 +759,8 @@ function AuthAccountSettings({ embedded = false }) {
                             border: `1.5px solid ${selected ? '#4CAF50' : '#E5E7EB'}`,
                           }}>
                           <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-gray-100">
-                            {v.vehicle_photo ? (
-                              <img src={v.vehicle_photo} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                            {hasVehiclePhoto(v) ? (
+                              <VehicleImage vehicle={v} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
                                 <Car className="w-4 h-4 text-gray-400" />

@@ -1,8 +1,10 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2 } from "lucide-react";
+import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2, Search, Camera } from "lucide-react";
+import useFileUpload from '@/hooks/useFileUpload';
+import { validateUploadFile } from '@/lib/securityUtils';
 import ShareVehicleDialog from "@/components/sharing/ShareVehicleDialog";
 import SharedIndicator from "@/components/sharing/SharedIndicator";
 import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
@@ -13,6 +15,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
+import VehicleImage, { hasVehiclePhoto } from "../components/shared/VehicleImage";
 
 // First-time walkthrough of the vehicle detail page (cars/motorcycles/etc).
 // Fires once per user the first time they open any non-vessel vehicle.
@@ -66,6 +69,7 @@ import GuestVesselChecklistsPreview from "../components/vehicle/GuestVesselCheck
 import { SafeComponent } from "../components/shared/SafeComponent";
 import { useAuth } from "../components/shared/GuestContext";
 import useAccountRole from '@/hooks/useAccountRole';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { canEdit, canDelete, isViewOnly } from '@/lib/permissions';
 import { daysUntil } from '../components/shared/ReminderEngine';
 import { getDateStatus, getVehicleLabels, usesHours } from '../components/shared/DateStatusUtils';
@@ -93,7 +97,7 @@ function RemindersPreview({ vehicle, T }) {
       <button type="button" onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2 px-4 py-3" style={{ background: T.light }}>
         <Bell className="w-4 h-4" style={{ color: T.primary }} />
-        <span className="text-sm font-black" style={{ color: T.text }}>תזכורות</span>
+        <span className="text-sm font-bold" style={{ color: T.text }}>תזכורות</span>
         <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: T.primary, color: '#fff' }}>{items.length}</span>
         {open
           ? <ChevronUp className="w-4 h-4 mr-auto" style={{ color: T.primary }} />
@@ -124,7 +128,7 @@ function DocumentsPreview({ vehicleId, documents, T }) {
     <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', border: `1.5px solid ${T.border}` }} dir="rtl">
       <div className="flex items-center gap-2 px-4 py-3" style={{ background: T.light }}>
         <FileText className="w-4 h-4" style={{ color: T.primary }} />
-        <span className="text-sm font-black" style={{ color: T.text }}>מסמכים</span>
+        <span className="text-sm font-bold" style={{ color: T.text }}>מסמכים</span>
         <span className="text-xs font-bold px-1.5 py-0.5 rounded-full mr-auto" style={{ background: T.primary, color: '#fff' }}>{vehicleDocs.length}</span>
       </div>
       <div className="divide-y" style={{ borderColor: `${T.border}60` }}>
@@ -169,7 +173,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
   const vWord = vehicleWord(vehicle.vehicle_type, vehicle.nickname);
   const name = vehicle.nickname || [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ') || vWord;
   const subtitle = [vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' · ');
-  const hasPhoto = !!vehicle.vehicle_photo;
+  const hasPhoto = hasVehiclePhoto(vehicle);
 
   const handleDelete = () => {
     removeGuestVehicle(vehicleId);
@@ -209,7 +213,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
         {/* Photo / gradient */}
         <div className="relative" style={{ height: hasPhoto ? '220px' : '150px' }}>
           {hasPhoto ? (
-            <img src={vehicle.vehicle_photo} alt={name} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: '50% 55%' }} />
+            <VehicleImage vehicle={vehicle} alt={name} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: '50% 55%' }} />
           ) : (
             <div className="absolute inset-0" style={{ background: T.grad }} />
           )}
@@ -250,7 +254,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
 
           {/* Vehicle name + subtitle */}
           <div className="absolute bottom-4 right-4 left-4 z-10">
-            <h1 className="font-black text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{name}</h1>
+            <h1 className="font-bold text-white leading-tight" style={{ fontSize: '1.75rem', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>{name}</h1>
             <p className="text-base font-semibold mt-1" style={{ color: 'rgba(255,255,255,0.85)' }}>{subtitle}</p>
           </div>
         </div>
@@ -269,7 +273,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
           ].map((stat, i) => (
             <div key={i} className={`py-4 px-3 text-center ${i < 2 ? 'border-l' : ''}`}
               style={{ borderColor: T.border }}>
-              <p className="font-black text-base" style={{ color: T.text }}>{stat.value}</p>
+              <p className="font-bold text-base" style={{ color: T.text }}>{stat.value}</p>
               <p className="text-sm mt-1 font-bold" style={{ color: T.muted }}>{stat.label}</p>
             </div>
           ))}
@@ -314,9 +318,9 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
       {vehicle._isDemo ? (
         <div className="mx-4 mb-4 rounded-2xl p-3.5 flex items-center gap-3"
           style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
-          <span className="text-lg">👀</span>
+          <Car className="h-5 w-5 shrink-0" style={{ color: '#92400E' }} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black" style={{ color: '#92400E' }}>{vWord} לדוגמה</p>
+            <p className="text-sm font-bold" style={{ color: '#92400E' }}>{vWord} לדוגמה</p>
             <p className="text-xs" style={{ color: '#B45309' }}>הוסף את ה{vWord} האמיתי שלך כדי להתחיל</p>
           </div>
         </div>
@@ -377,8 +381,10 @@ export default function VehicleDetail() {
     return (
       <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
         <div className="max-w-sm w-full text-center">
-          <div className="text-7xl mb-4" role="img" aria-hidden="true">🚗</div>
-          <h1 className="text-xl font-black mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב</h1>
+          <div className="mb-4 flex justify-center" aria-hidden="true">
+            <Car className="h-14 w-14" style={{ color: '#2D5233' }} />
+          </div>
+          <h1 className="text-xl font-bold mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב</h1>
           <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
             נראה שהגעת לכאן בלי לבחור רכב. חזור לרשימה כדי לבחור אחד.
           </p>
@@ -401,8 +407,10 @@ export default function VehicleDetail() {
       return (
         <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
           <div className="max-w-sm w-full text-center">
-            <div className="text-7xl mb-4" role="img" aria-hidden="true">🔍</div>
-            <h1 className="text-xl font-black mb-2" style={{ color: '#1C2E20' }}>הרכב לא נמצא</h1>
+            <div className="mb-4 flex justify-center" aria-hidden="true">
+              <Search className="h-14 w-14" style={{ color: '#2D5233' }} />
+            </div>
+            <h1 className="text-xl font-bold mb-2" style={{ color: '#1C2E20' }}>הרכב לא נמצא</h1>
             <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
               ייתכן שהרכב נמחק או שהקישור פג תוקף.
             </p>
@@ -426,6 +434,16 @@ export default function VehicleDetail() {
 function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   const { user } = useAuth();
   const { role } = useAccountRole();
+  // The vehicle-share workflow is a personal-account concept (one user
+  // sharing their car with family/friends). In a business workspace
+  // sharing is replaced by driver assignments, so we hide the share
+  // controls here and the manager uses the Drivers page instead.
+  const { isBusiness, isDriver, canManageRoutes } = useWorkspaceRole();
+  // A driver in a business workspace can VIEW their assigned vehicle's
+  // details but cannot edit, delete, or share it — that's the manager's
+  // responsibility. We pre-compute one flag and use it to gate the
+  // action cluster + delete button + edit affordances below.
+  const driverReadOnly = isBusiness && isDriver && !canManageRoutes;
   const [accountIds, setAccountIds] = useState([]);
 
   useEffect(() => {
@@ -462,6 +480,24 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
 
   const vehicle = vehicles[0];
 
+  // Hash-based deep link → scroll to a named section once the vehicle
+  // has loaded. Used by /MyExpenses to land the user on the maintenance
+  // log when they tap a treatment/repair row from the expenses list.
+  // Single allowlist of valid hashes so we don't try to scroll to
+  // arbitrary garbage from a malformed URL.
+  useEffect(() => {
+    if (!vehicle) return;
+    const hash = (window.location.hash || '').replace(/^#/, '');
+    const allowed = new Set(['vd-maintenance', 'vd-corkboard']);
+    if (!allowed.has(hash)) return;
+    // Two rAFs so the DOM has the chance to lay out the section we're
+    // scrolling to (sections lazy-render via SafeComponent).
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const el = document.getElementById(hash);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+  }, [vehicle?.id]);
+
   // One-time auto-enrich: if vehicle has license plate but missing tech spec fields, fetch from gov API
   const [enrichDone, setEnrichDone] = useState(false);
   useEffect(() => {
@@ -469,12 +505,21 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
     if (isVesselType(vehicle.vehicle_type, vehicle.nickname)) return; // Vessels don't use gov API
     const specFields = ['model_code','trim_level','vin','pollution_group','vehicle_class','safety_rating',
       'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
-      'transmission','body_type','country_of_origin','co2','green_index','tow_capacity'];
+      'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
+      // gov.il enrichment (v6): odometer @ last test + ownership history
+      // count + personal-import flag. A vehicle missing any of these
+      // qualifies for a re-fetch even if the spec fields above are
+      // already filled. Note: is_personal_import defaults to false in
+      // DB, so we DON'T add it to the missing-check (we'd refetch
+      // forever for non-imported cars). Personal-import gets backfilled
+      // organically when v6 fires for any other reason.
+      'current_km','ownership_hand'];
     const missing = specFields.filter(f => !vehicle[f]);
     if (missing.length === 0) { setEnrichDone(true); return; }
-    // Check localStorage flag - only try once per vehicle per version
-    // Version 2: reset after DB columns were added
-    const enrichKey = `enriched_v4_${vehicle.id}`;
+    // Check localStorage flag — only try once per vehicle per version.
+    // v6: bumped from v5 to wire in the personal-import dataset so
+    // existing vehicles get re-checked once for the import flag.
+    const enrichKey = `enriched_v6_${vehicle.id}`;
     if (localStorage.getItem(enrichKey)) { setEnrichDone(true); return; }
     (async () => {
       try {
@@ -485,7 +530,11 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           'vehicle_class','safety_rating','front_tire','rear_tire','color','ownership',
           'first_registration_date','fuel_type',
           'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
-          'transmission','body_type','country_of_origin','co2','green_index','tow_capacity'];
+          'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
+          // Gov.il enrichment additions — backfills the new fields
+          // for vehicles that pre-date the dataset integration.
+          'current_km','ownership_hand','ownership_history',
+          'is_personal_import','personal_import_type'];
         const update = {};
         allFields.forEach(f => { if (govData[f] && !vehicle[f]) update[f] = govData[f]; });
         if (Object.keys(update).length > 0) {
@@ -538,6 +587,62 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   const [accessModalOpen, setAccessModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Hero "add photo" — uploads directly from VehicleDetail without
+  // routing through the full edit form. Mirrors EditVehicle's photo
+  // path: validate → useFileUpload (compress + sign) → patch the row
+  // with both vehicle_photo (signed URL) and vehicle_photo_storage_path
+  // (so reads can re-sign after the URL expires).
+  const heroFileInputRef = useRef(null);
+  const [uploadingHeroPhoto, setUploadingHeroPhoto] = useState(false);
+  // accountId + vehicleId together so the upload path is
+  // `{accountId}/{vehicleId}/...` — the form the vehicle_files_insert
+  // RLS policy expects. Without vehicleId the hook would fall back to
+  // `scans/{accountId}` which RLS rejects (scans branch checks auth.uid).
+  const { upload: uploadHeroPhoto } = useFileUpload({
+    accountId: vehicle?.account_id,
+    vehicleId,
+    mode: 'photo',
+    maxMB: 10,
+  });
+
+  const handleHeroPhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!vehicle?.account_id) {
+      toast.error('הרכב עדיין נטען, נסה שוב בעוד רגע');
+      e.target.value = '';
+      return;
+    }
+    const validation = validateUploadFile(file, 'photo', 10);
+    if (!validation.ok) {
+      toast.error(validation.error);
+      e.target.value = '';
+      return;
+    }
+    setUploadingHeroPhoto(true);
+    try {
+      const { fileUrl, storagePath } = await uploadHeroPhoto(file);
+      // Persist BOTH fields together so they never drift out of sync.
+      await db.vehicles.update(vehicleId, {
+        vehicle_photo: fileUrl,
+        vehicle_photo_storage_path: storagePath,
+      });
+      // Invalidate every query that paints a vehicle photo so the new
+      // image lands without a manual refresh.
+      queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+      queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles-list'] });
+      queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
+      toast.success('התמונה נוספה');
+    } catch (err) {
+      console.error('Hero photo upload error:', err);
+      toast.error(err?.message || 'שגיאה בהעלאת התמונה');
+    } finally {
+      setUploadingHeroPhoto(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
   // Two delete paths:
   //   * Owner of an unshared vehicle → straight delete (current behavior)
   //   * Owner of a shared vehicle → DB call with mode='both' which
@@ -575,6 +680,8 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
       }
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
       queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles-list'] });
+      queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
       navigate(createPageUrl('Dashboard'));
     } catch (e) {
       toast.error(`שגיאה במחיקה: ${e?.message || 'נסה שוב'}`);
@@ -602,14 +709,14 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const name = vehicle.nickname || `${vehicle.manufacturer || ''} ${vehicle.model || ''}`.trim() || (isVessel ? 'כלי שייט' : 'רכב');
   const subtitle = [vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' · ');
-  const hasPhoto = !!vehicle.vehicle_photo;
+  const hasPhoto = hasVehiclePhoto(vehicle);
 
   return (
     <div className="-mx-4 -mt-4" dir="rtl">
       {/*  Hero Card  */}
       <div className="relative overflow-hidden" style={{ height: hasPhoto ? '220px' : '150px' }}>
         {hasPhoto ? (
-          <img src={vehicle.vehicle_photo} alt={name}
+          <VehicleImage vehicle={vehicle} alt={name}
             className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: '50% 55%' }} />
         ) : (
           <div className="absolute inset-0" style={{ background: T.grad }} />
@@ -643,7 +750,27 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             <LicensePlate value={vehicle.license_plate} size="sm" showCopy />
           )}
           <div className="flex items-center gap-2">
-            {vehicleIsOwned && !isViewOnly(role) && (
+            {vehicleIsOwned && !isViewOnly(role) && isBusiness && !driverReadOnly && (
+              // Business swap-in for the share cluster: there is no
+              // "share with email" in a fleet workspace, so we surface
+              // the equivalent action a manager actually wants from
+              // here — assigning a driver. Routes back to the Drivers
+              // page so the manager picks the driver from the workspace
+              // directory rather than free-text email entry. Drivers
+              // shouldn't see this — /Drivers itself is manager-only
+              // and would reject them with a permission error.
+              <Link
+                to={createPageUrl('Drivers')}
+                className="h-9 px-3 rounded-2xl flex items-center gap-1.5 transition-all active:scale-95"
+                style={{ background: '#2D5233', color: '#fff', boxShadow: '0 2px 6px rgba(45,82,51,0.35)' }}
+                aria-label="שייך נהג לרכב"
+                title="שייך נהג"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span className="text-xs font-bold">שייך נהג</span>
+              </Link>
+            )}
+            {vehicleIsOwned && !isViewOnly(role) && !isBusiness && (
               // Share-controls cluster. Both buttons share the same
               // amber/gold palette so they read as a single sharing
               // module rather than two unrelated affordances. The
@@ -665,7 +792,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
                 <SharingHelpButton size="sm" />
               </div>
             )}
-            {(shareCount > 0 || isSharedWithMe) && (
+            {!isBusiness && (shareCount > 0 || isSharedWithMe) && (
               <SharedIndicator
                 shareCount={shareCount}
                 isSharedWithMe={isSharedWithMe}
@@ -676,19 +803,62 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           </div>
         </div>
 
-        {/* No-photo vehicle icon */}
+        {/* No-photo state.
+            For an editable owner: the placeholder becomes a tappable
+            upload button so they can add a photo without bouncing to
+            the full edit form. The hidden <input> below is what the
+            click triggers — separating it from the button keeps the
+            file-picker invisible until tapped (no double-element flash).
+            For viewers / drivers / sharees: keep the static placeholder. */}
         {!hasPhoto && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-24 h-24 rounded-3xl flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.1)' }}>
-              <VehicleIcon className="w-12 h-12" style={{ color: 'rgba(255,255,255,0.5)', strokeWidth: 1.5 }} />
-            </div>
+            {canEdit(role) && !driverReadOnly ? (
+              <button
+                type="button"
+                onClick={() => heroFileInputRef.current?.click()}
+                disabled={uploadingHeroPhoto}
+                aria-label={uploadingHeroPhoto ? 'מעלה תמונה' : 'הוסף תמונת רכב'}
+                className="flex flex-col items-center gap-2 px-5 py-3 rounded-3xl transition-all active:scale-[0.98] disabled:opacity-70"
+                style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)' }}
+              >
+                <div
+                  className="w-20 h-20 rounded-2xl flex items-center justify-center"
+                  style={{ background: 'rgba(255,255,255,0.2)' }}
+                >
+                  {uploadingHeroPhoto
+                    ? <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#fff' }} />
+                    : <Camera className="w-9 h-9" style={{ color: '#fff', strokeWidth: 1.6 }} />}
+                </div>
+                <span
+                  className="text-sm font-bold text-white"
+                  style={{ textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}
+                >
+                  {uploadingHeroPhoto ? 'מעלה…' : 'הוסף תמונה'}
+                </span>
+              </button>
+            ) : (
+              <div
+                className="w-24 h-24 rounded-3xl flex items-center justify-center"
+                style={{ background: 'rgba(255,255,255,0.1)' }}
+              >
+                <VehicleIcon className="w-12 h-12" style={{ color: 'rgba(255,255,255,0.5)', strokeWidth: 1.5 }} />
+              </div>
+            )}
           </div>
+        )}
+        {!hasPhoto && canEdit(role) && !driverReadOnly && (
+          <input
+            ref={heroFileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleHeroPhotoChange}
+          />
         )}
 
         {/* Name overlay */}
         <div className="absolute bottom-4 right-4 left-4 z-10">
-          <h1 className="font-black text-white text-2xl leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+          <h1 className="font-bold text-white text-2xl leading-tight" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
             {name}
           </h1>
           <p className="text-sm mt-1 font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>{subtitle}</p>
@@ -702,9 +872,11 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         </div>
       )}
 
-      {/*  Action buttons  */}
+      {/*  Action buttons — driverReadOnly hides עריכה / מחיקה for
+           drivers in business mode. They can still open Documents
+           (filtered to their assigned vehicles already). */}
       <div className="px-4 -mt-5 relative z-20 flex gap-2 mb-4">
-        {canEdit(role) && (
+        {canEdit(role) && !driverReadOnly && (
           <Link to={createPageUrl(`EditVehicle?id=${vehicleId}`)}>
             <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
               style={{ background: T.yellow, color: T.primary, boxShadow: `0 4px 12px ${T.yellow}40` }}>
@@ -720,7 +892,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
             <FileText className="h-4 w-4" />
           </button>
         </Link>
-        {(canDelete(role) || isSharedWithMe) && (
+        {(canDelete(role) || isSharedWithMe) && !driverReadOnly && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
@@ -801,7 +973,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           </div>
         )}
 
-        <div data-tour="vd-maintenance">
+        <div id="vd-maintenance" data-tour="vd-maintenance" style={{ scrollMarginTop: '90px' }}>
           <SafeComponent label="MaintenanceSection">
             <MaintenanceSection vehicle={vehicle} />
           </SafeComponent>
@@ -849,7 +1021,7 @@ function ChecklistsEntryCard({ vehicleId, navigate }) {
           </svg>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-black text-base">צ'ק ליסטים</p>
+          <p className="font-bold text-base">צ'ק ליסטים</p>
           <p className="text-xs opacity-85 mt-0.5">בדיקות מנוע, לפני יציאה וסיום. לחץ כדי להתחיל.</p>
         </div>
         <div className="text-white/80 text-lg">←</div>

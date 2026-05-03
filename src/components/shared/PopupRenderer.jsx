@@ -72,7 +72,7 @@ export default function PopupRenderer({ popup, open, onClose, renderInline = fal
         </div>
 
         {title && (
-          <h2 className="text-center mt-3 text-xl font-black leading-tight relative z-10"
+          <h2 className="text-center mt-3 text-xl font-bold leading-tight relative z-10"
             style={{ color: theme.textOnBg }}>{title}</h2>
         )}
       </div>
@@ -95,7 +95,7 @@ export default function PopupRenderer({ popup, open, onClose, renderInline = fal
             )}
             {primary?.label && (
               <button type="button" onClick={() => handleClick(primary)}
-                className="flex-1 rounded-xl h-11 text-[14px] font-extrabold text-white transition-all active:translate-y-px"
+                className="flex-1 rounded-xl h-11 text-[14px] font-bold text-white transition-all active:translate-y-px"
                 style={{
                   background: theme.primary,
                   boxShadow: `0 8px 20px -6px ${theme.primary}66`,

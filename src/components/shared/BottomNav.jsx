@@ -1,12 +1,13 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Home, MapPin, FileText, AlertTriangle, Sparkles } from 'lucide-react';
+import { Home, MapPin, FileText, AlertTriangle, Sparkles, Route as RouteIcon, LayoutDashboard } from 'lucide-react';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 
 // Tab order in RTL: rightmost first → leftmost last
 // AI Assistant is intentionally LAST so it sits on the visual LEFT
 // relatedPaths: pages that should also highlight this tab (e.g. VehicleDetail → Home)
-const tabs = [
+const PERSONAL_TABS = [
   { label: 'ראשי',         icon: Home,           path: 'Dashboard',
     relatedPaths: ['/Vehicles', '/VehicleDetail', '/AddVehicle', '/EditVehicle', '/DemoVehicleDetail'] },
   { label: 'מסמכים',       icon: FileText,       path: 'Documents' },
@@ -16,8 +17,55 @@ const tabs = [
   { label: 'מומחה AI',     icon: Sparkles,       path: 'AiAssistant', isAi: true },
 ];
 
+// Driver-in-business tabs: no AI / no community / no peer team here
+// (the bell handles notifications, "/Team" is reachable from the side
+// menu). The tab bar is pruned to the three things a driver actually
+// taps on the go: their assigned vehicles, the day's tasks, and the
+// document drawer. No duplicate entries.
+const DRIVER_TABS = [
+  { label: 'ראשי',    icon: Home,         path: 'MyVehicles',
+    relatedPaths: ['/VehicleDetail'] },
+  { label: 'משימות',  icon: RouteIcon,    path: 'Routes',
+    relatedPaths: ['/RouteDetail', '/CreateRoute'] },
+  { label: 'מסמכים',  icon: FileText,     path: 'Documents' },
+];
+
 export default function BottomNav({ sheetOpen = false }) {
   const location = useLocation();
+  const { isBusiness, isDriver, canManageRoutes, isLoading: roleLoading } = useWorkspaceRole();
+  // Hold the bar off-screen while role is still resolving. Without
+  // this, drivers saw the personal tab bar (Home / Documents /
+  // FindGarage / Accidents / AI) for ~300ms before it flipped to
+  // DRIVER_TABS — long enough to register as a glitch on slow
+  // devices and to register a stray tap on the wrong tab.
+  if (roleLoading) return null;
+  // Drivers in a business workspace get a business-flavoured tab bar.
+  // Managers / owners in a business workspace keep MOST of the personal
+  // tabs (FindGarage, Documents, Accidents are universal). Two changes
+  // for them vs. personal users:
+  //   • "ראשי" points to BusinessDashboard, not the personal Dashboard.
+  //     Personal Dashboard was hidden from the business sidebar; keeping
+  //     the bottom-nav tab pointing there would be inconsistent.
+  //   • AI tab is removed (private-flow feature; hidden from the menu
+  //     via personalOnly).
+  // Viewers don't have BusinessDashboard access (managerOnly), so they
+  // fall back to the personal Dashboard route as before — the page
+  // itself is a safe non-interactive overview.
+  let tabs;
+  if (isBusiness && isDriver && !canManageRoutes) {
+    tabs = DRIVER_TABS;
+  } else if (isBusiness && canManageRoutes) {
+    tabs = PERSONAL_TABS
+      .filter(t => !t.isAi)
+      .map(t => t.path === 'Dashboard'
+        ? { ...t, label: 'דשבורד', path: 'BusinessDashboard', icon: LayoutDashboard, relatedPaths: undefined }
+        : t);
+  } else if (isBusiness) {
+    // Viewer in business workspace: no BusinessDashboard access.
+    tabs = PERSONAL_TABS.filter(t => !t.isAi);
+  } else {
+    tabs = PERSONAL_TABS;
+  }
   const primaryPath = createPageUrl(''); // e.g., '/'
 
   // Figure out which tab is active. An exact match on the tab's own route wins;

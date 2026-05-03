@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { db } from '@/lib/supabaseEntities';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
 import { Plus, Car, Ship, Bike, Truck, Star, Mountain, Wrench, Search, X, CheckCircle, Clock, AlertTriangle, ArrowUpDown } from 'lucide-react';
 import { C, getTheme, getVehicleCategory } from '@/lib/designTokens';
 import { isVessel, isOffroad } from '../components/shared/DateStatusUtils';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import PageHeader from '../components/shared/PageHeader';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
@@ -15,6 +14,9 @@ import VehicleCardEnhanced from '../components/vehicles/VehicleCardEnhanced';
 import SignUpPromptDialog from '../components/shared/SignUpPromptDialog';
 import { useAuth } from '../components/shared/GuestContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import useAccountRole from '@/hooks/useAccountRole';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 
 //  Helpers 
 function daysUntil(dateStr) {
@@ -100,9 +102,12 @@ const CATEGORY_TABS = [
 
 //  Sort Options 
 const SORT_OPTIONS = [
+  { key: 'newest', label: 'מהחדש לישן' },
   { key: 'name',   label: 'שם' },
+  { key: 'type',   label: 'סוג' },
   { key: 'status', label: 'סטטוס' },
   { key: 'year',   label: 'שנת ייצור' },
+  { key: 'updated', label: 'עודכן לאחרונה' },
 ];
 
 const STATUS_ORDER = { overdue: 0, soon: 1, ok: 2 };
@@ -130,7 +135,7 @@ function StatusSummaryBar({ counts, activeFilter, onFilter }) {
               boxShadow: active ? `0 4px 12px ${item.color}30` : 'none',
             }}>
             <div className="flex items-center gap-1">
-              <span className="font-black text-xl" style={{ color: active ? '#fff' : item.color }}>{item.count}</span>
+              <span className="font-bold text-xl" style={{ color: active ? '#fff' : item.color }}>{item.count}</span>
               <item.icon className="w-4 h-4" style={{ color: active ? '#fff' : item.color }} />
             </div>
             <span className="text-[10px] font-bold" style={{ color: active ? '#fff' : item.color }}>{item.label}</span>
@@ -246,7 +251,7 @@ function PremiumEmptyState({ hasFilters, onClearFilters, theme, isVessel }) {
         </div>
         {hasFilters ? (
           <>
-            <h3 className="font-black text-lg mb-2" style={{ color: T.text }}>לא נמצאו תוצאות</h3>
+            <h3 className="font-bold text-lg mb-2" style={{ color: T.text }}>לא נמצאו תוצאות</h3>
             <p className="text-sm mb-5 max-w-xs mx-auto" style={{ color: T.muted }}>נסה לשנות את החיפוש או הסינון</p>
             <button onClick={onClearFilters}
               className="px-6 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
@@ -256,7 +261,7 @@ function PremiumEmptyState({ hasFilters, onClearFilters, theme, isVessel }) {
           </>
         ) : (
           <>
-            <h3 className="font-black text-lg mb-2" style={{ color: T.text }}>{isVessel ? 'אין כלי שייט עדיין' : 'אין רכבים עדיין'}</h3>
+            <h3 className="font-bold text-lg mb-2" style={{ color: T.text }}>{isVessel ? 'אין כלי שייט עדיין' : 'אין רכבים עדיין'}</h3>
             <p className="text-sm mb-5 max-w-xs mx-auto" style={{ color: T.muted }}>{isVessel ? 'הוסף את כלי השייט הראשון שלך' : 'הוסף את הרכב הראשון שלך וקבל תזכורות לטסט, ביטוח וטיפולים'}</p>
             <Link to={createPageUrl('AddVehicle')}>
               <button className="px-8 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
@@ -294,7 +299,21 @@ function VehiclesContent({ vehicles, isLoading }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeCategoryTab, setActiveCategoryTab] = useState('all');
-  const [sortBy, setSortBy] = useState('name');
+  // Keep sorting aligned with Dashboard (same defaults + option keys).
+  const [sortBy, setSortBy] = useState(() => {
+    try {
+      return localStorage.getItem('cr_dashboard_sort') || localStorage.getItem('cr_vehicles_sort') || 'newest';
+    } catch {
+      return 'newest';
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('cr_vehicles_sort', sortBy);
+      // Shared key so Dashboard/Vehicles/כלי שייט keep the same selected mode.
+      localStorage.setItem('cr_dashboard_sort', sortBy);
+    } catch {}
+  }, [sortBy]);
   // null | 'overdue' | 'soon'. driven by the two clickable badges above the list.
   const [statusFilter, setStatusFilter] = useState(null);
 
@@ -362,6 +381,20 @@ function VehiclesContent({ vehicles, isLoading }) {
     result.sort((a, b) => {
       const va = a.vehicle, vb = b.vehicle;
       switch (sortBy) {
+        case 'newest':
+          return new Date(vb.created_at || vb.created_date || 0) - new Date(va.created_at || va.created_date || 0);
+        case 'updated':
+          return new Date(vb.updated_at || vb.created_at || vb.created_date || 0) -
+                 new Date(va.updated_at || va.created_at || va.created_date || 0);
+        case 'type': {
+          const typeA = String(va.vehicle_type || 'רכב');
+          const typeB = String(vb.vehicle_type || 'רכב');
+          const byType = typeA.localeCompare(typeB, 'he');
+          if (byType !== 0) return byType;
+          const nameA = String(va.nickname || va.manufacturer || '');
+          const nameB = String(vb.nickname || vb.manufacturer || '');
+          return nameA.localeCompare(nameB, 'he');
+        }
         case 'status':
           return (STATUS_ORDER[a.status] ?? 2) - (STATUS_ORDER[b.status] ?? 2);
         case 'year':
@@ -418,9 +451,9 @@ function VehiclesContent({ vehicles, isLoading }) {
       {filteredByPage.some(v => v._isDemo) && (
         <div className="rounded-2xl p-3.5 mb-4 flex items-center gap-3"
           style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
-          <span className="text-lg">👀</span>
+          <Car className="w-5 h-5 shrink-0" style={{ color: '#92400E' }} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black" style={{ color: '#92400E' }}>{isVesselPage ? 'כלי שייט לדוגמה' : 'רכבים לדוגמה'}</p>
+            <p className="text-sm font-bold" style={{ color: '#92400E' }}>{isVesselPage ? 'כלי שייט לדוגמה' : 'רכבים לדוגמה'}</p>
             <p className="text-xs" style={{ color: '#B45309' }}>הוסף את הרכב האמיתי שלך כדי להתחיל</p>
           </div>
         </div>
@@ -532,61 +565,24 @@ export default function Vehicles() {
   const authLoading = auth?.isLoading;
   const user = auth?.user;
   const guestVehicles = auth?.guestVehicles;
-  const [accountId, setAccountId] = useState(null);
-  const [showSignUp, setShowSignUp] = useState(false);
-
-  // True only after we attempted ensure_user_account once during this
-  // mount. Prevents an infinite RPC loop if the heal also fails.
-  const provisionedRef = useRef(false);
-
+  // Phase 3: accountId comes from the active workspace via useAccountRole
+  // (now a thin wrapper over WorkspaceContext). Auto-heal for users
+  // with zero memberships is centralized in WorkspaceContext.
+  const { accountId } = useAccountRole();
+  const { activeWorkspace } = useWorkspace();
+  // Drivers in a business workspace must NEVER see this page — it
+  // surfaces every vehicle in the workspace, defeating the
+  // assignment model. Bounce them to MyVehicles, which scopes by
+  // driver_assignments. Owners / managers / viewers stay on this
+  // page for the personal-flow features (sharing, etc.).
+  const { isDriver, canManageRoutes, isBusiness } = useWorkspaceRole();
+  const navigate = useNavigate();
   useEffect(() => {
-    if (!isAuthenticated || !user) return;
-    async function init() {
-      // Fetch ALL membership rows — legacy/migrated accounts can have
-      // status NULL or 'active' instead of 'פעיל'. The old filter
-      // returned 0 and accountId stayed null forever, leaving Ilan /
-      // Eyal and anyone else with a non-standard status stuck on the
-      // loading spinner. Prefer 'פעיל' but accept any row as a fallback.
-      const all = await db.account_members.filter({ user_id: user.id });
-      if (all.length === 0) {
-        // Self-heal: brand-new user landed here directly without going
-        // through Dashboard's provisioning, OR the bootstrap trigger
-        // silently failed. Call the SECURITY DEFINER RPC once and
-        // retry the membership read. This is the page-level safety
-        // net beyond the trigger + GuestContext layers.
-        if (!provisionedRef.current) {
-          provisionedRef.current = true;
-          try {
-            const { supabase } = await import('@/lib/supabase');
-            await supabase.rpc('ensure_user_account');
-            const retried = await db.account_members.filter({ user_id: user.id });
-            if (retried.length > 0) {
-              const usable = retried.filter(m => m.status !== 'הוסר' && m.status !== 'removed');
-              if (usable.length > 0) {
-                const ROLE_PRIORITY = { 'בעלים': 0, 'מנהל': 1, 'שותף': 2 };
-                const sortByRole = (a, b) => (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9);
-                const active = usable.filter(m => m.status === 'פעיל').sort(sortByRole);
-                const inactive = usable.filter(m => m.status !== 'פעיל').sort(sortByRole);
-                setAccountId((active[0] || inactive[0]).account_id);
-              }
-            }
-          } catch { /* fall through; the page will sit at empty-state */ }
-        }
-        return;
-      }
-      // Skip removed rows; prefer active; tie-break by role priority
-      // (בעלים wins over מנהל wins over שותף) so a multi-membership user
-      // lands on the account they actually own, not one they just view.
-      const usable = all.filter(m => m.status !== 'הוסר' && m.status !== 'removed');
-      if (usable.length === 0) return;
-      const ROLE_PRIORITY = { 'בעלים': 0, 'מנהל': 1, 'שותף': 2 };
-      const sortByRole = (a, b) => (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9);
-      const active = usable.filter(m => m.status === 'פעיל').sort(sortByRole);
-      const inactive = usable.filter(m => m.status !== 'פעיל').sort(sortByRole);
-      setAccountId((active[0] || inactive[0]).account_id);
+    if (isBusiness && isDriver && !canManageRoutes) {
+      navigate(createPageUrl('MyVehicles'), { replace: true });
     }
-    init();
-  }, [isAuthenticated, user]);
+  }, [isBusiness, isDriver, canManageRoutes, navigate]);
+  const [showSignUp, setShowSignUp] = useState(false);
 
   const queryClient = useQueryClient();
   // my_vehicles_v returns owned ∪ accepted-shared rows for auth.uid().
@@ -594,8 +590,8 @@ export default function Vehicles() {
   // shared WITH them (via vehicle_shares) alongside their own. The
   // view exposes is_shared_with_me + share_role + share_owner_user_id
   // so the UI can render a "shared with me" badge.
-  const { data: vehicles = [], isLoading } = useQuery({
-    queryKey: ['my-vehicles', user?.id],
+  const { data: rawVehicles = [], isLoading } = useQuery({
+    queryKey: ['my-vehicles', user?.id, accountId],
     queryFn: async () => {
       const { supabase } = await import('@/lib/supabase');
       const { data, error } = await supabase.from('my_vehicles_v').select('*');
@@ -603,17 +599,33 @@ export default function Vehicles() {
       return data || [];
     },
     enabled: !!user?.id && !!accountId,
-    refetchOnMount: 'always',
-    staleTime: 2 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: true,
   });
+
+  // Phase 3: workspace-aware filtering.
+  // Personal workspace: owned + accepted shares (current behavior).
+  // Business workspace: only vehicles whose account_id matches.
+  const vehicles = useMemo(() => {
+    if (!accountId) return [];
+    const isBusiness = activeWorkspace?.account_type === 'business';
+    return rawVehicles.filter(v => {
+      if (v.is_shared_with_me) return !isBusiness;
+      return v.account_id === accountId;
+    });
+  }, [rawVehicles, accountId, activeWorkspace]);
 
   // Pull-to-refresh. re-fetches the vehicles list.
   const { pulling, progress } = usePullToRefresh(async () => {
-    await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+    await queryClient.invalidateQueries({ queryKey: ['my-vehicles', user?.id, accountId] });
     await new Promise(r => setTimeout(r, 500));
   });
 
   if (!auth || authLoading) return <LoadingSpinner />;
+  // Driver in a business workspace — the useEffect above redirects to
+  // /MyVehicles but it fires after first paint. Show a spinner so the
+  // manager-flavoured vehicle list never reaches the screen.
+  if (isBusiness && isDriver && !canManageRoutes) return <LoadingSpinner />;
 
   //  Guest mode 
   if (isGuest) {

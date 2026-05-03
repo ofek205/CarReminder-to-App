@@ -5,10 +5,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User } from "lucide-react";
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { configForType as appConfigForType } from '@/lib/appNotificationConfig';
+import { configForType as appConfigForType, requiresActionForType } from '@/lib/appNotificationConfig';
 import { ListSkeleton } from "../components/shared/Skeletons";
 import { formatDateHe } from "../components/shared/DateStatusUtils";
 import { useAuth } from "../components/shared/GuestContext";
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { calcAllReminders, daysUntil } from "../components/shared/ReminderEngine";
 import { C } from '@/lib/designTokens';
 
@@ -100,6 +101,9 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
               {notif.due_date ? formatDateHe(notif.due_date) : (notif.name || '')}
             </span>
           )}
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FEF3C7', color: '#92400E' }}>
+            דורש פעולה
+          </span>
           {isOverdue && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FEE2E2', color: '#DC2626' }}>
               {notif.days_left !== undefined && notif.days_left < 0
@@ -176,7 +180,7 @@ function NotifEmptyState() {
             style={{ background: C.border }}>
             <Bell className="w-8 h-8" style={{ color: C.primary, opacity: 0.5 }} />
           </div>
-          <h3 className="font-black text-lg mb-2" style={{ color: C.text }}>אין התראות</h3>
+          <h3 className="font-bold text-lg mb-2" style={{ color: C.text }}>אין התראות</h3>
           <p className="text-sm max-w-xs mx-auto leading-relaxed" style={{ color: C.muted }}>
             ההתראות שלך יופיעו כאן כשמועד הטסט/כושר שייט, הביטוח או הטיפול מתקרב
           </p>
@@ -202,7 +206,7 @@ function NotifSummary({ overdue, upcoming }) {
             <item.icon className="w-4 h-4 text-white" />
           </div>
           <div>
-            <span className="font-black text-lg block leading-none" style={{ color: item.color }}>{item.count}</span>
+            <span className="font-bold text-lg block leading-none" style={{ color: item.color }}>{item.count}</span>
             <span className="text-xs font-bold" style={{ color: item.color }}>{item.label}</span>
           </div>
         </div>
@@ -256,17 +260,15 @@ function GuestNotifications() {
   return (
     <div dir="rtl">
       {/* Header */}
-      <div className="rounded-3xl p-5 mb-5 relative overflow-hidden"
+      <div className="rounded-3xl p-5 mb-5"
         style={{ background: C.grad, boxShadow: `0 8px 32px ${C.primary}40` }}>
-        <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
-        <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full" style={{ background: `${C.yellow}20` }} />
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
               <Bell className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-white">התראות</h1>
+              <h1 className="text-xl font-bold text-white">התראות</h1>
               <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
                 {notifications.length > 0 ? `${notifications.length} התראות פעילות` : 'אין התראות'}
               </p>
@@ -278,9 +280,11 @@ function GuestNotifications() {
       {/* Guest banner */}
       <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
         style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
-        <span className="text-lg">🔒</span>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#FDE68A' }}>
+          <AlertTriangle className="w-4 h-4" style={{ color: '#92400E' }} />
+        </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-black" style={{ color: '#92400E' }}>התראות זמניות</p>
+          <p className="text-sm font-bold" style={{ color: '#92400E' }}>התראות זמניות</p>
           <p className="text-xs" style={{ color: '#B45309' }}>
             <button onClick={() => window.location.href = '/Auth'} className="underline font-bold">הירשם</button>
             {' '}כדי לקבל התראות אמיתיות למכשיר
@@ -327,6 +331,7 @@ function remindersToNotifs(reminders) {
 //  Auth Notifications 
 function AuthNotifications() {
   const { user } = useAuth();
+  const { activeWorkspaceId } = useWorkspace();
   const queryClient = useQueryClient();
   // useNavigate was missing here — the app-notification onClick below
   // called navigate(href) against undefined, throwing a silent
@@ -339,11 +344,36 @@ function AuthNotifications() {
 
   // Fetch vehicles
   const { data: accountData } = useQuery({
-    queryKey: ['auth-notif-account', user?.id],
+    queryKey: ['auth-notif-account', user?.id, activeWorkspaceId],
     queryFn: async () => {
       const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
       if (members.length === 0) return { accountId: null, vehicles: [] };
-      const accountId = members[0].account_id;
+      const activeMember = activeWorkspaceId
+        ? members.find(m => m.account_id === activeWorkspaceId)
+        : null;
+      const targetMember = activeMember || members[0];
+      const accountId = targetMember.account_id;
+      const isBusinessDriver = targetMember?.account_type === 'business' && targetMember?.role === 'driver';
+
+      if (isBusinessDriver) {
+        const { data: assignments, error: assignmentError } = await supabase
+          .from('driver_assignments')
+          .select('vehicle_id')
+          .eq('account_id', accountId)
+          .eq('driver_user_id', user.id)
+          .eq('status', 'active');
+        if (assignmentError) throw assignmentError;
+        const vehicleIds = (assignments || []).map(a => a.vehicle_id).filter(Boolean);
+        if (vehicleIds.length === 0) return { accountId, vehicles: [] };
+        const { data, error } = await supabase
+          .from('vehicles')
+          .select('*')
+          .eq('account_id', accountId)
+          .in('id', vehicleIds);
+        if (error) throw error;
+        return { accountId, vehicles: data || [] };
+      }
+
       const vehicles = await db.vehicles.filter({ account_id: accountId });
       return { accountId, vehicles };
     },
@@ -418,6 +448,7 @@ function AuthNotifications() {
   const markAppNotifRead = async (id, nextRead = true) => {
     await supabase.from('app_notifications').update({ is_read: nextRead }).eq('id', id);
     queryClient.invalidateQueries({ queryKey: ['app-notifs', user?.id] });
+    try { window.dispatchEvent(new CustomEvent('cr:notifications-changed')); } catch {}
   };
 
   // Build notifications using UNIFIED engine (same as bell)
@@ -485,13 +516,22 @@ function AuthNotifications() {
     });
   };
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
     const allIds = notifications.map(n => n.id);
     setReadIds(prev => {
       const next = new Set([...prev, ...allIds]);
       localStorage.setItem('read_notif_ids', JSON.stringify([...next]));
       return next;
     });
+    const unreadAppIds = appNotifs.filter(n => !n.is_read).map(n => n.id);
+    if (unreadAppIds.length > 0) {
+      await supabase
+        .from('app_notifications')
+        .update({ is_read: true })
+        .in('id', unreadAppIds);
+      queryClient.invalidateQueries({ queryKey: ['app-notifs', user?.id] });
+      try { window.dispatchEvent(new CustomEvent('cr:notifications-changed')); } catch {}
+    }
   };
 
   if (!user?.id || isLoading) {
@@ -509,24 +549,26 @@ function AuthNotifications() {
   });
   const unread = sorted.filter(n => !readIds.has(n.id));
   const read = sorted.filter(n => readIds.has(n.id));
+  const appUnreadCount = appNotifs.filter(n => !n.is_read).length;
+  const totalUnread = unread.length + appUnreadCount;
+  const hasAnyNotifications = appNotifs.length > 0 || sorted.length > 0 || profileIncomplete || licenseAlert;
 
   return (
     <div dir="rtl">
       {/* Header */}
-      <div className="rounded-3xl p-5 mb-5 relative overflow-hidden"
+      <div className="rounded-3xl p-5 mb-5"
         style={{ background: C.grad, boxShadow: `0 8px 32px ${C.primary}40` }}>
-        <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
         <div className="relative z-10 flex items-center gap-2.5">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.2)' }}>
             <Bell className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-black text-white">התראות</h1>
+            <h1 className="text-xl font-bold text-white">התראות</h1>
             <p className="text-xs font-medium" style={{ color: 'rgba(255,255,255,0.7)' }}>
-              {unread.length > 0 ? `${unread.length} חדשות` : 'אין התראות חדשות'}
+              {totalUnread > 0 ? `${totalUnread} חדשות` : 'אין התראות חדשות'}
             </p>
           </div>
-          {unread.length > 0 && (
+          {totalUnread > 0 && (
             <button onClick={markAllRead}
               className="text-[11px] font-bold px-3 py-1.5 rounded-full transition-all active:scale-95 shrink-0"
               style={{ background: 'rgba(255,255,255,0.25)', color: '#fff' }}>
@@ -568,6 +610,7 @@ function AuthNotifications() {
         const cfg = appConfigForType(an.type);
         const Icon = cfg.icon;
         const href = cfg.buildHref(an.data || {});
+        const actionRequired = requiresActionForType(an.type);
         return (
           <div key={`app-${an.id}`}
             className="rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all"
@@ -600,6 +643,14 @@ function AuthNotifications() {
               {an.body && (
                 <p className="text-xs mt-0.5" style={{ color: isRead ? '#9CA3AF' : cfg.iconColor + 'CC' }}>{an.body}</p>
               )}
+              <span
+                className="inline-flex mt-2 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                style={{
+                  background: actionRequired ? '#FEF3C7' : '#F3F4F6',
+                  color: actionRequired ? '#92400E' : '#6B7280',
+                }}>
+                {actionRequired ? 'דורש פעולה' : 'לידיעה'}
+              </span>
             </button>
             <button
               onClick={() => markAppNotifRead(an.id, !isRead)}
@@ -634,7 +685,7 @@ function AuthNotifications() {
         </Link>
       )}
 
-      {sorted.length === 0 && !profileIncomplete && !licenseAlert ? (
+      {!hasAnyNotifications ? (
         <NotifEmptyState />
       ) : sorted.length > 0 ? (
         <>
