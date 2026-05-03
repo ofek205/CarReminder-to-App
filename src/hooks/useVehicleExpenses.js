@@ -5,6 +5,12 @@
  * screen can ask for "rows + totals for vehicle X in period Y" without
  * touching pagination / aggregation logic itself.
  *
+ * Phase 2 (aggregate mode):
+ *   • accountId is required.
+ *   • vehicleId may be null → returns aggregate totals + rows across
+ *     every vehicle the user can see in that account, plus a per-vehicle
+ *     breakdown under totals.by_vehicle.
+ *
  * Returns:
  *   {
  *     rows, totals, isLoading, isError, error,
@@ -44,27 +50,32 @@ export function defaultYearPeriod() {
   return { type: 'year', year: new Date().getFullYear() };
 }
 
-export default function useVehicleExpenses({ vehicleId, period, categories }) {
+export default function useVehicleExpenses({ accountId, vehicleId, period, categories }) {
   const range = useMemo(() => periodToRange(period), [period]);
   const cats  = useMemo(
     () => (Array.isArray(categories) && categories.length ? categories.slice().sort() : null),
     [categories]
   );
 
+  // queryKey explicitly includes the (possibly null) vehicleId so
+  // switching between aggregate / single-vehicle gets its own cache slot.
   const queryKey = useMemo(
-    () => ['vehicle-expenses', vehicleId, range?.from, range?.to, cats],
-    [vehicleId, range, cats]
+    () => ['vehicle-expenses', accountId, vehicleId ?? '__all__', range?.from, range?.to, cats],
+    [accountId, vehicleId, range, cats]
   );
 
   const queryClient = useQueryClient();
 
-  const enabled = !!(vehicleId && range?.from && range?.to);
+  // Aggregate mode (vehicleId === null) is enabled too — only accountId
+  // is required to fire the query.
+  const enabled = !!(accountId && range?.from && range?.to);
 
   const q = useInfiniteQuery({
     queryKey,
     enabled,
     initialPageParam: 0,
     queryFn: ({ pageParam }) => listVehicleExpenses({
+      accountId,
       vehicleId,
       from: range.from,
       to:   range.to,
@@ -85,11 +96,14 @@ export default function useVehicleExpenses({ vehicleId, period, categories }) {
     [q.data]
   );
   const totals = q.data?.pages?.[0]?.totals || {
-    total: 0, count: 0, by_category: {}, by_source: {},
+    total: 0, count: 0, by_category: {}, by_source: {}, by_vehicle: {},
   };
 
+  // Invalidate every cached slice for this account regardless of
+  // vehicleId — a write in one slice (e.g. adding an expense to vehicle
+  // X) should also refresh the aggregate slice.
   const invalidate = () => queryClient.invalidateQueries({
-    queryKey: ['vehicle-expenses', vehicleId],
+    queryKey: ['vehicle-expenses', accountId],
   });
 
   return {

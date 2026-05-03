@@ -21,3 +21,7 @@ export {
   updateManualExpense,
   deleteManualExpense,
 } from './writeExpenses';
+
+export {
+  exportExpensesXlsx,
+} from './exportExcel';

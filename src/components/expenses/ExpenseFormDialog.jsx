@@ -31,6 +31,12 @@ import { validateUploadFile } from '@/lib/securityUtils';
  *   onClose            ()
  *   onSaved            () — fired after successful create/update/delete
  *   accountId, userId, vehicleId
+ *   vehicles           Array<{id, nickname?, manufacturer?, model?, license_plate?}>
+ *                      — passed by /MyExpenses in aggregate mode (vehicleId=null).
+ *                      When vehicleId is set, this is ignored.
+ *                      When vehicleId is null AND this list is non-empty,
+ *                      a "Vehicle" picker becomes the first form field
+ *                      (required before save).
  *   initial            row from v_vehicle_expense_feed | null  (null = create mode)
  *   scanFirst          boolean — if true, opens with the file picker
  *                                 expanded so the user uploads-and-scans
@@ -50,6 +56,7 @@ export default function ExpenseFormDialog({
   accountId,
   userId,
   vehicleId,
+  vehicles = [],
   initial = null,
   scanFirst = false,
 }) {
@@ -65,6 +72,11 @@ export default function ExpenseFormDialog({
   const [receiptUrl,  setReceiptUrl]  = useState('');
   const [receiptPath, setReceiptPath] = useState('');
   const [didChangeReceipt, setDidChangeReceipt] = useState(false);
+  // In agg mode (vehicleId prop is null) the user picks a vehicle in
+  // the form. When vehicleId is set, this state mirrors it and the
+  // picker is hidden. We always read `targetVehicleId` from this state
+  // at submit time so the two modes share one code path.
+  const [vehicleSelection, setVehicleSelection] = useState(vehicleId || '');
 
   // Per-field error (inline, in addition to toast) — clears as soon as
   // the user touches the offending field. Only one at a time.
@@ -107,6 +119,8 @@ export default function ExpenseFormDialog({
       setReceiptUrl(initial.receipt_url || '');
       setReceiptPath(initial.receipt_storage_path || '');
       setDidChangeReceipt(false);
+      // Edit mode: vehicle is locked to the original row's vehicle.
+      setVehicleSelection(initial.vehicle_id || vehicleId || '');
     } else {
       setAmount('');
       setCategory('fuel');
@@ -117,11 +131,16 @@ export default function ExpenseFormDialog({
       setReceiptUrl('');
       setReceiptPath('');
       setDidChangeReceipt(false);
+      // Create mode:
+      //   • vehicleId prop provided (single-vehicle page) → mirror it
+      //   • vehicleId null (aggregate mode)               → empty,
+      //     user must pick from `vehicles` before save.
+      setVehicleSelection(vehicleId || '');
     }
     setScanError('');
     setFieldError({ field: null, message: '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initial?.id]);
+  }, [open, initial?.id, vehicleId]);
 
   // Auto-trigger file picker when in scan-first mode
   useEffect(() => {
@@ -290,7 +309,14 @@ export default function ExpenseFormDialog({
   const submit = async (e) => {
     e?.preventDefault?.();
 
-    if (!isEdit && !vehicleId) {
+    // Single source of truth for the vehicle being saved against:
+    // either the locked prop (single-vehicle page) or the picker selection
+    // (aggregate mode). Edit mode uses the existing row's vehicle and
+    // never lets the user reassign it (would require a separate flow).
+    const targetVehicleId = isEdit
+      ? (initial?.vehicle_id || null)
+      : (vehicleId || vehicleSelection || null);
+    if (!isEdit && !targetVehicleId) {
       toast.error('יש לבחור רכב');
       setFE('vehicle', 'יש לבחור רכב');
       return;
@@ -330,7 +356,7 @@ export default function ExpenseFormDialog({
       } else {
         await createManualExpense({
           accountId,
-          vehicleId,
+          vehicleId: targetVehicleId,
           amount: amt,
           category,
           expenseDate: date,
@@ -420,6 +446,48 @@ export default function ExpenseFormDialog({
         </DialogHeader>
 
         <form onSubmit={submit} className="p-4 space-y-3">
+          {/* Vehicle picker — only in aggregate mode (vehicleId prop null
+              + create mode + a populated vehicles list). In single-
+              vehicle mode it's hidden so the form stays compact. */}
+          {!isEdit && !vehicleId && Array.isArray(vehicles) && vehicles.length > 0 && (
+            <div>
+              <label className="text-xs font-medium block mb-1" style={{ color: C.muted }}>
+                רכב <span className="text-red-400">*</span>
+              </label>
+              <Select
+                value={vehicleSelection}
+                onValueChange={(v) => { setVehicleSelection(v); clearFE('vehicle'); }}
+              >
+                <SelectTrigger className={`rounded-xl ${fieldError.field === 'vehicle' ? 'border-red-400' : ''}`}>
+                  <SelectValue placeholder="בחר רכב" />
+                </SelectTrigger>
+                <SelectContent dir="rtl">
+                  {vehicles.map(v => {
+                    const name = v.nickname
+                      || [v.manufacturer, v.model].filter(Boolean).join(' ')
+                      || v.license_plate
+                      || 'רכב';
+                    return (
+                      <SelectItem key={v.id} value={v.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="font-medium">{name}</span>
+                          {v.license_plate && (
+                            <span className="text-[11px]" dir="ltr" style={{ color: C.muted }}>
+                              · {v.license_plate}
+                            </span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {fieldError.field === 'vehicle' && (
+                <p className="text-[11px] text-red-600 mt-1">{fieldError.message}</p>
+              )}
+            </div>
+          )}
+
           {/* Receipt block — upload/scan controls */}
           <div className="rounded-xl p-3 space-y-2" style={{ background: '#F5F1EB', border: `1px solid ${C.border}` }}>
             <div className="flex items-center gap-2 mb-1">
