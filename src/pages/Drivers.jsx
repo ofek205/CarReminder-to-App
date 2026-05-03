@@ -28,13 +28,12 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import MobileBackButton from '@/components/shared/MobileBackButton';
-import VehiclePicker from '@/components/shared/VehiclePicker';
-import { DateInput } from '@/components/ui/date-input';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { listExternalDrivers, categoryShortLabel } from '@/services/drivers';
 import ExternalDriverFormDialog from '@/components/drivers/ExternalDriverFormDialog';
+import AssignDriverDialog from '@/components/drivers/AssignDriverDialog';
 import { createPageUrl } from '@/utils';
 
 // Visual treatment per role. Order also defines display priority.
@@ -55,7 +54,9 @@ export default function Drivers() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  const [assigning, setAssigning]      = useState(null); // null | { user_id, display_name }
+  // Unified assignment-dialog state. shape: null | { kind, id, displayName }
+  // kind = 'registered' | 'external'. Drives the single AssignDriverDialog.
+  const [assigning, setAssigning]      = useState(null);
   const [adding,    setAdding]         = useState(false);
   const [addingExternal, setAddingExternal] = useState(false);
   const [editingExternal, setEditingExternal] = useState(null); // null | external_drivers row
@@ -309,7 +310,7 @@ export default function Drivers() {
                 vehicleLabel={vehicleLabel}
                 onAssign={(e) => {
                   e?.stopPropagation?.();
-                  setAssigning({ user_id: entry.id, display_name: entry.name });
+                  setAssigning({ kind: 'registered', id: entry.id, displayName: entry.name });
                 }}
                 onOpen={() => openDriverDetail(entry)}
               />
@@ -319,6 +320,10 @@ export default function Drivers() {
                 driver={entry.raw}
                 assignments={entry.assignments}
                 vehicleLabel={vehicleLabel}
+                onAssign={(e) => {
+                  e?.stopPropagation?.();
+                  setAssigning({ kind: 'external', id: entry.id, displayName: entry.name });
+                }}
                 onOpen={() => openDriverDetail(entry)}
               />
             )
@@ -327,11 +332,16 @@ export default function Drivers() {
       )}
 
       {assigning && (
-        <AssignVehicleDialog
+        <AssignDriverDialog
+          open
           driver={assigning}
           vehicles={vehicles}
           accountId={accountId}
-          existingAssignments={assignmentsByUserId[assigning.user_id] || []}
+          existingAssignments={
+            assigning.kind === 'external'
+              ? (assignmentsByExternalId[assigning.id] || [])
+              : (assignmentsByUserId[assigning.id] || [])
+          }
           onClose={() => setAssigning(null)}
           onAssigned={async () => {
             await queryClient.invalidateQueries({ queryKey: ['driver-assignments'] });
@@ -349,8 +359,9 @@ export default function Drivers() {
             setAdding(false);
             if (added?.role === 'driver' && added?.user_id) {
               setAssigning({
-                user_id: added.user_id,
-                display_name: added.display_name || added.email,
+                kind: 'registered',
+                id: added.user_id,
+                displayName: added.display_name || added.email,
               });
             }
           }}
@@ -574,10 +585,12 @@ function MemberRow({ member, assignments, vehicleLabel, onAssign, onOpen }) {
   );
 }
 
-// External-driver row — same visual rhythm as MemberRow but no role
-// chip (they don't have one), and the badge says "ללא חשבון". Click
-// opens the detail screen, where the manager assigns vehicles.
-function ExternalDriverRow({ driver, assignments, vehicleLabel, onOpen }) {
+// External-driver row. Same visual rhythm as MemberRow: avatar +
+// header line + meta + assigned-vehicles strip + inline "+ שייך רכב"
+// shortcut on the side. The whole row is tappable to drill into
+// /DriverDetail; the action button stops propagation so it opens the
+// shared AssignDriverDialog instead of navigating.
+function ExternalDriverRow({ driver, assignments, vehicleLabel, onAssign, onOpen }) {
   const expDate = driver.license_expiry_date;
   const expiringSoon = expDate
     ? (new Date(expDate) - new Date()) / (1000 * 60 * 60 * 24) < 30
@@ -645,150 +658,26 @@ function ExternalDriverRow({ driver, assignments, vehicleLabel, onOpen }) {
             </div>
           )}
         </div>
+        <div className="shrink-0 flex flex-col items-stretch gap-1">
+          <button
+            type="button"
+            onClick={onAssign}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold active:scale-[0.98]"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            שייך רכב
+          </button>
+        </div>
         <ChevronLeft className="h-4 w-4 text-gray-300 shrink-0 mt-2" />
       </div>
     </li>
   );
 }
 
-// ----------------------------------------------------------------------
-
-function AssignVehicleDialog({ driver, vehicles, accountId, existingAssignments, onClose, onAssigned }) {
-  const [vehicleId, setVehicleId] = useState('');
-  // Assignment kind: 'permanent' (no end date) or 'temporary' (date required).
-  // Defaults to permanent because that matches the most common business
-  // case (a driver gets a company car indefinitely). Temporary covers
-  // pool/loaner scenarios where the manager wants the assignment to
-  // auto-expire.
-  const [kind, setKind]           = useState('permanent');
-  const [validTo, setValidTo]     = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  // Vehicles already assigned to this driver — not shown in the dropdown
-  // to avoid trivial double-assignment. The RPC handles upsert anyway.
-  const assignedIds = new Set(existingAssignments.map(a => a.vehicle_id));
-  const available = vehicles.filter(v => !assignedIds.has(v.id));
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!vehicleId) { toast.error('יש לבחור רכב'); return; }
-    if (kind === 'temporary' && !validTo) {
-      toast.error('בחר תאריך סיום לשיוך הזמני');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const { error } = await supabase.rpc('assign_driver', {
-        p_account_id:     accountId,
-        p_vehicle_id:     vehicleId,
-        p_driver_user_id: driver.user_id,
-        p_valid_from:     new Date().toISOString(),
-        p_valid_to:       kind === 'temporary' ? validTo : null,
-      });
-      if (error) throw error;
-      toast.success(`הרכב שויך ל-${driver.display_name}`);
-      onAssigned?.();
-    } catch (err) {
-      const msg = err?.message || '';
-      if      (msg.includes('forbidden_not_manager'))    toast.error('אין לך הרשאת מנהל בחשבון הזה');
-      else if (msg.includes('vehicle_not_in_workspace')) toast.error('הרכב שנבחר לא שייך לחשבון העסקי');
-      else if (msg.includes('driver_not_workspace_member')) toast.error('הנהג שנבחר אינו חבר פעיל בחשבון');
-      else                                                 toast.error('השיוך נכשל. נסה שוב.');
-      // eslint-disable-next-line no-console
-      console.error('assign_driver failed:', err);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div dir="rtl" className="fixed inset-0 z-[10000] bg-black/40 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-bold text-gray-900">שיוך רכב לנהג</h2>
-          <button onClick={onClose} aria-label="סגור" className="p-1.5 hover:bg-gray-100 rounded-lg">
-            <X className="h-4 w-4 text-gray-500" />
-          </button>
-        </div>
-        <p className="text-xs text-gray-500 mb-4">{driver.display_name}</p>
-
-        <form onSubmit={submit} className="space-y-3">
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">רכב לשיוך <span className="text-red-500">*</span></label>
-            <VehiclePicker
-              vehicles={available}
-              value={vehicleId}
-              onChange={setVehicleId}
-              placeholder="בחר רכב מהצי..."
-            />
-            {available.length === 0 && (
-              <p className="text-[11px] text-gray-500 mt-1">
-                כל רכבי הצי כבר משויכים לנהג הזה.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">סוג השיוך</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setKind('permanent')}
-                className={`py-2 rounded-lg text-xs font-bold border transition-all ${
-                  kind === 'permanent'
-                    ? 'bg-[#E8F2EA] border-[#2D5233] text-[#2D5233]'
-                    : 'bg-white border-gray-200 text-gray-600'
-                }`}
-              >
-                קבוע
-              </button>
-              <button
-                type="button"
-                onClick={() => setKind('temporary')}
-                className={`py-2 rounded-lg text-xs font-bold border transition-all ${
-                  kind === 'temporary'
-                    ? 'bg-[#E8F2EA] border-[#2D5233] text-[#2D5233]'
-                    : 'bg-white border-gray-200 text-gray-600'
-                }`}
-              >
-                זמני
-              </button>
-            </div>
-            <p className="text-[10px] text-gray-400 mt-1.5">
-              {kind === 'permanent'
-                ? 'הנהג ימשיך להיות משויך לרכב עד שתבטל ידנית.'
-                : 'השיוך יסתיים אוטומטית בתאריך שתבחר.'}
-            </p>
-          </div>
-
-          {kind === 'temporary' && (
-            <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">
-                תאריך סיום <span className="text-red-500">*</span>
-              </label>
-              <DateInput
-                value={validTo}
-                onChange={(e) => setValidTo(e.target.value)}
-                min={new Date().toISOString().slice(0, 10)}
-                className="h-10 rounded-xl text-sm"
-              />
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={submitting || !vehicleId || available.length === 0}
-            className="w-full py-2.5 rounded-xl font-bold text-sm bg-[#2D5233] text-white flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60"
-          >
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'שייך רכב'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------------
+// AssignVehicleDialog removed — replaced by the shared
+// components/drivers/AssignDriverDialog component which handles both
+// kinds of drivers (registered + external) with a single 3-state
+// (permanent/temporary/future) toggle.
 
 function Empty({ icon, title, text, embedded }) {
   return (

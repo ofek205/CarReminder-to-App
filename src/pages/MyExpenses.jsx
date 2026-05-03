@@ -718,7 +718,7 @@ function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, b
       <div className="p-4 sm:p-5">
         <p className="text-[11px] font-medium opacity-90">{label}</p>
         <p className="text-3xl sm:text-4xl font-black tabular-nums mt-1">
-          {loading ? '—' : fmtMoney(totalNum)}
+          {loading ? '...' : fmtMoney(totalNum)}
         </p>
         <p className="text-xs opacity-90 mt-1">
           {count > 0

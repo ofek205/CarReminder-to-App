@@ -328,7 +328,7 @@ export default function ExternalDriverFormDialog({
             </div>
             <Field
               label="אימייל"
-              hint="להתראות באימייל — צריך אימייל. לא חובה."
+              hint="להתראות באימייל צריך אימייל. לא חובה."
               error={fieldError.field === 'email' && fieldError.message}
             >
               <Input

@@ -243,7 +243,7 @@ export default function ExpenseFormDialog({
           amount: { type: 'number', description: 'הסכום הסופי לתשלום בשקלים. אם המסמך באנגלית: שדה total.' },
           date:   { type: 'string', description: 'תאריך החשבונית בפורמט YYYY-MM-DD. אם DD/MM/YYYY: המר.' },
           vendor: { type: 'string', description: 'שם בית העסק / המוסך / תחנת הדלק / סוכנות הביטוח.' },
-          title:  { type: 'string', description: 'תיאור קצר של ההוצאה (1-4 מילים) — למשל "תדלוק", "טסט שנתי", "ביטוח חובה 2026". אם לא ברור: השאר ריק.' },
+          title:  { type: 'string', description: 'תיאור קצר של ההוצאה (1-4 מילים), למשל "תדלוק", "טסט שנתי", "ביטוח חובה 2026". אם לא ברור: השאר ריק.' },
           license_plate: { type: 'string', description: 'מספר רישוי אם מופיע בחשבונית (ספרות בלבד, ללא מקפים). אם אין: השאר ריק.' },
           category: { type: 'string', enum: enumCodes,
                       description: 'אחת מהקטגוריות. fuel=דלק, inspection=טסט, license_fee=אגרת רישוי, insurance_mtpl=ביטוח חובה, insurance_comp=ביטוח מקיף, insurance_3p=ביטוח צד ג׳, parking=חניה, wash=שטיפה, tires=צמיגים, toll=כביש אגרה, towing=גרירה, accessories=אביזרים, general=כללי, other=אחר.' },
@@ -440,7 +440,7 @@ export default function ExpenseFormDialog({
           </DialogTitle>
           <DialogDescription className="text-[11px] text-gray-500 text-right">
             {scanFirst
-              ? 'בחר חשבונית — נסרוק אותה עם AI ונמלא לך את הפרטים'
+              ? 'בחר חשבונית, נסרוק אותה עם AI ונמלא לך את הפרטים'
               : 'הזן את פרטי ההוצאה'}
           </DialogDescription>
         </DialogHeader>

@@ -20,7 +20,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  IdCard, Phone, Mail, Calendar, Truck, Loader2, Pencil, Archive, Plus,
+  IdCard, Phone, Mail, Calendar, Truck, Pencil, Archive, Plus,
   Image as ImageIcon, ExternalLink, AlertTriangle, X, Crown, Shield, Eye, User as UserIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -29,16 +29,13 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { DateInput } from '@/components/ui/date-input';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import MobileBackButton from '@/components/shared/MobileBackButton';
-import VehiclePicker from '@/components/shared/VehiclePicker';
 import {
   getExternalDriver,
   archiveExternalDriver,
-  assignExternalDriver,
   endDriverAssignment,
   listAssignmentsForExternalDriver,
   categoryShortLabel,
@@ -46,6 +43,7 @@ import {
 } from '@/services/drivers';
 import { refreshSignedUrl } from '@/lib/supabaseStorage';
 import ExternalDriverFormDialog from '@/components/drivers/ExternalDriverFormDialog';
+import AssignDriverDialog from '@/components/drivers/AssignDriverDialog';
 import { createPageUrl } from '@/utils';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('he-IL') : '';
@@ -365,11 +363,12 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
         />
       )}
 
-      {/* Assign dialog */}
+      {/* Assign dialog — shared between Drivers list and detail screen */}
       {assigning && (
-        <AssignExternalDialog
+        <AssignDriverDialog
+          open
           accountId={accountId}
-          driver={driver}
+          driver={{ kind: 'external', id: driver.id, displayName: driver.full_name }}
           vehicles={vehicles}
           existingAssignments={activeAssignments}
           onClose={() => setAssigning(false)}
@@ -582,16 +581,11 @@ function RegisteredDriverDetail({ userId, accountId, navigate }) {
         </Card>
       )}
 
-      {/* Existing /Drivers page already wires the assign-vehicle dialog
-          for registered drivers. We re-use the same flow here by
-          navigating to /Drivers + auto-opening the dialog there. To
-          keep this screen self-contained instead, we render a
-          minimal one-shot dialog. */}
       {assigning && (
-        <AssignRegisteredDialog
+        <AssignDriverDialog
+          open
           accountId={accountId}
-          userId={userId}
-          displayName={member.display_name}
+          driver={{ kind: 'registered', id: userId, displayName: member.display_name }}
           vehicles={vehicles}
           existingAssignments={active}
           onClose={() => setAssigning(false)}
@@ -684,206 +678,8 @@ function Centered({ text }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// Assign dialogs — one for external, one for registered. Keep the
-// duplication: the two RPCs differ in arg shape, and unifying creates
-// a wrapper that's harder to read than two short functions.
-// ─────────────────────────────────────────────────────────────────────
-
-function AssignmentKindToggle({ kind, setKind }) {
-  return (
-    <div>
-      <label className="block text-xs font-bold text-gray-700 mb-1.5">סוג השיבוץ</label>
-      <div className="grid grid-cols-3 gap-2">
-        {[
-          { v: 'permanent', label: 'קבוע' },
-          { v: 'temporary', label: 'זמני' },
-          { v: 'future',    label: 'עתידי' },
-        ].map(opt => (
-          <button
-            key={opt.v}
-            type="button"
-            onClick={() => setKind(opt.v)}
-            className={`py-2 rounded-lg text-xs font-bold border transition-all ${
-              kind === opt.v
-                ? 'bg-[#E8F2EA] border-[#2D5233] text-[#2D5233]'
-                : 'bg-white border-gray-200 text-gray-600'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AssignExternalDialog({ accountId, driver, vehicles, existingAssignments, onClose, onAssigned }) {
-  const [vehicleId, setVehicleId] = useState('');
-  const [kind,      setKind]      = useState('permanent');
-  const [validFrom, setValidFrom] = useState('');
-  const [validTo,   setValidTo]   = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const assignedIds = new Set(existingAssignments.map(a => a.vehicle_id));
-  const available = vehicles.filter(v => !assignedIds.has(v.id));
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!vehicleId)                            { toast.error('יש לבחור רכב'); return; }
-    if (kind === 'temporary' && !validTo)      { toast.error('בחר תאריך סיום'); return; }
-    if (kind === 'future'    && !validFrom)    { toast.error('בחר תאריך התחלה'); return; }
-
-    setSubmitting(true);
-    try {
-      const valid_from = kind === 'future' ? new Date(validFrom).toISOString() : new Date().toISOString();
-      const valid_to   = kind === 'temporary' ? new Date(validTo).toISOString() : null;
-      await assignExternalDriver({
-        accountId,
-        vehicleId,
-        externalDriverId: driver.id,
-        validFrom: valid_from,
-        validTo:   valid_to,
-      });
-      toast.success(`הרכב שובץ ל-${driver.full_name}`);
-      onAssigned?.();
-    } catch (err) {
-      console.error('assign external failed:', err);
-      const msg = err?.message || '';
-      if      (msg.includes('forbidden_not_manager')) toast.error('אין לך הרשאת מנהל');
-      else if (msg.includes('vehicle_not_in_workspace')) toast.error('הרכב לא שייך לחשבון');
-      else if (msg.includes('external_driver_not_in_workspace_or_inactive')) toast.error('הנהג לא פעיל');
-      else                                             toast.error('השיבוץ נכשל');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <DialogShell title="שיבוץ רכב" subtitle={driver.full_name} onClose={onClose}>
-      <form onSubmit={submit} className="space-y-3">
-        <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1">רכב <span className="text-red-500">*</span></label>
-          <VehiclePicker vehicles={available} value={vehicleId} onChange={setVehicleId} placeholder="בחר רכב..." />
-          {available.length === 0 && (
-            <p className="text-[11px] text-gray-500 mt-1">כל הרכבים כבר משובצים לנהג הזה.</p>
-          )}
-        </div>
-
-        <AssignmentKindToggle kind={kind} setKind={setKind} />
-
-        {kind === 'temporary' && (
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">תאריך סיום <span className="text-red-500">*</span></label>
-            <DateInput value={validTo} onChange={(e) => setValidTo(e.target.value)}
-              min={new Date().toISOString().slice(0,10)} className="h-10 rounded-xl text-sm" />
-          </div>
-        )}
-        {kind === 'future' && (
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">תאריך התחלה <span className="text-red-500">*</span></label>
-            <DateInput value={validFrom} onChange={(e) => setValidFrom(e.target.value)}
-              min={new Date().toISOString().slice(0,10)} className="h-10 rounded-xl text-sm" />
-          </div>
-        )}
-
-        <button type="submit" disabled={submitting || !vehicleId || available.length === 0}
-          className="w-full py-2.5 rounded-xl font-bold text-sm bg-[#2D5233] text-white flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60">
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'שבץ רכב'}
-        </button>
-      </form>
-    </DialogShell>
-  );
-}
-
-function AssignRegisteredDialog({ accountId, userId, displayName, vehicles, existingAssignments, onClose, onAssigned }) {
-  const [vehicleId, setVehicleId] = useState('');
-  const [kind,      setKind]      = useState('permanent');
-  const [validFrom, setValidFrom] = useState('');
-  const [validTo,   setValidTo]   = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const assignedIds = new Set(existingAssignments.map(a => a.vehicle_id));
-  const available = vehicles.filter(v => !assignedIds.has(v.id));
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!vehicleId)                            { toast.error('יש לבחור רכב'); return; }
-    if (kind === 'temporary' && !validTo)      { toast.error('בחר תאריך סיום'); return; }
-    if (kind === 'future'    && !validFrom)    { toast.error('בחר תאריך התחלה'); return; }
-
-    setSubmitting(true);
-    try {
-      const valid_from = kind === 'future' ? new Date(validFrom).toISOString() : new Date().toISOString();
-      const valid_to   = kind === 'temporary' ? new Date(validTo).toISOString() : null;
-      const { error } = await supabase.rpc('assign_driver', {
-        p_account_id:     accountId,
-        p_vehicle_id:     vehicleId,
-        p_driver_user_id: userId,
-        p_valid_from:     valid_from,
-        p_valid_to:       valid_to,
-      });
-      if (error) throw error;
-      toast.success(`הרכב שובץ ל-${displayName}`);
-      onAssigned?.();
-    } catch (err) {
-      console.error('assign registered failed:', err);
-      toast.error('השיבוץ נכשל');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <DialogShell title="שיבוץ רכב" subtitle={displayName} onClose={onClose}>
-      <form onSubmit={submit} className="space-y-3">
-        <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1">רכב <span className="text-red-500">*</span></label>
-          <VehiclePicker vehicles={available} value={vehicleId} onChange={setVehicleId} placeholder="בחר רכב..." />
-          {available.length === 0 && (
-            <p className="text-[11px] text-gray-500 mt-1">כל הרכבים כבר משויכים לנהג הזה.</p>
-          )}
-        </div>
-
-        <AssignmentKindToggle kind={kind} setKind={setKind} />
-
-        {kind === 'temporary' && (
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">תאריך סיום <span className="text-red-500">*</span></label>
-            <DateInput value={validTo} onChange={(e) => setValidTo(e.target.value)}
-              min={new Date().toISOString().slice(0,10)} className="h-10 rounded-xl text-sm" />
-          </div>
-        )}
-        {kind === 'future' && (
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">תאריך התחלה <span className="text-red-500">*</span></label>
-            <DateInput value={validFrom} onChange={(e) => setValidFrom(e.target.value)}
-              min={new Date().toISOString().slice(0,10)} className="h-10 rounded-xl text-sm" />
-          </div>
-        )}
-
-        <button type="submit" disabled={submitting || !vehicleId || available.length === 0}
-          className="w-full py-2.5 rounded-xl font-bold text-sm bg-[#2D5233] text-white flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60">
-          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'שייך רכב'}
-        </button>
-      </form>
-    </DialogShell>
-  );
-}
-
-function DialogShell({ title, subtitle, onClose, children }) {
-  return (
-    <div dir="rtl" className="fixed inset-0 z-[10000] bg-black/40 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-          <button onClick={onClose} aria-label="סגור" className="p-1.5 hover:bg-gray-100 rounded-lg">
-            <X className="h-4 w-4 text-gray-500" />
-          </button>
-        </div>
-        {subtitle && <p className="text-xs text-gray-500 mb-4">{subtitle}</p>}
-        {children}
-      </div>
-    </div>
-  );
-}
+// Assign dialogs were extracted into the shared
+// components/drivers/AssignDriverDialog component (used here AND in
+// the /Drivers list). Keeps the two flows visually + behaviorally
+// identical with one source of truth for validation, error mapping,
+// and the 3-state (permanent/temporary/future) toggle.
