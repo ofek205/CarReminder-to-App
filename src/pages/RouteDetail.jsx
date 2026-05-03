@@ -17,12 +17,12 @@
  * the route gets an empty payload from supabase, which we render as
  * "route not found".
  */
-import React, { useState, lazy, Suspense, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2, AlertTriangle, MessageSquarePlus,
-  Calendar, Truck, MapPin, Clock, Map as MapIcon, ChevronUp, ChevronDown,
+  Calendar, Truck, MapPin, Clock,
   Flag,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -33,11 +33,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import MobileBackButton from '@/components/shared/MobileBackButton';
 import { Textarea } from '@/components/ui/textarea';
 import NavigateButton from '@/components/map/NavigateButton';
-import { colorForStop, labelForStop, findNextStopIndex, isStopTerminal } from '@/components/map/stopColors';
-
-// MapCore is heavy (Leaflet + tiles). Pull it in only when the user
-// asks for the map.
-const MapCore = lazy(() => import('@/components/map/MapCore'));
+import { colorForStop, findNextStopIndex, isStopTerminal } from '@/components/map/stopColors';
 
 // Status pill labels per gender. The route is masculine in Hebrew
 // ("מסלול"), the stop is feminine ("תחנה") — that's why the same
@@ -71,15 +67,6 @@ export default function RouteDetail() {
 
   const params = new URLSearchParams(location.search);
   const routeId = params.get('id');
-  const mapAutoOpen = params.get('map') === '1';
-
-  const [mapOpen, setMapOpen] = useState(mapAutoOpen);
-
-  // Keep the auto-open in sync when the user navigates between routes
-  // without unmounting the page (driver list → detail flow).
-  useEffect(() => {
-    if (mapAutoOpen) setMapOpen(true);
-  }, [mapAutoOpen, routeId]);
 
   const { data: route, isLoading: routeLoading } = useQuery({
     queryKey: ['route', routeId],
@@ -159,34 +146,10 @@ export default function RouteDetail() {
   const assignedDriver = team.find(m => m.user_id === route.assigned_driver_user_id);
   const assignedDriverName = assignedDriver?.display_name || assignedDriver?.email || 'נהג משויך';
 
-  // Stops that have coordinates — only those can render on the map.
-  const mappableStops = stops.filter(s =>
-    Number.isFinite(s.latitude) && Number.isFinite(s.longitude)
-  );
-  const mapButtonLabel = stops.length === 1 ? 'הצג יעד במפה' : 'הצג מסלול במפה';
-  const mapAvailable   = mappableStops.length > 0;
-
-  // Map markers + the polyline connecting them. The "next" stop gets
-  // the `highlight: true` flag so MapCore wraps it with the pulse ring.
-  const mapMarkers = mappableStops.map((s) => {
-    const idx = stops.findIndex(x => x.id === s.id);
-    return {
-      id: s.id,
-      lat: s.latitude,
-      lng: s.longitude,
-      number: s.sequence,
-      color: colorForStop(s.status),
-      highlight: idx === nextStopIndex,
-      stop: s,
-    };
-  });
-  const mapRoutes = mappableStops.length >= 2
-    ? [{
-        id: routeId,
-        color: '#2D5233',
-        points: mappableStops.map(s => ({ lat: s.latitude, lng: s.longitude })),
-      }]
-    : [];
+  // The unified Fleet Map (manager) is the single source of truth for
+  // map views. RouteDetail intentionally renders a list-only timeline —
+  // map markers/polylines for this one task live on /FleetMap, where
+  // every workspace task is plotted together with per-task coloring.
 
   return (
     <div dir="rtl" className="max-w-2xl mx-auto py-2">
@@ -228,47 +191,7 @@ export default function RouteDetail() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-bold text-gray-700">תחנות במשימה</h2>
-        {mapAvailable && (
-          <button
-            type="button"
-            onClick={() => setMapOpen(o => !o)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#E8F2EA] text-[#2D5233] text-xs font-bold border border-[#2D5233]/20 active:scale-[0.97]"
-          >
-            <MapIcon className="h-3.5 w-3.5" />
-            {mapOpen ? 'הסתר מפה' : mapButtonLabel}
-            {mapOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </button>
-        )}
-      </div>
-
-      {/* Inline map section. Lazy-loaded; only mounted when `mapOpen`. */}
-      {mapOpen && mapAvailable && (
-        <div className="mb-3">
-          <Suspense fallback={
-            <div className="rounded-2xl bg-gray-50 border border-gray-100 h-[35vh] min-h-[200px] flex items-center justify-center text-xs text-gray-500">
-              טוען מפה...
-            </div>
-          }>
-            <MapCore
-              markers={mapMarkers}
-              routes={mapRoutes}
-              fitToMarkers={true}
-              mapHeight="35vh"
-              mapMinHeight="220px"
-              mapMaxHeight="380px"
-              renderPopup={(m) => <StopMapPopup stop={m.stop} />}
-            />
-          </Suspense>
-          {mappableStops.length < stops.length && (
-            <p className="text-[10px] text-amber-700 mt-1.5 flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              {stops.length - mappableStops.length} תחנות ללא קואורדינטות לא מופיעות במפה.
-            </p>
-          )}
-        </div>
-      )}
+      <h2 className="text-sm font-bold text-gray-700 mb-2">תחנות במשימה</h2>
 
       <div className="space-y-2">
         {stops.length === 0 ? (
@@ -285,48 +208,6 @@ export default function RouteDetail() {
             />
           ))
         )}
-      </div>
-    </div>
-  );
-}
-
-// Compact stop summary used in map popups. Keeps everything the driver
-// needs in one tap-target: title, address, status, planned time, and
-// nav buttons (Waze + Google).
-function StopMapPopup({ stop }) {
-  const status = stopPill(stop.status);
-  const dest = {
-    lat: stop.latitude,
-    lng: stop.longitude,
-    address: stop.address_text || '',
-  };
-  return (
-    <div dir="rtl" className="min-w-[200px]">
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <p className="font-bold text-sm text-gray-900">
-          <span className="inline-block w-5 h-5 rounded-full bg-gray-200 text-[10px] font-bold leading-5 text-center ml-1.5">
-            {stop.sequence}
-          </span>
-          {stop.title}
-        </p>
-        <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${status.cls}`}>
-          {status.label}
-        </span>
-      </div>
-      {stop.address_text && (
-        <p className="text-xs text-gray-500 mb-1">{stop.address_text}</p>
-      )}
-      {stop.planned_time && (
-        <p className="text-[11px] text-gray-500 mb-1.5">
-          ⏱ {new Date(stop.planned_time).toLocaleString('he-IL')}
-        </p>
-      )}
-      <div className="flex flex-col gap-1.5 mt-2">
-        <NavigateButton
-          destination={dest}
-          variant="solid"
-          label="נווט עם Waze / Google Maps"
-        />
       </div>
     </div>
   );
@@ -568,6 +449,3 @@ function Empty({ text }) {
   );
 }
 
-// suppress unused-import lint when labelForStop is added later
-// eslint-disable-next-line no-unused-vars
-const _labelForStop = labelForStop;

@@ -162,14 +162,30 @@ export default function MapCore({
     return cache;
   }, [markers]);
 
-  // Effective center: explicit `center` prop wins; userLocation is a fallback.
-  const effectiveCenter =
-    center ||
-    (userLocation && Number.isFinite(userLocation.lat) && Number.isFinite(userLocation.lng)
-      ? [userLocation.lat, userLocation.lng]
-      : null);
+  // Effective center resolution order:
+  //   1. Explicit `center` prop (caller knows best).
+  //   2. User location (FindGarage style — map follows the user).
+  //   3. First valid marker — used by route maps that pass `markers` only
+  //      and rely on `fitToMarkers` to zoom in. Without this fallback the
+  //      map would render the "no location" empty state even though
+  //      there ARE plottable points.
+  const effectiveCenter = (() => {
+    if (center) return center;
+    if (userLocation && Number.isFinite(userLocation.lat) && Number.isFinite(userLocation.lng)) {
+      return [userLocation.lat, userLocation.lng];
+    }
+    const firstWithCoords = (markers || []).find(
+      (m) => Number.isFinite(m?.lat) && Number.isFinite(m?.lng)
+    );
+    if (firstWithCoords) return [firstWithCoords.lat, firstWithCoords.lng];
+    const firstRoutePoint = (routes || [])
+      .flatMap((r) => r?.points || [])
+      .find((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lng));
+    if (firstRoutePoint) return [firstRoutePoint.lat, firstRoutePoint.lng];
+    return null;
+  })();
 
-  // Empty state — no center known yet (waiting for geolocation, no markers, etc.).
+  // Empty state — no center, no markers, no routes. Genuinely nothing to draw.
   if (!effectiveCenter) {
     return (
       <div

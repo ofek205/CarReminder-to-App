@@ -39,6 +39,7 @@ import { DateInput } from '@/components/ui/date-input';
 import {
   colorForStop, labelForStop, isStopTerminal,
 } from '@/components/map/stopColors';
+import { iconSvgForStopType, STOP_TYPE_LABEL } from '@/components/map/stopTypeIcons';
 import { colorFromKey } from '@/lib/colorPalette';
 import NavigateButton from '@/components/map/NavigateButton';
 
@@ -258,17 +259,26 @@ export default function FleetMap() {
   // ---------- map data --------------------------------------------------
   // Markers: only stops that have coordinates. Stops without coords still
   // appear in the side list with a "כתובת לא אומתה במפה" badge.
+  //
+  // Marker symbol is driven by stop_type — pickup/delivery/meeting/
+  // inspection/vehicle_service map to inline SVG icons; "other" or
+  // unset falls back to the sequence number so manager still sees
+  // ordering. Icon priority over number is enforced inside MapCore.
   const mapMarkers = useMemo(() => {
     return filteredStops
       .filter(s => Number.isFinite(s.latitude) && Number.isFinite(s.longitude))
       .map(s => {
         const route = filteredRoutes.find(r => r.id === s.route_id);
         if (!route) return null;
+        const iconSvg = iconSvgForStopType(s.stop_type);
         return {
           id: s.id,
           lat: s.latitude,
           lng: s.longitude,
-          number: s.sequence,
+          // No type icon → fall back to the sequence number so the
+          // manager still sees ordering on the map.
+          number: iconSvg ? undefined : s.sequence,
+          iconSvg: iconSvg || undefined,
           color: colorByRouteId[s.route_id] || '#1565C0',
           stop: s,
           route,
@@ -609,6 +619,7 @@ function FleetMarkerPopup({ stop, route, totalStops, driverName, vehicleName }) 
   const dest = stop.address_text || (stop.latitude && stop.longitude)
     ? { lat: stop.latitude, lng: stop.longitude, address: stop.address_text || '' }
     : null;
+  const stopTypeLabel = stop.stop_type ? STOP_TYPE_LABEL[stop.stop_type] : null;
   return (
     <div dir="rtl" className="min-w-[220px]">
       <p className="text-[10px] font-bold text-gray-500 mb-0.5">משימה</p>
@@ -621,6 +632,11 @@ function FleetMarkerPopup({ stop, route, totalStops, driverName, vehicleName }) 
             {stop.sequence}
           </span>
           תחנה {stop.sequence} מתוך {totalStops}
+          {stopTypeLabel && (
+            <span className="text-[10px] font-bold text-[#2D5233] bg-[#E8F2EA] px-1.5 py-0.5 rounded-md mr-1">
+              {stopTypeLabel}
+            </span>
+          )}
         </p>
         {stop.address_text && (
           <p className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {stop.address_text}</p>

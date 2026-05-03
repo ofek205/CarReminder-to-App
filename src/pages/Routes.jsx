@@ -19,6 +19,7 @@ import {
   Plus, Briefcase, Calendar, Truck, ChevronLeft, AlertCircle,
   CheckCircle2, Clock, MapPin, Map as MapIcon,
 } from 'lucide-react';
+// MapIcon is still used by the manager "מפת משימות" entry — keep the import.
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -579,8 +580,6 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
       }
     : null;
   const detailHref = createPageUrl('RouteDetail') + '?id=' + route.id;
-  const mapHref    = detailHref + '&map=1';
-  const mapLabel   = total > 1 ? 'הצג מסלול במפה' : 'הצג במפה';
 
   // Active task = full gradient hero with white text. Hits like a CTA
   // by itself. Wraps the inner content in a div (not the Link) so the
@@ -659,16 +658,6 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
             >
               {cta}
             </Link>
-            {total > 0 && (
-              <Link
-                to={mapHref}
-                aria-label={mapLabel}
-                title={mapLabel}
-                className="px-3 py-2 rounded-xl bg-white/25 backdrop-blur-sm text-white active:scale-[0.95]"
-              >
-                <MapIcon className="h-4 w-4" />
-              </Link>
-            )}
             {navDest && !allTerminal && (
               <NavigateButton
                 destination={navDest}
@@ -766,16 +755,6 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
           >
             {cta}
           </Link>
-          {total > 0 && (
-            <Link
-              to={mapHref}
-              aria-label={mapLabel}
-              title={mapLabel}
-              className="px-3 py-2 rounded-xl text-xs font-bold active:scale-[0.95] border border-gray-200 bg-white text-gray-700 flex items-center gap-1"
-            >
-              <MapIcon className="h-3.5 w-3.5" />
-            </Link>
-          )}
           {navDest && !allTerminal && (
             <NavigateButton
               destination={navDest}
