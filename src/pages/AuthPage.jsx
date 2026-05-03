@@ -91,7 +91,6 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth();
 
-  const [showForm, setShowForm] = useState(false);
   // Modes:
   //   login, signup, reset  — email-based flows.
   //   update-password        — user clicked a password-reset email link.
@@ -145,6 +144,43 @@ export default function AuthPage() {
       if (sessionStorage.getItem('cr_pending_verify_email')) return 'verify-email';
     } catch {}
     return 'login';
+  });
+  // showForm decides whether the user sees the welcome screen
+  // (login/signup/google buttons) or the actual form. For email-driven
+  // flows (update-password, verify-email) we MUST jump straight into
+  // the form — landing on the welcome screen looks like the link is
+  // broken. The init function mirrors `mode`'s URL inspection so the
+  // first render already shows the right thing; a useEffect below
+  // covers later transitions (e.g. PASSWORD_RECOVERY listener flipping
+  // mode after a PKCE exchange).
+  const [showForm, setShowForm] = useState(() => {
+    try {
+      const u = new URL(window.location.href);
+      const m = u.searchParams.get('mode');
+      if (m === 'update-password' || m === 'verify-email') return true;
+      const hash = (window.location.hash || '').replace(/^#/, '');
+      if (hash) {
+        const hp = new URLSearchParams(hash);
+        const t  = hp.get('type');
+        if (t === 'recovery') return true;
+        if (hp.get('access_token') && (t === 'recovery' || u.searchParams.get('type') === 'recovery')) {
+          return true;
+        }
+      }
+      if (u.searchParams.get('type') === 'recovery') return true;
+      // PKCE recovery callback: ?code=… + fresh marker.
+      if (u.searchParams.get('code')) {
+        const at = Number(localStorage.getItem('cr_pending_recovery_at') || 0);
+        const TEN_MIN = 10 * 60 * 1000;
+        if (at && (Date.now() - at) < TEN_MIN) return true;
+      }
+      // Direct token_hash recovery link from the email template.
+      if (u.searchParams.get('token_hash') && u.searchParams.get('type') === 'recovery') {
+        return true;
+      }
+      if (sessionStorage.getItem('cr_pending_verify_email')) return true;
+    } catch {}
+    return false;
   });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -241,12 +277,28 @@ export default function AuthPage() {
             // the refresh.
             window.history.replaceState({}, '', '/Auth?mode=update-password');
           } else {
+            // Token expired, already used, malformed, or PKCE verifier
+            // missing (e.g. user opened the link in a different browser
+            // than the one they requested it from). Bounce back to the
+            // request-reset form with a clear message so they don't
+            // sit confused on a password form whose submit will fail.
             // eslint-disable-next-line no-console
             console.warn('recovery verify failed:', error.message);
+            setError('הקישור לאיפוס הסיסמה פג תוקף או כבר נוצל. בקש קישור חדש למטה.');
+            setMode('reset');
+            setShowForm(true);
+            setHoldForRecovery(false);
+            // Strip the bad token from the URL so the failure isn't
+            // re-attempted on every render.
+            window.history.replaceState({}, '', '/Auth?mode=reset');
           }
         } catch (err) {
           // eslint-disable-next-line no-console
           console.warn('recovery verify threw:', err?.message);
+          setError('הקישור לאיפוס הסיסמה פג תוקף או כבר נוצל. בקש קישור חדש למטה.');
+          setMode('reset');
+          setShowForm(true);
+          setHoldForRecovery(false);
         }
       })();
     } catch {}
@@ -299,6 +351,18 @@ export default function AuthPage() {
     const t = setTimeout(() => setResendCooldown(s => s - 1), 1000);
     return () => clearTimeout(t);
   }, [resendCooldown]);
+
+  // Belt-and-suspenders: any time mode flips into an email-driven flow
+  // (update-password from PASSWORD_RECOVERY, verify-email from a fresh
+  // signup), force the form to be visible. Without this, a user whose
+  // initial URL didn't match the regex (e.g. hash-only fragment that
+  // a redirector stripped) but who later receives a PASSWORD_RECOVERY
+  // event would stay stuck on the welcome screen.
+  useEffect(() => {
+    if (mode === 'update-password' || mode === 'verify-email') {
+      setShowForm(true);
+    }
+  }, [mode]);
 
   // Auto-focus first input when form opens
   useEffect(() => {
