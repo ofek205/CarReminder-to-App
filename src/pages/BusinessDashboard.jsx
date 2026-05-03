@@ -9,7 +9,7 @@
  * Routing: when active workspace is business, /Dashboard auto-redirects
  * here. Manual /BusinessDashboard route also works.
  */
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -119,6 +119,97 @@ const TONE_DOT = {
   purple: 'bg-purple-500',
   gray:   'bg-gray-300',
 };
+
+// ---------- interactive helpers ──────────────────────────────────────
+
+// useAnimatedNumber: smoothly counts from 0 → target on mount.
+// Returns the in-progress integer. Easing: ease-out-expo for a fast
+// start with a satisfying late settle. 1100ms feels alive without
+// dragging. If the target changes (live update), animation re-runs.
+function useAnimatedNumber(target, duration = 1100) {
+  const [value, setValue] = useState(0);
+  const startRef = useRef(null);
+  const fromRef  = useRef(0);
+  const rafRef   = useRef(null);
+
+  useEffect(() => {
+    fromRef.current = value;
+    startRef.current = null;
+
+    const tick = (ts) => {
+      if (startRef.current === null) startRef.current = ts;
+      const elapsed = ts - startRef.current;
+      const t = Math.min(1, elapsed / duration);
+      // ease-out-expo
+      const eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+      const next = Math.round(fromRef.current + (target - fromRef.current) * eased);
+      setValue(next);
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, duration]);
+
+  return value;
+}
+
+// AnimatedCount: drop-in replacement for {fmtNumber(n)} when you want
+// it to count up. Renders just the formatted number. Caller handles
+// styling. Optional `format` lets caller override (e.g. to render
+// currency).
+function AnimatedCount({ value, format = fmtNumber, duration = 1100 }) {
+  const animated = useAnimatedNumber(Number(value) || 0, duration);
+  return <>{format(animated)}</>;
+}
+
+// Sparkline: tiny inline SVG line chart from a numeric series.
+// Auto-scales to its container. Last point gets a filled circle to
+// signal "this is the current value". Used in KPI tiles to show a
+// 6-month trend without breaking the tile's compact size.
+function Sparkline({ data, color = '#10B981', height = 28 }) {
+  if (!Array.isArray(data) || data.length < 2) return null;
+  const w = 80;
+  const h = height;
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = Math.max(1, max - min);
+  const stepX = w / (data.length - 1);
+  const points = data.map((v, i) => {
+    const x = i * stepX;
+    const y = h - ((v - min) / range) * (h - 4) - 2;
+    return [x, y];
+  });
+  const path = points.map(([x, y], i) => (i === 0 ? `M ${x} ${y}` : `L ${x} ${y}`)).join(' ');
+  const areaPath = `${path} L ${points[points.length - 1][0]} ${h} L 0 ${h} Z`;
+  const last = points[points.length - 1];
+
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`spark-grad-${color.slice(1)}`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%"   stopColor={color} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#spark-grad-${color.slice(1)})`} />
+      <path d={path}     fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={last[0]} cy={last[1]} r="2" fill={color} />
+    </svg>
+  );
+}
+
+// useTickEverySecond: forces a re-render every N ms so relative
+// timestamps ("לפני 3 דק׳") update without a manual refresh. Cheap —
+// each tick is just a setState that triggers React re-render of the
+// ancestor that holds it. Default 30s = once per "minute" floor edge.
+function useTickEverySecond(intervalMs = 30000) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+}
 
 // ---------- main ------------------------------------------------------
 
@@ -264,6 +355,20 @@ export default function BusinessDashboard() {
     if (!prevMonthTotal || prevMonthTotal === 0) return null;
     return Math.round(((thisMonthTotal - prevMonthTotal) / prevMonthTotal) * 100);
   }, [thisMonthTotal, prevMonthTotal]);
+
+  // 6-month expense series for the sparkline in the expenses KPI tile.
+  // `monthly` arrives newest-first from the RPC; we reverse + slice 6
+  // so the chart reads naturally left→right (oldest → current).
+  const monthlySpark = useMemo(() => {
+    if (!Array.isArray(monthly) || monthly.length === 0) return null;
+    const reversed = [...monthly].reverse();
+    const last6 = reversed.slice(-6);
+    return last6.map(m => Number(m.total) || 0);
+  }, [monthly]);
+
+  // Force re-render every 30s so activity timestamps update from
+  // "לפני דקה" to "לפני 2 דקות" without a manual refresh. Cheap.
+  useTickEverySecond(30000);
 
   // Vehicles needing attention.
   const overdueVehicles = useMemo(() => {
@@ -442,7 +547,7 @@ export default function BusinessDashboard() {
                 }}
                 dir="ltr"
               >
-                {fmtNumber(vehicles.length)}
+                <AnimatedCount value={vehicles.length} />
               </span>
               <div className="pb-2">
                 <p className="text-xs uppercase tracking-[0.15em] font-bold opacity-90 text-white">
@@ -482,28 +587,79 @@ export default function BusinessDashboard() {
         </Link>
       </section>
 
-      {/* ── C. KPI Trio — vivid colored surfaces ────────────────── */}
+      {/* ── B.5. Fleet Strip — every vehicle as a status dot ───────
+          Distinct to a fleet-management product: most dashboards stop
+          at aggregate KPIs. Showing each vehicle individually as a
+          colored chip lets the manager scan the whole fleet at a
+          glance and click directly into any one. */}
+      {vehicles.length > 0 && (
+        <section className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-bold" style={{ color: '#0B2912' }}>
+              הצי במבט אחד
+            </h2>
+            <Link
+              to={createPageUrl('Fleet')}
+              className="text-[11px] font-bold flex items-center gap-0.5 px-2 py-1 rounded-full transition-colors"
+              style={{ color: '#10B981', background: 'rgba(16,185,129,0.08)' }}
+            >
+              לכל הצי
+              <ArrowLeft className="h-3 w-3" />
+            </Link>
+          </div>
+          <div
+            className="rounded-2xl p-3 border overflow-x-auto"
+            style={{
+              background: '#FFFFFF',
+              borderColor: '#E5EDE8',
+              boxShadow: '0 4px 16px rgba(15,40,28,0.04)',
+            }}
+          >
+            <div className="flex gap-2 min-w-min">
+              {overdueVehicles.length > 0
+                ? overdueVehicles.map(({ v, worst }) => (
+                    <FleetChip
+                      key={v.id}
+                      vehicle={v}
+                      status={worst < 0 ? 'overdue' : 'soon'}
+                      days={worst}
+                    />
+                  ))
+                : null}
+              {/* Healthy vehicles after problematic ones */}
+              {vehicles
+                .filter(v => !overdueVehicles.find(o => o.v.id === v.id))
+                .map(v => (
+                  <FleetChip key={v.id} vehicle={v} status="healthy" />
+                ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── C. KPI Trio — vivid colored surfaces with sparkline ──── */}
       <section className="grid grid-cols-3 gap-3 mb-5">
         <KpiTile
           label="משימות פעילות"
-          value={fmtNumber(activeRoutes.length)}
+          value={<AnimatedCount value={activeRoutes.length} />}
           sub={activeRoutes.length === 0 ? 'אין פתוחה' : 'בעבודה'}
           tone="emerald"
           to={createPageUrl('Routes')}
         />
         <KpiTile
           label="הוצאות החודש"
-          value={fmtMoney(thisMonthTotal)}
+          value={<AnimatedCount value={thisMonthTotal} format={fmtMoney} duration={1300} />}
           sub={monthDeltaPct != null
             ? `${monthDeltaPct > 0 ? '↑' : '↓'} ${Math.abs(monthDeltaPct)}% מהחודש שעבר`
             : 'אין נתון'}
           subTone={monthDeltaPct > 0 ? 'red' : monthDeltaPct < 0 ? 'green' : 'neutral'}
           tone="amber"
+          spark={monthlySpark}
           to={createPageUrl('Reports')}
         />
         <KpiTile
           label="תקלות פתוחות"
-          value={fmtNumber(openIssues.length)}
+          value={<AnimatedCount value={openIssues.length} />}
           sub={openIssues.length > 0 ? 'דורשות טיפול' : 'הכל סגור'}
           tone={openIssues.length > 0 ? 'red' : 'blue'}
           to={createPageUrl('ActivityLog')}
@@ -663,7 +819,7 @@ export default function BusinessDashboard() {
 // background gradient, text, and shadow color so the eye instantly
 // connects color → meaning (emerald = healthy/active, amber = financial,
 // red = problem, blue = info).
-function KpiTile({ label, value, sub = null, subTone = 'neutral', tone = 'emerald', to }) {
+function KpiTile({ label, value, sub = null, subTone = 'neutral', tone = 'emerald', spark = null, to }) {
   // Each tone is a triplet: surface gradient + dark text + shadow.
   // Surfaces are LIGHT-tinted (10-20% saturation) so the page stays
   // bright without screaming neon.
@@ -746,9 +902,87 @@ function KpiTile({ label, value, sub = null, subTone = 'neutral', tone = 'emeral
           {sub}
         </p>
       )}
+      {/* Inline 6-month sparkline (only on tiles that pass `spark`).
+          Sits below the sub-line, consumes the full tile width. The
+          color matches the tile's value text so the chart reads as
+          part of the same data unit. */}
+      {Array.isArray(spark) && spark.length >= 2 && (
+        <div className="mt-2 -mx-1 opacity-90">
+          <Sparkline data={spark} color={t.value} height={26} />
+        </div>
+      )}
     </div>
   );
   return to ? <Link to={to} className="block">{inner}</Link> : inner;
+}
+
+// FleetChip: one vehicle in the "Fleet at a glance" strip. Color
+// reflects its current state (healthy / soon / overdue). Hover lifts
+// the chip and reveals the license plate. Click navigates straight to
+// the vehicle detail page. Designed to read as a row of pills, not as
+// yet another card grid.
+function FleetChip({ vehicle, status, days }) {
+  const TONES = {
+    healthy: {
+      bg: '#ECFDF5', border: '#A7F3D0', dot: '#10B981',
+      text: '#065F46', sub: '#047857',
+    },
+    soon: {
+      bg: '#FFFBEB', border: '#FCD34D', dot: '#F59E0B',
+      text: '#78350F', sub: '#92400E',
+    },
+    overdue: {
+      bg: '#FEF2F2', border: '#FCA5A5', dot: '#EF4444',
+      text: '#7F1D1D', sub: '#B91C1C',
+    },
+  };
+  const t = TONES[status] || TONES.healthy;
+  const name = vehicle.nickname
+    || [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ')
+    || vehicle.license_plate
+    || 'רכב';
+  const plate = vehicle.license_plate || '';
+  // Days hint shown only on non-healthy chips, helps the manager
+  // triage without clicking through.
+  const daysHint = status === 'overdue' && days != null
+    ? `${Math.abs(days)} ימים פג`
+    : status === 'soon' && days != null
+      ? `בעוד ${days} ימים`
+      : null;
+
+  return (
+    <Link
+      to={`${createPageUrl('VehicleDetail')}?id=${vehicle.id}`}
+      className="shrink-0 rounded-xl px-3 py-2 border transition-all hover:scale-[1.04] active:scale-[0.98] hover:-translate-y-0.5 group"
+      style={{
+        background: t.bg,
+        borderColor: t.border,
+        minWidth: '120px',
+      }}
+      title={plate}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className="w-2 h-2 rounded-full shrink-0 transition-transform group-hover:scale-125"
+          style={{ background: t.dot, boxShadow: `0 0 0 3px ${t.dot}25` }}
+        />
+        <span className="text-xs font-bold truncate" style={{ color: t.text }}>
+          {name}
+        </span>
+      </div>
+      {daysHint
+        ? (
+          <p className="text-[10px] mt-0.5 truncate font-bold" style={{ color: t.sub }}>
+            {daysHint}
+          </p>
+        )
+        : (
+          <p className="text-[10px] mt-0.5 truncate font-mono" dir="ltr" style={{ color: t.sub, opacity: 0.8 }}>
+            {plate || '—'}
+          </p>
+        )}
+    </Link>
+  );
 }
 
 // ActionTile: vibrant action button. Primary = gradient emerald with
