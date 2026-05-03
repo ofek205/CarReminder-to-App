@@ -24,20 +24,28 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { createPageUrl } from '@/utils';
-import MobileBackButton from '@/components/shared/MobileBackButton';
 import VehicleLabel, { vehicleDisplayText } from '@/components/shared/VehicleLabel';
 import VehiclePicker from '@/components/shared/VehiclePicker';
 import { DateInput } from '@/components/ui/date-input';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// Living Dashboard system - shared with all B2B pages.
+import {
+  PageShell,
+  Card,
+  KpiTile,
+  AnimatedCount,
+} from '@/components/business/system';
 
-// Status pills mirror Routes.jsx exactly so a manager who jumps
-// between the two pages doesn't have to re-learn the colour code.
+// Status mapping keyed to the Living Dashboard accent palette so each
+// route row's Card stripe matches the inline status pill. The chip
+// colors mirror Routes.jsx (manager jumping between the two doesn't
+// have to re-learn the code).
 const STATUS_LABEL = {
-  pending:     { label: 'ממתין',    cls: 'bg-gray-100 text-gray-600' },
-  in_progress: { label: 'בביצוע',  cls: 'bg-blue-100 text-blue-700' },
-  completed:   { label: 'הושלם',   cls: 'bg-green-100 text-green-700' },
-  cancelled:   { label: 'בוטל',    cls: 'bg-red-100 text-red-700' },
+  pending:     { label: 'ממתין',  accent: 'amber',   chipBg: '#FEF3C7', chipFg: '#92400E' },
+  in_progress: { label: 'בביצוע', accent: 'blue',    chipBg: '#DBEAFE', chipFg: '#1E40AF' },
+  completed:   { label: 'הושלם',  accent: 'emerald', chipBg: '#D1FAE5', chipFg: '#065F46' },
+  cancelled:   { label: 'בוטל',   accent: 'red',     chipBg: '#FEE2E2', chipFg: '#991B1B' },
 };
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('he-IL') : '';
 
@@ -129,6 +137,18 @@ export default function DrivingLog() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routes, filterDriver, filterVehicle, filterFrom, filterTo, search, memberById, vehicleById]);
 
+  // KPI counts — derived from the FILTERED set, not the raw list, so
+  // toggling filters narrows the headline numbers in step with the
+  // visible rows. Hooks order is preserved by computing this BEFORE
+  // any guard returns.
+  const counts = useMemo(() => {
+    const c = { total: filtered.length, in_progress: 0, completed: 0, pending: 0, cancelled: 0 };
+    for (const r of filtered) {
+      if (c[r.status] !== undefined) c[r.status]++;
+    }
+    return c;
+  }, [filtered]);
+
   if (authLoading || roleLoading) {
     return <div dir="rtl" className="text-center py-16 text-xs text-gray-400">טוען...</div>;
   }
@@ -155,32 +175,57 @@ export default function DrivingLog() {
   const drivers = team.filter(m => m.role === 'driver' || m.role === 'בעלים' || m.role === 'מנהל');
 
   return (
-    <div dir="rtl" className="max-w-3xl mx-auto py-2">
-      <MobileBackButton />
-      <div className="mb-4">
-        <h1 className="text-xl font-bold text-gray-900">יומן נסיעות</h1>
-        <p className="text-xs text-gray-500">
-          תיעוד מלא של מי נהג, איפה ומתי. {filtered.length} {filtered.length === 1 ? 'נסיעה' : 'נסיעות'} בתצוגה.
-        </p>
-      </div>
+    <PageShell
+      title="יומן נסיעות"
+      subtitle="תיעוד מלא של מי נהג, איפה ומתי"
+    >
+      {/* KPI Strip — driving log at a glance. Counts reflect the active
+          filter so the headline numbers always match the rows below. */}
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        <KpiTile
+          label="בתצוגה"
+          value={<AnimatedCount value={counts.total} />}
+          sub={`${routes.length} סה״כ במאגר`}
+          tone="emerald"
+        />
+        <KpiTile
+          label="בביצוע"
+          value={<AnimatedCount value={counts.in_progress} />}
+          sub={counts.in_progress === 0 ? 'אין נסיעות פעילות' : 'משימות בדרך'}
+          tone="blue"
+        />
+        <KpiTile
+          label="הושלמו"
+          value={<AnimatedCount value={counts.completed} />}
+          sub={counts.completed === 0 ? 'אין השלמות בתצוגה' : 'הסתיימו בהצלחה'}
+          tone="purple"
+        />
+        <KpiTile
+          label="ממתינות"
+          value={<AnimatedCount value={counts.pending} />}
+          sub={counts.pending === 0 ? 'אין משימות פתוחות' : 'מחכות לנהג'}
+          tone="amber"
+        />
+      </section>
 
       {/* Filters */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-3 mb-4 space-y-2.5">
+      <Card className="mb-4 space-y-2.5">
         <div className="relative">
-          <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+          <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none" style={{ color: '#7A6E58' }} />
           <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="חפש לפי כותרת, נהג או רכב"
-            className="h-10 rounded-xl pr-8 pl-3 text-sm"
+            className="h-11 rounded-xl pr-8 pl-3 text-sm"
+            style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
           />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <FilterSelect
             label="נהג"
-            icon={<UserIcon className="h-3.5 w-3.5 text-gray-400" />}
+            icon={<UserIcon className="h-3.5 w-3.5" style={{ color: '#7A6E58' }} />}
             value={filterDriver}
             onChange={setFilterDriver}
             options={[{ value: '', label: 'כל הנהגים' }, ...drivers.map(d => ({ value: d.user_id, label: d.display_name }))]}
@@ -201,20 +246,25 @@ export default function DrivingLog() {
           <DateField label="מתאריך" value={filterFrom} onChange={setFilterFrom} />
           <DateField label="עד תאריך" value={filterTo}   onChange={setFilterTo} />
         </div>
-      </div>
+      </Card>
 
       {/* Results */}
       {routesLoading ? (
-        <p className="text-center text-xs text-gray-400 py-8">טוען נסיעות...</p>
+        <Card className="text-center py-8">
+          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען נסיעות...</p>
+        </Card>
       ) : filtered.length === 0 ? (
-        <Empty
-          icon={<FileText className="h-10 w-10 text-gray-300" />}
-          title={routes.length === 0 ? 'עוד אין נסיעות מתועדות' : 'לא נמצאו נסיעות תואמות'}
-          text={routes.length === 0
-            ? 'עם יצירת המשימה הראשונה עם נהג, היא תופיע כאן ביומן.'
-            : 'נסה לשנות את הסינון או לנקות את החיפוש.'}
-          embedded
-        />
+        <Card className="text-center py-12">
+          <FileText className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
+          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+            {routes.length === 0 ? 'עוד אין נסיעות מתועדות' : 'לא נמצאו נסיעות תואמות'}
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+            {routes.length === 0
+              ? 'עם יצירת המשימה הראשונה עם נהג, היא תופיע כאן ביומן.'
+              : 'נסה לשנות את הסינון או לנקות את החיפוש.'}
+          </p>
+        </Card>
       ) : (
         <ul className="space-y-2">
           {filtered.map(r => {
@@ -223,49 +273,54 @@ export default function DrivingLog() {
               <li key={r.id}>
                 <Link
                   to={createPageUrl('RouteDetail') + '?id=' + r.id}
-                  className="block bg-white border border-gray-100 rounded-xl p-3 active:bg-gray-50 hover:bg-gray-50 transition-colors"
+                  className="block transition-transform hover:scale-[1.005] active:scale-[0.995]"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <p className="text-sm font-bold text-gray-900 truncate">{r.title}</p>
-                        <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${status.cls}`}>
-                          {status.label}
-                        </span>
+                  <Card accent={status.accent} padding="p-3.5">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{r.title}</p>
+                          <span
+                            className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                            style={{ background: status.chipBg, color: status.chipFg }}
+                          >
+                            {status.label}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] flex-wrap mb-1.5" style={{ color: '#6B7C72' }}>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {fmtDate(r.scheduled_for) || fmtDate(r.created_at)}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <UserIcon className="h-3 w-3" />
+                            {driverName(r.assigned_driver_user_id) || 'ללא שיוך'}
+                          </span>
+                        </div>
+                        {/* Vehicle row gets its own line — the VehicleLabel
+                            component is taller than the inline date/driver
+                            chips and looks cramped wedged between them.
+                            interactive=false here because the parent <Link>
+                            already navigates to RouteDetail; clicking the
+                            inner vehicle would steal the click and bounce
+                            the manager to a different page. */}
+                        <VehicleLabel
+                          vehicle={vehicleById[r.vehicle_id]}
+                          size="sm"
+                          interactive={false}
+                          showSubtitle={false}
+                        />
                       </div>
-                      <div className="flex items-center gap-3 text-[11px] text-gray-500 flex-wrap mb-1.5">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {fmtDate(r.scheduled_for) || fmtDate(r.created_at)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <UserIcon className="h-3 w-3" />
-                          {driverName(r.assigned_driver_user_id) || 'ללא שיוך'}
-                        </span>
-                      </div>
-                      {/* Vehicle row gets its own line — the VehicleLabel
-                          component is taller than the inline date/driver
-                          chips and looks cramped wedged between them.
-                          interactive=false here because the parent <Link>
-                          already navigates to RouteDetail; clicking the
-                          inner vehicle would steal the click and bounce
-                          the manager to a different page. */}
-                      <VehicleLabel
-                        vehicle={vehicleById[r.vehicle_id]}
-                        size="sm"
-                        interactive={false}
-                        showSubtitle={false}
-                      />
+                      <ChevronLeft className="h-4 w-4 shrink-0 mt-0.5" style={{ color: '#A7B3AB' }} />
                     </div>
-                    <ChevronLeft className="h-4 w-4 text-gray-300 shrink-0 mt-0.5" />
-                  </div>
+                  </Card>
                 </Link>
               </li>
             );
           })}
         </ul>
       )}
-    </div>
+    </PageShell>
   );
 }
 
