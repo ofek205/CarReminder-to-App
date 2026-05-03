@@ -16,10 +16,11 @@
  * and gives the manager a clean directory + assignment workflow.
  */
 import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase, UserPlus, Truck, Loader2, Plus, X,
-  Crown, Shield, Eye, User as UserIcon, Calendar, Mail,
+  Crown, Shield, Eye, User as UserIcon, Calendar, Mail, IdCard, ChevronDown, Phone, ChevronLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -31,6 +32,10 @@ import VehiclePicker from '@/components/shared/VehiclePicker';
 import { DateInput } from '@/components/ui/date-input';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { listExternalDrivers, categoryShortLabel } from '@/services/drivers';
+import ExternalDriverFormDialog from '@/components/drivers/ExternalDriverFormDialog';
+import { createPageUrl } from '@/utils';
 
 // Visual treatment per role. Order also defines display priority.
 const ROLE_META = {
@@ -48,9 +53,14 @@ export default function Drivers() {
   const { accountId } = useAccountRole();
   const { isBusiness, canManageRoutes, isLoading: roleLoading } = useWorkspaceRole();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
-  const [assigning, setAssigning] = useState(null); // null | { user_id, display_name }
-  const [adding,    setAdding]    = useState(false);
+  const [assigning, setAssigning]      = useState(null); // null | { user_id, display_name }
+  const [adding,    setAdding]         = useState(false);
+  const [addingExternal, setAddingExternal] = useState(false);
+  const [editingExternal, setEditingExternal] = useState(null); // null | external_drivers row
+  // Filter chip: 'all' | 'registered' | 'external'
+  const [filter, setFilter] = useState('all');
 
   // Member directory — names via the SECURITY DEFINER RPC.
   const { data: members = [], isLoading: membersLoading } = useQuery({
@@ -66,13 +76,23 @@ export default function Drivers() {
     staleTime: 60 * 1000,
   });
 
-  // Active driver assignments for the workspace.
+  // External (non-account) drivers — roster entries that don't have
+  // an auth.users row but the manager still wants to track + assign.
+  const { data: externalDrivers = [], isLoading: externalLoading } = useQuery({
+    queryKey: ['external-drivers', accountId],
+    queryFn:  () => listExternalDrivers({ accountId, includeArchived: false }),
+    enabled:  !!accountId && canManageRoutes && isBusiness,
+    staleTime: 60 * 1000,
+  });
+
+  // Active driver assignments — now includes both kinds. We pull both
+  // id columns so the row renderer can group by either.
   const { data: assignments = [] } = useQuery({
     queryKey: ['driver-assignments', accountId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('driver_assignments')
-        .select('id, driver_user_id, vehicle_id, valid_from, valid_to, status')
+        .select('id, driver_user_id, external_driver_id, vehicle_id, valid_from, valid_to, status')
         .eq('account_id', accountId)
         .eq('status', 'active');
       if (error) throw error;
@@ -98,12 +118,22 @@ export default function Drivers() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Group assignments by driver for fast lookup in the row renderer.
-  const assignmentsByDriver = useMemo(() => {
+  // Group assignments by driver for fast lookup. Two maps: one keyed
+  // by driver_user_id (registered) and one by external_driver_id, so
+  // each row renderer can hit O(1) lookup.
+  const assignmentsByUserId = useMemo(() => {
     const map = {};
     for (const a of assignments) {
-      if (!map[a.driver_user_id]) map[a.driver_user_id] = [];
-      map[a.driver_user_id].push(a);
+      if (!a.driver_user_id) continue;
+      (map[a.driver_user_id] ||= []).push(a);
+    }
+    return map;
+  }, [assignments]);
+  const assignmentsByExternalId = useMemo(() => {
+    const map = {};
+    for (const a of assignments) {
+      if (!a.external_driver_id) continue;
+      (map[a.external_driver_id] ||= []).push(a);
     }
     return map;
   }, [assignments]);
@@ -120,14 +150,55 @@ export default function Drivers() {
     return v.nickname || v.license_plate || `${v.manufacturer || ''} ${v.model || ''}`.trim() || 'רכב ללא שם';
   };
 
+  // Build the unified entries list — registered + external — with a
+  // common shape so the renderer can iterate one array. Lives BEFORE
+  // any early returns so the hooks order stays stable across renders.
+  const entries = useMemo(() => {
+    const r = members.map(m => ({
+      kind: 'registered',
+      id: m.user_id,
+      name: m.display_name,
+      email: m.email,
+      role: m.role,
+      joined_at: m.joined_at,
+      assignments: assignmentsByUserId[m.user_id] || [],
+      raw: m,
+    }));
+    const e = externalDrivers.map(d => ({
+      kind: 'external',
+      id: d.id,
+      name: d.full_name,
+      email: d.email,
+      phone: d.phone,
+      license_categories: d.license_categories || [],
+      license_expiry_date: d.license_expiry_date,
+      assignments: assignmentsByExternalId[d.id] || [],
+      raw: d,
+    }));
+    let combined = [...r, ...e];
+    if (filter === 'registered') combined = r;
+    else if (filter === 'external') combined = e;
+    return combined;
+  }, [members, externalDrivers, assignmentsByUserId, assignmentsByExternalId, filter]);
+
+  const isLoading = membersLoading || externalLoading;
+  const totalCount = members.length + externalDrivers.length;
+
+  const openDriverDetail = (entry) => {
+    if (entry.kind === 'external') {
+      navigate(`${createPageUrl('DriverDetail')}?type=external&id=${entry.id}`);
+    } else {
+      navigate(`${createPageUrl('DriverDetail')}?type=user&id=${entry.id}`);
+    }
+  };
+
+  // Guards run AFTER all hooks so the hooks order is stable.
   if (authLoading || roleLoading) {
     return <div dir="rtl" className="text-center py-16 text-xs text-gray-400">טוען...</div>;
   }
-
   if (!isAuthenticated) {
     return <Empty text="צריך להתחבר כדי לראות את הצוות." />;
   }
-
   if (!isBusiness) {
     return (
       <Empty
@@ -137,7 +208,6 @@ export default function Drivers() {
       />
     );
   }
-
   if (!canManageRoutes) {
     return (
       <Empty
@@ -151,43 +221,107 @@ export default function Drivers() {
   return (
     <div dir="rtl" className="max-w-3xl mx-auto py-2">
       <MobileBackButton />
-      <div className="flex items-center justify-between mb-4 gap-2">
+      <div className="flex items-center justify-between mb-3 gap-2">
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-gray-900">נהגים</h1>
           <p className="text-xs text-gray-500 truncate">
-            ניהול תפקידים והקצאת רכבים לנהגי החברה
-            <span className="text-gray-400">{` · ${members.length} ${members.length === 1 ? 'נהג' : 'נהגים'}`}</span>
+            ניהול נהגים, רישיונות ושיבוצים
+            <span className="text-gray-400">{` · ${totalCount} ${totalCount === 1 ? 'נהג' : 'נהגים'}`}</span>
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98]"
-        >
-          <UserPlus className="h-4 w-4" />
-          הוסף נהג
-        </button>
+        {/* "+ הוסף נהג" — popover with two paths: invite-with-email
+            (existing flow) or roster entry without account (new). */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98]"
+            >
+              <UserPlus className="h-4 w-4" />
+              הוסף נהג
+              <ChevronDown className="h-3 w-3 opacity-80" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent dir="rtl" align="end" className="w-72 p-1.5 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="w-full text-right px-3 py-2.5 rounded-xl hover:bg-gray-50 active:scale-[0.99] flex items-start gap-2.5"
+            >
+              <Mail className="h-4 w-4 mt-0.5 text-[#2D5233]" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-900">הזמן נהג עם חשבון</p>
+                <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
+                  משתמש שכבר רשום באפליקציה. הוא יקבל גישה לרכב המשובץ ולמשימות.
+                </p>
+              </div>
+            </button>
+            <div className="h-px bg-gray-100 my-1" />
+            <button
+              type="button"
+              onClick={() => setAddingExternal(true)}
+              className="w-full text-right px-3 py-2.5 rounded-xl hover:bg-gray-50 active:scale-[0.99] flex items-start gap-2.5"
+            >
+              <IdCard className="h-4 w-4 mt-0.5 text-[#2D5233]" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-900">הוסף נהג ללא חשבון</p>
+                <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
+                  עובד פיזי שלא משתמש באפליקציה. תרשום פרטי קשר ורישיון.
+                </p>
+              </div>
+            </button>
+          </PopoverContent>
+        </Popover>
       </div>
 
-      {membersLoading ? (
-        <p className="text-center text-xs text-gray-400 py-6">טוען חברים...</p>
-      ) : members.length === 0 ? (
+      {/* Filter chips — visible only when there's at least one of each kind */}
+      {(members.length > 0 && externalDrivers.length > 0) && (
+        <div className="flex items-center gap-1.5 mb-3 overflow-x-auto pb-1">
+          <FilterChip active={filter === 'all'}        onClick={() => setFilter('all')}>
+            הכל ({totalCount})
+          </FilterChip>
+          <FilterChip active={filter === 'registered'} onClick={() => setFilter('registered')}>
+            עם חשבון ({members.length})
+          </FilterChip>
+          <FilterChip active={filter === 'external'}   onClick={() => setFilter('external')}>
+            ללא חשבון ({externalDrivers.length})
+          </FilterChip>
+        </div>
+      )}
+
+      {isLoading ? (
+        <p className="text-center text-xs text-gray-400 py-6">טוען נהגים...</p>
+      ) : entries.length === 0 ? (
         <Empty
           icon={<UserPlus className="h-10 w-10 text-gray-300" />}
-          title="עוד אין חברים בסביבה"
-          text='הוסף נהג קיים לפי כתובת אימייל. הנהג חייב להיות רשום באפליקציה.'
+          title="עוד אין נהגים בחשבון"
+          text="הוסף נהג עם חשבון רשום, או רשום נהג ללא חשבון לעקיבה ושיבוץ"
           embedded
         />
       ) : (
         <ul className="space-y-2">
-          {members.map(m => (
-            <MemberRow
-              key={m.user_id}
-              member={m}
-              assignments={assignmentsByDriver[m.user_id] || []}
-              vehicleLabel={vehicleLabel}
-              onAssign={() => setAssigning({ user_id: m.user_id, display_name: m.display_name })}
-            />
+          {entries.map(entry => (
+            entry.kind === 'registered' ? (
+              <MemberRow
+                key={`u-${entry.id}`}
+                member={entry.raw}
+                assignments={entry.assignments}
+                vehicleLabel={vehicleLabel}
+                onAssign={(e) => {
+                  e?.stopPropagation?.();
+                  setAssigning({ user_id: entry.id, display_name: entry.name });
+                }}
+                onOpen={() => openDriverDetail(entry)}
+              />
+            ) : (
+              <ExternalDriverRow
+                key={`x-${entry.id}`}
+                driver={entry.raw}
+                assignments={entry.assignments}
+                vehicleLabel={vehicleLabel}
+                onOpen={() => openDriverDetail(entry)}
+              />
+            )
           ))}
         </ul>
       )}
@@ -197,7 +331,7 @@ export default function Drivers() {
           driver={assigning}
           vehicles={vehicles}
           accountId={accountId}
-          existingAssignments={assignmentsByDriver[assigning.user_id] || []}
+          existingAssignments={assignmentsByUserId[assigning.user_id] || []}
           onClose={() => setAssigning(null)}
           onAssigned={async () => {
             await queryClient.invalidateQueries({ queryKey: ['driver-assignments'] });
@@ -213,11 +347,6 @@ export default function Drivers() {
           onAdded={async (added) => {
             await queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
             setAdding(false);
-            // Driver who was just added gets a chained "assign vehicle now?"
-            // step. We only chain for the driver role — viewers/managers
-            // don't drive vehicles, so the assignment dialog would just be
-            // friction. The directory refetch above gives us the user_id
-            // we need to drive the assignment dialog.
             if (added?.role === 'driver' && added?.user_id) {
               setAssigning({
                 user_id: added.user_id,
@@ -227,7 +356,38 @@ export default function Drivers() {
           }}
         />
       )}
+
+      {(addingExternal || editingExternal) && (
+        <ExternalDriverFormDialog
+          open={true}
+          accountId={accountId}
+          initial={editingExternal}
+          onClose={() => { setAddingExternal(false); setEditingExternal(null); }}
+          onSaved={async () => {
+            await queryClient.invalidateQueries({ queryKey: ['external-drivers'] });
+            setAddingExternal(false);
+            setEditingExternal(null);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// Filter chip used at top of the list when there's data of both kinds.
+function FilterChip({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+        active
+          ? 'bg-[#2D5233] border-[#2D5233] text-white'
+          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -351,20 +511,29 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
 
 // ----------------------------------------------------------------------
 
-function MemberRow({ member, assignments, vehicleLabel, onAssign }) {
+function MemberRow({ member, assignments, vehicleLabel, onAssign, onOpen }) {
   const meta = roleMeta(member.role);
   const RoleIcon = meta.icon;
+  // Whole row is tappable → detail page. The "שייך רכב" button still
+  // works in-place for the manager's quick-action shortcut; its
+  // handler stops propagation so it doesn't trigger the row open.
   return (
-    <li className="bg-white border border-gray-100 rounded-xl p-3">
+    <li
+      onClick={onOpen}
+      className="bg-white border border-gray-100 rounded-xl p-3 cursor-pointer transition-all hover:border-gray-200 active:scale-[0.99]"
+    >
       <div className="flex items-start gap-3">
         <div className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${meta.cls}`}>
           <RoleIcon className="h-4 w-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
             <p className="text-sm font-bold text-gray-900 truncate">{member.display_name}</p>
             <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.cls}`}>
               {meta.label}
+            </span>
+            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">
+              עם חשבון
             </span>
           </div>
           <p className="text-[11px] text-gray-500 truncate">{member.email}</p>
@@ -389,14 +558,94 @@ function MemberRow({ member, assignments, vehicleLabel, onAssign }) {
             </div>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onAssign}
-          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold active:scale-[0.98]"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          שייך רכב
-        </button>
+        <div className="shrink-0 flex flex-col items-stretch gap-1">
+          <button
+            type="button"
+            onClick={onAssign}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold active:scale-[0.98]"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            שייך רכב
+          </button>
+        </div>
+        <ChevronLeft className="h-4 w-4 text-gray-300 shrink-0 mt-2" />
+      </div>
+    </li>
+  );
+}
+
+// External-driver row — same visual rhythm as MemberRow but no role
+// chip (they don't have one), and the badge says "ללא חשבון". Click
+// opens the detail screen, where the manager assigns vehicles.
+function ExternalDriverRow({ driver, assignments, vehicleLabel, onOpen }) {
+  const expDate = driver.license_expiry_date;
+  const expiringSoon = expDate
+    ? (new Date(expDate) - new Date()) / (1000 * 60 * 60 * 24) < 30
+    : false;
+  const expired = expDate ? new Date(expDate) < new Date() : false;
+  return (
+    <li
+      onClick={onOpen}
+      className="bg-white border border-gray-100 rounded-xl p-3 cursor-pointer transition-all hover:border-gray-200 active:scale-[0.99]"
+    >
+      <div className="flex items-start gap-3">
+        <div className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center bg-amber-50 text-amber-700">
+          <IdCard className="h-4 w-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <p className="text-sm font-bold text-gray-900 truncate">{driver.full_name}</p>
+            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700">
+              ללא חשבון
+            </span>
+            {expired && (
+              <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700">
+                רישיון פג
+              </span>
+            )}
+            {!expired && expiringSoon && (
+              <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-700">
+                רישיון פוגג
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-gray-500 flex items-center gap-1 truncate" dir="ltr">
+            <Phone className="h-3 w-3 shrink-0 text-gray-400" />
+            <span className="truncate">{driver.phone}</span>
+          </p>
+          {Array.isArray(driver.license_categories) && driver.license_categories.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {driver.license_categories.slice(0, 6).map(c => (
+                <span key={c} className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-50 text-[10px] text-gray-700">
+                  {categoryShortLabel(c)}
+                </span>
+              ))}
+              {driver.license_categories.length > 6 && (
+                <span className="text-[10px] text-gray-400">+{driver.license_categories.length - 6}</span>
+              )}
+            </div>
+          )}
+          {expDate && (
+            <p className="text-[10px] text-gray-400 mt-0.5">
+              רישיון תקף עד: {fmtDate(expDate)}
+            </p>
+          )}
+
+          {assignments.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-[10px] font-bold text-gray-500 mb-1">רכבים מוקצים</p>
+              <div className="flex flex-wrap gap-1">
+                {assignments.map(a => (
+                  <span key={a.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 text-[10px] text-gray-700">
+                    <Truck className="h-3 w-3" />
+                    {vehicleLabel(a.vehicle_id)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <ChevronLeft className="h-4 w-4 text-gray-300 shrink-0 mt-2" />
       </div>
     </li>
   );

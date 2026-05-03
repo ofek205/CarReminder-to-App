@@ -50,6 +50,14 @@ import { validateUploadFile } from '@/lib/securityUtils';
 export default function useFileUpload({
   accountId,
   vehicleId,
+  // subPath: optional folder name appended after accountId when there's
+  // no vehicleId. Use for non-vehicle assets that still belong to the
+  // account, e.g. external-driver license photos:
+  //   useFileUpload({ accountId, subPath: 'drivers' })
+  //   → path becomes `{accountId}/drivers/{uuid}-{file}`
+  // The Storage RLS policy only checks the FIRST folder against the
+  // user's account_members list, so anything after that is free.
+  subPath,
   mode = 'doc',
   maxMB = 10,
 } = {}) {
@@ -84,6 +92,8 @@ export default function useFileUpload({
       let pathPrefix;
       if (accountId && vehicleId) {
         pathPrefix = `${accountId}/${vehicleId}`;
+      } else if (accountId && subPath) {
+        pathPrefix = `${accountId}/${subPath}`;
       } else if (accountId) {
         pathPrefix = `scans/${accountId}`;
       } else {
@@ -113,7 +123,7 @@ export default function useFileUpload({
     } finally {
       setUploading(false);
     }
-  }, [accountId, vehicleId, mode, maxMB]);
+  }, [accountId, vehicleId, subPath, mode, maxMB]);
 
   return { upload, uploading, progress, error, reset };
 }

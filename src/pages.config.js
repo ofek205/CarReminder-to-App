@@ -68,6 +68,7 @@ const Expenses          = React.lazy(() => import('./pages/Expenses'));
 const MyExpenses        = React.lazy(() => import('./pages/MyExpenses'));
 const Reports           = React.lazy(() => import('./pages/Reports'));
 const Drivers           = React.lazy(() => import('./pages/Drivers'));
+const DriverDetail      = React.lazy(() => import('./pages/DriverDetail'));
 const AdminBusinessRequests = React.lazy(() => import('./pages/AdminBusinessRequests'));
 const Fleet                 = React.lazy(() => import('./pages/Fleet'));
 const BusinessDashboard     = React.lazy(() => import('./pages/BusinessDashboard'));
@@ -125,6 +126,9 @@ export const PAGES = {
     "MyExpenses":   MyExpenses,
     "Reports":      Reports,
     "Drivers":      Drivers,
+    // /DriverDetail — opened by clicking a driver row from /Drivers.
+    // Intentionally NOT in Layout.jsx menu (per product decision).
+    "DriverDetail": DriverDetail,
     "AdminBusinessRequests": AdminBusinessRequests,
     "Fleet":        Fleet,
     "BusinessDashboard": BusinessDashboard,
