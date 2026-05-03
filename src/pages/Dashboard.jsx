@@ -214,7 +214,7 @@ function VehicleCheckHero({ plate, onPlateChange, onSubmit, submitting, compact 
         />
         <button
           type="button"
-          onClick={onSubmit}
+          onClick={() => onSubmit?.()}
           disabled={disabled}
           aria-label={plateReady ? 'בדוק רכב' : 'הזן 7 או 8 ספרות לבדיקה'}
           title={plateReady ? '' : 'הזן 7 או 8 ספרות לבדיקה'}
@@ -860,7 +860,11 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
 
   const openQuickCheck = (plateValue = quickCheckPlate) => {
-    const normalized = normalizeQuickCheckPlateInput(plateValue);
+    // Defensive: if a SyntheticEvent slips in (e.g. an `onClick={onSubmit}`
+    // wiring elsewhere), fall back to the controlled state instead of
+    // silently failing on String(event) → empty digits.
+    const safeValue = typeof plateValue === 'string' ? plateValue : quickCheckPlate;
+    const normalized = normalizeQuickCheckPlateInput(safeValue);
     if (!isQuickCheckPlateReady(normalized)) return;
     try { sessionStorage.setItem(QUICK_CHECK_PREFILL_KEY, normalized); } catch {}
     setQuickCheckSubmitting(true);
