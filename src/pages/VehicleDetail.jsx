@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2, Search } from "lucide-react";
+import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2, Search, Camera } from "lucide-react";
+import useFileUpload from '@/hooks/useFileUpload';
+import { validateUploadFile } from '@/lib/securityUtils';
 import ShareVehicleDialog from "@/components/sharing/ShareVehicleDialog";
 import SharedIndicator from "@/components/sharing/SharedIndicator";
 import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
@@ -585,6 +587,57 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   const [accessModalOpen, setAccessModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Hero "add photo" — uploads directly from VehicleDetail without
+  // routing through the full edit form. Mirrors EditVehicle's photo
+  // path: validate → useFileUpload (compress + sign) → patch the row
+  // with both vehicle_photo (signed URL) and vehicle_photo_storage_path
+  // (so reads can re-sign after the URL expires).
+  const heroFileInputRef = useRef(null);
+  const [uploadingHeroPhoto, setUploadingHeroPhoto] = useState(false);
+  const { upload: uploadHeroPhoto } = useFileUpload({
+    accountId: vehicle?.account_id,
+    mode: 'photo',
+    maxMB: 10,
+  });
+
+  const handleHeroPhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!vehicle?.account_id) {
+      toast.error('הרכב עדיין נטען, נסה שוב בעוד רגע');
+      e.target.value = '';
+      return;
+    }
+    const validation = validateUploadFile(file, 'photo', 10);
+    if (!validation.ok) {
+      toast.error(validation.error);
+      e.target.value = '';
+      return;
+    }
+    setUploadingHeroPhoto(true);
+    try {
+      const { fileUrl, storagePath } = await uploadHeroPhoto(file);
+      // Persist BOTH fields together so they never drift out of sync.
+      await db.vehicles.update(vehicleId, {
+        vehicle_photo: fileUrl,
+        vehicle_photo_storage_path: storagePath,
+      });
+      // Invalidate every query that paints a vehicle photo so the new
+      // image lands without a manual refresh.
+      queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+      queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles-list'] });
+      queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
+      toast.success('התמונה נוספה');
+    } catch (err) {
+      console.error('Hero photo upload error:', err);
+      toast.error(err?.message || 'שגיאה בהעלאת התמונה');
+    } finally {
+      setUploadingHeroPhoto(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
   // Two delete paths:
   //   * Owner of an unshared vehicle → straight delete (current behavior)
   //   * Owner of a shared vehicle → DB call with mode='both' which
@@ -745,14 +798,57 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           </div>
         </div>
 
-        {/* No-photo vehicle icon */}
+        {/* No-photo state.
+            For an editable owner: the placeholder becomes a tappable
+            upload button so they can add a photo without bouncing to
+            the full edit form. The hidden <input> below is what the
+            click triggers — separating it from the button keeps the
+            file-picker invisible until tapped (no double-element flash).
+            For viewers / drivers / sharees: keep the static placeholder. */}
         {!hasPhoto && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-24 h-24 rounded-3xl flex items-center justify-center"
-              style={{ background: 'rgba(255,255,255,0.1)' }}>
-              <VehicleIcon className="w-12 h-12" style={{ color: 'rgba(255,255,255,0.5)', strokeWidth: 1.5 }} />
-            </div>
+            {canEdit(role) && !driverReadOnly ? (
+              <button
+                type="button"
+                onClick={() => heroFileInputRef.current?.click()}
+                disabled={uploadingHeroPhoto}
+                aria-label={uploadingHeroPhoto ? 'מעלה תמונה' : 'הוסף תמונת רכב'}
+                className="flex flex-col items-center gap-2 px-5 py-3 rounded-3xl transition-all active:scale-[0.98] disabled:opacity-70"
+                style={{ background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)' }}
+              >
+                <div
+                  className="w-20 h-20 rounded-2xl flex items-center justify-center"
+                  style={{ background: 'rgba(255,255,255,0.2)' }}
+                >
+                  {uploadingHeroPhoto
+                    ? <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#fff' }} />
+                    : <Camera className="w-9 h-9" style={{ color: '#fff', strokeWidth: 1.6 }} />}
+                </div>
+                <span
+                  className="text-sm font-bold text-white"
+                  style={{ textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}
+                >
+                  {uploadingHeroPhoto ? 'מעלה…' : 'הוסף תמונה'}
+                </span>
+              </button>
+            ) : (
+              <div
+                className="w-24 h-24 rounded-3xl flex items-center justify-center"
+                style={{ background: 'rgba(255,255,255,0.1)' }}
+              >
+                <VehicleIcon className="w-12 h-12" style={{ color: 'rgba(255,255,255,0.5)', strokeWidth: 1.5 }} />
+              </div>
+            )}
           </div>
+        )}
+        {!hasPhoto && canEdit(role) && !driverReadOnly && (
+          <input
+            ref={heroFileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleHeroPhotoChange}
+          />
         )}
 
         {/* Name overlay */}
