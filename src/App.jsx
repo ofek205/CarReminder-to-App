@@ -7,6 +7,7 @@ import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { PinGate } from '@/components/shared/PinLock';
+import AppUpdateGate from '@/components/shared/AppUpdateGate';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -193,6 +194,13 @@ function App() {
     <div>
       <AppErrorBoundary>
         <QueryClientProvider client={queryClientInstance}>
+          {/* AppUpdateGate sits high in the tree so it can hide the
+              entire app if the installed native version is below the
+              server-defined minimum. It's wrapped in QueryClientProvider
+              alone (no Router needed) because it doesn't navigate. The
+              gate fails open on any error / missing config — production
+              traffic never breaks because of this check. */}
+          <AppUpdateGate>
           <Router>
             <NavigationTracker />
             <PinGate>
@@ -221,6 +229,7 @@ function App() {
             </Routes>
             </PinGate>
           </Router>
+          </AppUpdateGate>
         </QueryClientProvider>
       </AppErrorBoundary>
       {/* sonner is the ONLY toast renderer — the old shadcn Toaster was
