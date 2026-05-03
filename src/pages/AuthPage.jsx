@@ -536,12 +536,25 @@ export default function AuthPage() {
     // Dev bypass: "00/00" skips client-side email + length checks; real
     // validation happens in the auth handler once the env creds swap in.
     const isDevBypass = mode === 'login' && email === '00' && password === '00';
+    // Modes that DON'T have an email field on screen — skip the email
+    // validation entirely or it falsely rejects a legitimate submit:
+    //   • update-password — user came from an email link, the session is
+    //                       already tied to their account; only password
+    //                       is asked for here.
+    //   • verify-email    — user just signed up; the email lives in
+    //                       `pendingEmail`, the visible field is the
+    //                       6-digit code, not an email.
+    const skipEmailCheck = mode === 'update-password' || mode === 'verify-email';
     // Client-side validation. fast feedback, no network round-trip
-    if (!isDevBypass && !isValidEmail(email)) {
+    if (!isDevBypass && !skipEmailCheck && !isValidEmail(email)) {
       setError('כתובת אימייל לא תקינה');
       return;
     }
-    if (!isDevBypass && mode !== 'reset' && password.length < 6) {
+    // Same idea for password length — `reset` only sends an email, no
+    // password input. `update-password` runs its own (stricter) length
+    // check inside its mode branch below.
+    if (!isDevBypass && mode !== 'reset' && mode !== 'update-password' && mode !== 'verify-email'
+        && password.length < 6) {
       setError('הסיסמה חייבת להכיל לפחות 6 תווים');
       return;
     }
