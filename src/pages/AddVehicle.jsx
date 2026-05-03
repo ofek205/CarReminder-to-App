@@ -183,8 +183,12 @@ export default function AddVehicle() {
   // Sprint A.B-2: storage-backed photo upload for authenticated users.
   // Guests don't get an accountId so the hook is effectively idle for them
   // (handlePhoto branches into the guest base64 path before calling upload).
+  // userId is required because the vehicle doesn't exist yet — uploads
+  // land under scans/{userId} which the bucket RLS policy permits for
+  // pre-creation assets.
   const { upload: uploadPhotoToStorage } = useFileUpload({
     accountId,
+    userId: user?.id,
     mode: 'photo',
     maxMB: 10,
   });

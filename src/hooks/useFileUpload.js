@@ -58,6 +58,13 @@ export default function useFileUpload({
   // The Storage RLS policy only checks the FIRST folder against the
   // user's account_members list, so anything after that is free.
   subPath,
+  // userId: required for the orphan/scan path (when neither vehicleId
+  // nor subPath is set). The bucket policy only accepts `scans/{user_id}`
+  // for that branch — passing only accountId lands at `scans/{accountId}`
+  // which the policy rejects. Real fix: callsites that legitimately
+  // need pre-vehicle uploads should pass userId so we hit the policy
+  // correctly.
+  userId,
   mode = 'doc',
   maxMB = 10,
 } = {}) {
@@ -94,12 +101,19 @@ export default function useFileUpload({
         pathPrefix = `${accountId}/${vehicleId}`;
       } else if (accountId && subPath) {
         pathPrefix = `${accountId}/${subPath}`;
+      } else if (userId) {
+        // scans/{userId} is the policy-approved path for orphan
+        // uploads (e.g. AddVehicle's photo before the vehicle row exists).
+        pathPrefix = `scans/${userId}`;
       } else if (accountId) {
-        pathPrefix = `scans/${accountId}`;
+        // Legacy fallback — passes RLS only if the user is a member
+        // of `accountId` AND the policy's account_members branch matches
+        // `(foldername)[1]` against accountId. Kept for callsites still
+        // wired this way; new callsites should pass either subPath or
+        // userId for predictable behavior.
+        pathPrefix = `${accountId}/uploads`;
       } else {
-        // Should never happen for authenticated flows, but guard against
-        // a callsite that forgot to wait for the workspace to load.
-        throw new Error('useFileUpload: missing accountId');
+        throw new Error('useFileUpload: missing accountId or userId');
       }
 
       // Compress images before upload. PDFs and other docs pass through
@@ -123,7 +137,7 @@ export default function useFileUpload({
     } finally {
       setUploading(false);
     }
-  }, [accountId, vehicleId, subPath, mode, maxMB]);
+  }, [accountId, vehicleId, subPath, userId, mode, maxMB]);
 
   return { upload, uploading, progress, error, reset };
 }

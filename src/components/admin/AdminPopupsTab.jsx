@@ -262,7 +262,7 @@ function PopupRow({ popup, stats, onEdit, onToggle, onDuplicate, onDelete }) {
         </span>
       </td>
       <td className="px-4 py-3 hidden md:table-cell">
-        <span className="text-xs text-gray-600">{trigMeta?.label || '—'}</span>
+        <span className="text-xs text-gray-600">{trigMeta?.label || '-'}</span>
       </td>
       <td className="px-4 py-3 hidden lg:table-cell">
         {shown > 0 ? (
@@ -271,10 +271,10 @@ function PopupRow({ popup, stats, onEdit, onToggle, onDuplicate, onDelete }) {
             <span className="text-gray-400"> · {dismissed} סגירות</span>
             {ctr !== null && <span className="text-emerald-600 font-bold"> · CTR {ctr}%</span>}
           </div>
-        ) : <span className="text-[11px] text-gray-300">—</span>}
+        ) : <span className="text-[11px] text-gray-300">-</span>}
       </td>
       <td className="px-4 py-3 hidden lg:table-cell text-[11px] text-gray-400">
-        {popup.updated_at ? new Date(popup.updated_at).toLocaleDateString('he-IL') : '—'}
+        {popup.updated_at ? new Date(popup.updated_at).toLocaleDateString('he-IL') : '-'}
       </td>
       <td className="px-4 py-3">
         {/* System popups: view-only. Code owns their timing/content; the DB

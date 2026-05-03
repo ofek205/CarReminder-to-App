@@ -374,10 +374,24 @@ export default function Drivers() {
           accountId={accountId}
           initial={editingExternal}
           onClose={() => { setAddingExternal(false); setEditingExternal(null); }}
-          onSaved={async () => {
+          onSaved={async (driverId, driverName) => {
             await queryClient.invalidateQueries({ queryKey: ['external-drivers'] });
+            const wasCreate = addingExternal && !editingExternal;
             setAddingExternal(false);
             setEditingExternal(null);
+            // Chain: after CREATING a brand-new external driver, the
+            // most likely next action is to assign them to a vehicle.
+            // Auto-open the assignment dialog so the manager doesn't
+            // need to find the row in the list and tap "+ שייך רכב".
+            // Edits skip this chain (the driver already has whatever
+            // assignments they need).
+            if (wasCreate && driverId) {
+              setAssigning({
+                kind: 'external',
+                id: driverId,
+                displayName: driverName || 'נהג חדש',
+              });
+            }
           }}
         />
       )}

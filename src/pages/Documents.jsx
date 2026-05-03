@@ -91,7 +91,7 @@ function parseDocDate(str) {
 const EMPTY_FORM = { document_type: 'מסמך אחר', title: '', description: '', vehicle_id: '', issue_date: '', expiry_date: '', file_url: '', storage_path: '' };
 
 //  Upload dialog (shared logic wrapper) 
-function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, saving, isGuest = false, accountId = null }) {
+function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, saving, isGuest = false, accountId = null, userId = null }) {
   const [form, setForm] = useState({ ...EMPTY_FORM, vehicle_id: vehicleIdParam || '' });
   // fileDataUrl holds a base64 data: URL ONLY for the AI vision call —
   // never persisted to the DB. The DB sees `form.file_url` (a Storage
@@ -107,8 +107,13 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
   // matches the existing UX copy ("PDF / JPG / PNG עד 5MB").
   // accountId is null for guests — guests never call hookUpload, so
   // the hook's "missing accountId" check never fires.
+  // Pass current vehicle_id (form or URL param) so the upload lands at
+  // {accountId}/{vehicleId}/... — the path the bucket RLS policy
+  // expects. Falls back to scans/{userId} when neither vehicle is set.
   const { upload: hookUpload, uploading, error: uploadError, reset: resetUpload } = useFileUpload({
     accountId,
+    vehicleId: form.vehicle_id || vehicleIdParam || undefined,
+    userId,
     mode: 'doc',
     maxMB: 5,
   });
@@ -1238,6 +1243,7 @@ function AuthDocuments({ vehicleIdParam }) {
         vehicles={vehicles}
         saving={saving}
         accountId={accountId}
+        userId={userId}
       />
     </div>
   );

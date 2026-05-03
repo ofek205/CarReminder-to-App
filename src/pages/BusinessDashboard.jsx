@@ -211,6 +211,37 @@ export default function BusinessDashboard() {
     enabled, staleTime: 5 * 60 * 1000,
   });
 
+  // External-driver licenses about to expire (≤ 30 days) or already
+  // expired. Drives the attention list. Only pulls fields we actually
+  // surface so the network roundtrip stays small.
+  const { data: licenseAlerts = [] } = useQuery({
+    queryKey: ['biz-dash-license-alerts', accountId],
+    queryFn: async () => {
+      const today = new Date();
+      const cutoff = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const { data, error } = await supabase
+        .from('external_drivers')
+        .select('id, full_name, license_expiry_date')
+        .eq('account_id', accountId)
+        .eq('status', 'active')
+        .not('license_expiry_date', 'is', null)
+        .lte('license_expiry_date', cutoff.toISOString().slice(0, 10));
+      if (error) throw error;
+      return data || [];
+    },
+    enabled, staleTime: 5 * 60 * 1000,
+  });
+
+  // Split licenses into expired vs expiring-soon.
+  const licenseExpired = useMemo(() => {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    return licenseAlerts.filter(d => d.license_expiry_date < todayISO);
+  }, [licenseAlerts]);
+  const licenseSoon = useMemo(() => {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    return licenseAlerts.filter(d => d.license_expiry_date >= todayISO);
+  }, [licenseAlerts]);
+
   const nameByUserId = useMemo(() => {
     const m = {};
     for (const row of directory) m[row.user_id] = row.display_name;
@@ -289,7 +320,14 @@ export default function BusinessDashboard() {
   const workspaceName = activeWorkspace?.account_name || 'החשבון העסקי';
   const userFirstName = (nameByUserId[user?.id] || user?.user_metadata?.full_name || '').split(' ')[0];
   const greeting = greetingFor();
-  const attentionItems = buildAttentionItems({ overdueCount, soonCount, openIssuesCount: openIssues.length, monthDeltaPct });
+  const attentionItems = buildAttentionItems({
+    overdueCount,
+    soonCount,
+    openIssuesCount: openIssues.length,
+    monthDeltaPct,
+    licenseExpiredCount: licenseExpired.length,
+    licenseSoonCount:    licenseSoon.length,
+  });
   const fleetHealthy = overdueCount === 0 && openIssues.length === 0;
 
   return (
@@ -544,7 +582,14 @@ function SectionHeader({ icon, title, tight = false }) {
   );
 }
 
-function buildAttentionItems({ overdueCount, soonCount, openIssuesCount, monthDeltaPct }) {
+function buildAttentionItems({
+  overdueCount,
+  soonCount,
+  openIssuesCount,
+  monthDeltaPct,
+  licenseExpiredCount = 0,
+  licenseSoonCount = 0,
+}) {
   const items = [];
 
   if (overdueCount > 0) {
@@ -555,12 +600,28 @@ function buildAttentionItems({ overdueCount, soonCount, openIssuesCount, monthDe
       to: createPageUrl('Fleet'),
     });
   }
+  if (licenseExpiredCount > 0) {
+    items.push({
+      barCls: 'bg-red-500',
+      text: `${licenseExpiredCount} ${licenseExpiredCount === 1 ? 'נהג' : 'נהגים'} עם רישיון נהיגה שפג`,
+      sub: 'אסור להעלות לרכב עד חידוש הרישיון',
+      to: createPageUrl('Drivers'),
+    });
+  }
   if (soonCount > 0) {
     items.push({
       barCls: 'bg-yellow-500',
       text: `${soonCount} רכבים שיפוגו בחודש הקרוב`,
       sub: 'מומלץ לתאם טיפול מבעוד מועד',
       to: createPageUrl('Fleet'),
+    });
+  }
+  if (licenseSoonCount > 0) {
+    items.push({
+      barCls: 'bg-orange-500',
+      text: `${licenseSoonCount} ${licenseSoonCount === 1 ? 'רישיון נהיגה' : 'רישיונות נהיגה'} פוגגים בחודש הקרוב`,
+      sub: 'תזכר את הנהגים לחדש',
+      to: createPageUrl('Drivers'),
     });
   }
   if (openIssuesCount > 0) {

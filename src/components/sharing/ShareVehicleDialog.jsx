@@ -340,7 +340,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold" style={{ color: '#92400E' }}>המייל הזה לא רשום אצלנו עדיין</p>
                   <p className="text-xs mt-1 leading-relaxed" style={{ color: '#B45309' }}>
-                    שלחנו מייל עם קישור הצטרפות. <strong>הוא יצטרך להירשם תחילה</strong> (עם אותה כתובת מייל) — אחרי ההרשמה ההזמנה תחכה לו ויוכל לאשר אותה.
+                    שלחנו מייל עם קישור הצטרפות. <strong>הוא יצטרך להירשם תחילה</strong> (עם אותה כתובת מייל). אחרי ההרשמה ההזמנה תחכה לו ויוכל לאשר אותה.
                   </p>
                   <p className="text-[11px] mt-1.5" style={{ color: '#B45309' }}>
                     אפשר גם לשתף את הקישור ב־WhatsApp או להעתיק כדי לזרז.

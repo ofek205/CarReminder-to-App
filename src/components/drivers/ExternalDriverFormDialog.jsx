@@ -222,6 +222,11 @@ export default function ExternalDriverFormDialog({
       return;
     }
 
+    // Snapshot the cleaned name BEFORE the await so the caller (which
+    // wants to open AssignDriverDialog right after CREATE) can show
+    // it without re-fetching the driver row.
+    const newDriverName = cleanName;
+
     setSubmitting(true);
     try {
       if (isEdit) {
@@ -245,7 +250,7 @@ export default function ExternalDriverFormDialog({
         });
         toast.success('הנהג עודכן');
         savedRef.current = true;
-        onSaved?.(initial.id);
+        onSaved?.(initial.id, newDriverName);
       } else {
         const newId = await createExternalDriver({
           accountId,
@@ -263,7 +268,7 @@ export default function ExternalDriverFormDialog({
         toast.success('הנהג נוסף');
         savedRef.current = true;
         newOrphanPathRef.current = null;
-        onSaved?.(newId);
+        onSaved?.(newId, newDriverName);
       }
       onClose?.();
     } catch (err) {

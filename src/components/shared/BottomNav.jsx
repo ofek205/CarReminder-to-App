@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Home, MapPin, FileText, AlertTriangle, Sparkles, Route as RouteIcon } from 'lucide-react';
+import { Home, MapPin, FileText, AlertTriangle, Sparkles, Route as RouteIcon, LayoutDashboard } from 'lucide-react';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 
 // Tab order in RTL: rightmost first → leftmost last
@@ -40,16 +40,28 @@ export default function BottomNav({ sheetOpen = false }) {
   // devices and to register a stray tap on the wrong tab.
   if (roleLoading) return null;
   // Drivers in a business workspace get a business-flavoured tab bar.
-  // Managers / owners / viewers in a business workspace keep MOST of
-  // the personal tabs (FindGarage, Documents, Accidents — they use
-  // those for their fleet too) but lose the AI tab, since AI is a
-  // private-flow feature now hidden from the business side menu via
-  // personalOnly. Keeping it on the bottom bar would re-surface a
-  // feature the menu intentionally hides — confusing.
+  // Managers / owners in a business workspace keep MOST of the personal
+  // tabs (FindGarage, Documents, Accidents are universal). Two changes
+  // for them vs. personal users:
+  //   • "ראשי" points to BusinessDashboard, not the personal Dashboard.
+  //     Personal Dashboard was hidden from the business sidebar; keeping
+  //     the bottom-nav tab pointing there would be inconsistent.
+  //   • AI tab is removed (private-flow feature; hidden from the menu
+  //     via personalOnly).
+  // Viewers don't have BusinessDashboard access (managerOnly), so they
+  // fall back to the personal Dashboard route as before — the page
+  // itself is a safe non-interactive overview.
   let tabs;
   if (isBusiness && isDriver && !canManageRoutes) {
     tabs = DRIVER_TABS;
+  } else if (isBusiness && canManageRoutes) {
+    tabs = PERSONAL_TABS
+      .filter(t => !t.isAi)
+      .map(t => t.path === 'Dashboard'
+        ? { ...t, label: 'דשבורד', path: 'BusinessDashboard', icon: LayoutDashboard, relatedPaths: undefined }
+        : t);
   } else if (isBusiness) {
+    // Viewer in business workspace: no BusinessDashboard access.
     tabs = PERSONAL_TABS.filter(t => !t.isAi);
   } else {
     tabs = PERSONAL_TABS;
