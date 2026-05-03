@@ -89,7 +89,10 @@ const navItems = [
   { name: 'Dashboard',          label: 'דף הבית', icon: LayoutDashboard, guestAllowed: true, hideForBusinessDriver: true },
   { name: 'vehicle-check',      label: 'בדוק רכב', icon: Car,             guestAllowed: true },
   { name: 'Vehicles',           label: 'רכבים',   icon: Car,             guestAllowed: true, hideForBusinessDriver: true },
-  { name: 'Vehicles?category=vessel', label: 'כלי שייט', icon: Ship,    guestAllowed: true, vesselOnly: true, hideForBusinessDriver: true },
+  // Vessels are a private-account feature (no fleet equivalent + the
+  // vessel-checklist UX assumes one owner). Hidden for any business
+  // workspace context, manager or driver, regardless of vesselOnly.
+  { name: 'Vehicles?category=vessel', label: 'כלי שייט', icon: Ship,    guestAllowed: true, vesselOnly: true, personalOnly: true },
 
   // ====================================================================
   // תחזוקה — vehicle care. FindGarage moved here from its own "כלים"
@@ -98,20 +101,24 @@ const navItems = [
   // ====================================================================
   { divider: true, title: 'תחזוקה' },
   { name: 'MaintenanceTemplates', label: 'טיפולים', icon: Wrench,        guestAllowed: true },
-  { name: 'MyExpenses',         label: 'מחשבון הוצאות', icon: Wallet,    guestAllowed: false, hideForBusinessDriver: true },
+  // MyExpenses (מחשבון הוצאות) is the PRIVATE-account expenses screen;
+  // the page itself redirects business users to /Expenses, so leaving
+  // it in the menu was misleading. personalOnly hides it from every
+  // business workspace context.
+  { name: 'MyExpenses',         label: 'מחשבון הוצאות', icon: Wallet,    guestAllowed: false, personalOnly: true },
   { name: 'Documents',          label: 'מסמכים',  icon: FileText,        guestAllowed: true },
   { name: 'Accidents',          label: 'תאונות',  icon: AlertTriangle,   guestAllowed: true },
   { name: 'FindGarage',         label: 'מצא מוסך', icon: MapPin,         guestAllowed: true },
 
   // ====================================================================
-  // קהילה — Community + Expert AI. Both are personal-flow surfaces and
-  // intentionally hidden from business drivers (they're working on
-  // company time; these are off-task). The driverHidesIfFlag option
-  // lets a manager re-surface them via BusinessSettings.
+  // קהילה — Community + Expert AI. Both are private-flow surfaces with
+  // no business equivalent. Hidden from every business context (manager
+  // + driver) via personalOnly. A manager who wants them can switch to
+  // their personal workspace via WorkspaceSwitcher.
   // ====================================================================
-  { divider: true, title: 'קהילה' },
-  { name: 'Community',          label: 'קהילה וייעוץ', icon: Users,    guestAllowed: true, hideForBusinessDriver: true, driverHidesIfFlag: 'driver_hide_community' },
-  { name: 'AiAssistant',        label: 'מומחה AI',      icon: Sparkles, guestAllowed: true, hideForBusinessDriver: true, driverHidesIfFlag: 'driver_hide_ai' },
+  { divider: true, title: 'קהילה', personalOnly: true },
+  { name: 'Community',          label: 'קהילה וייעוץ', icon: Users,    guestAllowed: true, personalOnly: true },
+  { name: 'AiAssistant',        label: 'מומחה AI',      icon: Sparkles, guestAllowed: true, personalOnly: true },
 
   // ====================================================================
   // חשבון — settings, account-level actions. The unified Settings hub
@@ -257,7 +264,11 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   const visibleItems = roleLoading ? [] : navItems.filter(item =>
     (item.divider ? (
       (!item.adminOnly    || isAdmin) &&
-      (!item.businessOnly || (isBusiness && businessAccess))
+      (!item.businessOnly || (isBusiness && businessAccess)) &&
+      // Personal-only dividers (e.g. "קהילה") disappear in every
+      // business context; the orphan-divider trim further down would
+      // also remove them, but explicit is clearer.
+      (!item.personalOnly || !isBusiness)
     ) : (
       (isAuthenticated || item.guestAllowed) &&
       (!item.adminOnly     || isAdmin) &&
@@ -266,6 +277,11 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
       (!item.driverOnly    || canDriveRoutes) &&
       (!item.ownerOnly     || isOwner) &&
       (!item.vesselOnly    || hasVessel) &&
+      // Personal-flow items that have no business equivalent or have
+      // a business equivalent elsewhere. Hidden for every business
+      // workspace context (manager + driver) — the user can switch to
+      // a personal workspace via WorkspaceSwitcher to access them.
+      (!item.personalOnly  || !isBusiness) &&
       // Driver in business workspace — hide items the manager flagged.
       !(isBusiness && isDriver && item.driverHidesIfFlag && businessMeta?.[item.driverHidesIfFlag]) &&
       // Items with no business semantics for a driver (the personal

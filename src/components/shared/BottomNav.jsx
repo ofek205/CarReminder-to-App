@@ -40,10 +40,20 @@ export default function BottomNav({ sheetOpen = false }) {
   // devices and to register a stray tap on the wrong tab.
   if (roleLoading) return null;
   // Drivers in a business workspace get a business-flavoured tab bar.
-  // Managers / owners / viewers in a business workspace keep the
-  // personal tabs since they ALSO use the personal-flow pages
-  // (FindGarage, etc.) regularly.
-  const tabs = (isBusiness && isDriver && !canManageRoutes) ? DRIVER_TABS : PERSONAL_TABS;
+  // Managers / owners / viewers in a business workspace keep MOST of
+  // the personal tabs (FindGarage, Documents, Accidents — they use
+  // those for their fleet too) but lose the AI tab, since AI is a
+  // private-flow feature now hidden from the business side menu via
+  // personalOnly. Keeping it on the bottom bar would re-surface a
+  // feature the menu intentionally hides — confusing.
+  let tabs;
+  if (isBusiness && isDriver && !canManageRoutes) {
+    tabs = DRIVER_TABS;
+  } else if (isBusiness) {
+    tabs = PERSONAL_TABS.filter(t => !t.isAi);
+  } else {
+    tabs = PERSONAL_TABS;
+  }
   const primaryPath = createPageUrl(''); // e.g., '/'
 
   // Figure out which tab is active. An exact match on the tab's own route wins;
