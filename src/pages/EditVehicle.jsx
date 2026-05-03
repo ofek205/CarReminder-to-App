@@ -61,8 +61,13 @@ export default function EditVehicle() {
   // Sprint A.B-2: storage-backed photo upload for authenticated users.
   // Guests still use the legacy compress-then-base64 path inside handlePhoto;
   // for them this hook is unused (handlePhoto branches before calling upload).
+  // vehicleId is required so the path becomes `{accountId}/{vehicleId}/...`,
+  // which is what the vehicle_files_insert RLS policy expects. Without it
+  // the hook falls back to `scans/{accountId}` which RLS rejects (the scans
+  // branch checks auth.uid(), not account_id).
   const { upload: uploadPhotoToStorage } = useFileUpload({
     accountId,
+    vehicleId,
     mode: 'photo',
     maxMB: 10,
   });

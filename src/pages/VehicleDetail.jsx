@@ -594,8 +594,13 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   // (so reads can re-sign after the URL expires).
   const heroFileInputRef = useRef(null);
   const [uploadingHeroPhoto, setUploadingHeroPhoto] = useState(false);
+  // accountId + vehicleId together so the upload path is
+  // `{accountId}/{vehicleId}/...` — the form the vehicle_files_insert
+  // RLS policy expects. Without vehicleId the hook would fall back to
+  // `scans/{accountId}` which RLS rejects (scans branch checks auth.uid).
   const { upload: uploadHeroPhoto } = useFileUpload({
     accountId: vehicle?.account_id,
+    vehicleId,
     mode: 'photo',
     maxMB: 10,
   });
