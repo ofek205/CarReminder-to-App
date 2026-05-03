@@ -11,7 +11,11 @@
  * its assets in-app, so there's nothing for a SW to do there).
  */
 
-const CACHE_VERSION = 'cr-v1';
+// Bump on each release that changes Vite chunk names. The activate
+// handler purges any cache whose name doesn't start with this prefix,
+// so existing browsers will discard stale `cr-v1-*` entries on next
+// visit and re-fetch fresh assets that match the new index.html.
+const CACHE_VERSION = 'cr-v2-9-0';
 const APP_SHELL = `${CACHE_VERSION}-shell`;
 const ASSETS    = `${CACHE_VERSION}-assets`;
 const TILES     = `${CACHE_VERSION}-tiles`;
