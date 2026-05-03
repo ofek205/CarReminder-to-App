@@ -278,25 +278,16 @@ export default function AuthPage() {
             error = r.error;
           }
           if (!error) {
-            // Mirror the freshly-verified session into the main
-            // `supabase` client. Without this, the main client's
-            // in-memory state stays empty until the next page load,
-            // and the immediate `updateUser({ password })` call below
-            // can fail with "no session". Both clients share the
-            // same storage key, so setSession just hydrates the
-            // in-memory Session from the same tokens.
-            try {
-              const { data } = await supabaseRecovery.auth.getSession();
-              if (data?.session) {
-                await supabase.auth.setSession({
-                  access_token:  data.session.access_token,
-                  refresh_token: data.session.refresh_token,
-                });
-              }
-            } catch (e) {
-              // eslint-disable-next-line no-console
-              console.warn('session mirror failed:', e?.message);
-            }
+            // Intentionally NOT mirroring the recovery session into
+            // the main `supabase` client here. If we did, the main
+            // client would be considered authenticated immediately,
+            // which causes the Layout chrome (sidebar with menu items,
+            // notification bell, etc.) to render UNDER the password
+            // form — confusing because the user hasn't actually
+            // committed a new password yet. Keep the recovery session
+            // siloed inside `supabaseRecovery`; we use it for the
+            // updateUser call when the user submits the new password,
+            // and only THEN mirror to the main client.
             setMode('update-password');
             setHoldForRecovery(false);
             // Strip the token from the visible URL so a hard refresh
@@ -653,16 +644,34 @@ export default function AuthPage() {
         return;
       }
       if (mode === 'update-password') {
-        // User followed a recovery email link; Supabase converted the
-        // fragment token into an active session on page load. All we need
-        // is a new password.
+        // User followed a recovery email link. The recovery session
+        // lives in `supabaseRecovery` (not the main client), so the
+        // Layout chrome doesn't show until we explicitly mirror.
         if (password.length < 8)            { setError('הסיסמה חייבת להכיל לפחות 8 תווים'); setLoading(false); return; }
         if (!/[A-Za-z]/.test(password))     { setError('הסיסמה חייבת לכלול אות'); setLoading(false); return; }
         if (!/[0-9]/.test(password))        { setError('הסיסמה חייבת לכלול ספרה'); setLoading(false); return; }
-        const { error } = await supabase.auth.updateUser({ password });
+        // Run updateUser on the recovery client — that's where the
+        // session from verifyOtp lives.
+        const { error } = await supabaseRecovery.auth.updateUser({ password });
         if (error) {
           setError(error.message || 'עדכון הסיסמה נכשל');
         } else {
+          // Now (and ONLY now) mirror the session to the main client
+          // so the user is authenticated for the redirect to /. Doing
+          // this earlier caused the menu chrome to render under the
+          // password form, which read as "I'm already logged in".
+          try {
+            const { data } = await supabaseRecovery.auth.getSession();
+            if (data?.session) {
+              await supabase.auth.setSession({
+                access_token:  data.session.access_token,
+                refresh_token: data.session.refresh_token,
+              });
+            }
+          } catch (mirrorErr) {
+            // eslint-disable-next-line no-console
+            console.warn('post-update session mirror failed:', mirrorErr?.message);
+          }
           // Clear the recovery-flow marker so a future tab on the same
           // browser doesn't get re-trapped into update-password mode.
           try {
