@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
+import { supabaseRecovery } from '@/lib/supabaseRecovery';
 import { useAuth } from '@/components/shared/GuestContext';
 import { isNative } from '@/lib/capacitor';
 import logo from '@/assets/logo.png';
@@ -259,16 +260,43 @@ export default function AuthPage() {
         try {
           let error;
           if (tokenHash.startsWith('pkce_')) {
+            // Legacy PKCE-bound token (from before we switched the
+            // recovery flow to implicit). Still works in the originating
+            // browser; fails cross-device. Keep the branch so any
+            // pending old emails in the wild can still reset.
             const r = await supabase.auth.exchangeCodeForSession(tokenHash);
             error = r.error;
           } else {
-            const r = await supabase.auth.verifyOtp({
+            // Implicit-flow token: verifyOtp validates server-side
+            // without any browser-local state. Works on any device.
+            // We use supabaseRecovery (same storage as `supabase`) so
+            // the resulting session is shared with the rest of the app.
+            const r = await supabaseRecovery.auth.verifyOtp({
               token_hash: tokenHash,
               type: 'recovery',
             });
             error = r.error;
           }
           if (!error) {
+            // Mirror the freshly-verified session into the main
+            // `supabase` client. Without this, the main client's
+            // in-memory state stays empty until the next page load,
+            // and the immediate `updateUser({ password })` call below
+            // can fail with "no session". Both clients share the
+            // same storage key, so setSession just hydrates the
+            // in-memory Session from the same tokens.
+            try {
+              const { data } = await supabaseRecovery.auth.getSession();
+              if (data?.session) {
+                await supabase.auth.setSession({
+                  access_token:  data.session.access_token,
+                  refresh_token: data.session.refresh_token,
+                });
+              }
+            } catch (e) {
+              // eslint-disable-next-line no-console
+              console.warn('session mirror failed:', e?.message);
+            }
             setMode('update-password');
             setHoldForRecovery(false);
             // Strip the token from the visible URL so a hard refresh
@@ -574,7 +602,12 @@ export default function AuthPage() {
       }
       if (mode === 'reset') {
         if (!email.trim()) { setError('יש להזין כתובת אימייל'); setLoading(false); return; }
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        // Routed through `supabaseRecovery` (implicit flow) so the
+        // email's token isn't PKCE-bound to this browser's
+        // localStorage. The user can open the link on a different
+        // device/browser/incognito and verifyOtp will succeed. See
+        // src/lib/supabaseRecovery.js for the rationale.
+        const { error } = await supabaseRecovery.auth.resetPasswordForEmail(email, {
           redirectTo: getEmailRedirectBase() + '/Auth?mode=update-password',
         });
         if (error) {
