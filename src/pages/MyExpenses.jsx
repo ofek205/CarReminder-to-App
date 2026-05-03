@@ -502,10 +502,10 @@ export default function MyExpenses() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2" style={{ color: C.text }}>
             <Wallet className="w-5 h-5" style={{ color: C.primary }} />
-            הוצאות רכב
+            מחשבון הוצאות
           </h1>
           <p className="text-xs sm:text-sm mt-0.5" style={{ color: C.muted }}>
-            נהל את כל ההוצאות של הרכב במקום אחד
+            סכמו, סננו וייצאו את כל ההוצאות של הרכבים שלכם במקום אחד
           </p>
         </div>
 

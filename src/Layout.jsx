@@ -98,7 +98,7 @@ const navItems = [
   // ====================================================================
   { divider: true, title: 'תחזוקה' },
   { name: 'MaintenanceTemplates', label: 'טיפולים', icon: Wrench,        guestAllowed: true },
-  { name: 'MyExpenses',         label: 'הוצאות רכב', icon: Wallet,       guestAllowed: false, hideForBusinessDriver: true },
+  { name: 'MyExpenses',         label: 'מחשבון הוצאות', icon: Wallet,    guestAllowed: false, hideForBusinessDriver: true },
   { name: 'Documents',          label: 'מסמכים',  icon: FileText,        guestAllowed: true },
   { name: 'Accidents',          label: 'תאונות',  icon: AlertTriangle,   guestAllowed: true },
   { name: 'FindGarage',         label: 'מצא מוסך', icon: MapPin,         guestAllowed: true },
