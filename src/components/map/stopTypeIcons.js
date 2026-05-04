@@ -7,11 +7,14 @@
 //   meeting          — two people
 //   inspection       — clipboard with check
 //   vehicle_service  — wrench
-//   other            — null → marker falls back to the sequence number
+//   other / unset    — neutral hollow dot (FALLBACK_ICON below)
 //
-// `null` is intentional — `MapCore.buildMarkerIcon` prioritises iconSvg
-// over number. When stop_type is "other" or missing, we want the number
-// fallback, not a generic pin.
+// We never render a sequence-number marker on the map any more — that
+// proved confusing because numbers and "type" felt like two competing
+// signals. Every marker now gets an icon: a specific one when
+// stop_type is known, or a small neutral dot when it isn't.
+
+const FALLBACK_ICON = `<circle cx="12" cy="12" r="4"/>`;
 
 export const STOP_TYPE_ICON_SVG = {
   pickup:
@@ -24,12 +27,15 @@ export const STOP_TYPE_ICON_SVG = {
     `<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 12 2 2 4-4"/><rect width="8" height="4" x="8" y="2" rx="1"/>`,
   vehicle_service:
     `<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>`,
+  // 'other' stays as null in this map so popup labels can detect the
+  // explicit choice. The function below converts both null and missing
+  // to the neutral fallback icon.
   other: null,
 };
 
 export function iconSvgForStopType(stopType) {
-  if (!stopType) return null;
-  return STOP_TYPE_ICON_SVG[stopType] || null;
+  if (!stopType) return FALLBACK_ICON;
+  return STOP_TYPE_ICON_SVG[stopType] || FALLBACK_ICON;
 }
 
 export const STOP_TYPE_LABEL = {

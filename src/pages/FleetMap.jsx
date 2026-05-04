@@ -262,23 +262,20 @@ export default function FleetMap() {
   //
   // Marker symbol is driven by stop_type — pickup/delivery/meeting/
   // inspection/vehicle_service map to inline SVG icons; "other" or
-  // unset falls back to the sequence number so manager still sees
-  // ordering. Icon priority over number is enforced inside MapCore.
+  // unset stop_type gets a neutral dot so the marker always shows an
+  // icon (no confusing number/icon mix). The stop's sequence is still
+  // shown inside the popup ("תחנה X מתוך Y").
   const mapMarkers = useMemo(() => {
     return filteredStops
       .filter(s => Number.isFinite(s.latitude) && Number.isFinite(s.longitude))
       .map(s => {
         const route = filteredRoutes.find(r => r.id === s.route_id);
         if (!route) return null;
-        const iconSvg = iconSvgForStopType(s.stop_type);
         return {
           id: s.id,
           lat: s.latitude,
           lng: s.longitude,
-          // No type icon → fall back to the sequence number so the
-          // manager still sees ordering on the map.
-          number: iconSvg ? undefined : s.sequence,
-          iconSvg: iconSvg || undefined,
+          iconSvg: iconSvgForStopType(s.stop_type),
           color: colorByRouteId[s.route_id] || '#1565C0',
           stop: s,
           route,
