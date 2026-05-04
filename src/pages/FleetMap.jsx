@@ -34,7 +34,6 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { createPageUrl } from '@/utils';
-import MobileBackButton from '@/components/shared/MobileBackButton';
 import { DateInput } from '@/components/ui/date-input';
 import {
   colorForStop, labelForStop, isStopTerminal,
@@ -42,6 +41,19 @@ import {
 import { iconSvgForStopType, STOP_TYPE_LABEL } from '@/components/map/stopTypeIcons';
 import { colorFromKey } from '@/lib/colorPalette';
 import NavigateButton from '@/components/map/NavigateButton';
+// Living Dashboard system - shared with all B2B pages.
+import { PageShell, Card } from '@/components/business/system';
+
+// Map a route status to a Living Dashboard accent for the side-list
+// task card stripe. Keeps the map's per-route colored polylines as the
+// visual key for "which route is which" while the system accent gives
+// a quick read on completion state.
+const ROUTE_STATUS_ACCENT = {
+  pending:     'amber',
+  in_progress: 'blue',
+  completed:   'emerald',
+  cancelled:   'red',
+};
 
 // Lazy MapCore — keeps the initial bundle lean. Filters + side list
 // remain usable while Leaflet streams in.
@@ -339,40 +351,37 @@ export default function FleetMap() {
   ].filter(Boolean).length;
 
   return (
-    <div dir="rtl" className="max-w-6xl mx-auto py-2 px-3 pb-24">
-      <MobileBackButton />
-
-      {/* Header */}
-      <div className="mb-3">
-        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <MapIcon className="h-5 w-5 text-[#2D5233]" />
-          מפת משימות
-        </h1>
-        <p className="text-[11px] text-gray-500 mt-0.5">
-          תצוגה גיאוגרפית של תחנות הצי לפי מסננים. ברירת מחדל: משימות פעילות להיום.
-        </p>
-      </div>
-
-      {/* Mobile: filters toggle. Desktop: filters always visible. */}
-      <div className="md:hidden mb-2">
+    <PageShell
+      title="מפת משימות"
+      subtitle="תצוגה גיאוגרפית של תחנות הצי לפי מסננים. ברירת מחדל: משימות פעילות להיום."
+      actions={(
         <button
           type="button"
           onClick={() => setFiltersOpen(o => !o)}
-          className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-700"
+          className="md:hidden flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98] border"
+          style={activeFilters > 0
+            ? {
+                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                color: '#FFFFFF',
+                borderColor: '#065F46',
+                boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
+              }
+            : { background: '#FFFFFF', color: '#10B981', borderColor: '#D1FAE5' }}
         >
-          <span className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-[#2D5233]" />
-            מסננים
-            {activeFilters > 0 && (
-              <span className="bg-[#2D5233] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                {activeFilters}
-              </span>
-            )}
-          </span>
-          {filtersOpen ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+          <Filter className="h-3.5 w-3.5" />
+          מסננים
+          {activeFilters > 0 && (
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{ background: 'rgba(255,255,255,0.25)' }}
+            >
+              {activeFilters}
+            </span>
+          )}
+          {filtersOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
         </button>
-      </div>
-
+      )}
+    >
       <div className={`md:block ${filtersOpen ? 'block' : 'hidden'} mb-3`}>
         <FilterBar
           dateMode={dateMode} setDateMode={setDateMode}
@@ -389,30 +398,52 @@ export default function FleetMap() {
         />
       </div>
 
-      {/* Status strip */}
-      <div className="mb-2 text-[11px] text-gray-500 flex items-center gap-2 flex-wrap">
-        <span>{filteredRoutes.length} משימות</span>
-        <span>·</span>
-        <span>{mappableStops} תחנות במפה</span>
+      {/* Status strip — quick read of what's plotted right now. Pill
+          chips read better than dot-separated text on a colored canvas. */}
+      <div className="mb-3 flex items-center gap-1.5 flex-wrap">
+        <span
+          className="px-2 py-1 rounded-md text-[11px] font-bold inline-flex items-center gap-1 tabular-nums"
+          style={{ background: '#D1FAE5', color: '#065F46' }}
+          dir="ltr"
+        >
+          <MapIcon className="h-3 w-3" />
+          {filteredRoutes.length} משימות
+        </span>
+        <span
+          className="px-2 py-1 rounded-md text-[11px] font-bold inline-flex items-center gap-1 tabular-nums"
+          style={{ background: '#DBEAFE', color: '#1E40AF' }}
+          dir="ltr"
+        >
+          <MapPin className="h-3 w-3" />
+          {mappableStops} תחנות במפה
+        </span>
         {missingCoords > 0 && (
-          <>
-            <span>·</span>
-            <span className="text-amber-700 flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              {missingCoords} ללא קואורדינטות
-            </span>
-          </>
+          <span
+            className="px-2 py-1 rounded-md text-[11px] font-bold inline-flex items-center gap-1 tabular-nums"
+            style={{ background: '#FEF3C7', color: '#92400E' }}
+            dir="ltr"
+          >
+            <AlertTriangle className="h-3 w-3" />
+            {missingCoords} ללא קואורדינטות
+          </span>
         )}
-        <span>·</span>
-        <span>צביעה לפי {colorByRoute ? 'משימה' : 'נהג'}</span>
+        <span
+          className="px-2 py-1 rounded-md text-[11px] font-bold"
+          style={{ background: '#F0F7F4', color: '#4B5D52' }}
+        >
+          צביעה לפי {colorByRoute ? 'משימה' : 'נהג'}
+        </span>
       </div>
 
       {/* Layout: map on top, list below on mobile; map + list side-by-side on desktop */}
       <div className="md:grid md:grid-cols-[1fr_360px] md:gap-3">
         {/* Map */}
-        <div>
+        <div className="rounded-2xl overflow-hidden border" style={{ borderColor: '#E5EDE8' }}>
           <Suspense fallback={
-            <div className="rounded-2xl bg-gray-50 border border-gray-100 h-[40vh] min-h-[280px] flex items-center justify-center text-xs text-gray-500">
+            <div
+              className="h-[40vh] min-h-[280px] flex items-center justify-center text-xs"
+              style={{ background: '#F0F7F4', color: '#6B7C72' }}
+            >
               טוען מפה...
             </div>
           }>
@@ -444,11 +475,24 @@ export default function FleetMap() {
 
         {/* Side / Bottom list */}
         <div className="mt-3 md:mt-0">
-          <h2 className="text-sm font-bold text-gray-700 mb-2">משימות מסוננות</h2>
+          <h2
+            className="text-sm font-bold mb-2.5 flex items-center gap-2"
+            style={{ color: '#0B2912' }}
+          >
+            <span
+              className="inline-block w-1 h-4 rounded-full"
+              style={{ background: 'linear-gradient(180deg, #065F46 0%, #34D399 100%)' }}
+            />
+            משימות מסוננות
+          </h2>
           {isLoading ? (
-            <p className="text-xs text-gray-400 text-center py-6">טוען...</p>
+            <Card className="text-center py-8">
+              <p className="text-xs" style={{ color: '#6B7C72' }}>טוען...</p>
+            </Card>
           ) : filteredRoutes.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-6">לא נמצאו משימות לפי המסננים.</p>
+            <Card className="text-center py-8">
+              <p className="text-xs" style={{ color: '#A7B3AB' }}>לא נמצאו משימות לפי המסננים.</p>
+            </Card>
           ) : (
             <div className="space-y-2 md:max-h-[55vh] md:overflow-y-auto md:pr-1">
               {filteredRoutes.map(r => (
@@ -465,7 +509,7 @@ export default function FleetMap() {
           )}
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -488,11 +532,30 @@ function FilterBar({
     );
   };
 
+  // Pill style helpers — reused across the date / status / stop-type
+  // chip rows so all three have identical visual rhythm.
+  const activePillStyle = {
+    background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+    color: '#FFFFFF',
+    borderColor: '#065F46',
+    boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
+  };
+  const inactivePillStyle = {
+    background: '#FFFFFF',
+    color: '#4B5D52',
+    borderColor: '#E5EDE8',
+  };
+  const labelStyle = { color: '#0B2912' };
+  const inputStyle = { background: '#FFFFFF', borderColor: '#D1FAE5', color: '#0B2912' };
+
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-3 space-y-3">
+    <Card accent="emerald" className="space-y-3">
       {/* Date range */}
       <div>
-        <p className="text-[11px] font-bold text-gray-500 mb-1.5">טווח תאריכים</p>
+        <p className="text-[11px] font-bold mb-1.5" style={labelStyle}>
+          <Calendar className="inline h-3 w-3 ms-0 me-1" style={{ color: '#10B981' }} />
+          טווח תאריכים
+        </p>
         <div className="flex gap-1.5 flex-wrap">
           {[
             { v: 'today',    label: 'היום' },
@@ -504,11 +567,8 @@ function FilterBar({
               key={opt.v}
               type="button"
               onClick={() => setDateMode(opt.v)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                dateMode === opt.v
-                  ? 'bg-[#2D5233] text-white'
-                  : 'bg-gray-50 text-gray-700 border border-gray-200'
-              }`}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-[1.03] active:scale-[0.97] border"
+              style={dateMode === opt.v ? activePillStyle : inactivePillStyle}
             >
               {opt.label}
             </button>
@@ -516,8 +576,8 @@ function FilterBar({
         </div>
         {dateMode === 'custom' && (
           <div className="grid grid-cols-2 gap-2 mt-2">
-            <DateInput value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="h-9 rounded-xl text-xs" />
-            <DateInput value={customEnd}   onChange={(e) => setCustomEnd(e.target.value)}   className="h-9 rounded-xl text-xs" />
+            <DateInput value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="h-9 rounded-xl text-xs" style={inputStyle} />
+            <DateInput value={customEnd}   onChange={(e) => setCustomEnd(e.target.value)}   className="h-9 rounded-xl text-xs" style={inputStyle} />
           </div>
         )}
       </div>
@@ -525,11 +585,15 @@ function FilterBar({
       {/* Driver / Vehicle */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
-          <p className="text-[11px] font-bold text-gray-500 mb-1">נהג</p>
+          <p className="text-[11px] font-bold mb-1" style={labelStyle}>
+            <UserIcon className="inline h-3 w-3 ms-0 me-1" style={{ color: '#10B981' }} />
+            נהג
+          </p>
           <select
             value={driverId}
             onChange={(e) => setDriverId(e.target.value)}
-            className="w-full h-9 rounded-xl border border-gray-200 bg-white text-sm px-3"
+            className="w-full h-10 rounded-xl border text-sm px-3"
+            style={inputStyle}
             dir="rtl"
           >
             <option value="">כל הנהגים</option>
@@ -539,11 +603,15 @@ function FilterBar({
           </select>
         </div>
         <div>
-          <p className="text-[11px] font-bold text-gray-500 mb-1">רכב</p>
+          <p className="text-[11px] font-bold mb-1" style={labelStyle}>
+            <Truck className="inline h-3 w-3 ms-0 me-1" style={{ color: '#10B981' }} />
+            רכב
+          </p>
           <select
             value={vehicleId}
             onChange={(e) => setVehicleId(e.target.value)}
-            className="w-full h-9 rounded-xl border border-gray-200 bg-white text-sm px-3"
+            className="w-full h-10 rounded-xl border text-sm px-3"
+            style={inputStyle}
             dir="rtl"
           >
             <option value="">כל הרכבים</option>
@@ -558,7 +626,7 @@ function FilterBar({
 
       {/* Status */}
       <div>
-        <p className="text-[11px] font-bold text-gray-500 mb-1.5">סטטוס משימה</p>
+        <p className="text-[11px] font-bold mb-1.5" style={labelStyle}>סטטוס משימה</p>
         <div className="flex gap-1.5 flex-wrap">
           {STATUS_OPTIONS.map(opt => {
             const on = statusFilter.includes(opt.value);
@@ -567,11 +635,8 @@ function FilterBar({
                 key={opt.value}
                 type="button"
                 onClick={() => toggleStatus(opt.value)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  on
-                    ? 'bg-[#E8F2EA] text-[#2D5233] border border-[#2D5233]/30'
-                    : 'bg-gray-50 text-gray-500 border border-gray-200'
-                }`}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-[1.03] active:scale-[0.97] border"
+                style={on ? activePillStyle : inactivePillStyle}
               >
                 {opt.label}
               </button>
@@ -583,11 +648,12 @@ function FilterBar({
       {/* Stop type + flags */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
-          <p className="text-[11px] font-bold text-gray-500 mb-1">סוג תחנה</p>
+          <p className="text-[11px] font-bold mb-1" style={labelStyle}>סוג תחנה</p>
           <select
             value={stopType}
             onChange={(e) => setStopType(e.target.value)}
-            className="w-full h-9 rounded-xl border border-gray-200 bg-white text-sm px-3"
+            className="w-full h-10 rounded-xl border text-sm px-3"
+            style={inputStyle}
             dir="rtl"
           >
             {STOP_TYPE_OPTIONS.map(o => (
@@ -596,17 +662,37 @@ function FilterBar({
           </select>
         </div>
         <div className="flex items-end gap-2">
-          <label className="flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-bold cursor-pointer">
-            <input type="checkbox" checked={overdueOnly} onChange={(e) => setOverdueOnly(e.target.checked)} />
+          <label
+            className="flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold cursor-pointer"
+            style={overdueOnly
+              ? { background: '#FFFBEB', color: '#92400E', borderColor: '#FCD34D' }
+              : { background: '#FFFFFF', color: '#4B5D52', borderColor: '#E5EDE8' }}
+          >
+            <input
+              type="checkbox"
+              checked={overdueOnly}
+              onChange={(e) => setOverdueOnly(e.target.checked)}
+              className="accent-[#F59E0B]"
+            />
             <span>באיחור בלבד</span>
           </label>
-          <label className="flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-bold cursor-pointer">
-            <input type="checkbox" checked={unassignedOnly} onChange={(e) => setUnassignedOnly(e.target.checked)} />
+          <label
+            className="flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold cursor-pointer"
+            style={unassignedOnly
+              ? { background: '#EFF6FF', color: '#1E40AF', borderColor: '#BFDBFE' }
+              : { background: '#FFFFFF', color: '#4B5D52', borderColor: '#E5EDE8' }}
+          >
+            <input
+              type="checkbox"
+              checked={unassignedOnly}
+              onChange={(e) => setUnassignedOnly(e.target.checked)}
+              className="accent-[#3B82F6]"
+            />
             <span>ללא נהג בלבד</span>
           </label>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -671,19 +757,33 @@ function FleetTaskCard({ route, stops, driverName, vehicleName, color }) {
   const completed = stops.filter(s => s.status === 'completed').length;
   const allDone   = total > 0 && stops.every(s => isStopTerminal(s.status));
   const pct       = total > 0 ? Math.round((completed / total) * 100) : 0;
+  // Card accent ties to route status (matches RouteDetail / DrivingLog
+  // vocabulary). The map's per-route color is preserved as a thicker
+  // right-edge stripe on top of the accent so the manager can still
+  // read "this card = this colored line on the map".
+  const accent = ROUTE_STATUS_ACCENT[route.status] || 'amber';
   return (
-    <div
-      className="bg-white border border-gray-100 rounded-xl p-3"
-      style={{ borderRightWidth: '4px', borderRightColor: color }}
+    <Card
+      accent={accent}
+      padding="p-3"
+      // The system Card already paints a 2px accent-tone stripe at top.
+      // Add a 4px right-edge stripe in the route's polyline color so
+      // matching the side-list row to its line on the map stays a one-
+      // glance affordance. The color comes from the parent's
+      // colorByRouteId map (driver-keyed or route-keyed).
+      style={{ borderRight: `4px solid ${color}` }}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-gray-900 truncate">{route.title}</p>
-          <div className="flex items-center gap-2 text-[10px] text-gray-500 flex-wrap mt-0.5">
+          <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{route.title}</p>
+          <div className="flex items-center gap-2 text-[10px] flex-wrap mt-1" style={{ color: '#6B7C72' }}>
             <span className="flex items-center gap-1"><UserIcon className="h-2.5 w-2.5" /> {driverName}</span>
             <span className="flex items-center gap-1"><Truck className="h-2.5 w-2.5" /> {vehicleName}</span>
             {route.scheduled_for && (
-              <span className="flex items-center gap-1"><Calendar className="h-2.5 w-2.5" /> {new Date(route.scheduled_for).toLocaleDateString('he-IL')}</span>
+              <span className="flex items-center gap-1 tabular-nums" dir="ltr">
+                <Calendar className="h-2.5 w-2.5" />
+                {new Date(route.scheduled_for).toLocaleDateString('he-IL')}
+              </span>
             )}
           </div>
         </div>
@@ -691,10 +791,14 @@ function FleetTaskCard({ route, stops, driverName, vehicleName, color }) {
       {total > 0 && (
         <div className="mb-2">
           <div className="flex items-center justify-between text-[10px] mb-1">
-            <span className="font-bold text-gray-700">{allDone ? 'הושלמה' : 'התקדמות'}</span>
-            <span className="text-gray-500 tabular-nums">{completed}/{total} תחנות</span>
+            <span className="font-bold" style={{ color: '#0B2912' }}>
+              {allDone ? 'הושלמה' : 'התקדמות'}
+            </span>
+            <span className="tabular-nums" style={{ color: '#4B5D52' }} dir="ltr">
+              {completed}/{total} תחנות
+            </span>
           </div>
-          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F0F7F4' }}>
             <div
               className="h-full transition-all duration-300"
               style={{ width: `${pct}%`, background: color }}
@@ -704,12 +808,17 @@ function FleetTaskCard({ route, stops, driverName, vehicleName, color }) {
       )}
       <Link
         to={createPageUrl('RouteDetail') + '?id=' + route.id}
-        className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-[#E8F2EA] text-[#2D5233] text-[11px] font-bold border border-[#2D5233]/20"
+        className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg text-[11px] font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+        style={{
+          background: '#FFFFFF',
+          color: '#10B981',
+          border: '1.5px solid #D1FAE5',
+        }}
       >
         פתח משימה
         <ChevronLeft className="h-3 w-3" />
       </Link>
-    </div>
+    </Card>
   );
 }
 

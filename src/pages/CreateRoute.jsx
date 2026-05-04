@@ -39,9 +39,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { createPageUrl } from '@/utils';
 import VehiclePicker from '@/components/shared/VehiclePicker';
-import MobileBackButton from '@/components/shared/MobileBackButton';
 import AddressInput, { composeAddressText } from '@/components/shared/AddressInput';
 import { geocodeAddress } from '@/lib/geocode';
+// Living Dashboard system - shared with all B2B pages.
+// Imported as SystemCard because the local <Section> helper provides
+// the per-section surface in this form.
+import { PageShell, Card as SystemCard } from '@/components/business/system';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -371,24 +374,44 @@ export default function CreateRoute() {
   const populatedStopsCount = stops.filter(s => s.title.trim() || stopAddressText(s)).length;
 
   return (
-    <div dir="rtl" className="max-w-2xl mx-auto py-2">
-      <MobileBackButton />
-      {/* Header card */}
-      <div className="bg-gradient-to-l from-[#2D5233] to-[#3A6B42] text-white rounded-2xl p-4 mb-4 shadow-sm">
-        <div className="flex items-center gap-2 mb-1">
-          <ClipboardList className="h-4 w-4 opacity-80" />
-          <span className="text-[11px] font-bold opacity-90">משימה חדשה</span>
+    <PageShell
+      title="תכנון משימה לצי"
+      subtitle="קבע יעד, רכב ונהג. אם המשימה כוללת מסלול עם כמה תחנות, תוכל להוסיף אותן בהמשך."
+    >
+      {/* Hero card — matches the family of identity heroes used across
+          the B2B pages. The badge mirrors the badge style on
+          BusinessSettings's identity hero. */}
+      <SystemCard accent="emerald" className="mb-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center"
+            style={{
+              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              color: '#FFFFFF',
+              boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
+            }}
+          >
+            <ClipboardList className="h-6 w-6" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-bold inline-flex items-center gap-1 px-2 py-0.5 rounded-md"
+               style={{ background: '#D1FAE5', color: '#065F46' }}>
+              משימה חדשה
+            </p>
+            <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: '#4B5D52' }}>
+              ההיסטוריה תישמר ביומן הפעילות. הנהג יקבל התראה בכניסה הבאה לאפליקציה.
+            </p>
+          </div>
         </div>
-        <h1 className="text-xl font-bold">תכנון משימה לצי</h1>
-        <p className="text-[11px] opacity-85 mt-1 leading-relaxed">
-          קבע יעד, רכב ונהג. אם המשימה כוללת מסלול עם כמה תחנות —
-          תוכל להוסיף אותן בהמשך.
-        </p>
-      </div>
+      </SystemCard>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Section: כותרת המשימה */}
-        <Section title="פרטי המשימה" icon={<ClipboardList className="h-4 w-4 text-[#2D5233]" />}>
+        <Section
+          title="פרטי המשימה"
+          accent="emerald"
+          icon={<ClipboardList className="h-4 w-4" style={{ color: '#10B981' }} />}
+        >
           <Field label="שם המשימה" required>
             <Input
               type="text"
@@ -420,7 +443,11 @@ export default function CreateRoute() {
         </Section>
 
         {/* Section: רכב */}
-        <Section title="רכב למשימה" icon={<Truck className="h-4 w-4 text-[#2D5233]" />}>
+        <Section
+          title="רכב למשימה"
+          accent="blue"
+          icon={<Truck className="h-4 w-4" style={{ color: '#3B82F6' }} />}
+        >
           <Field label="בחר רכב" required>
             <VehiclePicker
               vehicles={vehicles}
@@ -432,13 +459,19 @@ export default function CreateRoute() {
             />
           </Field>
           {permanentDriver && (
-            <div className="bg-[#E8F2EA] border border-[#2D5233]/20 rounded-xl px-3 py-2.5 flex items-center gap-2">
-              <UserIcon className="h-4 w-4 text-[#2D5233] shrink-0" />
+            <div
+              className="rounded-xl px-3 py-2.5 flex items-center gap-2"
+              style={{ background: '#D1FAE5', border: '1px solid #A7F3D0' }}
+            >
+              <UserIcon className="h-4 w-4 shrink-0" style={{ color: '#065F46' }} />
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold text-[#2D5233]">נהג קבוע לרכב הזה</p>
-                <p className="text-xs text-gray-700 truncate">{permanentDriver.display_name}</p>
+                <p className="text-[11px] font-bold" style={{ color: '#065F46' }}>נהג קבוע לרכב הזה</p>
+                <p className="text-xs truncate" style={{ color: '#0B2912' }}>{permanentDriver.display_name}</p>
               </div>
-              <span className="text-[10px] font-bold text-[#2D5233] bg-white/60 px-2 py-0.5 rounded-full shrink-0">
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
+                style={{ background: 'rgba(255,255,255,0.7)', color: '#065F46' }}
+              >
                 שויך אוטומטית
               </span>
             </div>
@@ -446,7 +479,11 @@ export default function CreateRoute() {
         </Section>
 
         {/* Section: נהג */}
-        <Section title="שיוך נהג" icon={<UserIcon className="h-4 w-4 text-[#2D5233]" />}>
+        <Section
+          title="שיוך נהג"
+          accent="amber"
+          icon={<UserIcon className="h-4 w-4" style={{ color: '#F59E0B' }} />}
+        >
           <DriverPicker
             members={team}
             value={driverUserId}
@@ -468,7 +505,8 @@ export default function CreateRoute() {
         {/* Section: תחנות במסלול */}
         <Section
           title="תחנות במסלול"
-          icon={<MapPin className="h-4 w-4 text-[#2D5233]" />}
+          accent="purple"
+          icon={<MapPin className="h-4 w-4" style={{ color: '#A855F7' }} />}
           headerExtra={
             <span className="text-[10px] text-gray-400">
               {stops.length === 1
@@ -498,7 +536,12 @@ export default function CreateRoute() {
             <button
               type="button"
               onClick={addStop}
-              className="w-full py-2.5 rounded-xl border border-dashed border-gray-300 text-xs font-bold text-gray-600 active:bg-gray-50 hover:bg-gray-50 flex items-center justify-center gap-1.5 transition-all"
+              className="w-full py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01] active:scale-[0.99]"
+              style={{
+                background: '#FFFFFF',
+                color: '#10B981',
+                border: '1.5px dashed #A7F3D0',
+              }}
             >
               <Plus className="h-4 w-4" />
               הוסף תחנה
@@ -507,65 +550,89 @@ export default function CreateRoute() {
         </Section>
 
         {/* Task summary — compact recap right above the submit button */}
-        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-3">
-          <p className="text-[11px] font-bold text-gray-500 mb-2">סיכום משימה</p>
+        <SystemCard className="mb-0" padding="p-3">
+          <p
+            className="text-[11px] font-bold mb-2 flex items-center gap-2"
+            style={{ color: '#0B2912' }}
+          >
+            <span
+              className="inline-block w-1 h-3.5 rounded-full"
+              style={{ background: 'linear-gradient(180deg, #065F46 0%, #34D399 100%)' }}
+            />
+            סיכום משימה
+          </p>
           <div className="space-y-1.5">
             <SummaryRow
-              icon={<UserIcon className="h-3.5 w-3.5 text-gray-400" />}
+              icon={<UserIcon className="h-3.5 w-3.5" style={{ color: '#10B981' }} />}
               label="נהג"
               value={selectedDriver?.display_name || 'ללא שיוך'}
               missing={!selectedDriver}
             />
             <SummaryRow
-              icon={<Truck className="h-3.5 w-3.5 text-gray-400" />}
+              icon={<Truck className="h-3.5 w-3.5" style={{ color: '#10B981' }} />}
               label="רכב"
               value={selectedVehicle ? (selectedVehicle.nickname || selectedVehicle.license_plate) : '—'}
               missing={!selectedVehicle}
             />
             <SummaryRow
-              icon={<MapPin className="h-3.5 w-3.5 text-gray-400" />}
+              icon={<MapPin className="h-3.5 w-3.5" style={{ color: '#10B981' }} />}
               label="תחנות"
               value={String(populatedStopsCount || 0)}
               missing={populatedStopsCount === 0}
             />
             <SummaryRow
-              icon={<Calendar className="h-3.5 w-3.5 text-gray-400" />}
+              icon={<Calendar className="h-3.5 w-3.5" style={{ color: '#10B981' }} />}
               label="תאריך"
               value={scheduledFor ? formatHebrewDate(scheduledFor) : 'לא נקבע'}
               missing={!scheduledFor}
             />
           </div>
-        </div>
+        </SystemCard>
 
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full py-3 rounded-2xl font-bold text-sm bg-[#2D5233] text-white flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60 shadow-sm"
+        {/* Submit — primary CTA in the system gradient. Sticky at the
+            bottom of the form so it's always within thumb reach on
+            mobile, with a soft mint backdrop fade so the button reads
+            as a separate surface from the form above. */}
+        <div
+          className="sticky bottom-0 -mx-1 px-1 pt-3 pb-2 mt-2 z-10"
+          style={{
+            background: 'linear-gradient(180deg, rgba(240,247,244,0) 0%, #F0F7F4 60%)',
+          }}
         >
-          {submitting
-            ? <><Loader2 className="h-4 w-4 animate-spin" /> יוצר משימה...</>
-            : <>צור משימה <ArrowRight className="h-4 w-4 rotate-180" /></>}
-        </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-60"
+            style={{
+              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              color: '#FFFFFF',
+              boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+            }}
+          >
+            {submitting
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> יוצר משימה...</>
+              : <>צור משימה <ArrowRight className="h-4 w-4 rotate-180" /></>}
+          </button>
+        </div>
       </form>
-    </div>
+    </PageShell>
   );
 }
 
 // ---------- shared UI primitives -------------------------------------
 
-function Section({ title, icon, headerExtra, children }) {
+function Section({ title, icon, accent, headerExtra, children }) {
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
+    <SystemCard accent={accent} className="space-y-3">
       <div className="flex items-baseline justify-between gap-2 -mt-0.5">
-        <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+        <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: '#0B2912' }}>
           {icon}
           {title}
         </h2>
         {headerExtra}
       </div>
       {children}
-    </div>
+    </SystemCard>
   );
 }
 
