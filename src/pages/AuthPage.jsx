@@ -92,6 +92,21 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth();
 
+  // Belt-and-suspenders against a class of iOS hangs where useAuth() stays
+  // in `isLoading` forever (e.g. native storage adapter froze, INITIAL_SESSION
+  // never fired). After 3s the user gets the full auth UI no matter what —
+  // they can sign in, browse as guest, or recover. Better to render an
+  // interactive form with a stale auth context than trap the user on a
+  // permanent spinner. The full GuestProvider tree still resolves in the
+  // background and re-renders this component when auth lands, so a logged-in
+  // user gets auto-navigated to Dashboard either way.
+  const [bypassLoading, setBypassLoading] = useState(false);
+  useEffect(() => {
+    if (!isLoading) return;
+    const t = setTimeout(() => setBypassLoading(true), 3000);
+    return () => clearTimeout(t);
+  }, [isLoading]);
+
   // Modes:
   //   login, signup, reset  — email-based flows.
   //   update-password        — user clicked a password-reset email link.
@@ -743,7 +758,7 @@ export default function AuthPage() {
   };
 
   //  Loading 
-  if (isLoading) {
+  if (isLoading && !bypassLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#ffffff' }}>
         <div className="flex flex-col items-center gap-4">

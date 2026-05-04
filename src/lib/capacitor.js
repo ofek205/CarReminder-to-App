@@ -7,6 +7,11 @@
  */
 
 import { Capacitor } from '@capacitor/core';
+// SplashScreen is imported eagerly (not via dynamic import) so the splash
+// can be hidden even if iOS 26 WKWebView freezes the dynamic-import loader
+// for the first chunk after cold launch — the same class of bug that
+// previously trapped users on a green splash forever. Bundle cost: ~3 KB.
+import { SplashScreen } from '@capacitor/splash-screen';
 
 //  Platform Detection 
 export const isNative = Capacitor.isNativePlatform();
@@ -30,13 +35,19 @@ export async function initStatusBar() {
 }
 
 //  Splash Screen 
+// Eager import (see top of file). The .hide() call itself is wrapped in
+// Promise.race + 1.5s timeout so a hung native bridge can never block the
+// JS boot thread either — worst case the splash stays a beat longer than
+// it should, but JS keeps going and the user gets to interact with React.
 export async function hideSplash() {
   if (!isNative) return;
   try {
-    const { SplashScreen } = await import('@capacitor/splash-screen');
-    await SplashScreen.hide();
+    await Promise.race([
+      SplashScreen.hide(),
+      new Promise(resolve => setTimeout(resolve, 1500)),
+    ]);
   } catch (e) {
-    console.warn('SplashScreen plugin not available:', e);
+    console.warn('SplashScreen.hide failed:', e);
   }
 }
 

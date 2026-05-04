@@ -4,6 +4,13 @@ import App from '@/App.jsx'
 import '@/index.css'
 import { isNative, initStatusBar, initKeyboard, initBackButton, hideSplash, initSessionKeepAlive } from '@/lib/capacitor'
 import { reportError } from '@/lib/crashReporter';
+import { initBootLog, recordBootStage, markBootSucceeded } from '@/lib/bootDiagnostics';
+
+// Boot log is the FIRST thing we initialize — even before plugin init,
+// so a crash inside any subsequent line still leaves a trail behind for
+// post-mortem analysis. Synchronous, never throws.
+initBootLog();
+recordBootStage('main_entry', { isNative, ua: navigator?.userAgent?.slice(0, 120) });
 
 // Mark document for native-specific CSS
 if (isNative) {
@@ -23,7 +30,9 @@ const FORCE_GUEST_ONCE_KEY = 'cr_force_guest_once';
 
 function markBootStage(stage, extra = {}) {
   try { console.info('[boot]', stage, extra); } catch {}
-  // Keep boot telemetry low-noise: only native app or explicit failures.
+  // Persistent telemetry — synchronous, survives a hard hang.
+  try { recordBootStage(stage, extra); } catch {}
+  // Keep remote (Supabase) telemetry low-noise: only native app or explicit failures.
   if (isNative || extra?.level === 'error') {
     try { reportError('boot_stage', new Error(stage), extra); } catch {}
   }
@@ -120,45 +129,60 @@ try {
   });
   initNonCriticalServices();
 
+  // Mark boot as visually-complete once the auth state resolves. This
+  // closes the loop with bootDiagnostics so a future post-mortem reader
+  // can tell "this launch reached the auth screen" vs "this launch hung".
+  const ___bootSuccessPoll = setInterval(() => {
+    if (window.__crAuthResolvedAt) {
+      clearInterval(___bootSuccessPoll);
+      try { markBootSucceeded(); } catch {}
+    }
+  }, 250);
+  setTimeout(() => clearInterval(___bootSuccessPoll), 30000); // hard cap
+
   // Hard startup watchdog: if auth never resolves, users get stuck forever
-  // on "טוען...". After 12s we surface a recovery panel and allow a
-  // one-shot forced guest boot on next reload.
+  // on the AuthPage spinner. After 7s (was 12s) we surface a full-screen
+  // recovery panel and allow a one-shot forced guest boot on next reload.
+  //
+  // Critical change vs. previous version: we use root.replaceChildren()
+  // (or innerHTML overwrite as fallback for older WKWebView) so the
+  // recovery UI ALWAYS replaces React's rendered tree. The old
+  // appendChild approach left React's loading spinner visible when
+  // React's reconciler later updated the tree, defeating the watchdog
+  // on the exact iOS WKWebView path that needed it most.
   setTimeout(() => {
     const resolvedAt = Number(window.__crAuthResolvedAt || 0);
     if (resolvedAt) return;
-    markBootStage('auth_watchdog_timeout', { level: 'error', timeoutMs: 12000 });
+    markBootStage('auth_watchdog_timeout', { level: 'error', timeoutMs: 7000 });
     try {
       const root = document.getElementById('root');
       if (!root) return;
-      const node = document.createElement('div');
-      node.setAttribute('dir', 'rtl');
-      node.style.cssText = [
-        'position:fixed',
-        'inset:0',
-        'z-index:99999',
-        'background:#FAFFFE',
-        'display:flex',
-        'align-items:center',
-        'justify-content:center',
-        'padding:24px',
-        'font-family:system-ui',
-      ].join(';');
-      node.innerHTML = `
-        <div style="text-align:center;max-width:340px">
-          <div style="font-size:22px;font-weight:800;color:#1F2937;margin-bottom:8px">הפתיחה לוקחת יותר מהרגיל</div>
-          <div style="font-size:14px;color:#6B7280;margin-bottom:18px;line-height:1.5">
-            אפשר לנסות טעינה נקייה ולהיכנס כאורח. לא נאבד נתונים בחשבון.
+      const recoveryHTML = `
+        <div dir="rtl" style="
+          position:fixed;inset:0;z-index:99999;background:#FAFFFE;
+          display:flex;align-items:center;justify-content:center;
+          padding:24px;font-family:system-ui;">
+          <div style="text-align:center;max-width:340px">
+            <div style="font-size:22px;font-weight:800;color:#1F2937;margin-bottom:8px">הפתיחה לוקחת יותר מהרגיל</div>
+            <div style="font-size:14px;color:#6B7280;margin-bottom:18px;line-height:1.5">
+              אפשר לנסות טעינה נקייה ולהיכנס כאורח. לא נאבד נתונים בחשבון.
+            </div>
+            <button id="cr-force-guest-btn" style="padding:10px 20px;border-radius:12px;background:#2D5233;color:#fff;font-weight:700;border:none;cursor:pointer;font-size:14px;margin-left:8px">
+              המשך כאורח
+            </button>
+            <button id="cr-retry-btn" style="padding:10px 20px;border-radius:12px;background:#fff;color:#2D5233;font-weight:700;border:1px solid #D8E5D9;cursor:pointer;font-size:14px;margin-left:8px">
+              נסה שוב
+            </button>
+            <a href="/boot-debug" style="display:inline-block;margin-top:14px;font-size:12px;color:#9CA3AF;text-decoration:underline">
+              הצג יומן אבחון
+            </a>
           </div>
-          <button id="cr-force-guest-btn" style="padding:10px 20px;border-radius:12px;background:#2D5233;color:#fff;font-weight:700;border:none;cursor:pointer;font-size:14px;margin-left:8px">
-            המשך כאורח
-          </button>
-          <button id="cr-retry-btn" style="padding:10px 20px;border-radius:12px;background:#fff;color:#2D5233;font-weight:700;border:1px solid #D8E5D9;cursor:pointer;font-size:14px">
-            נסה שוב
-          </button>
         </div>`;
-      root.appendChild(node);
-      const forceBtn = node.querySelector('#cr-force-guest-btn');
-      const retryBtn = node.querySelector('#cr-retry-btn');
+      // replaceChildren wipes React's tree; innerHTML fallback for older Safari/WKWebView.
+      try { root.replaceChildren(); } catch {}
+      root.innerHTML = recoveryHTML;
+      const forceBtn = root.querySelector('#cr-force-guest-btn');
+      const retryBtn = root.querySelector('#cr-retry-btn');
       if (forceBtn) {
         forceBtn.addEventListener('click', () => {
           try { sessionStorage.setItem(FORCE_GUEST_ONCE_KEY, '1'); } catch {}
@@ -167,7 +191,7 @@ try {
       }
       if (retryBtn) retryBtn.addEventListener('click', () => window.location.reload());
     } catch {}
-  }, 12000);
+  }, 7000);
 } catch (err) {
   markBootStage('react_mount_failed', { level: 'error', message: err?.message || String(err) });
   console.error('Fatal bootstrap error:', err);
