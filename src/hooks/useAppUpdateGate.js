@@ -74,7 +74,19 @@ export default function useAppUpdateGate() {
         const info = await App.getInfo();
         const currentVersion = info?.version || '0.0.0';
         const platform = detectPlatform();
-        const configKey = platform === 'ios' ? 'ios_min_version' : 'android_min_version';
+
+        // iOS update gate is disabled while we're stabilising the native build.
+        // Re-enable by removing this block when iOS is ready to enforce a
+        // minimum version. Android keeps its own gate via android_min_version.
+        if (platform === 'ios') {
+          if (!cancelled) setState({
+            checked: true, needsUpdate: false,
+            currentVersion, minVersion: null, platform,
+          });
+          return;
+        }
+
+        const configKey = 'android_min_version';
 
         const { data, error } = await supabase
           .from('app_config')
