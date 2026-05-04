@@ -279,7 +279,15 @@ export default function AddVehicle() {
   useEffect(() => {
     if (!isAuthenticated || !user) return;
     setUserId(user.id);
-    if (!accountId) return;
+    // Render the form even before the workspace resolves — for users
+    // mid-auto-heal (no membership yet), accountId stays null until the
+    // ensure_user_account RPC completes. Pre-fix behaviour: form was
+    // rendered with an empty existingVehicles list. We preserve that.
+    if (!accountId) {
+      setExistingVehicles([]);
+      setVehiclesLoaded(true);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {

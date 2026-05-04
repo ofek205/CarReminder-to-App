@@ -342,16 +342,23 @@ function AuthNotifications() {
   // so they were unaffected — only app_notifications regressed.
   const navigate = useNavigate();
 
-  // Fetch vehicles for the active workspace. Gated on activeWorkspaceId
-  // so we never fall back to "the first membership" — that fallback was
-  // the original leak path: while WorkspaceContext was still resolving,
-  // the page would scope to the wrong account and re-render again once
-  // activeWorkspaceId arrived. Now we simply wait.
+  // Fetch vehicles for the active workspace. We don't gate the query on
+  // activeWorkspaceId itself because doing so leaves users with zero
+  // memberships (auto-heal in flight) stuck on a permanent loading
+  // spinner — `isLoading` below derives from `!accountData`. Instead we
+  // run the query as soon as user.id is known and let the queryFn
+  // return an empty payload while activeWorkspaceId is still resolving.
+  // Once the workspace resolves, the queryKey changes and the data
+  // refetches with the correct scope.
   const { data: accountData } = useQuery({
     queryKey: ['auth-notif-account', user?.id, activeWorkspaceId],
     queryFn: async () => {
       const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
       if (members.length === 0) return { accountId: null, vehicles: [] };
+      // While activeWorkspaceId is null (zero-membership user mid heal,
+      // or a transient state), return an empty payload rather than
+      // pinning to members[0] — that was the original leak.
+      if (!activeWorkspaceId) return { accountId: null, vehicles: [] };
       const targetMember = members.find(m => m.account_id === activeWorkspaceId);
       if (!targetMember) return { accountId: null, vehicles: [] };
       const accountId = targetMember.account_id;
