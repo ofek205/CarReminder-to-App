@@ -45,30 +45,49 @@ const sortByRole = (a, b) =>
  * Pick the default active workspace from a memberships list.
  *
  * Resolution order:
- *   1. saved hint, if still a valid + non-removed membership
- *   2. business workspace where the user is a driver — drivers do their
- *      job in the company workspace, so opening the app there saves
- *      them a manual workspace switch every session
- *   3. first active 'personal' membership (default for everyone else)
- *   4. first active membership of any type (sorted by role priority)
- *   5. first inactive membership (legacy fallback)
+ *   1. business workspace where the user is a driver — drivers spend
+ *      their time-on-app in the company context.
+ *   2. business workspace where the user is owner/manager/viewer — if
+ *      the user has any business membership, the app boots into it
+ *      even if the saved hint points to personal. Rationale: owners
+ *      open the app to operate the fleet; landing on personal every
+ *      refresh forces a manual switch every session. The hint still
+ *      wins among multiple businesses (user picked a specific one).
+ *   3. saved hint among the remaining (personal-only) memberships.
+ *   4. first active 'personal' membership.
+ *   5. first active membership of any type (sorted by role priority).
+ *   6. first inactive membership (legacy fallback).
+ *
+ * In-session switches via the WorkspaceSwitcher still work — the hint
+ * gets persisted and respected within a single business workspace, and
+ * the switch survives until refresh. After refresh, business wins
+ * again. The driver default is non-overridable for the same UX reason
+ * the rule has been there since phase 3.
  */
 function resolveDefault(memberships, savedHintId) {
   if (!memberships?.length) return null;
 
   const active = memberships.filter(m => m.status === 'פעיל');
 
-  // Driver in a business workspace → ALWAYS land there, even if a stale
-  // saved hint points elsewhere. The hint loses to the driver default
-  // because most drivers' time-on-app is purely workplace activity, and
-  // a once-set hint to "personal" used to trap them in the wrong context
-  // every login. Drivers can still reach the personal workspace via the
-  // switcher in one tap.
+  // 1. Driver in a business workspace → always.
   const businessAsDriver = active.find(
     m => m.account_type === 'business' && m.role === 'driver'
   );
   if (businessAsDriver) return businessAsDriver;
 
+  // 2. Any other business membership → preferred over personal. The
+  // saved hint disambiguates between multiple businesses, but cannot
+  // demote business to personal.
+  const businesses = active.filter(m => m.account_type === 'business');
+  if (businesses.length > 0) {
+    if (savedHintId) {
+      const hintedBiz = businesses.find(m => m.account_id === savedHintId);
+      if (hintedBiz) return hintedBiz;
+    }
+    return businesses.slice().sort(sortByRole)[0];
+  }
+
+  // 3. No business — fall back to the original personal-friendly path.
   if (savedHintId) {
     const hinted = memberships.find(m => m.account_id === savedHintId);
     if (hinted) return hinted;
