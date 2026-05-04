@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { C } from '@/lib/designTokens';
 import { isVesselType } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
+import useAccountRole from '@/hooks/useAccountRole';
 import { db } from '@/lib/supabaseEntities';
 import {
   MapPin,
@@ -16,6 +17,7 @@ import {
   Package,
   Settings,
   LocateFixed,
+  ShieldCheck,
 } from 'lucide-react';
 
 import MapCore from '@/components/map/MapCore';
@@ -183,6 +185,12 @@ const QUICK_CITIES = [
 
 export default function FindGarage() {
   const { isGuest, guestVehicles, isAuthenticated, user } = useAuth();
+  // Workspace-scoped: vessel detection must reflect the currently-active
+  // workspace, not user.account_id (which on Supabase auth user is
+  // either undefined or the user's primary auth account, not the
+  // workspace they switched into). Without this scope, switching to a
+  // business workspace still showed the personal-fleet's "vessel" mode.
+  const { accountId } = useAccountRole();
 
   // Geolocation moved to a shared hook. The hook keeps the same Tel Aviv
   // fallback + permission-denied detection that lived inline before.
@@ -232,23 +240,41 @@ export default function FindGarage() {
     return () => { cancelled = true; };
   }, []);
 
+  // The authorization registry covers ONLY garages — not tire shops,
+  // parts stores, mechanics, or marine. When the user switches the type
+  // filter to anything other than "מוסך" we silently reset the auth
+  // filter back to "all". Without this, the page would render zero rows
+  // (an active "מורשה" filter combined with a non-garage type would hide
+  // everything, with no visible filter chip to explain why — exactly the
+  // confusion the previous design caused).
+  useEffect(() => {
+    if (filterType !== 'garage' && authFilter !== 'all') {
+      setAuthFilter('all');
+    }
+  }, [filterType, authFilter]);
+
   // GPS-error from the hook auto-clears after 4s; city-search-error is local.
   const locError = gpsError || searchError;
 
-  // Detect if user has a vessel in their fleet
+  // Detect if user has a vessel in their fleet — scoped to the active
+  // workspace. Re-runs when the user switches workspace so the marine
+  // chip / heading toggles correctly between personal (with a boat)
+  // and business (without).
   useEffect(() => {
     if (isGuest) {
       const found = (guestVehicles || []).some(v => isVesselType(v.vehicle_type, v.nickname));
       setHasVessel(found);
-    } else if (isAuthenticated && user) {
+    } else if (isAuthenticated && accountId) {
       (async () => {
         try {
-          const vehicles = await db.vehicles.filter({ account_id: user.account_id });
+          const vehicles = await db.vehicles.filter({ account_id: accountId });
           setHasVessel(vehicles.some(v => isVesselType(v.vehicle_type, v.nickname)));
         } catch { /* ignore */ }
       })();
+    } else {
+      setHasVessel(false);
     }
-  }, [isGuest, guestVehicles, isAuthenticated, user]);
+  }, [isGuest, guestVehicles, isAuthenticated, accountId]);
 
   // Floating "recenter to my location" handler. Runs the hook's GPS retry
   // and snaps the map view to the result on success. The hook owns the
@@ -730,68 +756,91 @@ export default function FindGarage() {
         </div>
       </div>
 
-      {/* Authorization filter — only rendered when the registry has
-          loaded successfully AND the user is on a car-type filter (the
-          dataset doesn't cover marine). Three pills:
-            "הכל"  — no filter applied (default)
-            "מורשה" — emerald, with count of registry-matched garages
-            "לא מורשה" — soft red, count of garages that look unlisted
-          Counts come from `authCounts` which respects the current
-          type + name filters but ignores `authFilter` itself, so the
-          numbers stay stable while the user toggles. */}
-      {authMatcher?.loaded && (filterType === 'all' || isCarType(filterType)) && (
+      {/* Authorization sub-filter — visible ONLY when the user has
+          drilled into "מוסך". This visual scoping is the strongest UX
+          signal that the registry concept applies to garages and not to
+          tire shops / parts stores / mechanics / marine. The container
+          looks like an indented Card under the type pill: soft mint
+          background, shield icon + label header, and three pills below.
+          The "מורשה / לא ברישום" naming avoids the harsher "לא מורשה"
+          which can read as "forbidden". */}
+      {authMatcher?.loaded && filterType === 'garage' && (
         <div className="px-3 mb-2">
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
-            {[
-              {
-                key: 'all', label: 'הכל',
-                count: authCounts.all,
-                activeBg: '#0F2A1C', activeFg: '#FFFFFF',
-                idleBg: '#FFFFFF',   idleFg: '#4B5D52',  idleBorder: '#E5EDE8',
-              },
-              {
-                key: 'authorized', label: 'מורשה',
-                count: authCounts.authorized,
-                // Emerald gradient — same family as the rest of the app.
-                activeBg: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
-                activeFg: '#FFFFFF',
-                idleBg: '#ECFDF5', idleFg: '#065F46', idleBorder: '#A7F3D0',
-              },
-              {
-                key: 'unauthorized', label: 'לא מורשה',
-                count: authCounts.unauthorized,
-                activeBg: '#991B1B', activeFg: '#FFFFFF',
-                idleBg: '#FEF2F2',  idleFg: '#991B1B', idleBorder: '#FECACA',
-              },
-            ].map(p => {
-              const active = authFilter === p.key;
-              return (
-                <button key={p.key} type="button"
-                  onClick={() => setAuthFilter(p.key)}
-                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold shrink-0 transition-all border flex items-center gap-1.5"
-                  style={{
-                    background: active ? p.activeBg : p.idleBg,
-                    color:      active ? p.activeFg : p.idleFg,
-                    borderColor: active ? 'transparent' : p.idleBorder,
-                    boxShadow: active ? '0 4px 12px rgba(15,40,28,0.18)' : 'none',
-                  }}
-                >
-                  {p.label}
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums"
+          <div
+            className="rounded-xl p-2.5"
+            style={{
+              background: '#ECFDF5',
+              border: '1px solid #A7F3D0',
+            }}
+          >
+            {/* Header — shield icon + scope label + freshness caption.
+                Anchors the section as "this is the official ministry
+                registry filter". */}
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" style={{ color: '#065F46' }} />
+                <span className="text-[11px] font-bold truncate" style={{ color: '#065F46' }}>
+                  רישוי במשרד התחבורה
+                </span>
+              </div>
+              <span
+                className="text-[9px] font-medium shrink-0 px-1.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(6,95,70,0.08)', color: '#065F46' }}
+              >
+                מתעדכן יומית
+              </span>
+            </div>
+
+            {/* Pills row */}
+            <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+              {[
+                {
+                  key: 'all', label: 'הכל',
+                  count: authCounts.all,
+                  activeBg: '#0F2A1C', activeFg: '#FFFFFF',
+                  idleBg: '#FFFFFF',   idleFg: '#4B5D52',  idleBorder: '#A7F3D0',
+                },
+                {
+                  key: 'authorized', label: 'מורשה',
+                  count: authCounts.authorized,
+                  // Emerald gradient — same family as the rest of the app.
+                  activeBg: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                  activeFg: '#FFFFFF',
+                  idleBg: '#FFFFFF', idleFg: '#065F46', idleBorder: '#A7F3D0',
+                },
+                {
+                  key: 'unauthorized', label: 'לא ברישום',
+                  count: authCounts.unauthorized,
+                  activeBg: '#991B1B', activeFg: '#FFFFFF',
+                  idleBg: '#FFFFFF',  idleFg: '#991B1B', idleBorder: '#FECACA',
+                },
+              ].map(p => {
+                const active = authFilter === p.key;
+                return (
+                  <button key={p.key} type="button"
+                    onClick={() => setAuthFilter(p.key)}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold shrink-0 transition-all border flex items-center gap-1.5"
                     style={{
-                      background: active ? 'rgba(255,255,255,0.25)' : 'rgba(15,40,28,0.06)',
-                      color:      active ? p.activeFg               : p.idleFg,
+                      background: active ? p.activeBg : p.idleBg,
+                      color:      active ? p.activeFg : p.idleFg,
+                      borderColor: active ? 'transparent' : p.idleBorder,
+                      boxShadow: active ? '0 4px 12px rgba(15,40,28,0.18)' : 'none',
                     }}
-                    dir="ltr"
                   >
-                    {p.count}
-                  </span>
-                </button>
-              );
-            })}
-            <span className="text-[10px] self-center mr-1" style={{ color: C.muted }}>
-              נתוני משרד התחבורה
-            </span>
+                    {p.label}
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums"
+                      style={{
+                        background: active ? 'rgba(255,255,255,0.25)' : 'rgba(15,40,28,0.06)',
+                        color:      active ? p.activeFg               : p.idleFg,
+                      }}
+                      dir="ltr"
+                    >
+                      {p.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
