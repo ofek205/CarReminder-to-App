@@ -828,7 +828,7 @@ export default function Dashboard() {
   // they never reached the per-driver vehicle filter, so the personal
   // Dashboard ended up showing them every vehicle in the workspace.
   const navigateRef = useNavigate();
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, activeWorkspaceId } = useWorkspace();
   const { isDriver, canManageRoutes } = useWorkspaceRole();
   useEffect(() => {
     if (isGuest) return;
@@ -840,6 +840,16 @@ export default function Dashboard() {
     }
   }, [activeWorkspace, isGuest, isDriver, canManageRoutes, navigateRef]);
   const [accountId, setAccountId] = useState(null);
+  // Re-sync accountId when the user switches workspace mid-session.
+  // The init() effect below only runs on mount/auth; without this, the
+  // local accountId would stay pinned to whatever init resolved and
+  // queries (whose keys include accountId) would keep returning data
+  // from the OLD workspace even after the switcher fired.
+  useEffect(() => {
+    if (activeWorkspaceId && activeWorkspaceId !== accountId) {
+      setAccountId(activeWorkspaceId);
+    }
+  }, [activeWorkspaceId, accountId]);
   const [filteredVehicles, setFilteredVehicles] = useState(null);
   // Dashboard list sort. Default: newest-added first.
   // Options: 'newest' | 'name' | 'status' | 'year' | 'updated'
@@ -902,7 +912,15 @@ export default function Dashboard() {
         }
         let finalAccountId;
         if (members.length > 0) {
-          finalAccountId = members[0].account_id;
+          // Prefer the workspace the user is currently in (from
+          // WorkspaceContext) over "first membership". Without this,
+          // a user with two personal memberships (e.g. shared family
+          // car + own) lands on whichever account the DB returns first
+          // every refresh, even if they switched in-session.
+          const activeMatch = activeWorkspaceId
+            ? members.find(m => m.account_id === activeWorkspaceId)
+            : null;
+          finalAccountId = (activeMatch || members[0]).account_id;
         } else {
           // Check if this user has a migrated account from Base44
           let migratedAccount = null;

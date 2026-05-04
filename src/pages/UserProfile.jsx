@@ -185,7 +185,6 @@ function AuthUserProfile({ embedded = false }) {
   const [showScan, setShowScan] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [accountId, setAccountId] = useState(null);
   const { errors, validate, clearError } = useFormValidation();
   const [systemError, setSystemError] = useState(null);
 
@@ -196,8 +195,6 @@ function AuthUserProfile({ embedded = false }) {
       const normalized = { ...u, full_name: u.user_metadata?.full_name || u.email, email: u.email, id: u.id };
       setUser(normalized);
       setFullName(normalized.full_name || '');
-      const members = await db.account_members.filter({ user_id: u.id, status: 'פעיל' });
-      if (members.length > 0) setAccountId(members[0].account_id);
       // Load profile from Supabase
       try {
         const profiles = await db.user_profiles.filter({ user_id: u.id });

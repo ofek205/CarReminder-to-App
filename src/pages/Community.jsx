@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '../components/shared/GuestContext';
+import useAccountRole from '@/hooks/useAccountRole';
 import { C } from '@/lib/designTokens';
 import { isVessel } from '../components/shared/DateStatusUtils';
 import { ListSkeleton } from '../components/shared/Skeletons';
@@ -15,6 +16,12 @@ const marine = { primary: '#0C7B93', light: '#E0F7FA', border: '#B2EBF2', text: 
 
 export default function Community() {
   const { isGuest, isAuthenticated, user, guestVehicles } = useAuth();
+  // Active-workspace scope so the "מהצי שלי" picker + vessel toggle
+  // reflect the workspace the user is currently in. Pre-fix the page
+  // always queried the first membership returned by the DB and could
+  // show a personal car as the user's "fleet" while they were inside a
+  // business workspace.
+  const { accountId } = useAccountRole();
   const queryClient = useQueryClient();
   const [domain, setDomain] = useState('vehicle');
   const [search, setSearch] = useState('');
@@ -45,17 +52,15 @@ export default function Community() {
       setHasVessel((guestVehicles || []).some(v => isVessel(v.vehicle_type, v.nickname)));
       return;
     }
-    if (!isAuthenticated || !user) return;
+    if (!isAuthenticated || !accountId) return;
     (async () => {
       try {
-        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-        if (members.length === 0) return;
-        const vehicles = await db.vehicles.filter({ account_id: members[0].account_id });
+        const vehicles = await db.vehicles.filter({ account_id: accountId });
         setUserVehicles(vehicles);
         setHasVessel(vehicles.some(v => isVessel(v.vehicle_type, v.nickname)));
       } catch {}
     })();
-  }, [isGuest, isAuthenticated, user]);
+  }, [isGuest, isAuthenticated, accountId]);
 
   // Debounce search input
   useEffect(() => {

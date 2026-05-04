@@ -342,16 +342,18 @@ function AuthNotifications() {
   // so they were unaffected — only app_notifications regressed.
   const navigate = useNavigate();
 
-  // Fetch vehicles
+  // Fetch vehicles for the active workspace. Gated on activeWorkspaceId
+  // so we never fall back to "the first membership" — that fallback was
+  // the original leak path: while WorkspaceContext was still resolving,
+  // the page would scope to the wrong account and re-render again once
+  // activeWorkspaceId arrived. Now we simply wait.
   const { data: accountData } = useQuery({
     queryKey: ['auth-notif-account', user?.id, activeWorkspaceId],
     queryFn: async () => {
       const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
       if (members.length === 0) return { accountId: null, vehicles: [] };
-      const activeMember = activeWorkspaceId
-        ? members.find(m => m.account_id === activeWorkspaceId)
-        : null;
-      const targetMember = activeMember || members[0];
+      const targetMember = members.find(m => m.account_id === activeWorkspaceId);
+      if (!targetMember) return { accountId: null, vehicles: [] };
       const accountId = targetMember.account_id;
       const isBusinessDriver = targetMember?.account_type === 'business' && targetMember?.role === 'driver';
 
@@ -377,7 +379,7 @@ function AuthNotifications() {
       const vehicles = await db.vehicles.filter({ account_id: accountId });
       return { accountId, vehicles };
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!activeWorkspaceId,
   });
 
   // Fetch reminder settings
