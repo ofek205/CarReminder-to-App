@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import useAccountRole from '@/hooks/useAccountRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import { db } from '@/lib/supabaseEntities';
 
 //  Helpers 
 function daysUntil(dateStr) {
@@ -568,8 +569,30 @@ export default function Vehicles() {
   // Phase 3: accountId comes from the active workspace via useAccountRole
   // (now a thin wrapper over WorkspaceContext). Auto-heal for users
   // with zero memberships is centralized in WorkspaceContext.
-  const { accountId } = useAccountRole();
+  const { accountId: contextAccountId } = useAccountRole();
   const { activeWorkspace } = useWorkspace();
+  // Safety net: in production we've seen WorkspaceContext stay in
+  // `isLoading: true` for some users (iOS WebView session-bridge hang +
+  // related), which leaves accountId null forever and the page stuck on
+  // the initial spinner. To break that deadlock we mirror the pattern
+  // Dashboard already uses — kick off our own member-lookup directly
+  // from the DB and use whichever accountId resolves first. Fallback
+  // is only consulted while contextAccountId is null; the moment
+  // WorkspaceContext arrives, queries refetch with the canonical id.
+  const [fallbackAccountId, setFallbackAccountId] = useState(null);
+  useEffect(() => {
+    if (!isAuthenticated || !user || contextAccountId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
+        if (cancelled) return;
+        if (members.length > 0) setFallbackAccountId(members[0].account_id);
+      } catch { /* hook fallback only — soft fail */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, user, contextAccountId]);
+  const accountId = contextAccountId || fallbackAccountId;
   // Drivers in a business workspace must NEVER see this page — it
   // surfaces every vehicle in the workspace, defeating the
   // assignment model. Bounce them to MyVehicles, which scopes by
