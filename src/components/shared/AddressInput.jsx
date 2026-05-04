@@ -1,69 +1,156 @@
-import React, { useId } from 'react';
-import { ISRAEL_CITIES } from '@/lib/israelCities';
+import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
+import Combobox from '@/components/shared/Combobox';
+import { ISRAEL_CITIES } from '@/lib/israelCities';
+import { fetchCities, fetchStreetsByCityCode } from '@/lib/govDataApi';
 
 /**
  * Structured address input — three fields:
- *   • City    — text input bound to a <datalist> of Israeli cities.
- *               Native autocomplete handles the search; not strict, so
- *               the user can type a kibbutz / moshav / neighbourhood
- *               that isn't on the list.
- *   • Street  — free-text. Doubles as "place name" when there's no
- *               street (e.g. "נמל אשדוד", "שוק מחנה יהודה").
- *   • Number  — numeric, optional.
  *
- * Storage stays as a single concatenated `address_text` so existing
- * RPC, RouteDetail, FleetMap, and Nominatim geocoding all keep
- * working with no migration. The CreateRoute form computes the
- * concat from these three fields at submit time.
+ *   • עיר / יישוב — interactive combobox backed by data.gov.il
+ *     (resource 9ad3862c…). 1,300+ Israeli localities. Falls back to
+ *     the hardcoded ISRAEL_CITIES list (~210 cities) when the API is
+ *     unreachable so the form never blocks.
+ *   • רחוב — combobox of streets in the chosen city, fetched lazily
+ *     by city code from the same dataset. Falls back to free-text
+ *     input if the API fails or the city has no streets in the
+ *     dataset (small yishuv, rural area).
+ *   • מס׳ בית — numeric, optional.
  *
- * Caller passes a unified `onChange(field, value)` callback where
- * `field` is one of: 'city' | 'street' | 'house_number'.
+ * Storage stays as a single `address_text` string (concatenated at
+ * submit by composeAddressText). No DB schema change.
+ *
+ * The caller owns the strings (city name, street, house number) and
+ * receives `onChange(field, value)` where field is one of:
+ * 'city' | 'street' | 'house_number'.
  */
 export default function AddressInput({
   city,
   street,
   houseNumber,
   onChange,
-  cityPlaceholder = 'התחל להקליד עיר...',
-  streetPlaceholder = 'לדוגמה: דיזנגוף',
+  cityPlaceholder = 'בחר עיר / יישוב',
+  streetPlaceholder = 'בחר רחוב או הקלד שם מקום',
   numberPlaceholder = '100',
   disabled = false,
 }) {
-  // useId gives a stable, unique id even when AddressInput is rendered
-  // inside a list (multiple stops). Without it, all <datalist>s would
-  // share an id and the second one would be ignored by the browser.
-  const dataListId = useId() + '-cities';
+  // Cities: fetched once, cached in localStorage by govDataApi.
+  // null = loading / unknown; [] = loaded empty; array = loaded.
+  const [cities, setCities] = useState(null);
+  const [citiesFailed, setCitiesFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await fetchCities();
+      if (cancelled) return;
+      if (list && list.length > 0) {
+        setCities(list);
+      } else {
+        // API failed → fall back to hardcoded names. Same shape so the
+        // combobox renders without conditional logic.
+        setCities(ISRAEL_CITIES.map((name) => ({ code: null, name })));
+        setCitiesFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Streets: refetched whenever the chosen city changes.
+  const [streets, setStreets] = useState(null); // null = not fetched yet
+  const [streetsLoading, setStreetsLoading] = useState(false);
+  const [streetsFailed, setStreetsFailed] = useState(false);
+
+  useEffect(() => {
+    if (!city || !cities || cities.length === 0) {
+      setStreets(null);
+      setStreetsFailed(false);
+      return;
+    }
+    const match = cities.find((c) => c.name === city.trim());
+    if (!match || !match.code) {
+      // City was free-typed (not on list) OR fallback list (no codes).
+      // We can't fetch streets — let the user type freely.
+      setStreets(null);
+      setStreetsFailed(true);
+      return;
+    }
+    let cancelled = false;
+    setStreetsLoading(true);
+    setStreetsFailed(false);
+    (async () => {
+      const list = await fetchStreetsByCityCode(match.code);
+      if (cancelled) return;
+      setStreetsLoading(false);
+      if (list === null) {
+        setStreets(null);
+        setStreetsFailed(true);
+      } else {
+        setStreets(list);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [city, cities]);
+
+  // City combobox options — name-only display.
+  const cityOptions = (cities || []).map((c) => ({ value: c.name, label: c.name }));
+
+  // Street combobox options — flat list of names.
+  const streetOptions = (streets || []).map((s) => ({ value: s, label: s }));
+
+  // Street picker is "ready" only when there's a city + we have data.
+  // When the city is free-typed or streets failed, fall back to plain Input.
+  const streetUseFallback = !city || streetsFailed || streets === null;
 
   return (
     <div className="space-y-2">
       <div>
         <label className="block text-[11px] font-bold text-gray-600 mb-1">עיר / יישוב</label>
-        <input
-          list={dataListId}
+        <Combobox
           value={city || ''}
-          onChange={(e) => onChange('city', e.target.value)}
-          placeholder={cityPlaceholder}
+          onChange={(v) => onChange('city', v)}
+          options={cityOptions}
+          placeholder={cities === null ? 'טוען רשימת ערים...' : cityPlaceholder}
+          loading={cities === null}
+          emptyText="אין יישוב תואם — אפשר להקליד ידנית"
           disabled={disabled}
-          dir="rtl"
-          className="w-full h-10 rounded-xl border border-gray-200 bg-white text-sm px-3 outline-none transition-colors focus:border-[#2D5233] focus:ring-2 focus:ring-[#2D5233]/20 disabled:opacity-60"
-          autoComplete="off"
         />
-        <datalist id={dataListId}>
-          {ISRAEL_CITIES.map(c => <option key={c} value={c} />)}
-        </datalist>
+        {citiesFailed && (
+          <p className="text-[10px] text-amber-700 mt-1">
+            לא הצלחנו לטעון את רשימת הערים מהשרת — מציג רשימה מקומית מצומצמת.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-[1fr_90px] gap-2">
         <div>
           <label className="block text-[11px] font-bold text-gray-600 mb-1">רחוב</label>
-          <Input
-            value={street || ''}
-            onChange={(e) => onChange('street', e.target.value)}
-            placeholder={streetPlaceholder}
-            disabled={disabled}
-            className="h-10 rounded-xl text-sm"
-          />
+          {streetUseFallback ? (
+            // Fallback: free-text input. Used when no city is picked, the
+            // city was free-typed (not in dataset), or the streets fetch
+            // failed. Lets the user always save *something*.
+            <Input
+              value={street || ''}
+              onChange={(e) => onChange('street', e.target.value)}
+              placeholder={!city ? 'בחר עיר קודם' : streetPlaceholder}
+              disabled={disabled || !city}
+              className="h-10 rounded-xl text-sm"
+            />
+          ) : (
+            <Combobox
+              value={street || ''}
+              onChange={(v) => onChange('street', v)}
+              options={streetOptions}
+              placeholder={streetPlaceholder}
+              loading={streetsLoading}
+              emptyText="אין רחוב תואם — אפשר להקליד ידנית"
+              disabled={disabled}
+            />
+          )}
         </div>
         <div>
           <label className="block text-[11px] font-bold text-gray-600 mb-1">מס׳ בית</label>
@@ -87,17 +174,6 @@ export default function AddressInput({
  * Build the canonical address_text string from the three structured
  * parts. Used at form-submit time (CreateRoute) and on the fly by the
  * collapsed StopCard preview.
- *
- *   {street: 'דיזנגוף', house_number: '100', city: 'תל אביב'}
- *   →  'דיזנגוף 100, תל אביב'
- *
- *   {street: 'נמל אשדוד', city: 'אשדוד'}
- *   →  'נמל אשדוד, אשדוד'
- *
- *   {city: 'תל אביב'}
- *   →  'תל אביב'
- *
- *   {} → ''
  */
 export function composeAddressText({ city, street, house_number } = {}) {
   const c = (city || '').trim();
