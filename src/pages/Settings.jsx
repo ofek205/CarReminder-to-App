@@ -20,9 +20,13 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { User, Users, Bell } from 'lucide-react';
-import PageHeader from '../components/shared/PageHeader';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
-import { C } from '@/lib/designTokens';
+// Living Dashboard system - same family used across the B2B pages.
+// Settings is technically a personal-area page, but it sits alongside
+// the business pages in the side menu (managers reach BusinessSettings
+// from the same nav cluster), so applying the family treatment keeps
+// the chrome consistent.
+import { PageShell, Card } from '@/components/business/system';
 
 // Reuse existing pages, not lazy. user will browse between tabs, so
 // loading all three up front is cheaper than Suspense-flashing on each click.
@@ -54,16 +58,20 @@ export default function Settings() {
   const current = TABS.find(t => t.key === active) || TABS[0];
 
   return (
-    <div dir="rtl" className="pb-20">
-      <PageHeader title="הגדרות" subtitle={current.subtitle} />
-
-      {/*  Tab bar  */}
-      <div className="px-4 mb-5">
+    <PageShell
+      title="הגדרות"
+      subtitle={current.subtitle}
+    >
+      {/* Tab bar — wrapped in a system Card so the surface matches every
+          other section in the page below. Active tab uses the system's
+          emerald gradient. The "control" container itself sits on a
+          mint backdrop to differentiate from the white-card content. */}
+      <Card padding="p-1.5" className="mb-4">
         <div
           role="tablist"
           aria-label="הגדרות"
-          className="flex items-center gap-1 p-1 rounded-2xl overflow-x-auto"
-          style={{ background: C.light, border: `1px solid ${C.border}` }}>
+          className="flex items-center gap-1 overflow-x-auto"
+        >
           {TABS.map(tab => {
             const isActive = tab.key === active;
             const Icon = tab.icon;
@@ -73,16 +81,20 @@ export default function Settings() {
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => setActive(tab.key)}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl active:scale-[0.98] whitespace-nowrap"
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl whitespace-nowrap transition-all hover:scale-[1.01] active:scale-[0.98]"
                 style={{
-                  background: isActive ? '#fff' : 'transparent',
-                  boxShadow: isActive ? '0 2px 8px rgba(45,82,51,0.12)' : 'none',
-                  color: isActive ? C.primary : C.muted,
-                  // Keep weight stable. font-weight doesn't animate smoothly
-                  // between 600 and 800 (browsers snap to nearest loaded face).
-                  // Color + background + icon stroke now carry the active state.
+                  background: isActive
+                    ? 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)'
+                    : 'transparent',
+                  color: isActive ? '#FFFFFF' : '#4B5D52',
+                  boxShadow: isActive
+                    ? '0 4px 12px rgba(16,185,129,0.25)'
+                    : 'none',
+                  // font-weight kept stable to avoid browser snapping
+                  // between loaded faces — visual state is carried by
+                  // the gradient + color, not by weight.
                   fontWeight: 700,
-                  transition: 'background-color 180ms cubic-bezier(0.4,0,0.2,1), color 180ms cubic-bezier(0.4,0,0.2,1), box-shadow 180ms cubic-bezier(0.4,0,0.2,1)',
+                  transition: 'background 180ms cubic-bezier(0.4,0,0.2,1), color 180ms cubic-bezier(0.4,0,0.2,1), box-shadow 180ms cubic-bezier(0.4,0,0.2,1)',
                 }}>
                 <Icon className="w-4 h-4" strokeWidth={isActive ? 2.4 : 1.8} />
                 <span className="text-xs">{tab.label}</span>
@@ -90,16 +102,15 @@ export default function Settings() {
             );
           })}
         </div>
-      </div>
+      </Card>
 
-      {/*  Active tab content  */}
-      <div className="px-4">
-        <Suspense fallback={<div className="flex justify-center py-16"><LoadingSpinner /></div>}>
-          {active === 'profile' && <UserProfilePage embedded />}
-          {active === 'account' && <AccountSettings embedded />}
-          {active === 'alerts'  && <ReminderSettingsPage embedded />}
-        </Suspense>
-      </div>
-    </div>
+      {/* Active tab content. The embedded sub-pages render their own
+          Cards / sections; this wrapper just hosts them. */}
+      <Suspense fallback={<div className="flex justify-center py-16"><LoadingSpinner /></div>}>
+        {active === 'profile' && <UserProfilePage embedded />}
+        {active === 'account' && <AccountSettings embedded />}
+        {active === 'alerts'  && <ReminderSettingsPage embedded />}
+      </Suspense>
+    </PageShell>
   );
 }

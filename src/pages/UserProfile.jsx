@@ -2,11 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
+// Living Dashboard system — shared with the B2B pages so the embedded
+// profile inside Settings.jsx visually matches BusinessSettings,
+// /Drivers, etc. The previous shadcn `Card` import was a flat styled
+// div; the system Card adds an accent stripe + the project's standard
+// shadow/radius/border so this surface no longer looks generic.
+import { Card } from '@/components/business/system';
 import { User, ScanLine, CheckCircle, AlertTriangle, XCircle, Loader2, Save, UserPlus, Phone, Calendar, Star, Trash2 } from "lucide-react";
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -113,34 +118,52 @@ function ProfileCompletionBanner({ fullName, phone, birthDate }) {
   const missing = fields.filter(f => !f.filled);
 
   return (
-    <Card className="p-4 border border-amber-200 bg-amber-50 rounded-2xl">
+    <Card accent="amber" className="bg-[#FFFBEB]">
       <div className="flex items-start gap-3" dir="rtl">
-        <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
-          <Star className="h-4 w-4 text-amber-600" />
+        <div
+          className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5"
+          style={{
+            background: 'linear-gradient(135deg, #92400E 0%, #F59E0B 80%, #FCD34D 100%)',
+            color: '#FFFFFF',
+            boxShadow: '0 4px 12px rgba(245,158,11,0.32)',
+          }}
+        >
+          <Star className="h-4 w-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-amber-900 mb-1">
+          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
             השלם את הפרופיל שלך ({filledCount}/3)
           </p>
-          <p className="text-xs text-amber-700 leading-relaxed mb-2">
-            פרטים אלו עוזרים לנו לתת לך שירות טוב יותר ולזהות אותך בכל מקום באפליקציה
+          <p className="text-xs leading-relaxed mb-2" style={{ color: '#92400E' }}>
+            פרטים אלו עוזרים לנו לתת לך שירות טוב יותר ולזהות אותך בכל מקום באפליקציה.
           </p>
           <div className="flex flex-wrap gap-2">
             {missing.map(({ label, icon: Icon }) => (
-              <span key={label} className="inline-flex items-center gap-1 text-xs bg-white border border-amber-200 text-amber-800 px-2.5 py-1 rounded-full font-medium">
+              <span
+                key={label}
+                className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-bold"
+                style={{ background: '#FFFFFF', color: '#92400E', border: '1px solid #FCD34D' }}
+              >
                 <Icon className="h-3 w-3" />
                 {label} חסר
               </span>
             ))}
           </div>
         </div>
-        {/* Progress bar */}
+        {/* Progress bar — amber gradient matches the rest of the system's
+            "warning / nudge" tone. The percentage sits on top of a
+            slim filled track so progress is readable at a glance. */}
         <div className="shrink-0 flex flex-col items-center gap-1">
-          <span className="text-lg font-bold text-amber-700">{Math.round((filledCount / 3) * 100)}%</span>
-          <div className="w-10 h-1.5 bg-amber-200 rounded-full overflow-hidden">
+          <span className="text-lg font-black tabular-nums" style={{ color: '#92400E' }} dir="ltr">
+            {Math.round((filledCount / 3) * 100)}%
+          </span>
+          <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: '#FEF3C7' }}>
             <div
-              className="h-full bg-amber-500 rounded-full transition-all"
-              style={{ width: `${(filledCount / 3) * 100}%` }}
+              className="h-full transition-all duration-500"
+              style={{
+                width: `${(filledCount / 3) * 100}%`,
+                background: 'linear-gradient(90deg, #92400E 0%, #F59E0B 80%, #FCD34D 100%)',
+              }}
             />
           </div>
         </div>
@@ -155,13 +178,33 @@ export default function UserProfilePage({ embedded = false }) {
     return (
       <div dir="rtl">
         {!embedded && <PageHeader title="אזור אישי" subtitle="פרטים אישיים ורישיון נהיגה" />}
-        <Card className="p-8 border border-gray-100 shadow-sm rounded-2xl text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-[#FCF9F4] flex items-center justify-center mx-auto">
-            <UserPlus className="h-8 w-8 text-[#3E6B45]" />
+        <Card accent="emerald" className="text-center space-y-4 py-8">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto"
+            style={{
+              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              color: '#FFFFFF',
+              boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
+            }}
+          >
+            <UserPlus className="h-8 w-8" />
           </div>
-          <h2 className="font-semibold text-gray-900 text-lg">הירשם כדי לנהל את הפרופיל שלך</h2>
-          <p className="text-sm text-gray-500">האזור האישי כולל פרטי רישיון נהיגה, תוקף הרישיון ועוד - זמין לאחר הרשמה.</p>
-          <Button onClick={() => window.location.href = '/Auth'} className="gap-2" style={{ background: '#FFBF00', color: '#2D5233', fontWeight: 700 }}>
+          <h2 className="font-bold text-lg" style={{ color: '#0B2912' }}>
+            הירשם כדי לנהל את הפרופיל שלך
+          </h2>
+          <p className="text-sm" style={{ color: '#6B7C72' }}>
+            האזור האישי כולל פרטי רישיון נהיגה, תוקף הרישיון ועוד. זמין לאחר הרשמה.
+          </p>
+          <Button
+            onClick={() => window.location.href = '/Auth'}
+            className="gap-2"
+            style={{
+              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              color: '#FFFFFF',
+              fontWeight: 700,
+              boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
+            }}
+          >
             <UserPlus className="h-4 w-4" />
             הירשם בחינם
           </Button>
@@ -332,14 +375,17 @@ function AuthUserProfile({ embedded = false }) {
         />
 
         {/* Personal Info */}
-        <Card className="p-6 border border-gray-100 shadow-sm rounded-2xl">
+        <Card accent="emerald">
           {systemError && <SystemErrorBanner message={systemError} onRetry={() => { setSystemError(null); handleSave(); }} />}
 
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-xl bg-[#FCF9F4] flex items-center justify-center">
-              <User className="h-5 w-5 text-[#3E6B45]" />
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: '#D1FAE5', color: '#065F46' }}
+            >
+              <User className="h-5 w-5" />
             </div>
-            <h2 className="font-semibold text-gray-800">פרטים אישיים</h2>
+            <h2 className="font-bold text-base" style={{ color: '#0B2912' }}>פרטים אישיים</h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -411,19 +457,32 @@ function AuthUserProfile({ embedded = false }) {
         </Card>
 
         {/* Driver License */}
-        <Card className="p-6 border border-gray-100 shadow-sm rounded-2xl">
+        <Card accent="blue">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#FCF9F4] flex items-center justify-center relative shrink-0">
-                <ScanLine className="h-5 w-5 text-[#3E6B45]" />
-                <span className="absolute -top-1 -left-1 bg-[#3E6B45] text-white text-[8px] font-bold px-1 rounded-full">AI</span>
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center relative shrink-0"
+                style={{ background: '#DBEAFE', color: '#1E40AF' }}
+              >
+                <ScanLine className="h-5 w-5" />
+                <span
+                  className="absolute -top-1 -left-1 text-[8px] font-black px-1 rounded-full"
+                  style={{
+                    background: 'linear-gradient(135deg, #065F46 0%, #10B981 100%)',
+                    color: '#FFFFFF',
+                    boxShadow: '0 2px 4px rgba(16,185,129,0.32)',
+                  }}
+                >
+                  AI
+                </span>
               </div>
-              <h2 className="font-semibold text-gray-800">רישיון נהיגה</h2>
+              <h2 className="font-bold text-base" style={{ color: '#0B2912' }}>רישיון נהיגה</h2>
             </div>
             <Button
               onClick={() => setShowScan(true)}
               variant="outline"
-              className="gap-2 text-sm w-full sm:w-auto" style={{ borderColor: '#3E6B45', color: '#3E6B45' }}
+              className="gap-2 text-sm w-full sm:w-auto"
+              style={{ borderColor: '#10B981', color: '#10B981', background: '#FFFFFF' }}
             >
               <ScanLine className="h-4 w-4" />
               סרוק רישיון נהיגה (AI)
@@ -456,7 +515,20 @@ function AuthUserProfile({ embedded = false }) {
           )}
         </Card>
 
-        <Button onClick={handleSave} disabled={saving} className="w-full h-12 text-base shadow-md font-bold" style={{ background: saving ? '#9CA3AF' : '#3E6B45', color: 'white' }}>
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="w-full h-12 text-base font-bold transition-all hover:scale-[1.01] active:scale-[0.98]"
+          style={{
+            background: saving
+              ? '#9CA3AF'
+              : 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            color: '#FFFFFF',
+            boxShadow: saving
+              ? 'none'
+              : '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+          }}
+        >
           {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Save className="h-4 w-4 ml-2" />שמור פרופיל</>}
         </Button>
 
