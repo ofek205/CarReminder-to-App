@@ -8,6 +8,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { PinGate } from '@/components/shared/PinLock';
 import AppUpdateGate from '@/components/shared/AppUpdateGate';
+import BootDebug from './pages/BootDebug';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -190,6 +191,21 @@ class AppErrorBoundary extends React.Component {
 }
 
 function App() {
+  // Diagnostic escape-hatch route. Rendered BEFORE every provider, gate
+  // and router so it's reachable even when GuestProvider/AppUpdateGate/
+  // Router are jammed. The boot watchdog in main.jsx links here when
+  // it fires — the user can read the persisted boot-stage timeline
+  // without depending on anything async.
+  if (typeof window !== 'undefined' && window.location?.pathname === '/boot-debug') {
+    return (
+      <div>
+        <AppErrorBoundary>
+          <BootDebug />
+        </AppErrorBoundary>
+      </div>
+    );
+  }
+
   return (
     <div>
       <AppErrorBoundary>
