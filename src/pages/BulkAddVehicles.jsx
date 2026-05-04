@@ -27,7 +27,8 @@ import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { lookupVehicleByPlate } from '@/services/vehicleLookup';
 import { createPageUrl } from '@/utils';
-import MobileBackButton from '@/components/shared/MobileBackButton';
+// Living Dashboard system - shared with all B2B pages.
+import { PageShell, Card } from '@/components/business/system';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -241,13 +242,10 @@ export default function BulkAddVehicles() {
   // ---------- render ------------------------------------------------
 
   return (
-    <div dir="rtl" className="max-w-3xl mx-auto py-2">
-      <MobileBackButton />
-      <div className="mb-5">
-        <h1 className="text-xl font-bold text-gray-900">ייבוא מרובה רכבים</h1>
-        <p className="text-xs text-gray-500">העלה קובץ אקסל או הדבק רשימת מספרי רישוי. המערכת תאתר את הרכבים אצל משרד התחבורה ותוסיף אותם אוטומטית.</p>
-      </div>
-
+    <PageShell
+      title="ייבוא מרובה רכבים"
+      subtitle="העלה קובץ אקסל או הדבק רשימת מספרי רישוי. המערכת תאתר את הרכבים אצל משרד התחבורה ותוסיף אותם אוטומטית."
+    >
       <Stepper current={step} />
 
       {step === 'input' && (
@@ -284,7 +282,7 @@ export default function BulkAddVehicles() {
           onRestart={reset}
         />
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -302,12 +300,25 @@ function Stepper({ current }) {
       {steps.map((s, i) => {
         const isCurrent = i === idx;
         const isPast    = i < idx;
+        // Tone vocabulary:
+        //   current → emerald gradient (active focal point)
+        //   past    → emerald soft (visited, done)
+        //   future  → mint outline (pending)
+        const style = isCurrent
+          ? {
+              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              color: '#FFFFFF',
+              boxShadow: '0 4px 12px rgba(16,185,129,0.32)',
+            }
+          : isPast
+            ? { background: '#D1FAE5', color: '#065F46' }
+            : { background: '#FFFFFF', color: '#A7B3AB', border: '1px dashed #D1FAE5' };
         return (
-          <li key={s.key} className={`flex-1 px-3 py-1.5 rounded-lg text-[11px] font-bold text-center ${
-            isCurrent ? 'bg-[#2D5233] text-white'
-                      : isPast ? 'bg-[#E8F2EA] text-[#2D5233]'
-                               : 'bg-gray-100 text-gray-400'
-          }`}>
+          <li
+            key={s.key}
+            className="flex-1 px-3 py-2 rounded-xl text-[11px] font-bold text-center transition-all"
+            style={style}
+          >
             {s.label}
           </li>
         );
@@ -423,7 +434,12 @@ function InputStep({ onPlatesParsed, onContinue, plates }) {
           type="button"
           onClick={onContinue}
           disabled={plates.length === 0}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98] disabled:opacity-50"
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+          style={{
+            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            color: '#FFFFFF',
+            boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+          }}
         >
           המשך לבדיקה
           <ArrowLeft className="h-3.5 w-3.5" />
@@ -560,7 +576,12 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
           type="button"
           onClick={onSubmit}
           disabled={submitting || isLookingUp || includedCount === 0}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98] disabled:opacity-50"
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+          style={{
+            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            color: '#FFFFFF',
+            boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+          }}
         >
           {submitting
             ? <><Loader2 className="h-4 w-4 animate-spin" /> מייבא...</>
@@ -574,16 +595,22 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
 function ProgressCard({ done, total }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-4">
+    <Card accent="emerald">
       <div className="flex items-center justify-between mb-2 text-xs">
-        <span className="font-bold text-gray-900">בודק את המספרים מול משרד התחבורה</span>
-        <span className="text-gray-500 tabular-nums">{done} מתוך {total}</span>
+        <span className="font-bold" style={{ color: '#0B2912' }}>בודק את המספרים מול משרד התחבורה</span>
+        <span className="tabular-nums" style={{ color: '#4B5D52' }} dir="ltr">{done} מתוך {total}</span>
       </div>
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div className="h-full bg-[#2D5233] transition-all duration-300" style={{ width: `${pct}%` }} />
+      <div className="h-2 rounded-full overflow-hidden" style={{ background: '#F0F7F4' }}>
+        <div
+          className="h-full transition-all duration-500"
+          style={{
+            width: `${pct}%`,
+            background: 'linear-gradient(90deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+          }}
+        />
       </div>
-      <p className="text-[10px] text-gray-400 mt-2">חיפוש מקבילי, עד 5 בו זמנית. לוקח כדקה ל 100 רכבים.</p>
-    </div>
+      <p className="text-[10px] mt-2" style={{ color: '#A7B3AB' }}>חיפוש מקבילי, עד 5 בו זמנית. לוקח כדקה ל-100 רכבים.</p>
+    </Card>
   );
 }
 
@@ -810,14 +837,20 @@ function ResultStep({ result, onDone, onRestart }) {
         <button
           type="button"
           onClick={onRestart}
-          className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-xs font-bold"
+          className="flex-1 py-3 rounded-xl text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+          style={{ background: '#FFFFFF', color: '#10B981', border: '1.5px solid #D1FAE5' }}
         >
           ייבא עוד
         </button>
         <button
           type="button"
           onClick={onDone}
-          className="flex-1 py-2.5 rounded-xl bg-[#2D5233] text-white text-xs font-bold"
+          className="flex-1 py-3 rounded-xl text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+          style={{
+            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            color: '#FFFFFF',
+            boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+          }}
         >
           לצי הרכבים
         </button>
