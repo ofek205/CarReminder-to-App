@@ -40,6 +40,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { createPageUrl } from '@/utils';
 import VehiclePicker from '@/components/shared/VehiclePicker';
 import MobileBackButton from '@/components/shared/MobileBackButton';
+import AddressInput, { composeAddressText } from '@/components/shared/AddressInput';
 import { geocodeAddress } from '@/lib/geocode';
 
 // ---------- helpers ---------------------------------------------------
@@ -61,12 +62,17 @@ const STOP_TYPE_OPTIONS = [
   { value: 'other',           label: 'אחר' },
 ];
 
-// Empty stop template. `geo_status` is UI-only — used to drive the badge
-// on the collapsed card and the warning under the address field. Never
-// sent to the RPC.
+// Empty stop template. The address is captured as 3 structured fields
+// (city / street / house_number) and concatenated to `address_text` at
+// submit time — the DB still stores a single `address_text` string for
+// backwards compat with existing reads (RouteDetail, FleetMap, Nominatim).
+// `geo_status` is UI-only — drives the badge on the collapsed card and
+// the warning under the address fields. Never sent to the RPC.
 const emptyStop = () => ({
   title: '',
-  address_text: '',
+  address_city: '',
+  address_street: '',
+  address_house_number: '',
   driver_notes: '',
   // advanced (revealed via "אפשרויות נוספות"):
   stop_type: '',
@@ -78,6 +84,14 @@ const emptyStop = () => ({
   latitude: null,
   longitude: null,
   geo_status: 'idle', // 'idle' | 'ok' | 'failed'
+});
+
+// Helpers for the composed address — used in collapsed preview, geocode,
+// and submit. Centralised so all three stay in sync.
+const stopAddressText = (s) => composeAddressText({
+  city:         s.address_city,
+  street:       s.address_street,
+  house_number: s.address_house_number,
 });
 
 // ---------- main page ------------------------------------------------
@@ -180,8 +194,9 @@ export default function CreateRoute() {
     setStops(prev => prev.map((s, idx) => {
       if (idx !== i) return s;
       const next = { ...s, [key]: value };
-      // Editing the address invalidates a previous geocode.
-      if (key === 'address_text' && s.geo_status !== 'idle') {
+      // Editing any address part invalidates a previous geocode result.
+      const addressKeys = ['address_city', 'address_street', 'address_house_number'];
+      if (addressKeys.includes(key) && s.geo_status !== 'idle') {
         next.geo_status = 'idle';
         next.latitude = null;
         next.longitude = null;
@@ -226,7 +241,7 @@ export default function CreateRoute() {
   // can decide whether to warn.
   const geocodeStop = async (i) => {
     const stop = stops[i];
-    const q = (stop.address_text || '').trim();
+    const q = stopAddressText(stop);
     if (!q) return 'idle';
     const result = await geocodeAddress(q);
     setStops(prev => prev.map((s, idx) => {
@@ -251,7 +266,7 @@ export default function CreateRoute() {
     // (a multi-stop form with one blank trailing card shouldn't fail
     // the user — just ignore it).
     const indexed = stops.map((s, i) => ({ ...s, _i: i }));
-    const populated = indexed.filter(s => s.title.trim() || s.address_text.trim());
+    const populated = indexed.filter(s => s.title.trim() || stopAddressText(s));
     if (populated.length === 0) {
       toast.error('יש להזין יעד למשימה');
       return;
@@ -274,10 +289,10 @@ export default function CreateRoute() {
       // user is the fast way to get rate-limited.
       let mergedStops = stops;
       const needsGeocode = populated.filter(s =>
-        s.address_text.trim() && s.geo_status === 'idle'
+        stopAddressText(s) && s.geo_status === 'idle'
       );
       for (const s of needsGeocode) {
-        const result = await geocodeAddress(s.address_text.trim());
+        const result = await geocodeAddress(stopAddressText(s));
         mergedStops = mergedStops.map((p, idx) => {
           if (idx !== s._i) return p;
           if (result) {
@@ -289,10 +304,10 @@ export default function CreateRoute() {
       if (needsGeocode.length > 0) setStops(mergedStops);
 
       const finalStops = mergedStops
-        .filter(s => s.title.trim() || s.address_text.trim())
+        .filter(s => s.title.trim() || stopAddressText(s))
         .map(s => ({
           title:         s.title.trim(),
-          address_text:  s.address_text.trim() || null,
+          address_text:  stopAddressText(s) || null,
           driver_notes:  s.driver_notes.trim() || null,
           manager_notes: s.manager_notes.trim() || null,
           contact_name:  s.contact_name.trim() || null,
@@ -304,7 +319,7 @@ export default function CreateRoute() {
         }));
 
       const failedCount = mergedStops.filter(s =>
-        s.address_text.trim() && s.geo_status === 'failed'
+        stopAddressText(s) && s.geo_status === 'failed'
       ).length;
 
       const { data: newRouteId, error } = await supabase.rpc('create_route_with_stops', {
@@ -353,7 +368,7 @@ export default function CreateRoute() {
   const todayISO = new Date().toISOString().slice(0, 10);
   const selectedVehicle = vehicles.find(v => v.id === vehicleId);
   const selectedDriver  = team.find(m => m.user_id === driverUserId);
-  const populatedStopsCount = stops.filter(s => s.title.trim() || s.address_text.trim()).length;
+  const populatedStopsCount = stops.filter(s => s.title.trim() || stopAddressText(s)).length;
 
   return (
     <div dir="rtl" className="max-w-2xl mx-auto py-2">
@@ -605,7 +620,12 @@ function StopCard({
   const [geoBusy, setGeoBusy] = useState(false);
 
   const handleCheckAddress = async () => {
-    if (!stop.address_text.trim() || geoBusy) return;
+    const composed = composeAddressText({
+      city: stop.address_city,
+      street: stop.address_street,
+      house_number: stop.address_house_number,
+    });
+    if (!composed || geoBusy) return;
     setGeoBusy(true);
     await onGeocode();
     setGeoBusy(false);
@@ -628,7 +648,11 @@ function StopCard({
               {stop.title.trim() || `תחנה ${index + 1}`}
             </p>
             <p className="text-[11px] text-gray-500 truncate">
-              {stop.address_text.trim() || 'ללא כתובת'}
+              {composeAddressText({
+                city: stop.address_city,
+                street: stop.address_street,
+                house_number: stop.address_house_number,
+              }) || 'ללא כתובת'}
             </p>
           </button>
 
@@ -732,19 +756,25 @@ function StopCard({
         className="h-10 rounded-xl text-sm"
       />
 
-      {/* Essential: address + check button */}
+      {/* Essential: structured address — city dropdown + street + number.
+          Concatenated to address_text at submit. Geocoding still works
+          on the concatenated form. */}
       <div>
-        <Input
-          value={stop.address_text}
-          onChange={(e) => onChange('address_text', e.target.value)}
-          placeholder="כתובת מדויקת"
-          className="h-10 rounded-xl text-sm"
+        <AddressInput
+          city={stop.address_city}
+          street={stop.address_street}
+          houseNumber={stop.address_house_number}
+          onChange={(field, value) => onChange(`address_${field}`, value)}
         />
-        <div className="flex items-center justify-between gap-2 mt-1.5 flex-wrap">
+        <div className="flex items-center justify-between gap-2 mt-2 flex-wrap">
           <button
             type="button"
             onClick={handleCheckAddress}
-            disabled={geoBusy || !stop.address_text.trim()}
+            disabled={geoBusy || !composeAddressText({
+              city: stop.address_city,
+              street: stop.address_street,
+              house_number: stop.address_house_number,
+            })}
             className="text-[11px] font-bold text-[#2D5233] disabled:opacity-40 flex items-center gap-1 active:opacity-70"
           >
             {geoBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <MapPin className="w-3 h-3" />}
