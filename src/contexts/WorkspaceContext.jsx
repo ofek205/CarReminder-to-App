@@ -37,6 +37,25 @@ import useWorkspaces from '@/hooks/useWorkspaces';
 
 const WorkspaceContext = createContext(null);
 
+// Per-user localStorage key for the last-known active workspace. Seeding
+// `activeId` from this on cold start lets warm boots render the dashboard
+// immediately even when the membership query is slow (or hung — the iOS
+// WebView session-bridge bug seen in production). The real workspace
+// resolution still runs in the background and overrides the seed when
+// it lands.
+const LAST_WS_KEY = (uid) => `cr_last_active_workspace:${uid || 'anon'}`;
+function readCachedWorkspace(uid) {
+  if (!uid) return null;
+  try { return localStorage.getItem(LAST_WS_KEY(uid)) || null; } catch { return null; }
+}
+function writeCachedWorkspace(uid, accountId) {
+  if (!uid) return;
+  try {
+    if (accountId) localStorage.setItem(LAST_WS_KEY(uid), accountId);
+    else localStorage.removeItem(LAST_WS_KEY(uid));
+  } catch { /* quota / private mode — silent */ }
+}
+
 const ROLE_PRIORITY = { 'בעלים': 0, 'מנהל': 1, 'שותף': 2 };
 const sortByRole = (a, b) =>
   (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9);
@@ -128,12 +147,22 @@ export function WorkspaceProvider({ children }) {
     staleTime: 60 * 60 * 1000,
   });
 
-  // Active workspace state. Null until first resolution. We DO NOT
-  // re-resolve every time memberships changes — once the user has
-  // chosen a workspace this session, we keep it (subject to it still
-  // being a valid membership).
-  const [activeId, setActiveId] = useState(null);
+  // Active workspace state. Seed from localStorage so warm boots paint
+  // immediately — without this seed, the home + vehicles pages spin
+  // through the entire useWorkspaces round-trip every refresh, and any
+  // network hang leaves them stuck. The seed is corrected the moment
+  // memberships arrive: if it isn't a valid membership anymore the
+  // resolution effect below replaces it.
+  const [activeId, setActiveId] = useState(() => readCachedWorkspace(user?.id));
   const initializedRef = useRef(false);
+
+  // Re-seed whenever the auth user identity changes (sign in / sign out
+  // / account switch). Without this the seed sticks across users and a
+  // signed-out → signed-in cycle would inherit the previous user's id.
+  useEffect(() => {
+    setActiveId(readCachedWorkspace(user?.id));
+    initializedRef.current = false;
+  }, [user?.id]);
 
   // Initial resolution + revalidation when the active workspace
   // disappears (e.g., a manager removed the user from a workspace).
@@ -149,10 +178,12 @@ export function WorkspaceProvider({ children }) {
 
     if (!initializedRef.current || !stillValid) {
       const fallback = resolveDefault(memberships, savedHint);
-      setActiveId(fallback?.account_id ?? null);
+      const nextId = fallback?.account_id ?? null;
+      setActiveId(nextId);
+      writeCachedWorkspace(user?.id, nextId);
       initializedRef.current = true;
     }
-  }, [memberships, membershipsLoading, savedHint, activeId]);
+  }, [memberships, membershipsLoading, savedHint, activeId, user?.id]);
 
   // Auto-heal: authenticated user, no memberships at all, call the
   // SECURITY DEFINER RPC once per session and let useWorkspaces refetch.
@@ -183,6 +214,7 @@ export function WorkspaceProvider({ children }) {
     if (targetAccountId === activeId) return true;
 
     setActiveId(targetAccountId);
+    writeCachedWorkspace(user?.id, targetAccountId);
 
     // Persist hint. Fire-and-forget — never block the UI on this.
     (async () => {
@@ -219,7 +251,12 @@ export function WorkspaceProvider({ children }) {
     activeWorkspaceId:  activeId,
     activeWorkspace,
     switchTo,
-    isLoading: membershipsLoading,
+    // If we have a seeded activeId (from localStorage), expose
+    // isLoading=false so consumers like useAccountRole return the
+    // cached id immediately. The membership query keeps running in
+    // the background; once it lands the resolution effect either
+    // confirms or replaces the seed.
+    isLoading: membershipsLoading && !activeId,
     isGuest:   !!isGuest || authState === 'guest',
   }), [memberships, activeId, activeWorkspace, switchTo, membershipsLoading, isGuest, authState]);
 

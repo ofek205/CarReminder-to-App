@@ -35,6 +35,23 @@ export default function useAccountRole() {
     return { role: null, accountId: null, isLoading: false, isGuest: true };
   }
 
+  // Seed-aware short circuit: if WorkspaceContext already exposes an
+  // activeWorkspaceId (via the localStorage cache it now seeds on
+  // cold start) we return it immediately, even if the live membership
+  // query hasn't finished. Without this, pages would still show null
+  // accountId while memberships=[] for the brief window between mount
+  // and `useWorkspaces` resolving — re-introducing the stuck-loading
+  // bug for users where the network is slow / hung.
+  if (activeWorkspaceId) {
+    return {
+      role: activeWorkspace?.role ?? null,
+      accountId: activeWorkspaceId,
+      isLoading: false,
+      needsProvisioning: false,
+      isGuest: false,
+    };
+  }
+
   if (isLoading) {
     return { role: null, accountId: null, isLoading: true, isGuest: false };
   }
