@@ -33,6 +33,7 @@ import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { Plus, Wrench, Settings, Trash2, Loader2, Check, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/shared/GuestContext";
+import useAccountRole from '@/hooks/useAccountRole';
 import { MAINTENANCE_CATEGORIES, getCatalogForVehicleType } from "@/components/shared/MaintenanceCatalog";
 import { C } from '@/lib/designTokens';
 
@@ -82,6 +83,13 @@ function GuestView() {
 function AuthenticatedView() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  // Templates + repair types are user-level by design (the user's
+  // personal reminder preferences travel between workspaces). But the
+  // vehicle list + maintenance history must be scoped to the active
+  // workspace — otherwise switching to a business workspace still
+  // shows catalog rows derived from the user's personal car types and
+  // "בוצע לפני X" hints from the personal account's logs.
+  const { accountId } = useAccountRole();
 
   const qc = useQueryClient();
   const { data: prefs = [], isLoading: prefsLoading } = useQuery({
@@ -95,32 +103,39 @@ function AuthenticatedView() {
     enabled: !!userId,
   });
   const { data: vehicles = [] } = useQuery({
-    queryKey: ['my-vehicles-for-templates', userId],
+    queryKey: ['my-vehicles-for-templates', userId, accountId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('id, vehicle_type');
+        .select('id, vehicle_type')
+        .eq('account_id', accountId);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!userId,
+    enabled: !!userId && !!accountId,
   });
 
   // Maintenance history. used to show "בוצע לפני X" next to each row.
-  // We read ALL logs the user can see (RLS already filters by account
-  // membership) and build a name → latest-date map below.
+  // Scoped to the active workspace by vehicle_id (the table has no
+  // account_id column, mirroring Reports.jsx). Without this scope the
+  // hints bleed across personal/business when the user has memberships
+  // in both. Skip the round-trip entirely when the workspace has no
+  // vehicles yet.
+  const vehicleIdsForLogs = useMemo(() => vehicles.map(v => v.id), [vehicles]);
   const { data: logs = [] } = useQuery({
-    queryKey: ['my-maintenance-logs', userId],
+    queryKey: ['my-maintenance-logs', userId, accountId, vehicleIdsForLogs.join(',')],
     queryFn: async () => {
+      if (vehicleIdsForLogs.length === 0) return [];
       const { data, error } = await supabase
         .from('maintenance_logs')
         .select('id, title, selected_items, performed_at, date, created_at')
+        .in('vehicle_id', vehicleIdsForLogs)
         .order('created_at', { ascending: false })
         .limit(1000);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!userId,
+    enabled: !!userId && !!accountId,
   });
 
   // Map: normalised item name → most recent performed_at across ALL logs.

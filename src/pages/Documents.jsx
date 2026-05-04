@@ -955,14 +955,18 @@ export default function Documents() {
 
 //  Auth Documents
 function AuthDocuments({ vehicleIdParam }) {
-  const { role } = useAccountRole();
+  // accountId comes from the active workspace (WorkspaceContext) so the
+  // documents list reflects the workspace the user is currently in and
+  // re-scopes when they switch. Pre-fix the page did its own member
+  // lookup pinned to the first membership and leaked personal docs into
+  // business view.
+  const { role, accountId } = useAccountRole();
   // Drivers in a business workspace must only see documents that
   // belong to vehicles they're actively assigned to. Without this
   // scoping the page leaks every document a manager uploaded for the
   // whole fleet — privacy + clutter problem.
   const { isBusiness, isDriver, canManageRoutes } = useWorkspaceRole();
   const restrictToDriverAssignments = isBusiness && isDriver && !canManageRoutes;
-  const [accountId, setAccountId] = useState(null);
   const [userId, setUserId] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showScanWizard, setShowScanWizard] = useState(false);
@@ -976,8 +980,6 @@ function AuthDocuments({ vehicleIdParam }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
-      const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-      if (members.length > 0) setAccountId(members[0].account_id);
     }
     init();
   }, []);

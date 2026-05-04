@@ -94,7 +94,12 @@ export default function AddAccident() {
   const queryClient = useQueryClient();
   const { isAuthenticated, isGuest, user, guestVehicles, guestAccidents,
     addGuestAccident, updateGuestAccident } = useAuth();
-  const { role, isGuest: isGuestRole } = useAccountRole();
+  // accountId comes from the active workspace so the new accident is
+  // written into the workspace the user is currently in. Pre-fix the
+  // page pinned to the first membership and a user with both personal
+  // + business memberships always wrote into whichever account the DB
+  // returned first, regardless of the workspace switcher.
+  const { role, accountId, isGuest: isGuestRole } = useAccountRole();
 
   const [showGuestSignup, setShowGuestSignup] = useState(false);
   const urlParams = new URLSearchParams(window.location.search);
@@ -102,7 +107,6 @@ export default function AddAccident() {
   const isEdit = !!editId;
 
   const [saving, setSaving] = useState(false);
-  const [accountId, setAccountId] = useState(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [autofillFields, setAutofillFields] = useState(new Set());
   const [lookupStatus, setLookupStatus] = useState('idle');
@@ -168,15 +172,7 @@ export default function AddAccident() {
     }
   };
 
-  // Load account for authenticated users
-  useEffect(() => {
-    if (!isAuthenticated || !user) return;
-    async function init() {
-      const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-      if (members.length > 0) setAccountId(members[0].account_id);
-    }
-    init();
-  }, [isAuthenticated, user]);
+  // accountId is provided by useAccountRole above (active workspace).
 
   // Fetch vehicles
   const { data: authVehicles = [] } = useQuery({
