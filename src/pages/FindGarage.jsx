@@ -21,6 +21,7 @@ import {
 import MapCore from '@/components/map/MapCore';
 import { useUserLocation } from '@/components/map/useUserLocation';
 import { NavButtonsCompact, NavButtonsRow } from '@/components/map/NavButtons';
+import { getAuthorizedGarageMatcher } from '@/lib/authorizedGarages';
 
 //  Type definitions with colors & icons
 const TYPE_CONFIG = {
@@ -207,6 +208,29 @@ export default function FindGarage() {
   const [hasVessel, setHasVessel] = useState(false);
   const mapRef = useRef(null);
   const retryRef = useRef(false);
+
+  // Authorized-garage matcher. Loaded once on mount from the
+  // data.gov.il registry (cached 7 days in localStorage). When
+  // available, every result row in `displayGarages` gets an
+  // `authStatus` field via the memo below, and the user can filter
+  // to only authorized / unauthorized garages. While the matcher is
+  // still loading, the filter row is rendered but disabled so it
+  // doesn't flicker between states.
+  const [authMatcher, setAuthMatcher] = useState(null);
+  // Filter pill: 'all' | 'authorized' | 'unauthorized'. Only the
+  // car-side filter — marine results aren't covered by this registry
+  // (it's the מוסכים ומכוני רישוי dataset for road vehicles).
+  const [authFilter, setAuthFilter] = useState('all');
+
+  // Load the matcher on mount. The service handles caching and
+  // soft-fails to an empty registry on offline / API outage.
+  useEffect(() => {
+    let cancelled = false;
+    getAuthorizedGarageMatcher()
+      .then(m => { if (!cancelled) setAuthMatcher(m); })
+      .catch(() => { /* matcher stays null → filter chip hidden */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // GPS-error from the hook auto-clears after 4s; city-search-error is local.
   const locError = gpsError || searchError;
@@ -491,15 +515,51 @@ export default function FindGarage() {
 
   const scrollToCard = (id) => { const el = document.getElementById(`garage-card-${id}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
 
+  // Annotate each garage with an `authStatus` field via the loaded
+  // matcher. Marine types are excluded from the registry concept —
+  // marinas / boat repairs aren't in the road-vehicle ministry's
+  // dataset, so we mark them 'unknown' and hide them from the
+  // authorized/unauthorized filter when active.
+  const isCarType = (k) => Object.prototype.hasOwnProperty.call(TYPE_CONFIG, k);
+  const annotatedGarages = authMatcher
+    ? garages.map(g => ({
+        ...g,
+        authStatus: isCarType(g.typeKey) ? authMatcher.match(g).status : 'unknown',
+      }))
+    : garages.map(g => ({ ...g, authStatus: null }));
+
   // Filtered & sorted garages
-  const displayGarages = garages
+  const displayGarages = annotatedGarages
     .filter(g => filterType === 'all' || g.typeKey === filterType)
     .filter(g => !nameQuery.trim() || g.name.includes(nameQuery.trim()))
+    // Authorized filter — only applied when the matcher has loaded.
+    // Marine / unknown rows are hidden from both authorized and
+    // unauthorized views (we don't have signal to claim either).
+    .filter(g => {
+      if (authFilter === 'all' || !authMatcher) return true;
+      if (authFilter === 'authorized')   return g.authStatus === 'authorized';
+      if (authFilter === 'unauthorized') return g.authStatus === 'unauthorized';
+      return true;
+    })
     .sort((a, b) => sortBy === 'name' ? a.name.localeCompare(b.name, 'he') : a.distance - b.distance);
 
   // Type counts
   const typeCounts = { all: garages.length };
   garages.forEach(g => { typeCounts[g.typeKey] = (typeCounts[g.typeKey] || 0) + 1; });
+
+  // Authorization counts — driven off `annotatedGarages` so the chip
+  // numbers reflect the active type+name filters but ignore the
+  // current authFilter (the user expects "מורשה (12)" to keep showing
+  // 12 while they're already on that filter, not "12/12").
+  const authCounts = annotatedGarages
+    .filter(g => filterType === 'all' || g.typeKey === filterType)
+    .filter(g => !nameQuery.trim() || g.name.includes(nameQuery.trim()))
+    .reduce((acc, g) => {
+      acc.all++;
+      if (g.authStatus === 'authorized')   acc.authorized++;
+      else if (g.authStatus === 'unauthorized') acc.unauthorized++;
+      return acc;
+    }, { all: 0, authorized: 0, unauthorized: 0 });
 
   //  Loading
   if (loading) {
@@ -669,6 +729,72 @@ export default function FindGarage() {
           ))}
         </div>
       </div>
+
+      {/* Authorization filter — only rendered when the registry has
+          loaded successfully AND the user is on a car-type filter (the
+          dataset doesn't cover marine). Three pills:
+            "הכל"  — no filter applied (default)
+            "מורשה" — emerald, with count of registry-matched garages
+            "לא מורשה" — soft red, count of garages that look unlisted
+          Counts come from `authCounts` which respects the current
+          type + name filters but ignores `authFilter` itself, so the
+          numbers stay stable while the user toggles. */}
+      {authMatcher?.loaded && (filterType === 'all' || isCarType(filterType)) && (
+        <div className="px-3 mb-2">
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+            {[
+              {
+                key: 'all', label: 'הכל',
+                count: authCounts.all,
+                activeBg: '#0F2A1C', activeFg: '#FFFFFF',
+                idleBg: '#FFFFFF',   idleFg: '#4B5D52',  idleBorder: '#E5EDE8',
+              },
+              {
+                key: 'authorized', label: 'מורשה',
+                count: authCounts.authorized,
+                // Emerald gradient — same family as the rest of the app.
+                activeBg: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                activeFg: '#FFFFFF',
+                idleBg: '#ECFDF5', idleFg: '#065F46', idleBorder: '#A7F3D0',
+              },
+              {
+                key: 'unauthorized', label: 'לא מורשה',
+                count: authCounts.unauthorized,
+                activeBg: '#991B1B', activeFg: '#FFFFFF',
+                idleBg: '#FEF2F2',  idleFg: '#991B1B', idleBorder: '#FECACA',
+              },
+            ].map(p => {
+              const active = authFilter === p.key;
+              return (
+                <button key={p.key} type="button"
+                  onClick={() => setAuthFilter(p.key)}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold shrink-0 transition-all border flex items-center gap-1.5"
+                  style={{
+                    background: active ? p.activeBg : p.idleBg,
+                    color:      active ? p.activeFg : p.idleFg,
+                    borderColor: active ? 'transparent' : p.idleBorder,
+                    boxShadow: active ? '0 4px 12px rgba(15,40,28,0.18)' : 'none',
+                  }}
+                >
+                  {p.label}
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums"
+                    style={{
+                      background: active ? 'rgba(255,255,255,0.25)' : 'rgba(15,40,28,0.06)',
+                      color:      active ? p.activeFg               : p.idleFg,
+                    }}
+                    dir="ltr"
+                  >
+                    {p.count}
+                  </span>
+                </button>
+              );
+            })}
+            <span className="text-[10px] self-center mr-1" style={{ color: C.muted }}>
+              נתוני משרד התחבורה
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Name search */}
       <div className="px-3 mb-2">
@@ -850,10 +976,33 @@ export default function FindGarage() {
                     <div className="flex items-start justify-between gap-1.5 mb-0.5">
                       <div className="min-w-0">
                         <h3 className="font-bold text-[13px] truncate" style={{ color: C.text }}>{g.name}</h3>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-0.5"
-                          style={{ background: tc.bg, color: tc.color }}>
-                          {tc.label}
-                        </span>
+                        <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-block"
+                            style={{ background: tc.bg, color: tc.color }}>
+                            {tc.label}
+                          </span>
+                          {/* Authorization badge — only rendered when
+                              the registry matcher has resolved a positive
+                              answer for this garage. We deliberately do
+                              NOT badge "unauthorized" rows on the card
+                              itself (the absence of the green badge says
+                              that, and an explicit red badge on every
+                              third row would create unnecessary noise).
+                              Users who want to see the unlisted set use
+                              the filter pills above. */}
+                          {g.authStatus === 'authorized' && (
+                            <span
+                              className="text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-flex items-center gap-1"
+                              style={{ background: '#D1FAE5', color: '#065F46' }}
+                              title="מופיע ברישום משרד התחבורה"
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                              מורשה
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <span className="text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0"
                         style={{ background: tc.bg, color: tc.color }}>
