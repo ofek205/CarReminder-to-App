@@ -1113,16 +1113,6 @@ export default function Dashboard() {
           reason="כדי לשמור את הרכבים שלך לצמיתות ולגשת אליהם מכל מכשיר" />
 
         <div className="px-4 pt-6">
-          {/* Banner-first: when something needs action it leads the page,
-              and the Quick Check below it switches to compact mode so the
-              eye lands on the urgency, not on the lookup tool. */}
-          <UrgentBanner
-            reminders={upcomingReminders}
-            onView={() => {
-              const remindersTitle = document.getElementById('dashboard-reminders-title');
-              remindersTitle?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}
-          />
           <VehicleCheckHero
             hasVehicles={hasGuestVehicles}
             plate={quickCheckPlate}
@@ -1140,6 +1130,16 @@ export default function Dashboard() {
               ניהול <ChevronLeft className="w-4 h-4" />
             </Link>
           </div>
+
+          {/* Urgent reminders banner — placed under the section header
+              so the license-plate hero leads the page. */}
+          <UrgentBanner
+            reminders={upcomingReminders}
+            onView={() => {
+              const remindersTitle = document.getElementById('dashboard-reminders-title');
+              remindersTitle?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          />
 
           {/* Demo banner - prominent */}
           {isShowingDemo && (
@@ -1315,13 +1315,6 @@ export default function Dashboard() {
         return <FirstTimeTour enabled={shouldTour} />;
       })()}
       <div className="px-4 pt-6">
-        {/* Banner-first when there's anything urgent — Quick Check below
-            switches to compact mode so it stays accessible without
-            stealing focus from the alerts. */}
-        <UrgentBanner
-          reminders={allReminders}
-          onView={() => navigate(createPageUrl('Notifications'))}
-        />
         <VehicleCheckHero
           hasVehicles={vehicles.length > 0}
           plate={quickCheckPlate}
@@ -1341,6 +1334,14 @@ export default function Dashboard() {
             ניהול <ChevronLeft className="w-4 h-4" />
           </Link>
         </div>
+
+        {/* Urgent reminders banner — placed under the "כלי התחבורה שלי"
+            header so the license-plate hero leads the page and the
+            urgency strip groups visually with the vehicle list. */}
+        <UrgentBanner
+          reminders={allReminders}
+          onView={() => navigate(createPageUrl('Notifications'))}
+        />
 
         {/* Search + sort. visually identical to the /Vehicles page for
             consistency. Only rendered when there are 2+ vehicles to filter. */}
