@@ -121,7 +121,6 @@ BEGIN
   -- `expiry_date` (not `category` / `expires_at` like other Supabase apps).
   -- We alias to category/expires_at in the JSON output so the frontend
   -- drawer can stay schema-agnostic (it reads d.category / d.expires_at).
-  -- created_at falls back to legacy created_date for migrated rows.
   SELECT COALESCE(jsonb_agg(
     jsonb_build_object(
       'id',           d.id,
@@ -129,8 +128,8 @@ BEGIN
       'title',        d.title,
       'category',     d.document_type,
       'expires_at',   d.expiry_date,
-      'created_at',   COALESCE(d.created_at, d.created_date)
-    ) ORDER BY COALESCE(d.created_at, d.created_date) DESC
+      'created_at',   d.created_at
+    ) ORDER BY d.created_at DESC
   ), '[]'::jsonb)
   INTO v_documents
   FROM documents d
