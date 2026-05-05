@@ -7,9 +7,10 @@ import AdminPopupsTab from '../components/admin/AdminPopupsTab';
 import {
   Users, Shield, TrendingUp, AlertTriangle, Activity, ArrowDown, ChevronDown, ChevronUp,
   RefreshCw, BarChart2, Trash2, Download, Copy, AlertCircle,
-  UserCog, ShieldCheck,
+  UserCog, ShieldCheck, Eye,
 } from 'lucide-react';
 import ConfirmDeleteDialog from '../components/shared/ConfirmDeleteDialog';
+import AdminUserDrawer from '../components/admin/AdminUserDrawer';
 import { toast } from 'sonner';
 import { Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, Line, ComposedChart, Legend,
@@ -427,6 +428,13 @@ export default function AdminDashboard() {
   const [fetchError, setFetchError] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
 
+  // Lifted drawer state — used to be local to AdminUsersTab, but the
+  // Stats tab's "Top Accounts" leaderboard also opens it (clicking a
+  // leaderboard row should show the same dossier as clicking the
+  // VIEW button on the users table). State at this level keeps both
+  // tabs in sync and avoids duplicating the drawer DOM.
+  const [drawerAccount, setDrawerAccount] = useState(null);
+
   const [accounts, setAccounts]     = useState([]);
   const [vehicles, setVehicles]     = useState([]);
   const [maintLogs, setMaintLogs]   = useState([]);
@@ -780,7 +788,79 @@ export default function AdminDashboard() {
     return ids;
   }, [fVeh, fMnt, fRep, fDoc, v2a]);
 
-  //  Funnel 
+  // ────────────────────────────────────────────────────────────────
+  // Top Accounts Leaderboards — surfaces the "outliers we care about"
+  // for the admin dashboard. Three lenses an admin scans for:
+  //   • Largest fleets (by vehicles + vessels)
+  //   • Most documents uploaded (compliance leaders)
+  //   • Most active in the current window (signal of engagement)
+  // Each entry is clickable and opens the same drawer as the Users tab.
+  // The leaderboards intentionally show top-5 rather than full lists —
+  // anything longer is a job for the searchable Users tab.
+  // ────────────────────────────────────────────────────────────────
+
+  // Map account_id → counts (vehicles, vessels, documents). Built from
+  // the all-time data so leaderboards survive the period filter — top
+  // performers don't change because the admin switched to "today".
+  const accountCounts = useMemo(() => {
+    const VESSEL_TYPES = new Set(['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי','יאכטה','ג׳ט סקי']);
+    const map = {};
+    accounts.forEach(a => {
+      map[a.id] = {
+        id:           a.id,
+        name:         a.name || 'ללא שם',
+        created_at:   a.created_at,
+        vehicles:     0,
+        vessels:      0,
+        documents:    0,
+        // Activity score: weighted sum of in-window events. Used for
+        // the "most active" leaderboard.
+        activityScore: 0,
+      };
+    });
+    vehicles.forEach(v => {
+      const r = map[v.account_id];
+      if (!r) return;
+      r.vehicles++;
+      if (VESSEL_TYPES.has(v.vehicle_type)) r.vessels++;
+    });
+    documents.forEach(d => {
+      const r = map[d.account_id];
+      if (r) r.documents++;
+    });
+    // In-window activity scoring. Documents = 1, maintenance = 2,
+    // repairs = 3 (each more "engaged" than the prior). Vehicles
+    // added in-window = 5 (highest signal).
+    fVeh.forEach(v => { const r = map[v.account_id]; if (r) r.activityScore += 5; });
+    fDoc.forEach(d => { const a = v2a[d.vehicle_id] || d.account_id; const r = map[a]; if (r) r.activityScore += 1; });
+    fMnt.forEach(m => { const a = v2a[m.vehicle_id]; const r = a ? map[a] : null; if (r) r.activityScore += 2; });
+    fRep.forEach(rp => { const a = v2a[rp.vehicle_id]; const r = a ? map[a] : null; if (r) r.activityScore += 3; });
+    return Object.values(map);
+  }, [accounts, vehicles, documents, fVeh, fDoc, fMnt, fRep, v2a]);
+
+  const topByFleet = useMemo(
+    () => [...accountCounts]
+      .filter(a => a.vehicles > 0)
+      .sort((a, b) => b.vehicles - a.vehicles)
+      .slice(0, 5),
+    [accountCounts]
+  );
+  const topByDocs = useMemo(
+    () => [...accountCounts]
+      .filter(a => a.documents > 0)
+      .sort((a, b) => b.documents - a.documents)
+      .slice(0, 5),
+    [accountCounts]
+  );
+  const topByActivity = useMemo(
+    () => [...accountCounts]
+      .filter(a => a.activityScore > 0)
+      .sort((a, b) => b.activityScore - a.activityScore)
+      .slice(0, 5),
+    [accountCounts]
+  );
+
+  //  Funnel
 
   const funnel = useMemo(() => {
     const s1 = fAcc.length; // new registrations
@@ -986,7 +1066,7 @@ export default function AdminDashboard() {
       <div className="px-4 sm:px-6 py-6 space-y-8 max-w-[1200px] mx-auto">
 
         {/* Non-stats tabs */}
-        {adminTab === 'users' && <AdminUsersTab />}
+        {adminTab === 'users' && <AdminUsersTab onOpenDrawer={setDrawerAccount} />}
         {adminTab === 'popups' && <AdminPopupsTab />}
         {adminTab === 'messages' && <AdminMessagesTab />}
         {adminTab === 'bugs' && <AdminBugsTab />}
@@ -1181,6 +1261,50 @@ export default function AdminDashboard() {
             </div>
 
             {/* ──────────────────────────────────────────────────────────
+                4.5 TOP ACCOUNTS — three leaderboards (fleet / docs / activity)
+                Designed with PM + BI lens: the admin's mental model when
+                opening this dashboard is "show me my power users + my
+                churn risks". Leaderboards answer the first; the "alerts"
+                section below answers the second.
+                ────────────────────────────────────────────────────────── */}
+            {(topByFleet.length > 0 || topByDocs.length > 0 || topByActivity.length > 0) && (
+              <section>
+                <SectionLabel allTime>חשבונות מובילים</SectionLabel>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                  <LeaderboardCard
+                    title="הצי הגדול ביותר"
+                    icon={Activity}
+                    accent="emerald"
+                    metricLabel="כלי תחבורה"
+                    rows={topByFleet}
+                    metricKey="vehicles"
+                    secondaryKey="vessels"
+                    secondaryLabel="שייט"
+                    onOpen={setDrawerAccount}
+                  />
+                  <LeaderboardCard
+                    title="הכי הרבה מסמכים"
+                    icon={Shield}
+                    accent="blue"
+                    metricLabel="מסמכים"
+                    rows={topByDocs}
+                    metricKey="documents"
+                    onOpen={setDrawerAccount}
+                  />
+                  <LeaderboardCard
+                    title={`הפעילים ביותר · ${fLabel}`}
+                    icon={TrendingUp}
+                    accent="purple"
+                    metricLabel="פעולות"
+                    rows={topByActivity}
+                    metricKey="activityScore"
+                    onOpen={setDrawerAccount}
+                  />
+                </div>
+              </section>
+            )}
+
+            {/* ──────────────────────────────────────────────────────────
                 5. ALERTS — collapsible, shown only when > 0
                 ────────────────────────────────────────────────────────── */}
             {totalAlerts > 0 && (
@@ -1231,13 +1355,22 @@ export default function AdminDashboard() {
         )}
         </>}
       </div>
+
+      {/* Per-account detail drawer — top-level so both Users tab (via
+          eye-icon button) and Stats tab (via Top Accounts leaderboard
+          rows) can open the same dossier. The drawer fetches its own
+          data via admin_account_details RPC. */}
+      <AdminUserDrawer
+        account={drawerAccount}
+        onClose={() => setDrawerAccount(null)}
+      />
     </div>
   );
 }
 
 //  Admin Tabs 
 
-function AdminUsersTab() {
+function AdminUsersTab({ onOpenDrawer }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [rpcMissing, setRpcMissing] = useState(false);
@@ -1385,9 +1518,15 @@ function AdminUsersTab() {
     else { setSortKey(key); setSortDir('desc'); }
   };
 
-  //  Actions 
+  //  Actions
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Drawer state lives at the parent (AdminDashboard) so the Stats tab's
+  // "Top Accounts" leaderboard can open the same dossier without
+  // duplicating the drawer. The parent passes onOpenDrawer(account)
+  // and renders <AdminUserDrawer/> at the page level.
+  const setDrawerAccount = onOpenDrawer || (() => {});
 
   const doDelete = async () => {
     if (!pendingDelete) return;
@@ -1604,6 +1743,16 @@ function AdminUsersTab() {
                   <div className="truncate">כניסה: {u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), 'dd/MM/yy HH:mm') : ''}</div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  {/* VIEW button — opens the drawer with full per-account
+                      details (vehicles, documents, members, activity).
+                      Eye icon is the standard "see more" affordance and
+                      visually matches the other action icons. */}
+                  <button onClick={() => setDrawerAccount(u)}
+                    title="פתח פירוט מלא"
+                    className="p-2 rounded-lg bg-emerald-50 text-emerald-700"
+                    aria-label="פתח פירוט">
+                    <Eye className="w-4 h-4" />
+                  </button>
                   <button onClick={() => toggleAdmin(u)}
                     disabled={!u.owner_user_id}
                     title={u.role === 'admin' ? 'הסר אדמין' : 'הפוך לאדמין'}
@@ -1676,6 +1825,16 @@ function AdminUsersTab() {
                   <td className="py-2 px-2 text-gray-500">{u.created_at ? format(parseISO(u.created_at), 'dd/MM/yy') : '-'}</td>
                   <td className="py-2 px-2">
                     <div className="flex items-center gap-1">
+                      {/* VIEW button — opens the drawer with full per-account
+                          details. Primary action on the row; placed first
+                          because admins reach for it most often. */}
+                      <button
+                        onClick={() => setDrawerAccount(u)}
+                        title="פתח פירוט מלא"
+                        className="p-1.5 rounded-md hover:bg-emerald-50 text-emerald-700"
+                        aria-label="פתח פירוט">
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => toggleAdmin(u)}
                         disabled={!u.owner_user_id}
@@ -1780,6 +1939,105 @@ function StatPill({ label, value, tone = 'blue' }) {
     <div className={`rounded-xl border px-3 py-2 ${bg}`}>
       <p className="text-[10px] font-bold opacity-80">{label}</p>
       <p className="text-lg font-bold leading-tight">{value}</p>
+    </div>
+  );
+}
+
+// LeaderboardCard — shows top-N accounts by a single metric. Each row
+// is clickable and opens the AdminUserDrawer for the account. Designed
+// to live in the Stats tab as a "where do my power users live" lens.
+//
+// Accent palette mirrors the Living Dashboard system so the cards
+// visually anchor against the rest of the B2B family. Rows use a
+// horizontal proportional bar so the eye picks up the gap between #1
+// and the rest at a glance — that's the most useful BI signal.
+function LeaderboardCard({ title, icon: Icon, accent = 'emerald', metricLabel, rows, metricKey, secondaryKey, secondaryLabel, onOpen }) {
+  const accentColors = {
+    emerald: { stripe: '#10B981', icon: '#065F46', bg: '#ECFDF5', bar: 'linear-gradient(90deg, #065F46 0%, #34D399 100%)' },
+    blue:    { stripe: '#3B82F6', icon: '#1E40AF', bg: '#EFF6FF', bar: 'linear-gradient(90deg, #1E40AF 0%, #60A5FA 100%)' },
+    purple:  { stripe: '#A855F7', icon: '#6B21A8', bg: '#FAF5FF', bar: 'linear-gradient(90deg, #6B21A8 0%, #C084FC 100%)' },
+  };
+  const c = accentColors[accent] || accentColors.emerald;
+  const max = rows[0]?.[metricKey] || 1;
+
+  return (
+    <div
+      className="relative bg-white rounded-2xl border border-gray-100 overflow-hidden"
+      style={{ boxShadow: '0 4px 16px rgba(15,40,28,0.04)' }}
+    >
+      {/* Top accent stripe — matches the Living Dashboard Card. */}
+      <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: c.stripe }} />
+
+      <div className="p-3.5">
+        <div className="flex items-center gap-2 mb-3">
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: c.bg, color: c.icon }}
+          >
+            <Icon className="w-4 h-4" />
+          </div>
+          <h3 className="text-sm font-bold flex-1 truncate" style={{ color: '#0B2912' }}>
+            {title}
+          </h3>
+        </div>
+
+        {rows.length === 0 ? (
+          <p className="text-[11px] py-3 text-center" style={{ color: '#A7B3AB' }}>
+            אין נתונים
+          </p>
+        ) : (
+          <ol className="space-y-1.5">
+            {rows.map((r, idx) => {
+              const value = r[metricKey] || 0;
+              const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+              const sec = secondaryKey ? (r[secondaryKey] || 0) : null;
+              return (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    onClick={() => onOpen?.({ id: r.id, name: r.name })}
+                    className="w-full text-right rounded-lg px-2 py-1.5 hover:bg-gray-50 active:scale-[0.99] transition"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <span
+                          className="text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center shrink-0 tabular-nums"
+                          style={{ background: c.bg, color: c.icon }}
+                        >
+                          {idx + 1}
+                        </span>
+                        <span className="text-[12px] font-bold truncate" style={{ color: '#0B2912' }}>
+                          {r.name}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-black tabular-nums shrink-0" style={{ color: c.icon }} dir="ltr">
+                        {value}
+                        {sec !== null && sec > 0 && (
+                          <span className="text-[10px] mr-1 font-bold" style={{ color: '#A7B3AB' }}>
+                            ({sec} {secondaryLabel})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="h-1 rounded-full overflow-hidden" style={{ background: c.bg }}>
+                      <div
+                        className="h-full transition-all duration-500"
+                        style={{ width: `${pct}%`, background: c.bar }}
+                      />
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+
+        {rows.length > 0 && (
+          <p className="text-[9px] mt-2.5 pt-2 text-center" style={{ color: '#A7B3AB', borderTop: '1px solid #F0F7F4' }}>
+            לחץ על שורה לצפייה בפירוט מלא
+          </p>
+        )}
+      </div>
     </div>
   );
 }
