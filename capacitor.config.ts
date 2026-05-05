@@ -52,8 +52,14 @@ const config: CapacitorConfig = {
       overlaysWebView: false,
     },
     Keyboard: {
-      resize: 'none',
-      resizeOnFullScreen: false,
+      // 'native' lets iOS/Android shrink the WebView when the on-screen
+      // keyboard opens, so 100dvh / fixed-bottom elements reflow above
+      // the keyboard automatically. The previous 'none' kept the WebView
+      // at full viewport height while the keyboard overlaid the bottom,
+      // hiding inputs and breaking page proportions on every focused
+      // field across the app (AI chat, search, forms).
+      resize: 'native',
+      resizeOnFullScreen: true,
     },
     LocalNotifications: {
       smallIcon: 'ic_notification',
