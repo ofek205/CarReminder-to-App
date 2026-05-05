@@ -175,10 +175,14 @@ BEGIN
   SELECT COALESCE(jsonb_agg(item ORDER BY item->>'occurred_at' DESC), '[]'::jsonb)
   INTO v_activity
   FROM (
-    -- maintenance entries
+    -- maintenance entries.
+    -- Schema note: maintenance_logs uses `date` (not `performed_at`).
+    -- Verified against /Reports's production-tested fetch on
+    -- src/pages/Reports.jsx line ~194:
+    --   .select('id, vehicle_id, date, title, cost, ...')
     SELECT jsonb_build_object(
       'kind',         'maintenance',
-      'occurred_at',  ml.performed_at,
+      'occurred_at',  ml.date,
       'title',        ml.title,
       'cost',         ml.cost,
       'vehicle_id',   ml.vehicle_id
