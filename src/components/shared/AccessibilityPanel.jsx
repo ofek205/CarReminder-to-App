@@ -73,23 +73,32 @@ export default function AccessibilityPanel({ open, onOpenChange }) {
                   ? `+${settings.fontSize} רמות`
                   : `${settings.fontSize} רמות`}
               </p>
-              <div className="flex items-center gap-2">
+              {/* dir="ltr" forces LTR within the controls so the universal
+                  number-line convention applies: minus on the LEFT, plus on
+                  the RIGHT, dots ascending left-to-right (-2 → +5). Without
+                  this, the parent RTL flexbox flips the dots opposite to the
+                  buttons — pressing + visually moves the active dot LEFT
+                  while pressing − moves it RIGHT, which feels reversed.
+                  touch-manipulation disables iOS WebKit's double-tap-to-zoom
+                  on rapid presses so the page doesn't zoom while the user
+                  cycles through font sizes. */}
+              <div dir="ltr" className="flex items-center gap-2">
                 <Button
                   size="icon"
                   variant="outline"
-                  className="h-9 w-9 shrink-0 rounded-xl"
-                  disabled={settings.fontSize >= FONT_MAX}
-                  onClick={() => update('fontSize', settings.fontSize + 1)}
-                  aria-label="הגדל גופן"
+                  className="h-9 w-9 shrink-0 rounded-xl touch-manipulation"
+                  disabled={settings.fontSize <= FONT_MIN}
+                  onClick={() => update('fontSize', settings.fontSize - 1)}
+                  aria-label="הקטן גופן"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Minus className="h-3.5 w-3.5" />
                 </Button>
                 <div className="flex-1 flex justify-center gap-1.5 overflow-hidden">
                   {[FONT_MIN, -1, 0, 1, 2, 3, 4, FONT_MAX].map(v => (
                     <button
                       key={v}
                       onClick={() => update('fontSize', v)}
-                      className={`w-5 h-5 rounded-full text-[10px] transition-colors shrink-0 ${
+                      className={`w-5 h-5 rounded-full text-[10px] transition-colors shrink-0 touch-manipulation ${
                         settings.fontSize === v
                           ? 'bg-[#2D5233] text-white scale-110'
                           : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -103,12 +112,12 @@ export default function AccessibilityPanel({ open, onOpenChange }) {
                 <Button
                   size="icon"
                   variant="outline"
-                  className="h-9 w-9 shrink-0 rounded-xl"
-                  disabled={settings.fontSize <= FONT_MIN}
-                  onClick={() => update('fontSize', settings.fontSize - 1)}
-                  aria-label="הקטן גופן"
+                  className="h-9 w-9 shrink-0 rounded-xl touch-manipulation"
+                  disabled={settings.fontSize >= FONT_MAX}
+                  onClick={() => update('fontSize', settings.fontSize + 1)}
+                  aria-label="הגדל גופן"
                 >
-                  <Minus className="h-3.5 w-3.5" />
+                  <Plus className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
