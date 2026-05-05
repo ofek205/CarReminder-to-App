@@ -72,7 +72,7 @@ export default function WorkspaceSwitcher() {
       {open && (
         <div
           role="listbox"
-          className="absolute top-full mt-1 right-0 z-[10001] min-w-[220px] bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden"
+          className="absolute top-full mt-1 right-0 z-[10001] min-w-[220px] max-w-[calc(100vw-16px)] bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden"
         >
           {hasMultiple && (
             <>

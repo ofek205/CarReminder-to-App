@@ -141,7 +141,7 @@ export default function BottomNav({ sheetOpen = false }) {
                   when the user bumps OS font size the label shrinks to a
                   single truncated line rather than overflowing into the
                   neighbouring tab or disappearing behind the icon. */}
-              <span className="text-[10px] font-bold line-clamp-1 text-center max-w-full"
+              <span className="text-[10px] font-bold line-clamp-1 truncate text-center max-w-full"
                 style={{ color: active ? activeTextColor : (tab.isAi ? '#D97706' : '#9CA3AF') }}>
                 {tab.label}
               </span>

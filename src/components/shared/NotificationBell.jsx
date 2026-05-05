@@ -528,7 +528,7 @@ export default function NotificationBell() {
       {popupOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setPopupOpen(false)} />
-          <div className="absolute left-0 top-12 z-50 w-80 rounded-2xl bg-white shadow-2xl border overflow-hidden"
+          <div className="absolute left-0 top-12 z-50 w-80 max-w-[calc(100vw-24px)] rounded-2xl bg-white shadow-2xl border overflow-hidden"
             style={{ borderColor: '#E5E7EB' }} dir="rtl">
             <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#F3F4F6' }}>
               <span className="text-sm font-bold" style={{ color: '#1C2E20' }}>התראות</span>

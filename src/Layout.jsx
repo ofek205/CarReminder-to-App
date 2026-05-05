@@ -764,11 +764,11 @@ function LayoutInner({ children }) {
               </>
             );
           })()}
-          <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2">
+          <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 shrink-0">
             <img src={logo} alt="CarReminder" className="h-8 w-8 rounded-lg object-cover shadow-sm" />
-            <span className="text-sm font-bold text-gray-900">CarReminder</span>
+            <span className="hidden min-[400px]:inline text-sm font-bold text-gray-900">CarReminder</span>
           </Link>
-          <div className="flex-1" />
+          <div className="flex-1 min-w-0" />
           {isAuthenticated && <WorkspaceSwitcher />}
           {isAuthenticated && !isDesktop && (
             <React.Suspense fallback={<div className="w-10 h-10" />}>
