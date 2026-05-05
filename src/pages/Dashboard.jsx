@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from '@/lib/popups/systemPopups';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
@@ -1031,10 +1032,13 @@ export default function Dashboard() {
   // vehicle_shares, so sharees would see an empty Dashboard even after
   // accepting an invite. The view also exposes is_shared_with_me +
   // share_role columns so card components can render the indicator.
-  const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery({
+  const { data: vehicles = [], isLoading: vehiclesLoading, isError: vehiclesError, refetch: refetchVehicles } = useQuery({
     queryKey: ['my-vehicles', user?.id, accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('my_vehicles_v').select('*');
+      const { data, error } = await withTimeout(
+        supabase.from('my_vehicles_v').select('*'),
+        'my_vehicles_v'
+      );
       if (error) throw error;
       // Phase 9 fix: scope to the active workspace so a user with both
       // personal + business memberships doesn't see vehicles from the
@@ -1046,6 +1050,8 @@ export default function Dashboard() {
       return (data || []).filter(v => v.is_shared_with_me || v.account_id === accountId);
     },
     enabled: !!user?.id && !!accountId,
+    retry: 1,
+    retryDelay: 500,
     // Bumped from 2 min → 10 min. Real changes invalidate the cache
     // immediately via useSharedVehicleRealtime (it listens on
     // vehicle_shares + app_notifications and invalidates 'my-vehicles'
@@ -1222,7 +1228,25 @@ export default function Dashboard() {
     return <CompleteProfileScreen user={user} onDone={() => { setShowCompleteProfile(false); setProfileMissing(false); }} />;
   }
 
-  //  AUTHENTICATED MODE 
+  //  AUTHENTICATED MODE
+  // vehiclesError: query timed out (or failed twice via retry config).
+  // Without this branch a stuck network leaves the page on a permanent
+  // spinner — the gate that exists since fix(stuck-loading) commits
+  // protects useWorkspaces but not the my_vehicles_v query that gates
+  // this very render.
+  if (vehiclesError) {
+    return (
+      <div dir="rtl" className="max-w-3xl mx-auto py-12 px-4 text-center">
+        <p className="text-sm text-gray-600 mb-3">לא הצלחנו לטעון את הרכבים. בדקי את החיבור ונסי שוב.</p>
+        <button
+          onClick={() => refetchVehicles()}
+          className="text-sm font-bold text-[#2D5233] underline underline-offset-2"
+        >
+          נסה שוב
+        </button>
+      </div>
+    );
+  }
   if (!accountId || vehiclesLoading) return <LoadingSpinner />;
 
   // Status severity used when the user sorts by status. most urgent first.

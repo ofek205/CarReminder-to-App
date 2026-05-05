@@ -18,6 +18,7 @@ import useAccountRole from '@/hooks/useAccountRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { db } from '@/lib/supabaseEntities';
+import { withTimeout } from '@/lib/supabaseQuery';
 
 //  Helpers 
 function daysUntil(dateStr) {
@@ -585,10 +586,13 @@ export default function Vehicles() {
     let cancelled = false;
     (async () => {
       try {
-        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
+        const members = await withTimeout(
+          db.account_members.filter({ user_id: user.id, status: 'פעיל' }),
+          'vehicles:account_members_fallback'
+        );
         if (cancelled) return;
         if (members.length > 0) setFallbackAccountId(members[0].account_id);
-      } catch { /* hook fallback only — soft fail */ }
+      } catch { /* hook fallback only — soft fail (timeout or RLS denial) */ }
     })();
     return () => { cancelled = true; };
   }, [isAuthenticated, user, contextAccountId]);
@@ -613,17 +617,22 @@ export default function Vehicles() {
   // shared WITH them (via vehicle_shares) alongside their own. The
   // view exposes is_shared_with_me + share_role + share_owner_user_id
   // so the UI can render a "shared with me" badge.
-  const { data: rawVehicles = [], isLoading } = useQuery({
+  const { data: rawVehicles = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['my-vehicles', user?.id, accountId],
     queryFn: async () => {
       const { supabase } = await import('@/lib/supabase');
-      const { data, error } = await supabase.from('my_vehicles_v').select('*');
+      const { data, error } = await withTimeout(
+        supabase.from('my_vehicles_v').select('*'),
+        'my_vehicles_v'
+      );
       if (error) throw error;
       return data || [];
     },
     enabled: !!user?.id && !!accountId,
     staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: true,
+    retry: 1,
+    retryDelay: 500,
   });
 
   // Phase 3: workspace-aware filtering.
@@ -661,7 +670,24 @@ export default function Vehicles() {
     );
   }
 
-  //  Authenticated mode 
+  //  Authenticated mode
+  // isError surfaces only when the query timed out (or failed twice via
+  // the retry config). Render a tiny inline retry message instead of an
+  // infinite spinner — without this fallback a stuck network leaves the
+  // page on a loading screen with no escape.
+  if (isError) {
+    return (
+      <div dir="rtl" className="max-w-3xl mx-auto py-12 px-4 text-center">
+        <p className="text-sm text-gray-600 mb-3">לא הצלחנו לטעון את הרכבים. בדקי את החיבור ונסי שוב.</p>
+        <button
+          onClick={() => refetch()}
+          className="text-sm font-bold text-[#2D5233] underline underline-offset-2"
+        >
+          נסה שוב
+        </button>
+      </div>
+    );
+  }
   return (
     <>
       <PullToRefreshIndicator pulling={pulling} progress={progress} />

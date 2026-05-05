@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
@@ -70,20 +71,25 @@ export default function MyVehicles() {
   const enabled = !!accountId && isAuthenticated && isBusiness && isDriver && !!user?.id;
 
   // Active assignments for the current user.
-  const { data: assignments = [], isLoading: assignmentsLoading } = useQuery({
+  const { data: assignments = [], isLoading: assignmentsLoading, isError: assignmentsError, refetch: refetchAssignments } = useQuery({
     queryKey: ['my-assignments', accountId, user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('driver_assignments')
-        .select('id, vehicle_id, valid_from, valid_to, status')
-        .eq('account_id', accountId)
-        .eq('driver_user_id', user.id)
-        .eq('status', 'active');
+      const { data, error } = await withTimeout(
+        supabase
+          .from('driver_assignments')
+          .select('id, vehicle_id, valid_from, valid_to, status')
+          .eq('account_id', accountId)
+          .eq('driver_user_id', user.id)
+          .eq('status', 'active'),
+        'driver_assignments'
+      );
       if (error) throw error;
       return data || [];
     },
     enabled,
     staleTime: 60 * 1000,
+    retry: 1,
+    retryDelay: 500,
   });
 
   // Team directory — owner / managers / fellow drivers + phone numbers.
@@ -92,14 +98,17 @@ export default function MyVehicles() {
   const { data: team = [] } = useQuery({
     queryKey: ['workspace-team', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('workspace_team_directory', {
-        p_account_id: accountId,
-      });
+      const { data, error } = await withTimeout(
+        supabase.rpc('workspace_team_directory', { p_account_id: accountId }),
+        'workspace_team_directory'
+      );
       if (error) throw error;
       return data || [];
     },
     enabled,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
+    retryDelay: 500,
   });
   const managers = useMemo(
     () => team.filter(m => m.role === 'בעלים' || m.role === 'מנהל'),
@@ -108,23 +117,33 @@ export default function MyVehicles() {
 
   // Vehicles the driver can read via the layered RLS policy.
   const vehicleIds = assignments.map(a => a.vehicle_id);
-  const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery({
+  const { data: vehicles = [], isLoading: vehiclesLoading, isError: vehiclesError, refetch: refetchVehicles } = useQuery({
     queryKey: ['my-vehicles-detail', accountId, vehicleIds.join(',')],
     queryFn: async () => {
       if (vehicleIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('id, nickname, manufacturer, model, year, license_plate, current_km, test_due_date, insurance_due_date')
-        .eq('account_id', accountId)
-        .in('id', vehicleIds);
+      const { data, error } = await withTimeout(
+        supabase
+          .from('vehicles')
+          .select('id, nickname, manufacturer, model, year, license_plate, current_km, test_due_date, insurance_due_date')
+          .eq('account_id', accountId)
+          .in('id', vehicleIds),
+        'my_vehicles_detail'
+      );
       if (error) throw error;
       return data || [];
     },
     enabled: enabled && vehicleIds.length > 0,
     staleTime: 60 * 1000,
+    retry: 1,
+    retryDelay: 500,
   });
 
   const isLoading = assignmentsLoading || vehiclesLoading;
+  const isQueryError = assignmentsError || vehiclesError;
+  const retryAll = () => {
+    refetchAssignments();
+    if (vehicleIds.length > 0) refetchVehicles();
+  };
 
   if (authLoading || roleLoading) {
     return <div dir="rtl" className="text-center py-16 text-xs text-gray-400">טוען...</div>;
@@ -191,7 +210,17 @@ export default function MyVehicles() {
         <ManagerContactCard managers={managers} totalTeam={team.length} />
       )}
 
-      {isLoading ? (
+      {isQueryError ? (
+        <div className="text-center py-8">
+          <p className="text-sm text-gray-600 mb-3">לא הצלחנו לטעון את הרכבים. בדקי את החיבור ונסי שוב.</p>
+          <button
+            onClick={retryAll}
+            className="text-sm font-bold text-[#2D5233] underline underline-offset-2"
+          >
+            נסה שוב
+          </button>
+        </div>
+      ) : isLoading ? (
         <p className="text-center text-xs text-gray-400 py-8">טוען...</p>
       ) : vehicles.length === 0 ? (
         <DriverEmptyState />
