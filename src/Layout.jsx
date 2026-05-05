@@ -378,13 +378,13 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
               key={item.name}
               to={itemUrl}
               onClick={onItemClick}
-              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-150
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-150 min-w-0
                 ${isActive ?
               'bg-[#E8F2EA] text-[#2D5233]' :
               'text-gray-600 active:bg-gray-50'}`
               }>
               <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-[#2D5233]' : 'text-gray-400'}`} />
-              {item.label}
+              <span className="truncate">{item.label}</span>
             </Link>
           );
         })}
@@ -757,7 +757,7 @@ function LayoutInner({ children }) {
                   if (btnClicked.current) return; // ignore overlay close when hamburger was clicked
                   setOpen(v);
                 }}>
-                  <SheetContent side="right" className="p-0 w-60 !top-0 flex flex-col">
+                  <SheetContent side="right" className="p-0 w-[78vw] max-w-[300px] !top-0 flex flex-col">
                     <NavContent currentPath={location.pathname} onItemClick={() => setOpen(false)} hasVessel={hasVessel} isMobile />
                   </SheetContent>
                 </Sheet>
@@ -766,7 +766,7 @@ function LayoutInner({ children }) {
           })()}
           <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 shrink-0">
             <img src={logo} alt="CarReminder" className="h-8 w-8 rounded-lg object-cover shadow-sm" />
-            <span className="hidden min-[400px]:inline text-sm font-bold text-gray-900">CarReminder</span>
+            <span className="hidden md:inline text-sm font-bold text-gray-900">CarReminder</span>
           </Link>
           <div className="flex-1 min-w-0" />
           {isAuthenticated && <WorkspaceSwitcher />}
@@ -784,10 +784,11 @@ function LayoutInner({ children }) {
           {children}
         </div>
         {/* Spacer so content never hides behind fixed BottomNav on mobile.
-            Uses arbitrary [88px] (not h-20=5rem) so it doesn't shrink under
-            user font-scaling. the BottomNav has a fixed 12px gesture-pill
-            floor + ~60px of content, so we need a real-px floor here too. */}
-        <div className="h-[88px] lg:h-0 shrink-0" aria-hidden="true" />
+            BottomNav: 60px content + safe-area-inset-bottom (up to 34px on
+            iPhone X+). Use calc so iPhone with home indicator gets full
+            clearance, while older devices stay tight. lg+ uses h-0 because
+            BottomNav is hidden on lg. */}
+        <div className="h-[calc(60px+env(safe-area-inset-bottom,4px))] lg:h-0 shrink-0" aria-hidden="true" />
       </main>
 
       {/* Bottom navigation. mobile only. `sheetOpen` lifts it above the

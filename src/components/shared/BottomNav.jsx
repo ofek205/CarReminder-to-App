@@ -108,10 +108,13 @@ export default function BottomNav({ sheetOpen = false }) {
         //     visible band between our labels and the system buttons. the
         //     user's "הרווח הזה" complaint. Drop to 0 so the bar is flush.
         //   • iOS / gesture-pill devices: env(safe-area-inset-bottom) is a
-        //     real ~34 px reserved area we DO need to clear. Keep it.
+        //     real ~34 px reserved area we DO need to clear. Use the FULL
+        //     value, not a cap — capping to 10px hides the tabs behind the
+        //     home indicator on iPhone X+ and made the BottomNav appear
+        //     "missing" on iOS while showing correctly on Android.
         paddingBottom: /Android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '')
           ? '0px'
-          : 'min(max(env(safe-area-inset-bottom, 0px), 4px), 10px)',
+          : 'max(env(safe-area-inset-bottom, 0px), 4px)',
       }}
       role="navigation" aria-label="ניווט ראשי">
       <div className="flex justify-around items-center max-w-md mx-auto px-1 py-1">
