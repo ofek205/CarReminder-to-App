@@ -29,5 +29,13 @@ if [ -x node_modules/.bin/vite ]; then
   ok "build passed"
 fi
 
+# 4. Query-timeout gate — every Supabase call inside a useQuery
+# must be wrapped with withTimeout(...) or Promise.race(...).
+# Existing violations are baselined; the gate fails only on
+# regressions. See scripts/check-query-timeouts.cjs.
+if [ -f scripts/check-query-timeouts.cjs ]; then
+  node scripts/check-query-timeouts.cjs || fail "check-query-timeouts gate failed."
+fi
+
 printf "${GRN}[ok] pre-push checks passed${NC}\n"
 exit 0

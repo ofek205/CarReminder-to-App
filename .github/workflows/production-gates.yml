@@ -41,3 +41,18 @@ jobs:
       # ("חוב lint קיים — חוק --no-verify"). Bypass is permitted only on
       # pushes to the `staging` branch, never on PRs into `main`.
       - run: npm run lint
+
+  query-timeouts:
+    name: Query timeout gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # No npm install needed — the script is plain Node, no
+      # dependencies. Failing here means new code introduced a
+      # Supabase call inside a useQuery body without a timeout
+      # wrapper. See scripts/check-query-timeouts.cjs and
+      # CLAUDE.md gate "Query Timeout Gate".
+      - run: node scripts/check-query-timeouts.cjs
