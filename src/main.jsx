@@ -113,6 +113,43 @@ if (typeof window !== 'undefined' && 'visualViewport' in window) {
   });
 }
 
+// Build-time env-var validation. supabase.js sets this flag when
+// VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY were not injected at build
+// time (i.e. CI forgot the env block). Bypass React entirely and show a
+// clear startup-error screen — otherwise the app sits forever on splash
+// while every Supabase-backed provider quietly fails to initialise.
+if (typeof window !== 'undefined' && window.__crBootEnvError) {
+  markBootStage('boot_env_error', { level: 'error', message: window.__crBootEnvError });
+  try {
+    const rootEl = document.getElementById('root');
+    if (rootEl) {
+      const isProd = import.meta.env.PROD;
+      const detail = isProd
+        ? 'הגדרות בנייה חסרות. אנא דווח/י לתמיכה.'
+        : `Build-time error: ${window.__crBootEnvError}`;
+      rootEl.innerHTML = `
+        <div dir="rtl" style="display:flex;align-items:center;justify-content:center;
+             min-height:100vh;background:#FAFFFE;font-family:system-ui;padding:24px;">
+          <div style="text-align:center;max-width:340px;">
+            <div style="font-size:48px;margin-bottom:8px;">⚙️</div>
+            <div style="font-size:22px;font-weight:800;color:#1F2937;margin-bottom:8px;">
+              האפליקציה לא הצליחה לעלות
+            </div>
+            <div style="font-size:13px;color:#6B7280;margin-bottom:18px;line-height:1.6;">${detail}</div>
+            <button onclick="window.location.reload()"
+              style="padding:10px 28px;border-radius:12px;background:#2D5233;color:#fff;
+                     font-weight:700;border:none;cursor:pointer;font-size:14px;">
+              נסה שוב
+            </button>
+          </div>
+        </div>`;
+    }
+  } catch {}
+  hideSplashOnce('env-error');
+  // Stop further boot — fall through to nothing else.
+  throw new Error('Boot stopped: ' + window.__crBootEnvError);
+}
+
 // Mount React. Wrapped in try/catch so that if a top-level import threw OR
 // the root element disappeared, we still hide the splash and surface a
 // useful error UI instead of a blank green-then-white screen.
