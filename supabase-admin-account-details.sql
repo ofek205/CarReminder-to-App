@@ -116,25 +116,31 @@ BEGIN
 
   -- Documents (metadata only — file_url is NOT included to avoid leaking
   -- signed URLs and to keep payload small. Admin can deep-link per doc.).
+  --
+  -- Schema note: this project's documents table uses `document_type` and
+  -- `expiry_date` (not `category` / `expires_at` like other Supabase apps).
+  -- We alias to category/expires_at in the JSON output so the frontend
+  -- drawer can stay schema-agnostic (it reads d.category / d.expires_at).
+  -- created_at falls back to legacy created_date for migrated rows.
   SELECT COALESCE(jsonb_agg(
     jsonb_build_object(
       'id',           d.id,
       'vehicle_id',   d.vehicle_id,
       'title',        d.title,
-      'category',     d.category,
-      'expires_at',   d.expires_at,
-      'created_at',   d.created_at
-    ) ORDER BY d.created_at DESC
+      'category',     d.document_type,
+      'expires_at',   d.expiry_date,
+      'created_at',   COALESCE(d.created_at, d.created_date)
+    ) ORDER BY COALESCE(d.created_at, d.created_date) DESC
   ), '[]'::jsonb)
   INTO v_documents
   FROM documents d
   WHERE d.account_id = p_account_id;
 
-  -- Documents grouped by category — for the breakdown chart.
+  -- Documents grouped by document_type — for the breakdown chart.
   SELECT COALESCE(jsonb_object_agg(cat, c), '{}'::jsonb)
   INTO v_docs_by_category
   FROM (
-    SELECT COALESCE(NULLIF(category, ''), 'לא מסווג') AS cat, COUNT(*) AS c
+    SELECT COALESCE(NULLIF(document_type, ''), 'לא מסווג') AS cat, COUNT(*) AS c
     FROM documents
     WHERE account_id = p_account_id
     GROUP BY cat
@@ -146,8 +152,8 @@ BEGIN
   INTO v_expiring_docs
   FROM documents
   WHERE account_id = p_account_id
-    AND expires_at IS NOT NULL
-    AND expires_at <= now() + interval '30 days';
+    AND expiry_date IS NOT NULL
+    AND expiry_date <= now() + interval '30 days';
 
   -- Members.
   SELECT COALESCE(jsonb_agg(
@@ -256,12 +262,15 @@ BEGIN
     JOIN vehicles v ON v.id = ml.vehicle_id
     WHERE v.account_id = p_account_id;
 
-  -- Final assembly.
+  -- Final assembly. The `kind` field on the JSON is sourced from the
+  -- DB's `account_type` column (this project uses account_type rather
+  -- than kind). The frontend reads `account.kind === 'business'` so
+  -- aliasing here keeps it schema-agnostic.
   RETURN jsonb_build_object(
     'account', jsonb_build_object(
       'id',            v_account.id,
       'name',          v_account.name,
-      'kind',          v_account.kind,
+      'kind',          v_account.account_type,
       'created_at',    v_account.created_at,
       'business_meta', v_account.business_meta
     ),
