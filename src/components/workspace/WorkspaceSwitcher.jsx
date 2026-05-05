@@ -15,7 +15,7 @@ import { Briefcase, User as UserIcon, Check, ChevronDown, Plus } from 'lucide-re
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
 
-const PERSONAL_LABEL = 'החשבון האישי שלי';
+const PERSONAL_LABEL = 'החשבון שלי';
 
 function workspaceLabel(m) {
   if (m.account_type === 'business') {

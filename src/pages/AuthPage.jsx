@@ -75,7 +75,8 @@ function AuthInput({ icon: Icon, label, type: initialType, value, onChange, plac
           <button type="button" onClick={() => setShowPassword(!showPassword)}
             className="absolute top-1/2 -translate-y-1/2 p-1 z-10"
             style={{ [dir === 'ltr' ? 'right' : 'left']: '10px' }}
-            tabIndex={-1}>
+            aria-label={showPassword ? 'הסתר סיסמה' : 'הצג סיסמה'}
+            aria-pressed={showPassword}>
             {showPassword
               ? <EyeOff className="w-4 h-4" style={{ color: C.muted }} />
               : <Eye className="w-4 h-4" style={{ color: C.muted }} />

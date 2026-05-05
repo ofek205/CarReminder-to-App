@@ -29,9 +29,9 @@ export default function VehicleCheckPlateInput({ value, onChange, onEnter, disab
         onKeyDown={(e) => { if (e.key === 'Enter') onEnter?.(); }}
         inputMode="numeric"
         autoComplete="off"
-        placeholder="12-345-67"
+        placeholder="הזן מספר רישוי"
         aria-label="מספר רישוי"
-        className={`w-full h-full bg-transparent text-center font-bold tabular-nums text-black placeholder:text-black/30 outline-none disabled:opacity-60 ${
+        className={`w-full h-full bg-transparent text-center font-bold tabular-nums text-black placeholder:text-black/50 placeholder:font-normal outline-none disabled:opacity-60 ${
           // Text size is ~50% of plate height — proportional to a real
           // Israeli plate. Previous values (29px / 34px) were 73%+ of
           // height and overflowed when the input sat next to a button

@@ -191,7 +191,9 @@ function UserPopover() {
       Object.keys(localStorage)
         .filter(k => k.startsWith('yossi_chat_history') || k === 'read_notif_ids' || k === 'read_notif_timed' || k === 'dismissed_notif_ids')
         .forEach(k => localStorage.removeItem(k));
-    } catch {}
+    } catch (err) {
+      console.warn('[layout] logout localStorage clear failed:', err?.message || err);
+    }
     await supabase.auth.signOut();
   };
 
@@ -308,7 +310,9 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
       Object.keys(localStorage)
         .filter(k => k.startsWith('yossi_chat_history') || k === 'read_notif_ids' || k === 'read_notif_timed' || k === 'dismissed_notif_ids')
         .forEach(k => localStorage.removeItem(k));
-    } catch {}
+    } catch (err) {
+      console.warn('[layout] logout localStorage clear failed:', err?.message || err);
+    }
     await supabase.auth.signOut();
   };
 
@@ -583,7 +587,10 @@ function LayoutInner({ children }) {
             .eq('account_id', activeWorkspace.account_id);
           if (error) throw error;
           setHasVessel((data || []).some(isVesselVehicle));
-        } catch {}
+        } catch (err) {
+          console.warn('[layout] vessel detection failed:', err?.message || err);
+          setHasVessel(false);
+        }
       })();
     }
   }, [isGuest, isAuthenticated, user, guestVehicles, activeWorkspace?.account_id, location.pathname]);

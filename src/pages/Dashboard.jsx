@@ -105,9 +105,9 @@ function UrgentBanner({ reminders, onView }) {
     : { bg: 'linear-gradient(135deg, #B45309 0%, #D97706 100%)', shadow: 'rgba(180,83,9,0.32)' };
 
   let subtitle;
-  if (overdueCount > 0 && upcomingCount > 0) subtitle = `${overdueCount} באיחור · ${upcomingCount} קרובות`;
-  else if (overdueCount > 0)                 subtitle = `${overdueCount} באיחור`;
-  else                                       subtitle = `${upcomingCount} ב-30 הימים הקרובים`;
+  if (overdueCount > 0 && upcomingCount > 0) subtitle = `${overdueCount} תזכורות באיחור · ${upcomingCount} קרובות`;
+  else if (overdueCount > 0)                 subtitle = `${overdueCount} תזכורות באיחור`;
+  else                                       subtitle = `${upcomingCount} תזכורות ב-30 הימים הקרובים`;
 
   return (
     <button
@@ -126,7 +126,7 @@ function UrgentBanner({ reminders, onView }) {
           {count}
         </span>
         <span className="text-white/85 text-[10px] font-semibold mt-1 tracking-wide">
-          התראות
+          תזכורות
         </span>
       </div>
 
@@ -520,6 +520,9 @@ function StatusSummary({ vehicles }) {
 
   return (
     <>
+      <p className="text-[11px] font-bold text-gray-500 mb-2" dir="rtl" style={{ letterSpacing: '0.05em' }}>
+        סטטוס רכבים
+      </p>
       <div className="grid grid-cols-3 gap-2.5 mb-5" dir="rtl">
         {items.map(item => {
           const clickable = item.count > 0;
