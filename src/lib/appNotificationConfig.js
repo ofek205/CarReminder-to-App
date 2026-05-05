@@ -10,7 +10,7 @@
  * this module is purely visual / navigational.
  */
 
-import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare, Briefcase, Truck, ClipboardList } from 'lucide-react';
+import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck } from 'lucide-react';
 
 const ACTION_REQUIRED_TYPES = new Set([
   'share_offered',
@@ -144,6 +144,18 @@ export const APP_NOTIF_CONFIG = {
     iconColor: '#EA580C',
     iconBg: '#EA580C',
     buildHref: () => '/Drivers',
+  },
+  test_renewed: {
+    // Auto-detected annual-test renewal (the cron job spotted that
+    // the ministry pushed a new tokef_dt for one of the user's
+    // vehicles). Positive confirmation — green family, shield-check
+    // icon. Routes to the vehicle so the user can see the new test
+    // date inline on the vehicle card.
+    icon: ShieldCheck,
+    bg: '#F0FDF4',
+    iconColor: '#16A34A',
+    iconBg: '#16A34A',
+    buildHref: hrefForVehicleDetail,
   },
   community_comment: {
     // Reused for any community thread reply on the user's own post.
