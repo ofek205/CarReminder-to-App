@@ -251,7 +251,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !submitting) submit(); }}
-                  placeholder="friend@example.com"
+                  placeholder="name@example.com"
                   dir="ltr"
                   autoFocus
                   className="w-full h-11 pr-9 pl-3 rounded-xl border text-sm font-medium outline-none transition-all focus:ring-2"

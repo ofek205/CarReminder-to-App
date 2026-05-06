@@ -100,7 +100,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
             <FeatureRow
               icon={Wrench}
               title="מומחה AI אישי"
-              body="ברוך ויוסי מכירים את הפרטים של הרכב או הסירה שלך, ועונים מדויק על תקלות, עלויות וטיפולים."
+              body="מומחי ה-AI שלנו - ברוך לרכבים ויוסי לכלי שייט - מכירים את הפרטים שלך ועונים מדויק על תקלות, עלויות וטיפולים."
               bg="#FAFCF9"
               accent="#2D5233"
               tileShadow="0 8px 16px -4px rgba(45,82,51,0.35)"

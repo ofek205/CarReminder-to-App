@@ -63,6 +63,7 @@ const CreateBusinessWorkspace = React.lazy(() => import('./pages/CreateBusinessW
 const Routes_           = React.lazy(() => import('./pages/Routes'));
 const CreateRoute       = React.lazy(() => import('./pages/CreateRoute'));
 const RouteDetail       = React.lazy(() => import('./pages/RouteDetail'));
+const FleetMap          = React.lazy(() => import('./pages/FleetMap'));
 const ActivityLog       = React.lazy(() => import('./pages/ActivityLog'));
 const Expenses          = React.lazy(() => import('./pages/Expenses'));
 const MyExpenses        = React.lazy(() => import('./pages/MyExpenses'));
@@ -121,6 +122,7 @@ export const PAGES = {
     "Routes":       Routes_,
     "CreateRoute":  CreateRoute,
     "RouteDetail":  RouteDetail,
+    "FleetMap":     FleetMap,
     "ActivityLog":  ActivityLog,
     "Expenses":     Expenses,
     "MyExpenses":   MyExpenses,

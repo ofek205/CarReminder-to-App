@@ -27,35 +27,43 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import VehiclePicker from '@/components/shared/VehiclePicker';
-import MobileBackButton from '@/components/shared/MobileBackButton';
 import { DateInput } from '@/components/ui/date-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// Living Dashboard system - shared with all B2B pages.
+import { PageShell, Card } from '@/components/business/system';
 
 const PAGE_SIZE = 30;
 
-// Hebrew label + icon per action_type. Unknown types fall back to a
-// generic icon and the raw action string — defensive against future
-// log types added before this map is updated.
+// Hebrew label + icon per action_type, plus an `accent` keyed to the
+// Living Dashboard palette so each row's Card stripe color hints at
+// the action's domain at a glance:
+//   emerald = positive completion (route/stop completed, route created)
+//   blue    = informational      (assignment, note, photo, expense add)
+//   amber   = neutral revert     (reopen, skip, expense update)
+//   red     = problem / removal  (issue, expense delete)
+//   purple  = administrative     (workspace.create)
+// Unknown types fall back to a generic icon and the raw action string —
+// defensive against future log types added before this map is updated.
 const ACTION_META = {
-  'workspace.create':       { label: 'נוצרה סביבת עבודה עסקית', icon: Briefcase,    cls: 'text-purple-600 bg-purple-50' },
-  'driver.assign':          { label: 'נהג שויך לרכב',          icon: UserIcon,     cls: 'text-blue-600 bg-blue-50' },
-  'route.create':           { label: 'נוצרה משימה',             icon: Plus,         cls: 'text-green-600 bg-green-50' },
-  'route.start':            { label: 'משימה יצאה לדרך',         icon: Truck,        cls: 'text-blue-600 bg-blue-50' },
-  'route.complete':         { label: 'משימה הושלמה',            icon: CheckCircle2, cls: 'text-green-700 bg-green-50' },
-  'route.reopen':           { label: 'משימה נפתחה מחדש',        icon: ChevronLeft,  cls: 'text-yellow-700 bg-yellow-50' },
-  'stop.complete':          { label: 'תחנה הושלמה',             icon: CheckCircle2, cls: 'text-green-700 bg-green-50' },
-  'stop.skip':              { label: 'תחנה דולגה',               icon: ChevronLeft,  cls: 'text-yellow-700 bg-yellow-50' },
-  'stop.issue':             { label: 'תקלה דווחה בתחנה',        icon: AlertTriangle, cls: 'text-red-700 bg-red-50' },
-  'stop.reopen':            { label: 'תחנה נפתחה מחדש',         icon: ChevronLeft,  cls: 'text-gray-600 bg-gray-100' },
-  'stop.note_added':        { label: 'נוספה הערה לתחנה',        icon: MessageSquare, cls: 'text-gray-700 bg-gray-100' },
-  'stop.photo_added':       { label: 'נוספה תמונה לתחנה',       icon: ImageIcon,    cls: 'text-gray-700 bg-gray-100' },
-  'stop.issue_documented':  { label: 'תיעוד תקלה',              icon: AlertTriangle, cls: 'text-red-700 bg-red-50' },
-  'expense.add':            { label: 'נרשמה הוצאה',             icon: Plus,         cls: 'text-blue-600 bg-blue-50' },
-  'expense.update':         { label: 'הוצאה עודכנה',            icon: MessageSquare, cls: 'text-gray-700 bg-gray-100' },
-  'expense.delete':         { label: 'הוצאה נמחקה',             icon: AlertTriangle, cls: 'text-red-700 bg-red-50' },
+  'workspace.create':       { label: 'נוצרה סביבת עבודה עסקית', icon: Briefcase,     accent: 'purple',  cls: 'text-purple-600 bg-purple-50' },
+  'driver.assign':          { label: 'נהג שויך לרכב',           icon: UserIcon,      accent: 'blue',    cls: 'text-blue-600 bg-blue-50' },
+  'route.create':           { label: 'נוצרה משימה',             icon: Plus,          accent: 'emerald', cls: 'text-green-600 bg-green-50' },
+  'route.start':            { label: 'משימה יצאה לדרך',         icon: Truck,         accent: 'blue',    cls: 'text-blue-600 bg-blue-50' },
+  'route.complete':         { label: 'משימה הושלמה',            icon: CheckCircle2,  accent: 'emerald', cls: 'text-green-700 bg-green-50' },
+  'route.reopen':           { label: 'משימה נפתחה מחדש',        icon: ChevronLeft,   accent: 'amber',   cls: 'text-yellow-700 bg-yellow-50' },
+  'stop.complete':          { label: 'תחנה הושלמה',             icon: CheckCircle2,  accent: 'emerald', cls: 'text-green-700 bg-green-50' },
+  'stop.skip':              { label: 'תחנה דולגה',              icon: ChevronLeft,   accent: 'amber',   cls: 'text-yellow-700 bg-yellow-50' },
+  'stop.issue':             { label: 'תקלה דווחה בתחנה',        icon: AlertTriangle, accent: 'red',     cls: 'text-red-700 bg-red-50' },
+  'stop.reopen':            { label: 'תחנה נפתחה מחדש',         icon: ChevronLeft,   accent: 'amber',   cls: 'text-gray-600 bg-gray-100' },
+  'stop.note_added':        { label: 'נוספה הערה לתחנה',        icon: MessageSquare, accent: 'blue',    cls: 'text-gray-700 bg-gray-100' },
+  'stop.photo_added':       { label: 'נוספה תמונה לתחנה',       icon: ImageIcon,     accent: 'blue',    cls: 'text-gray-700 bg-gray-100' },
+  'stop.issue_documented':  { label: 'תיעוד תקלה',              icon: AlertTriangle, accent: 'red',     cls: 'text-red-700 bg-red-50' },
+  'expense.add':            { label: 'נרשמה הוצאה',             icon: Plus,          accent: 'blue',    cls: 'text-blue-600 bg-blue-50' },
+  'expense.update':         { label: 'הוצאה עודכנה',            icon: MessageSquare, accent: 'amber',   cls: 'text-gray-700 bg-gray-100' },
+  'expense.delete':         { label: 'הוצאה נמחקה',             icon: AlertTriangle, accent: 'red',     cls: 'text-red-700 bg-red-50' },
 };
 function metaFor(action) {
-  return ACTION_META[action] || { label: action, icon: FileText, cls: 'text-gray-700 bg-gray-100' };
+  return ACTION_META[action] || { label: action, icon: FileText, accent: 'emerald', cls: 'text-gray-700 bg-gray-100' };
 }
 
 function fmtTime(ts) {
@@ -176,34 +184,44 @@ export default function ActivityLog() {
   };
 
   return (
-    <div dir="rtl" className="max-w-3xl mx-auto py-2">
-      <MobileBackButton />
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">יומן פעילות</h1>
-          <p className="text-xs text-gray-500">
-            {canManageRoutes
-              ? 'תיעוד כרונולוגי של כל הפעולות בחשבון. שורה לכל אירוע.'
-              : 'הפעולות שלך והפעילות במשימות שמשויכות אליך.'}
-          </p>
-        </div>
-        {canManageRoutes && (
-          <button
-            type="button"
-            onClick={() => setShowFilters(o => !o)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold ${
-              hasFilters ? 'bg-[#2D5233] text-white' : 'bg-gray-100 text-gray-700'
-            }`}
-          >
-            <Filter className="h-3.5 w-3.5" />
-            סנן
-            {hasFilters && <span className="bg-white/20 rounded-full px-1.5 text-[10px]">{[filterUser, filterVehicle, filterRoute, filterDate].filter(Boolean).length}</span>}
-          </button>
-        )}
-      </div>
-
+    <PageShell
+      title="יומן פעילות"
+      subtitle={canManageRoutes
+        ? 'תיעוד כרונולוגי של כל הפעולות בחשבון. שורה לכל אירוע.'
+        : 'הפעולות שלך והפעילות במשימות שמשויכות אליך.'}
+      actions={canManageRoutes && (
+        <button
+          type="button"
+          onClick={() => setShowFilters(o => !o)}
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98] border"
+          style={hasFilters
+            ? {
+                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                color: '#FFFFFF',
+                borderColor: '#065F46',
+                boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+              }
+            : {
+                background: '#FFFFFF',
+                color: '#10B981',
+                borderColor: '#D1FAE5',
+              }}
+        >
+          <Filter className="h-3.5 w-3.5" />
+          סנן
+          {hasFilters && (
+            <span
+              className="rounded-full px-1.5 text-[10px]"
+              style={{ background: 'rgba(255,255,255,0.25)' }}
+            >
+              {[filterUser, filterVehicle, filterRoute, filterDate].filter(Boolean).length}
+            </span>
+          )}
+        </button>
+      )}
+    >
       {showFilters && canManageRoutes && (
-        <div className="bg-gray-50 rounded-xl p-3 mb-3 space-y-2">
+        <Card className="mb-4 space-y-2">
           <FilterRow label="משתמש">
             <Select value={filterUser || 'all-users'} onValueChange={(v) => setFilterUser(v === 'all-users' ? '' : v)}>
               <SelectTrigger className={selectTriggerCls}>
@@ -250,28 +268,37 @@ export default function ActivityLog() {
             />
           </FilterRow>
           {hasFilters && (
-            <button type="button" onClick={clearFilters}
-              className="flex items-center gap-1 text-xs text-gray-600 px-2 py-1 hover:bg-gray-100 rounded">
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-gray-100"
+              style={{ color: '#4B5D52' }}
+            >
               <X className="h-3 w-3" /> נקה סינון
             </button>
           )}
-        </div>
+        </Card>
       )}
 
       {isLoading ? (
-        <div className="text-center text-xs text-gray-400 py-8">טוען יומן...</div>
+        <Card className="text-center py-8">
+          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען יומן...</p>
+        </Card>
       ) : allLogs.length === 0 ? (
-        <Empty
-          icon={<Calendar className="h-10 w-10 text-gray-300" />}
-          title={hasFilters ? 'לא נמצאה פעילות בסינון הזה' : 'עוד לא נרשמה פעילות'}
-          text={hasFilters
-            ? 'נסה להסיר חלק מהמסננים, או לבחור טווח תאריכים אחר.'
-            : 'כל פעולה בחשבון תיכתב ליומן אוטומטית. יצירת משימה, עדכון תחנה, הוספת הוצאה.'}
-          embedded
-        />
+        <Card className="text-center py-12">
+          <Calendar className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
+          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+            {hasFilters ? 'לא נמצאה פעילות בסינון הזה' : 'עוד לא נרשמה פעילות'}
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+            {hasFilters
+              ? 'נסה להסיר חלק מהמסננים, או לבחור טווח תאריכים אחר.'
+              : 'כל פעולה בחשבון תיכתב ליומן אוטומטית. יצירת משימה, עדכון תחנה, הוספת הוצאה.'}
+          </p>
+        </Card>
       ) : (
         <>
-          <ol className="space-y-1.5">
+          <ol className="space-y-2">
             {allLogs.map(log => <LogRow key={log.id} log={log} />)}
           </ol>
           {hasNextPage && (
@@ -279,17 +306,22 @@ export default function ActivityLog() {
               type="button"
               disabled={isFetchingNextPage}
               onClick={() => fetchNextPage()}
-              className="w-full mt-3 py-2.5 rounded-xl bg-gray-100 text-xs font-bold text-gray-700 disabled:opacity-60"
+              className="w-full mt-4 py-3 rounded-xl text-xs font-bold transition-all disabled:opacity-60 hover:scale-[1.01] active:scale-[0.99]"
+              style={{
+                background: '#FFFFFF',
+                color: '#10B981',
+                border: '1.5px solid #D1FAE5',
+              }}
             >
               {isFetchingNextPage ? 'טוען...' : 'טען עוד'}
             </button>
           )}
           {!hasNextPage && allLogs.length >= PAGE_SIZE && (
-            <p className="text-center text-[10px] text-gray-400 mt-3">סוף היומן</p>
+            <p className="text-center text-[10px] mt-4" style={{ color: '#A7B3AB' }}>סוף היומן</p>
           )}
         </>
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -297,28 +329,33 @@ function LogRow({ log }) {
   const meta = metaFor(log.action);
   const Icon = meta.icon;
   return (
-    <li className="bg-white border border-gray-100 rounded-xl p-3">
-      <div className="flex items-start gap-3">
-        <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${meta.cls}`}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-gray-900">{meta.label}</p>
-          <p className="text-[11px] text-gray-500 truncate">
-            {log.actor_label} · {fmtTime(log.created_at)}
-          </p>
-          {log.note && (
-            <p className="text-[11px] text-gray-700 bg-gray-50 rounded-md px-2 py-1 mt-1.5 leading-relaxed">
-              {log.note}
+    <li>
+      <Card accent={meta.accent} padding="p-3.5">
+        <div className="flex items-start gap-3">
+          <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${meta.cls}`}>
+            <Icon className="h-4 w-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold" style={{ color: '#0B2912' }}>{meta.label}</p>
+            <p className="text-[11px] truncate" style={{ color: '#6B7C72' }}>
+              {log.actor_label} · {fmtTime(log.created_at)}
             </p>
-          )}
-          {log.attachment_ref && (
-            <p className="text-[10px] text-blue-700 mt-1 truncate">
-              📎 {log.attachment_ref}
-            </p>
-          )}
+            {log.note && (
+              <p
+                className="text-[11px] rounded-md px-2 py-1 mt-1.5 leading-relaxed"
+                style={{ background: '#F0F7F4', color: '#0B2912' }}
+              >
+                {log.note}
+              </p>
+            )}
+            {log.attachment_ref && (
+              <p className="text-[10px] mt-1 truncate" style={{ color: '#1E40AF' }}>
+                📎 {log.attachment_ref}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      </Card>
     </li>
   );
 }

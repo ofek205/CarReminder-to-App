@@ -37,6 +37,25 @@ import useWorkspaces from '@/hooks/useWorkspaces';
 
 const WorkspaceContext = createContext(null);
 
+// Per-user localStorage key for the last-known active workspace. Seeding
+// `activeId` from this on cold start lets warm boots render the dashboard
+// immediately even when the membership query is slow (or hung — the iOS
+// WebView session-bridge bug seen in production). The real workspace
+// resolution still runs in the background and overrides the seed when
+// it lands.
+const LAST_WS_KEY = (uid) => `cr_last_active_workspace:${uid || 'anon'}`;
+function readCachedWorkspace(uid) {
+  if (!uid) return null;
+  try { return localStorage.getItem(LAST_WS_KEY(uid)) || null; } catch { return null; }
+}
+function writeCachedWorkspace(uid, accountId) {
+  if (!uid) return;
+  try {
+    if (accountId) localStorage.setItem(LAST_WS_KEY(uid), accountId);
+    else localStorage.removeItem(LAST_WS_KEY(uid));
+  } catch { /* quota / private mode — silent */ }
+}
+
 const ROLE_PRIORITY = { 'בעלים': 0, 'מנהל': 1, 'שותף': 2 };
 const sortByRole = (a, b) =>
   (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9);
@@ -45,30 +64,49 @@ const sortByRole = (a, b) =>
  * Pick the default active workspace from a memberships list.
  *
  * Resolution order:
- *   1. saved hint, if still a valid + non-removed membership
- *   2. business workspace where the user is a driver — drivers do their
- *      job in the company workspace, so opening the app there saves
- *      them a manual workspace switch every session
- *   3. first active 'personal' membership (default for everyone else)
- *   4. first active membership of any type (sorted by role priority)
- *   5. first inactive membership (legacy fallback)
+ *   1. business workspace where the user is a driver — drivers spend
+ *      their time-on-app in the company context.
+ *   2. business workspace where the user is owner/manager/viewer — if
+ *      the user has any business membership, the app boots into it
+ *      even if the saved hint points to personal. Rationale: owners
+ *      open the app to operate the fleet; landing on personal every
+ *      refresh forces a manual switch every session. The hint still
+ *      wins among multiple businesses (user picked a specific one).
+ *   3. saved hint among the remaining (personal-only) memberships.
+ *   4. first active 'personal' membership.
+ *   5. first active membership of any type (sorted by role priority).
+ *   6. first inactive membership (legacy fallback).
+ *
+ * In-session switches via the WorkspaceSwitcher still work — the hint
+ * gets persisted and respected within a single business workspace, and
+ * the switch survives until refresh. After refresh, business wins
+ * again. The driver default is non-overridable for the same UX reason
+ * the rule has been there since phase 3.
  */
 function resolveDefault(memberships, savedHintId) {
   if (!memberships?.length) return null;
 
   const active = memberships.filter(m => m.status === 'פעיל');
 
-  // Driver in a business workspace → ALWAYS land there, even if a stale
-  // saved hint points elsewhere. The hint loses to the driver default
-  // because most drivers' time-on-app is purely workplace activity, and
-  // a once-set hint to "personal" used to trap them in the wrong context
-  // every login. Drivers can still reach the personal workspace via the
-  // switcher in one tap.
+  // 1. Driver in a business workspace → always.
   const businessAsDriver = active.find(
     m => m.account_type === 'business' && m.role === 'driver'
   );
   if (businessAsDriver) return businessAsDriver;
 
+  // 2. Any other business membership → preferred over personal. The
+  // saved hint disambiguates between multiple businesses, but cannot
+  // demote business to personal.
+  const businesses = active.filter(m => m.account_type === 'business');
+  if (businesses.length > 0) {
+    if (savedHintId) {
+      const hintedBiz = businesses.find(m => m.account_id === savedHintId);
+      if (hintedBiz) return hintedBiz;
+    }
+    return businesses.slice().sort(sortByRole)[0];
+  }
+
+  // 3. No business — fall back to the original personal-friendly path.
   if (savedHintId) {
     const hinted = memberships.find(m => m.account_id === savedHintId);
     if (hinted) return hinted;
@@ -109,12 +147,22 @@ export function WorkspaceProvider({ children }) {
     staleTime: 60 * 60 * 1000,
   });
 
-  // Active workspace state. Null until first resolution. We DO NOT
-  // re-resolve every time memberships changes — once the user has
-  // chosen a workspace this session, we keep it (subject to it still
-  // being a valid membership).
-  const [activeId, setActiveId] = useState(null);
+  // Active workspace state. Seed from localStorage so warm boots paint
+  // immediately — without this seed, the home + vehicles pages spin
+  // through the entire useWorkspaces round-trip every refresh, and any
+  // network hang leaves them stuck. The seed is corrected the moment
+  // memberships arrive: if it isn't a valid membership anymore the
+  // resolution effect below replaces it.
+  const [activeId, setActiveId] = useState(() => readCachedWorkspace(user?.id));
   const initializedRef = useRef(false);
+
+  // Re-seed whenever the auth user identity changes (sign in / sign out
+  // / account switch). Without this the seed sticks across users and a
+  // signed-out → signed-in cycle would inherit the previous user's id.
+  useEffect(() => {
+    setActiveId(readCachedWorkspace(user?.id));
+    initializedRef.current = false;
+  }, [user?.id]);
 
   // Initial resolution + revalidation when the active workspace
   // disappears (e.g., a manager removed the user from a workspace).
@@ -130,10 +178,12 @@ export function WorkspaceProvider({ children }) {
 
     if (!initializedRef.current || !stillValid) {
       const fallback = resolveDefault(memberships, savedHint);
-      setActiveId(fallback?.account_id ?? null);
+      const nextId = fallback?.account_id ?? null;
+      setActiveId(nextId);
+      writeCachedWorkspace(user?.id, nextId);
       initializedRef.current = true;
     }
-  }, [memberships, membershipsLoading, savedHint, activeId]);
+  }, [memberships, membershipsLoading, savedHint, activeId, user?.id]);
 
   // Auto-heal: authenticated user, no memberships at all, call the
   // SECURITY DEFINER RPC once per session and let useWorkspaces refetch.
@@ -164,6 +214,7 @@ export function WorkspaceProvider({ children }) {
     if (targetAccountId === activeId) return true;
 
     setActiveId(targetAccountId);
+    writeCachedWorkspace(user?.id, targetAccountId);
 
     // Persist hint. Fire-and-forget — never block the UI on this.
     (async () => {
@@ -200,7 +251,12 @@ export function WorkspaceProvider({ children }) {
     activeWorkspaceId:  activeId,
     activeWorkspace,
     switchTo,
-    isLoading: membershipsLoading,
+    // If we have a seeded activeId (from localStorage), expose
+    // isLoading=false so consumers like useAccountRole return the
+    // cached id immediately. The membership query keeps running in
+    // the background; once it lands the resolution effect either
+    // confirms or replaces the seed.
+    isLoading: membershipsLoading && !activeId,
     isGuest:   !!isGuest || authState === 'guest',
   }), [memberships, activeId, activeWorkspace, switchTo, membershipsLoading, isGuest, authState]);
 

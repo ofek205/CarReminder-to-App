@@ -13,9 +13,8 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Truck, Briefcase, MapPin, AlertTriangle, Receipt,
-  CheckCircle2, FileText, TrendingUp, TrendingDown, ArrowLeft,
-  Plus, Users,
+  Truck, Briefcase, AlertTriangle, Receipt,
+  CheckCircle2, TrendingUp, ArrowLeft, Plus, Users,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
@@ -25,6 +24,13 @@ import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import MobileBackButton from '@/components/shared/MobileBackButton';
 import { createPageUrl } from '@/utils';
+// Shared design system. Every B2B page imports from this barrel.
+import {
+  AnimatedCount,
+  KpiTile,
+  ActionTile,
+  useTickEverySecond,
+} from '@/components/business/system';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -122,6 +128,9 @@ const TONE_DOT = {
 };
 
 // ---------- main ------------------------------------------------------
+// Helpers (AnimatedCount, Sparkline, KpiTile, ActionTile,
+// useTickEverySecond) live in @/components/business/system and are
+// imported above. Anything page-specific (FleetChip) stays here.
 
 export default function BusinessDashboard() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -266,6 +275,20 @@ export default function BusinessDashboard() {
     return Math.round(((thisMonthTotal - prevMonthTotal) / prevMonthTotal) * 100);
   }, [thisMonthTotal, prevMonthTotal]);
 
+  // 6-month expense series for the sparkline in the expenses KPI tile.
+  // `monthly` arrives newest-first from the RPC; we reverse + slice 6
+  // so the chart reads naturally left→right (oldest → current).
+  const monthlySpark = useMemo(() => {
+    if (!Array.isArray(monthly) || monthly.length === 0) return null;
+    const reversed = [...monthly].reverse();
+    const last6 = reversed.slice(-6);
+    return last6.map(m => Number(m.total) || 0);
+  }, [monthly]);
+
+  // Force re-render every 30s so activity timestamps update from
+  // "לפני דקה" to "לפני 2 דקות" without a manual refresh. Cheap.
+  useTickEverySecond(30000);
+
   // Vehicles needing attention.
   const overdueVehicles = useMemo(() => {
     return vehicles
@@ -330,257 +353,451 @@ export default function BusinessDashboard() {
   });
   const fleetHealthy = overdueCount === 0 && openIssues.length === 0;
 
+  // ── Render — "Living Dashboard" ───────────────────────────────────
+  // Vibrant, breathing aesthetic. Mint-tinted background, gradient
+  // emerald hero number, colored KPI surfaces (not flat hairlines),
+  // pulsing live dot, soft colored shadows, smooth hover transitions.
+  // Replaces the previous "Boardroom Brief" cream/hairline look that
+  // read as too editorial-static for an active fleet management tool.
   return (
-    <div dir="rtl" className="max-w-5xl mx-auto pb-8">
+    <div
+      dir="rtl"
+      className="max-w-5xl mx-auto pb-12 px-4 sm:px-6 pt-3"
+      style={{
+        // Soft mint→white gradient with a subtle radial highlight at top.
+        // Gives the page warmth and depth without committing to a heavy
+        // theme color.
+        background: `
+          radial-gradient(ellipse at 70% -10%, rgba(16,185,129,0.08) 0%, transparent 50%),
+          linear-gradient(180deg, #F0F7F4 0%, #FFFFFF 60%)
+        `,
+        minHeight: '100vh',
+      }}
+    >
       <MobileBackButton />
 
-      {/* ── Hero ─────────────────────────────────────────────────── */}
-      <header className="mb-5">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <p className="text-sm text-gray-500">{greeting}{userFirstName ? `, ${userFirstName}` : ''}.</p>
-          <p className="text-sm text-gray-400">{hebrewDate()}</p>
+      {/* ── A. Header ──────────────────────────────────────────── */}
+      <header className="mb-4">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          {/* Live indicator chip */}
+          <div
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide"
+            style={{ background: '#10B981', color: '#FFFFFF' }}
+          >
+            <span className="relative flex h-1.5 w-1.5">
+              <span
+                className="absolute inline-flex h-full w-full rounded-full opacity-75"
+                style={{ background: '#FFFFFF', animation: 'cr-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
+              />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+            </span>
+            LIVE
+          </div>
+          {/* Date pill */}
+          <div
+            className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
+            style={{ background: 'rgba(31,61,36,0.06)', color: '#1F3D24' }}
+          >
+            {hebrewDate()}
+          </div>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mt-1 truncate">{workspaceName}</h1>
-        <p className="text-xs text-gray-500 mt-0.5">תמונת מצב יומית של הצי</p>
+
+        <h1
+          className="font-black leading-none tracking-tight truncate"
+          style={{
+            color: '#0B2912',
+            fontWeight: 900,
+            fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
+            letterSpacing: '-0.025em',
+          }}
+        >
+          {workspaceName}
+        </h1>
+
+        <p className="text-sm mt-2" style={{ color: '#4B5D52' }}>
+          {greeting}{userFirstName ? `, ${userFirstName}` : ''} 👋
+        </p>
       </header>
 
-      {/* ── Quick Actions ────────────────────────────────────────── */}
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }}>
-        <QuickAction icon={<Plus className="h-3.5 w-3.5" />}     label="צור משימה"     to={createPageUrl('CreateRoute')} primary />
-        <QuickAction icon={<Truck className="h-3.5 w-3.5" />}    label="הוסף רכב"      to={createPageUrl('AddVehicle')} />
-        <QuickAction icon={<Users className="h-3.5 w-3.5" />}    label="נהל נהגים"     to={createPageUrl('Drivers')} />
-        <QuickAction icon={<Receipt className="h-3.5 w-3.5" />}  label="הוסף הוצאה"    to={createPageUrl('Expenses')} />
-      </div>
+      {/* ── B. Hero Card — gradient emerald ─────────────────────── */}
+      <section className="mb-4">
+        <Link
+          to={fleetHealthy ? createPageUrl('Fleet') : createPageUrl('Fleet')}
+          className="block rounded-3xl p-5 sm:p-6 transition-all hover:scale-[1.005] active:scale-[0.998] relative overflow-hidden group"
+          style={{
+            background: fleetHealthy
+              ? 'linear-gradient(135deg, #065F46 0%, #10B981 60%, #34D399 100%)'
+              : overdueCount > 0
+                ? 'linear-gradient(135deg, #7F1D1D 0%, #DC2626 60%, #F87171 100%)'
+                : 'linear-gradient(135deg, #92400E 0%, #F59E0B 60%, #FBBF24 100%)',
+            boxShadow: fleetHealthy
+              ? '0 20px 50px -12px rgba(16,185,129,0.4), 0 8px 16px -4px rgba(16,185,129,0.2)'
+              : overdueCount > 0
+                ? '0 20px 50px -12px rgba(220,38,38,0.4), 0 8px 16px -4px rgba(220,38,38,0.2)'
+                : '0 20px 50px -12px rgba(245,158,11,0.4), 0 8px 16px -4px rgba(245,158,11,0.2)',
+          }}
+        >
+          {/* Decorative blob */}
+          <div
+            aria-hidden
+            className="absolute pointer-events-none transition-transform group-hover:scale-110"
+            style={{
+              top: '-30%',
+              left: '-10%',
+              width: '300px',
+              height: '300px',
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%)',
+            }}
+          />
 
-      {/* ── KPI Cards ────────────────────────────────────────────── */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-5">
-        <Kpi
-          icon={<Truck className="h-5 w-5" />}
-          label="רכבים בצי"
-          value={fmtNumber(vehicles.length)}
-          to={createPageUrl('Fleet')}
-          tone="primary"
-        />
-        <Kpi
-          icon={<MapPin className="h-5 w-5" />}
-          label="משימות פעילות"
-          value={fmtNumber(activeRoutes.length)}
-          sub={activeRoutes.length === 0 ? 'אין משימה פתוחה' : null}
-          to={createPageUrl('Routes')}
-          tone="primary"
-        />
-        <Kpi
-          icon={<Receipt className="h-5 w-5" />}
-          label="הוצאות החודש"
-          value={fmtMoney(thisMonthTotal)}
-          delta={monthDeltaPct}
-          to={createPageUrl('Reports')}
-          tone="primary"
-        />
-        <Kpi
-          icon={<AlertTriangle className="h-5 w-5" />}
-          label="תקלות פתוחות"
-          value={fmtNumber(openIssues.length)}
-          to={createPageUrl('ActivityLog')}
-          tone={openIssues.length > 0 ? 'danger' : 'neutral'}
-        />
+          <div className="relative grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 sm:gap-8 items-center">
+            {/* Big number */}
+            <div className="flex items-end gap-3 leading-none">
+              <span
+                className="font-black tabular-nums"
+                style={{
+                  color: '#FFFFFF',
+                  fontSize: 'clamp(4rem, 11vw, 6.5rem)',
+                  fontWeight: 900,
+                  letterSpacing: '-0.05em',
+                  lineHeight: 0.85,
+                  textShadow: '0 2px 20px rgba(0,0,0,0.15)',
+                }}
+                dir="ltr"
+              >
+                <AnimatedCount value={vehicles.length} />
+              </span>
+              <div className="pb-2">
+                <p className="text-xs uppercase tracking-[0.15em] font-bold opacity-90 text-white">
+                  רכבים
+                </p>
+                <p className="text-sm font-bold mt-0.5 text-white">
+                  בצי הפעיל
+                </p>
+              </div>
+            </div>
+
+            {/* Status block */}
+            <div className="sm:border-r sm:pr-6 border-white/25">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-7 h-7 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center shrink-0">
+                  {fleetHealthy
+                    ? <CheckCircle2 className="w-4 h-4 text-white" />
+                    : <AlertTriangle className="w-4 h-4 text-white" />}
+                </div>
+                <p className="text-base font-black text-white">
+                  {fleetHealthy
+                    ? 'הצי במצב תקין'
+                    : overdueCount > 0
+                      ? `${overdueCount} רכבים דחופים`
+                      : `${soonCount} רכבים בקרוב`}
+                </p>
+              </div>
+              <p className="text-sm leading-relaxed text-white/85">
+                {fleetHealthy
+                  ? 'אין רכבים שדורשים טיפול דחוף ואין תקלות פתוחות.'
+                  : openIssues.length > 0
+                    ? `יש גם ${openIssues.length} תקלות מדווחות שטרם טופלו.`
+                    : 'מומלץ לבדוק את צי הרכבים.'}
+              </p>
+            </div>
+          </div>
+        </Link>
       </section>
 
-      {/* ── Health Spotlight ─────────────────────────────────────── */}
-      <section className="mb-5">
-        {fleetHealthy ? (
-          <HealthCard
-            tone="green"
-            icon={<CheckCircle2 className="h-5 w-5" />}
-            title="הצי במצב תקין"
-            sub="אין רכבים שדורשים טיפול דחוף ואין תקלות פתוחות."
-          />
-        ) : (
-          <HealthCard
-            tone={overdueCount > 0 ? 'red' : 'yellow'}
-            icon={<AlertTriangle className="h-5 w-5" />}
-            title={overdueCount > 0
-              ? `${overdueCount} רכבים דורשים טיפול דחוף`
-              : `${soonCount} רכבים דורשים טיפול בקרוב`}
-            sub={openIssues.length > 0
-              ? `יש גם ${openIssues.length} תקלות מדווחות שטרם טופלו`
-              : 'מומלץ לבדוק את הצי בלשונית "צי הרכבים"'}
-            to={createPageUrl('Fleet')}
-          />
-        )}
-      </section>
-
-      {/* ── Two-column area ──────────────────────────────────────── */}
-      <div className="grid lg:grid-cols-2 gap-4">
-
-        {/* Needs attention */}
-        <section className="bg-white border border-gray-100 rounded-2xl p-4">
-          <SectionHeader
-            icon={<AlertTriangle className="h-4 w-4 text-yellow-700" />}
-            title="דורש תשומת לב"
-          />
-          {attentionItems.length === 0 ? (
-            <p className="text-xs text-gray-500 py-4 text-center">
-              הכל תחת שליטה. שום דבר לא דחוף עכשיו.
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {attentionItems.map((item, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <div className={`shrink-0 w-1 self-stretch rounded-full ${item.barCls}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-900">{item.text}</p>
-                    {item.sub && <p className="text-[11px] text-gray-500 leading-relaxed">{item.sub}</p>}
-                  </div>
-                  {item.to && (
-                    <Link to={item.to} className="shrink-0 text-[11px] font-bold text-[#2D5233] flex items-center gap-0.5 mt-0.5">
-                      לפרטים
-                      <ArrowLeft className="h-3 w-3" />
-                    </Link>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        {/* Recent activity */}
-        <section className="bg-white border border-gray-100 rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <SectionHeader
-              icon={<FileText className="h-4 w-4 text-gray-500" />}
-              title="פעילות אחרונה"
-              tight
-            />
+      {/* ── B.5. Fleet Strip — every vehicle as a status dot ───────
+          Distinct to a fleet-management product: most dashboards stop
+          at aggregate KPIs. Showing each vehicle individually as a
+          colored chip lets the manager scan the whole fleet at a
+          glance and click directly into any one. */}
+      {vehicles.length > 0 && (
+        <section className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-bold" style={{ color: '#0B2912' }}>
+              הצי במבט אחד
+            </h2>
             <Link
-              to={createPageUrl('ActivityLog')}
-              className="text-[11px] font-bold text-[#2D5233] flex items-center gap-0.5"
+              to={createPageUrl('Fleet')}
+              className="text-[11px] font-bold flex items-center gap-0.5 px-2 py-1 rounded-full transition-colors"
+              style={{ color: '#10B981', background: 'rgba(16,185,129,0.08)' }}
             >
-              לכל הפעילות
+              לכל הצי
               <ArrowLeft className="h-3 w-3" />
             </Link>
           </div>
-          {recentLogs.length === 0 ? (
-            <p className="text-xs text-gray-400 py-6 text-center">
-              עוד לא נרשמה פעילות. כל פעולה בחשבון תופיע כאן אוטומטית.
-            </p>
-          ) : (
-            <ol className="relative space-y-3">
-              <span className="absolute right-1 top-2 bottom-2 w-px bg-gray-100" aria-hidden />
-              {recentLogs.map(log => {
-                const tone = ACTION_TONE[log.action] || 'gray';
-                const actorName = nameByUserId[log.actor_user_id] || log.actor_label;
-                return (
-                  <li key={log.id} className="relative flex items-start gap-3 pr-3">
-                    <span className={`absolute right-0 top-1.5 w-2 h-2 rounded-full ${TONE_DOT[tone]}`} aria-hidden />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-900">
-                        <span className="font-bold">{actorName}</span>
-                        <span className="text-gray-400">{` · `}</span>
-                        {ACTION_LABEL[log.action] || log.action}
-                      </p>
-                      {log.note && <p className="text-[11px] text-gray-500 truncate">{log.note}</p>}
-                      <p className="text-[10px] text-gray-400 mt-0.5">{fmtTimeShort(log.created_at)}</p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
+          <div
+            className="rounded-2xl p-3 border overflow-x-auto"
+            style={{
+              background: '#FFFFFF',
+              borderColor: '#E5EDE8',
+              boxShadow: '0 4px 16px rgba(15,40,28,0.04)',
+            }}
+          >
+            <div className="flex gap-2 min-w-min">
+              {overdueVehicles.length > 0
+                ? overdueVehicles.map(({ v, worst }) => (
+                    <FleetChip
+                      key={v.id}
+                      vehicle={v}
+                      status={worst < 0 ? 'overdue' : 'soon'}
+                      days={worst}
+                    />
+                  ))
+                : null}
+              {/* Healthy vehicles after problematic ones */}
+              {vehicles
+                .filter(v => !overdueVehicles.find(o => o.v.id === v.id))
+                .map(v => (
+                  <FleetChip key={v.id} vehicle={v} status="healthy" />
+                ))}
+            </div>
+          </div>
         </section>
+      )}
 
-      </div>
+      {/* ── C. KPI Trio — vivid colored surfaces with sparkline ──── */}
+      <section className="grid grid-cols-3 gap-3 mb-5">
+        <KpiTile
+          label="משימות פעילות"
+          value={<AnimatedCount value={activeRoutes.length} />}
+          sub={activeRoutes.length === 0 ? 'אין פתוחה' : 'בעבודה'}
+          tone="emerald"
+          to={createPageUrl('Routes')}
+        />
+        <KpiTile
+          label="הוצאות החודש"
+          value={<AnimatedCount value={thisMonthTotal} format={fmtMoney} duration={1300} />}
+          sub={monthDeltaPct != null
+            ? `${monthDeltaPct > 0 ? '↑' : '↓'} ${Math.abs(monthDeltaPct)}% מהחודש שעבר`
+            : 'אין נתון'}
+          subTone={monthDeltaPct > 0 ? 'red' : monthDeltaPct < 0 ? 'green' : 'neutral'}
+          tone="amber"
+          spark={monthlySpark}
+          to={createPageUrl('Reports')}
+        />
+        <KpiTile
+          label="תקלות פתוחות"
+          value={<AnimatedCount value={openIssues.length} />}
+          sub={openIssues.length > 0 ? 'דורשות טיפול' : 'הכל סגור'}
+          tone={openIssues.length > 0 ? 'red' : 'blue'}
+          to={createPageUrl('ActivityLog')}
+        />
+      </section>
+
+      {/* ── D. Attention banner — only when needed ──────────────── */}
+      {attentionItems.length > 0 && (
+        <section
+          className="mb-5 rounded-2xl p-4 border"
+          style={{
+            background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+            borderColor: '#FCD34D',
+            boxShadow: '0 4px 12px rgba(245,158,11,0.12)',
+          }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: '#F59E0B' }}>
+              <AlertTriangle className="w-4 h-4 text-white" />
+            </div>
+            <h2 className="font-bold text-base" style={{ color: '#78350F' }}>
+              דורש תשומת לב
+            </h2>
+            <span
+              className="ml-auto inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black"
+              style={{ background: '#F59E0B', color: '#FFFFFF' }}
+            >
+              {attentionItems.length}
+            </span>
+          </div>
+          <ul className="space-y-2.5">
+            {attentionItems.map((item, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-3 rounded-xl bg-white/60 p-2.5 transition-colors hover:bg-white/90"
+              >
+                <div className={`shrink-0 w-1 self-stretch rounded-full ${item.barCls}`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold leading-snug" style={{ color: '#78350F' }}>
+                    {item.text}
+                  </p>
+                  {item.sub && (
+                    <p className="text-[12px] mt-0.5 leading-relaxed" style={{ color: '#92400E' }}>
+                      {item.sub}
+                    </p>
+                  )}
+                </div>
+                {item.to && (
+                  <Link
+                    to={item.to}
+                    className="shrink-0 text-[11px] font-bold flex items-center gap-0.5 mt-0.5 px-2 py-1 rounded-full transition-colors hover:bg-amber-200/40"
+                    style={{ color: '#92400E' }}
+                  >
+                    לפרטים
+                    <ArrowLeft className="h-3 w-3" />
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* ── E. Quick Actions — vibrant grid ─────────────────────── */}
+      <section className="mb-6">
+        <h2 className="text-sm font-bold mb-2.5" style={{ color: '#0B2912' }}>פעולות מהירות</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <ActionTile to={createPageUrl('CreateRoute')} icon={Plus}    label="צור משימה" primary />
+          <ActionTile to={createPageUrl('AddVehicle')}  icon={Truck}   label="הוסף רכב" />
+          <ActionTile to={createPageUrl('Drivers')}     icon={Users}   label="נהל נהגים" />
+          <ActionTile to={createPageUrl('Expenses')}    icon={Receipt} label="הוסף הוצאה" />
+        </div>
+      </section>
+
+      {/* ── F. Activity feed ─────────────────────────────────────── */}
+      <section
+        className="rounded-2xl p-4 sm:p-5 border"
+        style={{
+          background: '#FFFFFF',
+          borderColor: '#E5EDE8',
+          boxShadow: '0 4px 16px rgba(15,40,28,0.04)',
+        }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold" style={{ color: '#0B2912' }}>פעילות אחרונה</h2>
+          <Link
+            to={createPageUrl('ActivityLog')}
+            className="text-[11px] font-bold flex items-center gap-0.5 px-2 py-1 rounded-full transition-colors"
+            style={{ color: '#10B981', background: 'rgba(16,185,129,0.08)' }}
+          >
+            לכל הפעילות
+            <ArrowLeft className="h-3 w-3" />
+          </Link>
+        </div>
+        {recentLogs.length === 0 ? (
+          <p className="text-sm py-6 text-center" style={{ color: '#6B7C72' }}>
+            עוד לא נרשמה פעילות. כל פעולה בחשבון תופיע כאן אוטומטית.
+          </p>
+        ) : (
+          <ol className="relative space-y-3 pr-5">
+            <span
+              className="absolute right-[7px] top-2 bottom-2 w-px"
+              style={{ background: '#E5EDE8' }}
+              aria-hidden
+            />
+            {recentLogs.map(log => {
+              const tone = ACTION_TONE[log.action] || 'gray';
+              const actorName = nameByUserId[log.actor_user_id] || log.actor_label;
+              return (
+                <li key={log.id} className="relative flex items-start gap-3">
+                  <span
+                    className={`absolute right-[2px] top-2 w-2.5 h-2.5 rounded-full ring-2 ring-white ${TONE_DOT[tone]}`}
+                    aria-hidden
+                  />
+                  <div className="flex-1 min-w-0 mr-2">
+                    <p className="text-sm" style={{ color: '#0B2912' }}>
+                      <span className="font-bold">{actorName}</span>
+                      <span style={{ color: '#6B7C72' }}>{` · `}</span>
+                      {ACTION_LABEL[log.action] || log.action}
+                    </p>
+                    {log.note && (
+                      <p className="text-[12px] truncate" style={{ color: '#4B5D52' }}>
+                        {log.note}
+                      </p>
+                    )}
+                    <p className="text-[11px] mt-0.5" style={{ color: '#6B7C72' }}>
+                      {fmtTimeShort(log.created_at)}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </section>
+
+      {/* Live pulse animation keyframe — scoped global so the live
+          indicator chip has a visible breath. CSS variable form keeps
+          it overridable from theme later. */}
+      <style>{`
+        @keyframes cr-pulse {
+          0%, 100% { transform: scale(1); opacity: 0.75; }
+          50%      { transform: scale(2.5); opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 }
 
-// ---------- subcomponents --------------------------------------------
 
-function QuickAction({ icon, label, to, primary = false }) {
+// FleetChip: one vehicle in the "Fleet at a glance" strip. Color
+// reflects its current state (healthy / soon / overdue). Hover lifts
+// the chip and reveals the license plate. Click navigates straight to
+// the vehicle detail page. Designed to read as a row of pills, not as
+// yet another card grid.
+function FleetChip({ vehicle, status, days }) {
+  const TONES = {
+    healthy: {
+      bg: '#ECFDF5', border: '#A7F3D0', dot: '#10B981',
+      text: '#065F46', sub: '#047857',
+    },
+    soon: {
+      bg: '#FFFBEB', border: '#FCD34D', dot: '#F59E0B',
+      text: '#78350F', sub: '#92400E',
+    },
+    overdue: {
+      bg: '#FEF2F2', border: '#FCA5A5', dot: '#EF4444',
+      text: '#7F1D1D', sub: '#B91C1C',
+    },
+  };
+  const t = TONES[status] || TONES.healthy;
+  const name = vehicle.nickname
+    || [vehicle.manufacturer, vehicle.model].filter(Boolean).join(' ')
+    || vehicle.license_plate
+    || 'רכב';
+  const plate = vehicle.license_plate || '';
+  // Days hint shown only on non-healthy chips, helps the manager
+  // triage without clicking through.
+  const daysHint = status === 'overdue' && days != null
+    ? `${Math.abs(days)} ימים פג`
+    : status === 'soon' && days != null
+      ? `בעוד ${days} ימים`
+      : null;
+
   return (
     <Link
-      to={to}
-      className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-[0.98] ${
-        primary
-          ? 'bg-[#2D5233] text-white'
-          : 'bg-white border border-gray-200 text-gray-700 hover:border-gray-300'
-      }`}
+      to={`${createPageUrl('VehicleDetail')}?id=${vehicle.id}`}
+      className="shrink-0 rounded-xl px-3 py-2 border transition-all hover:scale-[1.04] active:scale-[0.98] hover:-translate-y-0.5 group"
+      style={{
+        background: t.bg,
+        borderColor: t.border,
+        minWidth: '120px',
+      }}
+      title={plate}
     >
-      {icon}
-      {label}
+      <div className="flex items-center gap-2">
+        <span
+          className="w-2 h-2 rounded-full shrink-0 transition-transform group-hover:scale-125"
+          style={{ background: t.dot, boxShadow: `0 0 0 3px ${t.dot}25` }}
+        />
+        <span className="text-xs font-bold truncate" style={{ color: t.text }}>
+          {name}
+        </span>
+      </div>
+      {daysHint
+        ? (
+          <p className="text-[10px] mt-0.5 truncate font-bold" style={{ color: t.sub }}>
+            {daysHint}
+          </p>
+        )
+        : (
+          <p className="text-[10px] mt-0.5 truncate font-mono" dir="ltr" style={{ color: t.sub, opacity: 0.8 }}>
+            {plate || '—'}
+          </p>
+        )}
     </Link>
   );
 }
 
-function Kpi({ icon, label, value, sub = null, delta = null, to, tone = 'primary' }) {
-  const iconWrap = {
-    primary: 'bg-[#E8F2EA] text-[#2D5233]',
-    danger:  'bg-red-50    text-red-600',
-    neutral: 'bg-gray-100  text-gray-500',
-  }[tone] || 'bg-gray-100 text-gray-500';
-
-  const inner = (
-    <div className="bg-white border border-gray-100 rounded-2xl p-3.5 hover:border-gray-200 hover:shadow-sm transition-all h-full">
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${iconWrap}`}>
-        {icon}
-      </div>
-      <p className="text-[11px] text-gray-500 font-medium mb-0.5">{label}</p>
-      <p className="text-2xl font-bold text-gray-900 leading-tight tabular-nums">{value}</p>
-      {sub && <p className="text-[10px] text-gray-500 mt-1.5 truncate">{sub}</p>}
-      {delta != null && (
-        <div className={`mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold ${
-          delta > 0 ? 'text-red-600' : delta < 0 ? 'text-green-600' : 'text-gray-500'
-        }`}>
-          {delta > 0 ? <TrendingUp className="h-3 w-3" /> : delta < 0 ? <TrendingDown className="h-3 w-3" /> : null}
-          <span>{delta > 0 ? '+' : ''}{delta}% מהחודש שעבר</span>
-        </div>
-      )}
-    </div>
-  );
-  return to ? <Link to={to}>{inner}</Link> : inner;
-}
-
-function HealthCard({ tone, icon, title, sub, to = null }) {
-  const wrap = {
-    green:  'bg-gradient-to-l from-green-50 to-white border-green-100',
-    yellow: 'bg-gradient-to-l from-yellow-50 to-white border-yellow-100',
-    red:    'bg-gradient-to-l from-red-50 to-white border-red-100',
-  }[tone] || 'bg-white border-gray-100';
-
-  const iconCls = {
-    green:  'bg-green-100 text-green-700',
-    yellow: 'bg-yellow-100 text-yellow-800',
-    red:    'bg-red-100 text-red-700',
-  }[tone];
-
-  const Wrapper = ({ children }) => to
-    ? <Link to={to} className="block">{children}</Link>
-    : <div>{children}</div>;
-
-  return (
-    <Wrapper>
-      <div className={`border rounded-2xl p-4 flex items-center gap-3 transition-shadow ${wrap} ${to ? 'hover:shadow-sm' : ''}`}>
-        <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${iconCls}`}>
-          {icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-gray-900">{title}</p>
-          <p className="text-[11px] text-gray-600 mt-0.5">{sub}</p>
-        </div>
-        {to && <ArrowLeft className="h-4 w-4 text-gray-400 shrink-0" />}
-      </div>
-    </Wrapper>
-  );
-}
-
-function SectionHeader({ icon, title, tight = false }) {
-  return (
-    <div className={`flex items-center gap-2 ${tight ? '' : 'mb-3'}`}>
-      {icon}
-      <h2 className="text-sm font-bold text-gray-900">{title}</h2>
-    </div>
-  );
-}
 
 function buildAttentionItems({
   overdueCount,

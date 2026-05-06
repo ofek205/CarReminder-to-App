@@ -27,9 +27,10 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
-import MobileBackButton from '@/components/shared/MobileBackButton';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+// Living Dashboard system - shared with all B2B pages.
+import { PageShell, Card } from '@/components/business/system';
 
 const MAX_NAME = 120;
 
@@ -192,115 +193,149 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
   };
 
   return (
-    <div dir="rtl" className="max-w-md mx-auto py-6 px-2">
-      <MobileBackButton />
-      <div className="flex items-center gap-3 mb-5">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${isRequest ? 'bg-yellow-50' : 'bg-[#E8F2EA]'}`}>
-          {isRequest
-            ? <ShieldAlert className="h-5 w-5 text-yellow-700" />
-            : <Briefcase  className="h-5 w-5 text-[#2D5233]" />}
+    <PageShell
+      title={isRequest ? 'בקשת חשבון עסקי נוסף' : 'חשבון עסקי חדש'}
+      subtitle={isRequest
+        ? 'כבר יש לך חשבון עסקי. בקשה לחשבון נוסף דורשת אישור אדמין.'
+        : 'לניהול צי רכבים של חברה או עסק'}
+    >
+      {/* Identity hero — same family as BusinessSettings's hero. The
+          left avatar tone shifts amber when this is a request flow,
+          emerald when it's a free-create. */}
+      <Card accent={isRequest ? 'amber' : 'emerald'} className="mb-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center"
+            style={isRequest
+              ? {
+                  background: 'linear-gradient(135deg, #92400E 0%, #F59E0B 80%, #FCD34D 100%)',
+                  color: '#FFFFFF',
+                  boxShadow: '0 8px 20px rgba(245,158,11,0.32)',
+                }
+              : {
+                  background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                  color: '#FFFFFF',
+                  boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
+                }}
+          >
+            {isRequest ? <ShieldAlert className="h-6 w-6" /> : <Briefcase className="h-6 w-6" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p
+              className="text-[11px] font-bold inline-flex items-center gap-1 px-2 py-0.5 rounded-md"
+              style={isRequest
+                ? { background: '#FFFBEB', color: '#92400E' }
+                : { background: '#D1FAE5', color: '#065F46' }}
+            >
+              {isRequest ? 'דורש אישור' : 'יצירה מיידית'}
+            </p>
+            <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: '#4B5D52' }}>
+              {isRequest
+                ? 'מילוי טופס וקבלת תשובה מהאדמין תוך זמן קצר.'
+                : 'תיווצר סביבת עבודה נפרדת. הרכבים האישיים שלך נשארים פרטיים.'}
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">
-            {isRequest ? 'בקשת חשבון עסקי נוסף' : 'חשבון עסקי חדש'}
-          </h1>
-          <p className="text-xs text-gray-500">
-            {isRequest
-              ? 'כבר יש לך חשבון עסקי. בקשה לחשבון נוסף דורשת אישור אדמין.'
-              : 'לניהול צי רכבים של חברה או עסק'}
-          </p>
-        </div>
-      </div>
+      </Card>
 
       {mode === 'request_after_denial' && latestRequest && (
         <DeniedBanner request={latestRequest} />
       )}
 
       {isRequest && (
-        <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 mb-4 flex items-start gap-2">
-          <Clock className="h-4 w-4 text-yellow-700 shrink-0 mt-0.5" />
-          <div className="text-[11px] text-yellow-900 leading-relaxed">
-            הבקשה תישלח לבדיקת אדמין. מומלץ לפרט את הסיבה ואת התפקיד של החשבון השני (סניף נוסף, פעילות נפרדת, וכד׳).
+        <Card accent="amber" className="mb-4" padding="px-3.5 py-2.5">
+          <div className="flex items-start gap-2">
+            <Clock className="h-4 w-4 shrink-0 mt-0.5" style={{ color: '#92400E' }} />
+            <div className="text-[11px] leading-relaxed" style={{ color: '#92400E' }}>
+              הבקשה תישלח לבדיקת אדמין. מומלץ לפרט את הסיבה ואת התפקיד של החשבון השני (סניף נוסף, פעילות נפרדת, וכד׳).
+            </div>
           </div>
-        </div>
+        </Card>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1.5">
-            שם החשבון העסקי <span className="text-red-500">*</span>
-          </label>
-          <Input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="לדוגמה: יצור פלסטיק בע&quot;מ"
-            maxLength={MAX_NAME}
-            className="h-11 rounded-xl"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1.5">
-            ח.פ. / מספר עוסק
-          </label>
-          <Input
-            type="text"
-            value={businessId}
-            onChange={(e) => setBusinessId(e.target.value)}
-            placeholder="לא חובה"
-            className="h-11 rounded-xl"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-gray-700 mb-1.5">
-            אימייל ליצירת קשר
-          </label>
-          <Input
-            type="email"
-            value={contactEmail}
-            onChange={(e) => setContactEmail(e.target.value)}
-            placeholder="לא חובה"
-            className="h-11 rounded-xl"
-          />
-        </div>
-
-        {isRequest && (
+      <Card>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">
-              סיבת הבקשה <span className="text-red-500">*</span>
+            <label className="block text-xs font-bold mb-1.5" style={{ color: '#0B2912' }}>
+              שם החשבון העסקי <span style={{ color: '#DC2626' }}>*</span>
             </label>
-            <Textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={3}
-              placeholder="לדוגמה: סניף שני בעיר אחרת, פעילות נפרדת לחברת בת, או צרכים אחרים"
-              className="rounded-xl"
+            <Input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="לדוגמה: יצור פלסטיק בע&quot;מ"
+              maxLength={MAX_NAME}
+              className="h-11 rounded-xl"
+              style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
               required
             />
           </div>
-        )}
 
-        {!isRequest && (
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-[11px] text-blue-900 leading-relaxed">
-            תיווצר סביבת עבודה נפרדת לחלוטין. הרכבים האישיים שלך נשארים פרטיים. הם לא יופיעו בחשבון העסקי, ולהיפך.
+          <div>
+            <label className="block text-xs font-bold mb-1.5" style={{ color: '#0B2912' }}>
+              ח.פ. / מספר עוסק
+            </label>
+            <Input
+              type="text"
+              value={businessId}
+              onChange={(e) => setBusinessId(e.target.value)}
+              placeholder="לא חובה"
+              className="h-11 rounded-xl"
+              style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+              dir="ltr"
+            />
           </div>
-        )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full py-3 rounded-xl font-bold text-sm bg-[#2D5233] text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
-        >
-          {submitting
-            ? <><Loader2 className="h-4 w-4 animate-spin" /> {isRequest ? 'שולח...' : 'יוצר...'}</>
-            : <>{isRequest ? 'שלח בקשה לאישור' : 'צור חשבון עסקי'} <ArrowRight className="h-4 w-4 rotate-180" /></>
-          }
-        </button>
-      </form>
-    </div>
+          <div>
+            <label className="block text-xs font-bold mb-1.5" style={{ color: '#0B2912' }}>
+              אימייל ליצירת קשר
+            </label>
+            <Input
+              type="email"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+              placeholder="לא חובה"
+              className="h-11 rounded-xl"
+              style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+              dir="ltr"
+            />
+          </div>
+
+          {isRequest && (
+            <div>
+              <label className="block text-xs font-bold mb-1.5" style={{ color: '#0B2912' }}>
+                סיבת הבקשה <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <Textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                placeholder="לדוגמה: סניף שני בעיר אחרת, פעילות נפרדת לחברת בת, או צרכים אחרים"
+                className="rounded-xl"
+                style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+                required
+              />
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-60"
+            style={{
+              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              color: '#FFFFFF',
+              boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+            }}
+          >
+            {submitting
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> {isRequest ? 'שולח...' : 'יוצר...'}</>
+              : <>{isRequest ? 'שלח בקשה לאישור' : 'צור חשבון עסקי'} <ArrowRight className="h-4 w-4 rotate-180" /></>
+            }
+          </button>
+        </form>
+      </Card>
+    </PageShell>
   );
 }
 
@@ -308,20 +343,40 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
 
 function PendingState({ request }) {
   return (
-    <div dir="rtl" className="max-w-md mx-auto py-10 px-3">
-      <MobileBackButton />
-      <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 text-center">
-        <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-3">
-          <Clock className="h-6 w-6 text-yellow-700" />
+    <PageShell
+      title="הבקשה ממתינה לאישור"
+      subtitle="האדמין יעבור על הפרטים ויחזור אליך"
+    >
+      {/* Pending hero — soft amber bath, gentle clock animation hinting
+          that something is in motion behind the scenes. */}
+      <Card accent="amber" className="mb-4 text-center">
+        <div
+          className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
+          style={{
+            background: 'linear-gradient(135deg, #92400E 0%, #F59E0B 80%, #FCD34D 100%)',
+            color: '#FFFFFF',
+            boxShadow: '0 8px 20px rgba(245,158,11,0.32)',
+          }}
+        >
+          <Clock className="h-6 w-6" />
         </div>
-        <h1 className="text-lg font-bold text-yellow-900 mb-1">הבקשה ממתינה לאישור</h1>
-        <p className="text-xs text-yellow-900/80 leading-relaxed">
-          האדמין יעבור על הפרטים ויחזור אליך. ברגע שהבקשה תאושר, החשבון העסקי החדש ייפתח אוטומטית ויופיע במחליף הסביבות.
+        <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>הבקשה בדרך לאישור</p>
+        <p className="text-[11px] leading-relaxed" style={{ color: '#4B5D52' }}>
+          ברגע שהבקשה תאושר, החשבון העסקי החדש ייפתח אוטומטית ויופיע במחליף הסביבות.
         </p>
-      </div>
+      </Card>
 
-      <div className="mt-5 bg-white border border-gray-100 rounded-xl p-4">
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">פרטי הבקשה</p>
+      <Card accent="emerald">
+        <p
+          className="text-[11px] font-bold mb-2 flex items-center gap-2"
+          style={{ color: '#0B2912' }}
+        >
+          <span
+            className="inline-block w-1 h-3.5 rounded-full"
+            style={{ background: 'linear-gradient(180deg, #065F46 0%, #34D399 100%)' }}
+          />
+          פרטי הבקשה
+        </p>
         <Detail label="שם מבוקש" value={request.requested_name} />
         {request.business_meta?.business_id && (
           <Detail label="ח.פ." value={request.business_meta.business_id} />
@@ -331,29 +386,36 @@ function PendingState({ request }) {
         )}
         <Detail label="סיבה" value={request.reason || 'לא צוינה'} multiline />
         <Detail label="הוגשה" value={fmtDate(request.created_at)} />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }
 
 function DeniedBanner({ request }) {
   return (
-    <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 flex items-start gap-2">
-      <AlertTriangle className="h-4 w-4 text-red-700 shrink-0 mt-0.5" />
-      <div className="text-[11px] text-red-900 leading-relaxed flex-1">
-        <p className="font-bold mb-0.5">הבקשה הקודמת נדחתה</p>
-        {request.review_note && <p className="mb-1">{request.review_note}</p>}
-        <p className="text-[10px] text-red-900/70">{fmtDate(request.reviewed_at)}</p>
+    <Card accent="red" className="mb-4" padding="px-3.5 py-2.5">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: '#991B1B' }} />
+        <div className="text-[11px] leading-relaxed flex-1" style={{ color: '#991B1B' }}>
+          <p className="font-bold mb-0.5">הבקשה הקודמת נדחתה</p>
+          {request.review_note && <p className="mb-1">{request.review_note}</p>}
+          <p className="text-[10px]" style={{ color: 'rgba(153,27,27,0.7)' }}>{fmtDate(request.reviewed_at)}</p>
+        </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
 function Detail({ label, value, multiline }) {
   return (
-    <div className="py-1.5 border-b border-gray-50 last:border-0">
-      <p className="text-[10px] text-gray-400 mb-0.5">{label}</p>
-      <p className={`text-xs text-gray-900 ${multiline ? 'whitespace-pre-line' : 'truncate'}`}>{value}</p>
+    <div className="py-1.5 first:pt-0 last:pb-0" style={{ borderBottom: '1px solid #F0F7F4' }}>
+      <p className="text-[10px] mb-0.5" style={{ color: '#6B7C72' }}>{label}</p>
+      <p
+        className={`text-xs font-bold ${multiline ? 'whitespace-pre-line' : 'truncate'}`}
+        style={{ color: '#0B2912' }}
+      >
+        {value}
+      </p>
     </div>
   );
 }

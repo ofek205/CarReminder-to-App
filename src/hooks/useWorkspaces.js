@@ -28,10 +28,23 @@ export default function useWorkspaces() {
   const { data, isLoading } = useQuery({
     queryKey: ['user-workspaces', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Hard timeout race. Prod has seen this query stall on iOS
+      // WKWebView (Capacitor session bridge) — without a timeout,
+      // React Query's `isLoading` stays true forever and every page
+      // that gates on accountId is permanently stuck on a spinner.
+      // 6s is more than the p99 latency for this view but short enough
+      // that a stuck request fails over to the localStorage seed in
+      // WorkspaceContext quickly. The query auto-retries once via
+      // the `retry` option below, doubling worst-case to ~12s.
+      const TIMEOUT_MS = 6000;
+      const fetchPromise = supabase
         .from('v_user_workspaces')
         .select('*')
         .eq('user_id', user.id);
+      const timeoutPromise = new Promise((_resolve, reject) =>
+        setTimeout(() => reject(new Error('useWorkspaces timeout')), TIMEOUT_MS)
+      );
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
       if (error) throw error;
       return data || [];
     },
@@ -45,6 +58,11 @@ export default function useWorkspaces() {
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
+    // Retry once on timeout / transient failure, then surface the
+    // error to consumers so the localStorage seed in WorkspaceContext
+    // takes over and the page renders.
+    retry: 1,
+    retryDelay: 500,
   });
 
   // Mirror the existing useAccountRole filter: never surface 'הוסר' /

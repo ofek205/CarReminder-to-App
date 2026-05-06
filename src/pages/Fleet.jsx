@@ -27,10 +27,16 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
-import MobileBackButton from '@/components/shared/MobileBackButton';
 import { createPageUrl } from '@/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+// Living Dashboard system - shared with all B2B pages.
+import {
+  PageShell,
+  Card,
+  KpiTile,
+  AnimatedCount,
+} from '@/components/business/system';
 
 const PAGE_SIZE = 25;
 
@@ -42,13 +48,29 @@ function daysUntil(dateStr) {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
+// Status returns the row's domain accent (matches Card accent palette)
+// plus a self-contained chip style so the row can render a status pill
+// without needing access to a separate map.
 function vehicleStatus(v) {
   const testD = daysUntil(v.test_due_date);
   const insD  = daysUntil(v.insurance_due_date);
   const worst = Math.min(testD ?? 999, insD ?? 999);
-  if (worst < 0)   return { key: 'overdue', label: 'דחוף',   cls: 'bg-red-100   text-red-700   border-red-200' };
-  if (worst <= 60) return { key: 'soon',    label: 'בקרוב',  cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
-  return                { key: 'ok',      label: 'תקין',   cls: 'bg-green-100  text-green-700  border-green-200' };
+  if (worst < 0) {
+    return {
+      key: 'overdue', label: 'דחוף', accent: 'red',
+      chipBg: '#FEE2E2', chipFg: '#991B1B',
+    };
+  }
+  if (worst <= 60) {
+    return {
+      key: 'soon', label: 'בקרוב', accent: 'amber',
+      chipBg: '#FEF3C7', chipFg: '#92400E',
+    };
+  }
+  return {
+    key: 'ok', label: 'תקין', accent: 'emerald',
+    chipBg: '#D1FAE5', chipFg: '#065F46',
+  };
 }
 
 function statusReason(v) {
@@ -254,44 +276,80 @@ export default function Fleet() {
   const hasFilters = search || statusFilter || driverFilter || typeFilter;
 
   return (
-    <div dir="rtl" className="max-w-5xl mx-auto py-2">
-      <MobileBackButton />
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">צי הרכבים</h1>
-          <p className="text-xs text-gray-500">
-            {vehicles.length} רכבים בצי
-            {counts.overdue > 0     && <span className="text-red-600 font-bold">{` · ${counts.overdue} דורשים טיפול דחוף`}</span>}
-            {counts.unassigned > 0  && <span className="text-gray-600">{` · ${counts.unassigned} ללא נהג`}</span>}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+    <PageShell
+      title="צי הרכבים"
+      subtitle={`${vehicles.length} רכבים בצי`}
+      actions={(
+        <div className="flex items-center gap-2">
           <Link
             to={createPageUrl('BulkAddVehicles')}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-xs font-bold active:scale-[0.98] hover:border-gray-300"
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+            style={{
+              background: '#FFFFFF',
+              color: '#10B981',
+              border: '1.5px solid #D1FAE5',
+            }}
           >
             <Upload className="h-4 w-4" />
-            ייבוא רכבים
+            ייבוא
           </Link>
           <Link
             to={createPageUrl('AddVehicle')}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98]"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+            style={{
+              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              color: '#FFFFFF',
+              boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+            }}
           >
             <Plus className="h-4 w-4" />
             הוסף רכב
           </Link>
         </div>
-      </div>
+      )}
+    >
+      {/* KPI Strip — fleet at a glance. Each tile colored by meaning:
+          emerald = total / healthy
+          red     = overdue
+          amber   = expiring soon
+          blue    = unassigned (info, not problem) */}
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        <KpiTile
+          label="סה״כ בצי"
+          value={<AnimatedCount value={vehicles.length} />}
+          sub="רכבים פעילים"
+          tone="emerald"
+        />
+        <KpiTile
+          label="דחוף"
+          value={<AnimatedCount value={counts.overdue} />}
+          sub={counts.overdue === 0 ? 'הכל תקין' : 'דורש טיפול'}
+          tone={counts.overdue > 0 ? 'red' : 'emerald'}
+        />
+        <KpiTile
+          label="בקרוב"
+          value={<AnimatedCount value={counts.soon} />}
+          sub={counts.soon === 0 ? 'אין תזכורות' : '60 ימים קרובים'}
+          tone="amber"
+        />
+        <KpiTile
+          label="ללא נהג"
+          value={<AnimatedCount value={counts.unassigned} />}
+          sub={counts.unassigned === 0 ? 'הכל משובץ' : 'ממתין שיבוץ'}
+          tone="blue"
+        />
+      </section>
 
       {/* Search */}
       <div className="relative mb-3">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none" style={{ color: '#7A6E58' }} />
         <Input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="חפש לפי מספר רישוי, שם, יצרן או דגם"
-          className="h-10 rounded-xl pr-10 pl-9 text-sm"
+          className="h-11 rounded-xl pr-10 pl-9 text-sm"
+          style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
         />
         {search && (
           <button
@@ -305,17 +363,17 @@ export default function Fleet() {
         )}
       </div>
 
-      {/* Status chips */}
+      {/* Status chips — system tones */}
       <div className="flex flex-wrap gap-1.5 mb-3">
-        <Chip active={!statusFilter} onClick={() => setStatusFilter('')}>הכל ({vehicles.length})</Chip>
+        <Chip active={!statusFilter}                 onClick={() => setStatusFilter('')}>הכל ({vehicles.length})</Chip>
         <Chip active={statusFilter === 'overdue'}    onClick={() => setStatusFilter('overdue')}    tone="red">דחוף ({counts.overdue})</Chip>
-        <Chip active={statusFilter === 'soon'}       onClick={() => setStatusFilter('soon')}       tone="yellow">בקרוב ({counts.soon})</Chip>
-        <Chip active={statusFilter === 'ok'}         onClick={() => setStatusFilter('ok')}         tone="green">תקין ({counts.ok})</Chip>
-        <Chip active={statusFilter === 'unassigned'} onClick={() => setStatusFilter('unassigned')}>ללא נהג ({counts.unassigned})</Chip>
+        <Chip active={statusFilter === 'soon'}       onClick={() => setStatusFilter('soon')}       tone="amber">בקרוב ({counts.soon})</Chip>
+        <Chip active={statusFilter === 'ok'}         onClick={() => setStatusFilter('ok')}         tone="emerald">תקין ({counts.ok})</Chip>
+        <Chip active={statusFilter === 'unassigned'} onClick={() => setStatusFilter('unassigned')} tone="blue">ללא נהג ({counts.unassigned})</Chip>
       </div>
 
       {/* Driver / Type / Sort row */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
+      <div className="grid grid-cols-3 gap-2 mb-5">
         <Select value={driverFilter || 'all-drivers'} onValueChange={(v) => setDriverFilter(v === 'all-drivers' ? '' : v)}>
           <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
             <SelectValue placeholder="כל הנהגים" />
@@ -348,23 +406,31 @@ export default function Fleet() {
 
       {/* List */}
       {isLoading ? (
-        <p className="text-center text-xs text-gray-400 py-8">טוען רכבים...</p>
+        <Card className="text-center py-8">
+          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען רכבים...</p>
+        </Card>
       ) : filtered.length === 0 ? (
-        <Empty
-          icon={<Truck className="h-10 w-10 text-gray-300" />}
-          title={vehicles.length === 0 ? 'הצי שלך עוד ריק' : 'אין רכבים תואמים לסינון'}
-          text={
-            vehicles.length === 0
+        <Card className="text-center py-12">
+          <Truck className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
+          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+            {vehicles.length === 0 ? 'הצי שלך עוד ריק' : 'אין רכבים תואמים לסינון'}
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+            {vehicles.length === 0
               ? 'התחל בהוספת הרכב הראשון. ניתן לחפש לפי מספר רישוי דרך משרד התחבורה.'
               : hasFilters
                 ? 'נסה להסיר חלק מהמסננים, או לחפש מונח אחר.'
-                : 'לא נמצאו רכבים.'
-          }
-          embedded
-        />
+                : 'לא נמצאו רכבים.'}
+          </p>
+        </Card>
       ) : (
         <>
-          <ul className="space-y-1.5">
+          <h2 className="text-sm font-bold mb-2.5" style={{ color: '#0B2912' }}>
+            {filtered.length === vehicles.length
+              ? `כל הצי (${vehicles.length})`
+              : `מציג ${filtered.length} מתוך ${vehicles.length}`}
+          </h2>
+          <ul className="space-y-2">
             {pagedRows.map(v => (
               <FleetRow
                 key={v.id}
@@ -375,24 +441,33 @@ export default function Fleet() {
           </ul>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 text-xs">
+            <div className="flex items-center justify-between mt-5 text-xs">
               <button
                 type="button"
                 disabled={page === 0}
                 onClick={() => setPage(p => Math.max(0, p - 1))}
-                className="px-3 py-1.5 rounded-lg bg-gray-100 disabled:opacity-50 font-bold"
+                className="px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
+                style={{
+                  background: '#FFFFFF',
+                  color: '#10B981',
+                  border: '1.5px solid #D1FAE5',
+                }}
               >
                 הקודם
               </button>
-              <span className="text-gray-500">
+              <span style={{ color: '#4B5D52' }}>
                 עמוד {page + 1} מתוך {totalPages}
-                <span className="text-gray-400">{` · ${filtered.length} רכבים`}</span>
               </span>
               <button
                 type="button"
                 disabled={page >= totalPages - 1}
                 onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                className="px-3 py-1.5 rounded-lg bg-gray-100 disabled:opacity-50 font-bold"
+                className="px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
+                style={{
+                  background: '#FFFFFF',
+                  color: '#10B981',
+                  border: '1.5px solid #D1FAE5',
+                }}
               >
                 הבא
               </button>
@@ -400,7 +475,7 @@ export default function Fleet() {
           )}
         </>
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -413,49 +488,75 @@ function FleetRow({ vehicle, driverName }) {
     || `${vehicle.manufacturer || ''} ${vehicle.model || ''}`.trim()
     || 'רכב ללא שם';
   return (
-    <li className="bg-white border border-gray-100 rounded-xl px-3 py-2.5 hover:shadow-sm transition-shadow">
-      <Link to={createPageUrl('VehicleDetail') + '?id=' + vehicle.id} className="block">
-        <div className="flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-              <p className="text-sm font-bold text-gray-900 truncate">{label}</p>
-              {vehicle.license_plate && (
-                <span className="text-[10px] text-gray-500 font-mono shrink-0 px-1.5 py-0.5 bg-gray-50 rounded">
-                  {vehicle.license_plate}
-                </span>
-              )}
+    <li>
+      <Link
+        to={createPageUrl('VehicleDetail') + '?id=' + vehicle.id}
+        className="block transition-transform hover:scale-[1.005] active:scale-[0.995]"
+      >
+        <Card accent={status.accent} padding="p-3.5">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{label}</p>
+                {vehicle.license_plate && (
+                  <span
+                    className="text-[10px] font-mono shrink-0 px-1.5 py-0.5 rounded tabular-nums"
+                    dir="ltr"
+                    style={{ background: '#F0F7F4', color: '#4B5D52' }}
+                  >
+                    {vehicle.license_plate}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] truncate leading-relaxed" style={{ color: '#6B7C72' }}>
+                {driverName
+                  ? <>נהג: <span className="font-bold" style={{ color: '#0B2912' }}>{driverName}</span></>
+                  : <span style={{ color: '#A7B3AB' }}>ללא נהג משויך</span>}
+                {reason && <>{` · ${reason}`}</>}
+              </p>
             </div>
-            <p className="text-[11px] text-gray-500 truncate">
-              {driverName
-                ? <>נהג: <span className="font-semibold text-gray-700">{driverName}</span></>
-                : <span className="text-gray-400">ללא נהג משויך</span>}
-              {reason && <>{` · ${reason}`}</>}
-            </p>
+            <span
+              className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
+              style={{ background: status.chipBg, color: status.chipFg }}
+            >
+              {status.label}
+            </span>
+            <ChevronLeft className="h-4 w-4 shrink-0" style={{ color: '#A7B3AB' }} />
           </div>
-          <span className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-bold ${status.cls}`}>
-            {status.label}
-          </span>
-          <ChevronLeft className="h-4 w-4 text-gray-300 shrink-0" />
-        </div>
+        </Card>
       </Link>
     </li>
   );
 }
 
+// Chip — filter pill matching the system tones used in KpiTile / Card
+// accents. Active state uses the deep emerald gradient base; inactive
+// state uses a soft tint of the same tone (or a neutral white).
+const CHIP_INACTIVE_BY_TONE = {
+  red:     { background: '#FEF2F2', color: '#991B1B', borderColor: '#FECACA' },
+  amber:   { background: '#FFFBEB', color: '#92400E', borderColor: '#FCD34D' },
+  emerald: { background: '#ECFDF5', color: '#065F46', borderColor: '#A7F3D0' },
+  blue:    { background: '#EFF6FF', color: '#1E40AF', borderColor: '#BFDBFE' },
+};
+
 function Chip({ active, onClick, children, tone }) {
-  const inactiveByTone = {
-    red:    'bg-red-50    text-red-700    border-red-100',
-    yellow: 'bg-yellow-50 text-yellow-700 border-yellow-100',
-    green:  'bg-green-50  text-green-700  border-green-100',
+  const inactive = CHIP_INACTIVE_BY_TONE[tone] || {
+    background: '#FFFFFF', color: '#4B5D52', borderColor: '#E5EDE8',
   };
-  const inactiveCls = inactiveByTone[tone] || 'bg-white text-gray-700 border-gray-200';
+  const style = active
+    ? {
+        background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+        color: '#FFFFFF',
+        borderColor: '#065F46',
+        boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
+      }
+    : inactive;
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap border transition-all ${
-        active ? 'bg-[#2D5233] text-white border-[#2D5233]' : inactiveCls
-      }`}
+      className="px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap border transition-all hover:scale-[1.03] active:scale-[0.97]"
+      style={style}
     >
       {children}
     </button>

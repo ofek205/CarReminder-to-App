@@ -27,8 +27,14 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
-import MobileBackButton from '@/components/shared/MobileBackButton';
 import { Input } from '@/components/ui/input';
+// Living Dashboard system - shared with all B2B pages.
+import {
+  PageShell,
+  Card,
+  KpiTile,
+  AnimatedCount,
+} from '@/components/business/system';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { listExternalDrivers, categoryShortLabel } from '@/services/drivers';
@@ -219,24 +225,25 @@ export default function Drivers() {
     );
   }
 
+  // Active assignment count — used by the KPI strip. Counts unique
+  // assignment rows (a driver with two vehicles counts as two).
+  const activeAssignmentCount = assignments.length;
+
   return (
-    <div dir="rtl" className="max-w-3xl mx-auto py-2">
-      <MobileBackButton />
-      <div className="flex items-center justify-between mb-3 gap-2">
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold text-gray-900">נהגים</h1>
-          <p className="text-xs text-gray-500 truncate">
-            ניהול נהגים, רישיונות ושיבוצים
-            <span className="text-gray-400">{` · ${totalCount} ${totalCount === 1 ? 'נהג' : 'נהגים'}`}</span>
-          </p>
-        </div>
-        {/* "+ הוסף נהג" — popover with two paths: invite-with-email
-            (existing flow) or roster entry without account (new). */}
+    <PageShell
+      title="נהגים"
+      subtitle="ניהול נהגים, רישיונות ושיבוצים"
+      actions={(
         <Popover>
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#2D5233] text-white text-xs font-bold active:scale-[0.98]"
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+              style={{
+                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                color: '#FFFFFF',
+                boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+              }}
             >
               <UserPlus className="h-4 w-4" />
               הוסף נהג
@@ -273,7 +280,39 @@ export default function Drivers() {
             </button>
           </PopoverContent>
         </Popover>
-      </div>
+      )}
+    >
+      {/* KPI Strip — drivers at a glance:
+          emerald = total team
+          blue    = registered (have an app account)
+          amber   = external (no app account)
+          purple  = active vehicle assignments */}
+      <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        <KpiTile
+          label="סה״כ נהגים"
+          value={<AnimatedCount value={totalCount} />}
+          sub="פעילים בחשבון"
+          tone="emerald"
+        />
+        <KpiTile
+          label="עם חשבון"
+          value={<AnimatedCount value={members.length} />}
+          sub={members.length === 0 ? 'אין משתמשים רשומים' : 'מחוברים לאפליקציה'}
+          tone="blue"
+        />
+        <KpiTile
+          label="ללא חשבון"
+          value={<AnimatedCount value={externalDrivers.length} />}
+          sub={externalDrivers.length === 0 ? 'אין נהגים פיזיים' : 'במעקב ידני'}
+          tone="amber"
+        />
+        <KpiTile
+          label="שיבוצים פעילים"
+          value={<AnimatedCount value={activeAssignmentCount} />}
+          sub={activeAssignmentCount === 0 ? 'אין שיבוצים' : 'נהגים-לרכבים'}
+          tone="purple"
+        />
+      </section>
 
       {/* Filter chips — visible only when there's at least one of each kind */}
       {(members.length > 0 && externalDrivers.length > 0) && (
@@ -281,24 +320,29 @@ export default function Drivers() {
           <FilterChip active={filter === 'all'}        onClick={() => setFilter('all')}>
             הכל ({totalCount})
           </FilterChip>
-          <FilterChip active={filter === 'registered'} onClick={() => setFilter('registered')}>
+          <FilterChip active={filter === 'registered'} onClick={() => setFilter('registered')} tone="blue">
             עם חשבון ({members.length})
           </FilterChip>
-          <FilterChip active={filter === 'external'}   onClick={() => setFilter('external')}>
+          <FilterChip active={filter === 'external'}   onClick={() => setFilter('external')} tone="amber">
             ללא חשבון ({externalDrivers.length})
           </FilterChip>
         </div>
       )}
 
       {isLoading ? (
-        <p className="text-center text-xs text-gray-400 py-6">טוען נהגים...</p>
+        <Card className="text-center py-8">
+          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען נהגים...</p>
+        </Card>
       ) : entries.length === 0 ? (
-        <Empty
-          icon={<UserPlus className="h-10 w-10 text-gray-300" />}
-          title="עוד אין נהגים בחשבון"
-          text="הוסף נהג עם חשבון רשום, או רשום נהג ללא חשבון לעקיבה ושיבוץ"
-          embedded
-        />
+        <Card className="text-center py-12">
+          <UserPlus className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
+          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+            עוד אין נהגים בחשבון
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+            הוסף נהג עם חשבון רשום, או רשום נהג ללא חשבון לעקיבה ושיבוץ.
+          </p>
+        </Card>
       ) : (
         <ul className="space-y-2">
           {entries.map(entry => (
@@ -395,21 +439,38 @@ export default function Drivers() {
           }}
         />
       )}
-    </div>
+    </PageShell>
   );
 }
 
 // Filter chip used at top of the list when there's data of both kinds.
-function FilterChip({ active, onClick, children }) {
+// Same Living Dashboard tone vocabulary as Fleet's status chips: active
+// state uses the emerald gradient; inactive uses a soft tint of the
+// requested tone (or a neutral white/gray fallback).
+const FILTER_CHIP_INACTIVE_BY_TONE = {
+  blue:    { background: '#EFF6FF', color: '#1E40AF', borderColor: '#BFDBFE' },
+  amber:   { background: '#FFFBEB', color: '#92400E', borderColor: '#FCD34D' },
+  emerald: { background: '#ECFDF5', color: '#065F46', borderColor: '#A7F3D0' },
+};
+
+function FilterChip({ active, onClick, children, tone }) {
+  const inactive = FILTER_CHIP_INACTIVE_BY_TONE[tone] || {
+    background: '#FFFFFF', color: '#4B5D52', borderColor: '#E5EDE8',
+  };
+  const style = active
+    ? {
+        background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+        color: '#FFFFFF',
+        borderColor: '#065F46',
+        boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
+      }
+    : inactive;
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
-        active
-          ? 'bg-[#2D5233] border-[#2D5233] text-white'
-          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-      }`}
+      className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all hover:scale-[1.03] active:scale-[0.97]"
+      style={style}
     >
       {children}
     </button>
@@ -536,65 +597,90 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
 
 // ----------------------------------------------------------------------
 
+// Map a member's role (in Hebrew, as stored in the workspace_members
+// directory) to a Card accent in the Living Dashboard palette. This
+// gives each row a quiet visual key for the role at a glance.
+const ROLE_ACCENT = {
+  'בעלים':  'purple',
+  'מנהל':   'emerald',
+  'שותף':   'blue',
+  'driver': 'amber',
+};
+
 function MemberRow({ member, assignments, vehicleLabel, onAssign, onOpen }) {
   const meta = roleMeta(member.role);
   const RoleIcon = meta.icon;
+  const accent = ROLE_ACCENT[member.role] || 'emerald';
   // Whole row is tappable → detail page. The "שייך רכב" button still
   // works in-place for the manager's quick-action shortcut; its
   // handler stops propagation so it doesn't trigger the row open.
   return (
     <li
       onClick={onOpen}
-      className="bg-white border border-gray-100 rounded-xl p-3 cursor-pointer transition-all hover:border-gray-200 active:scale-[0.99]"
+      className="cursor-pointer transition-transform hover:scale-[1.005] active:scale-[0.995]"
     >
-      <div className="flex items-start gap-3">
-        <div className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${meta.cls}`}>
-          <RoleIcon className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-            <p className="text-sm font-bold text-gray-900 truncate">{member.display_name}</p>
-            <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.cls}`}>
-              {meta.label}
-            </span>
-            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">
-              עם חשבון
-            </span>
+      <Card accent={accent} padding="p-3.5">
+        <div className="flex items-start gap-3">
+          <div className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${meta.cls}`}>
+            <RoleIcon className="h-4 w-4" />
           </div>
-          <p className="text-[11px] text-gray-500 truncate">{member.email}</p>
-          {member.joined_at && (
-            <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
-              <Calendar className="h-3 w-3" />
-              תאריך הצטרפות: {fmtDate(member.joined_at)}
-            </p>
-          )}
-
-          {assignments.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-[10px] font-bold text-gray-500 mb-1">רכבים מוקצים</p>
-              <div className="flex flex-wrap gap-1">
-                {assignments.map(a => (
-                  <span key={a.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 text-[10px] text-gray-700">
-                    <Truck className="h-3 w-3" />
-                    {vehicleLabel(a.vehicle_id)}
-                  </span>
-                ))}
-              </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+              <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{member.display_name}</p>
+              <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.cls}`}>
+                {meta.label}
+              </span>
+              <span
+                className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{ background: '#EFF6FF', color: '#1E40AF' }}
+              >
+                עם חשבון
+              </span>
             </div>
-          )}
+            <p className="text-[11px] truncate" style={{ color: '#6B7C72' }}>{member.email}</p>
+            {member.joined_at && (
+              <p className="text-[10px] flex items-center gap-1 mt-0.5" style={{ color: '#A7B3AB' }}>
+                <Calendar className="h-3 w-3" />
+                תאריך הצטרפות: {fmtDate(member.joined_at)}
+              </p>
+            )}
+
+            {assignments.length > 0 && (
+              <div className="mt-2 pt-2" style={{ borderTop: '1px solid #E5EDE8' }}>
+                <p className="text-[10px] font-bold mb-1" style={{ color: '#6B7C72' }}>רכבים מוקצים</p>
+                <div className="flex flex-wrap gap-1">
+                  {assignments.map(a => (
+                    <span
+                      key={a.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px]"
+                      style={{ background: '#F0F7F4', color: '#0B2912' }}
+                    >
+                      <Truck className="h-3 w-3" />
+                      {vehicleLabel(a.vehicle_id)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="shrink-0 flex flex-col items-stretch gap-1">
+            <button
+              type="button"
+              onClick={onAssign}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:scale-[1.03] active:scale-[0.97]"
+              style={{
+                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                color: '#FFFFFF',
+                boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              שייך רכב
+            </button>
+          </div>
+          <ChevronLeft className="h-4 w-4 shrink-0 mt-2" style={{ color: '#A7B3AB' }} />
         </div>
-        <div className="shrink-0 flex flex-col items-stretch gap-1">
-          <button
-            type="button"
-            onClick={onAssign}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold active:scale-[0.98]"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            שייך רכב
-          </button>
-        </div>
-        <ChevronLeft className="h-4 w-4 text-gray-300 shrink-0 mt-2" />
-      </div>
+      </Card>
     </li>
   );
 }
@@ -610,80 +696,114 @@ function ExternalDriverRow({ driver, assignments, vehicleLabel, onAssign, onOpen
     ? (new Date(expDate) - new Date()) / (1000 * 60 * 60 * 24) < 30
     : false;
   const expired = expDate ? new Date(expDate) < new Date() : false;
+  // License state escalates the row's accent: red (expired) > amber
+  // (expiring) > amber (default external). The base color is amber
+  // because external drivers are always "without account" — the same
+  // tone the KPI tile uses for that bucket.
+  const accent = expired ? 'red' : 'amber';
   return (
     <li
       onClick={onOpen}
-      className="bg-white border border-gray-100 rounded-xl p-3 cursor-pointer transition-all hover:border-gray-200 active:scale-[0.99]"
+      className="cursor-pointer transition-transform hover:scale-[1.005] active:scale-[0.995]"
     >
-      <div className="flex items-start gap-3">
-        <div className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center bg-amber-50 text-amber-700">
-          <IdCard className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-            <p className="text-sm font-bold text-gray-900 truncate">{driver.full_name}</p>
-            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700">
-              ללא חשבון
-            </span>
-            {expired && (
-              <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700">
-                רישיון פג
-              </span>
-            )}
-            {!expired && expiringSoon && (
-              <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-700">
-                רישיון פוגג
-              </span>
-            )}
+      <Card accent={accent} padding="p-3.5">
+        <div className="flex items-start gap-3">
+          <div
+            className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
+            style={{ background: '#FFFBEB', color: '#92400E' }}
+          >
+            <IdCard className="h-4 w-4" />
           </div>
-          <p className="text-[11px] text-gray-500 flex items-center gap-1 truncate" dir="ltr">
-            <Phone className="h-3 w-3 shrink-0 text-gray-400" />
-            <span className="truncate">{driver.phone}</span>
-          </p>
-          {Array.isArray(driver.license_categories) && driver.license_categories.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
-              {driver.license_categories.slice(0, 6).map(c => (
-                <span key={c} className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-gray-50 text-[10px] text-gray-700">
-                  {categoryShortLabel(c)}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+              <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{driver.full_name}</p>
+              <span
+                className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{ background: '#FFFBEB', color: '#92400E' }}
+              >
+                ללא חשבון
+              </span>
+              {expired && (
+                <span
+                  className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                  style={{ background: '#FEE2E2', color: '#991B1B' }}
+                >
+                  רישיון פג
                 </span>
-              ))}
-              {driver.license_categories.length > 6 && (
-                <span className="text-[10px] text-gray-400">+{driver.license_categories.length - 6}</span>
+              )}
+              {!expired && expiringSoon && (
+                <span
+                  className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                  style={{ background: '#FEF3C7', color: '#92400E' }}
+                >
+                  רישיון פוגג
+                </span>
               )}
             </div>
-          )}
-          {expDate && (
-            <p className="text-[10px] text-gray-400 mt-0.5">
-              רישיון תקף עד: {fmtDate(expDate)}
+            <p className="text-[11px] flex items-center gap-1 truncate" dir="ltr" style={{ color: '#6B7C72' }}>
+              <Phone className="h-3 w-3 shrink-0" style={{ color: '#A7B3AB' }} />
+              <span className="truncate">{driver.phone}</span>
             </p>
-          )}
-
-          {assignments.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-[10px] font-bold text-gray-500 mb-1">רכבים מוקצים</p>
-              <div className="flex flex-wrap gap-1">
-                {assignments.map(a => (
-                  <span key={a.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 text-[10px] text-gray-700">
-                    <Truck className="h-3 w-3" />
-                    {vehicleLabel(a.vehicle_id)}
+            {Array.isArray(driver.license_categories) && driver.license_categories.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {driver.license_categories.slice(0, 6).map(c => (
+                  <span
+                    key={c}
+                    className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px]"
+                    style={{ background: '#F0F7F4', color: '#0B2912' }}
+                  >
+                    {categoryShortLabel(c)}
                   </span>
                 ))}
+                {driver.license_categories.length > 6 && (
+                  <span className="text-[10px]" style={{ color: '#A7B3AB' }}>
+                    +{driver.license_categories.length - 6}
+                  </span>
+                )}
               </div>
-            </div>
-          )}
+            )}
+            {expDate && (
+              <p className="text-[10px] mt-0.5" style={{ color: '#A7B3AB' }}>
+                רישיון תקף עד: {fmtDate(expDate)}
+              </p>
+            )}
+
+            {assignments.length > 0 && (
+              <div className="mt-2 pt-2" style={{ borderTop: '1px solid #E5EDE8' }}>
+                <p className="text-[10px] font-bold mb-1" style={{ color: '#6B7C72' }}>רכבים מוקצים</p>
+                <div className="flex flex-wrap gap-1">
+                  {assignments.map(a => (
+                    <span
+                      key={a.id}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px]"
+                      style={{ background: '#F0F7F4', color: '#0B2912' }}
+                    >
+                      <Truck className="h-3 w-3" />
+                      {vehicleLabel(a.vehicle_id)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="shrink-0 flex flex-col items-stretch gap-1">
+            <button
+              type="button"
+              onClick={onAssign}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:scale-[1.03] active:scale-[0.97]"
+              style={{
+                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                color: '#FFFFFF',
+                boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              שייך רכב
+            </button>
+          </div>
+          <ChevronLeft className="h-4 w-4 shrink-0 mt-2" style={{ color: '#A7B3AB' }} />
         </div>
-        <div className="shrink-0 flex flex-col items-stretch gap-1">
-          <button
-            type="button"
-            onClick={onAssign}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold active:scale-[0.98]"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            שייך רכב
-          </button>
-        </div>
-        <ChevronLeft className="h-4 w-4 text-gray-300 shrink-0 mt-2" />
-      </div>
+      </Card>
     </li>
   );
 }

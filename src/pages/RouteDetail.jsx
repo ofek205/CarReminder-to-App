@@ -1,46 +1,64 @@
 /**
- * Phase 6 — Route Detail.
+ * Phase 6 / 12 — Route Detail.
  *
  * One page, two modes:
- *   - Manager: read-only timeline; can see status, stops, documentation.
+ *   - Manager: read-only timeline with optional map view.
  *   - Assigned driver: action buttons per stop —
- *       • סמן הושלם (mark completed)
- *       • דווח תקלה (report issue + note)
- *       • הוסף הערה (add note documentation)
+ *       • הגעתי     (sets arrived_at + status=in_progress)
+ *       • סמן הושלמה (status=completed, completed_at=now)
+ *       • דווח על תקלה (status=failed via the wider enum)
+ *       • הוסף הערה  (add documentation)
+ *       • נווט      (external Waze / Google Maps via NavigateButton)
+ *
+ * Map view is lazy-loaded only after the user clicks the toggle —
+ * Leaflet is heavy and the driver doesn't always need it.
  *
  * RLS makes the page robust by design: a user without read access to
  * the route gets an empty payload from supabase, which we render as
  * "route not found".
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2, AlertTriangle, MessageSquarePlus,
-  Calendar, Truck, MapPin, Clock, Navigation,
+  Truck, MapPin, Clock, Flag,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useAuth } from '@/components/shared/GuestContext';
-import MobileBackButton from '@/components/shared/MobileBackButton';
 import { Textarea } from '@/components/ui/textarea';
+import NavigateButton from '@/components/map/NavigateButton';
+import { colorForStop, findNextStopIndex, isStopTerminal } from '@/components/map/stopColors';
+// Living Dashboard system - shared with all B2B pages.
+import {
+  PageShell,
+  Card,
+  KpiTile,
+  AnimatedCount,
+} from '@/components/business/system';
 
-// Status pill labels per gender. The route is masculine in Hebrew
-// ("מסלול"), the stop is feminine ("תחנה") — that's why the same
-// status code maps to different forms.
+// Status meta — pill colors AND a Card accent keyed to the Living
+// Dashboard palette so each row's stripe matches its pill at a glance.
+// Hebrew gender note: route is masculine ("מסלול"), stop is feminine
+// ("תחנה") — same status code maps to different forms.
 const ROUTE_STATUS_PILL = {
-  pending:     { label: 'מתוזמן', cls: 'bg-gray-100  text-gray-700' },
-  in_progress: { label: 'בביצוע', cls: 'bg-blue-100  text-blue-700' },
-  completed:   { label: 'הושלם',  cls: 'bg-green-100 text-green-700' },
-  cancelled:   { label: 'בוטל',   cls: 'bg-red-100   text-red-700' },
+  pending:     { label: 'מתוזמן', accent: 'amber',   chipBg: '#FEF3C7', chipFg: '#92400E' },
+  in_progress: { label: 'בביצוע', accent: 'blue',    chipBg: '#DBEAFE', chipFg: '#1E40AF' },
+  completed:   { label: 'הושלם',  accent: 'emerald', chipBg: '#D1FAE5', chipFg: '#065F46' },
+  cancelled:   { label: 'בוטל',   accent: 'red',     chipBg: '#FEE2E2', chipFg: '#991B1B' },
 };
 const STOP_STATUS_PILL = {
-  pending:   { label: 'מתוזמנת',     cls: 'bg-gray-100   text-gray-700' },
-  completed: { label: 'הושלמה',      cls: 'bg-green-100  text-green-700' },
-  skipped:   { label: 'דולגה',       cls: 'bg-yellow-100 text-yellow-700' },
-  issue:     { label: 'תקלה מדווחת', cls: 'bg-red-100    text-red-700' },
+  pending:     { label: 'מתוזמנת',     accent: 'amber',   chipBg: '#FEF3C7', chipFg: '#92400E' },
+  in_progress: { label: 'בביצוע',      accent: 'blue',    chipBg: '#DBEAFE', chipFg: '#1E40AF' },
+  completed:   { label: 'הושלמה',      accent: 'emerald', chipBg: '#D1FAE5', chipFg: '#065F46' },
+  failed:      { label: 'נכשלה',       accent: 'red',     chipBg: '#FEE2E2', chipFg: '#991B1B' },
+  overdue:     { label: 'באיחור',      accent: 'amber',   chipBg: '#FEF3C7', chipFg: '#92400E' },
+  // Legacy values still rendered for old rows:
+  skipped:     { label: 'דולגה',       accent: 'amber',   chipBg: '#FFFBEB', chipFg: '#92400E' },
+  issue:       { label: 'תקלה מדווחת', accent: 'red',     chipBg: '#FEE2E2', chipFg: '#991B1B' },
 };
 
 const routePill = (status) => ROUTE_STATUS_PILL[status] || ROUTE_STATUS_PILL.pending;
@@ -53,7 +71,8 @@ export default function RouteDetail() {
   const location = useLocation();
   const queryClient = useQueryClient();
 
-  const routeId = new URLSearchParams(location.search).get('id');
+  const params = new URLSearchParams(location.search);
+  const routeId = params.get('id');
 
   const { data: route, isLoading: routeLoading } = useQuery({
     queryKey: ['route', routeId],
@@ -96,6 +115,10 @@ export default function RouteDetail() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Index of the next un-terminal stop — used to highlight on the map
+  // and to drive the per-stop "הגעתי" button visibility.
+  const nextStopIndex = useMemo(() => findNextStopIndex(stops), [stops]);
+
   if (!routeId) {
     return <Empty text="הקישור חסר מזהה משימה. חזור לרשימת המשימות ונסה שוב." />;
   }
@@ -106,9 +129,6 @@ export default function RouteDetail() {
     return <Empty text="המשימה לא נמצאה, או שאין לך הרשאה לצפות בה." />;
   }
 
-  // Driver actions only allowed if the user is the assigned driver of
-  // THIS route (not just any 'driver' in the workspace) and active
-  // workspace matches the route's account.
   const isThisRoutesDriver =
     canDriveRoutes
     && user?.id
@@ -120,6 +140,9 @@ export default function RouteDetail() {
     queryClient.invalidateQueries({ queryKey: ['route', routeId] });
     queryClient.invalidateQueries({ queryKey: ['route-stops', routeId] });
     queryClient.invalidateQueries({ queryKey: ['routes'] });
+    queryClient.invalidateQueries({ queryKey: ['routes-paged'] });
+    queryClient.invalidateQueries({ queryKey: ['routes-driver'] });
+    queryClient.invalidateQueries({ queryKey: ['routes-stops'] });
   };
 
   const status = routePill(route.status);
@@ -129,55 +152,110 @@ export default function RouteDetail() {
   const assignedDriver = team.find(m => m.user_id === route.assigned_driver_user_id);
   const assignedDriverName = assignedDriver?.display_name || assignedDriver?.email || 'נהג משויך';
 
+  // The unified Fleet Map (manager) is the single source of truth for
+  // map views. RouteDetail intentionally renders a list-only timeline —
+  // map markers/polylines for this one task live on /FleetMap, where
+  // every workspace task is plotted together with per-task coloring.
+
+  const remainingCount = totalCount - completedCount;
+  const inProgressCount = stops.filter(s => s.status === 'in_progress').length;
+
   return (
-    <div dir="rtl" className="max-w-2xl mx-auto py-2">
-      <MobileBackButton />
-      <div className="bg-white border border-gray-100 rounded-2xl p-4 mb-4">
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <h1 className="text-lg font-bold text-gray-900 flex-1">{route.title}</h1>
-          <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${status.cls}`}>
-            {status.label}
+    <PageShell
+      title={route.title}
+      subtitle={route.scheduled_for
+        ? `מתוזמן ל-${new Date(route.scheduled_for).toLocaleDateString('he-IL')}`
+        : 'משימה ללא תאריך'}
+      actions={(
+        <span
+          className="px-3 py-1.5 rounded-full text-[11px] font-bold"
+          style={{ background: status.chipBg, color: status.chipFg }}
+        >
+          {status.label}
+        </span>
+      )}
+    >
+      {/* Hero card — meta of the route + progress bar */}
+      <Card accent={status.accent} className="mb-4">
+        <div className="flex items-center gap-3 flex-wrap text-[11px]" style={{ color: '#4B5D52' }}>
+          <span className="inline-flex items-center gap-1">
+            <Truck className="h-3.5 w-3.5" style={{ color: '#10B981' }} />
+            רכב משויך
           </span>
-        </div>
-        {route.scheduled_for && (
-          <p className="text-[11px] text-gray-500 flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            {new Date(route.scheduled_for).toLocaleDateString('he-IL')}
-          </p>
-        )}
-        {route.notes && <p className="text-xs text-gray-700 mt-2 leading-relaxed">{route.notes}</p>}
-
-        {totalCount > 0 && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between text-[11px] mb-1.5">
-              <span className="font-bold text-gray-700">התקדמות המשימה</span>
-              <span className="text-gray-500">{completedCount} מתוך {totalCount} תחנות</span>
-            </div>
-            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-[#2D5233] transition-all duration-300" style={{ width: progressPct + '%' }} />
-            </div>
-          </div>
-        )}
-
-        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-3 text-[11px] text-gray-500">
-          <span className="flex items-center gap-1"><Truck className="h-3 w-3" /> רכב משויך</span>
           {route.assigned_driver_user_id && (
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" /> נהג: {assignedDriverName}
+            <span className="inline-flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" style={{ color: '#10B981' }} />
+              נהג: <span className="font-bold" style={{ color: '#0B2912' }}>{assignedDriverName}</span>
             </span>
           )}
         </div>
-      </div>
+        {route.notes && (
+          <p className="text-xs mt-2 leading-relaxed" style={{ color: '#0B2912' }}>{route.notes}</p>
+        )}
+        {totalCount > 0 && (
+          <div className="mt-4 pt-3" style={{ borderTop: '1px solid #F0F7F4' }}>
+            <div className="flex items-center justify-between text-[11px] mb-1.5">
+              <span className="font-bold" style={{ color: '#0B2912' }}>התקדמות המשימה</span>
+              <span className="tabular-nums" style={{ color: '#4B5D52' }} dir="ltr">
+                {completedCount} / {totalCount} · {progressPct}%
+              </span>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: '#F0F7F4' }}>
+              <div
+                className="h-full transition-all duration-500"
+                style={{
+                  width: progressPct + '%',
+                  background: 'linear-gradient(90deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </Card>
 
-      <h2 className="text-sm font-bold text-gray-700 mb-2">תחנות במשימה</h2>
+      {/* KPI Strip — the route at a glance */}
+      {totalCount > 0 && (
+        <section className="grid grid-cols-3 gap-3 mb-4">
+          <KpiTile
+            label="סה״כ תחנות"
+            value={<AnimatedCount value={totalCount} />}
+            sub="במשימה"
+            tone="emerald"
+          />
+          <KpiTile
+            label="הושלמו"
+            value={<AnimatedCount value={completedCount} />}
+            sub={completedCount === totalCount && totalCount > 0 ? 'משימה הושלמה' : `${progressPct}% מהמשימה`}
+            tone="purple"
+          />
+          <KpiTile
+            label={inProgressCount > 0 ? 'בביצוע' : 'נותרו'}
+            value={<AnimatedCount value={inProgressCount > 0 ? inProgressCount : remainingCount} />}
+            sub={inProgressCount > 0 ? 'תחנה פעילה' : remainingCount === 0 ? 'אין מה להמשיך' : 'לטיפול'}
+            tone={inProgressCount > 0 ? 'blue' : 'amber'}
+          />
+        </section>
+      )}
+
+      <h2 className="text-sm font-bold mb-2.5 flex items-center gap-2" style={{ color: '#0B2912' }}>
+        <span
+          className="inline-block w-1 h-4 rounded-full"
+          style={{ background: 'linear-gradient(180deg, #065F46 0%, #34D399 100%)' }}
+        />
+        תחנות במשימה
+      </h2>
+
       <div className="space-y-2">
         {stops.length === 0 ? (
-          <p className="text-xs text-gray-400 text-center py-6">לא הוגדרו תחנות למשימה זו.</p>
+          <Card className="text-center py-8">
+            <p className="text-xs" style={{ color: '#A7B3AB' }}>לא הוגדרו תחנות למשימה זו.</p>
+          </Card>
         ) : (
-          stops.map(stop => (
+          stops.map((stop, idx) => (
             <StopCard
               key={stop.id}
               stop={stop}
+              isNext={idx === nextStopIndex}
               canActAsDriver={isThisRoutesDriver}
               canActAsManager={isThisRoutesManager}
               onChange={refresh}
@@ -185,11 +263,11 @@ export default function RouteDetail() {
           ))
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }
 
-function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
+function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
   const status = stopPill(stop.status);
   const canAct = canActAsDriver || canActAsManager;
   const [busy, setBusy] = useState(false);
@@ -198,7 +276,7 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
   const [issueOpen, setIssueOpen] = useState(false);
   const [issueText, setIssueText] = useState('');
 
-  const callStopRpc = async (newStatus, completionNote) => {
+  const callStopRpc = async (newStatus, completionNote, successMsg) => {
     setBusy(true);
     try {
       const { error } = await supabase.rpc('update_stop_status', {
@@ -207,11 +285,12 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
         p_note:    completionNote || null,
       });
       if (error) throw error;
-      toast.success(newStatus === 'completed' ? 'התחנה סומנה כהושלמה' : 'סטטוס התחנה עודכן');
+      toast.success(successMsg || 'סטטוס התחנה עודכן');
       onChange?.();
     } catch (err) {
       const msg = err?.message || '';
       if (msg.includes('forbidden')) toast.error('אין לך הרשאה לעדכן את התחנה הזו');
+      else if (msg.includes('invalid_status')) toast.error('סטטוס לא תקף');
       else                            toast.error('עדכון התחנה נכשל. נסה שוב.');
       // eslint-disable-next-line no-console
       console.error('update_stop_status failed:', err);
@@ -247,11 +326,9 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
     if (!issueText.trim()) return;
     setBusy(true);
     try {
-      // Two writes: status flip + documentation entry. Status flip
-      // first; if documentation fails the manager still sees the issue.
       const { error: statusErr } = await supabase.rpc('update_stop_status', {
         p_stop_id: stop.id,
-        p_status:  'issue',
+        p_status:  'failed',
         p_note:    issueText.trim(),
       });
       if (statusErr) throw statusErr;
@@ -273,89 +350,145 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
     }
   };
 
-  const isDone = stop.status !== 'pending';
+  const terminal = isStopTerminal(stop.status);
+  const canArrive = canActAsDriver && !terminal && stop.status !== 'in_progress';
+  const showCompleteIssue = canAct && !terminal;
+
+  // Destination for the nav button. Coords win when present; otherwise
+  // the address text gets handed off to Waze / Google for fuzzy match.
+  const destination = (stop.address_text || (stop.latitude && stop.longitude))
+    ? {
+        lat: stop.latitude,
+        lng: stop.longitude,
+        address: stop.address_text || '',
+      }
+    : null;
 
   return (
-    <div className="bg-white border border-gray-100 rounded-xl p-3">
+    <Card
+      accent={status.accent}
+      padding="p-3.5"
+      // Next-stop emphasis: emerald glow ring + slight base lift, so
+      // the row reads as the active focal point in the timeline.
+      style={isNext && !terminal ? {
+        boxShadow: '0 0 0 2px #10B981, 0 8px 20px rgba(16,185,129,0.18)',
+        background: 'linear-gradient(180deg, #F0FDF6 0%, #FFFFFF 60%)',
+      } : undefined}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-5 h-5 rounded-full bg-gray-100 text-[10px] font-bold flex items-center justify-center text-gray-600">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span
+              className="w-6 h-6 rounded-full text-[11px] font-black flex items-center justify-center text-white tabular-nums"
+              style={{
+                background: colorForStop(stop.status),
+                boxShadow: '0 2px 8px rgba(15,40,28,0.18)',
+              }}
+              dir="ltr"
+            >
               {stop.sequence}
             </span>
-            <p className="text-sm font-bold text-gray-900 truncate">{stop.title}</p>
+            <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{stop.title}</p>
+            {isNext && !terminal && (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1"
+                style={{ background: '#D1FAE5', color: '#065F46' }}
+              >
+                <Flag className="h-2.5 w-2.5" />
+                תחנה הבאה
+              </span>
+            )}
           </div>
           {stop.address_text && (
-            <div className="mb-1.5">
-              <p className="text-[11px] text-gray-500 flex items-center gap-1 mb-1">
-                <MapPin className="h-3 w-3" /> {stop.address_text}
-              </p>
-              {/* Waze + Google Maps deep-links. The Waze "ul" universal
-                  link opens the native app on iOS/Android and falls
-                  back to the web client on desktop. Google Maps is
-                  the safety net for users who don't have Waze
-                  installed. Both are external links — open in a new
-                  context so the driver can flip back to the task
-                  card without losing their place. */}
-              <div className="flex flex-wrap gap-1.5">
-                <a
-                  href={`https://waze.com/ul?q=${encodeURIComponent(stop.address_text)}&navigate=yes`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-[#33CCFF]/10 text-[#0A8FB3] text-[10px] font-bold border border-[#33CCFF]/30 active:scale-[0.97]"
+            <p className="text-[11px] flex items-center gap-1 mb-1.5 flex-wrap" style={{ color: '#6B7C72' }}>
+              <MapPin className="h-3 w-3 shrink-0" style={{ color: '#10B981' }} /> {stop.address_text}
+              {!Number.isFinite(stop.latitude) && (
+                <span
+                  className="text-[10px] mr-1 flex items-center gap-1 px-1.5 py-0.5 rounded-md"
+                  style={{ background: '#FFFBEB', color: '#92400E' }}
                 >
-                  <Navigation className="h-3 w-3" />
-                  פתח בוויז
-                </a>
-                <a
-                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(stop.address_text)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-[10px] font-bold border border-gray-200 active:scale-[0.97]"
-                >
-                  <MapPin className="h-3 w-3" />
-                  Google Maps
-                </a>
-              </div>
-            </div>
+                  <AlertTriangle className="h-2.5 w-2.5" />
+                  כתובת לא אומתה במפה
+                </span>
+              )}
+            </p>
           )}
-          {stop.notes && <p className="text-[11px] text-gray-600">{stop.notes}</p>}
+          {stop.notes && <p className="text-[11px]" style={{ color: '#4B5D52' }}>{stop.notes}</p>}
+          {stop.planned_time && (
+            <p className="text-[11px] flex items-center gap-1 mt-0.5 tabular-nums" style={{ color: '#6B7C72' }} dir="ltr">
+              <Clock className="h-3 w-3" />
+              {new Date(stop.planned_time).toLocaleString('he-IL')}
+            </p>
+          )}
           {stop.completion_note && (
-            <p className="text-[11px] text-gray-700 bg-gray-50 rounded-md px-2 py-1 mt-1.5">
+            <p
+              className="text-[11px] rounded-md px-2 py-1 mt-1.5 leading-relaxed"
+              style={{ background: '#F0F7F4', color: '#0B2912' }}
+            >
               📝 {stop.completion_note}
             </p>
           )}
         </div>
-        <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${status.cls}`}>
+        <span
+          className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
+          style={{ background: status.chipBg, color: status.chipFg }}
+        >
           {status.label}
         </span>
       </div>
 
-      {canAct && !isDone && (
-        <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-2">
-          <button
-            type="button" disabled={busy}
-            onClick={() => callStopRpc('completed', null)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-green-50 text-green-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
-            <CheckCircle2 className="h-3.5 w-3.5" /> סמן הושלמה
-          </button>
-          <button
-            type="button" disabled={busy}
-            onClick={() => setIssueOpen(o => !o)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
-            <AlertTriangle className="h-3.5 w-3.5" /> דווח על תקלה
-          </button>
-          <button
-            type="button" disabled={busy}
-            onClick={() => setNoteOpen(o => !o)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold active:scale-[0.98] disabled:opacity-60">
-            <MessageSquarePlus className="h-3.5 w-3.5" /> כתוב הערה
-          </button>
+      {(showCompleteIssue || destination) && (
+        <div className="mt-3 pt-3 flex flex-wrap gap-2" style={{ borderTop: '1px solid #F0F7F4' }}>
+          {destination && (
+            <NavigateButton destination={destination} variant="compact" label="נווט" />
+          )}
+          {canArrive && (
+            <button
+              type="button" disabled={busy}
+              onClick={() => callStopRpc('in_progress', null, 'סומן: הגעתי לתחנה')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
+              style={{ background: '#DBEAFE', color: '#1E40AF' }}
+            >
+              <Flag className="h-3.5 w-3.5" /> הגעתי
+            </button>
+          )}
+          {showCompleteIssue && (
+            <>
+              <button
+                type="button" disabled={busy}
+                onClick={() => callStopRpc('completed', null, 'התחנה סומנה כהושלמה')}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
+                style={{
+                  background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                  color: '#FFFFFF',
+                  boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
+                }}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" /> סמן הושלמה
+              </button>
+              <button
+                type="button" disabled={busy}
+                onClick={() => setIssueOpen(o => !o)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
+                style={{ background: '#FEE2E2', color: '#991B1B' }}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" /> דווח על תקלה
+              </button>
+              <button
+                type="button" disabled={busy}
+                onClick={() => setNoteOpen(o => !o)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
+                style={{ background: '#FFFFFF', color: '#10B981', border: '1.5px solid #D1FAE5' }}
+              >
+                <MessageSquarePlus className="h-3.5 w-3.5" /> כתוב הערה
+              </button>
+            </>
+          )}
         </div>
       )}
 
       {noteOpen && (
-        <div className="mt-2 space-y-2">
+        <div className="mt-2.5 space-y-2">
           <Textarea
             value={noteText} onChange={(e) => setNoteText(e.target.value)}
             placeholder="הערה לתחנה. מה קרה, מה צריך לדעת" rows={3}
@@ -363,11 +496,17 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
           />
           <div className="flex gap-2">
             <button type="button" onClick={submitNote} disabled={busy || !noteText.trim()}
-              className="px-3 py-1.5 rounded-lg bg-[#2D5233] text-white text-xs font-bold disabled:opacity-50">
+              className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              style={{
+                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                color: '#FFFFFF',
+                boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
+              }}>
               שמור הערה
             </button>
             <button type="button" onClick={() => { setNoteOpen(false); setNoteText(''); }}
-              className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs">
+              className="px-3 py-2 rounded-xl text-xs"
+              style={{ background: '#F0F7F4', color: '#4B5D52' }}>
               ביטול
             </button>
           </div>
@@ -375,7 +514,7 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
       )}
 
       {issueOpen && (
-        <div className="mt-2 space-y-2">
+        <div className="mt-2.5 space-y-2">
           <Textarea
             value={issueText} onChange={(e) => setIssueText(e.target.value)}
             placeholder="תאר את התקלה. שער נעול, אין מענה, רכב פגום" rows={3}
@@ -383,17 +522,19 @@ function StopCard({ stop, canActAsDriver, canActAsManager, onChange }) {
           />
           <div className="flex gap-2">
             <button type="button" onClick={submitIssue} disabled={busy || !issueText.trim()}
-              className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold disabled:opacity-50">
+              className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              style={{ background: '#DC2626', color: '#FFFFFF', boxShadow: '0 4px 12px rgba(220,38,38,0.25)' }}>
               דווח על תקלה
             </button>
             <button type="button" onClick={() => { setIssueOpen(false); setIssueText(''); }}
-              className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs">
+              className="px-3 py-2 rounded-xl text-xs"
+              style={{ background: '#F0F7F4', color: '#4B5D52' }}>
               ביטול
             </button>
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -404,3 +545,4 @@ function Empty({ text }) {
     </div>
   );
 }
+

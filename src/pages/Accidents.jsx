@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, AlertTriangle, ChevronLeft, Camera, Phone, Calendar, MapPin, Car, CheckCircle, Clock, Shield, Download } from 'lucide-react';
@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { useAuth } from '../components/shared/GuestContext';
+import useAccountRole from '@/hooks/useAccountRole';
 import { C, getTheme } from '@/lib/designTokens';
 import { getVehicleLabels } from '../components/shared/DateStatusUtils';
 import { DEMO_ACCIDENTS, DEMO_VEHICLE } from '../components/shared/demoVehicleData';
@@ -321,22 +322,18 @@ export default function Accidents() {
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles, guestAccidents,
     updateGuestAccident } = useAuth();
   const queryClient = useQueryClient();
-  const [accountId, setAccountId] = useState(null);
+  // accountId comes from WorkspaceContext (via useAccountRole) so the
+  // page reflects the currently-active workspace and stays in sync when
+  // the user switches between personal and business. Pre-fix this was a
+  // local member-lookup that pinned to the first membership and leaked
+  // personal data into business view (and vice versa).
+  const { accountId } = useAccountRole();
   // Page-level state for the export-PDF flow. We render exactly ONE
   // hidden <AccidentPrintReport variant="print" /> + ONE modal for the
   // whole list — when the user taps "דוח" on a row we point those at
   // that accident.
   const [reportAccident, setReportAccident] = useState(null);
   const [reportMode, setReportMode] = useState(null); // 'options' | 'preview' | null
-
-  useEffect(() => {
-    if (!isAuthenticated || !user) return;
-    async function init() {
-      const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-      if (members.length > 0) setAccountId(members[0].account_id);
-    }
-    init();
-  }, [isAuthenticated, user]);
 
   const { data: accidents = [], isLoading: accidentsLoading } = useQuery({
     queryKey: ['accidents', accountId],

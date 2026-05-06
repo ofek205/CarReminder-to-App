@@ -15,6 +15,21 @@
 -- Idempotent. Safe to re-run.
 -- ==========================================================================
 
+-- 0. Drop legacy overload(s) ---------------------------------------------
+-- Earlier migrations created intermediate versions with 7 and 9 parameters.
+-- `create or replace function` keyed-by-signature means those overloads
+-- still exist after we install the new 12-parameter version, and supabase-js's
+-- named-parameter dispatch can hit the old signature instead of the new one,
+-- which silently writes title/vendor/source as nulls and (in some cases)
+-- raises a generic "save failed" because the old function lacked the new
+-- log_activity call shape. Drop both legacy signatures explicitly.
+drop function if exists public.add_vehicle_expense(
+  uuid, uuid, numeric, text, date, text, text
+);
+drop function if exists public.add_vehicle_expense(
+  uuid, uuid, numeric, text, date, text, text, text, text
+);
+
 -- 1. Extend add_vehicle_expense to accept title / vendor / source ---------
 create or replace function public.add_vehicle_expense(
   p_account_id           uuid,

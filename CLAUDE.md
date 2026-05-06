@@ -144,9 +144,49 @@ git push origin staging
 ראה `.github/workflows/production-gates.yml`. ה-workflow רץ אוטומטית על כל PR שמטרתו `main`, ואוכף:
 - Build pass
 - Lint pass (כל הפרויקט)
+- **Query Timeout Gate** (ראה למטה)
 - חוסם merge ב-GitHub UI אם משהו נכשל
 
 השערים הקוגניטיביים (3, 4, 5, 6) **לא** ניתנים לאוטומציה ב-Actions — הם דורשים סקילים של Claude. הם חייבים לרוץ בסשן Claude לפני יצירת ה-PR.
+
+---
+
+## Query Timeout Gate — שער חובה לכל push
+
+**מה זה:** סקריפט שסורק את `src/` ובודק שכל קריאה ל-Supabase בתוך `useQuery` עטופה ב-`withTimeout(...)` (מ-`@/lib/supabaseQuery`) או ב-`Promise.race(...)`.
+
+**למה זה קיים:** קריאת Supabase שתקועה משאירה את `isLoading` של React Query על true לתמיד, וגוררת את המסך לספינר נצחי. זאת הייתה הסיבה לשישה קומיטים של `fix(stuck-loading)` (e106f36, 5fa72cb, 027f0b5, 3be1b13, 702141e, 40b420a) — כל פעם נתפסה הסיבה במקום אחר. השער הזה מבטיח שלא נחזיר את הסיכון.
+
+**איפה הוא רץ:**
+- `.githooks/pre-push` — לפני כל push (מקומית).
+- `.github/workflows/production-gates.yml` — על כל PR ל-main (חוסם merge).
+
+**מנגנון baseline:** הקובץ `scripts/.query-timeout-baseline.json` מתעד את כל ההפרות הקיימות במצב נכון לקומיט שבו הוא נוצר. השער נכשל **רק כאשר מספר ההפרות בקובץ עולה** מעבר ל-baseline. קוד קיים מקבל הקלה (grandfathered), קוד חדש חייב להשתמש ב-`withTimeout`. כשמתקנים קובץ קיים — מריצים `node scripts/check-query-timeouts.cjs --update-baseline` כדי לעדכן.
+
+**לעקוף בחירום (אסור בפרודקשן):**
+- ב-staging: אפשר לדחוף עם `--no-verify` כמו עם ה-lint hook.
+- ב-main: השער ב-Actions לא ניתן לעקיפה. **אם קוד מתעלם מ-`withTimeout` במכוון — חייבים לתעד למה ולהוסיף ל-baseline במפורש.**
+
+**איך לכתוב קוד שעובר את השער:**
+```js
+import { withTimeout } from '@/lib/supabaseQuery';
+
+const { data, isLoading, isError, refetch } = useQuery({
+  queryKey: ['my-query'],
+  queryFn: async () => {
+    const { data, error } = await withTimeout(
+      supabase.from('my_table').select('*'),
+      'my_table_label'
+    );
+    if (error) throw error;
+    return data || [];
+  },
+  retry: 1,
+  retryDelay: 500,
+});
+```
+
+**ובמסך — חובה state של שגיאה:** אם `isError` true, הצג כפתור "נסה שוב" שמפעיל `refetch()`. **לעולם לא להישאר על ספינר.**
 
 ---
 

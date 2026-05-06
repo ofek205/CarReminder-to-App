@@ -12,6 +12,7 @@ import { db } from '@/lib/supabaseEntities';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '../shared/GuestContext';
+import useAccountRole from '@/hooks/useAccountRole';
 import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
 import { compressImage } from '@/lib/imageCompress';
@@ -31,6 +32,11 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
   const [aiResult, setAiResult] = useState(null);
   const [error, setError] = useState('');
   const { isGuest, updateGuestVehicle, addGuestDocument } = useAuth();
+  // Active-workspace account so the renewal document is filed under
+  // the same workspace the user is currently in. Pre-fix this routed
+  // every renewal upload to the user's first membership and could file
+  // a business vehicle's renewal under the personal account.
+  const { accountId } = useAccountRole();
   const queryClient = useQueryClient();
 
   const currentDate = vehicle[dateField];
@@ -137,20 +143,14 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
       };
       if (isGuest) {
         addGuestDocument(doc);
-      } else {
-        // Auth: try to save document to Supabase (if documents table exists)
+      } else if (accountId) {
+        // Auth: file the renewal document under the active workspace.
+        // Skip silently if accountId hasn't resolved yet — the date
+        // update on the vehicle is the main action; the document is a
+        // bonus and can be uploaded again next time without harm.
         try {
-          // Get user's account_id for the document
-          const { supabase } = await import('@/lib/supabase');
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-            if (members.length > 0) {
-              await db.documents.create({ ...doc, account_id: members[0].account_id });
-            }
-          }
+          await db.documents.create({ ...doc, account_id: accountId });
         } catch (err) {
-          // Silently fail - vehicle date update is the main action
           console.warn('Document save skipped:', err?.message);
         }
       }

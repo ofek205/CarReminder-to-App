@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from '@/lib/popups/systemPopups';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
@@ -104,9 +105,9 @@ function UrgentBanner({ reminders, onView }) {
     : { bg: 'linear-gradient(135deg, #B45309 0%, #D97706 100%)', shadow: 'rgba(180,83,9,0.32)' };
 
   let subtitle;
-  if (overdueCount > 0 && upcomingCount > 0) subtitle = `${overdueCount} באיחור · ${upcomingCount} קרובות`;
-  else if (overdueCount > 0)                 subtitle = `${overdueCount} באיחור`;
-  else                                       subtitle = `${upcomingCount} ב-30 הימים הקרובים`;
+  if (overdueCount > 0 && upcomingCount > 0) subtitle = `${overdueCount} תזכורות באיחור · ${upcomingCount} קרובות`;
+  else if (overdueCount > 0)                 subtitle = `${overdueCount} תזכורות באיחור`;
+  else                                       subtitle = `${upcomingCount} תזכורות ב-30 הימים הקרובים`;
 
   return (
     <button
@@ -125,7 +126,7 @@ function UrgentBanner({ reminders, onView }) {
           {count}
         </span>
         <span className="text-white/85 text-[10px] font-semibold mt-1 tracking-wide">
-          התראות
+          תזכורות
         </span>
       </div>
 
@@ -519,6 +520,9 @@ function StatusSummary({ vehicles }) {
 
   return (
     <>
+      <p className="text-[11px] font-bold text-gray-500 mb-2" dir="rtl" style={{ letterSpacing: '0.05em' }}>
+        סטטוס רכבים
+      </p>
       <div className="grid grid-cols-3 gap-2.5 mb-5" dir="rtl">
         {items.map(item => {
           const clickable = item.count > 0;
@@ -828,7 +832,7 @@ export default function Dashboard() {
   // they never reached the per-driver vehicle filter, so the personal
   // Dashboard ended up showing them every vehicle in the workspace.
   const navigateRef = useNavigate();
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, activeWorkspaceId } = useWorkspace();
   const { isDriver, canManageRoutes } = useWorkspaceRole();
   useEffect(() => {
     if (isGuest) return;
@@ -840,6 +844,16 @@ export default function Dashboard() {
     }
   }, [activeWorkspace, isGuest, isDriver, canManageRoutes, navigateRef]);
   const [accountId, setAccountId] = useState(null);
+  // Re-sync accountId when the user switches workspace mid-session.
+  // The init() effect below only runs on mount/auth; without this, the
+  // local accountId would stay pinned to whatever init resolved and
+  // queries (whose keys include accountId) would keep returning data
+  // from the OLD workspace even after the switcher fired.
+  useEffect(() => {
+    if (activeWorkspaceId && activeWorkspaceId !== accountId) {
+      setAccountId(activeWorkspaceId);
+    }
+  }, [activeWorkspaceId, accountId]);
   const [filteredVehicles, setFilteredVehicles] = useState(null);
   // Dashboard list sort. Default: newest-added first.
   // Options: 'newest' | 'name' | 'status' | 'year' | 'updated'
@@ -902,7 +916,15 @@ export default function Dashboard() {
         }
         let finalAccountId;
         if (members.length > 0) {
-          finalAccountId = members[0].account_id;
+          // Prefer the workspace the user is currently in (from
+          // WorkspaceContext) over "first membership". Without this,
+          // a user with two personal memberships (e.g. shared family
+          // car + own) lands on whichever account the DB returns first
+          // every refresh, even if they switched in-session.
+          const activeMatch = activeWorkspaceId
+            ? members.find(m => m.account_id === activeWorkspaceId)
+            : null;
+          finalAccountId = (activeMatch || members[0]).account_id;
         } else {
           // Check if this user has a migrated account from Base44
           let migratedAccount = null;
@@ -1013,10 +1035,13 @@ export default function Dashboard() {
   // vehicle_shares, so sharees would see an empty Dashboard even after
   // accepting an invite. The view also exposes is_shared_with_me +
   // share_role columns so card components can render the indicator.
-  const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery({
+  const { data: vehicles = [], isLoading: vehiclesLoading, isError: vehiclesError, refetch: refetchVehicles } = useQuery({
     queryKey: ['my-vehicles', user?.id, accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('my_vehicles_v').select('*');
+      const { data, error } = await withTimeout(
+        supabase.from('my_vehicles_v').select('*'),
+        'my_vehicles_v'
+      );
       if (error) throw error;
       // Phase 9 fix: scope to the active workspace so a user with both
       // personal + business memberships doesn't see vehicles from the
@@ -1028,6 +1053,8 @@ export default function Dashboard() {
       return (data || []).filter(v => v.is_shared_with_me || v.account_id === accountId);
     },
     enabled: !!user?.id && !!accountId,
+    retry: 1,
+    retryDelay: 500,
     // Bumped from 2 min → 10 min. Real changes invalidate the cache
     // immediately via useSharedVehicleRealtime (it listens on
     // vehicle_shares + app_notifications and invalidates 'my-vehicles'
@@ -1113,16 +1140,6 @@ export default function Dashboard() {
           reason="כדי לשמור את הרכבים שלך לצמיתות ולגשת אליהם מכל מכשיר" />
 
         <div className="px-4 pt-6">
-          {/* Banner-first: when something needs action it leads the page,
-              and the Quick Check below it switches to compact mode so the
-              eye lands on the urgency, not on the lookup tool. */}
-          <UrgentBanner
-            reminders={upcomingReminders}
-            onView={() => {
-              const remindersTitle = document.getElementById('dashboard-reminders-title');
-              remindersTitle?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}
-          />
           <VehicleCheckHero
             hasVehicles={hasGuestVehicles}
             plate={quickCheckPlate}
@@ -1140,6 +1157,16 @@ export default function Dashboard() {
               ניהול <ChevronLeft className="w-4 h-4" />
             </Link>
           </div>
+
+          {/* Urgent reminders banner — placed under the section header
+              so the license-plate hero leads the page. */}
+          <UrgentBanner
+            reminders={upcomingReminders}
+            onView={() => {
+              const remindersTitle = document.getElementById('dashboard-reminders-title');
+              remindersTitle?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          />
 
           {/* Demo banner - prominent */}
           {isShowingDemo && (
@@ -1204,7 +1231,25 @@ export default function Dashboard() {
     return <CompleteProfileScreen user={user} onDone={() => { setShowCompleteProfile(false); setProfileMissing(false); }} />;
   }
 
-  //  AUTHENTICATED MODE 
+  //  AUTHENTICATED MODE
+  // vehiclesError: query timed out (or failed twice via retry config).
+  // Without this branch a stuck network leaves the page on a permanent
+  // spinner — the gate that exists since fix(stuck-loading) commits
+  // protects useWorkspaces but not the my_vehicles_v query that gates
+  // this very render.
+  if (vehiclesError) {
+    return (
+      <div dir="rtl" className="max-w-3xl mx-auto py-12 px-4 text-center">
+        <p className="text-sm text-gray-600 mb-3">לא הצלחנו לטעון את הרכבים. בדקי את החיבור ונסי שוב.</p>
+        <button
+          onClick={() => refetchVehicles()}
+          className="text-sm font-bold text-[#2D5233] underline underline-offset-2"
+        >
+          נסה שוב
+        </button>
+      </div>
+    );
+  }
   if (!accountId || vehiclesLoading) return <LoadingSpinner />;
 
   // Status severity used when the user sorts by status. most urgent first.
@@ -1315,13 +1360,6 @@ export default function Dashboard() {
         return <FirstTimeTour enabled={shouldTour} />;
       })()}
       <div className="px-4 pt-6">
-        {/* Banner-first when there's anything urgent — Quick Check below
-            switches to compact mode so it stays accessible without
-            stealing focus from the alerts. */}
-        <UrgentBanner
-          reminders={allReminders}
-          onView={() => navigate(createPageUrl('Notifications'))}
-        />
         <VehicleCheckHero
           hasVehicles={vehicles.length > 0}
           plate={quickCheckPlate}
@@ -1341,6 +1379,14 @@ export default function Dashboard() {
             ניהול <ChevronLeft className="w-4 h-4" />
           </Link>
         </div>
+
+        {/* Urgent reminders banner — placed under the "כלי התחבורה שלי"
+            header so the license-plate hero leads the page and the
+            urgency strip groups visually with the vehicle list. */}
+        <UrgentBanner
+          reminders={allReminders}
+          onView={() => navigate(createPageUrl('Notifications'))}
+        />
 
         {/* Search + sort. visually identical to the /Vehicles page for
             consistency. Only rendered when there are 2+ vehicles to filter. */}

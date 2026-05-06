@@ -232,7 +232,14 @@ export function GuestProvider({ children }) {
     // from the native storage bridge. If we await it forever, authState
     // never leaves "loading" and AuthPage shows the spinner forever.
     // We cap the initial bootstrap wait and degrade gracefully to guest.
-    const getSessionWithTimeout = async (timeoutMs = 8000) => {
+    //
+    // Timeouts tightened (8s→4s) because user-visible "stuck spinner"
+    // is a worse failure mode than a brief race-to-authenticate when
+    // storage is genuinely slow. The post-bootstrap retry pass will
+    // upgrade us back to authenticated within ~2s if the session shows
+    // up, so the worst-case behaviour for a real user is: 4s on a
+    // guest spinner → 2s of "almost there" UI → authenticated.
+    const getSessionWithTimeout = async (timeoutMs = 4000) => {
       try {
         const timeout = new Promise(resolve =>
           setTimeout(() => resolve({ data: { session: null }, error: new Error('getSession timeout') }), timeoutMs)
@@ -246,6 +253,25 @@ export function GuestProvider({ children }) {
 
     let cancelled = false;
     let retryTimer = null;
+    let hardFallbackTimer = null;
+
+    // Hard fallback: regardless of what getSession / onAuthStateChange
+    // are doing, after 5s we ALWAYS leave 'loading' state. Even if
+    // every async path is hung, even if `cancelled` was somehow set,
+    // even if the storage adapter is dead — at 5s the user sees a UI
+    // they can interact with. This is the unconditional escape hatch
+    // that ensures `isLoading` cannot last more than 5 seconds.
+    hardFallbackTimer = setTimeout(() => {
+      // Read the latest authState via functional update — if some
+      // other code path already resolved auth, we MUST NOT clobber it.
+      setAuthState(current => {
+        if (current !== 'loading') return current;
+        try { window.__crAuthResolvedAt = Date.now(); } catch {}
+        try { console.warn('[auth] hard fallback to guest @5s'); } catch {}
+        return 'guest';
+      });
+    }, 5000);
+
     const initAuthBootstrap = async () => {
       const { data, error } = await getSessionWithTimeout();
       if (cancelled) return;
@@ -272,7 +298,7 @@ export function GuestProvider({ children }) {
       // forcing the user to sign in again.
       retryTimer = setTimeout(async () => {
         if (cancelled) return;
-        const retry = await getSessionWithTimeout(6000);
+        const retry = await getSessionWithTimeout(4000);
         const retrySession = retry?.data?.session || null;
         if (!retrySession?.user || cancelled) return;
         setUser(normalizeUser(retrySession.user));
@@ -313,6 +339,7 @@ export function GuestProvider({ children }) {
     return () => {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
+      if (hardFallbackTimer) clearTimeout(hardFallbackTimer);
       subscription.unsubscribe();
     };
   }, []);

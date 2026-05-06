@@ -154,7 +154,7 @@ export default function PopupRenderer({ popup, open, onClose, renderInline = fal
 
   if (size === 'corner-toast') {
     return open ? (
-      <div className="fixed bottom-4 left-4 z-[9999] w-80 max-w-[calc(100vw-32px)]" dir="rtl">
+      <div className="fixed bottom-4 right-4 z-[9999] w-80 max-w-[calc(100vw-32px)]" dir="rtl">
         <div className="rounded-2xl overflow-hidden shadow-2xl border border-gray-100 bg-white">
           {body_node}
         </div>

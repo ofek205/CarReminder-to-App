@@ -143,7 +143,10 @@ export default function AddVehicle() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { isAuthenticated, isGuest, user, addGuestVehicle, guestVehicles } = useAuth();
-  const { role, isGuest: isGuestRole } = useAccountRole();
+  // accountId from active workspace — pre-fix the page pinned to the
+  // first membership and on a multi-workspace user it duplicate-checked
+  // (and saved) against the wrong account.
+  const { role, accountId, isGuest: isGuestRole } = useAccountRole();
   // Drivers in a business workspace cannot add vehicles to the fleet —
   // that's the manager's responsibility. Without this gate the driver
   // would fill the whole form and only learn it failed on save (RLS
@@ -156,7 +159,6 @@ export default function AddVehicle() {
     }
   }, [isWsBusiness, isWsDriver, wsCanManage, navigate]);
   const [saving, setSaving] = useState(false);
-  const [accountId, setAccountId] = useState(null);
   const [userId, setUserId] = useState(null);
   const [showScanWizard, setShowScanWizard] = useState(false);
   const [showVesselScanWizard, setShowVesselScanWizard] = useState(false);
@@ -276,25 +278,29 @@ export default function AddVehicle() {
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
-    async function init() {
-      setUserId(user.id);
-      try {
-        const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
-        if (members.length > 0) {
-          setAccountId(members[0].account_id);
-          const vs = await db.vehicles.filter({ account_id: members[0].account_id });
-          setExistingVehicles(vs);
-        } else {
-          console.warn('AddVehicle: No active account_members found for user', user.id);
-        }
-      } catch (err) {
-        console.error('AddVehicle: Failed to load account info', err);
-      } finally {
-        setVehiclesLoaded(true);
-      }
+    setUserId(user.id);
+    // Render the form even before the workspace resolves — for users
+    // mid-auto-heal (no membership yet), accountId stays null until the
+    // ensure_user_account RPC completes. Pre-fix behaviour: form was
+    // rendered with an empty existingVehicles list. We preserve that.
+    if (!accountId) {
+      setExistingVehicles([]);
+      setVehiclesLoaded(true);
+      return;
     }
-    init();
-  }, [isAuthenticated, user]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const vs = await db.vehicles.filter({ account_id: accountId });
+        if (!cancelled) setExistingVehicles(vs);
+      } catch (err) {
+        console.error('AddVehicle: Failed to load existing vehicles', err);
+      } finally {
+        if (!cancelled) setVehiclesLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, user, accountId]);
 
   const resetAll = () => {
     setForm({ ...EMPTY_FORM });
