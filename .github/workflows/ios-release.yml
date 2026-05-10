@@ -182,6 +182,22 @@ jobs:
         working-directory: ios/App
         run: pod install --repo-update
 
+      - name: Verify build state (safe diagnostics, no secrets)
+        # Prints node/npm/Xcode/SDK versions, branch/commit, package version,
+        # iOS marketing/build/bundle, dist & embedded-bundle existence and
+        # freshness, and Pods state. Required env vars are checked for
+        # PRESENCE only — values are never printed. Fails the run if any
+        # required gate is missing, so the archive step never builds a
+        # bundle that's silently broken (the root cause of the iOS 3.0.0
+        # TestFlight stuck-on-launch issue: a build can technically succeed
+        # while embedding a stale or empty web bundle).
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          chmod +x ./scripts/ios-verify-build.sh
+          ./scripts/ios-verify-build.sh
+
       - name: Set unique build number (per CI run)
         working-directory: ios/App
         env:
