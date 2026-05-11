@@ -2,7 +2,21 @@
 <html lang="he" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <!--
+      `maximum-scale=1.0, user-scalable=no` blocks iOS WKWebView's
+      automatic zoom-on-focus, which kicks in whenever the user taps
+      an input whose computed font-size is below 16px. Our shadcn UI
+      defaults (Input/Textarea/Select) all use `text-sm` (14px) for
+      visual density, so the zoom fired on every form field — and
+      crucially didn't reset after blur on WKWebView, leaving the
+      page stuck at 1.2x with horizontal scroll. Symptom users saw
+      on TestFlight after using the AI chat input.
+
+      In-app font scaling is handled by AccessibilityContext
+      (-2 … +5 via the floating A11y button), so users keep
+      accessible text sizing without relying on browser pinch-zoom.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#16A34A" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
