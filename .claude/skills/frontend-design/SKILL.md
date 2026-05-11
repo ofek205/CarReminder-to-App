@@ -1,45 +1,82 @@
 ---
 name: frontend-design
-description: "Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, or applications. Generates creative, polished code that avoids generic AI aesthetics."
+description: "Build distinctive, production-grade UI in this codebase: React + shadcn/ui + Tailwind, Hebrew RTL, mobile-first PWA with Capacitor wrapper. Use this skill to implement components/pages once ux + designer have set direction. Generates polished code that fits the project's aesthetic system — never generic AI output. Trigger when the user says 'build the screen', 'implement the component', 'תבנה את המסך', 'תכתוב את הקוד של ה-UI', or after designer has produced a system spec."
 license: Complete terms in LICENSE.txt
 ---
 
-This skill guides creation of distinctive, production-grade frontend interfaces that avoid generic "AI slop" aesthetics. Implement real working code with exceptional attention to aesthetic details and creative choices.
+# Frontend Design (implementation)
 
-The user provides frontend requirements: a component, page, application, or interface to build. They may include context about the purpose, audience, or technical constraints.
+You implement the visual design that **designer** decided and the flow that **ux** decided. You don't redo their work. If neither has run, push back: "What's the aesthetic direction? What's the flow?" — then run those skills first.
 
-## Design Thinking
+## Project stack (non-negotiable)
 
-Before coding, understand the context and commit to a BOLD aesthetic direction:
+- **Framework:** React (Vite). No Next.js routing in this app.
+- **Components:** shadcn/ui — extend, don't replace. Read the existing component before building a new one.
+- **Styling:** Tailwind CSS. Use `cn()` from `lib/utils` for conditional classes. Use design tokens already in `tailwind.config.ts`.
+- **Language:** Hebrew, RTL. The whole app is `dir="rtl"`. Numerals must be wrapped in `dir="ltr"` when inline with Hebrew text.
+- **Mobile:** Capacitor wrapper for iOS/Android + browser PWA. Test thumb reach. Min 44px touch targets. Respect safe-area insets on iOS.
+- **Animation:** framer-motion is in the project for React; CSS for simple stuff. Restrained, purposeful motion only.
+- **Icons:** lucide-react.
 
-- **Purpose:** What problem does this interface solve? Who uses it?
-- **Tone:** Pick an extreme: brutally minimal, maximalist chaos, retro-futuristic, organic/natural, luxury/refined, playful/toy-like, editorial/magazine, brutalist/raw, art deco/geometric, soft/pastel, industrial/utilitarian, etc. There are so many flavors to choose from. Use these for inspiration but design one that is true to the aesthetic direction.
-- **Constraints:** Technical requirements (framework, performance, accessibility).
-- **Differentiation:** What makes this UNFORGETTABLE? What's the one thing someone will remember?
+## How you build
 
-**CRITICAL:** Choose a clear conceptual direction and execute it with precision. Bold maximalism and refined minimalism both work — the key is intentionality, not intensity.
+### Step 1: Read inputs
+- Designer's system spec (colors, fonts, rhythm, hero element).
+- UX flow + complete states list.
+- Existing components in `src/components/` — reuse before creating.
 
-Then implement working code (HTML/CSS/JS, React, Vue, etc.) that is:
+### Step 2: Find the closest existing pattern
+Before writing a new component, scan: is there already a card, sheet, dialog, list pattern that this is a variant of? Extend it. Don't fork.
 
-- Production-grade and functional
-- Visually striking and memorable
-- Cohesive with a clear aesthetic point-of-view
-- Meticulously refined in every detail
+### Step 3: Implement with discipline
 
-## Frontend Aesthetics Guidelines
+Match implementation complexity to the aesthetic vision:
+- **Maximalist direction** → elaborate code, layered effects, orchestrated motion.
+- **Refined minimalism** → restraint, precision, careful spacing/typography. Elegance comes from execution, not addition.
 
-Focus on:
+For each state in ux's list (default / loading / empty / error / offline / submitting / partial), implement it. Skipping states is the #1 failure mode of UI work.
 
-- **Typography:** Choose fonts that are beautiful, unique, and interesting. Avoid generic fonts like Arial and Inter; opt instead for distinctive choices that elevate the frontend's aesthetics; unexpected, characterful font choices. Pair a distinctive display font with a refined body font.
-- **Color & Theme:** Commit to a cohesive aesthetic. Use CSS variables for consistency. Dominant colors with sharp accents outperform timid, evenly-distributed palettes.
-- **Motion:** Use animations for effects and micro-interactions. Prioritize CSS-only solutions for HTML. Use Motion library for React when available. Focus on high-impact moments: one well-orchestrated page load with staggered reveals (animation-delay) creates more delight than scattered micro-interactions. Use scroll-triggering and hover states that surprise.
-- **Spatial Composition:** Unexpected layouts. Asymmetry. Overlap. Diagonal flow. Grid-breaking elements. Generous negative space OR controlled density.
-- **Backgrounds & Visual Details:** Create atmosphere and depth rather than defaulting to solid colors. Add contextual effects and textures that match the overall aesthetic. Apply creative forms like gradient meshes, noise textures, geometric patterns, layered transparencies, dramatic shadows, decorative borders, custom cursors, and grain overlays.
+### Step 4: Verify in preview (mandatory if previewable)
 
-**NEVER use generic AI-generated aesthetics** like overused font families (Inter, Roboto, Arial, system fonts), cliched color schemes (particularly purple gradients on white backgrounds), predictable layouts and component patterns, and cookie-cutter design that lacks context-specific character.
+If the change renders in the browser, verify before claiming done:
+1. Start preview if not running (`preview_start`).
+2. Take a snapshot or screenshot.
+3. Test the primary interaction (click / fill / submit).
+4. Resize for mobile width (~390px).
+5. Check console for errors/warnings (`preview_console_logs`).
 
-Interpret creatively and make unexpected choices that feel genuinely designed for the context. No design should be the same. Vary between light and dark themes, different fonts, different aesthetics. NEVER converge on common choices (Space Grotesk, for example) across generations.
+Do NOT report "done" without proof. If preview can't exercise it (build/types-only changes), say so explicitly.
 
-**IMPORTANT:** Match implementation complexity to the aesthetic vision. Maximalist designs need elaborate code with extensive animations and effects. Minimalist or refined designs need restraint, precision, and careful attention to spacing, typography, and subtle details. Elegance comes from executing the vision well.
+## Aesthetic baseline (refuse generic AI output)
 
-Remember: Claude is capable of extraordinary creative work. Don't hold back, show what can truly be created when thinking outside the box and committing fully to a distinctive vision.
+- **NEVER** Inter, Roboto, Arial, system-ui as the body font choice. Pick something with character — match designer's spec.
+- **NEVER** purple-gradient-on-white. The default AI palette.
+- **NEVER** "white card with icon top-left, number middle, label bottom" repeated in a 4-column grid.
+- **NEVER** every element same weight — hierarchy comes from contrast.
+- **NEVER** decoration without meaning (random shapes, generic illustrations).
+- **NEVER** Space Grotesk by reflex. Vary type choices across screens; do not converge.
+
+## Hebrew/RTL implementation rules
+
+- All text wrappers default to RTL. Mixed content needs `dir="ltr"` spans for: numerals, license plates, dates in DD/MM/YYYY, English brand names ("Toyota", "Castrol").
+- Use Tailwind logical properties: `ms-*` / `me-*` over `ml-*` / `mr-*`. `start-*` / `end-*` for positioning.
+- Direction-implying icons (arrow, chevron, back) must flip in RTL — use Tailwind's `rtl:rotate-180` or pre-flipped icons.
+- Test with realistic-length Hebrew strings — Hebrew is denser, sometimes longer than the English mock would suggest.
+- Periods/colons in Hebrew UI labels often look better when omitted — match copywriter's choice.
+
+## Mobile / Capacitor specifics
+
+- Primary CTA at thumb-reach (bottom of screen on long flows).
+- Bottom sheets > modals on phone. shadcn `Sheet` with `side="bottom"`.
+- Sticky bottom CTAs for forms longer than one viewport.
+- Safe-area: respect iOS notch/home indicator with `pb-[env(safe-area-inset-bottom)]` on bottom-anchored elements.
+- No hover-only interactions. Everything works on tap.
+- File pickers / camera / share intents go through Capacitor plugins, not raw `<input type="file">`, where the project already has a wrapper.
+
+## Output
+
+After implementation:
+1. **Files touched** — created or modified, with paths.
+2. **States implemented** — checked off against ux's list. Anything skipped flagged explicitly.
+3. **Verification proof** — screenshot, snapshot summary, "console clean" confirmation. Or explicit note if not previewable.
+4. **Open issues** — anything for designer/ux to review on detail (visual drift, edge cases discovered during build).
