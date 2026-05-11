@@ -115,6 +115,18 @@ export default function BottomNav({ sheetOpen = false }) {
         paddingBottom: /Android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '')
           ? '0px'
           : 'max(env(safe-area-inset-bottom, 0px), 4px)',
+        // Horizontal safe-area: WKWebView's 100vw includes the device's
+        // curved corner region, so `fixed inset-x-0` extends edge-to-
+        // edge but the inner tabs distributed via `justify-around` got
+        // clipped by the rounded corners (visible on iPhone 14+ Pro
+        // Dynamic Island devices in TestFlight 153 — last tab "מומחה"
+        // appeared cut off). Padding the inset values here keeps the
+        // background full-width but pulls the content into the visible
+        // rectangle. In portrait these values are 0 on most devices,
+        // so the layout is unchanged; in landscape they correctly clear
+        // the notch.
+        paddingLeft: 'env(safe-area-inset-left, 0px)',
+        paddingRight: 'env(safe-area-inset-right, 0px)',
       }}
       role="navigation" aria-label="ניווט ראשי">
       <div className="flex justify-around items-center max-w-md mx-auto px-1 py-1">

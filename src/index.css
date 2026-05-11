@@ -103,16 +103,34 @@ html.native-app {
   --sal: env(safe-area-inset-left, 0px);
   --sar: env(safe-area-inset-right, 0px);
 }
+/* Vertical safe-area only — top for status bar, bottom for home
+   indicator. Horizontal safe-area (--sal / --sar) is intentionally NOT
+   padded on body here:
+     • The fixed top bar (Layout.jsx) and fixed BottomNav both use
+       `inset-x-0`, so they span 100vw regardless of body padding.
+     • If body has horizontal padding, body content is narrower than
+       100vw but the fixed bars are 100vw. That mismatch was causing the
+       bars' justify-around children to distribute into a region wider
+       than visible body, producing the "edge items clipped" symptom
+       users reported on TestFlight 153.
+     • Individual fixed elements (BottomNav, mobile top bar) now apply
+       horizontal safe-area padding themselves so their inner contents
+       stay inside the visible viewport while backgrounds extend
+       edge-to-edge. */
 html.native-app body {
   padding-top: var(--sat);
   padding-bottom: var(--sab);
-  padding-left: var(--sal);
-  padding-right: var(--sar);
 }
 
-/* Prevent overscroll bounce on native */
-html.native-app {
+/* Prevent overscroll bounce on native. overscroll-behavior is honored
+   by WKWebView on iOS 16+; combined with capacitor.config.ts
+   `ios.contentInset: 'never'` this keeps the fixed top bar + BottomNav
+   anchored even when the user pulls past the content edges. */
+html.native-app,
+html.native-app body {
   overscroll-behavior: none;
+}
+html.native-app {
   -webkit-overflow-scrolling: touch;
 }
 

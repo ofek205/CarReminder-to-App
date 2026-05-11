@@ -67,6 +67,31 @@ const config: CapacitorConfig = {
       sound: 'default',
     },
   },
+  // iOS-specific WebView settings. Without an explicit ios block, Capacitor
+  // ships defaults that on real iPhones produce two symptoms users have
+  // reported on TestFlight build 153:
+  //   1. Horizontal overflow on every screen — the WebView's reported
+  //      `100vw` exceeds the visible screen width, so `fixed inset-x-0`
+  //      bars (BottomNav, mobile top bar) distribute their items into a
+  //      region that's partially off-screen on the left (end in RTL).
+  //   2. Top + bottom bars "disappear" while the user scrolls, because
+  //      WKWebView's rubber-band bounce lets the page scroll past the
+  //      fixed bars' anchored region, briefly exposing white edges.
+  //
+  // contentInset: 'never' forces the WebView to not auto-pad for the
+  // status bar / home indicator. Combined with the CSS safe-area
+  // handling on body, this gives us a single source of truth (CSS env())
+  // and prevents double-padding that pushes content past the viewport.
+  //
+  // scrollEnabled: true is the default but stating it makes the intent
+  // explicit. backgroundColor: '#FFFFFF' eliminates the brief grey flash
+  // that some devices show during the rubber-band overscroll above the
+  // top bar.
+  ios: {
+    contentInset: 'never',
+    scrollEnabled: true,
+    backgroundColor: '#FFFFFF',
+  },
 };
 
 export default config;

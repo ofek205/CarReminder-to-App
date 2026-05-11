@@ -728,8 +728,20 @@ function LayoutInner({ children }) {
         </div>
       )}
 
-      {/* Mobile top bar */}
-      <div className="lg:hidden fixed inset-x-0 top-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', zIndex: 9998 }}>
+      {/* Mobile top bar.
+          Horizontal env(safe-area-inset-*) padding mirrors BottomNav —
+          WKWebView 100vw includes the device's curved corner region,
+          so without horizontal safe-area the inner row (hamburger,
+          logo, workspace switcher, bell) clipped under the rounded
+          corners on iPhone 14+ Pro Dynamic Island devices (TestFlight
+          153). In portrait the values are 0 on most devices so layout
+          is unchanged; landscape clears the notch correctly. */}
+      <div className="lg:hidden fixed inset-x-0 top-0" style={{
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingLeft: 'env(safe-area-inset-left, 0px)',
+        paddingRight: 'env(safe-area-inset-right, 0px)',
+        zIndex: 9998,
+      }}>
         {isGuest && <GuestBanner />}
         <div className="bg-white border-b border-gray-100 px-3 py-2 flex items-center gap-2.5" dir="rtl">
           {(() => {
