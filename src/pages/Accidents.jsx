@@ -7,6 +7,7 @@ import { createPageUrl } from '@/utils';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { useAuth } from '../components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
+import useMyVehicles from '@/hooks/useMyVehicles';
 import { C, getTheme } from '@/lib/designTokens';
 import { getVehicleLabels } from '../components/shared/DateStatusUtils';
 import { DEMO_ACCIDENTS, DEMO_VEHICLE } from '../components/shared/demoVehicleData';
@@ -354,11 +355,12 @@ export default function Accidents() {
     staleTime: 0,
   });
 
-  const { data: authVehicles = [] } = useQuery({
-    queryKey: ['vehicles', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
-    enabled: !!accountId,
-  });
+  // Vehicles list comes from the shared useMyVehicles hook — same
+  // queryKey ['vehicles', accountId] as the previous inline useQuery,
+  // so cache continuity with other screens is preserved. The hook
+  // adds a localStorage layer on top so the list appears instantly
+  // on cold boots instead of flickering empty for ~500 ms.
+  const { vehicles: authVehicles } = useMyVehicles();
 
   if (isLoading) return <LoadingSpinner />;
 

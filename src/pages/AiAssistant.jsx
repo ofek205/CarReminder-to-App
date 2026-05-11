@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '../components/shared/GuestContext';
 import { aiRequest } from '@/lib/aiProxy';
@@ -15,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { toast } from 'sonner';
 import AiProviderBadge from '@/components/shared/AiProviderBadge';
 import useAccountRole from '@/hooks/useAccountRole';
+import useMyVehicles from '@/hooks/useMyVehicles';
 
 const STORAGE_KEY_PREFIX = 'yossi_chat_';
 const CHAT_EXPIRY_DAYS = 30;
@@ -113,11 +113,17 @@ function timeFmt(ts) {
 export default function AiAssistant() {
   const { user, isAuthenticated } = useAuth();
   const { accountId: activeAccountId } = useAccountRole();
+  // Vehicles list comes from the shared useMyVehicles hook. Same
+  // queryKey ['vehicles', accountId] as the rest of the app, so this
+  // screen now hits the in-memory cache (and localStorage seed) the
+  // moment the user opens it — no more empty-list flash before the
+  // first network response. `hasVessel` is derived directly from the
+  // returned list, so a single source of truth feeds both lookups.
+  const { vehicles } = useMyVehicles();
+  const hasVessel = vehicles.some(v => isVessel(v.vehicle_type, v.nickname));
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [vehicles, setVehicles] = useState([]);
-  const [hasVessel, setHasVessel] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [maintenanceLogs, setMaintenanceLogs] = useState([]); // logs for selected vehicle
@@ -158,18 +164,10 @@ export default function AiAssistant() {
     } catch {}
   }, [messages, user?.id]);
 
-  // Phase 3: vehicles for the active workspace.
-  useEffect(() => {
-    if (!isAuthenticated || !user) return;
-    if (!activeAccountId) { setVehicles([]); setHasVessel(false); return; }
-    (async () => {
-      try {
-        const vs = await db.vehicles.filter({ account_id: activeAccountId });
-        setVehicles(vs || []);
-        setHasVessel((vs || []).some(v => isVessel(v.vehicle_type, v.nickname)));
-      } catch {}
-    })();
-  }, [isAuthenticated, user, activeAccountId]);
+  // Vehicles fetch lived here as a useState + useEffect that re-issued
+  // db.vehicles.filter on every mount. Replaced by useMyVehicles() at
+  // the top of the component — same source-of-truth across all screens,
+  // shared cache, instant first paint from localStorage.
 
   // Load maintenance logs for selected vehicle
   useEffect(() => {
