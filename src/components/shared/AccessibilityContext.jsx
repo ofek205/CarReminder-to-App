@@ -8,6 +8,15 @@ const A11Y_CSS = `
    scale lives in --a11y-text-scale, applied selectively to
    text-sized elements while layout/spacing stays fixed.
 */
+/* Native-app baseline: phone screens are smaller than the web design
+   baseline (375-430px vs ~1280px desktop). Without a per-platform tweak
+   the app's 13-15px body text on iPhone reads cramped, especially in
+   Hebrew where character density is high. Bump the baseline scale to
+   1.10 on native only — same value as the user-facing "+1" preset.
+   The user's explicit a11y-font-* class always wins via the cascade
+   below (same specificity, declared after). */
+html.native-app    { --a11y-text-scale: 1.10; }
+
 html.a11y-font--2 { --a11y-text-scale: 0.85; }
 html.a11y-font--1 { --a11y-text-scale: 0.925; }
 html.a11y-font-1  { --a11y-text-scale: 1.10; }
@@ -16,24 +25,41 @@ html.a11y-font-3  { --a11y-text-scale: 1.36; }
 html.a11y-font-4  { --a11y-text-scale: 1.52; }
 html.a11y-font-5  { --a11y-text-scale: 1.70; }
 
-/* Override Tailwind text utility classes when a scale is active. Only
-   fires when one of the a11y-font-* classes is on html, so default
-   rendering is untouched for users with the scale set to 0/default. */
-html[class*="a11y-font"] body                { font-size: calc(1rem     * var(--a11y-text-scale, 1)) !important; }
+/* Override Tailwind text utility classes when a scale is active. Two
+   trigger selectors:
+     • html[class*="a11y-font"] — user explicitly picked a size
+     • html.native-app          — automatic 1.10 baseline on iOS/Android
+   Web with default settings has neither, so no rules fire and rendering
+   is unchanged from the original Tailwind defaults. */
+html[class*="a11y-font"] body,
+html.native-app body                { font-size: calc(1rem     * var(--a11y-text-scale, 1)) !important; }
 /* Arbitrary Tailwind values. common ones used throughout the app. */
-html[class*="a11y-font"] .text-\\[10px\\]     { font-size: calc(10px     * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-\\[11px\\]     { font-size: calc(11px     * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-\\[12px\\]     { font-size: calc(12px     * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-\\[13px\\]     { font-size: calc(13px     * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-xs            { font-size: calc(0.75rem  * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-sm            { font-size: calc(0.875rem * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-base          { font-size: calc(1rem     * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-lg            { font-size: calc(1.125rem * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-xl            { font-size: calc(1.25rem  * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-2xl           { font-size: calc(1.5rem   * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-3xl           { font-size: calc(1.875rem * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-4xl           { font-size: calc(2.25rem  * var(--a11y-text-scale, 1)) !important; }
-html[class*="a11y-font"] .text-5xl           { font-size: calc(3rem     * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-\\[10px\\],
+html.native-app .text-\\[10px\\]     { font-size: calc(10px     * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-\\[11px\\],
+html.native-app .text-\\[11px\\]     { font-size: calc(11px     * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-\\[12px\\],
+html.native-app .text-\\[12px\\]     { font-size: calc(12px     * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-\\[13px\\],
+html.native-app .text-\\[13px\\]     { font-size: calc(13px     * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-xs,
+html.native-app .text-xs            { font-size: calc(0.75rem  * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-sm,
+html.native-app .text-sm            { font-size: calc(0.875rem * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-base,
+html.native-app .text-base          { font-size: calc(1rem     * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-lg,
+html.native-app .text-lg            { font-size: calc(1.125rem * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-xl,
+html.native-app .text-xl            { font-size: calc(1.25rem  * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-2xl,
+html.native-app .text-2xl           { font-size: calc(1.5rem   * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-3xl,
+html.native-app .text-3xl           { font-size: calc(1.875rem * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-4xl,
+html.native-app .text-4xl           { font-size: calc(2.25rem  * var(--a11y-text-scale, 1)) !important; }
+html[class*="a11y-font"] .text-5xl,
+html.native-app .text-5xl           { font-size: calc(3rem     * var(--a11y-text-scale, 1)) !important; }
 
 /*  Readable font  */
 html.a11y-readable-font,
