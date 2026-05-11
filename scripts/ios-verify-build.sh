@@ -86,6 +86,31 @@ else
 fi
 echo
 
+# ─── Bundle-content env injection check ──────────────────────────────
+# CRITICAL: this catches the iOS TestFlight failure mode where vite has
+# the env vars in process.env (so a length-only check passes) but the
+# bundle was somehow built WITHOUT them inlined — exactly the bug we hit
+# on 3.0.2 (152): CI verify said "VITE_SUPABASE_URL : present (len=40)"
+# but the iPhone's env-error UI fired anyway because the actual bundle
+# did not contain the Supabase host string.
+#
+# This check is intentionally host-only — we never print or persist the
+# secret URL itself. We extract just the host portion and grep for it.
+info "Env injection (Supabase host inlined in dist bundle)"
+if [[ -f dist/index.html && -n "${VITE_SUPABASE_URL:-}" ]]; then
+  # Extract host (everything between https:// and the next /), then assert
+  # at least one JS chunk in dist/assets references it.
+  HOST=$(printf '%s' "$VITE_SUPABASE_URL" | sed -E 's|https?://([^/]+).*|\1|')
+  if [[ -n "$HOST" ]] && grep -lq "$HOST" dist/assets/*.js 2>/dev/null; then
+    ok "Supabase host inlined in dist/assets — vite resolved import.meta.env"
+  else
+    fail "Supabase host NOT in dist/assets/*.js — vite did NOT inline VITE_SUPABASE_URL despite it being in env. TestFlight WILL show env-error UI."
+  fi
+elif [[ -z "${VITE_SUPABASE_URL:-}" ]]; then
+  echo "  (skipped — VITE_SUPABASE_URL not in shell)"
+fi
+echo
+
 # ─── iOS native bundle ───────────────────────────────────────────────
 info "iOS embedded bundle (ios/App/App/public/)"
 if [[ -f ios/App/App/public/index.html ]]; then
@@ -99,6 +124,17 @@ if [[ -f ios/App/App/public/index.html ]]; then
   fi
   IOS_ASSETS=$(find ios/App/App/public/assets -type f 2>/dev/null | wc -l | tr -d ' ')
   echo "  ios assets   : $IOS_ASSETS files"
+  # Same host-only env-injection check against the SYNCED bundle that
+  # actually ships in the IPA. cap sync should be a verbatim copy of
+  # dist/, but we assert it here rather than trust by inference.
+  if [[ -n "${VITE_SUPABASE_URL:-}" ]]; then
+    IOS_HOST=$(printf '%s' "$VITE_SUPABASE_URL" | sed -E 's|https?://([^/]+).*|\1|')
+    if [[ -n "$IOS_HOST" ]] && grep -lq "$IOS_HOST" ios/App/App/public/assets/*.js 2>/dev/null; then
+      ok "Supabase host present in synced bundle (ios/App/App/public/assets)"
+    else
+      fail "Supabase host NOT in ios/App/App/public/assets/*.js — IPA will ship without env. TestFlight env-error UI guaranteed."
+    fi
+  fi
 else
   fail "ios/App/App/public/index.html missing — \`npx cap sync ios\` did not run"
 fi

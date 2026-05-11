@@ -184,22 +184,80 @@ if (__envErrMsg) {
       const detail = isProd
         ? 'הגדרות בנייה חסרות. אנא דווח/י לתמיכה.'
         : `Build-time error: ${__envErrMsg}`;
+      // Diagnostic payload — rendered IN-PLACE on this error screen so a
+      // TestFlight user can screenshot it (or copy via the button below)
+      // and we know exactly which gate fired and what import.meta.env saw.
+      // Contains ONLY presence/length per required var — never raw values.
+      // This block exists because /boot-debug is unreachable from this
+      // dead-end state, and the env-error path is the most opaque historical
+      // failure mode of the iOS TestFlight pipeline.
+      const __diagPayload = {
+        v: (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : null),
+        mode: __envCheck.mode,
+        prod: __envCheck.isProd,
+        dev: __envCheck.isDev,
+        validatorErrors: __envCheck.errors,
+        snapshot: __envCheck.snapshot,
+        supabaseReason: (typeof window !== 'undefined' && window.__crBootEnvError) || null,
+        ua: (navigator?.userAgent || '').slice(0, 140),
+        ts: new Date().toISOString(),
+      };
+      const __diagJson = JSON.stringify(__diagPayload, null, 2);
+      const __escDiag = __diagJson
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       rootEl.innerHTML = `
-        <div dir="rtl" style="display:flex;align-items:center;justify-content:center;
+        <div dir="rtl" style="display:flex;align-items:flex-start;justify-content:center;
              min-height:100vh;background:#FAFFFE;font-family:system-ui;padding:24px;">
-          <div style="text-align:center;max-width:340px;">
+          <div style="text-align:center;max-width:340px;width:100%;">
             <div style="font-size:48px;margin-bottom:8px;">⚙️</div>
             <div style="font-size:22px;font-weight:800;color:#1F2937;margin-bottom:8px;">
               האפליקציה לא הצליחה לעלות
             </div>
-            <div style="font-size:13px;color:#6B7280;margin-bottom:18px;line-height:1.6;">${detail}</div>
-            <button onclick="window.location.reload()"
-              style="padding:10px 28px;border-radius:12px;background:#2D5233;color:#fff;
-                     font-weight:700;border:none;cursor:pointer;font-size:14px;">
-              נסה שוב
-            </button>
+            <div style="font-size:13px;color:#6B7280;margin-bottom:14px;line-height:1.6;">${detail}</div>
+            <pre id="cr-env-diag" style="font-size:10px;text-align:left;direction:ltr;
+                 background:#F3F4F6;padding:10px;border-radius:8px;overflow:auto;max-height:240px;
+                 color:#374151;margin:0 0 12px;white-space:pre-wrap;word-break:break-all;">${__escDiag}</pre>
+            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+              <button onclick="window.location.reload()"
+                style="padding:10px 22px;border-radius:12px;background:#2D5233;color:#fff;
+                       font-weight:700;border:none;cursor:pointer;font-size:14px;">
+                נסה שוב
+              </button>
+              <button id="cr-env-copy"
+                style="padding:10px 22px;border-radius:12px;background:#fff;color:#2D5233;
+                       font-weight:700;border:1px solid #D8E5D9;cursor:pointer;font-size:14px;">
+                העתק אבחון
+              </button>
+            </div>
           </div>
         </div>`;
+      // Wire Copy. Inline (no React) so it survives even if the
+      // bundle is in a partially-failed state. Clipboard API is async
+      // and gated on iOS, so we also surface a manual fallback by
+      // selecting the <pre> text on tap if clipboard.writeText fails.
+      try {
+        const btn = document.getElementById('cr-env-copy');
+        const pre = document.getElementById('cr-env-diag');
+        if (btn) {
+          btn.addEventListener('click', async () => {
+            const text = pre?.innerText || '';
+            try {
+              await navigator.clipboard.writeText(text);
+              btn.innerText = 'הועתק ✓';
+            } catch {
+              // WKWebView clipboard restrictions: fall back to selectAll
+              try {
+                const range = document.createRange();
+                range.selectNodeContents(pre);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+                btn.innerText = 'נבחר — Cmd/Ctrl+C';
+              } catch {}
+            }
+          });
+        }
+      } catch {}
     }
   } catch {}
   hideSplashOnce('env-error');

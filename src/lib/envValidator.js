@@ -30,22 +30,37 @@ const REQUIRED_VARS = [
   'VITE_SUPABASE_ANON_KEY',
 ];
 
+// Helper: trim whitespace before validating. GitHub Actions secrets that
+// were pasted with a trailing newline have bitten us in production — the
+// raw value gets inlined by Vite as e.g. `"eyJ...\n"`, which then fails the
+// JWT-shape regex (since `$` without the `m` flag rejects a trailing `\n`)
+// AND breaks `new URL(...)` inside `createClient()`. We accept a trimmed
+// value as "looks reasonable" — the runtime path in supabase.js trims
+// before createClient too, so the trimmed value is what actually ships.
+function trimmedValue(env, key) {
+  const v = env[key];
+  if (typeof v !== 'string') return '';
+  return v.trim();
+}
+
 // Custom checks. Each function returns null on pass, or a string error.
 // Custom checks are useful for "the value exists AND looks reasonable"
 // (e.g. URL parses, key looks like a JWT segment) without ever logging
 // the actual value.
 const CUSTOM_CHECKS = [
   function checkSupabaseUrlShape(env) {
-    const v = env.VITE_SUPABASE_URL;
-    if (!v) return null; // covered by presence check
+    const raw = env.VITE_SUPABASE_URL;
+    if (!raw) return null; // covered by presence check
+    const v = trimmedValue(env, 'VITE_SUPABASE_URL');
     if (!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(v)) {
       return 'VITE_SUPABASE_URL does not look like a Supabase URL (expected https://*.supabase.co)';
     }
     return null;
   },
   function checkAnonKeyShape(env) {
-    const v = env.VITE_SUPABASE_ANON_KEY;
-    if (!v) return null;
+    const raw = env.VITE_SUPABASE_ANON_KEY;
+    if (!raw) return null;
+    const v = trimmedValue(env, 'VITE_SUPABASE_ANON_KEY');
     // anon keys are JWTs — three base64 segments separated by dots.
     if (!/^[\w-]+\.[\w-]+\.[\w-]+$/.test(v)) {
       return 'VITE_SUPABASE_ANON_KEY does not look like a JWT';
@@ -69,9 +84,19 @@ export function validateEnv() {
   for (const key of REQUIRED_VARS) {
     const v = env[key];
     const present = typeof v === 'string' && v.length > 0;
+    // We record BOTH raw length and trimmed length so a TestFlight
+    // diagnostic dump immediately surfaces "secret pasted with trailing
+    // whitespace" — a real production failure mode on this app. If
+    // trimmedLength !== length, the secret has stray whitespace and a
+    // strict-end-of-string regex (e.g. JWT shape) will fail unless we
+    // trim before validating. The runtime path in supabase.js also
+    // trims, so this is consistent end-to-end.
+    const trimmedLength = present ? v.trim().length : 0;
     snapshot[key] = {
       present,
       length: present ? v.length : 0,
+      trimmedLength,
+      hasWhitespace: present && trimmedLength !== v.length,
     };
     if (!present) errors.push(`Missing required env var: ${key}`);
   }
