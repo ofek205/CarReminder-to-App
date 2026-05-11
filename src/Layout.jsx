@@ -735,11 +735,22 @@ function LayoutInner({ children }) {
           logo, workspace switcher, bell) clipped under the rounded
           corners on iPhone 14+ Pro Dynamic Island devices (TestFlight
           153). In portrait the values are 0 on most devices so layout
-          is unchanged; landscape clears the notch correctly. */}
+          is unchanged; landscape clears the notch correctly.
+
+          background:#2D5233 paints the safe-area-inset-top region
+          (~59pt on Dynamic Island devices) opaque. Without it, the
+          area above the white inner bar was transparent and revealed
+          the page content (e.g. vehicle hero image) bleeding into the
+          iOS status bar zone — and iOS StatusBar style 'LIGHT' (white
+          text) became unreadable against the light page content.
+          This matches the StatusBar.backgroundColor configured in
+          capacitor.config.ts, so the status bar zone and the
+          Capacitor-painted status bar share one continuous color. */}
       <div className="lg:hidden fixed inset-x-0 top-0" style={{
         paddingTop: 'env(safe-area-inset-top, 0px)',
         paddingLeft: 'env(safe-area-inset-left, 0px)',
         paddingRight: 'env(safe-area-inset-right, 0px)',
+        background: '#2D5233',
         zIndex: 9998,
       }}>
         {isGuest && <GuestBanner />}
