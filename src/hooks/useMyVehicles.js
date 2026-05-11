@@ -39,7 +39,8 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { db } from '@/lib/supabaseEntities';
+import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import useAccountRole from '@/hooks/useAccountRole';
 
 const STORAGE_VERSION = 'v1';
@@ -98,8 +99,18 @@ export default function useMyVehicles() {
   const query = useQuery({
     queryKey: ['vehicles', accountId],
     queryFn: async () => {
-      const list = await db.vehicles.filter({ account_id: accountId });
-      const arr = Array.isArray(list) ? list : [];
+      // Direct supabase call wrapped with withTimeout. The
+      // check-query-timeouts gate (CLAUDE.md → "Query Timeout Gate")
+      // mandates this pattern for every useQuery that talks to
+      // Supabase, so a hung request can't leave isLoading stuck on
+      // true forever. db.vehicles.filter would do the same thing
+      // internally but would bypass the wrapper.
+      const { data, error } = await withTimeout(
+        supabase.from('vehicles').select('*').eq('account_id', accountId),
+        'vehicles_by_account'
+      );
+      if (error) throw error;
+      const arr = Array.isArray(data) ? data : [];
       writeVehiclesToStorage(accountId, arr);
       return arr;
     },
