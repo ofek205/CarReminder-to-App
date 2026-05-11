@@ -205,6 +205,21 @@ export default function AiAssistant() {
     const el = messagesEndRef.current;
     if (!el) return;
     try { el.scrollIntoView({ behavior, block: 'end' }); } catch { /* old browsers */ }
+    // scrollIntoView targets the nearest scroll ancestor — which here
+    // is the messages container with overflow-y-auto. Once the
+    // conversation grows past the viewport (3-4 long replies), the
+    // WINDOW also needs to scroll to keep the latest message visible
+    // above the fixed input. iOS WKWebView doesn't cascade
+    // scrollIntoView from the inner container up to the window, so
+    // the new reply stayed off-screen while the user saw the
+    // previous one — exactly the "stays at the top" symptom on
+    // TestFlight. Scroll the window explicitly as a follow-up.
+    try {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior,
+      });
+    } catch { /* old browsers */ }
   }, []);
 
   useEffect(() => {
