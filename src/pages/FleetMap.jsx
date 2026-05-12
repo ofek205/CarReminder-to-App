@@ -252,7 +252,7 @@ export default function FleetMap() {
     const m = {};
     for (const r of filteredRoutes) m[r.id] = routeColor(r);
     return m;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [filteredRoutes, colorByRoute]);
 
   // Stops by route (for popup "stop X of Y" + polyline ordering).

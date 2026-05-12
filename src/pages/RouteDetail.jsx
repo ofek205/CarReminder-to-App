@@ -292,7 +292,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
       if (msg.includes('forbidden')) toast.error('אין לך הרשאה לעדכן את התחנה הזו');
       else if (msg.includes('invalid_status')) toast.error('סטטוס לא תקף');
       else                            toast.error('עדכון התחנה נכשל. נסה שוב.');
-      // eslint-disable-next-line no-console
+       
       console.error('update_stop_status failed:', err);
     } finally {
       setBusy(false);

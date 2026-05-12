@@ -261,7 +261,7 @@ function ResolveDialog({ request, mode, onClose, onResolved }) {
       else if (msg.includes('request_not_found'))      toast.error('הבקשה לא נמצאה');
       else if (msg.includes('request_already_resolved')) toast.error('הבקשה כבר טופלה. רענן את הדף');
       else                                               toast.error('הפעולה נכשלה. נסה שוב.');
-      // eslint-disable-next-line no-console
+       
       console.error('resolve request failed:', err);
     } finally {
       setSubmitting(false);

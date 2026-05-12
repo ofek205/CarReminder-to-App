@@ -317,7 +317,7 @@ export default function AuthPage() {
             // than the one they requested it from). Bounce back to the
             // request-reset form with a clear message so they don't
             // sit confused on a password form whose submit will fail.
-            // eslint-disable-next-line no-console
+             
             console.warn('recovery verify failed:', error.message);
             setError('הקישור לאיפוס הסיסמה פג תוקף או כבר נוצל. בקש קישור חדש למטה.');
             setMode('reset');
@@ -328,7 +328,7 @@ export default function AuthPage() {
             window.history.replaceState({}, '', '/Auth?mode=reset');
           }
         } catch (err) {
-          // eslint-disable-next-line no-console
+           
           console.warn('recovery verify threw:', err?.message);
           setError('הקישור לאיפוס הסיסמה פג תוקף או כבר נוצל. בקש קישור חדש למטה.');
           setMode('reset');
@@ -693,7 +693,7 @@ export default function AuthPage() {
               });
             }
           } catch (mirrorErr) {
-            // eslint-disable-next-line no-console
+             
             console.warn('post-update session mirror failed:', mirrorErr?.message);
           }
           // Clear the recovery-flow marker so a future tab on the same

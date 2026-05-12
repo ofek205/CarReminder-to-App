@@ -148,7 +148,7 @@ export function getBootSnapshot() {
   // <meta name="app-version"> if a build pipeline set it; else "unknown".
   let appVersion = 'unknown';
   try {
-    if (typeof __APP_VERSION__ !== 'undefined') appVersion = String(__APP_VERSION__); // eslint-disable-line no-undef
+    if (typeof __APP_VERSION__ !== 'undefined') appVersion = String(__APP_VERSION__);  
     if (appVersion === 'unknown' && typeof document !== 'undefined') {
       const meta = document.querySelector('meta[name="app-version"]');
       if (meta?.content) appVersion = meta.content;

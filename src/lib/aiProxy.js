@@ -128,7 +128,7 @@ async function callEdgeProxy(body) {
       const e = new Error('שירות ה-AI לא זמין כרגע. נסה שוב בעוד רגע.');
       e.code = 'AI_UNAVAILABLE';
       e.cause = err;
-      // eslint-disable-next-line no-console
+       
       console.error('[aiProxy] fetch failed while online:', err?.name, err?.message);
       throw e;
     }

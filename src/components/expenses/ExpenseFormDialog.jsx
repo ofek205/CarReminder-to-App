@@ -145,7 +145,7 @@ export default function ExpenseFormDialog({
     }
     setScanError('');
     setFieldError({ field: null, message: '' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [open, initial?.id, vehicleId]);
 
   // Auto-trigger file picker when in scan-first mode

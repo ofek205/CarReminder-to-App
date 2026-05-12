@@ -158,7 +158,7 @@ export default function VehicleCheck() {
     }
     setAutoSearchQueued(false);
     void search();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [autoSearchQueued, plate, isBusy]);
 
   const goToAuth = () => {

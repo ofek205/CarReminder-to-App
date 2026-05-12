@@ -27,7 +27,7 @@ const supabaseAnonKey = typeof __rawKey === 'string' ? __rawKey.trim() : __rawKe
 // stub client below. main.jsx detects the flag and shows a clear
 // startup-error screen rather than letting the user stare at a blank app.
 function makeStubClient(reason) {
-  // eslint-disable-next-line no-console
+   
   console.error('[supabase] config error:', reason);
   if (typeof window !== 'undefined') {
     window.__crBootEnvError = reason;

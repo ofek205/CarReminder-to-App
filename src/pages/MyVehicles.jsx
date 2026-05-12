@@ -383,7 +383,7 @@ function UpdateMileageDialog({ vehicle, onClose, onDone }) {
       else if (msg.includes('km_cannot_decrease')) toast.error('הקילומטראז\' לא יכול לרדת');
       else if (msg.includes('invalid_km'))         toast.error('מספר לא תקין');
       else                                          toast.error('העדכון נכשל. נסה שוב.');
-      // eslint-disable-next-line no-console
+       
       console.error('driver_update_mileage failed:', err);
     } finally {
       setSubmitting(false);
@@ -457,7 +457,7 @@ function VehicleEventDialog({ vehicle, kind, onClose, onDone }) {
       if      (msg.includes('forbidden'))      toast.error('אין לך הרשאה לרכב הזה');
       else if (msg.includes('title_required')) toast.error('יש להזין כותרת');
       else                                      toast.error('הפעולה נכשלה. נסה שוב.');
-      // eslint-disable-next-line no-console
+       
       console.error('driver_log_vehicle_event failed:', err);
     } finally {
       setSubmitting(false);

@@ -127,15 +127,15 @@ git push origin staging
 
 ---
 
-## חוב lint קיים — חוק --no-verify
+## מצב lint — נקי
 
-ה-pre-push hook מריץ ESLint על כל הפרויקט. יש 26 שגיאות פתוחות לא-קשורות (`react-hooks/rules-of-hooks` false-positives על early-return + `typescript-eslint` plugin חסר בתצורה).
+נכון ל-2026-05-12, `npm run lint` עובר נקי: **0 errors** (אלפי warnings בלבד, רובם אכיפת מערכת עיצוב — `no-restricted-syntax` על inline hex/rgb — שמתוכננת לשדרוג עתידי). חוב ה-lint שהיה כאן בעבר (`react-hooks/rules-of-hooks` + `typescript-eslint` חסר) **טופל**.
 
-- **ב-push לענף `staging`**: מותר `git push --no-verify origin staging` כדי לעקוף את ה-hook. החוב הוא חוב מערכתי, לא של ה-PR הנוכחי.
-- **ב-push ל-`main`**: אסור `--no-verify`. עלייה לפרודקשן חייבת לעבור lint נקי. אם בעת עלייה ה-lint נכשל — חובה לתקן את החוב **לפני** המשך.
-- **ה-commit-gatekeeper hook** רץ תמיד ולא ניתן לעקוף (`--no-verify` עוקף את ה-pre-push, לא את ה-gatekeeper).
+- **`git push origin staging`** — עובר ללא `--no-verify`. ה-pre-push hook (eslint + build + query-timeout gate) רץ מקומית ועובר.
+- **`git push origin main`** — אסור `--no-verify`. ה-CI לעולם לא יעקוף.
+- **`commit-gatekeeper` hook** רץ תמיד ולא ניתן לעקוף (`--no-verify` עוקף את ה-pre-push, לא את ה-gatekeeper).
 
-יום אחד נתקן את חוב ה-lint פעם אחת ונבטל את הסעיף הזה.
+אם בעתיד יחזרו שגיאות lint — לתקן לפני push, לא לעקוף. `--no-verify` נשאר זמין כ-escape hatch לחירום מקומי בלבד, ולעולם לא בעלייה לפרודקשן.
 
 ---
 

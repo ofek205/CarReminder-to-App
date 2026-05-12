@@ -80,7 +80,7 @@ const CUSTOM_CHECKS = [
   function checkNoDevCredsInProd(env) {
     if (!env.PROD) return null;
     if (env.VITE_DEV_EMAIL || env.VITE_DEV_PASSWORD) {
-      // eslint-disable-next-line no-console
+       
       console.warn('[envValidator] VITE_DEV_EMAIL / VITE_DEV_PASSWORD are set in a PROD build. Vite tree-shakes the DEV branch so the values do not reach the bundle, but consider unsetting them in CI for hygiene.');
     }
     return null;

@@ -167,7 +167,7 @@ export default function MaintenanceSection({ vehicle }) {
     const qs = params.toString();
     const newUrl = window.location.pathname + (qs ? `?${qs}` : '');
     window.history.replaceState({}, '', newUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const openEditDialog = (log) => {

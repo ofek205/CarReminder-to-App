@@ -119,7 +119,7 @@ export default function ExternalDriverFormDialog({
       setDidChangePhoto(false);
     }
     setFieldError({ field: null, message: '' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [open, initial?.id]);
 
   // Cleanup orphan file when dialog closes without save

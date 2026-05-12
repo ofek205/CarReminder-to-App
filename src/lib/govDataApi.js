@@ -111,7 +111,7 @@ export async function fetchCities({ signal } = {}) {
       writeCache(cacheKey, list);
       return list;
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.warn('govDataApi fetchCities failed:', err?.message || err);
       return null;
     } finally {
@@ -157,7 +157,7 @@ export async function fetchStreetsByCityCode(cityCode, { signal } = {}) {
       writeCache(cacheKey, list);
       return list;
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.warn('govDataApi fetchStreets failed:', err?.message || err);
       return null;
     } finally {

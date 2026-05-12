@@ -113,7 +113,7 @@ export default function useAppUpdateGate() {
         });
       } catch (e) {
         // Anything else (network, malformed config, etc.): fail open.
-        // eslint-disable-next-line no-console
+         
         console.warn('app update gate check failed:', e?.message);
         if (!cancelled) setState(s => ({ ...s, checked: true, needsUpdate: false }));
       }
