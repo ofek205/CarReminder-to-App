@@ -88,7 +88,28 @@ function parseDocDate(str) {
   return isNaN(new Date(result).getTime()) ? '' : result;
 }
 
-const EMPTY_FORM = { document_type: 'מסמך אחר', title: '', description: '', vehicle_id: '', issue_date: '', expiry_date: '', file_url: '', storage_path: '' };
+// Maximum total attachments per document — 1 primary + 4 extras.
+// Product request: "let the user upload more than one file, all
+// attached to the same record".
+const MAX_FILES_PER_DOCUMENT = 5;
+
+const EMPTY_FORM = {
+  document_type: 'מסמך אחר',
+  title: '',
+  description: '',
+  vehicle_id: '',
+  issue_date: '',
+  expiry_date: '',
+  // Primary file — unchanged shape, backward compatible.
+  file_url: '',
+  storage_path: '',
+  // Additional files. Same index across the two arrays — the i-th
+  // URL corresponds to the i-th storage path. JSONB columns in the
+  // documents table (default '[]'). Existing rows that pre-date
+  // multi-file simply read these as empty arrays.
+  extra_file_urls: [],
+  extra_storage_paths: [],
+};
 
 //  Upload dialog (shared logic wrapper) 
 function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, saving, isGuest = false, accountId = null, userId = null }) {
@@ -150,50 +171,93 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
   });
 
   const handleFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    // Multi-select support: process every picked file. First file
+    // becomes the PRIMARY (file_url + storage_path) if no primary
+    // exists yet; remaining files append to the extra_file_urls /
+    // extra_storage_paths arrays. Hard-capped at MAX_FILES_PER_DOCUMENT
+    // total to keep storage cost predictable.
+    const picked = Array.from(e.target.files || []);
+    if (picked.length === 0) return;
 
-    // We always run the AI-scan-friendly base64 read against the ORIGINAL
-    // file in parallel with the upload — the upload path internally
-    // compresses, but for the AI vision payload we want the user's actual
-    // photo at the same fidelity the user picked it. Both branches set
-    // `fileName` so the green "הקובץ הועלה בהצלחה" card has a name to show.
+    // Count what's already in the form so the cap is enforced
+    // across multiple invocations (user can keep tapping "Add").
+    const currentCount = (form.file_url ? 1 : 0) + (form.extra_file_urls?.length || 0);
+    const slotsLeft = MAX_FILES_PER_DOCUMENT - currentCount;
+    if (slotsLeft <= 0) {
+      toast.error(`ניתן לצרף עד ${MAX_FILES_PER_DOCUMENT} קבצים למסמך`);
+      e.target.value = '';
+      return;
+    }
+    const toProcess = picked.slice(0, slotsLeft);
+    if (picked.length > slotsLeft) {
+      toast.info(`נצרפו ${slotsLeft} קבצים מתוך ${picked.length} (מגבלת ${MAX_FILES_PER_DOCUMENT}).`);
+    }
+
     if (isGuest) {
-      // Guest path is unchanged: their data only ever lives in localStorage,
-      // never in our DB or Storage. base64 is the simplest representation.
+      // Guest path is unchanged: their data only ever lives in
+      // localStorage, never in our DB or Storage. base64 is the
+      // simplest representation. Multi-file works identically — the
+      // first becomes the primary and the rest go into extra arrays.
       try {
-        // Validate via the same helper the hook uses, just so guests get
-        // identical error copy as auth users.
         const { validateUploadFile } = await import('@/lib/securityUtils');
-        const v = validateUploadFile(file, 'doc', 5);
-        if (!v.ok) { toast.error(v.error); e.target.value = ''; return; }
-        const base64 = await readAsBase64(file);
-        setFileName(file.name);
-        setFileDataUrl(base64);
-        setForm(f => ({ ...f, file_url: base64, storage_path: '' }));
+        for (const file of toProcess) {
+          const v = validateUploadFile(file, 'doc', 5);
+          if (!v.ok) { toast.error(v.error); continue; }
+          const base64 = await readAsBase64(file);
+          // Use functional update so multiple awaits in this loop
+          // see each other's writes.
+          setForm(f => {
+            if (!f.file_url) {
+              return { ...f, file_url: base64, storage_path: '' };
+            }
+            return {
+              ...f,
+              extra_file_urls: [...(f.extra_file_urls || []), base64],
+              extra_storage_paths: [...(f.extra_storage_paths || []), ''],
+            };
+          });
+          // Track the most recently-added filename for the green
+          // "הקובץ הועלה בהצלחה" card; also AI sees this base64.
+          setFileName(file.name);
+          setFileDataUrl(base64);
+        }
       } catch (err) {
         console.error('Guest file read error:', err);
         toast.error('שגיאה בקריאת הקובץ');
       }
+      e.target.value = '';
       return;
     }
 
-    // Auth path: upload to Supabase Storage, persist signed URL +
-    // storage_path. Validation, compression and the signed-URL fetch are
-    // all inside the hook — handleFile just orchestrates state.
+    // Auth path: upload each picked file to Supabase Storage in
+    // sequence. We don't parallelise because the upload hook tracks
+    // a single in-flight state and concurrent uploads would race.
     try {
-      const [uploadResult, base64] = await Promise.all([
-        hookUpload(file),
-        readAsBase64(file).catch(() => ''), // AI is optional; don't fail upload
-      ]);
-      if (!uploadResult) return; // hook already toasted via uploadError effect
-      setFileName(file.name);
-      setFileDataUrl(base64);
-      setForm(f => ({ ...f, file_url: uploadResult.fileUrl, storage_path: uploadResult.storagePath }));
+      for (const file of toProcess) {
+        const [uploadResult, base64] = await Promise.all([
+          hookUpload(file),
+          readAsBase64(file).catch(() => ''),
+        ]);
+        if (!uploadResult) continue;
+        setForm(f => {
+          if (!f.file_url) {
+            return { ...f, file_url: uploadResult.fileUrl, storage_path: uploadResult.storagePath };
+          }
+          return {
+            ...f,
+            extra_file_urls: [...(f.extra_file_urls || []), uploadResult.fileUrl],
+            extra_storage_paths: [...(f.extra_storage_paths || []), uploadResult.storagePath],
+          };
+        });
+        setFileName(file.name);
+        setFileDataUrl(base64);
+      }
     } catch {
-      // hookUpload already pushes the message into uploadError → toast effect.
-      // Caught here so a thrown promise doesn't bubble into React's error boundary.
+      // hookUpload already pushes the message into uploadError →
+      // toast effect. Catch here so a thrown promise doesn't bubble
+      // into React's error boundary.
     }
+    e.target.value = '';
   };
 
   const handleAiScan = async () => {
@@ -338,25 +402,100 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
           {/*  Upload zone  */}
           {!isGuest && (
             <div>
-              <label
-                className={`flex flex-col items-center justify-center gap-2 p-5 border-2 border-dashed rounded-2xl cursor-pointer transition-colors
-                  ${form.file_url ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:border-[#2D5233] hover:bg-[#FDF6F0]'}`}
-              >
-                {uploading ? (
-                  <><Loader2 className="h-8 w-8 text-[#2D5233] animate-spin" /><span className="text-sm text-gray-500">מעלה קובץ...</span></>
-                ) : form.file_url ? (
-                  <><CheckCircle2 className="h-8 w-8 text-green-600" /><span className="text-sm font-medium text-green-700">{fileName || 'הקובץ הועלה בהצלחה'}</span><span className="text-xs text-green-500">לחץ להחלפה</span></>
-                ) : (
-                  <><Upload className="h-8 w-8 text-gray-400" /><span className="text-sm font-medium text-gray-600">בחר קובץ להעלאה</span><span className="text-xs text-gray-400">PDF / JPG / PNG עד 5MB</span></>
-                )}
-                {/* MIME types instead of dotted extensions so iOS
-                    actually offers the Files app alongside Photos.
-                    Extension-only accept (".pdf,.jpg") on iOS Safari
-                    funneled the user to the photo library, hiding
-                    the option to pick a PDF — user reported "only
-                    gives image, not PDF". */}
-                <input type="file" accept="application/pdf,image/*" className="hidden" onChange={handleFile} />
-              </label>
+              {(() => {
+                const totalAttached = (form.file_url ? 1 : 0) + (form.extra_file_urls?.length || 0);
+                const canAddMore = totalAttached < MAX_FILES_PER_DOCUMENT;
+                return (
+                  <label
+                    className={`flex flex-col items-center justify-center gap-2 p-5 border-2 border-dashed rounded-2xl transition-colors
+                      ${canAddMore ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}
+                      ${totalAttached > 0 ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:border-[#2D5233] hover:bg-[#FDF6F0]'}`}
+                  >
+                    {uploading ? (
+                      <><Loader2 className="h-8 w-8 text-[#2D5233] animate-spin" /><span className="text-sm text-gray-500">מעלה קובץ...</span></>
+                    ) : totalAttached > 0 ? (
+                      <>
+                        <CheckCircle2 className="h-8 w-8 text-green-600" />
+                        <span className="text-sm font-medium text-green-700">
+                          {totalAttached} {totalAttached === 1 ? 'קובץ צורף' : 'קבצים צורפו'}
+                        </span>
+                        <span className="text-xs text-green-500">
+                          {canAddMore ? `לחץ להוספה (עד ${MAX_FILES_PER_DOCUMENT} בסה"כ)` : 'הגעת למקסימום'}
+                        </span>
+                      </>
+                    ) : (
+                      <><Upload className="h-8 w-8 text-gray-400" /><span className="text-sm font-medium text-gray-600">בחר קבצים להעלאה</span><span className="text-xs text-gray-400">עד {MAX_FILES_PER_DOCUMENT} קבצים · PDF / JPG / PNG עד 5MB כל אחד</span></>
+                    )}
+                    {/* MIME types instead of dotted extensions so iOS
+                        actually offers the Files app alongside Photos.
+                        Multiple allows the user to pick more than one
+                        attachment in a single picker session; the cap
+                        is enforced in handleFile. */}
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      multiple
+                      disabled={!canAddMore}
+                      className="hidden"
+                      onChange={handleFile}
+                    />
+                  </label>
+                );
+              })()}
+
+              {/* Attached files list — appears once ≥1 file is in
+                  the form. Each row shows index, original-or-default
+                  name, and a remove button. The primary row removes
+                  by clearing file_url + storage_path; extras splice
+                  out of the arrays. */}
+              {(form.file_url || (form.extra_file_urls?.length || 0) > 0) && (
+                <ul className="mt-2 space-y-1.5">
+                  {form.file_url && (
+                    <li className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs">
+                      <span className="truncate flex items-center gap-1.5 min-w-0">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                        <span className="truncate">{fileName || 'קובץ ראשי'}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setForm(f => ({ ...f, file_url: '', storage_path: '' }));
+                          setFileName('');
+                          setFileDataUrl(null);
+                        }}
+                        className="text-red-500 text-xs font-bold shrink-0"
+                        aria-label="הסר קובץ"
+                      >
+                        הסר
+                      </button>
+                    </li>
+                  )}
+                  {(form.extra_file_urls || []).map((_, i) => (
+                    <li key={i} className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs">
+                      <span className="truncate flex items-center gap-1.5 min-w-0">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                        <span className="truncate">{`קובץ נוסף ${i + 2}`}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setForm(f => ({
+                            ...f,
+                            extra_file_urls: (f.extra_file_urls || []).filter((_, idx) => idx !== i),
+                            extra_storage_paths: (f.extra_storage_paths || []).filter((_, idx) => idx !== i),
+                          }));
+                        }}
+                        className="text-red-500 text-xs font-bold shrink-0"
+                        aria-label="הסר קובץ"
+                      >
+                        הסר
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {/* Camera capture - separate button below the drop zone */}
               {!uploading && (
                 <label className={`${buttonVariants({ variant: "outline" })} mt-2 w-full cursor-pointer gap-2 justify-center border-[#2D5233] text-[#2D5233] hover:bg-[#FDF6F0]`}>
@@ -1086,6 +1225,14 @@ function AuthDocuments({ vehicleIdParam }) {
       DOC_COLUMNS.forEach(k => {
         if (form[k] !== undefined && form[k] !== null && form[k] !== '') data[k] = form[k];
       });
+      // Multi-file attachments — only persist when there are any,
+      // otherwise leave the columns at their JSONB default ('[]'::
+      // jsonb). Storing the arrays even when empty is harmless but
+      // we keep the payload tight.
+      if (Array.isArray(form.extra_file_urls) && form.extra_file_urls.length > 0) {
+        data.extra_file_urls     = form.extra_file_urls;
+        data.extra_storage_paths = form.extra_storage_paths || [];
+      }
 
       const created = await db.documents.create(data);
       if (!created) throw new Error('שמירה נכשלה');
