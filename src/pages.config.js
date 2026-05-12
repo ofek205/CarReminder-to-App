@@ -80,8 +80,14 @@ const Team                  = React.lazy(() => import('./pages/Team'));
 const DrivingLog            = React.lazy(() => import('./pages/DrivingLog'));
 const VehicleCheck          = React.lazy(() => import('./pages/VehicleCheck'));
 // /dev/components — design system style guide. No auth, no chrome.
-// Safe to ship; intentionally not surfaced in any nav (URL-only access).
-const DevComponents         = React.lazy(() => import('./pages/DevComponents'));
+// Only loaded in DEV builds. In production we replace the lazy chunk
+// with a tiny 404 stub so visiting /dev/components on the live site
+// shows the normal not-found screen instead of the full component
+// inventory — closes a low-cost reconnaissance surface flagged by the
+// pre-production QA review.
+const DevComponents         = import.meta.env.DEV
+  ? React.lazy(() => import('./pages/DevComponents'))
+  : React.lazy(() => import('./lib/PageNotFound'));
 
 export const PAGES = {
     "Accidents": Accidents,

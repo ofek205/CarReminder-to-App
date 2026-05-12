@@ -737,8 +737,9 @@ export default function AddVehicle() {
           if (govData.year && !form.year) form.year = govData.year;
         }
       } catch (err) {
-        // Silent fail - enrichment is optional
-        console.log('Auto-enrich skipped:', err.message);
+        // Silent fail — enrichment is optional. Log only in DEV so we
+        // don't fill the production console with noise.
+        if (import.meta.env.DEV) console.log('Auto-enrich skipped:', err.message);
       }
     }
 

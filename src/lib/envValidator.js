@@ -67,6 +67,22 @@ const CUSTOM_CHECKS = [
     }
     return null;
   },
+  // Defence-in-depth: ensure dev-only credentials never make it into a
+  // production bundle. AuthPage.jsx has a DEV-only "type 00/00 → log in"
+  // shortcut that reads VITE_DEV_EMAIL / VITE_DEV_PASSWORD. Even though
+  // the call site is wrapped in `import.meta.env.DEV`, the env values
+  // themselves still get inlined by Vite if they're set during the
+  // build — meaning a developer could ship working dev creds inside the
+  // production JS bundle. This check fails the build (via validateEnv
+  // → throwing fail-fast at main.jsx) if the dev creds are present
+  // in a PROD build.
+  function checkNoDevCredsInProd(env) {
+    if (!env.PROD) return null;
+    if (env.VITE_DEV_EMAIL || env.VITE_DEV_PASSWORD) {
+      return 'VITE_DEV_EMAIL/VITE_DEV_PASSWORD must not be set in production builds (would leak via the JS bundle).';
+    }
+    return null;
+  },
 ];
 
 /**
