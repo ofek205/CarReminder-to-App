@@ -349,7 +349,13 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
                 ) : (
                   <><Upload className="h-8 w-8 text-gray-400" /><span className="text-sm font-medium text-gray-600">בחר קובץ להעלאה</span><span className="text-xs text-gray-400">PDF / JPG / PNG עד 5MB</span></>
                 )}
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFile} />
+                {/* MIME types instead of dotted extensions so iOS
+                    actually offers the Files app alongside Photos.
+                    Extension-only accept (".pdf,.jpg") on iOS Safari
+                    funneled the user to the photo library, hiding
+                    the option to pick a PDF — user reported "only
+                    gives image, not PDF". */}
+                <input type="file" accept="application/pdf,image/*" className="hidden" onChange={handleFile} />
               </label>
               {/* Camera capture - separate button below the drop zone */}
               {!uploading && (
