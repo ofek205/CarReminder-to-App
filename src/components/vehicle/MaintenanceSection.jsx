@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
 import { Wrench, Plus, Trash2, AlertTriangle, Settings, Camera, Image, X, Sparkles, Loader2, Edit } from 'lucide-react';
@@ -120,11 +120,20 @@ export default function MaintenanceSection({ vehicle }) {
     reader.readAsDataURL(compressed);
   };
 
-  const openDialog = (type) => {
+  const openDialog = (type, opts = {}) => {
     setEditingId(null);
     setDialogType(type);
-    setForm({ title: '', date: new Date().toISOString().split('T')[0], cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
-    setServiceSize(vesselMode ? 'engine' : 'small');
+    setForm({
+      title: opts.title || '',
+      date: new Date().toISOString().split('T')[0],
+      cost: '', notes: '',
+      km_at_service: '', garage_name: '', performed_by: '',
+    });
+    // If the caller asked for a specific service size (e.g. from a
+    // reminder deep-link that knows the original log was "טיפול גדול"),
+    // honour it. Otherwise fall back to the vessel/road default.
+    if (opts.serviceSize) setServiceSize(opts.serviceSize);
+    else setServiceSize(vesselMode ? 'engine' : 'small');
     setReceiptPhoto(null);
     // Reset the optional "next reminder" block every time we open
     // for a fresh entry. The block only renders for type='טיפול'.
@@ -134,6 +143,32 @@ export default function MaintenanceSection({ vehicle }) {
     setReminderKm('');
     setDialogOpen(true);
   };
+
+  // Deep-link integration: when the reminder LocalNotification fires
+  // and the user taps it, the tap handler in notificationService.js
+  // routes to /VehicleDetail?id=…&openMaintenance=1&prefillType=טיפול
+  // קטן. Detect those URL params, pre-open the dialog with the
+  // matching service size, and clean the URL so reloading the page
+  // doesn't re-open the dialog every time.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('openMaintenance') !== '1') return;
+    const prefillType = params.get('prefillType') || '';
+    let size = vesselMode ? 'engine' : 'small';
+    if (prefillType.includes('גדול')) size = 'big';
+    else if (prefillType.includes('מנוע')) size = 'engine';
+    else if (prefillType.includes('גוף')) size = 'hull';
+    else if (prefillType.includes('קטן')) size = 'small';
+    openDialog('טיפול', { serviceSize: size });
+    // Strip the deep-link params so a refresh doesn't re-trigger.
+    params.delete('openMaintenance');
+    params.delete('prefillType');
+    const qs = params.toString();
+    const newUrl = window.location.pathname + (qs ? `?${qs}` : '');
+    window.history.replaceState({}, '', newUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openEditDialog = (log) => {
     setEditingId(log.id);

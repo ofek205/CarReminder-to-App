@@ -269,7 +269,21 @@ export async function initNotifications() {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
     LocalNotifications.addListener('localNotificationActionPerformed', async (evt) => {
       const extra = evt?.notification?.extra || {};
-      const { type, vehicleId, isVessel: flaggedVessel, daysLeft } = extra;
+      const { type, vehicleId, isVessel: flaggedVessel, daysLeft, kind, serviceType } = extra;
+
+      // Maintenance "next-service" reminder. Open the vehicle and ask
+      // MaintenanceSection to pop the add-maintenance dialog pre-filled
+      // with the same service kind ("טיפול קטן" / "טיפול גדול" / etc).
+      // The user can adjust the date + km + cost, save, and a new log
+      // is created. Matches the user-stated flow: "the reminder taps
+      // through to a maintenance form with the type already known but
+      // editable."
+      if (kind === 'maintenance_next' && vehicleId) {
+        const params = new URLSearchParams({ id: vehicleId, openMaintenance: '1' });
+        if (serviceType) params.set('prefillType', serviceType);
+        window.location.href = `/VehicleDetail?${params.toString()}`;
+        return;
+      }
 
       // Test-expiry → gov.il. Send overdue OR nearly-overdue (<= 7 days) to
       // save users the extra tap into VehicleDetail.
