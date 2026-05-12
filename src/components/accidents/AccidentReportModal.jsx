@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react';
-import { Download, X } from 'lucide-react';
+import { Download, Share2, X } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 import AccidentPrintReport from './AccidentPrintReport';
+import { shareContent } from '@/lib/capacitor';
+import { toast } from 'sonner';
 
 /**
  * AccidentReportModal — shared dialog used by both:
@@ -35,6 +37,33 @@ export default function AccidentReportModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Native share — invokes the OS share sheet (iOS Sharesheet,
+  // Android chooser, Web Share API on supporting browsers). The PDF
+  // itself isn't attached as a file yet (that needs filesystem
+  // plumbing); we share a short Hebrew text summary the user can
+  // forward in WhatsApp/Mail/etc. The Download button next to it
+  // remains the path for getting the actual PDF.
+  const handleShare = async () => {
+    const dateLabel = accident?.date
+      ? new Date(accident.date).toLocaleDateString('he-IL')
+      : 'תאריך לא הוזן';
+    const plate = vehicle?.license_plate ? ` (${vehicle.license_plate})` : '';
+    const loc = accident?.location ? ` במיקום ${accident.location}` : '';
+    const otherDriver = accident?.other_driver_name
+      ? `\nנהג שני: ${accident.other_driver_name}`
+      : '';
+    const text = `דיווח תאונה
+תאריך: ${dateLabel}${loc}
+רכב: ${vehicle?.nickname || vehicle?.manufacturer || 'לא צויין'}${plate}${otherDriver}
+
+הופק מאפליקציית CarReminder.`;
+    const ok = await shareContent({
+      title: 'דיווח תאונה',
+      text,
+    });
+    if (!ok) toast.error('השיתוף בוטל');
+  };
 
   // Click on the dim backdrop (but not on the dialog itself) closes too.
   // We compare event.target to event.currentTarget to detect that the
@@ -130,6 +159,26 @@ export default function AccidentReportModal({
               <p className="text-sm font-bold text-[#1C2E20] mb-1">הורדה ישירה כ-PDF</p>
               <p className="text-xs leading-relaxed text-gray-600">
                 פותח את חלון ההדפסה של הדפדפן. בחר "שמור כ-PDF" כדי לקבל את הדוח כקובץ.
+              </p>
+            </button>
+            {/* Share — opens the native OS share sheet (or Web Share
+                API in the browser) with a short Hebrew summary of the
+                accident. Useful when forwarding to an insurance
+                broker or family member without first downloading a
+                file. The PDF can still be attached manually after
+                Download. */}
+            <button
+              type="button"
+              onClick={handleShare}
+              className="w-full text-right rounded-3xl border bg-white p-4 transition-colors hover:border-[#2D5233]"
+              style={{ borderColor: C.border }}
+            >
+              <p className="text-sm font-bold text-[#1C2E20] mb-1 flex items-center gap-2">
+                <Share2 className="w-4 h-4" />
+                שיתוף סיכום
+              </p>
+              <p className="text-xs leading-relaxed text-gray-600">
+                שולח סיכום קצר של התאונה דרך וואטסאפ, מייל או כל אפליקציה אחרת במכשיר.
               </p>
             </button>
           </div>
