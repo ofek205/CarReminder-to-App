@@ -25,19 +25,41 @@ const DialogOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
-const DialogContent = React.forwardRef(({ className, children, ...props }, ref) => (
+const DialogContent = React.forwardRef(({ className, children, style, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
+    {/* max-h ensures the dialog never exceeds the viewport, regardless
+        of content length, and the safe-area subtraction keeps it
+        clear of the iOS Dynamic Island + home indicator. Without
+        this, dialogs taller than ~60vh on a phone had their top
+        clipped behind the status bar with no scroll affordance to
+        reach it — reported on TestFlight for the dashboard status
+        drill-down popup. overflow-y-auto turns the dialog itself into
+        a scroll container so callers don't need to set max-h on every
+        usage. Destructured `style` so the spread on `props` below
+        doesn't clobber the safe-area calc; caller-provided style
+        merges last so callers can still override. */}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-[#E5E0D8] bg-[#FCF9F4] p-6 shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-3xl",
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-[#E5E0D8] bg-[#FCF9F4] p-6 shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-3xl overflow-y-auto",
         className
       )}
+      style={{
+        maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px)',
+        ...(style || {}),
+      }}
       {...props}>
       {children}
+      {/* `end-4` is a CSS logical property — flips to left-4 in RTL,
+          right-4 in LTR. Previous `right-4` overlapped Hebrew dialog
+          titles (which are text-right aligned), so the X sat directly
+          on top of the title text in every native-direction dialog —
+          reported as "the X is on top of the text" in the expenses
+          dialog. Switching to `end-4` fixes every RTL dialog at once
+          without touching individual call sites. */}
       <DialogPrimitive.Close
-        className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-xl bg-[#E8F2EA] text-[#2D5233] transition-colors hover:bg-[#D8E5D9] focus:outline-none focus:ring-2 focus:ring-[#4B7A53]/20 disabled:pointer-events-none">
+        className="absolute end-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-xl bg-[#E8F2EA] text-[#2D5233] transition-colors hover:bg-[#D8E5D9] focus:outline-none focus:ring-2 focus:ring-[#4B7A53]/20 disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>

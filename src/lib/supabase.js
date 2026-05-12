@@ -1,8 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import { Capacitor } from '@capacitor/core';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Trim whitespace defensively. GitHub Actions secrets pasted with a
+// trailing newline get baked into the bundle verbatim ("eyJ...\n"),
+// which makes `new URL()` inside createClient() throw AND breaks the
+// JWT-shape regex in envValidator (since /…$/ without the `m` flag
+// rejects a trailing \n). This was the actual production failure on
+// 3.0.2 (152): CI saw `len=209` while local builds had `len=208`,
+// off-by-one exactly == the trailing newline. Trimming here keeps the
+// runtime path tolerant; envValidator's snapshot records the raw vs
+// trimmed length so /boot-debug surfaces the discrepancy explicitly.
+const __rawUrl = import.meta.env.VITE_SUPABASE_URL;
+const __rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = typeof __rawUrl === 'string' ? __rawUrl.trim() : __rawUrl;
+const supabaseAnonKey = typeof __rawKey === 'string' ? __rawKey.trim() : __rawKey;
 
 // Defensive check: if a CI build forgot to inject VITE_SUPABASE_URL /
 // VITE_SUPABASE_ANON_KEY, `createClient(undefined, undefined)` throws

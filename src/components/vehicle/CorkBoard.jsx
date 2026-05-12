@@ -9,6 +9,7 @@ import { isVessel as isVesselCheck, isOffroad } from '../shared/DateStatusUtils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Pin, Plus, Wrench, Anchor, Trash2, Check, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -273,15 +274,18 @@ function NoteDialog({ open, onClose, note, onSave, onDelete, categories, T }) {
             </div>
           </div>
 
-          {/* Due date */}
+          {/* Due date.
+              Was a bare <Input type="date">, but Input's RTL styling
+              (text-right padding) didn't sit right under the native
+              date display — user reported "the date field isn't
+              quite in place". Switched to the shared DateInput
+              (native iOS picker, LTR layout) so this field matches
+              every other date picker in the app. */}
           <div>
             <p className="text-xs font-bold text-gray-600 mb-1.5">תאריך יעד (אופציונלי)</p>
-            <Input
-              type="date"
+            <DateInput
               value={dueDate}
               onChange={e => setDueDate(e.target.value)}
-              className="text-sm"
-              dir="ltr"
             />
           </div>
 

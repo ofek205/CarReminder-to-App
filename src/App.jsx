@@ -196,14 +196,27 @@ function App() {
   // Router are jammed. The boot watchdog in main.jsx links here when
   // it fires — the user can read the persisted boot-stage timeline
   // without depending on anything async.
+  // /boot-debug is a diagnostic escape hatch — it shows the persisted
+  // boot-stage timeline, env-validator snapshot (lengths, masked
+  // secrets) and last error messages. Gated on PROD builds: only
+  // accessible when running a dev build OR when the user has flipped
+  // a sessionStorage flag (`cr_debug=1`) — useful for letting one
+  // production user diagnose their own jam without leaving the
+  // page open to crawlers / anonymous visitors.
   if (typeof window !== 'undefined' && window.location?.pathname === '/boot-debug') {
-    return (
-      <div>
-        <AppErrorBoundary>
-          <BootDebug />
-        </AppErrorBoundary>
-      </div>
-    );
+    const debugAllowed = import.meta.env.DEV
+      || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('cr_debug') === '1');
+    if (debugAllowed) {
+      return (
+        <div>
+          <AppErrorBoundary>
+            <BootDebug />
+          </AppErrorBoundary>
+        </div>
+      );
+    }
+    // Fall through to the normal app render — the route resolver will
+    // 404 it because /boot-debug isn't in PAGES.
   }
 
   return (

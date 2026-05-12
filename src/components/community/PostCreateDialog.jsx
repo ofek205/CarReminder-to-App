@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
 import { getVehicleVisual } from '@/lib/designTokens';
+import { uploadToBucket } from '@/lib/supabaseStorage';
 import VehicleIcon from '../shared/VehicleIcon';
 import VehicleImage, { hasVehiclePhoto } from '../shared/VehicleImage';
 import { useNavigate } from 'react-router-dom';
@@ -75,7 +76,16 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
     return () => clearTimeout(timer);
   }, [body, domain, similarDismissed]);
 
-  const reset = () => { setBody(''); setImageUrl(''); setLinkedVehicleId(''); setIsAnonymous(false); setSimilarPosts([]); setSimilarDismissed(false); setBodyError(''); };
+  // imageStoragePath holds the bucket key returned by uploadToBucket
+  // — kept alongside imageUrl so PostCard can refresh the signed URL
+  // when it expires after 7 days. Reset together with imageUrl.
+  const [imageStoragePath, setImageStoragePath] = useState('');
+  const [imageUploading,   setImageUploading]   = useState(false);
+
+  const reset = () => {
+    setBody(''); setImageUrl(''); setImageStoragePath(''); setLinkedVehicleId('');
+    setIsAnonymous(false); setSimilarPosts([]); setSimilarDismissed(false); setBodyError('');
+  };
 
   const handleImage = async (e) => {
     const file = e.target.files?.[0];
@@ -84,11 +94,29 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       toast.error('ניתן להעלות רק JPG/PNG/WebP'); return;
     }
-    // Compress before embedding as base64 to cut egress & DB size
-    const compressed = await compressImage(file, { maxWidth: 1280, maxHeight: 1280, quality: 0.8 });
-    const reader = new FileReader();
-    reader.onload = (ev) => setImageUrl(ev.target.result);
-    reader.readAsDataURL(compressed);
+    setImageUploading(true);
+    try {
+      // Compress to keep storage usage reasonable. WebP at 1280px is
+      // typically 150-400 KB per photo — small enough to skip the
+      // "is this worth uploading" gate.
+      const compressed = await compressImage(file, { maxWidth: 1280, maxHeight: 1280, quality: 0.8 });
+
+      // Upload to vehicle-files bucket under community/{user_id}/...
+      // This replaces the previous base64-in-DB pattern which was
+      // sending multi-MB blobs back to every feed reader on every
+      // page load (pre-prod QA finding H1).
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { toast.error('יש להתחבר כדי להעלות תמונה'); return; }
+      const { file_url, storage_path } = await uploadToBucket(compressed, `community/${user.id}`);
+      setImageUrl(file_url);
+      setImageStoragePath(storage_path);
+    } catch (err) {
+      console.error('community image upload failed:', err);
+      toast.error('שגיאה בהעלאת התמונה. נסה שוב.');
+    } finally {
+      setImageUploading(false);
+      e.target.value = '';
+    }
   };
 
   const handleSubmit = async () => {
@@ -110,7 +138,9 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
       const post = await db.community_posts.create({
         user_id: user.id, author_name: authorName, domain,
-        body: body.trim(), image_url: imageUrl || null,
+        body: body.trim(),
+        image_url: imageUrl || null,
+        image_storage_path: imageStoragePath || null,
         linked_vehicle_id: (linkedVehicleId && linkedVehicleId !== 'none') ? linkedVehicleId : null,
         is_anonymous: isAnonymous,
         anonymous_number: anonymousNumber,

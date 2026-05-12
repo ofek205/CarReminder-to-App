@@ -10,6 +10,25 @@
             "command": "input=$(cat); cmd=$(printf '%s' \"$input\" | tr -d '\\n' | sed -n 's/.*\"command\"[[:space:]]*:[[:space:]]*\"\\(\\([^\"\\\\]\\|\\\\.\\)*\\)\".*/\\1/p'); if ! printf '%s' \"$cmd\" | grep -qE '(^|[;&|`][[:space:]]*|\\$\\([[:space:]]*)git[[:space:]]+(commit|push)([[:space:]]|$)'; then exit 0; fi; TOKEN=/tmp/cardocs-gatekeeper-approved; if [ -f \"$TOKEN\" ]; then TS=$(cat \"$TOKEN\" 2>/dev/null); NOW=$(date +%s); AGE=$((NOW - ${TS:-0})); if [ \"$AGE\" -ge 0 ] && [ \"$AGE\" -lt 600 ]; then rm -f \"$TOKEN\"; exit 0; fi; rm -f \"$TOKEN\"; fi; printf '\\n=== BLOCKED by commit-gatekeeper ===\\n\\nNo fresh APPROVED gatekeeper review found.\\n\\nBefore retrying this git commit/push, you MUST:\\n  1. Invoke the commit-gatekeeper skill (Skill tool)\\n  2. Run the full 10-stage review on the staged diff\\n  3. Output the mandatory final-format verdict\\n  4. Only if APPROVED, write the token:\\n       date +%%s > /tmp/cardocs-gatekeeper-approved\\n  5. Then retry the git command (token is single-use, valid 10 min)\\n\\nחסום על ידי שומר הסף - הרץ את סקיל commit-gatekeeper, הפק חוות דעת APPROVED וכתוב את האסימון לפני הקומיט/פוש.\\n' >&2; exit 2"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "grep -qE '\"file_path\"[^,}]*\\.(tsx|jsx|css|scss)\"|\"file_path\"[^,}]*/(components|pages)/' && printf '%s\\n' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"שינוי בקובץ פרונט (TSX/JSX/CSS/SCSS או components/pages). לפני שינוי UI מהותי — ודא שעברת דרך designer (אסתטיקה) ו-ux (flow + states). תיקוני מיקרו (typo, padding, צבע יחיד) — אפשר להמשיך. שינוי layout / component חדש / state חדש בלי ux+designer = BLOCK עצמי. זכור Playbook ב-CLAUDE.md.\"}}'; exit 0"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "grep -qiE 'עיצוב|תעצב|אסתטיקה|נראות|חזות|מסך|קומפוננט|טופס|כפתור|פונט|גופן|חזית|פרונט|\\bUI\\b|\\bUX\\b|frontend|front-end|design|redesign|component|screen|layout|styling|responsive' && printf '%s\\n' '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"זוהתה בקשת עיצוב/UI/פרונט. עקוב אחרי ה-Playbook ב-CLAUDE.md: pm → ux → designer → copywriter → frontend-design → qa. דלג על שלב רק לפי הכללים שם (תיקון מיקרו / שינוי copy בלבד / באג ב-flow קיים). חובה בכל שינוי UI: כל המצבים (default/loading/empty/error/offline), RTL Hebrew, mobile-first ב-thumb reach, verification ב-preview לפני סיום.\"}}'; exit 0"
+          }
+        ]
       }
     ]
   }

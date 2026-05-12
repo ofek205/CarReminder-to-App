@@ -55,8 +55,12 @@ const THEMES = {
     dotActive:    '#2D5233',
     buttonGrad:   'linear-gradient(135deg, #2D5233 0%, #4A8C5C 100%)',
     buttonShadow: 'rgba(45,82,51,0.35)',
-    ring:         '#FFBF00',
-    ringGlow:     'rgba(255,191,0,0.25)',
+    // Bright orange ring + halo. Previous amber (#FFBF00) blended
+    // with the dashboard's yellow CTA accents and didn't read as
+    // "look here". Orange #F97316 (Tailwind orange-500) is a clear
+    // attention color that also pairs well with the dark backdrop.
+    ring:         '#F97316',
+    ringGlow:     'rgba(249,115,22,0.35)',
     titleColor:   '#1C3620',
   },
   vessel: {
@@ -307,10 +311,23 @@ export default function FirstTimeTour({
       <div role="status" aria-live="polite" className="sr-only">
         שלב {step + 1} מתוך {totalSteps}. {current.title}
       </div>
-      {/* Dimmed backdrop. tapping it dismisses the whole tour. */}
-      <div className="absolute inset-0 bg-black/60" onClick={skip} aria-hidden="true" />
+      {/* Transparent click-trap overlay — kept for the dismiss-on-tap
+          gesture but visually empty. The actual dimming happens via
+          the spotlight's massive outer box-shadow below, which leaves
+          a bright window over the target and dims everything else. */}
+      <div className="absolute inset-0" onClick={skip} aria-hidden="true" />
 
-      {/* Spotlight ring around target. Positioned absolutely. */}
+      {/* Spotlight ring around target.
+          The triple box-shadow does three things in one element:
+            • 2px ring in the theme color → the visible "look here" border
+            • 6px halo at low opacity → soft glow that makes the ring pop
+            • 9999px outer shadow at black/68 → dims everything OUTSIDE
+              the ring while leaving the target itself bright
+          The third shadow is the key fix: it was previously
+          `rgba(0,0,0,0.0)` (transparent), which combined with the
+          full-screen overlay above produced a uniformly-dim screen
+          with no spotlight effect at all — user reported "no clear
+          marking, can't tell where it's pointing". */}
       <div className="absolute pointer-events-none transition-all duration-200"
         style={{
           top: targetRect.top - 6,
@@ -318,7 +335,7 @@ export default function FirstTimeTour({
           width: targetRect.width + 12,
           height: targetRect.height + 12,
           borderRadius: 16,
-          boxShadow: `0 0 0 2px ${T.ring}, 0 0 0 6px ${T.ringGlow}, 0 0 0 9999px rgba(0,0,0,0.0)`,
+          boxShadow: `0 0 0 2px ${T.ring}, 0 0 0 6px ${T.ringGlow}, 0 0 0 9999px rgba(0,0,0,0.68)`,
           background: 'transparent',
         }}
       />

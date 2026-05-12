@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Wrench, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -101,7 +101,16 @@ const navItems = [
   // noise without conveying structure.
   // ====================================================================
   { divider: true, title: 'תחזוקה' },
-  { name: 'MaintenanceTemplates', label: 'טיפולים', icon: Wrench,        guestAllowed: true },
+  // "טיפולים" (MaintenanceTemplates) was a per-user dictionary of
+  // maintenance + repair type names. Users add the same custom types
+  // inline from the vehicle's maintenance/repair dialogs now, so the
+  // dedicated entry was effectively unused — removed from the nav
+  // per user request ("not relevant, everything is done in the
+  // vehicle page"). The page itself is intentionally left in
+  // pages.config.js so direct URLs still resolve (and so previously-
+  // created custom types are recoverable for the rare user who needs
+  // them).
+  // { name: 'MaintenanceTemplates', label: 'טיפולים', icon: Wrench, guestAllowed: true },
   // MyExpenses (מחשבון הוצאות) is the PRIVATE-account expenses screen;
   // the page itself redirects business users to /Expenses, so leaving
   // it in the menu was misleading. personalOnly hides it from every
@@ -728,8 +737,31 @@ function LayoutInner({ children }) {
         </div>
       )}
 
-      {/* Mobile top bar */}
-      <div className="lg:hidden fixed inset-x-0 top-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', zIndex: 9998 }}>
+      {/* Mobile top bar.
+          Horizontal env(safe-area-inset-*) padding mirrors BottomNav —
+          WKWebView 100vw includes the device's curved corner region,
+          so without horizontal safe-area the inner row (hamburger,
+          logo, workspace switcher, bell) clipped under the rounded
+          corners on iPhone 14+ Pro Dynamic Island devices (TestFlight
+          153). In portrait the values are 0 on most devices so layout
+          is unchanged; landscape clears the notch correctly.
+
+          background:#2D5233 paints the safe-area-inset-top region
+          (~59pt on Dynamic Island devices) opaque. Without it, the
+          area above the white inner bar was transparent and revealed
+          the page content (e.g. vehicle hero image) bleeding into the
+          iOS status bar zone — and iOS StatusBar style 'LIGHT' (white
+          text) became unreadable against the light page content.
+          This matches the StatusBar.backgroundColor configured in
+          capacitor.config.ts, so the status bar zone and the
+          Capacitor-painted status bar share one continuous color. */}
+      <div className="lg:hidden fixed inset-x-0 top-0" style={{
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingLeft: 'env(safe-area-inset-left, 0px)',
+        paddingRight: 'env(safe-area-inset-right, 0px)',
+        background: '#2D5233',
+        zIndex: 9998,
+      }}>
         {isGuest && <GuestBanner />}
         <div className="bg-white border-b border-gray-100 px-3 py-2 flex items-center gap-2.5" dir="rtl">
           {(() => {
@@ -746,12 +778,12 @@ function LayoutInner({ children }) {
                     setOpen(next);
                     setTimeout(() => { btnClicked.current = false; }, 150);
                   }}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"
+                  className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"
                   style={{ background: open ? '#E5E7EB' : '#F3F4F6', position: 'relative', zIndex: 10001 }}
                   aria-label={open ? 'סגור תפריט' : 'פתח תפריט'}
                   aria-expanded={open}
                   aria-haspopup="menu">
-                  <Menu className="h-4.5 w-4.5 text-gray-600" aria-hidden="true" />
+                  <Menu className="h-5 w-5 text-gray-600" aria-hidden="true" />
                 </button>
                 <Sheet open={open} onOpenChange={(v) => {
                   if (btnClicked.current) return; // ignore overlay close when hamburger was clicked

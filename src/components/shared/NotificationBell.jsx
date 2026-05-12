@@ -510,7 +510,10 @@ export default function NotificationBell() {
     <div className="relative" data-tour="notif-bell">
       <button
         onClick={toggleBell}
-        className="relative w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-[0.95]"
+        // w-11 h-11 = 44pt — Apple HIG minimum tap target. Bumped
+        // from w-10 (40pt) so it matches the hamburger button next
+        // to it; user reported the top-bar buttons read as small.
+        className="relative w-11 h-11 rounded-xl flex items-center justify-center transition-all active:scale-[0.95]"
         style={{ background: unreadCount > 0 ? '#FEF2F2' : '#F3F4F6' }}
         aria-label={unreadCount > 0 ? `התראות (${unreadCount} חדשות)` : 'התראות'}
         aria-expanded={popupOpen}

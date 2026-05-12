@@ -25,6 +25,7 @@ import {
   getCurrentBootLog,
   getPreviousBootLog,
   clearBootLogs,
+  getBootSnapshot,
 } from '@/lib/bootDiagnostics';
 
 const C = {
@@ -210,6 +211,62 @@ export default function BootDebug() {
     try { window.location.href = '/'; } catch {}
   };
 
+  // Native share — pops the iOS share sheet so the user can send the
+  // log via Mail / WhatsApp / Telegram / AirDrop to support without USB.
+  const handleShare = async () => {
+    try {
+      const snap = getBootSnapshot();
+      const text = JSON.stringify(snap, null, 2);
+      // Capacitor Share is the only path that works inside a stuck
+      // WKWebView — clipboard often fails on iOS PWA-style WKWebView,
+      // and email schemes (mailto:) are blocked when the app is gated
+      // by an unloaded view.
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform()) {
+          const { Share } = await import('@capacitor/share');
+          await Share.share({
+            title: 'CarReminder boot log',
+            text,
+            dialogTitle: 'שלח יומן אבחון',
+          });
+          return;
+        }
+      } catch { /* fall through to web fallback */ }
+      // Web fallback — try Web Share API, then clipboard.
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try { await navigator.share({ title: 'CarReminder boot log', text }); return; } catch {}
+      }
+      try { await navigator.clipboard.writeText(text); alert('היומן הועתק ללוח.'); return; } catch {}
+      alert('שיתוף נכשל. נסה את כפתור "שלח לתמיכה".');
+    } catch (e) {
+      alert('שיתוף נכשל: ' + (e?.message || ''));
+    }
+  };
+
+  // Push the snapshot to the remote crashReporter (Supabase app_errors).
+  // Lets support pull the log without USB, web inspector, or screenshots.
+  const [sendStatus, setSendStatus] = React.useState(null);
+  const handleSendToSupport = async () => {
+    setSendStatus('sending');
+    try {
+      const snap = getBootSnapshot();
+      const m = await import('@/lib/crashReporter');
+      m.reportError(
+        'boot_debug_manual',
+        new Error('User submitted boot log via /boot-debug'),
+        { snapshot: snap.summary, log: snap.currentLog.slice(-30), prev: snap.previousLog.slice(-15) }
+      );
+      // crashReporter is fire-and-forget; the queue/local writes are
+      // synchronous so the UI can confirm immediately.
+      setSendStatus('sent');
+      setTimeout(() => setSendStatus(null), 4000);
+    } catch (e) {
+      setSendStatus('failed');
+      setTimeout(() => setSendStatus(null), 4000);
+    }
+  };
+
   return (
     <div
       dir="rtl"
@@ -247,7 +304,7 @@ export default function BootDebug() {
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
           <button
-            onClick={handleCopy}
+            onClick={handleShare}
             style={{
               flex: '1 1 140px',
               padding: '12px 18px',
@@ -260,7 +317,44 @@ export default function BootDebug() {
               cursor: 'pointer',
             }}
           >
-            העתק יומן
+            שתף יומן
+          </button>
+          <button
+            onClick={handleSendToSupport}
+            disabled={sendStatus === 'sending'}
+            style={{
+              flex: '1 1 140px',
+              padding: '12px 18px',
+              borderRadius: 12,
+              background: sendStatus === 'sent' ? C.ok : sendStatus === 'failed' ? C.red : '#1F2937',
+              color: '#fff',
+              fontWeight: 700,
+              border: 'none',
+              fontSize: 14,
+              cursor: 'pointer',
+              opacity: sendStatus === 'sending' ? 0.7 : 1,
+            }}
+          >
+            {sendStatus === 'sending' ? 'שולח...' :
+             sendStatus === 'sent' ? '✓ נשלח' :
+             sendStatus === 'failed' ? '✗ נכשל' :
+             'שלח לתמיכה'}
+          </button>
+          <button
+            onClick={handleCopy}
+            style={{
+              flex: '1 1 100px',
+              padding: '12px 18px',
+              borderRadius: 12,
+              background: C.card,
+              color: C.green,
+              fontWeight: 700,
+              border: `1px solid ${C.border}`,
+              fontSize: 14,
+              cursor: 'pointer',
+            }}
+          >
+            העתק
           </button>
           <button
             onClick={handleHome}

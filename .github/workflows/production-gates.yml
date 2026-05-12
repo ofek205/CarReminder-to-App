@@ -25,7 +25,17 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npm run build
+      # Build the SAME bundle the production CI builds — i.e. with the
+      # supabase env vars injected. Without these, Vite happily produces
+      # a "successful" bundle that bakes `undefined` into every
+      # `import.meta.env.VITE_SUPABASE_URL` reference, the iOS TestFlight
+      # build runs with a stub client, and the user is stuck on a green
+      # splash forever (see ios-release.yml for the full failure mode).
+      # The PR gate now catches a regression in env-injection too.
+      - env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
 
   lint:
     name: Lint

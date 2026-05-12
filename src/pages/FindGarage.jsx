@@ -18,6 +18,8 @@ import {
   Settings,
   LocateFixed,
   ShieldCheck,
+  Maximize2,
+  X as XIcon,
 } from 'lucide-react';
 
 import MapCore from '@/components/map/MapCore';
@@ -212,6 +214,11 @@ export default function FindGarage() {
   const [searchingCity, setSearchingCity] = useState(false);
   const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'name'
   const [filterType, setFilterType] = useState('all');
+  // Fullscreen map state — when true the map container is rendered
+  // as `fixed inset-0` over the whole viewport so the user can pan/
+  // explore without the surrounding chrome. A close button restores
+  // the embedded view. Doesn't affect data, just layout.
+  const [mapFullscreen, setMapFullscreen] = useState(false);
   const [nameQuery, setNameQuery] = useState('');
   const [hasVessel, setHasVessel] = useState(false);
   const mapRef = useRef(null);
@@ -607,8 +614,19 @@ export default function FindGarage() {
 
   // Error screen removed. we always fallback to Tel Aviv, so main view always shows
 
-  // Map zoom derived from radius — wider search = more zoomed out.
-  const mapZoom = searchRadius <= 2000 ? 15 : searchRadius <= 5000 ? 14 : 12;
+  // Map zoom derived from radius. Continuous formula instead of the
+  // 3-step ladder (which left the circle either cropped or tiny for
+  // most radius values). Each doubling of radius lowers zoom by 1 —
+  // 17 - log2(radius/250) clamped to [10, 16].
+  //
+  //   1 km   → zoom 15  (circle fills ~half the viewport)
+  //   2.5 km → zoom 14
+  //   5 km   → zoom 13  (default)
+  //  10 km   → zoom 12
+  //  25 km   → zoom 10  (circle fits comfortably, neighbouring areas visible)
+  const mapZoom = Math.max(10, Math.min(16,
+    Math.round(17 - Math.log2(Math.max(searchRadius, 250) / 250))
+  ));
 
   // Marker objects fed to MapCore. Each carries the original garage row
   // attached as `garage` so renderTooltip / renderPopup can read it directly.
@@ -869,8 +887,12 @@ export default function FindGarage() {
         </div>
       </div>
 
-      {/* Map */}
-      <div className="px-3">
+      {/* Map. Wrapper switches between embedded (35vh inline) and
+          fullscreen (fixed inset-0) based on mapFullscreen state.
+          When fullscreen the map covers the whole viewport with a
+          close button overlay; the surrounding chrome (header, list,
+          bottom nav) is hidden behind it via z-index. */}
+      <div className={mapFullscreen ? 'fixed inset-0 z-[60] bg-white' : 'px-3'}>
         <MapCore
           markers={mapMarkers}
           center={userLocation ? [userLocation.lat, userLocation.lng] : null}
@@ -881,11 +903,19 @@ export default function FindGarage() {
           circleColor={C.primary}
           circleRadius={searchRadius}
           mapRef={mapRef}
-          onMarkerClick={(m) => { setSelectedGarage(m.id); scrollToCard(m.id); }}
+          // Tapping a marker now opens the on-map popup (handled by
+          // MapCore's renderPopup) and highlights the matching list
+          // card via setSelectedGarage. The previous scrollToCard call
+          // forced an immediate page-scroll to the card list, which
+          // hid the map and made the popup invisible — user reported
+          // "it goes straight to the table, should stay on map". The
+          // user can still tap "view in list" or scroll down manually
+          // when they want the full card.
+          onMarkerClick={(m) => { setSelectedGarage(m.id); }}
           tooltipClassName="garage-tooltip"
-          mapHeight="35vh"
-          mapMinHeight="200px"
-          mapMaxHeight="350px"
+          mapHeight={mapFullscreen ? '100vh' : '35vh'}
+          mapMinHeight={mapFullscreen ? '100vh' : '200px'}
+          mapMaxHeight={mapFullscreen ? '100vh' : '350px'}
           renderTooltip={(m) => {
             const g = m.garage;
             const tc = ALL_TYPE_CONFIG[g.typeKey] || TYPE_CONFIG.garage;
@@ -932,6 +962,28 @@ export default function FindGarage() {
               <LocateFixed className="w-5 h-5" />
             </button>
           )}
+
+          {/* Fullscreen toggle. Embedded view shows the maximize icon
+              (bottom-right corner); fullscreen view shows the X close
+              icon (top-right corner, where users expect a "close
+              modal" action in RTL apps). Single button source-of-
+              truth so the toggle stays in one logical place. */}
+          <button
+            onClick={() => setMapFullscreen(v => !v)}
+            aria-label={mapFullscreen ? 'סגור מסך מלא' : 'מסך מלא'}
+            title={mapFullscreen ? 'סגור מסך מלא' : 'מסך מלא'}
+            className={`absolute w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 ${
+              mapFullscreen ? 'top-3 right-3' : 'bottom-3 right-3'
+            }`}
+            style={{
+              background: '#fff',
+              border: `1.5px solid ${C.border}`,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              zIndex: 400,
+              color: C.primary,
+            }}>
+            {mapFullscreen ? <XIcon className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+          </button>
         </MapCore>
       </div>
 

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '../components/shared/GuestContext';
 import { aiRequest } from '@/lib/aiProxy';
@@ -15,9 +14,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { toast } from 'sonner';
 import AiProviderBadge from '@/components/shared/AiProviderBadge';
 import useAccountRole from '@/hooks/useAccountRole';
+import useMyVehicles from '@/hooks/useMyVehicles';
 
 const STORAGE_KEY_PREFIX = 'yossi_chat_';
-const CHAT_EXPIRY_DAYS = 30;
+// Chat history retention. After this many days the saved messages
+// are dropped on next load. Short window (3 days) matches the
+// product decision — users come back asking different questions
+// and a long backlog clutters the screen. Per-message timestamp
+// (date + time) is shown next to each bubble so the user always
+// knows when a question/answer happened, even on the last day
+// before it expires.
+const CHAT_EXPIRY_DAYS = 3;
 const getStorageKey = (userId) => `${STORAGE_KEY_PREFIX}${userId || 'guest'}`;
 const MIN_LEN = 2;
 const MAX_LEN = 800;
@@ -106,20 +113,48 @@ function timeFmt(ts) {
   if (!ts) return '';
   try {
     const d = new Date(ts);
-    return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const time = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    // Same-day messages show time only (it's obvious it's today).
+    // Cross-day messages prepend the date so the user can tell at a
+    // glance whether the answer is fresh or from yesterday — useful
+    // because chat history is now retained only 3 days.
+    if (sameDay) return time;
+    const date = d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
+    return `${date} · ${time}`;
   } catch { return ''; }
 }
 
 export default function AiAssistant() {
   const { user, isAuthenticated } = useAuth();
   const { accountId: activeAccountId } = useAccountRole();
+  // Vehicles list comes from the shared useMyVehicles hook. Same
+  // queryKey ['vehicles', accountId] as the rest of the app, so this
+  // screen now hits the in-memory cache (and localStorage seed) the
+  // moment the user opens it — no more empty-list flash before the
+  // first network response. `hasVessel` is derived directly from the
+  // returned list, so a single source of truth feeds both lookups.
+  const { vehicles } = useMyVehicles();
+  const hasVessel = vehicles.some(v => isVessel(v.vehicle_type, v.nickname));
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [vehicles, setVehicles] = useState([]);
-  const [hasVessel, setHasVessel] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Auto-select the vehicle when the user owns exactly one — there's
+  // no choice to make, so forcing a manual pick before each question
+  // is friction. Two or more vehicles → leave as null so the user
+  // explicitly picks the one being asked about (or stays on "general"
+  // question). Zero vehicles → stay null, the chat answers
+  // general-knowledge questions only. Effect re-runs whenever the
+  // vehicles list changes (e.g. the user adds a second vehicle and
+  // we should stop auto-selecting).
+  useEffect(() => {
+    if (vehicles.length === 1 && !selectedVehicleId) {
+      setSelectedVehicleId(vehicles[0].id);
+    }
+  }, [vehicles, selectedVehicleId]);
   const [maintenanceLogs, setMaintenanceLogs] = useState([]); // logs for selected vehicle
   const [error, setError] = useState(null);
   const lastSendRef = useRef(0);
@@ -158,18 +193,10 @@ export default function AiAssistant() {
     } catch {}
   }, [messages, user?.id]);
 
-  // Phase 3: vehicles for the active workspace.
-  useEffect(() => {
-    if (!isAuthenticated || !user) return;
-    if (!activeAccountId) { setVehicles([]); setHasVessel(false); return; }
-    (async () => {
-      try {
-        const vs = await db.vehicles.filter({ account_id: activeAccountId });
-        setVehicles(vs || []);
-        setHasVessel((vs || []).some(v => isVessel(v.vehicle_type, v.nickname)));
-      } catch {}
-    })();
-  }, [isAuthenticated, user, activeAccountId]);
+  // Vehicles fetch lived here as a useState + useEffect that re-issued
+  // db.vehicles.filter on every mount. Replaced by useMyVehicles() at
+  // the top of the component — same source-of-truth across all screens,
+  // shared cache, instant first paint from localStorage.
 
   // Load maintenance logs for selected vehicle
   useEffect(() => {
@@ -205,6 +232,21 @@ export default function AiAssistant() {
     const el = messagesEndRef.current;
     if (!el) return;
     try { el.scrollIntoView({ behavior, block: 'end' }); } catch { /* old browsers */ }
+    // scrollIntoView targets the nearest scroll ancestor — which here
+    // is the messages container with overflow-y-auto. Once the
+    // conversation grows past the viewport (3-4 long replies), the
+    // WINDOW also needs to scroll to keep the latest message visible
+    // above the fixed input. iOS WKWebView doesn't cascade
+    // scrollIntoView from the inner container up to the window, so
+    // the new reply stayed off-screen while the user saw the
+    // previous one — exactly the "stays at the top" symptom on
+    // TestFlight. Scroll the window explicitly as a follow-up.
+    try {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior,
+      });
+    } catch { /* old browsers */ }
   }, []);
 
   useEffect(() => {
@@ -388,25 +430,54 @@ export default function AiAssistant() {
         ? 'כשהבעלים מתאר תקלה במספנה'
         : 'כשאתה שואל לקוח שנכנס למוסך';
 
+      // System prompt structure (Wave 4 #5):
+      //   1. Identity + domain expertise.
+      //   2. Two response modes — diagnostic flow vs general info.
+      //   3. Explicit data-utilization rules so the model actually
+      //      uses the vehicle row and maintenance history attached
+      //      below instead of giving generic answers.
+      //   4. Output template — diagnosis / cause / urgency / cost /
+      //      next step. Helps the model give consistently structured
+      //      replies the user can scan.
+      //   5. Confidence calibration — explicit "say if you're not
+      //      sure" rule so the model stops inventing facts.
+      //   6. Style rules — Hebrew only, warm-professional tone.
       const systemPrompt = `אתה ${expert.fullName}, ${expert.role}. ${expertise}.
 
-## ${workStyleLabel}:
-כשמגיעה שאלה על **בעיה, תסמין, תקלה, רעש, נורית אזהרה, דלף, ריח, רעידה**, אל תענה מיד. תחילה שאל **2-3 שאלות ממוקדות** שיעזרו לך לאבחן בדיוק, כמו ${workStyleScene}. לאחר שתקבל תשובות, תן אבחון מפורט ומדויק.
+## שני מצבי תשובה:
+
+### א. שאלת אבחון (בעיה, תסמין, תקלה, רעש, נורית, דלף, ריח, רעידה)
+אל תענה מיד. שאל **2-4 שאלות ממוקדות** שמכוונות לאבחון בפועל, כמו ${workStyleScene}.
 
 ${isVesselExpert ? vesselExamples : carExamples}
 
-לשאלות **כלליות/אינפורמטיביות** (מחיר, תדירות, מידע כללי, "מתי להחליף X"), ענה ישירות ללא שאלות הכנה.
+אחרי שקיבלת תשובות, תן אבחון בפורמט:
+1. **תסמינים תואמים** — שורה אחת. מה זיהית מהמידע.
+2. **סיבה סבירה** — שורה-שתיים. הסיבה הטכנית בשם המקצועי (לא רק "תקלה במנוע", אלא "סבירות גבוהה לבעיה במסנן דלק") + ציון רמת הביטחון (גבוהה / בינונית / נדרשת בדיקה).
+3. **דחיפות** — דחוף בטיחותית / לטפל בשבועיים / לא דחוף.
+4. **הערכת עלות** — טווח שקלים ישראלי ריאלי, אם רלוונטי (חלפים + עבודה בנפרד כשהמידע ידוע).
+5. **הצעד הבא** — מה לעשות כעת. בדיקה? נסיעה למוסך? להמתין?
 
-## כללי תשובה:
-- ענה בעברית בלבד, בטון ידידותי וברור
-- ${selectedVehicle ? `התשובה צריכה להתייחס *ספציפית* ל${itemWordRef}` : `השאלה כללית - ענה תשובה כללית בלי להתייחס ל${itemWord} מסוים`}
-${selectedVehicle ? `- חשוב: היסטוריית הטיפולים מצורפת. **אל תמליץ** על טיפולים שכבר בוצעו לאחרונה (פחות מ-6 חודשים)` : ''}
-${selectedVehicle ? `- התייחס ל${usageMetric} - האם ${itemWord} ב${usageMetric} נמוך/בינוני/גבוה` : ''}
-- ציין טווח מחירים ישראלי ריאלי לתיקון בשקלים (₪)
-- הבדל בין דחוף (בטיחותי) לבין משהו שיכול לחכות
-- אל תמציא עובדות - אם אינך בטוח, אמור "${fallbackPlace}"
-- בסוף כל תשובה רגישה (אבחון/המלצת תיקון/הערכת מחיר) הוסף שורה: "${finalDisclaimer}"
-- כשאתה שואל שאלות הכנה: אורך 2-4 שאלות קצרות בלבד. כשאתה עונה לאחר קבלת המידע: 2-5 משפטים, ברורה ופרקטית${vehicleContext}`;
+### ב. שאלה כללית/אינפורמטיבית (מחיר, תדירות, "מתי להחליף X")
+ענה ישירות, ללא שאלות הכנה, 3-6 שורות.
+
+## שימוש בנתונים — חובה:
+${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים למטה (יצרן, דגם, שנה, ${usageMetric}, היסטוריית טיפולים). **חובה** להזכיר לפחות אחד מהם בתשובה ולקשר אותו לאבחון.
+- אם ${usageMetric} גבוה ל${itemWord} (מעל הממוצע), צייני זאת ועל מה זה משפיע.
+- אם יש טיפולים ב-6 החודשים האחרונים, **אל תמליצי שוב** עליהם. במקום זה, התייחסי אליהם ("הוחלף שמן לפני 3 חודשים, אז אם הרעש חזר זה לא קשור").
+- אם הרכב ישן (10+ שנים) או עם ${usageMetric} גבוה, התייחסי לעלויות יחסית לערך הרכב.` : `- השאלה כללית, ללא ${itemWord} מצורף. תני תשובה כללית בלי להמציא נתונים ספציפיים.`}
+
+## דיוק ואמינות:
+- אל תמציאי עובדות. אם אינך בטוח/ה — אמרי במפורש "${fallbackPlace}" או "צריך בדיקה במקום".
+- ציוני שמות חלפים/מערכות בשמם המקצועי (אלטרנטור, מסנן אוויר, מצמד) ולא בלשון עממית בלבד.
+- במחירים — תני טווח אמיתי לישראל. אם זה דגם נדיר ואינך יודע/ת, צייני זאת.
+- בסוף תשובה רגישה (אבחון/המלצת תיקון/הערכת מחיר) — שורה ברורה: "${finalDisclaimer}"
+
+## סגנון:
+- עברית בלבד. לא מעורבת. כתיב נכון.
+- טון של מקצוען חם — לא רובוטי, לא יומרני. כמו ${workStyleScene}.
+- שאלות הכנה: קצרות, 2-4 שאלות, לא שגרת חקירה.
+- תשובה לאחר מידע: ממוקדת, ניתנת לסריקה (כותרות/בולטים כשמתאים), בלי "הקדמות".${vehicleContext}`;
 
       // Conversation history (last 6 messages, excluding errors/retries)
       const recentMessages = [...messages.filter(m => !m.error).slice(-6), userMsg].map(m => ({

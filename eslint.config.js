@@ -20,6 +20,12 @@ export default [
       ".vercel/**",
       ".vite/**",
       "supabase/.temp/**",
+      // Claude Code agent worktrees — each agent run creates a
+      // shadow checkout under .claude/worktrees/<name>/. Their src/
+      // is a snapshot of an OTHER branch's code and isn't ours to
+      // fix; linting them blocks pushes from the main worktree on
+      // unrelated upstream errors.
+      ".claude/worktrees/**",
     ],
   },
   {

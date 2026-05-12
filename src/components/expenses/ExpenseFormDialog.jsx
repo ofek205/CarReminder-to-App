@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/date-input';
 import { toast } from 'sonner';
-import { Loader2, Upload, Trash2, ScanLine, Camera, Receipt } from 'lucide-react';
+import { Loader2, Upload, Trash2, Camera, Receipt } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 import {
   MANUAL_EXPENSE_CATEGORIES,
@@ -89,7 +89,13 @@ export default function ExpenseFormDialog({
   const [uploading,  setUploading]  = useState(false);
   const [scanning,   setScanning]   = useState(false);
   const [scanError,  setScanError]  = useState('');
+  // Two separate file inputs so the "בחר קובץ" button opens the
+  // system file picker (gallery + files), and the camera-icon button
+  // opens the camera directly. Sharing a single input with
+  // capture="environment" forced the camera open even for the upload
+  // button — reported as "I click upload and the camera opens".
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   // Confirm dialogs (replacing native confirm()):
   //   - confirmDelete:    user pressed delete on an existing expense
@@ -496,6 +502,11 @@ export default function ExpenseFormDialog({
             </div>
             {receiptUrl ? (
               <div className="flex items-center gap-2">
+                {/* AI-scan button removed at product request — the
+                    receipt extraction was unreliable enough that the
+                    user preferred to type the amount manually. The
+                    "צפה" and "trash" actions remain so uploaded
+                    receipts are still viewable and removable. */}
                 <button
                   type="button"
                   onClick={openReceipt}
@@ -503,16 +514,6 @@ export default function ExpenseFormDialog({
                   style={{ borderColor: C.border, color: C.primary }}
                 >
                   צפה בחשבונית
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runAiScan()}
-                  disabled={scanning}
-                  className="h-9 px-3 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors disabled:opacity-60"
-                  style={{ background: C.primary, color: '#fff' }}
-                >
-                  {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ScanLine className="w-3.5 h-3.5" />}
-                  סרוק
                 </button>
                 <button
                   type="button"
@@ -537,7 +538,7 @@ export default function ExpenseFormDialog({
                 </button>
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => cameraInputRef.current?.click()}
                   disabled={uploading}
                   className="h-10 px-3 rounded-lg flex items-center justify-center"
                   style={{ background: '#fff', color: C.primary, border: `1px solid ${C.border}` }}
@@ -550,10 +551,23 @@ export default function ExpenseFormDialog({
             {scanError && (
               <p className="text-[11px] text-red-600">{scanError}</p>
             )}
+            {/* fileInputRef — no `capture` attribute → opens the
+                system file picker (gallery + files + camera as an
+                option). Used by the "בחר קובץ" button. */}
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*,application/pdf"
+              onChange={handleFile}
+              className="hidden"
+            />
+            {/* cameraInputRef — `capture="environment"` opens the
+                rear-camera viewfinder directly. Used by the camera-
+                icon button only. */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
               capture="environment"
               onChange={handleFile}
               className="hidden"

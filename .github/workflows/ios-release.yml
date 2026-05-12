@@ -149,6 +149,20 @@ jobs:
         run: npm ci
 
       - name: Build web bundle
+        # Vite resolves `import.meta.env.VITE_*` at build time. Without this
+        # env block, every VITE_* reference is baked into the bundle as
+        # `undefined`. On a real iOS device that means:
+        #   - `createClient(undefined, undefined)` falls back to makeStubClient
+        #   - the app boots into a stub client that can never authenticate
+        #   - the watchdogs in main.jsx try to render an error UI behind the
+        #     native splash, but the splash hide path runs through the same
+        #     supabase-tainted module graph and the user sees a green spinner
+        #     forever.
+        # The simulator hides this because `npm run dev` loads .env locally,
+        # so simulator and TestFlight diverge precisely on this env injection.
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
       - name: Sync Capacitor → iOS
@@ -167,6 +181,22 @@ jobs:
         # CocoaPods is the only working integration on this stack.
         working-directory: ios/App
         run: pod install --repo-update
+
+      - name: Verify build state (safe diagnostics, no secrets)
+        # Prints node/npm/Xcode/SDK versions, branch/commit, package version,
+        # iOS marketing/build/bundle, dist & embedded-bundle existence and
+        # freshness, and Pods state. Required env vars are checked for
+        # PRESENCE only — values are never printed. Fails the run if any
+        # required gate is missing, so the archive step never builds a
+        # bundle that's silently broken (the root cause of the iOS 3.0.0
+        # TestFlight stuck-on-launch issue: a build can technically succeed
+        # while embedding a stale or empty web bundle).
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          chmod +x ./scripts/ios-verify-build.sh
+          ./scripts/ios-verify-build.sh
 
       - name: Set unique build number (per CI run)
         working-directory: ios/App

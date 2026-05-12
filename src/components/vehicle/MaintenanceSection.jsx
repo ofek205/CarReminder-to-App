@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
 import { Wrench, Plus, Trash2, AlertTriangle, Settings, Camera, Image, X, Sparkles, Loader2, Edit } from 'lucide-react';
@@ -15,6 +15,9 @@ import { Button } from '@/components/ui/button';
 import { formatDateHe } from '../shared/DateStatusUtils';
 import { compressImage } from '@/lib/imageCompress';
 import { notifyVehicleChange } from '@/lib/notifyVehicleChange';
+import { getRecommendedInterval, computeNextReminder, reminderFireDate } from '@/lib/maintenanceRecommendations';
+import { scheduleLocalNotification } from '@/lib/notificationChannels';
+import { db } from '@/lib/supabaseEntities';
 
 export default function MaintenanceSection({ vehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
@@ -44,6 +47,13 @@ export default function MaintenanceSection({ vehicle }) {
     }
   };
   const [form, setForm] = useState({ title: '', date: '', cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
+  // Next-service reminder state. Optional, off by default. When the
+  // user toggles it on we show a recommendation card based on the
+  // vehicle's category + service size, plus a manual mode switcher.
+  const [reminderEnabled,    setReminderEnabled]    = useState(false);
+  const [reminderMode,       setReminderMode]       = useState('time'); // 'time' | 'km'
+  const [reminderMonths,     setReminderMonths]     = useState('');
+  const [reminderKm,         setReminderKm]         = useState('');
 
   // Fetch logs from Supabase (or empty for guest)
   const { data: logs = [] } = useQuery({
@@ -110,14 +120,55 @@ export default function MaintenanceSection({ vehicle }) {
     reader.readAsDataURL(compressed);
   };
 
-  const openDialog = (type) => {
+  const openDialog = (type, opts = {}) => {
     setEditingId(null);
     setDialogType(type);
-    setForm({ title: '', date: new Date().toISOString().split('T')[0], cost: '', notes: '', km_at_service: '', garage_name: '', performed_by: '' });
-    setServiceSize(vesselMode ? 'engine' : 'small');
+    setForm({
+      title: opts.title || '',
+      date: new Date().toISOString().split('T')[0],
+      cost: '', notes: '',
+      km_at_service: '', garage_name: '', performed_by: '',
+    });
+    // If the caller asked for a specific service size (e.g. from a
+    // reminder deep-link that knows the original log was "טיפול גדול"),
+    // honour it. Otherwise fall back to the vessel/road default.
+    if (opts.serviceSize) setServiceSize(opts.serviceSize);
+    else setServiceSize(vesselMode ? 'engine' : 'small');
     setReceiptPhoto(null);
+    // Reset the optional "next reminder" block every time we open
+    // for a fresh entry. The block only renders for type='טיפול'.
+    setReminderEnabled(false);
+    setReminderMode('time');
+    setReminderMonths('');
+    setReminderKm('');
     setDialogOpen(true);
   };
+
+  // Deep-link integration: when the reminder LocalNotification fires
+  // and the user taps it, the tap handler in notificationService.js
+  // routes to /VehicleDetail?id=…&openMaintenance=1&prefillType=טיפול
+  // קטן. Detect those URL params, pre-open the dialog with the
+  // matching service size, and clean the URL so reloading the page
+  // doesn't re-open the dialog every time.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('openMaintenance') !== '1') return;
+    const prefillType = params.get('prefillType') || '';
+    let size = vesselMode ? 'engine' : 'small';
+    if (prefillType.includes('גדול')) size = 'big';
+    else if (prefillType.includes('מנוע')) size = 'engine';
+    else if (prefillType.includes('גוף')) size = 'hull';
+    else if (prefillType.includes('קטן')) size = 'small';
+    openDialog('טיפול', { serviceSize: size });
+    // Strip the deep-link params so a refresh doesn't re-trigger.
+    params.delete('openMaintenance');
+    params.delete('prefillType');
+    const qs = params.toString();
+    const newUrl = window.location.pathname + (qs ? `?${qs}` : '');
+    window.history.replaceState({}, '', newUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openEditDialog = (log) => {
     setEditingId(log.id);
@@ -137,6 +188,22 @@ export default function MaintenanceSection({ vehicle }) {
     else if (log.type === 'טיפול גוף') setServiceSize('hull');
     else setServiceSize(vesselMode ? 'engine' : 'small');
     setReceiptPhoto(log.receipt_photo || null);
+    // Rehydrate the next-service reminder state from the row so the
+    // user sees their existing setting when re-opening for edit. We
+    // can't recover the original interval input (DB only stores the
+    // absolute target), but the toggle/mode reflects what was saved
+    // and the user can re-pick the recommendation or enter new values.
+    if (log.next_reminder_kind) {
+      setReminderEnabled(true);
+      setReminderMode(log.next_reminder_kind);
+      setReminderMonths('');
+      setReminderKm('');
+    } else {
+      setReminderEnabled(false);
+      setReminderMode('time');
+      setReminderMonths('');
+      setReminderKm('');
+    }
     setDialogOpen(true);
   };
 
@@ -159,12 +226,86 @@ export default function MaintenanceSection({ vehicle }) {
       if (form.garage_name?.trim()) { row.garage_name = form.garage_name.trim(); saveGarage(row.garage_name); }
       if (form.performed_by?.trim()) row.performed_by = form.performed_by.trim();
       if (receiptPhoto) row.receipt_photo = receiptPhoto;
+
+      // Next-service reminder. Only for maintenance entries (not
+      // repairs) and only when the user opted in via the toggle.
+      // computeNextReminder folds the chosen interval into the three
+      // DB columns (next_reminder_kind/at/km). Time-based and km-
+      // based reminders both produce a next_reminder_at so the
+      // LocalNotification scheduler below has a calendar tick.
+      let reminderFields = null;
+      if (dialogType === 'טיפול' && reminderEnabled) {
+        reminderFields = computeNextReminder({
+          vehicle,
+          serviceSize,
+          currentServiceDate: form.date,
+          currentServiceKm: form.km_at_service,
+          mode: reminderMode,
+          intervalMonths: reminderMonths,
+          intervalKm: reminderKm,
+          lastSameTypeLog: null, // baseline = current entry's km/date
+        });
+        if (reminderFields) {
+          row.next_reminder_kind = reminderFields.next_reminder_kind;
+          row.next_reminder_at   = reminderFields.next_reminder_at;
+          row.next_reminder_km   = reminderFields.next_reminder_km;
+        }
+      } else if (editingId) {
+        // Clearing the toggle on an edit explicitly nulls the columns
+        // so a previously-scheduled reminder stops being shown.
+        row.next_reminder_kind = null;
+        row.next_reminder_at   = null;
+        row.next_reminder_km   = null;
+      }
+
+      let savedRowId = editingId;
       if (editingId) {
         await supabase.from('maintenance_logs').update(row).eq('id', editingId);
       } else {
-        await supabase.from('maintenance_logs').insert(row);
+        const { data: inserted } = await supabase.from('maintenance_logs').insert(row).select('id').single();
+        savedRowId = inserted?.id || null;
       }
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
+
+      // Fire-and-forget: schedule the local OS notification + log a
+      // bell entry so the user sees a "reminder added" trail in-app.
+      // Both wrapped in try/catch — a failed schedule shouldn't kill
+      // the save toast or invalidation above.
+      if (reminderFields?.next_reminder_at && savedRowId) {
+        try {
+          const fireAt = reminderFireDate(reminderFields.next_reminder_at);
+          if (fireAt) {
+            const titleText = `תזכורת: ${row.type} ל${vehicle.nickname || vehicle.manufacturer || 'הרכב'}`;
+            const bodyText  = reminderFields.next_reminder_kind === 'km'
+              ? `מתקרב מועד טיפול — צפוי בקמ' ${Number(reminderFields.next_reminder_km).toLocaleString('he-IL')}`
+              : 'מתקרב מועד טיפול — מומלץ לתאם מוסך בשבועיים הקרובים';
+            await scheduleLocalNotification({
+              id: `maint-next-${savedRowId}`,
+              title: titleText,
+              body:  bodyText,
+              scheduleAt: fireAt,
+              extra: {
+                kind: 'maintenance_next',
+                vehicleId: vehicle.id,
+                logId: savedRowId,
+                serviceType: row.type,
+              },
+            });
+          }
+        } catch (err) { console.warn('schedule next-service notification failed:', err); }
+
+        try {
+          await db.notification_log.create({
+            vehicle_id: vehicle.id,
+            type: 'maintenance_reminder_scheduled',
+            title: `תזכורת לטיפול הבא נקבעה`,
+            body: reminderFields.next_reminder_kind === 'km'
+              ? `נזכיר לפני שתגיע ל-${Number(reminderFields.next_reminder_km).toLocaleString('he-IL')} ק"מ`
+              : `נזכיר שבועיים לפני ${new Date(reminderFields.next_reminder_at).toLocaleDateString('he-IL')}`,
+            read: false,
+          });
+        } catch (err) { console.warn('notification_log insert failed:', err); }
+      }
       // Notify other shared parties. Server-side no-op when the vehicle
       // isn't shared, so we skip a round-trip and let the RPC decide.
       const action = editingId ? `${dialogType}_updated` : `${dialogType}_added`;
@@ -499,6 +640,106 @@ export default function MaintenanceSection({ vehicle }) {
                 </div>
               )}
             </div>
+
+            {/* Next-service reminder block. Only for maintenance
+                entries (not repairs); each entry can opt-in to a
+                follow-up reminder. The recommended interval comes
+                from getRecommendedInterval(vehicle, serviceSize); the
+                user can accept it, edit either value, or switch
+                between time and km modes. Defaults: time mode, with
+                the recommended months pre-filled the first time the
+                user opens the block. */}
+            {dialogType === 'טיפול' && (() => {
+              const rec = getRecommendedInterval(vehicle, serviceSize);
+              return (
+                <div className="rounded-2xl border p-3 space-y-2" style={{ borderColor: T.border, background: '#FAFBFA' }}>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reminderEnabled}
+                      onChange={(e) => {
+                        const v = e.target.checked;
+                        setReminderEnabled(v);
+                        // Pre-fill recommended values on first toggle on,
+                        // so the user can hit Save immediately without
+                        // typing anything.
+                        if (v && rec) {
+                          if (rec.months && !reminderMonths) setReminderMonths(String(rec.months));
+                          if (rec.km     && !reminderKm)     setReminderKm(String(rec.km));
+                        }
+                      }}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm font-bold" style={{ color: T.text }}>תזכורת לטיפול הבא (אופציונלי)</span>
+                  </label>
+
+                  {reminderEnabled && (
+                    <div className="space-y-2 pt-1">
+                      {rec && (
+                        <div className="rounded-xl p-2.5 text-xs" style={{ background: T.light, color: T.primary }}>
+                          📋 המלצה ל{rec.label || 'רכב הזה'}:
+                          {rec.km     && <> כל <b>{rec.km.toLocaleString('he-IL')}</b> ק"מ</>}
+                          {rec.hours  && <> כל <b>{rec.hours.toLocaleString('he-IL')}</b> שעות</>}
+                          {rec.months && <> או <b>{rec.months}</b> חודשים</>}
+                          <button type="button"
+                            onClick={() => {
+                              if (rec.months) setReminderMonths(String(rec.months));
+                              if (rec.km)     setReminderKm(String(rec.km));
+                            }}
+                            className="mr-2 underline font-bold">
+                            השתמש בהמלצה
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Mode picker */}
+                      <div className="flex gap-1.5">
+                        <button type="button"
+                          onClick={() => setReminderMode('time')}
+                          className="flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all"
+                          style={reminderMode === 'time'
+                            ? { background: T.primary, color: '#fff', borderColor: T.primary }
+                            : { background: '#fff', color: T.muted, borderColor: T.border }}>
+                          לפי זמן
+                        </button>
+                        <button type="button"
+                          onClick={() => setReminderMode('km')}
+                          className="flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all"
+                          style={reminderMode === 'km'
+                            ? { background: T.primary, color: '#fff', borderColor: T.primary }
+                            : { background: '#fff', color: T.muted, borderColor: T.border }}>
+                          {vesselMode ? 'לפי שעות' : 'לפי ק"מ'}
+                        </button>
+                      </div>
+
+                      {reminderMode === 'time' && (
+                        <div>
+                          <Label className="text-xs">בעוד כמה חודשים</Label>
+                          <Input type="number" inputMode="numeric" min="1" max="60"
+                            value={reminderMonths}
+                            onChange={(e) => setReminderMonths(e.target.value)}
+                            placeholder="12" dir="ltr" />
+                        </div>
+                      )}
+
+                      {reminderMode === 'km' && (
+                        <div>
+                          <Label className="text-xs">בעוד כמה {vesselMode ? 'שעות' : 'ק"מ'}</Label>
+                          <Input type="number" inputMode="numeric" min="100"
+                            value={reminderKm}
+                            onChange={(e) => setReminderKm(e.target.value)}
+                            placeholder={vesselMode ? '100' : '15000'} dir="ltr" />
+                        </div>
+                      )}
+
+                      <p className="text-[10px]" style={{ color: T.muted }}>
+                        נזכיר שבועיים לפני המועד הצפוי, גם בפעמון וגם בהתראה למכשיר.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <Button onClick={handleSave} disabled={saving} className="w-full h-11 rounded-2xl font-bold"
               style={{ background: dialogType === 'תיקון' ? '#DC2626' : T.primary, color: '#fff' }}>

@@ -1,7 +1,7 @@
 {
   "name": "car-reminders",
   "private": true,
-  "version": "3.0.0",
+  "version": "4.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,11 @@
     "cap:open": "npx cap open android",
     "cap:run": "npx cap run android",
     "build:android": "vite build && npx cap sync android",
+    "build:ios": "vite build && npx cap sync ios",
     "build:icons": "npx @capacitor/assets generate --android",
+    "ios:verify": "bash ./scripts/ios-verify-build.sh",
+    "ios:sim": "bash ./scripts/ios-release-simulator.sh",
+    "test:startup": "node ./scripts/test-startup-logic.cjs",
     "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "dependencies": {

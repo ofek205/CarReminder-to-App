@@ -1,0 +1,96 @@
+name: Android Build
+
+# Builds an Android APK on a GitHub-hosted Ubuntu runner and uploads
+# it as a workflow artifact. Designed for self-distribution of test
+# builds — the user downloads the APK from the Actions run page and
+# side-loads it onto their device.
+#
+# Scope is intentionally debug-signed for now: no keystore secrets are
+# required, no Play Store configuration. To install over an existing
+# Play Store version of the app, the device must first uninstall the
+# Play version (signatures differ). For Play Store distribution add a
+# separate release-signed workflow later (keystore + service account).
+#
+# Trigger: manually from the Actions tab.
+#
+# Secrets required (already configured for the iOS workflow):
+#   VITE_SUPABASE_URL       — baked into the web bundle at build time
+#   VITE_SUPABASE_ANON_KEY  — baked into the web bundle at build time
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup JDK 17
+        # Android Gradle Plugin 8.x (used by Capacitor 8 with
+        # compileSdk 36) requires JDK 17. The temurin distribution
+        # is the standard choice on GitHub-hosted runners.
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        # Vite resolves `import.meta.env.VITE_*` at build time. Without
+        # this env block the bundle would be baked with `undefined`
+        # values and Supabase would fail to initialise inside the APK —
+        # same failure mode that hit the iOS build (commit 5a95873).
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+      - name: Sync Capacitor → Android
+        run: npx cap sync android
+
+      - name: Verify web bundle was synced
+        # cap sync silently no-ops if dist/ is missing or the Android
+        # assets dir is misconfigured. Fail loudly here rather than
+        # shipping an APK with a stale or empty bundle.
+        run: |
+          test -f android/app/src/main/assets/public/index.html \
+            || (echo "ERROR: android/app/src/main/assets/public/index.html missing — cap sync did not copy the web bundle."; exit 1)
+          echo "Web bundle present: $(ls -la android/app/src/main/assets/public/index.html)"
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Locate APK
+        id: locate_apk
+        run: |
+          APK_PATH=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: no APK produced under android/app/build/outputs/apk/debug/"
+            exit 1
+          fi
+          APK_NAME=$(basename "$APK_PATH")
+          echo "Found $APK_PATH"
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK as artifact
+        # Default retention is 90 days. Devs grab the APK from the run's
+        # "Artifacts" panel at the bottom of the workflow run page.
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.locate_apk.outputs.apk_name }}
+          path: ${{ steps.locate_apk.outputs.apk_path }}
+          retention-days: 90
