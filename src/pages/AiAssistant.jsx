@@ -17,7 +17,14 @@ import useAccountRole from '@/hooks/useAccountRole';
 import useMyVehicles from '@/hooks/useMyVehicles';
 
 const STORAGE_KEY_PREFIX = 'yossi_chat_';
-const CHAT_EXPIRY_DAYS = 30;
+// Chat history retention. After this many days the saved messages
+// are dropped on next load. Short window (3 days) matches the
+// product decision — users come back asking different questions
+// and a long backlog clutters the screen. Per-message timestamp
+// (date + time) is shown next to each bubble so the user always
+// knows when a question/answer happened, even on the last day
+// before it expires.
+const CHAT_EXPIRY_DAYS = 3;
 const getStorageKey = (userId) => `${STORAGE_KEY_PREFIX}${userId || 'guest'}`;
 const MIN_LEN = 2;
 const MAX_LEN = 800;
@@ -106,7 +113,16 @@ function timeFmt(ts) {
   if (!ts) return '';
   try {
     const d = new Date(ts);
-    return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const time = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    // Same-day messages show time only (it's obvious it's today).
+    // Cross-day messages prepend the date so the user can tell at a
+    // glance whether the answer is fresh or from yesterday — useful
+    // because chat history is now retained only 3 days.
+    if (sameDay) return time;
+    const date = d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
+    return `${date} · ${time}`;
   } catch { return ''; }
 }
 
@@ -126,6 +142,19 @@ export default function AiAssistant() {
   const [sending, setSending] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Auto-select the vehicle when the user owns exactly one — there's
+  // no choice to make, so forcing a manual pick before each question
+  // is friction. Two or more vehicles → leave as null so the user
+  // explicitly picks the one being asked about (or stays on "general"
+  // question). Zero vehicles → stay null, the chat answers
+  // general-knowledge questions only. Effect re-runs whenever the
+  // vehicles list changes (e.g. the user adds a second vehicle and
+  // we should stop auto-selecting).
+  useEffect(() => {
+    if (vehicles.length === 1 && !selectedVehicleId) {
+      setSelectedVehicleId(vehicles[0].id);
+    }
+  }, [vehicles, selectedVehicleId]);
   const [maintenanceLogs, setMaintenanceLogs] = useState([]); // logs for selected vehicle
   const [error, setError] = useState(null);
   const lastSendRef = useRef(0);

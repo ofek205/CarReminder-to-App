@@ -10,7 +10,6 @@
   "src/components/vehicle/VesselIssuesSection.jsx": 1,
   "src/hooks/useEmailAdmin.js": 2,
   "src/hooks/useIsAdmin.js": 1,
-  "src/pages/Accidents.jsx": 1,
   "src/pages/AccountSettings.jsx": 4,
   "src/pages/ActivityLog.jsx": 1,
   "src/pages/AddAccident.jsx": 1,

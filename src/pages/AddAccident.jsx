@@ -373,6 +373,18 @@ export default function AddAccident() {
           <h1 className="text-lg font-bold text-white">
             {isDemo ? 'תאונה לדוגמה' : isEdit ? 'עריכת תאונה' : 'תיעוד תאונה חדשה'}
           </h1>
+          {/* "נשמר" auto-save indicator — mirrors the same badge on
+              AddVehicle. The draft hook was already wired up for this
+              form, but with no visual feedback users worried their
+              progress would be lost if they accidentally backed out.
+              Showing a 1-2 s "נשמר" pulse on every debounced save
+              makes the auto-save visible. */}
+          {draft.showSaved && (
+            <span className="ms-auto text-[10px] font-bold flex items-center gap-1 draft-saved px-2 py-1 rounded-full"
+              style={{ background: 'rgba(255,255,255,0.18)', color: '#fff' }}>
+              <CheckCircle2 className="w-3 h-3" /> נשמר
+            </span>
+          )}
         </div>
       </div>
 

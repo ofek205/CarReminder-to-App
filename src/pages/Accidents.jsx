@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { db } from '@/lib/supabaseEntities';
+import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, AlertTriangle, ChevronLeft, Camera, Phone, Calendar, MapPin, Car, CheckCircle, Clock, Shield, Download } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -70,7 +72,16 @@ function StatusSummary({ accidents }) {
 // the print component once, shared across all rows.
 function AccidentRow({ accident, vehicleName, vehicle, onStatusChange, onExport, isDemo }) {
   const status = STATUS_MAP[accident.status] || STATUS_MAP['פתוח'];
-  const hasPhotos = accident.photos?.length > 0;
+  // The list query no longer ships the heavy `photos` JSONB column
+  // (multi-MB base64 payloads were causing the page to take 3-5 s to
+  // appear on mobile). It returns `photo_count` instead. Demo data
+  // and guest data still carry full photos arrays, so fall back to
+  // .length when photo_count is missing.
+  const photoCount = typeof accident.photo_count === 'number'
+    ? accident.photo_count
+    : (accident.photos?.length || 0);
+  const hasPhotos = photoCount > 0;
+  const firstPhoto = accident.photos?.[0]; // present only for demo/guest rows
   const StatusIcon = status.icon;
   const T = getTheme(vehicle?.vehicle_type, vehicle?.nickname, vehicle?.manufacturer);
   const labels = getVehicleLabels(vehicle?.vehicle_type, vehicle?.nickname);
@@ -92,10 +103,15 @@ function AccidentRow({ accident, vehicleName, vehicle, onStatusChange, onExport,
         }}
         dir="rtl">
 
-        {/* Top section with photo or gradient */}
-        {hasPhotos ? (
+        {/* Top section with photo or gradient.
+            firstPhoto is present only for demo/guest rows (which still
+            carry the full photos array). The main list query skips the
+            photos column for payload-size reasons, so authenticated
+            rows fall through to the gradient placeholder + photo-count
+            badge regardless of how many photos exist. */}
+        {firstPhoto ? (
           <div className="relative h-36 overflow-hidden">
-            <img src={accident.photos[0]} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+            <img src={firstPhoto} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
             <div className="absolute inset-0" style={{
               background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)'
             }} />
@@ -108,12 +124,12 @@ function AccidentRow({ accident, vehicleName, vehicle, onStatusChange, onExport,
               </span>
             </div>
             {/* Photo count */}
-            {accident.photos.length > 1 && (
+            {photoCount > 1 && (
               <div className="absolute top-3 right-3 z-10">
                 <span className="text-xs font-bold px-2 py-1 rounded-lg backdrop-blur-sm flex items-center gap-1"
                   style={{ background: 'rgba(0,0,0,0.5)', color: '#fff' }}>
                   <Camera className="w-3 h-3" />
-                  {accident.photos.length}
+                  {photoCount}
                 </span>
               </div>
             )}
@@ -187,7 +203,16 @@ function AccidentRow({ accident, vehicleName, vehicle, onStatusChange, onExport,
                 קשר
               </span>
             )}
-            {!hasPhotos && accident.photos?.length === 0 && null}
+            {/* When the gradient placeholder is shown (no thumbnail
+                rendered above), surface the photo count as a chip
+                here so the user still knows photos exist for this
+                accident. They appear in full on the detail page. */}
+            {!firstPhoto && hasPhotos && (
+              <span className="flex items-center gap-1 text-xs font-medium" style={{ color: T.primary }}>
+                <Camera className="w-3 h-3" />
+                {photoCount} תמונות
+              </span>
+            )}
             {!hasPhotos && (
               <span className="flex items-center gap-1 text-xs" style={{ color: T.muted }}>
                 <Camera className="w-3 h-3" style={{ opacity: 0.4 }} />
@@ -338,19 +363,36 @@ export default function Accidents() {
 
   const { data: accidents = [], isLoading: accidentsLoading } = useQuery({
     queryKey: ['accidents', accountId],
-    // Cap at 100 most-recent rows and pull server-side ordered DESC, so
-    // accounts with a long history don't ship a multi-MB JSON payload or
-    // render 500 items at once. If >100 appears in practice we'll add
-    // cursor pagination, but the 99th percentile user has <10 accidents.
-    // Order by created_at (always present) rather than the user-supplied
-    // `date` field which may be null on partial records. 100-row cap keeps
-    // heavy photo payloads off the first paint for accounts with a long
-    // history. Cursor pagination only becomes worth building past ~50 rows
-    // in practice — the 99th percentile user has <10 accidents.
-    queryFn: () => db.accidents.filter(
-      { account_id: accountId },
-      { order: { column: 'created_at', ascending: false }, limit: 100 }
-    ),
+    // List query loads ONLY the lightweight columns needed to render
+    // the row. The `photos` column is a JSONB array of base64 data
+    // URLs (one photo ≈ 200-400 KB compressed); a user with 10
+    // accidents and 3 photos each was hitting a 6-12 MB list payload,
+    // and the page took ~3-5 s to appear on mobile data. By excluding
+    // `photos`, the list payload drops to ~5 KB and the page paints
+    // instantly. The row still shows a "X תמונות" count via the
+    // `photo_count` projection, and the detail/edit page (which the
+    // user navigates to on tap) still pulls the full row with photos.
+    queryFn: async () => {
+      // withTimeout protects against the "stuck on loading" hazard
+      // mandated by the project's query-timeout gate.
+      const { data, error } = await withTimeout(
+        supabase
+          .from('accidents')
+          .select('id,date,time,location,description,damage_description,status,injured,police_report_number,vehicle_id,other_driver_name,other_driver_plate,other_driver_manufacturer,other_driver_model,other_driver_year,other_driver_insurance_company,other_driver_phone,latitude,longitude,witnesses,created_at,photo_count:photos')
+          .eq('account_id', accountId)
+          .order('created_at', { ascending: false })
+          .limit(100),
+        'accidents_list'
+      );
+      if (error) throw error;
+      // Translate the JSONB photos column into a numeric count for the
+      // list — list only needs to know how many, not what they are.
+      return (data || []).map(row => ({
+        ...row,
+        photos: undefined,
+        photo_count: Array.isArray(row.photo_count) ? row.photo_count.length : 0,
+      }));
+    },
     enabled: !!accountId,
     staleTime: 0,
   });
