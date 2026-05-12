@@ -169,6 +169,13 @@ export const db = {
   maintenance_reminder_prefs: makeEntity('maintenance_reminder_prefs'),
   repair_types:       makeEntity('repair_types'),
   repair_logs:        makeEntity('repair_logs'),
+  // NOTE: repair_attachments has SELECT / INSERT / DELETE RLS policies
+  // but intentionally NO UPDATE policy. Attachments are immutable
+  // (file_url + file_type) — the lifecycle is insert-once / cascade-
+  // delete with the parent repair_log. If you call
+  // `db.repair_attachments.update(...)` it will silently fail because
+  // RLS denies all UPDATEs by default. Replace files via delete + new
+  // insert through `save_repair_with_children` RPC instead.
   repair_attachments: makeEntity('repair_attachments'),
   accident_details:   makeEntity('accident_details'),
   vessel_checklists:     makeEntity('vessel_checklists'),

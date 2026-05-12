@@ -514,9 +514,17 @@ export default function AuthPage() {
   // surfaces: native users open the recovery link in the system
   // browser, complete the password change there, and sign in on the
   // app after.
-  const getEmailRedirectBase = () => isNative
-    ? 'https://car-reminder.app'
-    : window.location.origin;
+  // Native: hard-pin to prod URL because the WKWebView origin is
+  // `https://localhost`, which is not on Supabase's auth redirect
+  // allowlist. Web: prefer the env-injected canonical URL (Vercel sets
+  // VITE_PUBLIC_APP_URL per environment) so staging emails redirect
+  // back to staging and prod back to prod — even if the user happened
+  // to land on a one-off preview URL. window.location.origin is the
+  // last-resort fallback for local dev where the env var is unset.
+  const getEmailRedirectBase = () => {
+    if (isNative) return 'https://car-reminder.app';
+    return import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
+  };
 
   // Map common Supabase auth errors to user-friendly Hebrew. Anything
   // unrecognized falls through to a generic Hebrew message rather than
