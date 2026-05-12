@@ -16,8 +16,23 @@
 // Secret required: RESEND_API_KEY (set in Edge Functions → Secrets)
 // ═══════════════════════════════════════════════════════════════════════════
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
+const SUPABASE_URL   = Deno.env.get('SUPABASE_URL') || '';
+const SERVICE_ROLE   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+
+// Per-user rate limit. Resend free tier is 100/day; an authenticated
+// attacker without this gate could empty the quota in under a minute by
+// looping invoke() calls. 5 sends/min/user is generous for the legitimate
+// flows (invite emails, password resets piggy-backing on supabase auth,
+// admin test sends) and tight enough to block runaway loops.
+// See audit finding C-2 (2026-05-12).
+const RATE_LIMIT_PER_MIN = 5;
+
+const supabaseAdmin = SUPABASE_URL && SERVICE_ROLE
+  ? createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
 
 // Default sender — uses the verified Resend domain (car-reminder.app).
 // Override per-call by passing `from` in the request body.
@@ -90,6 +105,33 @@ serve(async (req) => {
 
   if (!RESEND_API_KEY) {
     return json({ error: 'RESEND_API_KEY secret not configured' }, 500, req);
+  }
+
+  // ── Auth + per-user rate limit ────────────────────────────────────────
+  // Verify JWT is ON for this function at the Supabase gateway, so the
+  // token is already cryptographically valid by the time we run. We still
+  // need to extract user.id here to key the rate-limit bucket. Without
+  // this gate, any authenticated user could empty the Resend quota.
+  if (!supabaseAdmin) {
+    return json({ error: 'Server misconfigured (missing supabase env)' }, 500, req);
+  }
+  const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!token) return json({ error: 'missing authorization' }, 401, req);
+  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token);
+  if (authErr || !user) return json({ error: 'invalid token' }, 401, req);
+
+  const { data: allowed, error: rlErr } = await supabaseAdmin.rpc('rate_limit_check', {
+    kind:        `send-email:${user.id}`,
+    max_per_min: RATE_LIMIT_PER_MIN,
+  });
+  // Fail-closed on RPC error: a misconfigured rate_limit_counters table
+  // shouldn't open the floodgates. Return 503 so the client retries.
+  if (rlErr) {
+    console.error('send-email: rate_limit_check failed:', rlErr.message);
+    return json({ error: 'rate limit system unavailable' }, 503, req);
+  }
+  if (allowed === false) {
+    return json({ error: `Rate limit exceeded (${RATE_LIMIT_PER_MIN}/min)` }, 429, req);
   }
 
   let payload: {

@@ -529,15 +529,28 @@ export default function AuthPage() {
   // Map common Supabase auth errors to user-friendly Hebrew. Anything
   // unrecognized falls through to a generic Hebrew message rather than
   // surfacing raw English text.
+  //
+  // SECURITY: login-side errors are intentionally collapsed to a single
+  // message — both "user not found" and "invalid login credentials" map
+  // to the same Hebrew string. Distinct messages would let an attacker
+  // enumerate which emails belong to real users. See audit finding H-2
+  // (2026-05-12). The signup "already registered" message is left as-is
+  // because the UX guidance ("try to sign in") materially helps real
+  // users, and signup enumeration is mitigated by Supabase's per-IP
+  // rate limit + the verification email gate.
   const localizeAuthError = (msg) => {
     const m = (msg || '').toLowerCase();
     if (m.includes('rate limit') || m.includes('too many') || m.includes('for security purposes'))
       return 'נשלחו יותר מדי אימיילים. נסה/י שוב בעוד מספר דקות.';
     if (m.includes('redirect') && (m.includes('not allowed') || m.includes('invalid')))
       return 'שגיאת תצורה זמנית. אם הבעיה ממשיכה, פנה/י לתמיכה.';
-    if (m.includes('user not found') || m.includes('not registered') || m.includes('no user'))
-      return 'לא נמצא משתמש עם האימייל הזה.';
-    if (m.includes('invalid login credentials')) return 'אימייל או סיסמה שגויים';
+    // Collapsed: same message for "no such user" and "wrong password".
+    if (
+      m.includes('user not found') ||
+      m.includes('not registered') ||
+      m.includes('no user') ||
+      m.includes('invalid login credentials')
+    ) return 'אימייל או סיסמה שגויים. אם הבעיה חוזרת — אפס/י סיסמה.';
     if (m.includes('already registered')) return 'האימייל הזה כבר רשום. נסה להתחבר.';
     if (m.includes('network') || m.includes('fetch'))
       return 'בעיית רשת. בדוק/י את החיבור ונסה/י שוב.';

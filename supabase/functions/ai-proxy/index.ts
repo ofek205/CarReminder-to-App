@@ -225,7 +225,35 @@ async function callGroq(body: any) {
 // extract_document: fetch file → base64 → Gemini with schema-guided prompt.
 // Returns Base44-compatible shape: { status: 'success'|'error', output?, details? }
 // ──────────────────────────────────────────────────────────────────────────
+// Hostnames the AI proxy is allowed to fetch documents from. Each entry
+// is a regex tested against `new URL(url).hostname`. Anything else is
+// rejected before fetch() runs to prevent SSRF — without this, an
+// authenticated caller could point file_url at internal services (cloud
+// metadata 169.254.169.254, link-local, the Supabase project's own
+// admin API, etc.) and exfiltrate responses through the AI provider's
+// echo. See audit finding H-1 (2026-05-12).
+const FETCH_ALLOWED_HOSTS = [
+  /\.supabase\.co$/i,         // Supabase Storage signed URLs
+  /\.supabase\.in$/i,         // legacy Supabase domains
+  /\.amazonaws\.com$/i,       // S3 (Supabase Storage backend on some plans)
+  /^storage\.googleapis\.com$/i,
+  /\.r2\.cloudflarestorage\.com$/i,
+];
+
+function isFetchHostAllowed(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:') return false;
+    return FETCH_ALLOWED_HOSTS.some(rx => rx.test(u.hostname));
+  } catch {
+    return false;
+  }
+}
+
 async function fetchAsBase64(url: string): Promise<{ data: string; mime: string }> {
+  if (!isFetchHostAllowed(url)) {
+    throw new Error('file host not allowed');
+  }
   // 10s timeout so a hung storage fetch can't pin the function.
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 10_000);
@@ -401,10 +429,13 @@ serve(async (req) => {
       kind:        `extract_document:${user.id}`,
       max_per_min: 30,
     });
+    // Fail-closed on RPC error: a misconfigured / down rate_limit_counters
+    // table must NOT open the gate. Old behavior was log-and-continue,
+    // which let an attacker DoS the rate-limit table to bypass limits.
+    // See audit finding H-5 (2026-05-12).
     if (rlErr) {
-      // Surface rate-limit misconfiguration in logs so we notice instead
-      // of silently letting unlimited traffic through.
       console.error('rate_limit_check failed (extract_document):', rlErr.message);
+      return json({ status: 'error', details: 'rate limit system unavailable' }, 503, req);
     }
     if (allowed === false) return json({ status: 'error', details: 'Rate limit exceeded' }, 429, req);
 
@@ -417,8 +448,10 @@ serve(async (req) => {
       kind:        `ai_proxy:${user.id}`,
       max_per_min: 10,
     });
+    // Fail-closed on RPC error — see comment above. Audit finding H-5.
     if (rlErr) {
       console.error('rate_limit_check failed (ai_proxy):', rlErr.message);
+      return json({ error: 'rate limit system unavailable' }, 503, req);
     }
     if (allowed === false) return json({ error: 'Rate limit exceeded' }, 429, req);
   }
