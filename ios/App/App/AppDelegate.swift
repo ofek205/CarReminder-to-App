@@ -85,6 +85,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     // ─────────────────────────────────────────────────────────────────
+    // APNs registration callbacks — wired to @capacitor/push-notifications.
+    //
+    // The plugin observes these NotificationCenter posts (it does NOT
+    // call the AppDelegate methods directly), so all we have to do is
+    // re-broadcast the OS callbacks under the keys the plugin listens
+    // for. Without this, PushNotifications.register() in JS hangs
+    // forever waiting for a `registration` event that never fires.
+    // ─────────────────────────────────────────────────────────────────
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
     // Native boot log — append-only, capped, written to UserDefaults.
     // ─────────────────────────────────────────────────────────────────
 

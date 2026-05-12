@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "822490173697",
+    "project_id": "carreminder-bd40c",
+    "storage_bucket": "carreminder-bd40c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:822490173697:android:9661d489c9a6f21d6ccb00",
+        "android_client_info": {
+          "package_name": "com.carreminder.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDnMICrSaWb_Ld9o_z8vdSMPeXtpMwuFi4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
