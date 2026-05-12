@@ -27,7 +27,9 @@ import {
   validateQuickCheckPlate,
 } from '@/services/vehicleQuickCheck';
 import { C } from '@/lib/designTokens';
-import { exportElementToPdf } from '@/lib/pdfExport';
+// pdfExport is dynamic-imported in the download handler below. It pulls
+// in jsPDF + html2canvas (~597 KB) — only needed when the user actually
+// taps "Export PDF".
 import { OwnershipHistoryPanel } from '@/components/vehicle/VehicleInfoSection';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 
@@ -495,6 +497,7 @@ function ReportModal({ mode, result, onClose, onPreview }) {
         if (typeof onPreview === 'function') onPreview();
         return;
       }
+      const { exportElementToPdf } = await import('@/lib/pdfExport');
       const ok = await exportElementToPdf(previewRef.current, `vehicle-check-${Date.now()}`);
       if (!ok) toast.error('שגיאה ביצירת קובץ ה-PDF');
     } catch (e) {

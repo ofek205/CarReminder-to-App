@@ -3,7 +3,10 @@ import { Download, FileText, Loader2, Share2, X } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 import AccidentPrintReport from './AccidentPrintReport';
 import { shareContent } from '@/lib/capacitor';
-import { exportElementToPdf, exportElementToWord } from '@/lib/pdfExport';
+// pdfExport (jsPDF + html2canvas, ~597 KB) is dynamic-imported inside the
+// export handlers below. Pulling it up-front would force every Accidents
+// list / report-modal mount to download those bytes, even for users who
+// never tap "Export".
 import { toast } from 'sonner';
 
 /**
@@ -52,6 +55,7 @@ export default function AccidentReportModal({
       const dateLabel = accident?.date
         ? new Date(accident.date).toISOString().slice(0, 10)
         : 'no-date';
+      const { exportElementToPdf } = await import('@/lib/pdfExport');
       const ok = await exportElementToPdf(previewRef.current, `accident-${dateLabel}`);
       if (!ok) toast.error('שגיאה ביצירת קובץ ה-PDF');
     } catch (e) {
@@ -77,6 +81,7 @@ export default function AccidentReportModal({
       const dateLabel = accident?.date
         ? new Date(accident.date).toISOString().slice(0, 10)
         : 'no-date';
+      const { exportElementToWord } = await import('@/lib/pdfExport');
       const ok = await exportElementToWord(previewRef.current, `accident-${dateLabel}`);
       if (!ok) toast.error('שגיאה ביצירת קובץ ה-Word');
     } catch (e) {
