@@ -39,6 +39,7 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import PeriodFilter from '@/components/expenses/PeriodFilter';
 import CategoryFilter from '@/components/expenses/CategoryFilter';
 import ExpenseRow from '@/components/expenses/ExpenseRow';
+import { AnimatedCount } from '@/components/business/system';
 import ExpenseFormDialog from '@/components/expenses/ExpenseFormDialog';
 
 const LAST_USED_VEHICLE_KEY = 'my_expenses_last_used_vehicle_id';
@@ -717,8 +718,13 @@ function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, b
           natural Hebrew reading direction. */}
       <div className="p-4 sm:p-5">
         <p className="text-[11px] font-medium opacity-90">{label}</p>
+        {/* AnimatedCount roll-up matches the business dashboard's
+            expense KPI tile — the number eases from 0 to the period
+            total over ~1.3 s, so the figure visually "loads in"
+            instead of snapping. Falls back to a static placeholder
+            while the query is still in flight. */}
         <p className="text-3xl sm:text-4xl font-black tabular-nums mt-1">
-          {loading ? '...' : fmtMoney(totalNum)}
+          {loading ? '...' : <AnimatedCount value={totalNum} format={fmtMoney} duration={1300} />}
         </p>
         <p className="text-xs opacity-90 mt-1">
           {count > 0

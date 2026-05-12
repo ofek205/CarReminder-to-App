@@ -89,7 +89,13 @@ export default function ExpenseFormDialog({
   const [uploading,  setUploading]  = useState(false);
   const [scanning,   setScanning]   = useState(false);
   const [scanError,  setScanError]  = useState('');
+  // Two separate file inputs so the "בחר קובץ" button opens the
+  // system file picker (gallery + files), and the camera-icon button
+  // opens the camera directly. Sharing a single input with
+  // capture="environment" forced the camera open even for the upload
+  // button — reported as "I click upload and the camera opens".
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   // Confirm dialogs (replacing native confirm()):
   //   - confirmDelete:    user pressed delete on an existing expense
@@ -537,7 +543,7 @@ export default function ExpenseFormDialog({
                 </button>
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => cameraInputRef.current?.click()}
                   disabled={uploading}
                   className="h-10 px-3 rounded-lg flex items-center justify-center"
                   style={{ background: '#fff', color: C.primary, border: `1px solid ${C.border}` }}
@@ -550,10 +556,23 @@ export default function ExpenseFormDialog({
             {scanError && (
               <p className="text-[11px] text-red-600">{scanError}</p>
             )}
+            {/* fileInputRef — no `capture` attribute → opens the
+                system file picker (gallery + files + camera as an
+                option). Used by the "בחר קובץ" button. */}
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*,application/pdf"
+              onChange={handleFile}
+              className="hidden"
+            />
+            {/* cameraInputRef — `capture="environment"` opens the
+                rear-camera viewfinder directly. Used by the camera-
+                icon button only. */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
               capture="environment"
               onChange={handleFile}
               className="hidden"

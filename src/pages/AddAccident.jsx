@@ -9,7 +9,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ManufacturerSelector from '@/components/vehicle/ManufacturerSelector';
-import { Camera, Loader2, Search, CheckCircle2, X, AlertTriangle, Car, FileText, Shield, Calendar, ZoomIn, LocateFixed, Download } from 'lucide-react';
+import { Camera, Loader2, Search, CheckCircle2, X, AlertTriangle, Car, FileText, Shield, Calendar, ZoomIn, LocateFixed, Download, Upload } from 'lucide-react';
 import AccidentPrintReport, { AccidentPrintStyles } from '../components/accidents/AccidentPrintReport';
 import AccidentReportModal from '../components/accidents/AccidentReportModal';
 import { getCurrentPosition } from '@/lib/capacitor';
@@ -307,11 +307,21 @@ export default function AddAccident() {
         return;
       } else {
         data.account_id = accountId;
-        if (isEdit) {
-          await db.accidents.update(editId, data);
-        } else {
-          await db.accidents.create(data);
-        }
+        // 15-second timeout race. Without it, a stalled Supabase
+        // request (intermittently flaky on mobile data, especially
+        // with multi-MB base64 photo payloads) leaves `saving=true`
+        // forever — exactly the "loads but doesn't save" symptom
+        // reported on TestFlight. With the race, we surface a real
+        // error toast instead of an endless spinner, and the user
+        // can retry.
+        const SAVE_TIMEOUT_MS = 15000;
+        const savePromise = isEdit
+          ? db.accidents.update(editId, data)
+          : db.accidents.create(data);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('save-timeout')), SAVE_TIMEOUT_MS)
+        );
+        await Promise.race([savePromise, timeoutPromise]);
         queryClient.invalidateQueries({ queryKey: ['accidents'] });
       }
 
@@ -320,7 +330,12 @@ export default function AddAccident() {
       navigate(createPageUrl('Accidents'));
     } catch (err) {
       console.error('Error saving accident:', err);
-      setSystemError('אירעה שגיאה בשמירת הדיווח');
+      const isTimeout = err?.message === 'save-timeout';
+      const msg = isTimeout
+        ? 'השמירה נמשכת זמן רב מהצפוי. בדוק את החיבור ונסה שוב — התמונות עלולות להיות גדולות.'
+        : 'אירעה שגיאה בשמירת הדיווח';
+      setSystemError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -501,12 +516,24 @@ export default function AddAccident() {
               </div>
             ))}
 
-            {/* Add photo button */}
+            {/* Two separate add-photo tiles — camera and gallery
+                upload. The previous single tile used capture="environment"
+                which forced the camera viewfinder open on every tap, so
+                users couldn't upload an existing photo of the scene
+                (e.g. one received from another driver). User reported
+                this as "only lets you photograph, not upload — need
+                both". */}
             <label className="w-20 h-20 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-colors hover:bg-white/50"
               style={{ borderColor: C.border, color: C.muted }}>
               <Camera className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px] font-medium">הוסף</span>
+              <span className="text-[10px] font-medium">צלם</span>
               <input type="file" accept="image/*" capture="environment" onChange={handlePhotoCapture} className="hidden" />
+            </label>
+            <label className="w-20 h-20 rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-colors hover:bg-white/50"
+              style={{ borderColor: C.border, color: C.muted }}>
+              <Upload className="w-5 h-5 mb-0.5" />
+              <span className="text-[10px] font-medium">העלה</span>
+              <input type="file" accept="image/*" onChange={handlePhotoCapture} className="hidden" />
             </label>
           </div>
         </div>
@@ -669,12 +696,26 @@ export default function AddAccident() {
                   </button>
                 </div>
               ) : (
-                <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed cursor-pointer transition-colors hover:bg-white/50"
-                  style={{ borderColor: C.border, color: C.muted }}>
-                  <Camera className="w-4 h-4" />
-                  <span className="text-xs font-medium">צלם תעודת ביטוח</span>
-                  <input type="file" accept="image/*" capture="environment" onChange={handleInsurancePhoto} className="hidden" />
-                </label>
+                <>
+                  {/* Two-button pattern matches the accident photos
+                      block above — camera and gallery upload as
+                      separate, explicit options. Users often receive
+                      the offender's insurance card as a forwarded
+                      image, so upload-from-gallery is just as common
+                      as photographing it on the spot. */}
+                  <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed cursor-pointer transition-colors hover:bg-white/50"
+                    style={{ borderColor: C.border, color: C.muted }}>
+                    <Camera className="w-4 h-4" />
+                    <span className="text-xs font-medium">צלם</span>
+                    <input type="file" accept="image/*" capture="environment" onChange={handleInsurancePhoto} className="hidden" />
+                  </label>
+                  <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed cursor-pointer transition-colors hover:bg-white/50"
+                    style={{ borderColor: C.border, color: C.muted }}>
+                    <Upload className="w-4 h-4" />
+                    <span className="text-xs font-medium">העלה</span>
+                    <input type="file" accept="image/*" onChange={handleInsurancePhoto} className="hidden" />
+                  </label>
+                </>
               )}
             </div>
           </div>

@@ -36,8 +36,15 @@ const DialogContent = React.forwardRef(({ className, children, ...props }, ref) 
       )}
       {...props}>
       {children}
+      {/* `end-4` is a CSS logical property — flips to left-4 in RTL,
+          right-4 in LTR. Previous `right-4` overlapped Hebrew dialog
+          titles (which are text-right aligned), so the X sat directly
+          on top of the title text in every native-direction dialog —
+          reported as "the X is on top of the text" in the expenses
+          dialog. Switching to `end-4` fixes every RTL dialog at once
+          without touching individual call sites. */}
       <DialogPrimitive.Close
-        className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-xl bg-[#E8F2EA] text-[#2D5233] transition-colors hover:bg-[#D8E5D9] focus:outline-none focus:ring-2 focus:ring-[#4B7A53]/20 disabled:pointer-events-none">
+        className="absolute end-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-xl bg-[#E8F2EA] text-[#2D5233] transition-colors hover:bg-[#D8E5D9] focus:outline-none focus:ring-2 focus:ring-[#4B7A53]/20 disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
