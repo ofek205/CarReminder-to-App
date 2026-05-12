@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/date-input';
 import { toast } from 'sonner';
-import { Loader2, Upload, Trash2, ScanLine, Camera, Receipt } from 'lucide-react';
+import { Loader2, Upload, Trash2, Camera, Receipt } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 import {
   MANUAL_EXPENSE_CATEGORIES,
@@ -502,6 +502,11 @@ export default function ExpenseFormDialog({
             </div>
             {receiptUrl ? (
               <div className="flex items-center gap-2">
+                {/* AI-scan button removed at product request — the
+                    receipt extraction was unreliable enough that the
+                    user preferred to type the amount manually. The
+                    "צפה" and "trash" actions remain so uploaded
+                    receipts are still viewable and removable. */}
                 <button
                   type="button"
                   onClick={openReceipt}
@@ -509,16 +514,6 @@ export default function ExpenseFormDialog({
                   style={{ borderColor: C.border, color: C.primary }}
                 >
                   צפה בחשבונית
-                </button>
-                <button
-                  type="button"
-                  onClick={() => runAiScan()}
-                  disabled={scanning}
-                  className="h-9 px-3 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors disabled:opacity-60"
-                  style={{ background: C.primary, color: '#fff' }}
-                >
-                  {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ScanLine className="w-3.5 h-3.5" />}
-                  סרוק
                 </button>
                 <button
                   type="button"

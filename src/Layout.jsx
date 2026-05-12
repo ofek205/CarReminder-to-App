@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Wrench, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -101,7 +101,16 @@ const navItems = [
   // noise without conveying structure.
   // ====================================================================
   { divider: true, title: 'תחזוקה' },
-  { name: 'MaintenanceTemplates', label: 'טיפולים', icon: Wrench,        guestAllowed: true },
+  // "טיפולים" (MaintenanceTemplates) was a per-user dictionary of
+  // maintenance + repair type names. Users add the same custom types
+  // inline from the vehicle's maintenance/repair dialogs now, so the
+  // dedicated entry was effectively unused — removed from the nav
+  // per user request ("not relevant, everything is done in the
+  // vehicle page"). The page itself is intentionally left in
+  // pages.config.js so direct URLs still resolve (and so previously-
+  // created custom types are recoverable for the rare user who needs
+  // them).
+  // { name: 'MaintenanceTemplates', label: 'טיפולים', icon: Wrench, guestAllowed: true },
   // MyExpenses (מחשבון הוצאות) is the PRIVATE-account expenses screen;
   // the page itself redirects business users to /Expenses, so leaving
   // it in the menu was misleading. personalOnly hides it from every
