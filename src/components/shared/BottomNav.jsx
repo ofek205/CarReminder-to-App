@@ -140,7 +140,13 @@ export default function BottomNav({ sheetOpen = false }) {
             <Link key={tab.path} to={createPageUrl(tab.path)}
               data-tour={tab.isAi ? 'ai-tab' : undefined}
               className="flex flex-col items-center gap-0.5 py-1 px-2 min-w-0">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center transition-all relative"
+              {/* w-11 h-11 = 44pt — matches Apple HIG and Material
+                  Design minimum tap-target size. Was w-9 h-9 (36pt)
+                  which user reported as "too small, hard to tap".
+                  The bar height grows with the icon container; the
+                  surrounding `max-w-md mx-auto` keeps overall width
+                  unchanged on phones. */}
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center transition-all relative"
                 style={{
                   background: active ? activeBg : (tab.isAi ? '#FFFBEB' : 'transparent'),
                   border: tab.isAi && !active ? '1.5px solid #FEF3C7' : 'none',

@@ -778,12 +778,12 @@ function LayoutInner({ children }) {
                     setOpen(next);
                     setTimeout(() => { btnClicked.current = false; }, 150);
                   }}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"
+                  className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"
                   style={{ background: open ? '#E5E7EB' : '#F3F4F6', position: 'relative', zIndex: 10001 }}
                   aria-label={open ? 'סגור תפריט' : 'פתח תפריט'}
                   aria-expanded={open}
                   aria-haspopup="menu">
-                  <Menu className="h-4.5 w-4.5 text-gray-600" aria-hidden="true" />
+                  <Menu className="h-5 w-5 text-gray-600" aria-hidden="true" />
                 </button>
                 <Sheet open={open} onOpenChange={(v) => {
                   if (btnClicked.current) return; // ignore overlay close when hamburger was clicked

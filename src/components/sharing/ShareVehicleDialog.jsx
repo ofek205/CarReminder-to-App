@@ -193,7 +193,18 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto" dir="rtl">
+      {/* max-h uses calc(100dvh - safe-area insets) so the dialog
+          never extends behind the iOS status bar / Dynamic Island
+          and the user can always scroll to its top. The previous
+          90vh hid the top behind the inset and there was no scroll
+          affordance to reach it. */}
+      <DialogContent
+        className="max-w-md mx-4 overflow-y-auto"
+        style={{
+          maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px)',
+        }}
+        dir="rtl"
+      >
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <Share2 className="w-5 h-5" style={{ color: C.primary }} />

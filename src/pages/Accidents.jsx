@@ -240,7 +240,18 @@ function AccidentRow({ accident, vehicleName, vehicle, onStatusChange, onExport,
                 <PopoverTrigger asChild>
                   <button
                     type="button"
-                    onClick={stop}
+                    // iOS WebView fires the parent <Link>'s navigation
+                    // before the popover trigger gets a chance unless
+                    // we stop the event in BOTH the pointer and click
+                    // phases. onClick alone (with preventDefault +
+                    // stopPropagation) wasn't enough on TestFlight —
+                    // the user reported "nothing happens when tapping
+                    // 'שנה סטטוס'". Adding onPointerDown and an
+                    // explicit toggle of setStatusOpen guarantees the
+                    // popover opens regardless of how the Link's
+                    // event consumes the click.
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { stop(e); setStatusOpen(o => !o); }}
                     className="flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg transition-colors"
                     style={{ background: status.bg, color: status.color, border: `1px solid ${status.color}25` }}
                     aria-label="עדכון סטטוס"

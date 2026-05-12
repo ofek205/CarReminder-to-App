@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -27,6 +27,7 @@ import {
   validateQuickCheckPlate,
 } from '@/services/vehicleQuickCheck';
 import { C } from '@/lib/designTokens';
+import { exportElementToPdf } from '@/lib/pdfExport';
 import { OwnershipHistoryPanel } from '@/components/vehicle/VehicleInfoSection';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 
@@ -313,7 +314,6 @@ export default function VehicleCheck() {
           result={result}
           onClose={() => setReportMode(null)}
           onPreview={() => setReportMode('preview')}
-          onDownload={downloadReport}
         />
       )}
     </div>
@@ -478,44 +478,78 @@ function MarketAnecdote({ result }) {
   );
 }
 
-function ReportModal({ mode, result, onClose, onPreview, onDownload }) {
+function ReportModal({ mode, result, onClose, onPreview }) {
   const isPreview = mode === 'preview';
+  const previewRef = useRef(null);
+  const [downloading, setDownloading] = useState(false);
+
+  // Replaces the old window.print() onDownload prop (Capacitor
+  // WKWebView ignored it). Captures the preview DOM via html2canvas
+  // and produces a real multi-page PDF — native share sheet on iOS/
+  // Android, Blob URL download on web.
+  const handleDownloadPdf = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      if (!previewRef.current) {
+        if (typeof onPreview === 'function') onPreview();
+        return;
+      }
+      const ok = await exportElementToPdf(previewRef.current, `vehicle-check-${Date.now()}`);
+      if (!ok) toast.error('שגיאה ביצירת קובץ ה-PDF');
+    } catch (e) {
+      console.error(e);
+      toast.error('שגיאה ביצירת קובץ ה-PDF');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
-    <div className="report-modal-backdrop fixed inset-0 z-50 bg-black/45 p-3 sm:p-6 overflow-y-auto">
-      <div className={`bg-white rounded-3xl shadow-2xl mx-auto ${isPreview ? 'max-w-4xl' : 'max-w-lg'} overflow-hidden`}>
-        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
-          <div>
-            <p className="text-base font-bold text-gray-900">
+    <div className="report-modal-backdrop fixed inset-0 z-50 bg-black/45 overflow-y-auto flex items-start sm:items-center justify-center"
+      style={{
+        paddingTop:    'max(12px, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
+        paddingLeft:   '12px',
+        paddingRight:  '12px',
+      }}
+    >
+      <div className={`bg-white rounded-3xl shadow-2xl mx-auto w-full my-auto ${isPreview ? 'max-w-4xl' : 'max-w-lg'} max-h-[calc(100dvh-32px)] flex flex-col overflow-hidden`}>
+        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 shrink-0">
+          <div className="min-w-0">
+            <p className="text-base font-bold text-gray-900 truncate">
               {isPreview ? 'צפייה בדוח' : 'ייצוא דוח בדיקת רכב'}
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 truncate">
               הדוח כולל נתונים יבשים בלבד, ללא תובנות או המלצות.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600"
+            className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 shrink-0"
           >
             סגור
           </button>
         </div>
 
         {isPreview ? (
-          <div>
-            <div className="flex flex-col sm:flex-row gap-2 p-3 border-b border-gray-100 bg-gray-50">
-              <Button type="button" onClick={onDownload} className="rounded-2xl font-bold" style={{ background: C.primary }}>
-                <Download className="h-4 w-4 ml-2" />
-                הורדה
+          <>
+            <div className="flex flex-col sm:flex-row gap-2 p-3 border-b border-gray-100 bg-gray-50 shrink-0">
+              <Button type="button" onClick={handleDownloadPdf} disabled={downloading} className="rounded-2xl font-bold disabled:opacity-60" style={{ background: C.primary }}>
+                {downloading ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Download className="h-4 w-4 ml-2" />}
+                {downloading ? 'יוצר PDF...' : 'הורדה'}
               </Button>
               <Button type="button" variant="outline" onClick={onClose} className="rounded-2xl font-bold">
                 חזרה למסך
               </Button>
             </div>
-            <div className="max-h-[75vh] overflow-auto bg-gray-100 p-3 sm:p-5">
-              <VehiclePrintReport result={result} variant="preview" />
+            <div className="flex-1 overflow-auto bg-gray-100 p-3 sm:p-5">
+              <div ref={previewRef}>
+                <VehiclePrintReport result={result} variant="preview" />
+              </div>
             </div>
-          </div>
+          </>
         ) : (
           <div className="p-4 sm:p-5 space-y-3">
             <button
@@ -530,12 +564,12 @@ function ReportModal({ mode, result, onClose, onPreview, onDownload }) {
             </button>
             <button
               type="button"
-              onClick={onDownload}
+              onClick={onPreview}
               className="w-full text-right rounded-3xl border border-gray-200 bg-white p-4 hover:border-[#2D5233] transition-colors"
             >
               <p className="text-sm font-bold text-gray-900 mb-1">הורדה כקובץ</p>
               <p className="text-xs leading-relaxed text-gray-600">
-                פותח את חלון השמירה של הדפדפן. בוחרים שמירה כקובץ.
+                פותח תצוגה מקדימה. כפתור ההורדה בתוכה ייצור קובץ PDF.
               </p>
             </button>
           </div>
