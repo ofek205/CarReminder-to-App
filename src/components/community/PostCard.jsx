@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import useIsAdmin from '@/hooks/useIsAdmin';
+import useSignedUrl from '@/hooks/useSignedUrl';
 import CommentSection from './CommentSection';
 
 function timeAgo(date) {
@@ -84,6 +85,14 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   const { user, isGuest } = useAuth();
   const queryClient = useQueryClient();
   const isLong = post.body?.length > 200;
+
+  // Resolve the post's image URL. New posts have a storage_path and
+  // a 7-day signed URL — useSignedUrl regenerates the URL whenever
+  // it expires. Legacy posts (created before H1 storage migration)
+  // keep base64 inline inside image_url with image_storage_path =
+  // NULL; the hook's `fallback` option returns the inline value
+  // unchanged.
+  const { url: imageSrc } = useSignedUrl(post.image_storage_path, { fallback: post.image_url });
   const isOwner = user?.id === post.user_id;
   const canInteract = !isGuest && !!user;
   const isAdmin = useIsAdmin();
@@ -381,24 +390,26 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         )}
       </div>
 
-      {/* Image */}
-      {post.image_url && (
+      {/* Image — src comes from useSignedUrl above so the rendered URL
+          is always fresh, even after the 7-day signed-URL TTL expires
+          for storage-backed posts. */}
+      {imageSrc && (
         <div className="mx-4 mb-3 rounded-xl overflow-hidden relative cursor-pointer"
           style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
           onClick={() => setShowFullImage(true)}>
-          <img src={post.image_url} alt="" loading="lazy" decoding="async" className="w-full object-cover" style={{ maxHeight: '350px' }} />
+          <img src={imageSrc} alt="" loading="lazy" decoding="async" className="w-full object-cover" style={{ maxHeight: '350px' }} />
         </div>
       )}
 
       {/* Full image lightbox */}
-      {showFullImage && post.image_url && (
+      {showFullImage && imageSrc && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90"
           onClick={() => setShowFullImage(false)}>
           <button onClick={() => setShowFullImage(false)}
             className="absolute top-4 left-4 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center z-10">
             <span className="text-white text-xl">✕</span>
           </button>
-          <img src={post.image_url} alt="" className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl" />
+          <img src={imageSrc} alt="" className="max-w-[95vw] max-h-[90vh] object-contain rounded-xl" />
         </div>
       )}
 
