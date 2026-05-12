@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Download, Loader2, Share2, X } from 'lucide-react';
+import { Download, FileText, Loader2, Share2, X } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 import AccidentPrintReport from './AccidentPrintReport';
 import { shareContent } from '@/lib/capacitor';
-import { exportElementToPdf } from '@/lib/pdfExport';
+import { exportElementToPdf, exportElementToWord } from '@/lib/pdfExport';
 import { toast } from 'sonner';
 
 /**
@@ -57,6 +57,31 @@ export default function AccidentReportModal({
     } catch (e) {
       console.error(e);
       toast.error('שגיאה ביצירת קובץ ה-PDF');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  // Word export — HTML-wrapped .doc that opens in Word / Google Docs /
+  // LibreOffice and is editable. User specifically requested Word
+  // alongside PDF so they could tweak the report before sending to
+  // an insurance company.
+  const handleDownloadWord = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      if (!previewRef.current) {
+        if (typeof onPreview === 'function') onPreview();
+        return;
+      }
+      const dateLabel = accident?.date
+        ? new Date(accident.date).toISOString().slice(0, 10)
+        : 'no-date';
+      const ok = await exportElementToWord(previewRef.current, `accident-${dateLabel}`);
+      if (!ok) toast.error('שגיאה ביצירת קובץ ה-Word');
+    } catch (e) {
+      console.error(e);
+      toast.error('שגיאה ביצירת קובץ ה-Word');
     } finally {
       setDownloading(false);
     }
@@ -159,7 +184,17 @@ export default function AccidentReportModal({
                 style={{ background: C.primary }}
               >
                 {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                {downloading ? 'יוצר PDF...' : 'הורדת PDF'}
+                PDF
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadWord}
+                disabled={downloading}
+                className="rounded-2xl font-bold inline-flex items-center justify-center gap-2 h-10 px-4 text-sm border disabled:opacity-60"
+                style={{ borderColor: C.primary, color: C.primary, background: '#FFFFFF' }}
+              >
+                {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                Word
               </button>
               <button
                 type="button"

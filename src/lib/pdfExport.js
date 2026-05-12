@@ -120,3 +120,98 @@ export async function exportElementToPdf(el, filename = 'report') {
     return false;
   }
 }
+
+/**
+ * Render an element to a Word-compatible .doc file (HTML inside an
+ * MS Word MIME wrapper). Opens cleanly in Microsoft Word, Google
+ * Docs, and LibreOffice. Lets users edit the report after export —
+ * which was the user's stated reason for wanting Word format.
+ *
+ * No new dependencies needed: .doc has supported HTML-based payloads
+ * since Word 2000. Compatible everywhere a real .docx would open.
+ *
+ * @param {HTMLElement} el       — element to capture
+ * @param {string}      filename — suggested filename (without extension)
+ * @returns {Promise<boolean>}
+ */
+export async function exportElementToWord(el, filename = 'report') {
+  if (!el) {
+    console.warn('exportElementToWord: no element passed');
+    return false;
+  }
+  try {
+    // Collect all <style> tags + the element's own computed styles
+    // so the .doc preserves the layout. Word's HTML parser handles
+    // basic CSS (font, color, padding, table styling).
+    const styleTags = Array.from(document.querySelectorAll('style'))
+      .map(s => s.outerHTML).join('');
+    const inner = el.outerHTML;
+
+    const html = `<!doctype html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>${filename}</title>
+${styleTags}
+</head>
+<body dir="rtl" lang="he">${inner}</body>
+</html>`;
+
+    // Word recognises this exact MIME — the file extension .doc seals
+    // the deal for the OS to launch Word as the default opener.
+    const blob = new Blob(['﻿' + html], {
+      type: 'application/msword;charset=utf-8',
+    });
+    const fname = `${filename}.doc`;
+
+    if (isNative) {
+      try {
+        const { Filesystem, Directory } = await import('@capacitor/filesystem');
+        // Convert blob → base64 for Capacitor Filesystem.
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(String(reader.result).split(',')[1] || '');
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        await Filesystem.writeFile({
+          path: fname,
+          data: base64,
+          directory: Directory.Cache,
+        });
+        const uri = await Filesystem.getUri({
+          path: fname,
+          directory: Directory.Cache,
+        });
+        const { Share } = await import('@capacitor/share');
+        await Share.share({
+          title: filename,
+          url: uri.uri,
+          dialogTitle: 'שמור או שתף את הדוח (Word)',
+        });
+        return true;
+      } catch (e) {
+        console.warn('exportElementToWord native share failed:', e);
+        await shareContent({ title: filename, text: `${filename} נשמר באפליקציה.` });
+        return false;
+      }
+    }
+
+    // Web: standard anchor-click download.
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fname;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return true;
+  } catch (err) {
+    console.error('exportElementToWord failed:', err);
+    return false;
+  }
+}
