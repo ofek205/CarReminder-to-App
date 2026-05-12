@@ -257,9 +257,21 @@ async function processTrigger(
 
   stats.matched = candidates?.length || 0;
 
+  // Defense-in-depth email format check. The RPC `email_dispatch_candidates`
+  // is the canonical source of recipient addresses, but a misconfigured
+  // RPC or corrupted user_profile row could return malformed values. A
+  // bad address sent to Resend wastes quota and gets logged as a hard
+  // bounce on our sender domain reputation. See audit finding M-7.
+  const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   // 3. Loop.
   for (const c of candidates || []) {
     try {
+      if (!c.recipient_email || !EMAIL_RX.test(c.recipient_email)) {
+        stats.skipped++;
+        stats.errorDetails.push(`skipped invalid recipient for user ${c.user_id}`);
+        continue;
+      }
       const vars = {
         vehicleName:  c.vehicle_name || 'רכב',
         licensePlate: c.license_plate || '',

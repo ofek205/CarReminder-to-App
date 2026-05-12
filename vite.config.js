@@ -48,7 +48,7 @@ export default defineConfig({
           // Maps — only loaded on FindGarage (leaflet + react-leaflet)
           'vendor-maps': ['leaflet', 'react-leaflet'],
           // Rich text — only loaded on forms that use it
-          'vendor-editor': ['react-quill', 'react-markdown'],
+          'vendor-editor': ['react-markdown'],
           // Date helpers — used throughout but standalone
           'vendor-date': ['date-fns'],
           // Supabase SDK — large but used everywhere, keep standalone

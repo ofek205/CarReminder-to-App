@@ -16,10 +16,11 @@
 //   }
 //
 // Security:
-//   • Resend signs each webhook with an HMAC (svix format). If the secret
-//     RESEND_WEBHOOK_SECRET is configured, we verify the signature and
-//     reject unsigned / tampered requests. If no secret is configured we
-//     accept anything — fine while testing, tighten before going wide.
+//   • Resend signs each webhook with an HMAC (svix format). The function
+//     verifies the signature against RESEND_WEBHOOK_SECRET and rejects
+//     unsigned / tampered / unconfigured requests — `verifySvix` returns
+//     false when WEBHOOK_SECRET is missing, failing closed. Treat the
+//     secret as a production deployment requirement.
 //   • Verify JWT: OFF (Resend can't send a Supabase JWT).
 //
 // Deploy:

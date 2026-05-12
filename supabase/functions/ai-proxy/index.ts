@@ -464,8 +464,13 @@ serve(async (req) => {
   // pass `feature` in the body ('community_expert', 'yossi_chat',
   // 'scan_extraction'); falls back to 'auto' if the feature isn't known
   // or the RPC errors. 'auto' = the legacy priority ladder below.
+  // Defense-in-depth: whitelist the feature name before passing it to
+  // the RPC. The RPC has its own CHECK constraint on get_ai_provider,
+  // but validating client-side too means an attacker can't probe the
+  // server for unexpected feature strings. See audit finding M-4.
+  const ALLOWED_FEATURES = new Set(['community_expert', 'yossi_chat', 'scan_extraction']);
   let preferred: string = 'auto';
-  if (typeof body?.feature === 'string' && body.feature.length < 40) {
+  if (typeof body?.feature === 'string' && ALLOWED_FEATURES.has(body.feature)) {
     try {
       const { data: pref } = await supabase.rpc('get_ai_provider', { p_feature: body.feature });
       if (typeof pref === 'string' && ['gemini', 'groq', 'claude', 'auto'].includes(pref)) {
