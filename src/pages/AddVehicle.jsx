@@ -828,7 +828,14 @@ export default function AddVehicle() {
       // The whole-row insert either works or raises the real error, which
       // the catch below translates to a friendly Hebrew message.
       const savedVehicle = await db.vehicles.create(cleanData);
+      // Invalidate BOTH cache keys. ['vehicles'] is used by per-page
+      // useMyVehicles (Accidents, AddAccident, AiAssistant…) while
+      // ['my-vehicles', userId, accountId] is the Dashboard's own
+      // query against my_vehicles_v (owned ∪ shared). Without both,
+      // a newly-added vehicle didn't show on the Dashboard until the
+      // user refreshed — exactly the bug reported on TestFlight.
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
 
       try { if (user) await trackUserAction(user.id); } catch {}
       draft.clearDraft();
