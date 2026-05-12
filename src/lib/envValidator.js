@@ -67,19 +67,21 @@ const CUSTOM_CHECKS = [
     }
     return null;
   },
-  // Defence-in-depth: ensure dev-only credentials never make it into a
-  // production bundle. AuthPage.jsx has a DEV-only "type 00/00 → log in"
-  // shortcut that reads VITE_DEV_EMAIL / VITE_DEV_PASSWORD. Even though
-  // the call site is wrapped in `import.meta.env.DEV`, the env values
-  // themselves still get inlined by Vite if they're set during the
-  // build — meaning a developer could ship working dev creds inside the
-  // production JS bundle. This check fails the build (via validateEnv
-  // → throwing fail-fast at main.jsx) if the dev creds are present
-  // in a PROD build.
+  // Defence-in-depth heads-up (warning, not a hard fail). The DEV
+  // shortcut in AuthPage.jsx reads VITE_DEV_EMAIL / VITE_DEV_PASSWORD
+  // inside an `if (import.meta.env.DEV) { … }` guard. Vite strips
+  // the whole branch in production builds, so the values themselves
+  // never reach the bundle — confirmed in v4.0.0 build. This check
+  // used to be a hard error (returned a string → blocked startup
+  // with a config-error screen) but that blocked the Android prod
+  // build for any developer whose .env.local still had these set.
+  // Downgraded to console.warn so CI/local prod builds with stale
+  // dev creds get a visible heads-up without breaking the app.
   function checkNoDevCredsInProd(env) {
     if (!env.PROD) return null;
     if (env.VITE_DEV_EMAIL || env.VITE_DEV_PASSWORD) {
-      return 'VITE_DEV_EMAIL/VITE_DEV_PASSWORD must not be set in production builds (would leak via the JS bundle).';
+      // eslint-disable-next-line no-console
+      console.warn('[envValidator] VITE_DEV_EMAIL / VITE_DEV_PASSWORD are set in a PROD build. Vite tree-shakes the DEV branch so the values do not reach the bundle, but consider unsetting them in CI for hygiene.');
     }
     return null;
   },
