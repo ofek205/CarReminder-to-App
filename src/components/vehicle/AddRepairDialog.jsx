@@ -390,30 +390,40 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
               a repair pointing at a deleted accident would keep its stale
               UUID in form state and re-submit it on save (the FK would
               then reject the write). */}
-          <div>
-            <Label>קשר לתאונה (אופציונלי)</Label>
-            <Select
-              value={form.accident_id || 'none'}
-              onValueChange={(v) => setForm(prev => ({ ...prev, accident_id: v === 'none' ? '' : v }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="ללא קשר לתאונה" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">ללא קשר לתאונה</SelectItem>
-                {vehicleAccidents.map(a => {
-                  const dateLabel = a.date
-                    ? new Date(a.date).toLocaleDateString('he-IL')
-                    : 'ללא תאריך';
-                  const locLabel = a.location ? ` · ${a.location}` : '';
-                  return (
-                    <SelectItem key={a.id} value={a.id}>
-                      {dateLabel}{locLabel}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* "Link to accident" dropdown — hidden when the vehicle
+              has no accidents in the list (user reported "should only
+              appear when there are accidents to choose from"). The
+              stale-link edge case is covered by `form.accident_id`:
+              if an existing repair already points at an accident
+              that's no longer in this vehicle's list, we still render
+              the dropdown so the user can clear it instead of losing
+              the FK silently. */}
+          {(vehicleAccidents.length > 0 || form.accident_id) && (
+            <div>
+              <Label>קשר לתאונה (אופציונלי)</Label>
+              <Select
+                value={form.accident_id || 'none'}
+                onValueChange={(v) => setForm(prev => ({ ...prev, accident_id: v === 'none' ? '' : v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="ללא קשר לתאונה" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">ללא קשר לתאונה</SelectItem>
+                  {vehicleAccidents.map(a => {
+                    const dateLabel = a.date
+                      ? new Date(a.date).toLocaleDateString('he-IL')
+                      : 'ללא תאריך';
+                    const locLabel = a.location ? ` · ${a.location}` : '';
+                    return (
+                      <SelectItem key={a.id} value={a.id}>
+                        {dateLabel}{locLabel}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="flex items-center gap-2 border border-gray-200 rounded-lg p-3">
             <Switch

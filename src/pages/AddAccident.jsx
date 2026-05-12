@@ -9,7 +9,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ManufacturerSelector from '@/components/vehicle/ManufacturerSelector';
-import { Camera, Loader2, Search, CheckCircle2, X, AlertTriangle, Car, FileText, Shield, Calendar, ZoomIn, LocateFixed, Download, Upload } from 'lucide-react';
+import { Camera, Loader2, Search, CheckCircle2, X, AlertTriangle, Car, FileText, Shield, Calendar, ZoomIn, LocateFixed, Download, Upload, ChevronDown } from 'lucide-react';
 import AccidentPrintReport, { AccidentPrintStyles } from '../components/accidents/AccidentPrintReport';
 import AccidentReportModal from '../components/accidents/AccidentReportModal';
 import { getCurrentPosition } from '@/lib/capacitor';
@@ -755,26 +755,40 @@ export default function AddAccident() {
             beige tile for visual cohesion. Each field is optional;
             absent fields are simply skipped in the exported PDF. */}
         <div className="rounded-2xl p-4 space-y-3" style={{ background: '#F5F1EB', border: `1px solid ${C.border}` }}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>מספר דוח משטרה</Label>
-              <Input
-                value={form.police_report_number || ''}
-                onChange={e => handleChange('police_report_number', e.target.value)}
-                placeholder="אם הוגש"
-                className="rounded-xl"
-              />
+          {/* Police report fields — collapsed by default because most
+              accidents (small fender-benders) aren't reported to the
+              police. Auto-opens when either field already has a value
+              (edit mode). User requested: "make the police report
+              section a curtain, not everyone needs it". */}
+          <details className="group" open={!!(form.police_report_number || form.police_station)}>
+            <summary className="cursor-pointer list-none flex items-center justify-between py-1">
+              <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: C.text }}>
+                <Shield className="w-3.5 h-3.5" style={{ color: C.primary }} />
+                דוח משטרה (אופציונלי)
+              </span>
+              <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" style={{ color: C.muted }} />
+            </summary>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+              <div>
+                <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>מספר דוח משטרה</Label>
+                <Input
+                  value={form.police_report_number || ''}
+                  onChange={e => handleChange('police_report_number', e.target.value)}
+                  placeholder="אם הוגש"
+                  className="rounded-xl"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>תחנת משטרה</Label>
+                <Input
+                  value={form.police_station || ''}
+                  onChange={e => handleChange('police_station', e.target.value)}
+                  placeholder="אם הוגש"
+                  className="rounded-xl"
+                />
+              </div>
             </div>
-            <div>
-              <Label className="text-xs font-medium mb-1 block" style={{ color: C.muted }}>תחנת משטרה</Label>
-              <Input
-                value={form.police_station || ''}
-                onChange={e => handleChange('police_station', e.target.value)}
-                placeholder="אם הוגש"
-                className="rounded-xl"
-              />
-            </div>
-          </div>
+          </details>
 
           {/* Injuries — Yes/No segmented buttons inline. When "כן",
               a textarea slides down for details. */}
@@ -908,13 +922,15 @@ export default function AddAccident() {
               {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
               {isEdit ? 'עדכן תאונה' : 'שמור תאונה'}
             </button>
-            {/* Export to PDF — only after the accident exists in the DB.
-                We don't show it on a fresh form because the report needs
-                a saved accident id and saved data (the user's text might
-                not be flushed yet). After "שמור" the user lands back on
-                Accidents.jsx and re-enters in edit mode where this is
-                visible. */}
-            {isEdit && (
+            {/* Export to PDF.
+                In edit mode → active, opens the report picker.
+                In new-accident mode → visible but disabled, with a
+                hint that the user needs to save the accident first.
+                Before this change the button was hidden until edit,
+                so a user filling out a new accident didn't know they
+                could export at all — user reported "need to see
+                export already at the fill stage at the bottom". */}
+            {isEdit ? (
               <button
                 type="button"
                 onClick={() => setReportMode('options')}
@@ -922,6 +938,16 @@ export default function AddAccident() {
                 style={{ background: '#fff', color: C.primary, border: `1.5px solid ${C.border}` }}>
                 <Download className="w-4 h-4" />
                 ייצוא דוח רשמי (PDF)
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                title="שמור את התאונה כדי להפיק דוח"
+                className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-colors opacity-60 cursor-not-allowed"
+                style={{ background: '#F9FAFB', color: C.muted, border: `1.5px solid ${C.border}` }}>
+                <Download className="w-4 h-4" />
+                ייצוא דוח רשמי — זמין לאחר שמירה
               </button>
             )}
           </div>
