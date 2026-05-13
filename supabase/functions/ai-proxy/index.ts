@@ -34,16 +34,13 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { logSecurityEvent } from '../_shared/securityLog.ts';
+import { buildCorsHeaders, CAPACITOR_ORIGINS } from '../_shared/cors.ts';
 
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE     = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const GEMINI_KEY       = Deno.env.get('GEMINI_API_KEY');
 const GROQ_KEY         = Deno.env.get('GROQ_API_KEY');
 const ANTHROPIC_KEY    = Deno.env.get('ANTHROPIC_API_KEY');
-// Fail-closed default. If ALLOWED_ORIGIN isn't configured we refuse all
-// browser origins rather than echo whatever the caller sent. Same pattern
-// as dispatch-reminder-emails.
-const ALLOWED_ORIGIN   = Deno.env.get('ALLOWED_ORIGIN') || 'https://car-reminder.app';
 
 // Switched from gemini-2.0-flash to gemini-1.5-flash after the
 // project's 2.0-flash daily quota started getting exhausted under
@@ -56,75 +53,19 @@ const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1beta/models/g
 const GROQ_URL      = 'https://api.groq.com/openai/v1/chat/completions';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
-// Capacitor on Android serves the app from https://localhost (and on
-// iOS from capacitor://localhost). Without these in the allow-list, the
-// app's WebView fetch fails the CORS preflight and the user sees a
-// generic "no internet" toast even though the device is online and
-// every other Supabase call works. Hardcoded here (not via env) so the
-// native app is always allowed regardless of project config drift.
-const CAPACITOR_ORIGINS = [
-  'https://localhost',
-  'http://localhost',
-  'capacitor://localhost',
-  'ionic://localhost',
-];
-
-const LOCAL_WEB_ORIGINS = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:4173',
-];
-
-function isTrustedVercelPreview(origin: string): boolean {
-  if (!origin) return false;
-  try {
-    const { hostname, protocol } = new URL(origin);
-    if (protocol !== 'https:') return false;
-    if (!hostname.endsWith('.vercel.app')) return false;
-    // Only match Vercel branch-preview URLs of THIS project. Vercel
-    // generates preview hostnames as `{project}-git-{branch}-{teamslug}.vercel.app`.
-    // Requiring the literal `-git-` segment after the project prefix
-    // means an attacker can't just register a Vercel project starting
-    // with `car-reminder-to-app-` and inherit our CORS allow-list — they
-    // would need ownership of a project literally named
-    // `car-reminder-to-app` (already ours) or `car-manage-hub`.
-    // Examples that match:
-    //   car-reminder-to-app-git-staging-abc123-myteam.vercel.app
-    //   car-manage-hub-git-staging-xyz.vercel.app
-    return (
-      hostname.startsWith('car-reminder-to-app-git-') ||
-      hostname.startsWith('car-manage-hub-git-')
-    );
-  } catch {
-    return false;
-  }
-}
+// CORS allow-list logic lives in _shared/cors.ts. ai-proxy is the
+// mobile-callable function so it opts into CAPACITOR_ORIGINS (the
+// other Edge Functions don't). supabase-js invoke() attaches apikey +
+// x-client-info on every call so those headers must be in the allow
+// list — authorization + content-type cover raw fetch too.
+const AI_PROXY_ALLOWED_HEADERS =
+  'authorization, content-type, apikey, x-client-info, x-client-ip';
 
 function buildCors(req: Request): HeadersInit {
-  const origin = req.headers.get('origin') || '';
-  const allowList = [
-    ...ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean),
-    ...LOCAL_WEB_ORIGINS,
-    ...CAPACITOR_ORIGINS,
-  ];
-  // Only echo the caller's origin if it's in the whitelist. Otherwise
-  // advertise the first allowed origin, which will trigger a browser
-  // CORS failure for unauthorised callers instead of silently succeeding.
-  // Fail-closed: unauthorised origins get 'null' so the browser's CORS check
-  // rejects. (The old `allowList[0]` fallback still echoed an allowed
-  // origin, letting unauthorised callers see headers they shouldn't.)
-  const allow = (allowList.includes(origin) || isTrustedVercelPreview(origin)) ? origin : 'null';
-  return {
-    'Access-Control-Allow-Origin':  allow,
-    // supabase-js invoke() attaches apikey + x-client-info on every call;
-    // without them in the allow-list the browser blocks the preflight and
-    // the invoke() helper returns "Failed to send a request" even though
-    // the function is up. authorization + content-type cover raw fetch too.
-    'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info, x-client-ip',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Vary': 'Origin',
-  };
+  return buildCorsHeaders(req, {
+    allowedHeaders: AI_PROXY_ALLOWED_HEADERS,
+    extraOrigins:   CAPACITOR_ORIGINS,
+  });
 }
 
 function json(body: unknown, status = 200, req?: Request) {

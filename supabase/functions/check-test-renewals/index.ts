@@ -35,18 +35,11 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { logSecurityEvent } from '../_shared/securityLog.ts';
+import { buildCorsHeaders } from '../_shared/cors.ts';
 
 const SUPABASE_URL    = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const DISPATCH_SECRET = Deno.env.get('DISPATCH_SECRET');
-const ALLOWED_ORIGIN  = Deno.env.get('APP_ORIGIN') || 'https://car-reminder.app';
-
-const LOCAL_WEB_ORIGINS = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:4173',
-];
 
 // Same datastore the client-side vehicleLookup uses. Keep in sync with
 // src/services/vehicleLookup.js — RESOURCE_ID for "רכב 4 גלגלים".
@@ -72,32 +65,13 @@ const WINDOW_FORWARD_DAYS = 30;
 // is fine.
 const MAX_VEHICLES_PER_RUN = 2000;
 
-function isTrustedVercelPreview(origin: string): boolean {
-  if (!origin) return false;
-  try {
-    const { hostname, protocol } = new URL(origin);
-    if (protocol !== 'https:') return false;
-    if (!hostname.endsWith('.vercel.app')) return false;
-    return (
-      hostname.startsWith('car-reminder-to-app-git-') ||
-      hostname.startsWith('car-manage-hub-git-')
-    );
-  } catch { return false; }
-}
+// CORS allow-list logic lives in _shared/cors.ts. This function only
+// declares the headers it accepts (cron callers pass x-dispatch-secret).
+const RENEWALS_ALLOWED_HEADERS =
+  'authorization, x-client-info, x-client-ip, apikey, content-type, x-dispatch-secret';
 
 function buildCors(req: Request): HeadersInit {
-  const origin = req.headers.get('origin') || '';
-  const allowList = [
-    ...ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean),
-    ...LOCAL_WEB_ORIGINS,
-  ];
-  const allow = (allowList.includes(origin) || isTrustedVercelPreview(origin)) ? origin : 'null';
-  return {
-    'Access-Control-Allow-Origin':  allow,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, x-client-ip, apikey, content-type, x-dispatch-secret',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Vary':                         'Origin',
-  };
+  return buildCorsHeaders(req, { allowedHeaders: RENEWALS_ALLOWED_HEADERS });
 }
 
 function json(body: unknown, status = 200, req?: Request) {
