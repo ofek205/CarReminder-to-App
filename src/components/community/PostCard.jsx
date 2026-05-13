@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import useIsAdmin from '@/hooks/useIsAdmin';
 import useSignedUrl from '@/hooks/useSignedUrl';
 import CommentSection from './CommentSection';
+import ReportDialog from './ReportDialog';
 
 function timeAgo(date) {
   try { return formatDistanceToNow(new Date(date), { addSuffix: false, locale: he }); }
@@ -82,6 +83,8 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(post.body || '');
   const [savingEdit, setSavingEdit] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [blocking, setBlocking] = useState(false);
   const { user, isGuest } = useAuth();
   const queryClient = useQueryClient();
   const isLong = post.body?.length > 200;
@@ -242,6 +245,70 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     setDeleting(false);
   };
 
+  // Block: insert (blocker_id=me, blocked_id=post author) into blocked_users.
+  // RLS enforces blocker_id=auth.uid() and no-self-block. After insert we
+  // invalidate the feed query so the blocked author's posts disappear from
+  // the user's feed immediately (the community_posts_visible view filters
+  // them out server-side). Apple Guideline 1.2 requires this immediacy —
+  // "Blocking should ... remove it from the user's feed instantly."
+  const handleBlock = async () => {
+    if (!user || !post.user_id || post.user_id === user.id) return;
+    // Sanitize the interpolated author name (same reason as the old confirm()
+    // call: confirm() renders plain text, but a crafted name with newlines /
+    // quotes can spoof the dialog message without an XSS.)
+    const safeName = String(post.author_name || '').replace(/[^\p{L}\p{N} .\-#]/gu, '').slice(0, 60) || 'משתמש';
+    if (!confirm(`לחסום את ${safeName}? לא תראו עוד פוסטים ותגובות שלהם.`)) return;
+    setBlocking(true);
+    try {
+      const { error } = await supabase.from('blocked_users').insert({
+        blocker_id: user.id,
+        blocked_id: post.user_id,
+        // Denormalized display label so the "blocked users" management
+        // screen can show something the user recognizes (auth.users.name
+        // is not readable cross-user under RLS). Anonymous posters show
+        // up by their anonymous number so the user can still distinguish
+        // multiple blocked anons in their list.
+        blocked_name: post.is_anonymous
+          ? `אנונימי${post.anonymous_number ? ` #${post.anonymous_number}` : ''}`
+          : (post.author_name || 'משתמש'),
+      });
+      // 23505 = unique_violation — already blocked. Treat as success (idempotent UX).
+      if (error && error.code !== '23505') {
+        console.warn('Block insert failed:', error.message);
+        toast.error('שגיאה בחסימה');
+        return;
+      }
+      // Apple Guideline 1.2: "Blocking should ALSO notify the developer of
+      // the inappropriate content." We satisfy this by auto-creating a
+      // reported_posts row for the post that triggered the block, so the
+      // moderation queue (admin dashboard reads reported_posts) surfaces
+      // the content. Failure here is non-fatal — the block already
+      // succeeded; the auto-report is best-effort defense-in-depth.
+      // Fire-and-forget: we don't await, but we DO surface the error in
+      // the console so a recurring failure shows up in QA.
+      supabase.from('reported_posts').insert({
+        post_id: post.id,
+        reporter_id: user.id,
+        reason: 'other',
+        details: 'AUTO: user blocked this author (Apple 1.2 dev-notification)',
+      }).then(({ error: reportErr }) => {
+        // 23505 = the user already reported this post via the explicit
+        // Report flow earlier. That's fine — we don't need a duplicate.
+        if (reportErr && reportErr.code !== '23505') {
+          console.warn('Block-auto-report insert failed:', reportErr.message);
+        }
+      });
+      await queryClient.invalidateQueries({ queryKey: ['community_posts'] });
+      await queryClient.invalidateQueries({ queryKey: ['blocked_users'] });
+      toast.success('המשתמש נחסם');
+    } catch (e) {
+      console.warn('Block network error:', e?.message);
+      toast.error('שגיאה בחסימה');
+    } finally {
+      setBlocking(false);
+    }
+  };
+
   const handleSaveEdit = async () => {
     const trimmed = editText.trim();
     if (trimmed.length < 10) { toast.error('יש לכתוב לפחות 10 תווים'); return; }
@@ -313,55 +380,22 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
               )}
               {!isOwner && canInteract && (
                 <>
-                  <DropdownMenuItem onClick={() => {
-                    try {
-                      const reports = JSON.parse(localStorage.getItem('reported_posts') || '[]');
-                      if (!reports.includes(post.id)) { reports.push(post.id); localStorage.setItem('reported_posts', JSON.stringify(reports)); }
-                      toast.success('הדיווח נשלח. תודה!');
-                    } catch {}
-                  }} className="gap-2 text-sm font-medium cursor-pointer">
+                  <DropdownMenuItem onClick={() => setReportOpen(true)}
+                    className="gap-2 text-sm font-medium cursor-pointer">
                     <Flag className="w-4 h-4" /> דווח על תוכן
                   </DropdownMenuItem>
-                  {isAdmin && (
-                    <DropdownMenuItem onClick={async () => {
-                      // Strip non-letter/digit/space chars from author_name before
-                      // interpolating into confirm() — a crafted name containing
-                      // quotes/backticks/newlines could otherwise corrupt the
-                      // dialog text or look like a different post. confirm()
-                      // renders as plain text (no XSS), but the visible message
-                      // can still be spoofed without this sanitize.
-                      const safeName = String(post.author_name || '').replace(/[^\p{L}\p{N} .\-#]/gu, '').slice(0, 60) || 'משתמש';
-                      if (!confirm(`לחסום את ${safeName}? לא יראו את הפוסטים שלו.`)) return;
-                      // Server-side block (audit L-1). Falls back to a local
-                      // localStorage entry if the DB insert errors — so the
-                      // admin's own session still hides the user even on a
-                      // transient failure, and the next attempt re-tries the
-                      // global block.
-                      let serverOk = false;
-                      try {
-                        await db.community_blocked_users.create({
-                          user_id:    post.user_id,
-                          blocked_by: user?.id,
-                          reason:     null,
-                        });
-                        serverOk = true;
-                      } catch (e) {
-                        // Duplicate (already blocked) is a no-op success; any
-                        // other error → keep the localStorage path as backup.
-                        if (e?.code === '23505') serverOk = true;
-                      }
-                      try {
-                        const blocked = JSON.parse(localStorage.getItem('blocked_users') || '[]');
-                        if (!blocked.includes(post.user_id)) {
-                          blocked.push(post.user_id);
-                          localStorage.setItem('blocked_users', JSON.stringify(blocked));
-                        }
-                      } catch {}
-                      queryClient.invalidateQueries({ queryKey: ['community_posts'] });
-                      queryClient.invalidateQueries({ queryKey: ['community_blocked_users'] });
-                      toast.success(serverOk ? 'המשתמש נחסם' : 'נחסם בסשן זה — נסה שוב לחסימה גלובלית');
-                    }} className="gap-2 text-sm font-medium cursor-pointer text-red-600">
-                      <Ban className="w-4 h-4" /> חסום משתמש (אדמין)
+                  {/* Block is available to ALL authenticated users, not just admins.
+                      Required by Apple Guideline 1.2 (May 2026 rejection of v4.0.0).
+                      Block is one-way mute: blocker stops seeing blocked's posts via
+                      the community_posts_visible view; blocked user is not notified.
+                      Replaces the prior admin-only `community_blocked_users` flow
+                      with a per-user `blocked_users` table (see supabase-add-ugc-
+                      moderation.sql) — both can coexist if admin moderation still
+                      needs the global list. */}
+                  {post.user_id && (
+                    <DropdownMenuItem onClick={handleBlock} disabled={blocking}
+                      className="gap-2 text-sm font-medium cursor-pointer text-red-600">
+                      <Ban className="w-4 h-4" /> {blocking ? 'חוסם...' : 'חסום משתמש'}
                     </DropdownMenuItem>
                   )}
                 </>
@@ -534,6 +568,15 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
       {showComments && (
         <CommentSection postId={post.id} postOwnerId={post.user_id} postDomain={post.domain} postBody={post.body} canComment={canComment} T={T} onCommentAdded={onCommentAdded} />
       )}
+
+      {/* Report dialog — mounted once per card, opened by the dropdown's Report item.
+          Submits to reported_posts in Supabase (RLS scopes inserts to the current user). */}
+      <ReportDialog
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        postId={post.id}
+        postAuthorName={post.is_anonymous ? null : post.author_name}
+      />
     </div>
   );
 }

@@ -89,9 +89,13 @@ export default function Community() {
           .replace(/%/g, '\\%')
           .replace(/_/g, '\\_');
         const q = `%${escaped}%`;
-        // Search in posts body + author_name
+        // Search in posts body + author_name.
+        // Queries community_posts_visible (not community_posts directly) so
+        // search results never include posts authored by users the current
+        // user has blocked. Required by Apple Guideline 1.2 — blocked content
+        // must be hidden across all feed surfaces, including search.
         const [postsRes, commentsRes] = await Promise.all([
-          supabase.from('community_posts').select('id').eq('domain', domain)
+          supabase.from('community_posts_visible').select('id').eq('domain', domain)
             .or(`body.ilike."${q}",author_name.ilike."${q}"`).limit(100),
           supabase.from('community_comments').select('post_id').ilike('body', q).limit(100),
         ]);
@@ -110,7 +114,11 @@ export default function Community() {
     queryKey: ['community_posts', domain],
     queryFn: async () => {
       try {
-        const { data, error } = await supabase.from('community_posts').select('*').eq('domain', domain)
+        // Reads from the community_posts_visible view (NOT the base table)
+        // so blocked-user posts are filtered out by the server. Inserts /
+        // updates / deletes still target community_posts directly — the
+        // view is read-only by design. Required by Apple Guideline 1.2.
+        const { data, error } = await supabase.from('community_posts_visible').select('*').eq('domain', domain)
           .order('created_at', { ascending: false }).limit(50);
         if (error) throw error;
         return data || [];

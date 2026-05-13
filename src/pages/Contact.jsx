@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { MessageSquare, Send, Loader2, CheckCircle2, User, Mail, FileText } from 'lucide-react';
+import { MessageSquare, Send, Loader2, CheckCircle2, User, Mail, FileText, Clock, HelpCircle, Shield, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import { toast } from 'sonner';
@@ -7,7 +8,15 @@ import { C } from '@/lib/designTokens';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { createPageUrl } from '@/utils';
 import { isValidEmail } from '@/lib/validators';
+
+const SUPPORT_EMAIL = 'support@car-reminder.app';
+const FAQ_ITEMS = [
+  { q: 'תוך כמה זמן אקבל מענה?', a: 'אנחנו עונים תוך 24-48 שעות בימי עסקים (ראשון-חמישי).' },
+  { q: 'איך מוחקים חשבון?', a: 'דרך הגדרות → מחיקת חשבון, או דרך עמוד "מחיקת חשבון" באפליקציה.' },
+  { q: 'נתקלתי בבאג, איך לדווח?', a: 'מלאו את הטופס למטה עם תיאור מפורט, ואם אפשר צרפו צילום מסך במייל ל-support.' },
+];
 
 export default function Contact() {
   const { user } = useAuth();
@@ -107,6 +116,78 @@ export default function Contact() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Static info section — visible to all visitors (incl. unauthenticated
+          App Store reviewers). Apple 1.5 requires the Support URL to surface
+          actionable support information, not just a contact form behind auth. */}
+      <div className="mx-4 mb-5 space-y-3">
+        {/* Direct email CTA */}
+        <a href={`mailto:${SUPPORT_EMAIL}`}
+          className="block rounded-2xl p-4 border transition-all active:scale-[0.99]"
+          style={{ borderColor: `${C.primary}25`, background: '#fff', boxShadow: `0 2px 12px ${C.primary}10` }}>
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: `${C.primary}12` }}>
+              <Mail className="w-5 h-5" style={{ color: C.primary }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium mb-0.5" style={{ color: C.muted }}>שלחו לנו מייל ישיר</p>
+              <p className="text-sm font-bold truncate" dir="ltr" style={{ color: C.text }}>{SUPPORT_EMAIL}</p>
+            </div>
+            <ExternalLink className="w-4 h-4 flex-shrink-0" style={{ color: C.muted }} />
+          </div>
+        </a>
+
+        {/* Response time */}
+        <div className="rounded-2xl p-4 border flex items-center gap-3"
+          style={{ borderColor: `${C.primary}25`, background: '#fff' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: `${C.primary}12` }}>
+            <Clock className="w-5 h-5" style={{ color: C.primary }} />
+          </div>
+          <div className="flex-1">
+            <p className="text-xs font-medium mb-0.5" style={{ color: C.muted }}>זמן מענה</p>
+            <p className="text-sm font-bold" style={{ color: C.text }}>24-48 שעות בימי עסקים</p>
+          </div>
+        </div>
+
+        {/* FAQ */}
+        <div className="rounded-2xl p-4 border" style={{ borderColor: `${C.primary}25`, background: '#fff' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <HelpCircle className="w-4 h-4" style={{ color: C.primary }} />
+            <p className="text-sm font-bold" style={{ color: C.text }}>שאלות נפוצות</p>
+          </div>
+          <div className="space-y-3">
+            {FAQ_ITEMS.map((item, i) => (
+              <div key={i}>
+                <p className="text-sm font-semibold mb-1" style={{ color: C.text }}>{item.q}</p>
+                <p className="text-xs leading-relaxed" style={{ color: C.muted }}>{item.a}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Legal links */}
+        <div className="flex items-center justify-center gap-4 pt-1">
+          <Link to={createPageUrl('PrivacyPolicy')}
+            className="text-xs font-medium flex items-center gap-1" style={{ color: C.muted }}>
+            <Shield className="w-3 h-3" />
+            מדיניות פרטיות
+          </Link>
+          <span style={{ color: C.muted }}>·</span>
+          <Link to={createPageUrl('TermsOfService')}
+            className="text-xs font-medium" style={{ color: C.muted }}>
+            תנאי שימוש
+          </Link>
+        </div>
+      </div>
+
+      {/* Form section header */}
+      <div className="mx-4 mb-2 flex items-center gap-2">
+        <div className="h-px flex-1" style={{ background: `${C.primary}20` }} />
+        <p className="text-xs font-bold" style={{ color: C.muted }}>או שלחו טופס</p>
+        <div className="h-px flex-1" style={{ background: `${C.primary}20` }} />
       </div>
 
       <form onSubmit={handleSubmit} className="px-4 pb-24 space-y-4">

@@ -19,6 +19,7 @@ import { isNative } from "@/lib/capacitor";
 import { C } from '@/lib/designTokens';
 import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
 import SharingHelpButton from "@/components/sharing/SharingHelpButton";
+import BlockedUsersList from "@/components/community/BlockedUsersList";
 
 //  WhatsApp icon 
 const WhatsAppIcon = () => (
@@ -658,6 +659,14 @@ function AuthAccountSettings({ embedded = false }) {
           </p>
         </div>
       )}
+
+      {/* Blocked users management. Mounts the community block list inside the
+          account settings tab so the user has a single place to see (and undo)
+          their blocks. Required by Apple Guideline 1.2 — once a user can block
+          someone, they must be able to unblock them. */}
+      <div className="mt-6" dir="rtl">
+        <BlockedUsersList />
+      </div>
 
       {/* Invite Dialog */}
       <Dialog open={showInvite} onOpenChange={resetInviteDialog}>

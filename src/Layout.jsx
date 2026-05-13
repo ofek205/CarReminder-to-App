@@ -623,7 +623,11 @@ function LayoutInner({ children }) {
   // /dev/components is the design-system style guide — kept public so you can
   // open it on any browser/device without juggling logins, including on staging
   // QA devices that might not have a workspace yet.
-  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components'];
+  // /Contact is public so the App Store's "Support URL" (car-reminder.app/Contact)
+  // resolves to a real support page for App Review reviewers, who are never signed in.
+  // Apple 1.5 rejection (May 2026) was caused by an auth gate sending the reviewer
+  // to /Auth instead of letting them see contact info.
+  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components', '/Contact'];
   const isPublicRoute = PUBLIC_PAGES.includes(location.pathname);
   const isAuthRoute = location.pathname === '/Auth' || location.pathname === '/';
 
