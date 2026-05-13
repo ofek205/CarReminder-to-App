@@ -16,10 +16,14 @@ import { Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, Line, ComposedChart, Legend,
 } from 'recharts';
 import {
-  format, subDays, startOfDay, parseISO, isValid,
+  format, subDays, parseISO,
   isBefore, isAfter, differenceInDays,
 } from 'date-fns';
 import { he } from 'date-fns/locale';
+import {
+  formatRelative, daysForFilter, getRangeStart,
+  inRange, safeDate, buildSeries, retentionColor,
+} from './admin/dashboardHelpers';
 
 // 
 // Constants
@@ -61,100 +65,10 @@ const C = {
 
 const CHART_PALETTE = [C.blue, C.green, C.amber, C.red, C.purple, C.teal];
 
-// 
-// Helpers
-// 
-
-// Human-readable "X ago" for the last-refreshed label.
-function formatRelative(date) {
-  const secs = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (secs < 10)   return 'עכשיו';
-  if (secs < 60)   return `לפני ${secs} שניות`;
-  const mins = Math.floor(secs / 60);
-  if (mins < 60)   return `לפני ${mins} דק'`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24)    return `לפני ${hrs} שעות`;
-  return `לפני ${Math.floor(hrs / 24)} ימים`;
-}
-
-// Number of days the current filter spans. used by analytics memos so
-// the trend charts respect the top-of-page date picker.
-function daysForFilter(key) {
-  switch (key) {
-    case 'today':     return 1;
-    case 'yesterday': return 2;
-    case 'week':      return 7;
-    case 'month':     return 30;
-    case 'quarter':   return 90;
-    case 'all':       return 90;    // cap "all" at 90 days for trend charts. unbounded series are unreadable
-    default:          return 7;
-  }
-}
-
-function getRangeStart(key) {
-  switch (key) {
-    case 'today':     return startOfDay(TODAY);
-    case 'yesterday': return startOfDay(subDays(TODAY, 1));
-    case 'week':      return startOfDay(subDays(TODAY, 6));
-    case 'month':     return startOfDay(subDays(TODAY, 29));
-    case 'quarter':   return startOfDay(subDays(TODAY, 89));
-    case 'all':       return new Date(0);
-    default:          return startOfDay(subDays(TODAY, 6));
-  }
-}
-
-function getRangeEnd(key) {
-  return key === 'yesterday' ? startOfDay(TODAY) : new Date(TODAY.getTime() + 1);
-}
-
-function inRange(dateStr, key) {
-  if (key === 'all') return true;
-  if (!dateStr) return false;
-  try {
-    const d = parseISO(String(dateStr));
-    if (!isValid(d)) return false;
-    return d >= getRangeStart(key) && d < getRangeEnd(key);
-  } catch { return false; }
-}
-
-function safeDate(str) {
-  if (!str) return null;
-  try { const d = parseISO(String(str)); return isValid(d) ? d : null; }
-  catch { return null; }
-}
-
-function dayStr(d) { return format(d, 'yyyy-MM-dd'); }
-
-function buildSeries(filterKey, ...seriesDefs) {
-  // seriesDefs: [{ key, items, dateGetter }]
-  const isToday = filterKey === 'today';
-  const isYesterday = filterKey === 'yesterday';
-  const days = filterKey === 'month' ? 30 : filterKey === 'week' ? 7 : 1;
-  const startOffset = isYesterday ? 1 : 0;
-
-  const result = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = subDays(TODAY, i + startOffset);
-    const ds = dayStr(d);
-    const point = {
-      name: days === 1 ? (isToday ? 'היום' : 'אתמול') : format(d, 'dd/MM', { locale: he }),
-    };
-    seriesDefs.forEach(({ key, items, dateGetter }) => {
-      point[key] = items.filter(item => {
-        const v = dateGetter(item);
-        return v && String(v).split('T')[0] === ds;
-      }).length;
-    });
-    result.push(point);
-  }
-  return result;
-}
-
-function retentionColor(rate) {
-  if (rate >= 60) return C.green;
-  if (rate >= 30) return C.amber;
-  return C.red;
-}
+// Helpers (formatRelative / daysForFilter / getRangeStart/End / inRange /
+// safeDate / dayStr / buildSeries / retentionColor) were extracted to
+// src/pages/admin/dashboardHelpers.js so they're reusable across the
+// admin views. See the import block at the top of this file.
 
 // 
 // UI sub-components
