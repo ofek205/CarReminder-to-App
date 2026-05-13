@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
+import { MEMBER_STATUS } from '@/lib/enums';
 import useFileUpload from '@/hooks/useFileUpload';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
@@ -170,7 +171,7 @@ export default function EditVehicle() {
 
       const { data: { user: supaUser } } = await (await import('@/lib/supabase')).supabase.auth.getUser();
       if (!supaUser) { setLoading(false); return; }
-      const members = await db.account_members.filter({ user_id: supaUser.id, status: 'פעיל' });
+      const members = await db.account_members.filter({ user_id: supaUser.id, status: MEMBER_STATUS.ACTIVE });
       const userAccountIds = members.map(m => m.account_id);
 
       let found = null;
@@ -182,7 +183,8 @@ export default function EditVehicle() {
         const v = found;
         setAccountId(v.account_id);
 
-        // TODO: migrate VehicleType to Supabase
+        // vehicle_type is a plain column on public.vehicles — no separate
+        // entity migration required. (Stale TODO removed 2026-05-13.)
         if (v.vehicle_type) {
           // usesHours covers vessels, off-road toys (RZR / מיול),
           // every CME subtype (forklifts, excavators, rollers, cranes…),

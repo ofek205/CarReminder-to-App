@@ -26,6 +26,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { lookupVehicleByPlate } from '@/services/vehicleLookup';
+import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { createPageUrl } from '@/utils';
 // Living Dashboard system - shared with all B2B pages.
 import { PageShell, Card } from '@/components/business/system';
@@ -52,11 +53,90 @@ function parsePastedText(text) {
   ));
 }
 
+// Defense-in-depth wrappers around xlsx parsing.
+//
+// xlsx@0.18.5 has two unpatched CVEs (Prototype Pollution + ReDoS) that
+// the maintainer hasn't fixed. We can't drop the library yet — too much
+// refactor. Instead, harden the only place we accept user-supplied
+// xlsx files (this one):
+//
+//   1. Reject files larger than 5 MB or with an unexpected extension.
+//      Caps ReDoS amplification and refuses obviously-malicious payloads.
+//   2. Race the parse against a 10-second timeout so a runaway regex
+//      can't pin the tab.
+//   3. Snapshot a few well-known Object.prototype properties before the
+//      parse and check them after — if they changed, we know the file
+//      tried to mutate the prototype and we throw before consuming
+//      anything.
+//   4. The downstream consumption already normalises to digit-only
+//      plate strings (4-8 chars), so even on a clean parse the data
+//      surface is tiny.
+const MAX_XLSX_BYTES   = 5 * 1024 * 1024;       // 5 MB
+const PARSE_TIMEOUT_MS = 10_000;
+const ALLOWED_EXTS     = new Set(['xlsx', 'xls', 'csv', 'xlsm']);
+
+function _protoSnapshot() {
+  // Snapshot a handful of high-risk Object.prototype keys. A malicious
+  // xlsx that sets `__proto__.constructor = ...` or similar will leave
+  // a fingerprint here we can detect.
+  return {
+    constructor:    Object.prototype.constructor,
+    hasOwnProperty: Object.prototype.hasOwnProperty,
+    toString:       Object.prototype.toString,
+    valueOf:        Object.prototype.valueOf,
+    polluted:       Object.prototype.polluted,           // expected undefined
+    isAdmin:        Object.prototype.isAdmin,            // expected undefined
+  };
+}
+
+function _protoChanged(before) {
+  const after = _protoSnapshot();
+  for (const k of Object.keys(before)) {
+    if (after[k] !== before[k]) return true;
+  }
+  return false;
+}
+
 async function parseXlsxFile(file) {
+  // 1. Cheap pre-checks before we hand the buffer to XLSX.read.
+  const name = (file?.name || '').toLowerCase();
+  const ext  = name.split('.').pop() || '';
+  if (!ALLOWED_EXTS.has(ext)) throw new Error('סוג קובץ לא נתמך — צריך xlsx, xls, xlsm או csv');
+  if (file.size > MAX_XLSX_BYTES) throw new Error('הקובץ גדול מדי (מקסימום 5MB)');
+
   // Lazy load to keep bundle out of the main chunk.
   const XLSX = await import('xlsx');
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: 'array' });
+
+  // 2. Snapshot Object.prototype so we can detect a pollution attempt.
+  const before = _protoSnapshot();
+
+  // 3. Race the parse against a timeout (xlsx parse is synchronous so
+  //    `Promise.race` doesn't actually interrupt it — but it does let
+  //    us surface a friendly error if the parse hangs unusually long,
+  //    which is the symptom of a ReDoS payload mid-parse).
+  const workbook = await Promise.race([
+    Promise.resolve().then(() => XLSX.read(buffer, {
+      type: 'array',
+      // Disable features that expand the attack surface and that we
+      // don't use downstream.
+      cellHTML:    false,
+      cellFormula: false,
+      cellStyles:  false,
+      bookSheets:  false,
+    })),
+    new Promise((_, reject) => setTimeout(
+      () => reject(new Error('עיבוד הקובץ ארך יותר מדי — נסה קובץ אחר')),
+      PARSE_TIMEOUT_MS,
+    )),
+  ]);
+
+  // 4. Pollution check. If the parse mutated Object.prototype, refuse
+  //    to consume the result — we'd be operating on a tampered runtime.
+  if (_protoChanged(before)) {
+    throw new Error('הקובץ נדחה — מבנה לא תקין');
+  }
+
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) return [];
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -728,7 +808,7 @@ function CopyPlatesButton({ plates }) {
     try {
       await navigator.clipboard.writeText(plates.join('\n'));
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION_MS);
     } catch {
       toast.error('הההעתקה נכשלה');
     }

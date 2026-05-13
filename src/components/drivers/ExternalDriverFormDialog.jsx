@@ -29,6 +29,7 @@ import {
 import useFileUpload from '@/hooks/useFileUpload';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { deleteFile, refreshSignedUrl } from '@/lib/supabaseStorage';
+import { isValidEmail } from '@/lib/validators';
 
 // Loose check — rejects obvious junk, accepts Israeli mobile (05X-) and
 // landline formats with or without separators. We don't lock to a
@@ -216,7 +217,7 @@ export default function ExternalDriverFormDialog({
       return;
     }
     const cleanEmail = email.trim();
-    if (cleanEmail && !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+    if (cleanEmail && !isValidEmail(cleanEmail)) {
       toast.error('האימייל לא נראה תקין');
       setFE('email', 'אימייל לא תקין');
       return;

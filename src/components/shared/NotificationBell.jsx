@@ -19,6 +19,7 @@ import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { MEMBER_STATUS } from '@/lib/enums';
 import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { he as heLocale } from 'date-fns/locale';
@@ -120,7 +121,7 @@ export default function NotificationBell() {
         const { db } = await import('@/lib/supabaseEntities');
         const [profilesResult, membersResult, settingsResult] = await Promise.all([
           db.user_profiles.filter({ user_id: user.id }).catch(() => []),
-          db.account_members.filter({ user_id: user.id, status: 'פעיל' }).catch(() => []),
+          db.account_members.filter({ user_id: user.id, status: MEMBER_STATUS.ACTIVE }).catch(() => []),
           db.reminder_settings.filter({ user_id: user.id }).catch(() => []),
         ]);
 

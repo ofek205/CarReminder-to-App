@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { openFileUrlSafely } from '@/lib/securityUtils';
+import { MEMBER_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1195,7 +1196,7 @@ function AuthDocuments({ vehicleIdParam }) {
       // instead of the raw Postgres error.
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) throw new Error('לא מחובר');
-      const liveMembers = await db.account_members.filter({ user_id: authUser.id, status: 'פעיל' });
+      const liveMembers = await db.account_members.filter({ user_id: authUser.id, status: MEMBER_STATUS.ACTIVE });
       const myMember = liveMembers.find(m => m.account_id === accountId);
       if (!myMember) {
         throw new Error('החשבון שלך לא משויך לקבוצה. נסה להתנתק ולהתחבר שוב.');

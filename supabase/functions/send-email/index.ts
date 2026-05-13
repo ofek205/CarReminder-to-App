@@ -17,6 +17,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { logSecurityEvent } from '../_shared/securityLog.ts';
+import { buildCorsHeaders } from '../_shared/cors.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL') || '';
@@ -40,56 +42,15 @@ const DEFAULT_FROM = 'CarReminder <no-reply@car-reminder.app>';
 
 // CORS — whitelist explicit origins instead of `*`. The JWT gate already
 // blocks unauthenticated callers, but a wildcard origin means any page on
-// the internet with a stolen token can trigger sends. Keep the allow-list
-// narrow; fail-closed on unknown origins (returns 'null' which the browser
-// treats as a CORS failure).
-const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') || 'https://car-reminder.app';
-
-// Local web dev/preview origins. Mirrored across all browser-callable
-// Edge Functions — keep in sync with ai-proxy / dispatch-broadcast /
-// dispatch-reminder-emails when adjusting.
-const LOCAL_WEB_ORIGINS = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:4173',
-];
-
-// Vercel branch-preview URLs of THIS project. Vercel generates dynamic
-// per-branch hostnames `{project}-git-{branch}-{teamslug}.vercel.app`
-// that can't be enumerated in ALLOWED_ORIGIN. Requiring the literal
-// `-git-` segment after the project prefix means an attacker can't just
-// register a Vercel project starting with `car-reminder-to-app-` and
-// inherit our CORS allow-list — they'd need ownership of a project named
-// exactly `car-reminder-to-app` (already ours) or `car-manage-hub`.
-function isTrustedVercelPreview(origin: string): boolean {
-  if (!origin) return false;
-  try {
-    const { hostname, protocol } = new URL(origin);
-    if (protocol !== 'https:') return false;
-    if (!hostname.endsWith('.vercel.app')) return false;
-    return (
-      hostname.startsWith('car-reminder-to-app-git-') ||
-      hostname.startsWith('car-manage-hub-git-')
-    );
-  } catch {
-    return false;
-  }
-}
+// the internet with a stolen token can trigger sends. Allow-list logic
+// lives in _shared/cors.ts; this function only declares its accepted
+// headers (no x-dispatch-secret because send-email is user-callable, not
+// cron-callable).
+const SEND_EMAIL_ALLOWED_HEADERS =
+  'authorization, x-client-info, x-client-ip, apikey, content-type';
 
 function buildCors(req: Request): HeadersInit {
-  const origin = req.headers.get('origin') || '';
-  const allowList = [
-    ...ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean),
-    ...LOCAL_WEB_ORIGINS,
-  ];
-  const allow = (allowList.includes(origin) || isTrustedVercelPreview(origin)) ? origin : 'null';
-  return {
-    'Access-Control-Allow-Origin':  allow,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, x-client-ip, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Vary': 'Origin',
-  };
+  return buildCorsHeaders(req, { allowedHeaders: SEND_EMAIL_ALLOWED_HEADERS });
 }
 
 function json(body: unknown, status = 200, req?: Request) {
@@ -116,9 +77,15 @@ serve(async (req) => {
     return json({ error: 'Server misconfigured (missing supabase env)' }, 500, req);
   }
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
-  if (!token) return json({ error: 'missing authorization' }, 401, req);
+  if (!token) {
+    logSecurityEvent('send-email', 'auth_failed', { reason: 'missing_authorization' });
+    return json({ error: 'missing authorization' }, 401, req);
+  }
   const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token);
-  if (authErr || !user) return json({ error: 'invalid token' }, 401, req);
+  if (authErr || !user) {
+    logSecurityEvent('send-email', 'auth_failed', { reason: authErr?.message || 'invalid_token' });
+    return json({ error: 'invalid token' }, 401, req);
+  }
 
   const { data: allowed, error: rlErr } = await supabaseAdmin.rpc('rate_limit_check', {
     kind:        `send-email:${user.id}`,
@@ -127,10 +94,11 @@ serve(async (req) => {
   // Fail-closed on RPC error: a misconfigured rate_limit_counters table
   // shouldn't open the floodgates. Return 503 so the client retries.
   if (rlErr) {
-    console.error('send-email: rate_limit_check failed:', rlErr.message);
+    logSecurityEvent('send-email', 'rate_limit_error', { user_id: user.id, error: rlErr.message });
     return json({ error: 'rate limit system unavailable' }, 503, req);
   }
   if (allowed === false) {
+    logSecurityEvent('send-email', 'rate_limit_hit', { user_id: user.id, limit: RATE_LIMIT_PER_MIN });
     return json({ error: `Rate limit exceeded (${RATE_LIMIT_PER_MIN}/min)` }, 429, req);
   }
 

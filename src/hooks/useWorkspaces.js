@@ -20,6 +20,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
+import { isActiveMember } from '@/lib/enums';
 
 export default function useWorkspaces() {
   const { user, isGuest, authState } = useAuth();
@@ -68,9 +69,7 @@ export default function useWorkspaces() {
   // Mirror the existing useAccountRole filter: never surface 'הוסר' /
   // 'removed' rows. Keeps semantics aligned for the eventual Phase 3
   // migration where useAccountRole becomes a thin wrapper over this.
-  const memberships = (data || []).filter(
-    m => m.status !== 'הוסר' && m.status !== 'removed'
-  );
+  const memberships = (data || []).filter(isActiveMember);
 
   return {
     memberships,

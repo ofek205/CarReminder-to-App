@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, ChevronDown, X, Check, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { FOCUS_AFTER_MOUNT_MS } from '@/lib/timingConstants';
 
 /**
  * Custom RTL-friendly combobox with search-as-you-type.
@@ -54,7 +55,7 @@ export default function Combobox({
 
   // Auto-focus the search input when the panel opens; reset query on close.
   useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 30);
+    if (open) setTimeout(() => searchRef.current?.focus(), FOCUS_AFTER_MOUNT_MS);
     else setQuery('');
   }, [open]);
 

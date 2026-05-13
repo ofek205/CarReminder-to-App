@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { createPageUrl } from '@/utils';
+import { isValidEmail } from '@/lib/validators';
 
 const SUPPORT_EMAIL = 'support@car-reminder.app';
 const FAQ_ITEMS = [
@@ -29,7 +30,6 @@ export default function Contact() {
   const [sent, setSent] = useState(false);
   const [touched, setTouched] = useState({ name: false, email: false, message: false });
 
-  const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim());
   const errors = {
     name: !form.name.trim() ? 'שם חובה' : '',
     email: !form.email.trim() ? 'אימייל חובה' : !isValidEmail(form.email) ? 'אימייל לא תקין' : '',

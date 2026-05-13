@@ -8,6 +8,7 @@ import { isNative, isIOS } from '@/lib/capacitor';
 import logo from '@/assets/logo.png';
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { isValidEmail } from '@/lib/validators';
 
 // EULA acceptance constants. Bumping the version invalidates prior
 // acceptance and re-prompts the user at next signup (and, in the future,
@@ -585,8 +586,7 @@ export default function AuthPage() {
     }
   };
 
-  // Basic email validation. before hitting Supabase
-  const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim());
+  // isValidEmail moved to src/lib/validators.js — single source of truth.
 
   // Re-send the signup OTP. Same email, fresh token. Cooldown UI
   // (resendCooldown countdown) prevents spam-tapping; Supabase enforces

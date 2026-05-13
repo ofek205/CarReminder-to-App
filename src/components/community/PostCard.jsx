@@ -387,7 +387,11 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
                   {/* Block is available to ALL authenticated users, not just admins.
                       Required by Apple Guideline 1.2 (May 2026 rejection of v4.0.0).
                       Block is one-way mute: blocker stops seeing blocked's posts via
-                      the community_posts_visible view; blocked user is not notified. */}
+                      the community_posts_visible view; blocked user is not notified.
+                      Replaces the prior admin-only `community_blocked_users` flow
+                      with a per-user `blocked_users` table (see supabase-add-ugc-
+                      moderation.sql) — both can coexist if admin moderation still
+                      needs the global list. */}
                   {post.user_id && (
                     <DropdownMenuItem onClick={handleBlock} disabled={blocking}
                       className="gap-2 text-sm font-medium cursor-pointer text-red-600">

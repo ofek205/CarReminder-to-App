@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '../components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -126,6 +127,30 @@ export default function Community() {
     staleTime: 30 * 1000,
   });
 
+  // Server-side admin block list (audit L-1). Replaces the per-admin
+  // localStorage list with a global one — any admin can block; every
+  // reader sees the block. Falls back gracefully when the table is
+  // missing (returns empty array → no extra filter, identical to the
+  // pre-migration behavior). Wrapped with withTimeout so a hung query
+  // can't pin Community in a permanent loading state.
+  const { data: serverBlockedIds = [] } = useQuery({
+    queryKey: ['community_blocked_users'],
+    queryFn: async () => {
+      try {
+        const { data, error } = await withTimeout(
+          supabase.from('community_blocked_users').select('user_id'),
+          'community_blocked_users',
+        );
+        if (error) return [];
+        return (data || []).map(r => r.user_id).filter(Boolean);
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 5 * 60 * 1000,    // 5 min — admin moderation is rare
+    refetchOnWindowFocus: false,
+  });
+
   const postIds = posts.map(p => p.id).filter(Boolean);
   const { data: commentCounts = {} } = useQuery({
     queryKey: ['community_comment_counts', domain, [...postIds].sort().join(',')],
@@ -181,11 +206,16 @@ export default function Community() {
   [userVehicles, domain]);
 
   const filteredPosts = useMemo(() => {
-    let blockedUsers = [];
+    // Combine the server-side admin block list (audit L-1) with the
+    // legacy localStorage list. The localStorage entries act as a
+    // session-local fallback for the brief window between a block
+    // action and the server cache invalidation, plus as defense-in-
+    // depth when the server list is unreachable.
+    let localBlocked = [];
     let reportedPosts = [];
-    try { blockedUsers = JSON.parse(localStorage.getItem('blocked_users') || '[]'); } catch {}
+    try { localBlocked = JSON.parse(localStorage.getItem('blocked_users') || '[]'); } catch {}
     try { reportedPosts = JSON.parse(localStorage.getItem('reported_posts') || '[]'); } catch {}
-    const blockedSet = new Set(blockedUsers);
+    const blockedSet  = new Set([...serverBlockedIds, ...localBlocked]);
     const reportedSet = new Set(reportedPosts);
     let result = posts.filter(p => !blockedSet.has(p.user_id) && !reportedSet.has(p.id));
     // Apply server-side search filter
@@ -193,7 +223,7 @@ export default function Community() {
       result = result.filter(p => searchResultPostIds.has(p.id));
     }
     return result;
-  }, [posts, searchResultPostIds]);
+  }, [posts, searchResultPostIds, serverBlockedIds]);
 
   const vehicleMap = useMemo(() => {
     const map = {};

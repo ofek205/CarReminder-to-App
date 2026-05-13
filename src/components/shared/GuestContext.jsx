@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { toast } from 'sonner';
 import { isVessel } from './DateStatusUtils';
+import { MEMBER_STATUS } from '@/lib/enums';
 
 const GuestContext = createContext(null);
 const STORAGE_KEY          = 'fleet_guest_vehicles';
@@ -116,11 +117,11 @@ export function GuestProvider({ children }) {
       // New user might not have account_members yet (trigger race), so we
       // retry — but cap the attempts so a misconfigured DB doesn't loop
       // forever and pin the CPU.
-      let members = await db.account_members.filter({ user_id: authenticatedUser.id, status: 'פעיל' });
+      let members = await db.account_members.filter({ user_id: authenticatedUser.id, status: MEMBER_STATUS.ACTIVE });
       let attempts = 0;
       while (members.length === 0 && attempts < 3) {
         await new Promise(r => setTimeout(r, 2000 + attempts * 1000));
-        members = await db.account_members.filter({ user_id: authenticatedUser.id, status: 'פעיל' });
+        members = await db.account_members.filter({ user_id: authenticatedUser.id, status: MEMBER_STATUS.ACTIVE });
         attempts++;
       }
       if (members.length === 0) {
