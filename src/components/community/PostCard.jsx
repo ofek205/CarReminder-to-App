@@ -278,6 +278,26 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         toast.error('שגיאה בחסימה');
         return;
       }
+      // Apple Guideline 1.2: "Blocking should ALSO notify the developer of
+      // the inappropriate content." We satisfy this by auto-creating a
+      // reported_posts row for the post that triggered the block, so the
+      // moderation queue (admin dashboard reads reported_posts) surfaces
+      // the content. Failure here is non-fatal — the block already
+      // succeeded; the auto-report is best-effort defense-in-depth.
+      // Fire-and-forget: we don't await, but we DO surface the error in
+      // the console so a recurring failure shows up in QA.
+      supabase.from('reported_posts').insert({
+        post_id: post.id,
+        reporter_id: user.id,
+        reason: 'other',
+        details: 'AUTO: user blocked this author (Apple 1.2 dev-notification)',
+      }).then(({ error: reportErr }) => {
+        // 23505 = the user already reported this post via the explicit
+        // Report flow earlier. That's fine — we don't need a duplicate.
+        if (reportErr && reportErr.code !== '23505') {
+          console.warn('Block-auto-report insert failed:', reportErr.message);
+        }
+      });
       await queryClient.invalidateQueries({ queryKey: ['community_posts'] });
       await queryClient.invalidateQueries({ queryKey: ['blocked_users'] });
       toast.success('המשתמש נחסם');
