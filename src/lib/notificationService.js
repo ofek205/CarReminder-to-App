@@ -42,7 +42,7 @@ export const DEFAULT_REMINDER_SETTINGS = {
   whatsapp_enabled: false,
 };
 
-//  Limits 
+//  Limits
 // Android AlarmManager comfortably handles months out, but scheduling too
 // many pending alarms slows the system + our cancel-all loop. Cap sanely.
 const MAX_SCHEDULE_HORIZON_DAYS = 90;
@@ -52,6 +52,18 @@ const MAX_OVERDUE_REPEATS       = 3;
 // daysLeft from the engine so they sort last. We detect them to give them
 // a gentle "tomorrow morning" slot instead of scheduling years in advance.
 const PASSIVE_DAYS_THRESHOLD = 365;
+
+// Cool-down (ms) for the mileage-update nudge. Without this, every app
+// open re-schedules a fresh "tomorrow 08:00" alarm, so a user who opens
+// the app daily sees the same nudge every morning. 7 days turns the
+// passive reminder into an actual "once a week" cadence, which is what
+// the original product copy claimed but the scheduler didn't enforce.
+// Seasonal passive reminders (winter prep / sailing season) keep their
+// every-day-tomorrow scheduling because they auto-dismiss for the year
+// via the `localStorage.setItem('winter_dismissed_*' ...)` path in the
+// engine, so they don't risk the same daily-spam pattern.
+const MILEAGE_NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const MILEAGE_LAST_FIRED_PREFIX = 'cr_mileage_nudge_last_';
 
 //  Per-type "days before due" lookup 
 function daysBeforeFor(type, settings) {
@@ -182,6 +194,24 @@ export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER
   for (const reminder of reminders) {
     if (reminder.daysLeft === null || reminder.daysLeft === undefined) continue;
     if (isTypeMuted(reminder.type, settings)) continue;
+
+    // Mileage-update nudge cool-down: skip if we already fired this exact
+    // reminder for this vehicle within the last 7 days. Read+write under
+    // try/catch so a localStorage outage (private browsing, full quota,
+    // disabled storage on Capacitor) degrades to "schedule like before"
+    // instead of breaking the whole notification loop.
+    if (reminder.type === 'mileage') {
+      try {
+        const key = MILEAGE_LAST_FIRED_PREFIX + reminder.id;
+        const lastFiredRaw = localStorage.getItem(key);
+        const lastFired = lastFiredRaw ? Number(lastFiredRaw) : 0;
+        if (Number.isFinite(lastFired) && lastFired > 0
+            && (Date.now() - lastFired) < MILEAGE_NUDGE_COOLDOWN_MS) {
+          continue;
+        }
+        localStorage.setItem(key, String(Date.now()));
+      } catch { /* storage unavailable — fall through to schedule */ }
+    }
 
     const times = computeScheduleTimes(reminder, settings);
     if (times.length === 0) continue;
