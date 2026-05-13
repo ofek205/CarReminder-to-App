@@ -9,6 +9,20 @@ import logo from '@/assets/logo.png';
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { isValidEmail } from '@/lib/validators';
+// Sign in with Apple — STATIC import (not dynamic) so the bundler
+// pre-resolves the package at build time. The previous dynamic
+// `await import(/* @vite-ignore */ '@capacitor-community/apple-sign-in')`
+// looked safer (the call site is gated on `isIOS`, so web/Android
+// would never hit it), but at runtime in WKWebView the bare-specifier
+// import HANGS: the WebView has no module resolver for bare paths,
+// and the promise neither resolves nor rejects. The user saw the
+// "המשך עם Apple" button get stuck with no error toast. Static
+// import sidesteps the whole runtime-resolution problem — Vite inlines
+// the plugin's JS into the main bundle, and the bridge call hits the
+// native Capacitor plugin registry instantly. On web/Android the
+// import is harmless: the package's web stub loads, but we never call
+// `SignInWithApple.authorize()` there (gated by the isIOS check).
+import { SignInWithApple } from '@capacitor-community/apple-sign-in';
 
 // EULA acceptance constants. Bumping the version invalidates prior
 // acceptance and re-prompts the user at next signup (and, in the future,
@@ -478,15 +492,11 @@ export default function AuthPage() {
     // user just gets a Chrome Custom Tab instead of a native sheet).
     if (provider === 'apple' && isIOS) {
       try {
-        // `@vite-ignore`: this Capacitor plugin only exists on native iOS
-        // (the package is in devDependencies-of-iOS, not bundled into web).
-        // Vite's pre-bundler would otherwise try to resolve it during dev
-        // and fail before `npm install` finishes on a fresh checkout, which
-        // breaks the web preview server entirely for everyone. Native iOS
-        // builds resolve the import through Capacitor's webpack-style
-        // module graph, so the runtime path still works there.
-        const appleSignInModule = '@capacitor-community/apple-sign-in';
-        const { SignInWithApple } = await import(/* @vite-ignore */ appleSignInModule);
+        // SignInWithApple is statically imported at the top of this file.
+        // Calling .authorize() routes through Capacitor's native bridge
+        // to the iOS Sign in with Apple sheet. The bridge call resolves
+        // immediately because the plugin is now registered both in the
+        // SPM Package.swift (cap sync) AND in the CocoaPods Podfile.
         const result = await SignInWithApple.authorize({
           // Match the Service ID configured in Apple Developer Console for
           // the Supabase callback. The native client uses the App's bundle
