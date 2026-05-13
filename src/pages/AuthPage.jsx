@@ -4,7 +4,7 @@ import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
 import { supabaseRecovery } from '@/lib/supabaseRecovery';
 import { useAuth } from '@/components/shared/GuestContext';
-import { isNative } from '@/lib/capacitor';
+import { isNative, isIOS } from '@/lib/capacitor';
 import logo from '@/assets/logo.png';
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -469,7 +469,13 @@ export default function AuthPage() {
     // path works but Apple has rejected apps that go through Safari when
     // a native sheet was available. We branch BEFORE the generic native
     // PKCE block below so the Google flow is unaffected.
-    if (provider === 'apple' && isNative) {
+    //
+    // Native check is `isIOS`, NOT `isNative`, because the
+    // @capacitor-community/apple-sign-in plugin is iOS-only. On Android
+    // native we fall through to the generic OAuth PKCE branch below,
+    // which routes through Supabase's web Apple flow (works fine — the
+    // user just gets a Chrome Custom Tab instead of a native sheet).
+    if (provider === 'apple' && isIOS) {
       try {
         // `@vite-ignore`: this Capacitor plugin only exists on native iOS
         // (the package is in devDependencies-of-iOS, not bundled into web).
