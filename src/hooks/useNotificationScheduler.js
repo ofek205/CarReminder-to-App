@@ -75,23 +75,65 @@ export default function useNotificationScheduler(vehicles = [], accountId = null
     return () => { cancelled = true; };
   }, [vehicles, user?.id, isGuest, accountId]);
 
-  // Fetch unread count
+  // Unread-count poll: shared module-level singleton so multiple mounts
+  // (StrictMode double-mount, or the hook being added to a second screen
+  // by accident) don't multiply the request rate. The actual `setInterval`
+  // fires at most once across the whole app; every subscriber receives
+  // the latest count via the snapshot ref + setState.
   useEffect(() => {
     if (isGuest || !user?.id) return;
 
-    async function fetchUnread() {
-      try {
-        const count = await getUnreadCount(user.id);
-        setUnreadCount(count);
-      } catch {
-        // Table might not exist yet
-      }
-    }
-
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 60000);
-    return () => clearInterval(interval);
+    const cleanup = subscribeUnreadCount(user.id, setUnreadCount);
+    return cleanup;
   }, [user?.id, isGuest]);
 
   return { unreadCount };
+}
+
+// ─── Module-level unread-count poll (singleton) ─────────────────────────
+// Replaces the per-hook setInterval. Tracks the latest value + every
+// subscriber. The poll only runs while at least one subscriber is alive.
+const POLL_INTERVAL_MS = 90 * 1000; // every 90s — backed by realtime invalidation
+const _unreadSubscribers = new Map(); // userId → Set<setter>
+let _unreadPollTimer = null;
+let _unreadLatest = 0;
+
+async function _pollUnread(userId) {
+  try {
+    const count = await getUnreadCount(userId);
+    _unreadLatest = count;
+    const subs = _unreadSubscribers.get(userId);
+    if (subs) for (const setter of subs) setter(count);
+  } catch {
+    // Table might not exist yet — silent retry on next tick.
+  }
+}
+
+function subscribeUnreadCount(userId, setter) {
+  if (!_unreadSubscribers.has(userId)) _unreadSubscribers.set(userId, new Set());
+  _unreadSubscribers.get(userId).add(setter);
+  // Push the last known value immediately so the new subscriber doesn't
+  // wait a full poll cycle to render.
+  setter(_unreadLatest);
+  // Kick off (or piggy-back on) the shared poll.
+  _pollUnread(userId);
+  if (!_unreadPollTimer) {
+    _unreadPollTimer = setInterval(() => {
+      // Poll for every distinct user that has subscribers.
+      for (const uid of _unreadSubscribers.keys()) _pollUnread(uid);
+    }, POLL_INTERVAL_MS);
+  }
+  return () => {
+    const subs = _unreadSubscribers.get(userId);
+    if (subs) {
+      subs.delete(setter);
+      if (subs.size === 0) _unreadSubscribers.delete(userId);
+    }
+    // If no one is listening, stop polling. Resumes the moment a new
+    // hook mounts (e.g. user comes back to the app).
+    if (_unreadSubscribers.size === 0 && _unreadPollTimer) {
+      clearInterval(_unreadPollTimer);
+      _unreadPollTimer = null;
+    }
+  };
 }

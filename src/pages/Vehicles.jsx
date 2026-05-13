@@ -630,7 +630,10 @@ export default function Vehicles() {
     },
     enabled: !!user?.id && !!accountId,
     staleTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: true,
+    // refetchOnWindowFocus intentionally omitted: was overriding the
+    // global `false` from query-client.js and firing a vehicles query
+    // on every tab focus. `useSharedVehicleRealtime` already invalidates
+    // this cache on actual mutations, so the focus refetch was wasteful.
     retry: 1,
     retryDelay: 500,
   });

@@ -1684,11 +1684,14 @@ export default function AddVehicle() {
                         )}
                       </div>
                       {usageMetric === 'שעות מנוע' ? (
-                        <Input type="number" value={form.current_engine_hours} onChange={e => handleChange('current_engine_hours', e.target.value)} placeholder="0" dir="ltr" />
+                        <Input type="number" min="0" step="1" inputMode="numeric" value={form.current_engine_hours} onChange={e => handleChange('current_engine_hours', e.target.value)} placeholder="0" dir="ltr" />
                       ) : (
                         <>
                           <Input
                             type="number"
+                            min="0"
+                            step="1"
+                            inputMode="numeric"
                             value={form.current_km}
                             onChange={e => handleChange('current_km', e.target.value)}
                             placeholder="0"
@@ -1923,6 +1926,9 @@ export default function AddVehicle() {
                             <Label>{usageMetric === 'שעות מנוע' ? 'שעות מנוע בעת ההחלפה (אופציונלי)' : 'קילומטראז׳ בעת ההחלפה (אופציונלי)'}</Label>
                             <Input
                               type="number"
+                              min="0"
+                              step="1"
+                              inputMode="numeric"
                               value={form.km_since_tire_change}
                               onChange={e => handleChange('km_since_tire_change', e.target.value)}
                               placeholder={usageMetric === 'שעות מנוע' ? 'מד שעות המנוע ביום ההחלפה' : 'מד הק״מ ביום ההחלפה'}
@@ -1958,6 +1964,9 @@ export default function AddVehicle() {
                           <Label>כמה שעות מנוע מאז? (אופציונלי)</Label>
                           <Input
                             type="number"
+                            min="0"
+                            step="1"
+                            inputMode="numeric"
                             value={form.hours_since_shipyard}
                             onChange={e => handleChange('hours_since_shipyard', e.target.value)}
                             placeholder="שעות מנוע"

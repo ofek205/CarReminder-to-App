@@ -7,6 +7,7 @@ import { C } from '@/lib/designTokens';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { isValidEmail } from '@/lib/validators';
 
 export default function Contact() {
   const { user } = useAuth();
@@ -20,7 +21,6 @@ export default function Contact() {
   const [sent, setSent] = useState(false);
   const [touched, setTouched] = useState({ name: false, email: false, message: false });
 
-  const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim());
   const errors = {
     name: !form.name.trim() ? 'שם חובה' : '',
     email: !form.email.trim() ? 'אימייל חובה' : !isValidEmail(form.email) ? 'אימייל לא תקין' : '',

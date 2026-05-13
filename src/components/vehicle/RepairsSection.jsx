@@ -428,9 +428,12 @@ export default function RepairsSection({ vehicle }) {
 
             <div>
               <Label>עלות (אופציונלי)</Label>
-              <Input 
-                type="number" 
-                value={repairForm.cost} 
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                value={repairForm.cost}
                 onChange={e => setRepairForm(f => ({ ...f, cost: e.target.value }))}
                 placeholder="₪"
               />
