@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sign in with Apple — required by App Store Review Guideline 4.8
+	     because the app offers Google as a third-party login. Without
+	     this entitlement, the Capacitor `@capacitor-community/apple-sign-in`
+	     plugin's authorize() call fails with "ASAuthorizationErrorUnknown"
+	     on the device even though everything else (Apple Dev cap, Services
+	     ID, Supabase provider) is configured correctly.
+	     `Default` is the standard scope; we don't restrict to a sub-domain. -->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+</dict>
+</plist>
