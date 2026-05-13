@@ -4,10 +4,19 @@ import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
 import { supabaseRecovery } from '@/lib/supabaseRecovery';
 import { useAuth } from '@/components/shared/GuestContext';
-import { isNative } from '@/lib/capacitor';
+import { isNative, isIOS } from '@/lib/capacitor';
 import logo from '@/assets/logo.png';
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { isValidEmail } from '@/lib/validators';
+
+// EULA acceptance constants. Bumping the version invalidates prior
+// acceptance and re-prompts the user at next signup (and, in the future,
+// at next login if we add re-acceptance flow). Kept here next to the
+// component that uses them so future changes are co-located. Match the
+// values in supabase-add-ugc-moderation.sql (eula_acceptances.document_version).
+const TOS_VERSION = '2026-05-13';
+const PRIVACY_VERSION = '2026-05-13';
 
 //  Design tokens 
 const C = {
@@ -35,6 +44,16 @@ const GoogleIcon = () => (
     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+  </svg>
+);
+
+// Apple logo monogram, white-on-black per Apple HIG (light theme button).
+// The path is the canonical "Apple" symbol (similar to SF Symbols `apple.logo`).
+// We don't import from a font/icon library because the HIG specifies exact
+// proportions that small Lucide-style icons don't quite match.
+const AppleIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 384 512" fill="currentColor" aria-hidden="true">
+    <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
   </svg>
 );
 
@@ -214,6 +233,13 @@ export default function AuthPage() {
   const [rememberMe, setRememberMe] = useState(() => {
     try { return localStorage.getItem('cr_remember_me_v1') !== '0'; } catch { return true; }
   });
+  // EULA acceptance state — gates the signup button per Apple Guideline 1.2
+  // (May 2026 rejection). False by default so a fresh user must explicitly
+  // tick the box; not persisted between sessions because each new account
+  // is its own acceptance event. The signup branch in handleSubmit blocks
+  // submission until this is true, and the post-verifyOtp branch writes an
+  // audit row to eula_acceptances using the freshly-authenticated session.
+  const [termsAccepted, setTermsAccepted] = useState(false);
   // Email-verification state.
   // pendingEmail: the address signUp() was just called with. We need it
   //   for verifyOtp + resend; the form's `email` field can be cleared
@@ -415,8 +441,100 @@ export default function AuthPage() {
   };
 
   const handleOAuth = async (provider) => {
+    // Apple Guideline 1.2 — when the user is on the signup screen, OAuth
+    // first-sign-in IS the account creation event, so the EULA gate
+    // applies. In login mode the user already has an account (and a
+    // prior acceptance row), so we let them through. We also persist the
+    // EULA stash here so the post-OAuth callback can write the audit row
+    // once the user is authenticated (handled in the AuthListener that
+    // fires on SIGNED_IN; see GuestContext / capacitor.js).
+    if (mode === 'signup' && !termsAccepted) {
+      setError('יש לאשר את תנאי השימוש ומדיניות הפרטיות כדי להירשם');
+      return;
+    }
+    if (mode === 'signup') {
+      try {
+        sessionStorage.setItem('cr_pending_eula', JSON.stringify({
+          tos: TOS_VERSION,
+          privacy: PRIVACY_VERSION,
+          ua: navigator.userAgent.slice(0, 200),
+        }));
+      } catch {}
+    }
     setOauthLoading(provider);
     setError('');
+
+    // Apple Sign In on native iOS uses the system sheet via the Capacitor
+    // plugin (NOT the PKCE-via-browser fallback). Apple's HIG + App Review
+    // Guideline 4.8 both expect the native sheet here — the in-browser
+    // path works but Apple has rejected apps that go through Safari when
+    // a native sheet was available. We branch BEFORE the generic native
+    // PKCE block below so the Google flow is unaffected.
+    //
+    // Native check is `isIOS`, NOT `isNative`, because the
+    // @capacitor-community/apple-sign-in plugin is iOS-only. On Android
+    // native we fall through to the generic OAuth PKCE branch below,
+    // which routes through Supabase's web Apple flow (works fine — the
+    // user just gets a Chrome Custom Tab instead of a native sheet).
+    if (provider === 'apple' && isIOS) {
+      try {
+        // `@vite-ignore`: this Capacitor plugin only exists on native iOS
+        // (the package is in devDependencies-of-iOS, not bundled into web).
+        // Vite's pre-bundler would otherwise try to resolve it during dev
+        // and fail before `npm install` finishes on a fresh checkout, which
+        // breaks the web preview server entirely for everyone. Native iOS
+        // builds resolve the import through Capacitor's webpack-style
+        // module graph, so the runtime path still works there.
+        const appleSignInModule = '@capacitor-community/apple-sign-in';
+        const { SignInWithApple } = await import(/* @vite-ignore */ appleSignInModule);
+        const result = await SignInWithApple.authorize({
+          // Match the Service ID configured in Apple Developer Console for
+          // the Supabase callback. The native client uses the App's bundle
+          // ID for the actual sign-in; this clientId is for the web/return
+          // metadata only.
+          clientId: 'com.carreminders.app',
+          redirectURI: 'https://zuqvolqapwcxomuzoodu.supabase.co/auth/v1/callback',
+          scopes: 'email name',
+          // Supabase signInWithIdToken needs a nonce-bound identityToken
+          // when nonce is supplied — leave undefined so the default flow
+          // works against any Supabase project (nonce verification is
+          // already handled by Supabase's session exchange).
+        });
+        const idToken = result?.response?.identityToken;
+        if (!idToken) {
+          setError('Apple לא החזיר token תקין. נסה/י שוב.');
+          setOauthLoading('');
+          return;
+        }
+        const { error } = await supabase.auth.signInWithIdToken({
+          provider: 'apple',
+          token: idToken,
+        });
+        if (error) {
+          console.warn('signInWithIdToken (apple) error:', error.message);
+          setError(localizeAuthError(error.message));
+          setOauthLoading('');
+          return;
+        }
+        // SIGNED_IN listener in GuestContext will navigate to Dashboard;
+        // clear the spinner now in case the listener races us slightly.
+        setOauthLoading('');
+        import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_LOGIN));
+        return;
+      } catch (e) {
+        // User cancelled the sheet (most common) OR plugin not yet wired.
+        // 1001 / "ASAuthorizationErrorCanceled" — silent.
+        const msg = e?.message || e?.code || '';
+        if (/cancel|1001|ASAuthorizationErrorCanceled/i.test(msg)) {
+          setOauthLoading('');
+          return;
+        }
+        console.warn('Apple Sign In failed:', msg);
+        setError('שגיאה בהתחברות עם Apple. נסה/י שוב או בחר/י דרך אחרת.');
+        setOauthLoading('');
+        return;
+      }
+    }
 
     if (isNative) {
       // Native: PKCE OAuth flow.
@@ -590,6 +708,16 @@ export default function AuthPage() {
       setError('יש להזין שם מלא');
       return;
     }
+    // Apple Guideline 1.2 — explicit terms-of-service acceptance gate.
+    // Block the signup if the box isn't ticked; we save the intent flag
+    // BEFORE signUp so the post-verifyOtp branch (where the user finally
+    // has an authenticated session) can write the audit row to
+    // eula_acceptances. Without the flag, refreshing during verify-email
+    // would lose the acceptance record entirely.
+    if (mode === 'signup' && !termsAccepted) {
+      setError('יש לאשר את תנאי השימוש ומדיניות הפרטיות כדי להירשם');
+      return;
+    }
     setLoading(true);
     // Persist the checkbox choice so it's remembered between visits.
     try { localStorage.setItem('cr_remember_me_v1', rememberMe ? '1' : '0'); } catch {}
@@ -635,6 +763,33 @@ export default function AuthPage() {
             setError(localizeAuthError(error.message));
         } else {
           try { sessionStorage.removeItem('cr_pending_verify_email'); } catch {}
+          // EULA audit-row insert: the user is now authenticated, so RLS
+          // (user_id = auth.uid()) lets us write the rows. Fire-and-forget
+          // — a failure here MUST NOT block sign-in (the UI checkbox is
+          // the gate that Apple cares about; the table is for our records).
+          // We read the stashed versions, insert TOS + privacy in one
+          // upsert, then clear the stash. Any error is logged and swallowed.
+          try {
+            const stashed = JSON.parse(sessionStorage.getItem('cr_pending_eula') || 'null');
+            if (stashed) {
+              const { data: sessionData } = await supabase.auth.getUser();
+              const uid = sessionData?.user?.id;
+              if (uid) {
+                const rows = [
+                  { user_id: uid, document_type: 'tos',     document_version: stashed.tos,     user_agent: stashed.ua || null },
+                  { user_id: uid, document_type: 'privacy', document_version: stashed.privacy, user_agent: stashed.ua || null },
+                ];
+                supabase.from('eula_acceptances').insert(rows).then(({ error: eulaErr }) => {
+                  if (eulaErr && eulaErr.code !== '23505') {
+                    console.warn('eula_acceptances insert failed:', eulaErr.message);
+                  }
+                });
+              }
+              sessionStorage.removeItem('cr_pending_eula');
+            }
+          } catch (eulaWriteErr) {
+            console.warn('eula audit row write threw:', eulaWriteErr?.message);
+          }
           setSuccess('האימייל אומת! מעביר לאפליקציה...');
           import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_SIGNUP));
         }
@@ -765,6 +920,17 @@ export default function AuthPage() {
           // verifyOtp success so the funnel reflects fully-confirmed
           // accounts, not abandoned-mid-verification ones.
           try { sessionStorage.setItem('cr_pending_verify_email', email); } catch {}
+          // Stash the EULA versions the user accepted so the post-verify
+          // branch can write the audit row once the session exists. Stored
+          // as JSON to keep tos/privacy versions in one key, scoped to the
+          // pending verification (cleared together with cr_pending_verify_email).
+          try {
+            sessionStorage.setItem('cr_pending_eula', JSON.stringify({
+              tos: TOS_VERSION,
+              privacy: PRIVACY_VERSION,
+              ua: navigator.userAgent.slice(0, 200),
+            }));
+          } catch {}
           setPendingEmail(email);
           setVerificationCode('');
           setResendCooldown(60);
@@ -878,6 +1044,19 @@ export default function AuthPage() {
                 <span className="text-xs font-bold" style={{ color: C.muted }}>או</span>
                 <div className="flex-1 h-px" style={{ background: C.border }} />
               </div>
+
+              {/* Sign in with Apple — required by Apple Guideline 4.8 because
+                  we offer a third-party social login (Google). Per Apple's
+                  HIG the button must be at least as prominent as the other
+                  social options, use the official Apple logo, and use the
+                  "Sign in with Apple" / "המשך עם Apple" wording. Black on
+                  white per the HIG light-theme spec. */}
+              <button onClick={() => handleOAuth('apple')} disabled={oauthLoading === 'apple'}
+                className="w-full py-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-3"
+                style={{ background: '#000', color: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+                <AppleIcon />
+                <span>{oauthLoading === 'apple' ? 'מתחבר...' : 'המשך עם Apple'}</span>
+              </button>
 
               {/* Google */}
               <button onClick={() => handleOAuth('google')} disabled={oauthLoading === 'google'}
@@ -1065,6 +1244,37 @@ export default function AuthPage() {
                   </div>
                 )}
 
+                {mode === 'signup' && (
+                  /* EULA gate — required by Apple Guideline 1.2.
+                     Checkbox starts unchecked; submission validation in
+                     handleSubmit rejects until checked. Legal documents
+                     open in new tabs so the user doesn't lose their
+                     signup progress. */
+                  <label className="flex items-start gap-2 cursor-pointer select-none mt-1 px-1"
+                    style={{ color: C.text }}>
+                    <input
+                      type="checkbox"
+                      checked={termsAccepted}
+                      onChange={(e) => setTermsAccepted(e.target.checked)}
+                      className="w-4 h-4 rounded cursor-pointer mt-0.5 flex-shrink-0"
+                      style={{ accentColor: C.green }}
+                      aria-describedby="terms-help"
+                    />
+                    <span id="terms-help" className="text-xs leading-relaxed font-medium">
+                      קראתי ואני מאשר/ת את{' '}
+                      <Link to={createPageUrl('TermsOfService')} target="_blank" rel="noopener noreferrer"
+                        className="font-bold underline" style={{ color: C.green }}>
+                        תנאי השימוש
+                      </Link>
+                      {' '}ואת{' '}
+                      <Link to={createPageUrl('PrivacyPolicy')} target="_blank" rel="noopener noreferrer"
+                        className="font-bold underline" style={{ color: C.green }}>
+                        מדיניות הפרטיות
+                      </Link>
+                    </span>
+                  </label>
+                )}
+
                 {mode === 'reset' && (
                   <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
                     הזן את כתובת האימייל שלך ונשלח לך קישור לאיפוס הסיסמה
@@ -1154,6 +1364,16 @@ export default function AuthPage() {
                   <span className="text-xs font-bold" style={{ color: C.muted }}>או</span>
                   <div className="flex-1 h-px" style={{ background: C.border }} />
                 </div>
+
+                {/* Apple Sign-In appears ABOVE Google here too (matches the
+                    pre-form view), satisfying Apple Guideline 4.8's
+                    "equivalent prominence" requirement. */}
+                <button onClick={() => handleOAuth('apple')} disabled={oauthLoading === 'apple'}
+                  className="w-full py-3.5 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-3 mb-2"
+                  style={{ background: '#000', color: '#fff' }}>
+                  <AppleIcon />
+                  <span>{oauthLoading === 'apple' ? 'מתחבר...' : 'המשך עם Apple'}</span>
+                </button>
 
                 <button onClick={() => handleOAuth('google')} disabled={oauthLoading === 'google'}
                   className="w-full py-3.5 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-3"
