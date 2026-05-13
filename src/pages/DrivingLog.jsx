@@ -134,7 +134,7 @@ export default function DrivingLog() {
       }
       return true;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [routes, filterDriver, filterVehicle, filterFrom, filterTo, search, memberById, vehicleById]);
 
   // KPI counts — derived from the FILTERED set, not the raw list, so

@@ -27,7 +27,7 @@ const supabaseAnonKey = typeof __rawKey === 'string' ? __rawKey.trim() : __rawKe
 // stub client below. main.jsx detects the flag and shows a clear
 // startup-error screen rather than letting the user stare at a blank app.
 function makeStubClient(reason) {
-  // eslint-disable-next-line no-console
+   
   console.error('[supabase] config error:', reason);
   if (typeof window !== 'undefined') {
     window.__crBootEnvError = reason;
@@ -89,7 +89,11 @@ function makeStubClient(reason) {
 const isNative = Capacitor.isNativePlatform();
 
 const STORAGE_OP_TIMEOUT_MS = 2500;
-const withTimeout = (promise, fallbackValue, timeoutMs = STORAGE_OP_TIMEOUT_MS) =>
+// NOTE: deliberately NOT named withTimeout — the helper in src/lib/supabaseQuery.js
+// has the same name but opposite semantics (rejects on timeout, takes a label).
+// This one resolves with a fallback value on timeout, used to keep native storage
+// reads from hanging the auth boot path.
+const raceWithFallback = (promise, fallbackValue, timeoutMs = STORAGE_OP_TIMEOUT_MS) =>
   Promise.race([
     promise,
     new Promise(resolve => setTimeout(() => resolve(fallbackValue), timeoutMs)),
@@ -98,28 +102,28 @@ const withTimeout = (promise, fallbackValue, timeoutMs = STORAGE_OP_TIMEOUT_MS) 
 const nativeStorage = {
   async getItem(key) {
     try {
-      const mod = await withTimeout(import('@capacitor/preferences'), null);
+      const mod = await raceWithFallback(import('@capacitor/preferences'), null);
       const Preferences = mod?.Preferences;
       if (!Preferences?.get) return null;
-      const result = await withTimeout(Preferences.get({ key }), { value: null });
+      const result = await raceWithFallback(Preferences.get({ key }), { value: null });
       const value = result?.value;
       return value ?? null;
     } catch { return null; }
   },
   async setItem(key, value) {
     try {
-      const mod = await withTimeout(import('@capacitor/preferences'), null);
+      const mod = await raceWithFallback(import('@capacitor/preferences'), null);
       const Preferences = mod?.Preferences;
       if (!Preferences?.set) return;
-      await withTimeout(Preferences.set({ key, value }), null);
+      await raceWithFallback(Preferences.set({ key, value }), null);
     } catch {}
   },
   async removeItem(key) {
     try {
-      const mod = await withTimeout(import('@capacitor/preferences'), null);
+      const mod = await raceWithFallback(import('@capacitor/preferences'), null);
       const Preferences = mod?.Preferences;
       if (!Preferences?.remove) return;
-      await withTimeout(Preferences.remove({ key }), null);
+      await raceWithFallback(Preferences.remove({ key }), null);
     } catch {}
   },
 };

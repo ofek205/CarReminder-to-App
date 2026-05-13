@@ -224,7 +224,7 @@ export default function BulkAddVehicles() {
       if      (msg.includes('forbidden_not_manager')) toast.error('אין לך הרשאת מנהל');
       else if (msg.includes('invalid_input'))         toast.error('קלט לא תקין');
       else                                             toast.error('הייבוא נכשל. נסה שוב.');
-      // eslint-disable-next-line no-console
+       
       console.error('bulk_add_vehicles failed:', err);
     } finally {
       setSubmitting(false);
@@ -350,7 +350,7 @@ function InputStep({ onPlatesParsed, onContinue, plates }) {
       onPlatesParsed(parsed);
       if (parsed.length === 0) toast.error('לא נמצאו מספרי רישוי תקינים בקובץ');
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error('xlsx parse failed:', err);
       toast.error('הקריאה מהקובץ נכשלה. ודא שזה קובץ אקסל תקין.');
     } finally {

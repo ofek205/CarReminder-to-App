@@ -39,7 +39,7 @@ export function useAnimatedNumber(target, duration = 1100) {
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [target, duration]);
 
   return value;

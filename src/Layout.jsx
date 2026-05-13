@@ -579,29 +579,44 @@ function LayoutInner({ children }) {
     return VESSEL_MFRS.some(m => mfr.includes(m));
   };
 
-  // Re-check vessels on navigation (catches add/edit vehicle)
+  // Re-check vessels on navigation (catches add/edit vehicle).
+  // Cached per accountId for 60s so rapid navigation doesn't trigger a
+  // Supabase round-trip on every route change. TTL is short enough that
+  // adding a first vessel and waiting briefly will repaint the sidebar
+  // without an explicit invalidation hook.
+  const vesselCacheRef = useRef({ accountId: null, hasVessel: false, ts: 0 });
+  const VESSEL_CACHE_TTL_MS = 60 * 1000;
   useEffect(() => {
     if (isGuest) {
       setHasVessel((guestVehicles || []).some(isVesselVehicle));
-    } else if (isAuthenticated && user) {
-      (async () => {
-        try {
-          if (!activeWorkspace?.account_id) {
-            setHasVessel(false);
-            return;
-          }
-          const { data, error } = await supabase
-            .from('vehicles')
-            .select('id, vehicle_type, manufacturer')
-            .eq('account_id', activeWorkspace.account_id);
-          if (error) throw error;
-          setHasVessel((data || []).some(isVesselVehicle));
-        } catch (err) {
-          console.warn('[layout] vessel detection failed:', err?.message || err);
-          setHasVessel(false);
-        }
-      })();
+      return;
     }
+    if (!isAuthenticated || !user) return;
+    const accountId = activeWorkspace?.account_id;
+    if (!accountId) {
+      setHasVessel(false);
+      return;
+    }
+    const cached = vesselCacheRef.current;
+    if (cached.accountId === accountId && (Date.now() - cached.ts) < VESSEL_CACHE_TTL_MS) {
+      setHasVessel(cached.hasVessel);
+      return;
+    }
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('vehicles')
+          .select('id, vehicle_type, manufacturer')
+          .eq('account_id', accountId);
+        if (error) throw error;
+        const result = (data || []).some(isVesselVehicle);
+        vesselCacheRef.current = { accountId, hasVessel: result, ts: Date.now() };
+        setHasVessel(result);
+      } catch (err) {
+        console.warn('[layout] vessel detection failed:', err?.message || err);
+        setHasVessel(false);
+      }
+    })();
   }, [isGuest, isAuthenticated, user, guestVehicles, activeWorkspace?.account_id, location.pathname]);
 
   // Pages that don't require authentication (legal/compliance pages for app stores).

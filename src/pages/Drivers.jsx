@@ -522,7 +522,7 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
       else if (msg.includes('already_member'))        toast.error('המשתמש כבר חבר בחשבון הזה');
       else if (msg.includes('invalid_role'))          toast.error('תפקיד לא תקין');
       else                                             toast.error('הוספת החבר נכשלה. נסה שוב.');
-      // eslint-disable-next-line no-console
+       
       console.error('add_workspace_member_by_email failed:', err);
     } finally {
       setSubmitting(false);

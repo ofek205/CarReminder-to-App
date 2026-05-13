@@ -89,7 +89,15 @@ async function authorizeCaller(req: Request, supabaseAdmin: any): Promise<{ ok: 
   if (!token) return { ok: false, reason: 'missing authorization' };
   const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !user) return { ok: false, reason: 'invalid token' };
-  if ((user.user_metadata as any)?.role !== 'admin') return { ok: false, reason: 'not an admin' };
+  // SECURITY: must use the is_admin() RPC, NOT user.user_metadata.role.
+  // `user_metadata` is client-writable via supabase.auth.updateUser() —
+  // an authenticated non-admin user could self-elevate by writing
+  // `{ role: 'admin' }` into their own metadata. The is_admin RPC
+  // (security definer) reads a server-controlled admin list and is the
+  // single source of truth used across the codebase. See audit
+  // finding C-1 (2026-05-12).
+  const { data: isAdminFlag } = await supabaseAdmin.rpc('is_admin', { uid: user.id });
+  if (isAdminFlag !== true) return { ok: false, reason: 'not an admin' };
   return { ok: true };
 }
 

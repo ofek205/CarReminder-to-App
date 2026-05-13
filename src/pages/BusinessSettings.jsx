@@ -113,7 +113,7 @@ export default function BusinessSettings() {
       toast.success('ההגדרות נשמרו');
       setDirty(false);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error('BusinessSettings save failed:', err);
       toast.error('השמירה נכשלה. נסה שוב, או פנה לתמיכה אם הבעיה חוזרת.');
     } finally {

@@ -207,7 +207,7 @@ async function loadRegistry() {
       const raw = json?.result?.records || [];
       records = compress(raw);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.warn('authorizedGarages: registry fetch failed:', err?.message);
       // Soft-fail: empty registry → matcher returns 'unknown' for
       // every input. The caller should hide the filter chip when

@@ -317,7 +317,7 @@ export default function AuthPage() {
             // than the one they requested it from). Bounce back to the
             // request-reset form with a clear message so they don't
             // sit confused on a password form whose submit will fail.
-            // eslint-disable-next-line no-console
+             
             console.warn('recovery verify failed:', error.message);
             setError('הקישור לאיפוס הסיסמה פג תוקף או כבר נוצל. בקש קישור חדש למטה.');
             setMode('reset');
@@ -328,7 +328,7 @@ export default function AuthPage() {
             window.history.replaceState({}, '', '/Auth?mode=reset');
           }
         } catch (err) {
-          // eslint-disable-next-line no-console
+           
           console.warn('recovery verify threw:', err?.message);
           setError('הקישור לאיפוס הסיסמה פג תוקף או כבר נוצל. בקש קישור חדש למטה.');
           setMode('reset');
@@ -514,22 +514,43 @@ export default function AuthPage() {
   // surfaces: native users open the recovery link in the system
   // browser, complete the password change there, and sign in on the
   // app after.
-  const getEmailRedirectBase = () => isNative
-    ? 'https://car-reminder.app'
-    : window.location.origin;
+  // Native: hard-pin to prod URL because the WKWebView origin is
+  // `https://localhost`, which is not on Supabase's auth redirect
+  // allowlist. Web: prefer the env-injected canonical URL (Vercel sets
+  // VITE_PUBLIC_APP_URL per environment) so staging emails redirect
+  // back to staging and prod back to prod — even if the user happened
+  // to land on a one-off preview URL. window.location.origin is the
+  // last-resort fallback for local dev where the env var is unset.
+  const getEmailRedirectBase = () => {
+    if (isNative) return 'https://car-reminder.app';
+    return import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
+  };
 
   // Map common Supabase auth errors to user-friendly Hebrew. Anything
   // unrecognized falls through to a generic Hebrew message rather than
   // surfacing raw English text.
+  //
+  // SECURITY: login-side errors are intentionally collapsed to a single
+  // message — both "user not found" and "invalid login credentials" map
+  // to the same Hebrew string. Distinct messages would let an attacker
+  // enumerate which emails belong to real users. See audit finding H-2
+  // (2026-05-12). The signup "already registered" message is left as-is
+  // because the UX guidance ("try to sign in") materially helps real
+  // users, and signup enumeration is mitigated by Supabase's per-IP
+  // rate limit + the verification email gate.
   const localizeAuthError = (msg) => {
     const m = (msg || '').toLowerCase();
     if (m.includes('rate limit') || m.includes('too many') || m.includes('for security purposes'))
       return 'נשלחו יותר מדי אימיילים. נסה/י שוב בעוד מספר דקות.';
     if (m.includes('redirect') && (m.includes('not allowed') || m.includes('invalid')))
       return 'שגיאת תצורה זמנית. אם הבעיה ממשיכה, פנה/י לתמיכה.';
-    if (m.includes('user not found') || m.includes('not registered') || m.includes('no user'))
-      return 'לא נמצא משתמש עם האימייל הזה.';
-    if (m.includes('invalid login credentials')) return 'אימייל או סיסמה שגויים';
+    // Collapsed: same message for "no such user" and "wrong password".
+    if (
+      m.includes('user not found') ||
+      m.includes('not registered') ||
+      m.includes('no user') ||
+      m.includes('invalid login credentials')
+    ) return 'אימייל או סיסמה שגויים. אם הבעיה חוזרת — אפס/י סיסמה.';
     if (m.includes('already registered')) return 'האימייל הזה כבר רשום. נסה להתחבר.';
     if (m.includes('network') || m.includes('fetch'))
       return 'בעיית רשת. בדוק/י את החיבור ונסה/י שוב.';
@@ -685,7 +706,7 @@ export default function AuthPage() {
               });
             }
           } catch (mirrorErr) {
-            // eslint-disable-next-line no-console
+             
             console.warn('post-update session mirror failed:', mirrorErr?.message);
           }
           // Clear the recovery-flow marker so a future tab on the same

@@ -487,7 +487,7 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
       if (out.vendor && !note) setNote(out.vendor);
       toast.success('הסריקה הושלמה — בדוק את הפרטים והוסף');
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error('receipt scan failed:', err);
       setScanError('הסריקה לא הצליחה — מלא את הפרטים ידנית');
     } finally {
@@ -558,7 +558,7 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
       else if (msg.includes('invalid_amount'))           toast.error('הסכום לא תקין');
       else if (msg.includes('invalid_category'))         toast.error('קטגוריה לא תקינה');
       else                                                toast.error('השמירה נכשלה. נסה שוב.');
-      // eslint-disable-next-line no-console
+       
       console.error('expense save failed:', err);
     } finally {
       setSubmitting(false);

@@ -58,7 +58,7 @@ export function assertNotBase64(value, fieldName, opts = {}) {
   if (import.meta?.env?.DEV) {
     throw new Error(msg);
   }
-  // eslint-disable-next-line no-console
+   
   console.error(msg);
 }
 

@@ -271,7 +271,7 @@ export default function AddVehicle() {
     if (isTwoWheeler && (form.tires_changed_count === 4 || form.tires_changed_count === 3)) {
       handleChange('tires_changed_count', 2);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [isTwoWheeler]);
   const [showOffroadSection, setShowOffroadSection] = useState(false);
   const T = isVesselCategory ? getTheme('כלי שייט') : defaultC;

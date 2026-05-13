@@ -54,7 +54,7 @@ export function useUserLocation({ fallback = TEL_AVIV } = {}) {
       cancelled = true;
     };
     // fallback is captured once on mount; intentionally not a dep.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const retry = useCallback(async () => {

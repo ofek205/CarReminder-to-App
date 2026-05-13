@@ -66,6 +66,14 @@ const config: CapacitorConfig = {
       iconColor: '#16A34A',
       sound: 'default',
     },
+    // PushNotifications — server-side push via FCM (Android) + APNs (iOS).
+    // The plugin reads platform-specific config from the bundled
+    // google-services.json (Android) and GoogleService-Info.plist (iOS).
+    // `presentationOptions` only affects foreground delivery on iOS;
+    // background delivery is always handled by the OS shade.
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
   },
   // iOS-specific WebView settings. Without an explicit ios block, Capacitor
   // ships defaults that on real iPhones produce two symptoms users have

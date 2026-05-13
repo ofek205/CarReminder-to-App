@@ -359,7 +359,7 @@ export default function CreateRoute() {
       else if (code.includes('driver_not_workspace_member')) toast.error('הנהג שנבחר אינו חבר פעיל בחשבון');
       else if (code.includes('title_required'))           toast.error('יש להזין שם למשימה');
       else                                                 toast.error('יצירת המשימה נכשלה. נסה שוב.');
-      // eslint-disable-next-line no-console
+       
       console.error('CreateRoute failed:', err);
     } finally {
       setSubmitting(false);

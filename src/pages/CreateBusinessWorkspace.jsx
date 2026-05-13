@@ -185,7 +185,7 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
       else if (code.includes('no_existing_business_workspace'))   toast.error('עוד אין לך חשבון עסקי. השתמש בטופס הרגיל.');
       else if (code.includes('pending_request_exists'))           toast.error('כבר יש לך בקשה ממתינה. אי אפשר להגיש שתיים בו זמנית.');
       else                                                         toast.error('הפעולה נכשלה. נסה שוב, או פנה לתמיכה.');
-      // eslint-disable-next-line no-console
+       
       console.error('CreateBusinessWorkspace failed:', err);
     } finally {
       setSubmitting(false);

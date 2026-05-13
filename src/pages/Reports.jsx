@@ -433,7 +433,7 @@ export default function Reports() {
     return arr;
   // vehicleLabel is stable enough between renders that the lint
   // requirement to include it doesn't add real value here.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [filteredLines, sortBy, sortDir, vehicles]);
 
   const toggleSort = (col) => {
@@ -491,7 +491,7 @@ export default function Reports() {
       toast.success(`יצוא הצליח (${rows.length} שורות)`);
     } catch (err) {
       toast.error('יצוא נכשל. נסה שוב.');
-      // eslint-disable-next-line no-console
+       
       console.error('Excel export failed:', err);
     } finally {
       setExporting(false);

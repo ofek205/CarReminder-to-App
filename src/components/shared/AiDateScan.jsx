@@ -13,7 +13,7 @@
  * implementation lives in git history at the commit that introduced
  * this stub.
  */
-// eslint-disable-next-line no-unused-vars
+ 
 export default function AiDateScan({ onDateExtracted, label }) {
   return null;
 }
