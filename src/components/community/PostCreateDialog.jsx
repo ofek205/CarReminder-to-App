@@ -67,7 +67,10 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
         const escape = s => s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
         const keywords = words.slice(0, 3).map(escape);
         const orFilter = keywords.map(k => `body.ilike."%${k}%"`).join(',');
-        const { data } = await supabase.from('community_posts').select('id, body, author_name, created_at, is_anonymous, anonymous_number')
+        // Read via community_posts_visible so the "similar posts" hint never
+        // surfaces posts authored by users the current user blocked
+        // (Apple Guideline 1.2 — blocking must hide content across all surfaces).
+        const { data } = await supabase.from('community_posts_visible').select('id, body, author_name, created_at, is_anonymous, anonymous_number')
           .eq('domain', domain).or(orFilter).order('created_at', { ascending: false }).limit(3);
         setSimilarPosts(data || []);
       } catch { setSimilarPosts([]); }
