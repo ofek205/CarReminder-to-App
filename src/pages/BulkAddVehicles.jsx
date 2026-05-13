@@ -26,6 +26,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { lookupVehicleByPlate } from '@/services/vehicleLookup';
+import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { createPageUrl } from '@/utils';
 // Living Dashboard system - shared with all B2B pages.
 import { PageShell, Card } from '@/components/business/system';
@@ -807,7 +808,7 @@ function CopyPlatesButton({ plates }) {
     try {
       await navigator.clipboard.writeText(plates.join('\n'));
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION_MS);
     } catch {
       toast.error('הההעתקה נכשלה');
     }

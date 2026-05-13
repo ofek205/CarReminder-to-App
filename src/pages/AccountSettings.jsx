@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { MEMBER_STATUS, INVITE_STATUS } from '@/lib/enums';
+import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -348,7 +349,7 @@ function AuthAccountSettings({ embedded = false }) {
     if (ok) {
       setLinkCopied(true);
       toast.success('הקישור הועתק');
-      setTimeout(() => setLinkCopied(false), 3000);
+      setTimeout(() => setLinkCopied(false), COPY_FEEDBACK_DURATION_MS);
     } else {
       toast.error('לא ניתן להעתיק');
     }

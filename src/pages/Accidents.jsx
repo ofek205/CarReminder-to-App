@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
+import { PRINT_PAINT_DELAY_MS } from '@/lib/timingConstants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, AlertTriangle, ChevronLeft, Camera, Phone, Calendar, MapPin, Car, CheckCircle, Clock, Shield, Download } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -457,7 +458,7 @@ export default function Accidents() {
     setReportMode('options');
   };
   const handleDownload = () => {
-    window.setTimeout(() => window.print(), 50);
+    window.setTimeout(() => window.print(), PRINT_PAINT_DELAY_MS);
   };
   const closeReport = () => {
     setReportMode(null);

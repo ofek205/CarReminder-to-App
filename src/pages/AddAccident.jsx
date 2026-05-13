@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { compressImage } from '@/lib/imageCompress';
+import { PRINT_PAINT_DELAY_MS } from '@/lib/timingConstants';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
@@ -979,7 +980,7 @@ export default function AddAccident() {
           reporter={{ name: user?.user_metadata?.full_name || user?.email, phone: user?.user_metadata?.phone }}
           onClose={() => setReportMode(null)}
           onPreview={() => setReportMode('preview')}
-          onDownload={() => { window.setTimeout(() => window.print(), 50); }}
+          onDownload={() => { window.setTimeout(() => window.print(), PRINT_PAINT_DELAY_MS); }}
         />
       )}
 
