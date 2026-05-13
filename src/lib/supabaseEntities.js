@@ -165,6 +165,7 @@ export const db = {
   community_reactions: makeEntity('community_reactions'),
   community_saved:    makeEntity('community_saved'),
   community_comment_likes: makeEntity('community_comment_likes'),
+  community_blocked_users: makeEntity('community_blocked_users'),
   maintenance_logs:   makeEntity('maintenance_logs'),
   maintenance_reminder_prefs: makeEntity('maintenance_reminder_prefs'),
   repair_types:       makeEntity('repair_types'),

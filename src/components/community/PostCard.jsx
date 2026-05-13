@@ -323,7 +323,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
                     <Flag className="w-4 h-4" /> דווח על תוכן
                   </DropdownMenuItem>
                   {isAdmin && (
-                    <DropdownMenuItem onClick={() => {
+                    <DropdownMenuItem onClick={async () => {
                       // Strip non-letter/digit/space chars from author_name before
                       // interpolating into confirm() — a crafted name containing
                       // quotes/backticks/newlines could otherwise corrupt the
@@ -332,12 +332,34 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
                       // can still be spoofed without this sanitize.
                       const safeName = String(post.author_name || '').replace(/[^\p{L}\p{N} .\-#]/gu, '').slice(0, 60) || 'משתמש';
                       if (!confirm(`לחסום את ${safeName}? לא יראו את הפוסטים שלו.`)) return;
+                      // Server-side block (audit L-1). Falls back to a local
+                      // localStorage entry if the DB insert errors — so the
+                      // admin's own session still hides the user even on a
+                      // transient failure, and the next attempt re-tries the
+                      // global block.
+                      let serverOk = false;
+                      try {
+                        await db.community_blocked_users.create({
+                          user_id:    post.user_id,
+                          blocked_by: user?.id,
+                          reason:     null,
+                        });
+                        serverOk = true;
+                      } catch (e) {
+                        // Duplicate (already blocked) is a no-op success; any
+                        // other error → keep the localStorage path as backup.
+                        if (e?.code === '23505') serverOk = true;
+                      }
                       try {
                         const blocked = JSON.parse(localStorage.getItem('blocked_users') || '[]');
-                        if (!blocked.includes(post.user_id)) { blocked.push(post.user_id); localStorage.setItem('blocked_users', JSON.stringify(blocked)); }
-                        queryClient.invalidateQueries({ queryKey: ['community_posts'] });
-                        toast.success('המשתמש נחסם');
+                        if (!blocked.includes(post.user_id)) {
+                          blocked.push(post.user_id);
+                          localStorage.setItem('blocked_users', JSON.stringify(blocked));
+                        }
                       } catch {}
+                      queryClient.invalidateQueries({ queryKey: ['community_posts'] });
+                      queryClient.invalidateQueries({ queryKey: ['community_blocked_users'] });
+                      toast.success(serverOk ? 'המשתמש נחסם' : 'נחסם בסשן זה — נסה שוב לחסימה גלובלית');
                     }} className="gap-2 text-sm font-medium cursor-pointer text-red-600">
                       <Ban className="w-4 h-4" /> חסום משתמש (אדמין)
                     </DropdownMenuItem>
