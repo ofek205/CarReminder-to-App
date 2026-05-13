@@ -19,6 +19,7 @@ import { notifyVehicleChange } from '@/lib/notifyVehicleChange';
 import { getRecommendedInterval, computeNextReminder, reminderFireDate } from '@/lib/maintenanceRecommendations';
 import { scheduleLocalNotification } from '@/lib/notificationChannels';
 import { db } from '@/lib/supabaseEntities';
+import ManufacturerScheduleCard from './ManufacturerScheduleCard';
 
 export default function MaintenanceSection({ vehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
@@ -138,10 +139,28 @@ export default function MaintenanceSection({ vehicle }) {
     setReceiptPhoto(null);
     // Reset the optional "next reminder" block every time we open
     // for a fresh entry. The block only renders for type='טיפול'.
-    setReminderEnabled(false);
-    setReminderMode('time');
-    setReminderMonths('');
-    setReminderKm('');
+    //
+    // Two prefill paths land here today:
+    //   1. opts.prefillReminderKm + opts.prefillReminderTitle —
+    //      from ManufacturerScheduleCard's "הוסף תזכורת" CTA.
+    //      We seed the reminder block in km-mode with the milestone's
+    //      km value, AND fill the title so the user just reviews and
+    //      saves instead of re-typing.
+    //   2. No prefill — fresh dialog, reminder block collapsed.
+    if (opts.prefillReminderKm) {
+      setReminderEnabled(true);
+      setReminderMode('km');
+      setReminderMonths('');
+      setReminderKm(String(opts.prefillReminderKm));
+      if (opts.prefillReminderTitle) {
+        setForm(prev => ({ ...prev, title: opts.prefillReminderTitle }));
+      }
+    } else {
+      setReminderEnabled(false);
+      setReminderMode('time');
+      setReminderMonths('');
+      setReminderKm('');
+    }
     setDialogOpen(true);
   };
 
@@ -378,6 +397,24 @@ export default function MaintenanceSection({ vehicle }) {
             </button>
           </div>
         </div>
+
+        {/* Manufacturer schedule card. Renders nothing when:
+              - vehicle is a vessel (no marine schedules in v1)
+              - make/model/year not in our top-7 curated set
+            so the section's existing flow stays unchanged for the
+            ~30% of users we don't cover yet. */}
+        {!vesselMode && (
+          <div className="px-4 pt-3">
+            <ManufacturerScheduleCard
+              vehicle={vehicle}
+              theme={T}
+              onAddReminder={(item) => openDialog('טיפול', {
+                prefillReminderKm: item.km,
+                prefillReminderTitle: item.title,
+              })}
+            />
+          </div>
+        )}
 
         {/* Log list */}
         {logs.length === 0 ? (
