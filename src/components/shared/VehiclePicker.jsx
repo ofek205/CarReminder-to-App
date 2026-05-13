@@ -37,6 +37,7 @@ import { createPortal } from 'react-dom';
 import { Search, ChevronDown, Check, X, Car, Ship, Bike, Truck } from 'lucide-react';
 import { getTheme, getVehicleCategory } from '@/lib/designTokens';
 import { vehicleDisplayName } from './VehicleLabel';
+import { FOCUS_AFTER_MOUNT_MS } from '@/lib/timingConstants';
 
 const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
 
@@ -122,7 +123,7 @@ export default function VehiclePicker({
   // themselves if they want to filter.
   useEffect(() => {
     if (open && !isTouchDevice()) {
-      setTimeout(() => searchRef.current?.focus(), 30);
+      setTimeout(() => searchRef.current?.focus(), FOCUS_AFTER_MOUNT_MS);
     } else if (!open) {
       setQuery('');
     }

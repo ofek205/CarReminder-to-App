@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
+import { MEMBER_STATUS, INVITE_STATUS } from '@/lib/enums';
+import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -222,14 +224,14 @@ function AuthAccountSettings({ embedded = false }) {
   // Fetch members
   const { data: members = [], isLoading: membersLoading } = useQuery({
     queryKey: ['account-members', accountId],
-    queryFn: () => db.account_members.filter({ account_id: accountId, status: 'פעיל' }),
+    queryFn: () => db.account_members.filter({ account_id: accountId, status: MEMBER_STATUS.ACTIVE }),
     enabled: !!accountId,
   });
 
   // Fetch active invites
   const { data: activeInvites = [] } = useQuery({
     queryKey: ['active-invites', accountId],
-    queryFn: () => db.invites.filter({ account_id: accountId, status: 'פעיל' }),
+    queryFn: () => db.invites.filter({ account_id: accountId, status: INVITE_STATUS.ACTIVE }),
     enabled: !!accountId && canManage(myRole),
   });
 
@@ -258,7 +260,7 @@ function AuthAccountSettings({ embedded = false }) {
         expires_at: expires.toISOString(),
         max_uses: 1,
         uses_count: 0,
-        status: 'פעיל',
+        status: INVITE_STATUS.ACTIVE,
         vehicle_ids: shareAll ? null : selectedVehicleIds,
       });
 
@@ -347,7 +349,7 @@ function AuthAccountSettings({ embedded = false }) {
     if (ok) {
       setLinkCopied(true);
       toast.success('הקישור הועתק');
-      setTimeout(() => setLinkCopied(false), 3000);
+      setTimeout(() => setLinkCopied(false), COPY_FEEDBACK_DURATION_MS);
     } else {
       toast.error('לא ניתן להעתיק');
     }
@@ -382,7 +384,7 @@ function AuthAccountSettings({ embedded = false }) {
   };
 
   const removeMember = async (member) => {
-    await db.account_members.update(member.id, { status: 'הוסר' });
+    await db.account_members.update(member.id, { status: MEMBER_STATUS.REMOVED });
     queryClient.invalidateQueries({ queryKey: ['account-members'] });
     toast.success('החבר הוסר');
   };

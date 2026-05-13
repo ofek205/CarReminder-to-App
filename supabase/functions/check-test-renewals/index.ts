@@ -34,18 +34,12 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { logSecurityEvent } from '../_shared/securityLog.ts';
+import { buildCorsHeaders } from '../_shared/cors.ts';
 
 const SUPABASE_URL    = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const DISPATCH_SECRET = Deno.env.get('DISPATCH_SECRET');
-const ALLOWED_ORIGIN  = Deno.env.get('APP_ORIGIN') || 'https://car-reminder.app';
-
-const LOCAL_WEB_ORIGINS = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:4173',
-];
 
 // Same datastore the client-side vehicleLookup uses. Keep in sync with
 // src/services/vehicleLookup.js — RESOURCE_ID for "רכב 4 גלגלים".
@@ -71,32 +65,13 @@ const WINDOW_FORWARD_DAYS = 30;
 // is fine.
 const MAX_VEHICLES_PER_RUN = 2000;
 
-function isTrustedVercelPreview(origin: string): boolean {
-  if (!origin) return false;
-  try {
-    const { hostname, protocol } = new URL(origin);
-    if (protocol !== 'https:') return false;
-    if (!hostname.endsWith('.vercel.app')) return false;
-    return (
-      hostname.startsWith('car-reminder-to-app-git-') ||
-      hostname.startsWith('car-manage-hub-git-')
-    );
-  } catch { return false; }
-}
+// CORS allow-list logic lives in _shared/cors.ts. This function only
+// declares the headers it accepts (cron callers pass x-dispatch-secret).
+const RENEWALS_ALLOWED_HEADERS =
+  'authorization, x-client-info, x-client-ip, apikey, content-type, x-dispatch-secret';
 
 function buildCors(req: Request): HeadersInit {
-  const origin = req.headers.get('origin') || '';
-  const allowList = [
-    ...ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean),
-    ...LOCAL_WEB_ORIGINS,
-  ];
-  const allow = (allowList.includes(origin) || isTrustedVercelPreview(origin)) ? origin : 'null';
-  return {
-    'Access-Control-Allow-Origin':  allow,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, x-client-ip, apikey, content-type, x-dispatch-secret',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Vary':                         'Origin',
-  };
+  return buildCorsHeaders(req, { allowedHeaders: RENEWALS_ALLOWED_HEADERS });
 }
 
 function json(body: unknown, status = 200, req?: Request) {
@@ -114,16 +89,25 @@ async function authorizeCaller(req: Request, supabaseAdmin: any): Promise<{ ok: 
   }
   const authHeader = req.headers.get('authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
-  if (!token) return { ok: false, reason: 'missing authorization' };
+  if (!token) {
+    logSecurityEvent('check-test-renewals', 'auth_failed', { reason: 'missing_authorization' });
+    return { ok: false, reason: 'missing authorization' };
+  }
   const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !user) return { ok: false, reason: 'invalid token' };
+  if (error || !user) {
+    logSecurityEvent('check-test-renewals', 'auth_failed', { reason: error?.message || 'invalid_token' });
+    return { ok: false, reason: 'invalid token' };
+  }
   // SECURITY: must use is_admin() RPC, NOT user.user_metadata.role.
   // user_metadata is client-writable via supabase.auth.updateUser(), so
   // a non-admin could self-elevate by writing `{role:'admin'}` into
   // their own metadata. is_admin (security definer) reads a server-
   // controlled list. See audit finding C-1 (2026-05-12).
   const { data: isAdminFlag } = await supabaseAdmin.rpc('is_admin', { uid: user.id });
-  if (isAdminFlag !== true) return { ok: false, reason: 'not an admin' };
+  if (isAdminFlag !== true) {
+    logSecurityEvent('check-test-renewals', 'permission_denied', { user_id: user.id, required: 'admin' });
+    return { ok: false, reason: 'not an admin' };
+  }
   return { ok: true };
 }
 

@@ -150,6 +150,9 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
       draft.clearDraft();
       reset();
       onClose();
+      // Surface a small confirmation. Without this the dialog just
+      // disappears with no signal that the post actually landed.
+      toast.success('הפוסט פורסם');
 
       generateAiResponse(post, linkedVehicleId ? vehicles.find(v => v.id === linkedVehicleId) : null);
     } catch (err) {

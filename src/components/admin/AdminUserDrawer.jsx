@@ -22,6 +22,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { Card } from '@/components/business/system';
+import { isVessel } from '@/components/shared/DateStatusUtils';
 
 // Format an ILS amount with no decimals — same convention as /Reports.
 const fmtMoney = (n) => new Intl.NumberFormat('he-IL', {
@@ -44,9 +45,8 @@ const fmtRelative = (d) => {
   catch { return '—'; }
 };
 
-// Vessel detection — mirrors the rest of the app.
-const VESSEL_TYPES = new Set(['כלי שייט','מפרשית','סירה מנועית','אופנוע ים','סירת גומי','יאכטה','ג׳ט סקי']);
-const isVessel = (t) => VESSEL_TYPES.has(t);
+// Vessel detection — imported from DateStatusUtils (single source of truth).
+// Local copy used to drift from the canonical set; consolidated 2026-05-13.
 
 // Category meta for documents — keeps the chip + icon consistent with the
 // /Documents page itself.

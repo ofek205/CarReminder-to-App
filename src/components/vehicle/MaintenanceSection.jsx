@@ -5,6 +5,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import { Wrench, Plus, Trash2, AlertTriangle, Settings, Camera, Image, X, Sparkles, Loader2, Edit } from 'lucide-react';
 import { getTheme } from '@/lib/designTokens';
 import { isVessel as checkVessel } from '../shared/DateStatusUtils';
+import { BLUR_CLOSE_DELAY_MS } from '@/lib/timingConstants';
 import { Anchor } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -563,7 +564,7 @@ export default function MaintenanceSection({ vehicle }) {
                   value={form.garage_name}
                   onChange={e => { setForm(f => ({ ...f, garage_name: e.target.value })); setGarageDropdownOpen(true); }}
                   onFocus={() => setGarageDropdownOpen(true)}
-                  onBlur={() => setTimeout(() => setGarageDropdownOpen(false), 200)}
+                  onBlur={() => setTimeout(() => setGarageDropdownOpen(false), BLUR_CLOSE_DELAY_MS)}
                   placeholder="שם המוסך..."
                 />
                 {garageDropdownOpen && (() => {

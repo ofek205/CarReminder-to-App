@@ -7,6 +7,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import { isNative } from '@/lib/capacitor';
 import logo from '@/assets/logo.png';
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { isValidEmail } from '@/lib/validators';
 
 //  Design tokens 
 const C = {
@@ -467,8 +468,7 @@ export default function AuthPage() {
     }
   };
 
-  // Basic email validation. before hitting Supabase
-  const isValidEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim());
+  // isValidEmail moved to src/lib/validators.js — single source of truth.
 
   // Re-send the signup OTP. Same email, fresh token. Cooldown UI
   // (resendCooldown countdown) prevents spam-tapping; Supabase enforces

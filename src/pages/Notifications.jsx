@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
+import { MEMBER_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User } from "lucide-react";
 import { Link, useNavigate } from 'react-router-dom';
@@ -353,7 +354,7 @@ function AuthNotifications() {
   const { data: accountData } = useQuery({
     queryKey: ['auth-notif-account', user?.id, activeWorkspaceId],
     queryFn: async () => {
-      const members = await db.account_members.filter({ user_id: user.id, status: 'פעיל' });
+      const members = await db.account_members.filter({ user_id: user.id, status: MEMBER_STATUS.ACTIVE });
       if (members.length === 0) return { accountId: null, vehicles: [] };
       // While activeWorkspaceId is null (zero-membership user mid heal,
       // or a transient state), return an empty payload rather than

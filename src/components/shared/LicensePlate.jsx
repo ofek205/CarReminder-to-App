@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/clipboard';
+import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 
 /**
  * Israeli license plate display. yellow plate, IL flag, copy button.
@@ -26,7 +27,7 @@ export default function LicensePlate({ value, size = 'md', showCopy = true, clas
     if (ok) {
       setCopied(true);
       toast.success('המספר הועתק');
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION_MS);
     } else {
       toast.error('לא ניתן להעתיק במכשיר הזה');
     }

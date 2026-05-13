@@ -24,71 +24,37 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { logSecurityEvent } from '../_shared/securityLog.ts';
+import { buildCorsHeaders } from '../_shared/cors.ts';
 
 const RESEND_API_KEY  = Deno.env.get('RESEND_API_KEY');
 const SUPABASE_URL    = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const DISPATCH_SECRET = Deno.env.get('DISPATCH_SECRET');
-const ALLOWED_ORIGIN  = Deno.env.get('APP_ORIGIN') || 'https://car-reminder.app';
 
-// Local web dev/preview origins. Mirrored across all browser-callable
-// Edge Functions — keep in sync with ai-proxy / dispatch-reminder-emails /
-// send-email when adjusting.
-const LOCAL_WEB_ORIGINS = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:4173',
-];
-
-// Vercel branch-preview URLs of THIS project. Vercel generates dynamic
-// per-branch hostnames `{project}-git-{branch}-{teamslug}.vercel.app`
-// that can't be enumerated in ALLOWED_ORIGIN. Requiring the literal
-// `-git-` segment after the project prefix means an attacker can't just
-// register a Vercel project starting with `car-reminder-to-app-` and
-// inherit our CORS allow-list — they'd need ownership of a project named
-// exactly `car-reminder-to-app` (already ours) or `car-manage-hub`.
-function isTrustedVercelPreview(origin: string): boolean {
-  if (!origin) return false;
-  try {
-    const { hostname, protocol } = new URL(origin);
-    if (protocol !== 'https:') return false;
-    if (!hostname.endsWith('.vercel.app')) return false;
-    return (
-      hostname.startsWith('car-reminder-to-app-git-') ||
-      hostname.startsWith('car-manage-hub-git-')
-    );
-  } catch {
-    return false;
-  }
-}
+// CORS allow-list logic lives in _shared/cors.ts. This function only
+// declares the headers it accepts (broadcast needs x-dispatch-secret
+// for cron callers; the shared default doesn't include it).
+const BROADCAST_ALLOWED_HEADERS =
+  'authorization, x-client-info, x-client-ip, apikey, content-type, x-dispatch-secret';
 
 function buildCors(req: Request): HeadersInit {
-  const origin = req.headers.get('origin') || '';
-  // Fail-closed: if the caller's origin isn't in the allow-list, return
-  // 'null' so the browser CORS check rejects. The old version echoed
-  // ALLOWED_ORIGIN for every request (even attacker origins), meaning a
-  // stolen JWT from any site on the internet could trigger a broadcast.
-  const allowList = [
-    ...ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean),
-    ...LOCAL_WEB_ORIGINS,
-  ];
-  const allow = (allowList.includes(origin) || isTrustedVercelPreview(origin)) ? origin : 'null';
-  return {
-    'Access-Control-Allow-Origin':  allow,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, x-client-ip, apikey, content-type, x-dispatch-secret',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Vary':                         'Origin',
-  };
+  return buildCorsHeaders(req, { allowedHeaders: BROADCAST_ALLOWED_HEADERS });
 }
 
 async function authorizeCaller(req: Request, supabaseAdmin: any): Promise<{ ok: boolean; reason?: string }> {
   const headerSecret = req.headers.get('x-dispatch-secret');
   if (DISPATCH_SECRET && headerSecret && headerSecret === DISPATCH_SECRET) return { ok: true };
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
-  if (!token) return { ok: false, reason: 'missing authorization' };
+  if (!token) {
+    logSecurityEvent('dispatch-broadcast', 'auth_failed', { reason: 'missing_authorization' });
+    return { ok: false, reason: 'missing authorization' };
+  }
   const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !user) return { ok: false, reason: 'invalid token' };
+  if (error || !user) {
+    logSecurityEvent('dispatch-broadcast', 'auth_failed', { reason: error?.message || 'invalid_token' });
+    return { ok: false, reason: 'invalid token' };
+  }
   // SECURITY: must use the is_admin() RPC, NOT user.user_metadata.role.
   // `user_metadata` is client-writable via supabase.auth.updateUser() —
   // an authenticated non-admin user could self-elevate by writing
@@ -97,7 +63,10 @@ async function authorizeCaller(req: Request, supabaseAdmin: any): Promise<{ ok: 
   // single source of truth used across the codebase. See audit
   // finding C-1 (2026-05-12).
   const { data: isAdminFlag } = await supabaseAdmin.rpc('is_admin', { uid: user.id });
-  if (isAdminFlag !== true) return { ok: false, reason: 'not an admin' };
+  if (isAdminFlag !== true) {
+    logSecurityEvent('dispatch-broadcast', 'permission_denied', { user_id: user.id, required: 'admin' });
+    return { ok: false, reason: 'not an admin' };
+  }
   return { ok: true };
 }
 

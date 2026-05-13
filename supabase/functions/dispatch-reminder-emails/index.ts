@@ -27,6 +27,8 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { logSecurityEvent } from '../_shared/securityLog.ts';
+import { buildCorsHeaders } from '../_shared/cors.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL');
@@ -35,57 +37,15 @@ const SERVICE_ROLE   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 // and in the pg_cron job that calls us. Without it, every caller must be
 // an authenticated admin (checked via JWT below).
 const DISPATCH_SECRET = Deno.env.get('DISPATCH_SECRET');
-// Allowed origin for browser-initiated calls (admin EmailCenter UI).
-const ALLOWED_ORIGIN  = Deno.env.get('APP_ORIGIN') || 'https://car-reminder.app';
 
-// Local web dev/preview origins. Mirrored across all browser-callable
-// Edge Functions — keep in sync with ai-proxy / dispatch-broadcast /
-// send-email when adjusting.
-const LOCAL_WEB_ORIGINS = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:4173',
-];
-
-// Vercel branch-preview URLs of THIS project. Vercel generates dynamic
-// per-branch hostnames `{project}-git-{branch}-{teamslug}.vercel.app`
-// that can't be enumerated in ALLOWED_ORIGIN. Requiring the literal
-// `-git-` segment after the project prefix means an attacker can't just
-// register a Vercel project starting with `car-reminder-to-app-` and
-// inherit our CORS allow-list — they'd need ownership of a project named
-// exactly `car-reminder-to-app` (already ours) or `car-manage-hub`.
-function isTrustedVercelPreview(origin: string): boolean {
-  if (!origin) return false;
-  try {
-    const { hostname, protocol } = new URL(origin);
-    if (protocol !== 'https:') return false;
-    if (!hostname.endsWith('.vercel.app')) return false;
-    return (
-      hostname.startsWith('car-reminder-to-app-git-') ||
-      hostname.startsWith('car-manage-hub-git-')
-    );
-  } catch {
-    return false;
-  }
-}
+// CORS allow-list logic lives in _shared/cors.ts. This function only
+// declares the headers it accepts (dispatch needs x-dispatch-secret for
+// cron callers).
+const REMINDER_ALLOWED_HEADERS =
+  'authorization, x-client-info, x-client-ip, apikey, content-type, x-dispatch-secret';
 
 function buildCors(req: Request): HeadersInit {
-  const origin = req.headers.get('origin') || '';
-  // Fail-closed: non-matching origin → 'null' so browser blocks the
-  // response. Previously echoed ALLOWED_ORIGIN for every request, which
-  // defeated CORS entirely.
-  const allowList = [
-    ...ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean),
-    ...LOCAL_WEB_ORIGINS,
-  ];
-  const allow = (allowList.includes(origin) || isTrustedVercelPreview(origin)) ? origin : 'null';
-  return {
-    'Access-Control-Allow-Origin':  allow,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, x-client-ip, apikey, content-type, x-dispatch-secret',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Vary':                         'Origin',
-  };
+  return buildCorsHeaders(req, { allowedHeaders: REMINDER_ALLOWED_HEADERS });
 }
 
 /** Returns true if the caller is allowed to invoke this function. */
@@ -98,16 +58,25 @@ async function authorizeCaller(req: Request, supabaseAdmin: any): Promise<{ ok: 
   // Path B: authenticated admin JWT from the browser.
   const authHeader = req.headers.get('authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
-  if (!token) return { ok: false, reason: 'missing authorization' };
+  if (!token) {
+    logSecurityEvent('dispatch-reminder-emails', 'auth_failed', { reason: 'missing_authorization' });
+    return { ok: false, reason: 'missing authorization' };
+  }
   const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !user) return { ok: false, reason: 'invalid token' };
+  if (error || !user) {
+    logSecurityEvent('dispatch-reminder-emails', 'auth_failed', { reason: error?.message || 'invalid_token' });
+    return { ok: false, reason: 'invalid token' };
+  }
   // SECURITY: must use is_admin() RPC, NOT user.user_metadata.role.
   // user_metadata is client-writable via supabase.auth.updateUser(), so
   // a non-admin could self-elevate by writing `{role:'admin'}` into
   // their own metadata. is_admin (security definer) reads a server-
   // controlled list. See audit finding C-1 (2026-05-12).
   const { data: isAdminFlag } = await supabaseAdmin.rpc('is_admin', { uid: user.id });
-  if (isAdminFlag !== true) return { ok: false, reason: 'not an admin' };
+  if (isAdminFlag !== true) {
+    logSecurityEvent('dispatch-reminder-emails', 'permission_denied', { user_id: user.id, required: 'admin' });
+    return { ok: false, reason: 'not an admin' };
+  }
   return { ok: true };
 }
 

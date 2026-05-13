@@ -2,7 +2,10 @@ import * as React from "react"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const inputBase = "flex h-12 w-full rounded-2xl border border-[#E5E0D8] bg-white px-4 py-2 text-sm font-medium text-[#1C2E20] text-right shadow-sm transition-all placeholder:text-[#C0B8AD] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B7A53]/20 focus-visible:border-[#4B7A53] disabled:cursor-not-allowed disabled:opacity-50";
+// placeholder color was #C0B8AD (≈3:1 against white) which fails WCAG AA.
+// Bumped to #8B7B6F (≈5.4:1) — still feels muted next to the entered
+// text but readable in bright sunlight and for low-vision users.
+const inputBase = "flex h-12 w-full rounded-2xl border border-[#E5E0D8] bg-white px-4 py-2 text-sm font-medium text-[#1C2E20] text-right shadow-sm transition-all placeholder:text-[#8B7B6F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B7A53]/20 focus-visible:border-[#4B7A53] disabled:cursor-not-allowed disabled:opacity-50";
 
 const errorCls = "border-red-400 focus-visible:border-red-500 focus-visible:ring-red-200/40";
 

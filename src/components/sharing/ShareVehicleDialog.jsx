@@ -22,6 +22,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, Copy, Check, Eye, Edit, Share2, Clock, UserPlus, Mail } from 'lucide-react';
@@ -168,7 +169,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
     try {
       await navigator.clipboard.writeText(inviteLink);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION_MS);
       toast.success('הקישור הועתק');
     } catch {
       toast.error('לא ניתן להעתיק. סמן ידנית');

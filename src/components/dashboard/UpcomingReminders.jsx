@@ -6,7 +6,6 @@
  */
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Card } from '@/components/ui/card';
@@ -66,29 +65,17 @@ export default function UpcomingReminders({ vehicles = [], accountId }) {
   const [expanded, setExpanded] = useState(false);
   const MAX_COLLAPSED = 3;
 
-  // Fetch documents (disabled - not yet migrated from Base44)
-  const { data: documents = [] } = useQuery({
-    queryKey: ['documents-reminders', accountId],
-    queryFn: async () => {
-      try {
-        // TODO: migrate Document entity to Supabase
-        return [];
-      } catch (e) { return []; }
-    },
-    enabled: !!accountId && !isGuest,
-  });
-
-  // Fetch reminder settings (disabled - not yet migrated from Base44)
-  const { data: settingsArr = [] } = useQuery({
-    queryKey: ['reminder-settings-dash'],
-    queryFn: async () => {
-      try {
-        // TODO: migrate ReminderSettings entity to Supabase
-        return [];
-      } catch (e) { return []; }
-    },
-    enabled: !isGuest,
-  });
+  // NOTE: documents-expiry + reminder-settings used to be Base44 entities
+  // that fed this card. Both tables (public.documents,
+  // public.reminder_settings) exist on Supabase today — wiring this up
+  // is a real feature improvement but requires product decisions about
+  // which document types surface here and how settings interact. Until
+  // then we keep the variable shape so the downstream rendering stays
+  // unchanged; the card just doesn't list document-expiry reminders.
+  // Guest users still get their own data through `guestDocuments` /
+  // `guestReminderSettings` below.
+  const documents   = [];
+  const settingsArr = [];
 
   const settings = isGuest ? guestReminderSettings : (settingsArr[0] ?? {});
   const docs     = isGuest ? guestDocuments        : documents;

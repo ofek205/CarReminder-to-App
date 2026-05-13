@@ -70,9 +70,14 @@ export function isOffroad(vehicleType) {
   return OFFROAD_TYPES.has(vehicleType);
 }
 
-/** Vessel type names - used to identify boats/yachts/watercraft. */
+/** Vessel type names - used to identify boats/yachts/watercraft.
+ *  Single source of truth for the whole app — AdminUserDrawer used to
+ *  maintain its own local copy with three extra types ('יאכטה',
+ *  'יאכטה מנועית', "ג'ט סקי"). All have been folded in here so admin
+ *  views and user-facing views share the same definition. */
 const VESSEL_TYPES = new Set([
   'כלי שייט', 'מפרשית', 'סירה מנועית', 'אופנוע ים', 'סירת גומי',
+  'יאכטה', 'יאכטה מנועית', "ג'ט סקי", 'ג׳ט סקי',
 ]);
 
 // Nickname keywords that indicate a vessel even when vehicle_type is generic (e.g. 'רכב')
