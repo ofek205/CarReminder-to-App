@@ -325,6 +325,13 @@ export function GuestProvider({ children }) {
           // Provision before flipping authState so pages mounting on
           // 'authenticated' find a membership row on first query.
           await provisionIfNeeded();
+          // Register the device for server-side push notifications.
+          // Non-blocking, idempotent, web no-op. Failures (permission
+          // denied, plugin missing) are swallowed inside the helper so
+          // auth flow never gets stuck on a push edge case.
+          import('@/lib/pushNotifications')
+            .then(({ initPushNotifications }) => initPushNotifications(newUser.id))
+            .catch(() => {});
         }
         setAuthState('authenticated');
         try { window.__crAuthResolvedAt = Date.now(); } catch {}
@@ -334,6 +341,11 @@ export function GuestProvider({ children }) {
         setUser(null);
         setAuthState('guest');
         try { window.__crAuthResolvedAt = Date.now(); } catch {}
+        // Tear down push listeners so a different user signing in next
+        // doesn't inherit the previous session's token route.
+        import('@/lib/pushNotifications')
+          .then(({ teardownPushNotifications }) => teardownPushNotifications())
+          .catch(() => {});
       }
     });
 

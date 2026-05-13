@@ -92,19 +92,47 @@ function openDataUrlAsBlob(url) {
 /**
  * Open a file URL safely.
  * - Validates origin / data-URL MIME before opening
- * - Uses noopener,noreferrer to prevent reverse tabnabbing
- * - Converts whitelisted data: URLs to Blob URLs (modern browsers refuse
- *   top-level navigation to data: URLs since 2017)
- * - Returns false if URL is not trusted, or if a popup blocker prevented
- *   window.open() (caller can show a fallback toast)
+ * - On Capacitor native, routes through @capacitor/browser
+ *   (SafariViewController on iOS, Custom Tabs on Android). The browser
+ *   plugin shows the OS-native share / save sheet so the user can
+ *   download the file without us implementing a separate native flow.
+ *   This is REQUIRED on iOS — WKWebView's `window.open()` returns null
+ *   by default (no delegate override in AppDelegate), which surfaced
+ *   to users as "לא ניתן לפתוח את הקובץ - כתובת לא מאובטחת" even
+ *   though the Supabase signed URL is perfectly valid HTTPS.
+ * - On web, opens with `window.open(... noopener,noreferrer)` to
+ *   prevent reverse tabnabbing.
+ * - Converts whitelisted data: URLs to Blob URLs (modern browsers
+ *   refuse top-level navigation to data: URLs since 2017). Web only —
+ *   no data: URLs flow through native today.
+ *
+ * Returns a Promise<boolean>. true = the open call succeeded; false =
+ * URL was rejected (untrusted, malformed data:) or the browser blocked
+ * the open (popup blocker, native plugin error).
  */
-export function openFileUrlSafely(url) {
+export async function openFileUrlSafely(url) {
   if (!isSafeFileUrl(url)) {
     console.warn('[security] Blocked attempt to open untrusted URL:', url);
     return false;
   }
   if (typeof url === 'string' && url.startsWith('data:')) {
     return openDataUrlAsBlob(url);
+  }
+  // Native path — Capacitor Browser plugin. Dynamic import so the
+  // web bundle doesn't pay the plugin's parse cost, and so a missing
+  // plugin (web only) falls through to window.open cleanly.
+  try {
+    const { Capacitor } = await import('@capacitor/core');
+    if (Capacitor.isNativePlatform()) {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url, windowName: '_blank' });
+      return true;
+    }
+  } catch (err) {
+    console.warn('[security] Capacitor Browser open failed, falling back to window.open:', err);
+    // Fall through to the web path. Worst case the user sees the same
+    // toast they would have seen before; at best the web fallback
+    // happens to work on whichever WebView the platform is using.
   }
   const win = window.open(url, '_blank', 'noopener,noreferrer');
   return !!win;

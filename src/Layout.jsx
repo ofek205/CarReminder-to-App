@@ -516,6 +516,33 @@ function LayoutInner({ children }) {
     window.addEventListener('cr:close-popups', onClosePopups);
     return () => window.removeEventListener('cr:close-popups', onClosePopups);
   }, []);
+
+  // Push-notification tap handler. pushNotifications.js fires `cr:push-tapped`
+  // when the user taps a native push banner; the `detail` is the FCM/APNs
+  // `data` payload we attached server-side (type, post_id, vehicle_id, …).
+  // We resolve the deep-link via the same APP_NOTIF_CONFIG used by the
+  // bell + Notifications page so the routing stays in lock-step across
+  // surfaces. Falls through silently if the type is unknown — a stray
+  // push without a known type just opens the app to its current screen.
+  useEffect(() => {
+    let cancelled = false;
+    const onPushTapped = async (e) => {
+      try {
+        const data = e?.detail || {};
+        const type = data?.type;
+        if (!type) return;
+        const { configForType } = await import('@/lib/appNotificationConfig');
+        if (cancelled) return;
+        const href = configForType(type)?.buildHref?.(data);
+        if (href) navigate(href);
+      } catch { /* swallow — push tap should never crash the app */ }
+    };
+    window.addEventListener('cr:push-tapped', onPushTapped);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('cr:push-tapped', onPushTapped);
+    };
+  }, [navigate]);
   const [welcomeState, setWelcomeState] = useState(null);
   const [guestPopupClosed, setGuestPopupClosed] = useState(
     () => sessionStorage.getItem('guest_popup_closed') === '1'

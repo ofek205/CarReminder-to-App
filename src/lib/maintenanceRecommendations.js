@@ -170,13 +170,32 @@ export function computeNextReminder({
 /**
  * When should the LocalNotification fire? Two weeks before the
  * computed target_at, clamped to "no earlier than now + 1 hour"
- * so a backdated reminder still appears soon rather than vanishing
- * into the past.
+ * so a slightly-late target still surfaces shortly instead of
+ * silently vanishing into the past.
+ *
+ * Returns null in two cases (caller treats null as "do not schedule"):
+ *   1. targetIso missing / malformed.
+ *   2. targetIso is materially in the past (> 24h ago). That typically
+ *      means the user is logging a historical maintenance — they don't
+ *      need a notification about it, and the previous behavior of
+ *      firing now+1h was confusing ("תזכורת לטיפול שכבר עבר").
  */
 export function reminderFireDate(targetIso) {
   if (!targetIso) return null;
   const t = new Date(targetIso).getTime();
+  if (!Number.isFinite(t)) return null;
   const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000;
   const ONE_HOUR  = 60 * 60 * 1000;
+  const ONE_DAY   = 24 * 60 * 60 * 1000;
+
+  // Historical log path: target date is more than a day in the past.
+  // The user is recording something that already happened — no
+  // reminder needed. Returning null lets the caller (MaintenanceSection)
+  // skip the schedule call entirely while still saving the log row.
+  if (t < Date.now() - ONE_DAY) return null;
+
+  // Normal path: fire 2 weeks before target, but no earlier than 1h
+  // from now so a target that's "today" or "yesterday" still surfaces
+  // shortly instead of being lost to a past schedule slot.
   return new Date(Math.max(t - TWO_WEEKS, Date.now() + ONE_HOUR));
 }

@@ -631,8 +631,12 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             </div>
           )}
 
-          {/*  Dates  */}
-          <div className="grid grid-cols-2 gap-3">
+          {/*  Dates — stack on mobile, side-by-side on sm+. The native
+               iOS date input has an intrinsic min width (~280px) that
+               overflowed a narrow grid-cols-2 cell on phones; stacking
+               vertically gives each date its full width and switches
+               back to a 2-column row from sm breakpoint upward.  */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-right block mb-1.5">תאריך הוצאה</Label>
               <DateInput value={form.issue_date} onChange={e => setForm(f => ({ ...f, issue_date: e.target.value }))} />
@@ -1292,8 +1296,13 @@ function AuthDocuments({ vehicleIdParam }) {
         toast.error('הקובץ לא זמין');
         return;
       }
-      const opened = openFileUrlSafely(url);
-      if (!opened) toast.error('לא ניתן לפתוח את הקובץ - כתובת לא מאובטחת');
+      // openFileUrlSafely is now async — on Capacitor native it goes
+      // through @capacitor/browser (SafariViewController on iOS, Custom
+      // Tabs on Android), which is the only way to open external URLs
+      // from WKWebView. Plain `window.open()` returns null silently on
+      // iOS and surfaced as the "כתובת לא מאובטחת" toast.
+      const opened = await openFileUrlSafely(url);
+      if (!opened) toast.error('לא ניתן לפתוח את הקובץ');
     } finally {
       setOpeningDocId(null);
     }
@@ -1301,11 +1310,31 @@ function AuthDocuments({ vehicleIdParam }) {
 
   // Same URL resolution used by the download button. Returned to DocCard
   // via a callback so the card itself doesn't need to import getSignedUrl.
+  //
+  // The DOM `<a download>` trick works on the web but iOS WKWebView
+  // ignores the `download` attribute for external URLs — it opens the
+  // file inline (or fails) instead of triggering a save dialog. For
+  // native we route through @capacitor/browser, which opens the file
+  // in SafariViewController / Custom Tabs where the user gets the
+  // OS-native share sheet (Save to Files, Save Image, …). On web we
+  // keep the existing anchor-click flow so desktop browsers preserve
+  // their familiar download UX.
   const handleDownloadDocument = async (doc) => {
     const url = await resolveDocUrl(doc);
     if (!url) {
       toast.error('הקובץ לא זמין להורדה');
       return;
+    }
+    try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (Capacitor.isNativePlatform()) {
+        const { Browser } = await import('@capacitor/browser');
+        await Browser.open({ url, windowName: '_blank' });
+        return;
+      }
+    } catch (err) {
+      // Native plugin missing or failed — fall through to the web path.
+      console.warn('[documents] native browser open failed:', err);
     }
     const a = document.createElement('a');
     a.href = url;

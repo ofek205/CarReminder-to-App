@@ -71,24 +71,21 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
       const authorName = result?.author_name || (anonymous ? 'אנונימי' : realName);
       if (postOwnerId && postOwnerId !== user.id) {
         try {
-          // Write to app_notifications (the canonical realtime-enabled
-          // notifications table) so the post owner gets:
-          //   - Bell badge that updates instantly via realtime
-          //   - Native local notification on Capacitor (free, via the
-          //     existing useSharedVehicleRealtime hook)
-          //   - "Yossi הגיב/ה על הפוסט שלך" with deep-link straight to
-          //     the post via /Community?post=<id> (handled by
-          //     appNotificationConfig + Community page scroll-to-post)
-          // The legacy community_notifications path used to write here
-          // but had no realtime push and routed users to the generic
-          // /Community page — they had to scroll to find their post.
+          // Notify the post owner via the canonical app_notifications
+          // path. Goes through a SECURITY DEFINER RPC because:
+          //   1. app_notifications has no client INSERT policy (would
+          //      silently fail under RLS otherwise — the previous direct
+          //      insert here was a no-op for that exact reason).
+          //   2. The RPC verifies the post + owner server-side so a
+          //      malicious client can't spam-notify arbitrary users.
+          // The AFTER INSERT trigger on app_notifications then fans out
+          // a native push to all of the recipient's device tokens via
+          // dispatch-push — no extra round-trip from the client.
           const bodySnippet = (userMessage || '').slice(0, 120);
-          await supabase.from('app_notifications').insert({
-            user_id: postOwnerId,
-            type: 'community_comment',
-            title: `${authorName} הגיב/ה על הפוסט שלך`,
-            body: bodySnippet,
-            data: { post_id: postId, commenter_name: authorName },
+          await supabase.rpc('notify_community_comment', {
+            p_post_id:        postId,
+            p_commenter_name: authorName,
+            p_body_snippet:   bodySnippet,
           });
         } catch {}
       }

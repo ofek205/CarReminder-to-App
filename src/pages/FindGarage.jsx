@@ -218,6 +218,13 @@ export default function FindGarage() {
   // as `fixed inset-0` over the whole viewport so the user can pan/
   // explore without the surrounding chrome. A close button restores
   // the embedded view. Doesn't affect data, just layout.
+  //
+  // Important: Leaflet caches the container's pixel size on mount and
+  // does NOT auto-recompute when the container later resizes (the
+  // fullscreen toggle changes the wrapper from 35vh → 100%). Without
+  // an explicit invalidateSize() call the tiles render for the old
+  // (smaller) container and the bottom half of fullscreen stays
+  // blank. The effect below calls invalidateSize() on every toggle.
   const [mapFullscreen, setMapFullscreen] = useState(false);
   const [nameQuery, setNameQuery] = useState('');
   const [hasVessel, setHasVessel] = useState(false);
@@ -282,6 +289,20 @@ export default function FindGarage() {
       setHasVessel(false);
     }
   }, [isGuest, guestVehicles, isAuthenticated, accountId]);
+
+  // Leaflet doesn't observe its container's size; after the fullscreen
+  // toggle changes the wrapper height (35vh ↔ 100% of the fixed-inset-0
+  // viewport) we must tell Leaflet to remeasure, otherwise the tile
+  // canvas keeps its old (small) dimensions and the bottom of the
+  // fullscreen view stays blank. setTimeout(0) defers until after the
+  // CSS transition has reflowed the parent.
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const t = setTimeout(() => {
+      try { mapRef.current?.invalidateSize?.(); } catch { /* map unmounted */ }
+    }, 0);
+    return () => clearTimeout(t);
+  }, [mapFullscreen]);
 
   // Floating "recenter to my location" handler. Runs the hook's GPS retry
   // and snaps the map view to the result on success. The hook owns the
@@ -892,7 +913,9 @@ export default function FindGarage() {
           When fullscreen the map covers the whole viewport with a
           close button overlay; the surrounding chrome (header, list,
           bottom nav) is hidden behind it via z-index. */}
-      <div className={mapFullscreen ? 'fixed inset-0 z-[60] bg-white' : 'px-3'}>
+      <div
+        className={mapFullscreen ? 'fixed inset-0 z-[60] bg-white flex flex-col' : 'px-3'}
+      >
         <MapCore
           markers={mapMarkers}
           center={userLocation ? [userLocation.lat, userLocation.lng] : null}
@@ -913,9 +936,16 @@ export default function FindGarage() {
           // when they want the full card.
           onMarkerClick={(m) => { setSelectedGarage(m.id); }}
           tooltipClassName="garage-tooltip"
-          mapHeight={mapFullscreen ? '100vh' : '35vh'}
-          mapMinHeight={mapFullscreen ? '100vh' : '200px'}
-          mapMaxHeight={mapFullscreen ? '100vh' : '350px'}
+          // Fullscreen: let the flex parent decide the height (`100%`)
+          // instead of `100vh`, which on Capacitor iOS is buggy —
+          // doesn't account for the status bar / home indicator and
+          // so renders as ~half-viewport. Embed mode keeps the
+          // existing 35vh / 200..350 clamp range.
+          fullscreen={mapFullscreen}
+          className={mapFullscreen ? 'flex-1' : ''}
+          mapHeight={mapFullscreen ? '100%' : '35vh'}
+          mapMinHeight={mapFullscreen ? '100%' : '200px'}
+          mapMaxHeight={mapFullscreen ? 'none' : '350px'}
           renderTooltip={(m) => {
             const g = m.garage;
             const tc = ALL_TYPE_CONFIG[g.typeKey] || TYPE_CONFIG.garage;
@@ -967,22 +997,32 @@ export default function FindGarage() {
               (bottom-right corner); fullscreen view shows the X close
               icon (top-right corner, where users expect a "close
               modal" action in RTL apps). Single button source-of-
-              truth so the toggle stays in one logical place. */}
+              truth so the toggle stays in one logical place.
+              In fullscreen we shift to a high-contrast dark fill +
+              larger hit-target so the close affordance stands out
+              against bright map tiles (street view often runs white)
+              and clears the iPhone status-bar / notch via
+              `env(safe-area-inset-top)`. Users were reporting "no
+              way to exit fullscreen" — the button existed but blended
+              into the white background. */}
           <button
             onClick={() => setMapFullscreen(v => !v)}
             aria-label={mapFullscreen ? 'סגור מסך מלא' : 'מסך מלא'}
             title={mapFullscreen ? 'סגור מסך מלא' : 'מסך מלא'}
-            className={`absolute w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-              mapFullscreen ? 'top-3 right-3' : 'bottom-3 right-3'
+            className={`absolute rounded-full flex items-center justify-center transition-all active:scale-95 ${
+              mapFullscreen ? 'w-12 h-12 right-4' : 'w-10 h-10 bottom-3 right-3'
             }`}
             style={{
-              background: '#fff',
-              border: `1.5px solid ${C.border}`,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              background: mapFullscreen ? 'rgba(20, 30, 25, 0.92)' : '#fff',
+              border: mapFullscreen ? '1.5px solid rgba(255,255,255,0.25)' : `1.5px solid ${C.border}`,
+              boxShadow: mapFullscreen
+                ? '0 6px 18px rgba(0,0,0,0.35)'
+                : '0 4px 12px rgba(0,0,0,0.15)',
               zIndex: 400,
-              color: C.primary,
+              color: mapFullscreen ? '#fff' : C.primary,
+              top: mapFullscreen ? 'calc(env(safe-area-inset-top, 0px) + 12px)' : undefined,
             }}>
-            {mapFullscreen ? <XIcon className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+            {mapFullscreen ? <XIcon className="w-6 h-6" /> : <Maximize2 className="w-5 h-5" />}
           </button>
         </MapCore>
       </div>

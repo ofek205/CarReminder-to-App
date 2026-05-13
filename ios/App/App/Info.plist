@@ -60,5 +60,14 @@
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- Background Modes — required for remote push delivery while the
+	     app is backgrounded or terminated. Without 'remote-notification'
+	     iOS surfaces the banner only while the app is in the foreground
+	     and silently drops it otherwise. This is the Info.plist twin of
+	     the "Background Modes → Remote notifications" Xcode capability. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

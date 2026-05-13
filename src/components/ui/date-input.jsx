@@ -34,7 +34,15 @@ const DateInput = React.forwardRef(({ className, value, onChange, ...props }, re
         // Match the existing visual style of other inputs across the
         // app: 12-unit height, rounded 2xl, off-white background,
         // subtle border + focus ring.
-        "flex h-12 w-full rounded-2xl border border-[#E5E0D8] bg-white px-4 py-2 text-sm font-medium text-[#1C2E20] shadow-sm transition-all placeholder:text-[#C0B8AD] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B7A53]/20 focus-visible:border-[#4B7A53] disabled:cursor-not-allowed disabled:opacity-50",
+        //
+        // `min-w-0 max-w-full` is critical on iOS: the native date
+        // input has an intrinsic minimum width (~280px) and without
+        // these classes it refuses to shrink inside a `grid-cols-2`
+        // or flex parent on a narrow phone, pushing the column past
+        // the viewport edge. The min-w-0 lets the flex/grid child
+        // shrink below its content size, the max-w-full clamps any
+        // overflow as a safety net.
+        "flex h-12 w-full min-w-0 max-w-full rounded-2xl border border-[#E5E0D8] bg-white px-4 py-2 text-sm font-medium text-[#1C2E20] shadow-sm transition-all placeholder:text-[#C0B8AD] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B7A53]/20 focus-visible:border-[#4B7A53] disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       {...props}

@@ -22,10 +22,28 @@ function hashStringToInt(str) {
   return hash;
 }
 
-//  Local Notifications (Android device) 
+//  Local Notifications (Android device)
 export async function scheduleLocalNotification({ id, title, body, scheduleAt, extra = {} }) {
   if (!isNative) return;
   try {
+    // Defensive guard against past-date schedules. Capacitor's
+    // LocalNotifications.schedule() with a past `at` fires immediately
+    // on both iOS and Android — that's correct behaviour at the OS
+    // level (you scheduled it for the past, so it's "due"), but it
+    // surprises callers that pass a backdated date by mistake (e.g.
+    // a historical maintenance log whose computed reminder target is
+    // weeks ago). Reject anything more than a minute in the past so
+    // legitimate "now + small skew" schedules still go through.
+    const atDate = new Date(scheduleAt);
+    if (!Number.isFinite(atDate.getTime())) {
+      console.warn('scheduleLocalNotification: invalid scheduleAt — skipped', { id, scheduleAt });
+      return null;
+    }
+    if (atDate.getTime() < Date.now() - 60 * 1000) {
+      console.warn('scheduleLocalNotification: past scheduleAt — skipped', { id, scheduleAt });
+      return null;
+    }
+
     const { LocalNotifications } = await import('@capacitor/local-notifications');
 
     const numericId = typeof id === 'number' ? id : hashStringToInt(String(id));
@@ -35,7 +53,7 @@ export async function scheduleLocalNotification({ id, title, body, scheduleAt, e
         id: numericId,
         title,
         body,
-        schedule: { at: new Date(scheduleAt) },
+        schedule: { at: atDate },
         channelId: 'car-reminders',
         smallIcon: 'ic_notification',
         largeIcon: 'ic_notification',

@@ -20,6 +20,13 @@ def capacitor_pods
   pod 'CapacitorShare',               :path => '../../node_modules/@capacitor/share'
   pod 'CapacitorSplashScreen',        :path => '../../node_modules/@capacitor/splash-screen'
   pod 'CapacitorStatusBar',           :path => '../../node_modules/@capacitor/status-bar'
+  # Sign in with Apple — required by Apple Guideline 4.8. Without this
+  # pod entry, `npx cap sync ios` updates Package.swift (SPM) but the
+  # actual iOS build uses CocoaPods, leaving the native SignInWithApple
+  # bridge unregistered. The JS-side `SignInWithApple.authorize()` call
+  # then hangs silently — the call routes through Capacitor's plugin
+  # registry, finds no native handler, and the promise never resolves.
+  pod 'CapacitorCommunityAppleSignIn', :path => '../../node_modules/@capacitor-community/apple-sign-in'
 end
 
 target 'App' do

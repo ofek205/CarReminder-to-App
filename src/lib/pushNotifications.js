@@ -171,12 +171,35 @@ async function detectPlatform() {
  * When a push arrives while the app is in the foreground, FCM by
  * default delivers it silently. Mirror it through LocalNotifications so
  * the user still sees the banner / hears the sound.
+ *
+ * Dedup with the Realtime mirror (useSharedVehicleRealtime) and the
+ * NotificationBell first-fetch mirror via the shared localStorage flag
+ *   `app_push_fired_<app_notifications.id>`
+ * The dispatch-push trigger now includes the row id under
+ * `data.app_notif_id` precisely so this path can apply the same flag.
+ * Without it a foregrounded user would see two banners per event —
+ * one from this handler and one from the Realtime mirror that fires
+ * 1500ms later for the same INSERT.
+ *
+ * If app_notif_id is missing (legacy trigger, system-test pushes, …)
+ * we skip the dedup check and forward anyway — better to show a
+ * possibly-duplicate banner than to swallow a legitimate push.
  */
 async function forwardForegroundToLocal(notif) {
   try {
     const title = notif?.title || notif?.data?.title || 'CarReminder';
     const body  = notif?.body  || notif?.data?.body  || '';
     if (!title && !body) return;
+
+    const appNotifId = notif?.data?.app_notif_id;
+    if (appNotifId) {
+      try {
+        const dedupKey = `app_push_fired_${appNotifId}`;
+        if (localStorage.getItem(dedupKey)) return; // Realtime already fired
+        localStorage.setItem(dedupKey, '1');
+      } catch { /* storage unavailable — fall through to schedule */ }
+    }
+
     const { scheduleLocalNotification } = await import('./notificationChannels');
     await scheduleLocalNotification({
       id: `push-${Date.now()}`,

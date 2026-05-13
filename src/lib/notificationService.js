@@ -42,7 +42,7 @@ export const DEFAULT_REMINDER_SETTINGS = {
   whatsapp_enabled: false,
 };
 
-//  Limits 
+//  Limits
 // Android AlarmManager comfortably handles months out, but scheduling too
 // many pending alarms slows the system + our cancel-all loop. Cap sanely.
 const MAX_SCHEDULE_HORIZON_DAYS = 90;
@@ -52,6 +52,26 @@ const MAX_OVERDUE_REPEATS       = 3;
 // daysLeft from the engine so they sort last. We detect them to give them
 // a gentle "tomorrow morning" slot instead of scheduling years in advance.
 const PASSIVE_DAYS_THRESHOLD = 365;
+
+// Cool-down (ms) for "passive" nudges (daysLeft ≥ PASSIVE_DAYS_THRESHOLD).
+// Without this every recalc — and recalc runs on every app open, every
+// vehicle save, every reminder-settings change — re-plants a "tomorrow
+// 08:00" alarm. A user who opens the app daily would see the same nudge
+// every morning until they update their km or dismiss the seasonal banner.
+//
+// Originally scoped to type='mileage' (commit c0b2610) but the same
+// daily-spam pathology applies to the winter-prep and sailing-season
+// reminders during their active month — the engine's `*_dismissed_<year>`
+// localStorage flag only fires when the user explicitly dismisses from
+// the bell UI, NOT when the scheduler plants a new alarm. So during
+// November / April a user got "הכן את הרכב לחורף" every single morning
+// until they manually dismissed.
+//
+// Now applies to ALL reminders with daysLeft ≥ PASSIVE_DAYS_THRESHOLD —
+// they all share the "I'm a soft nudge, not a real deadline" semantics
+// and benefit from the same cadence cap.
+const PASSIVE_NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const PASSIVE_LAST_FIRED_PREFIX = 'cr_passive_nudge_last_';
 
 //  Per-type "days before due" lookup 
 function daysBeforeFor(type, settings) {
@@ -103,6 +123,23 @@ function computeScheduleTimes(reminder, settings) {
 
   // Overdue. nudge once in ~1 hour, then repeat every N days (capped).
   if (reminder.daysLeft <= 0) {
+    // km-based "urgent" items (tires, periodic service, shipyard) have
+    // no real dueDate — the engine sets daysLeft=0 as a severity marker,
+    // not as a calendar overdue. Escalating those through the full
+    // +1h → +Nd → +2Nd → +3Nd loop spams a user about a wear item
+    // that doesn't change in 24h. One gentle morning push is enough;
+    // the engine will re-emit the reminder daily until the underlying
+    // condition (km baseline, shipyard date) resolves, and the next
+    // recalc after dismissal will see no item and cancel cleanly.
+    if (reminder.dueDate == null) {
+      return [morningSlot(1)];
+    }
+
+    // Real overdue — a date-bound deadline has passed (test, insurance,
+    // license, document, etc.). Escalate to nudge the user firmly:
+    // first within the hour, then a morning repeat every N days up to
+    // MAX_OVERDUE_REPEATS times.
+    //
     // Clamp to [1, 30]. A user typing 0, NaN, or negative would otherwise
     // round up to 1 via Math.max and flood the device with a push every
     // morning, forever. 30 is an upper bound — longer intervals suggest
@@ -182,6 +219,31 @@ export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER
   for (const reminder of reminders) {
     if (reminder.daysLeft === null || reminder.daysLeft === undefined) continue;
     if (isTypeMuted(reminder.type, settings)) continue;
+
+    // Passive-reminder cool-down: any reminder with daysLeft above the
+    // passive threshold (mileage nudge / winter-prep / sailing-season /
+    // any future "soft nudge" type) skips if we already fired it within
+    // the last 7 days. Real-deadline reminders (test, insurance, docs,
+    // …) keep their original "fire N days before due date" cadence —
+    // the cool-down here is only for items that lack a real countdown
+    // and would otherwise re-plant a new alarm on every app open.
+    //
+    // Wrapped in try/catch so a localStorage outage (private browsing,
+    // full quota, disabled storage on Capacitor) degrades gracefully —
+    // the user gets the old "schedule like before" behavior instead of
+    // a broken notification loop.
+    if (Number(reminder.daysLeft) >= PASSIVE_DAYS_THRESHOLD) {
+      try {
+        const key = PASSIVE_LAST_FIRED_PREFIX + reminder.id;
+        const lastFiredRaw = localStorage.getItem(key);
+        const lastFired = lastFiredRaw ? Number(lastFiredRaw) : 0;
+        if (Number.isFinite(lastFired) && lastFired > 0
+            && (Date.now() - lastFired) < PASSIVE_NUDGE_COOLDOWN_MS) {
+          continue;
+        }
+        localStorage.setItem(key, String(Date.now()));
+      } catch { /* storage unavailable — fall through to schedule */ }
+    }
 
     const times = computeScheduleTimes(reminder, settings);
     if (times.length === 0) continue;
