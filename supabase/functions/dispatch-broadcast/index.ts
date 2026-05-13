@@ -24,6 +24,7 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { logSecurityEvent } from '../_shared/securityLog.ts';
 
 const RESEND_API_KEY  = Deno.env.get('RESEND_API_KEY');
 const SUPABASE_URL    = Deno.env.get('SUPABASE_URL');
@@ -86,9 +87,15 @@ async function authorizeCaller(req: Request, supabaseAdmin: any): Promise<{ ok: 
   const headerSecret = req.headers.get('x-dispatch-secret');
   if (DISPATCH_SECRET && headerSecret && headerSecret === DISPATCH_SECRET) return { ok: true };
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
-  if (!token) return { ok: false, reason: 'missing authorization' };
+  if (!token) {
+    logSecurityEvent('dispatch-broadcast', 'auth_failed', { reason: 'missing_authorization' });
+    return { ok: false, reason: 'missing authorization' };
+  }
   const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !user) return { ok: false, reason: 'invalid token' };
+  if (error || !user) {
+    logSecurityEvent('dispatch-broadcast', 'auth_failed', { reason: error?.message || 'invalid_token' });
+    return { ok: false, reason: 'invalid token' };
+  }
   // SECURITY: must use the is_admin() RPC, NOT user.user_metadata.role.
   // `user_metadata` is client-writable via supabase.auth.updateUser() —
   // an authenticated non-admin user could self-elevate by writing
@@ -97,7 +104,10 @@ async function authorizeCaller(req: Request, supabaseAdmin: any): Promise<{ ok: 
   // single source of truth used across the codebase. See audit
   // finding C-1 (2026-05-12).
   const { data: isAdminFlag } = await supabaseAdmin.rpc('is_admin', { uid: user.id });
-  if (isAdminFlag !== true) return { ok: false, reason: 'not an admin' };
+  if (isAdminFlag !== true) {
+    logSecurityEvent('dispatch-broadcast', 'permission_denied', { user_id: user.id, required: 'admin' });
+    return { ok: false, reason: 'not an admin' };
+  }
   return { ok: true };
 }
 

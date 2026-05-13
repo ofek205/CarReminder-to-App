@@ -17,6 +17,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { logSecurityEvent } from '../_shared/securityLog.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL') || '';
@@ -116,9 +117,15 @@ serve(async (req) => {
     return json({ error: 'Server misconfigured (missing supabase env)' }, 500, req);
   }
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
-  if (!token) return json({ error: 'missing authorization' }, 401, req);
+  if (!token) {
+    logSecurityEvent('send-email', 'auth_failed', { reason: 'missing_authorization' });
+    return json({ error: 'missing authorization' }, 401, req);
+  }
   const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token);
-  if (authErr || !user) return json({ error: 'invalid token' }, 401, req);
+  if (authErr || !user) {
+    logSecurityEvent('send-email', 'auth_failed', { reason: authErr?.message || 'invalid_token' });
+    return json({ error: 'invalid token' }, 401, req);
+  }
 
   const { data: allowed, error: rlErr } = await supabaseAdmin.rpc('rate_limit_check', {
     kind:        `send-email:${user.id}`,
@@ -127,10 +134,11 @@ serve(async (req) => {
   // Fail-closed on RPC error: a misconfigured rate_limit_counters table
   // shouldn't open the floodgates. Return 503 so the client retries.
   if (rlErr) {
-    console.error('send-email: rate_limit_check failed:', rlErr.message);
+    logSecurityEvent('send-email', 'rate_limit_error', { user_id: user.id, error: rlErr.message });
     return json({ error: 'rate limit system unavailable' }, 503, req);
   }
   if (allowed === false) {
+    logSecurityEvent('send-email', 'rate_limit_hit', { user_id: user.id, limit: RATE_LIMIT_PER_MIN });
     return json({ error: `Rate limit exceeded (${RATE_LIMIT_PER_MIN}/min)` }, 429, req);
   }
 

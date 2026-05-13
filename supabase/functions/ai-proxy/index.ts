@@ -33,6 +33,7 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { logSecurityEvent } from '../_shared/securityLog.ts';
 
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE     = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -252,6 +253,12 @@ function isFetchHostAllowed(url: string): boolean {
 
 async function fetchAsBase64(url: string): Promise<{ data: string; mime: string }> {
   if (!isFetchHostAllowed(url)) {
+    // Log the rejected host for observability — high-signal event since
+    // this fires only when someone tries to point fetch at a non-allowed
+    // origin (likely SSRF probe).
+    let host = 'invalid_url';
+    try { host = new URL(url).hostname; } catch {}
+    logSecurityEvent('ai-proxy', 'ssrf_rejected', { host });
     throw new Error('file host not allowed');
   }
   // 10s timeout so a hung storage fetch can't pin the function.
@@ -377,20 +384,27 @@ serve(async (req) => {
   // for rate limiting and audit.
   const authHeader = req.headers.get('authorization') || '';
   if (!authHeader.toLowerCase().startsWith('bearer ')) {
+    logSecurityEvent('ai-proxy', 'auth_failed', { reason: 'missing_bearer' });
     return json({ error: 'Missing bearer token' }, 401, req);
   }
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const { data: { user }, error: authErr } = await supabase.auth.getUser(authHeader.slice(7));
-  if (authErr || !user) return json({ error: 'Invalid token' }, 401, req);
+  if (authErr || !user) {
+    logSecurityEvent('ai-proxy', 'auth_failed', { reason: authErr?.message || 'invalid_token' });
+    return json({ error: 'Invalid token' }, 401, req);
+  }
 
   let body: any;
   try { body = await req.json(); } catch { return json({ error: 'Invalid JSON' }, 400, req); }
 
   // Guard against absurdly large payloads (runaway base64 images, etc.)
   const approxSize = JSON.stringify(body).length;
-  if (approxSize > 8 * 1024 * 1024) return json({ error: 'Payload too large' }, 413, req);
+  if (approxSize > 8 * 1024 * 1024) {
+    logSecurityEvent('ai-proxy', 'payload_rejected', { reason: 'oversize', size: approxSize, user_id: user.id });
+    return json({ error: 'Payload too large' }, 413, req);
+  }
 
   // ─────────────────────────────────────────────────────────────────────
   // Mode: providers_status (admin-only meta call)
@@ -406,7 +420,10 @@ serve(async (req) => {
     // false → admins were getting 403. Switch to the `is_admin(uuid)`
     // overload and pass the user id we already validated above.
     const { data: isAdminFlag } = await supabase.rpc('is_admin', { uid: user.id });
-    if (isAdminFlag !== true) return json({ error: 'admin_required' }, 403, req);
+    if (isAdminFlag !== true) {
+      logSecurityEvent('ai-proxy', 'permission_denied', { action: 'providers_status', user_id: user.id });
+      return json({ error: 'admin_required' }, 403, req);
+    }
     return json({
       providers: {
         gemini: !!GEMINI_KEY,
@@ -434,10 +451,13 @@ serve(async (req) => {
     // which let an attacker DoS the rate-limit table to bypass limits.
     // See audit finding H-5 (2026-05-12).
     if (rlErr) {
-      console.error('rate_limit_check failed (extract_document):', rlErr.message);
+      logSecurityEvent('ai-proxy', 'rate_limit_error', { kind: 'extract_document', user_id: user.id, error: rlErr.message });
       return json({ status: 'error', details: 'rate limit system unavailable' }, 503, req);
     }
-    if (allowed === false) return json({ status: 'error', details: 'Rate limit exceeded' }, 429, req);
+    if (allowed === false) {
+      logSecurityEvent('ai-proxy', 'rate_limit_hit', { kind: 'extract_document', user_id: user.id });
+      return json({ status: 'error', details: 'Rate limit exceeded' }, 429, req);
+    }
 
     return extractDocument(body, req);
   }
@@ -450,10 +470,13 @@ serve(async (req) => {
     });
     // Fail-closed on RPC error — see comment above. Audit finding H-5.
     if (rlErr) {
-      console.error('rate_limit_check failed (ai_proxy):', rlErr.message);
+      logSecurityEvent('ai-proxy', 'rate_limit_error', { kind: 'ai_proxy', user_id: user.id, error: rlErr.message });
       return json({ error: 'rate limit system unavailable' }, 503, req);
     }
-    if (allowed === false) return json({ error: 'Rate limit exceeded' }, 429, req);
+    if (allowed === false) {
+      logSecurityEvent('ai-proxy', 'rate_limit_hit', { kind: 'ai_proxy', user_id: user.id });
+      return json({ error: 'Rate limit exceeded' }, 429, req);
+    }
   }
 
   const hasImages = (body.messages || []).some((m: any) =>
