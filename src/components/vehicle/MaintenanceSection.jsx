@@ -659,15 +659,13 @@ export default function MaintenanceSection({ vehicle }) {
                       type="checkbox"
                       checked={reminderEnabled}
                       onChange={(e) => {
-                        const v = e.target.checked;
-                        setReminderEnabled(v);
-                        // Pre-fill recommended values on first toggle on,
-                        // so the user can hit Save immediately without
-                        // typing anything.
-                        if (v && rec) {
-                          if (rec.months && !reminderMonths) setReminderMonths(String(rec.months));
-                          if (rec.km     && !reminderKm)     setReminderKm(String(rec.km));
-                        }
+                        // Toggle only. We used to auto-fill the recommended
+                        // values here as well, but that surprised users who
+                        // expected the suggestion card (rendered below) to
+                        // remain a SUGGESTION until they tapped "השתמש
+                        // בהמלצה". Now the checkbox just turns the section
+                        // on/off; explicit consent fills the fields.
+                        setReminderEnabled(e.target.checked);
                       }}
                       className="w-4 h-4"
                     />

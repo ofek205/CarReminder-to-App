@@ -142,6 +142,13 @@ export default function MapCore({
   className = '',
   mapRef: externalMapRef,
   children,
+  // When true the wrapper drops its rounded corners + shadow + border
+  // so a `fixed inset-0` parent can use the map edge-to-edge. The
+  // outer container still owns the height — pass `mapHeight: '100%'`
+  // alongside `fullscreen` so MapCore fills the flex parent rather
+  // than capping at a vh value (100vh is buggy under Capacitor iOS,
+  // doesn't account for status bar / home indicator).
+  fullscreen = false,
 }) {
   const internalMapRef = useRef(null);
   const mapRef = externalMapRef || internalMapRef;
@@ -206,14 +213,19 @@ export default function MapCore({
 
   return (
     <div
-      className={`rounded-2xl overflow-hidden shadow-md border ${className}`}
+      className={`${fullscreen ? 'overflow-hidden' : 'rounded-2xl overflow-hidden shadow-md border'} ${className}`}
       style={{
         height: mapHeight,
         minHeight: mapMinHeight,
         maxHeight: mapMaxHeight,
         position: 'relative',
         zIndex: 1,
-        borderColor: '#E5E7EB',
+        // Drop the rounded corner border-color when fullscreen so the
+        // map paint reaches the actual viewport edges — without this,
+        // Leaflet was clipping inside the rounded mask which made the
+        // map look like it occupied "only half the screen" even though
+        // the wrapper was fixed inset-0.
+        ...(fullscreen ? {} : { borderColor: '#E5E7EB' }),
       }}
     >
       <MapContainer
