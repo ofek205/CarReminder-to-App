@@ -13,5 +13,20 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<!-- Push Notifications — required by @capacitor/push-notifications so
+	     the OS can issue an APNs token and route remote pushes to the app.
+	     Value rules:
+	       - 'development' — APNs sandbox (api.sandbox.push.apple.com).
+	         Used for Xcode debug builds installed via cable/simulator.
+	       - 'production'  — APNs production (api.push.apple.com). Apple
+	         AUTO-PROMOTES 'development' to 'production' when the binary is
+	         signed with an Apple Distribution cert (TestFlight + App Store),
+	         so a single 'development' value here works for every build
+	         path and we don't have to maintain per-config entitlements.
+	     Pair with APNS_USE_SANDBOX in the dispatch-push Edge Function:
+	       development env ↔ APNS_USE_SANDBOX=true
+	       production env  ↔ APNS_USE_SANDBOX=false (flip on App Store release). -->
+	<key>aps-environment</key>
+	<string>development</string>
 </dict>
 </plist>
