@@ -1,5 +1,4 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -57,26 +56,16 @@ function getNextMaintenanceInfo(vehicle, maintenanceLogs, allTemplates) {
 }
 
 export default function VehicleStatusCard({ vehicle }) {
-  // Maintenance data disabled - not yet migrated from Base44
-  const { data: maintenanceLogs = [] } = useQuery({
-    queryKey: ['maintenance-logs-dash', vehicle.id],
-    queryFn: async () => {
-      try {
-        // TODO: migrate MaintenanceLog entity to Supabase
-        return [];
-      } catch (e) { return []; }
-    },
-  });
-
-  const { data: allTemplates = [] } = useQuery({
-    queryKey: ['templates-all-dash'],
-    queryFn: async () => {
-      try {
-        // TODO: migrate MaintenanceTemplate entity to Supabase
-        return [];
-      } catch (e) { return []; }
-    },
-  });
+  // NOTE: getNextMaintenanceInfo() can compute "next maintenance" using
+  // either the engine-only path (vehicle.test_due_date / insurance) or
+  // the richer path that also accounts for maintenance_logs +
+  // maintenance_templates. Both tables exist on Supabase today, but
+  // wiring them here means picking which template applies per vehicle
+  // type and how the dashboard summarises overdue services — a product
+  // decision. Until then we feed empty arrays so the function falls
+  // back to date-based status only.
+  const maintenanceLogs = [];
+  const allTemplates    = [];
 
   const testStatus = getDateStatus(vehicle.test_due_date);
   const insuranceStatus = getDateStatus(vehicle.insurance_due_date);

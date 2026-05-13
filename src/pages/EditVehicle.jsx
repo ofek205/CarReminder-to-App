@@ -183,7 +183,8 @@ export default function EditVehicle() {
         const v = found;
         setAccountId(v.account_id);
 
-        // TODO: migrate VehicleType to Supabase
+        // vehicle_type is a plain column on public.vehicles — no separate
+        // entity migration required. (Stale TODO removed 2026-05-13.)
         if (v.vehicle_type) {
           // usesHours covers vessels, off-road toys (RZR / מיול),
           // every CME subtype (forklifts, excavators, rollers, cranes…),
