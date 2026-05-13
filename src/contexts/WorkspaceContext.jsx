@@ -34,6 +34,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import useWorkspaces from '@/hooks/useWorkspaces';
+import { MEMBER_STATUS, isActiveMember } from '@/lib/enums';
 
 const WorkspaceContext = createContext(null);
 
@@ -86,7 +87,7 @@ const sortByRole = (a, b) =>
 function resolveDefault(memberships, savedHintId) {
   if (!memberships?.length) return null;
 
-  const active = memberships.filter(m => m.status === 'פעיל');
+  const active = memberships.filter(m => m.status === MEMBER_STATUS.ACTIVE);
 
   // 1. Driver in a business workspace → always.
   const businessAsDriver = active.find(
@@ -171,7 +172,7 @@ export function WorkspaceProvider({ children }) {
     if (!memberships) return;
 
     const stillValid = activeId && memberships.some(
-      m => m.account_id === activeId && m.status !== 'הוסר' && m.status !== 'removed'
+      m => m.account_id === activeId && isActiveMember(m)
     );
 
     if (stillValid) return;
@@ -210,7 +211,7 @@ export function WorkspaceProvider({ children }) {
     if (!targetAccountId) return false;
     const target = memberships?.find(m => m.account_id === targetAccountId);
     if (!target) return false;
-    if (target.status === 'הוסר' || target.status === 'removed') return false;
+    if (!isActiveMember(target)) return false;
     if (targetAccountId === activeId) return true;
 
     setActiveId(targetAccountId);

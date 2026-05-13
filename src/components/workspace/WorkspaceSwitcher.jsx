@@ -14,6 +14,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Briefcase, User as UserIcon, Check, ChevronDown, Plus } from 'lucide-react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
+import { isActiveMember } from '@/lib/enums';
 
 const PERSONAL_LABEL = 'החשבון שלי';
 
@@ -80,7 +81,7 @@ export default function WorkspaceSwitcher() {
                 סביבות העבודה שלי
               </div>
               {memberships
-                .filter(m => m.status !== 'הוסר' && m.status !== 'removed')
+                .filter(isActiveMember)
                 .map(m => {
                   const isActive = m.account_id === activeWorkspaceId;
                   const Icon = m.account_type === 'business' ? Briefcase : UserIcon;

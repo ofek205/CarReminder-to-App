@@ -3,6 +3,7 @@ import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from '@/lib/popups/systemPopups
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
+import { MEMBER_STATUS, isActiveMember } from '@/lib/enums';
 import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
@@ -907,10 +908,10 @@ export default function Dashboard() {
         const allMembers = await db.account_members.filter({ user_id: user.id });
         // Skip explicitly-removed rows; prefer active; tie-break by role
         // so a multi-membership user lands on the בעלים account.
-        const usable = allMembers.filter(m => m.status !== 'הוסר' && m.status !== 'removed');
+        const usable = allMembers.filter(isActiveMember);
         const ROLE_PRIORITY = { 'בעלים': 0, 'מנהל': 1, 'שותף': 2 };
         const sortByRole = (a, b) => (ROLE_PRIORITY[a.role] ?? 9) - (ROLE_PRIORITY[b.role] ?? 9);
-        let members = usable.filter(m => m.status === 'פעיל').sort(sortByRole);
+        let members = usable.filter(m => m.status === MEMBER_STATUS.ACTIVE).sort(sortByRole);
         if (members.length === 0 && usable.length > 0) {
           members = [...usable].sort(sortByRole);  // legacy/migration rows
         }
@@ -940,7 +941,7 @@ export default function Dashboard() {
           if (migratedAccount) {
             // Link user to existing migrated account
             await db.account_members.create({
-              account_id: migratedAccount.account_id, user_id: user.id, role: 'בעלים', status: 'פעיל',
+              account_id: migratedAccount.account_id, user_id: user.id, role: 'בעלים', status: MEMBER_STATUS.ACTIVE,
             });
             finalAccountId = migratedAccount.account_id;
             // Mark migration as claimed
