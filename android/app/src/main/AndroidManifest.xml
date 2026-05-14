@@ -55,9 +55,20 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- READ/WRITE_EXTERNAL_STORAGE cover Android 12 and below for gallery
+         access via the Capacitor camera plugin. From Android 13+ those
+         legacy permissions are inert; the camera plugin (v8.0.2+) uses
+         Android's system Photo Picker which requires NO storage
+         permission at all.
+         READ_MEDIA_IMAGES was previously declared here as the Android-13
+         counterpart, but Google Play rejects it under the May 2024
+         photos-and-videos policy: apps that use photos only
+         occasionally (receipt scanning, document upload) MUST go
+         through the Photo Picker rather than holding a manifest
+         permission. Removing the declaration here is the policy-
+         compliant path. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- NOTE: We previously also declared USE_EXACT_ALARM as a "backup"
