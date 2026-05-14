@@ -523,33 +523,62 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 relative z-10">
+          /* Two layout modes:
+             - Free (default): CSS grid 2/3 cols. Rows take the
+               height of the tallest note in that row, giving the
+               playful "post-it on cork" feel with intentional
+               whitespace and per-note rotation.
+             - Tidy (auto-arrange): CSS columns (masonry). Each
+               note flows into the shortest column, eliminating the
+               ragged empty bands the grid would leave when notes
+               have very different heights. `break-inside-avoid` on
+               each StickyNote keeps it whole; `mb-4` is applied
+               by the note's wrapper since column children don't
+               participate in `gap`. The user explicitly reported
+               the previous tidy layout "didn't arrange them well" —
+               the gaps were the issue.  */
+          <div
+            className={
+              tidyMode
+                ? 'columns-2 sm:columns-3 gap-4 relative z-10 [column-fill:_balance]'
+                : 'grid grid-cols-2 sm:grid-cols-3 gap-4 relative z-10'
+            }
+          >
             {openNotes.map(note => (
-              <StickyNote
+              <div
                 key={note.id}
-                note={note}
-                T={T}
-                readOnly={readOnly}
-                onEdit={openEdit}
-                constraintsRef={boardRef}
-                tidyMode={tidyMode}
-              />
+                className={tidyMode ? 'mb-4 break-inside-avoid' : ''}
+              >
+                <StickyNote
+                  note={note}
+                  T={T}
+                  readOnly={readOnly}
+                  onEdit={openEdit}
+                  constraintsRef={boardRef}
+                  tidyMode={tidyMode}
+                />
+              </div>
             ))}
 
-            {/* Add button as last grid item */}
+            {/* Add button — sits as the last item in both layouts.
+                In columns mode we wrap it in a break-inside-avoid div
+                so the dashed border doesn't get sliced across a
+                column boundary on narrow viewports. */}
             {canAdd && (
-              <motion.button
-                onClick={openAdd}
-                whileTap={{ scale: 0.95 }}
-                className="rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 py-6 transition-all"
-                style={{
-                  borderColor: 'rgba(255,255,255,0.4)',
-                  background: 'rgba(255,255,255,0.1)',
-                  minHeight: '75px',
-                }}>
-                <Plus className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.7)' }} />
-                <span className="text-xs font-bold" style={{ color: 'rgba(255,255,255,0.7)' }}>פתק חדש</span>
-              </motion.button>
+              <div className={tidyMode ? 'mb-4 break-inside-avoid' : ''}>
+                <motion.button
+                  onClick={openAdd}
+                  whileTap={{ scale: 0.95 }}
+                  className="w-full rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 py-6 transition-all"
+                  style={{
+                    borderColor: 'rgba(255,255,255,0.4)',
+                    background: 'rgba(255,255,255,0.1)',
+                    minHeight: '75px',
+                  }}>
+                  <Plus className="w-5 h-5" style={{ color: 'rgba(255,255,255,0.7)' }} />
+                  <span className="text-xs font-bold" style={{ color: 'rgba(255,255,255,0.7)' }}>פתק חדש</span>
+                </motion.button>
+              </div>
             )}
           </div>
         )}

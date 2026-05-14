@@ -222,8 +222,20 @@ export function PinGate({ children }) {
   const [locked, setLocked] = useState(() => isPinEnabled() && !isStillUnlocked());
 
   useEffect(() => {
-    // Re-check on app foreground (native + web)
+    let isNative = false;
+    let capCleanup = null;
+
+    // Re-check on app foreground. Web-only path — on native we
+    // DELIBERATELY skip `visibilitychange` + `focus` and rely solely
+    // on Capacitor's `appStateChange`. Reason: on Android, pulling
+    // down the notification shade temporarily marks the WebView as
+    // hidden + dispatches visibilitychange — without the native
+    // gating below, the PIN screen would trigger every time the
+    // user swiped down to check a notification. `appStateChange`
+    // only fires when the OS actually backgrounds the process,
+    // which is what we want.
     const check = () => {
+      if (isNative) return;  // native path is owned by appStateChange
       if (document.visibilityState === 'visible' && isPinEnabled() && !isStillUnlocked()) {
         setLocked(true);
       }
@@ -231,10 +243,12 @@ export function PinGate({ children }) {
     document.addEventListener('visibilitychange', check);
     window.addEventListener('focus', check);
 
-    // Lock when the app goes to background on native
-    let capCleanup = null;
+    // Lock when the app goes to background on native, unlock-check
+    // when it comes back. Setting isNative=true above neutralises
+    // the web listeners so they don't double-fire.
     import('@capacitor/core').then(({ Capacitor }) => {
       if (!Capacitor.isNativePlatform()) return;
+      isNative = true;
       import('@capacitor/app').then(({ App }) => {
         const p = App.addListener('appStateChange', ({ isActive }) => {
           if (!isActive) {
