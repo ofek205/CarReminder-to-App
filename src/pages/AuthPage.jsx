@@ -743,13 +743,22 @@ export default function AuthPage() {
     }
     try {
       if (mode === 'verify-email') {
-        // 6-digit OTP verification. Supabase's verifyOtp({type:'signup'})
-        // both confirms the email and creates a real session, so a
-        // successful call drops us straight into Dashboard via the
-        // isAuthenticated useEffect above. No manual navigate needed.
+        // Supabase OTP verification — supabase.auth.verifyOtp({type:
+        // 'signup'}) both confirms the email and creates a real
+        // session, so a successful call drops us straight into
+        // Dashboard via the isAuthenticated useEffect above.
+        //
+        // Token length: Supabase templates emit either 6 or 8 digits
+        // depending on project settings (the default for new signup
+        // OTP is 8, but other flows like recovery/magic-link stick
+        // with 6, and projects on the older template still emit 6).
+        // We accept both — the server is the source of truth and
+        // will reject anything malformed. Hard-coding `^\d{6}$` used
+        // to reject the valid 8-digit codes the email actually
+        // contained.
         const code = (verificationCode || '').trim();
-        if (!/^\d{6}$/.test(code)) {
-          setError('הזן/י קוד בן 6 ספרות');
+        if (!/^\d{6}$|^\d{8}$/.test(code)) {
+          setError('הזן/י את הקוד מהאימייל (6 או 8 ספרות)');
           setLoading(false);
           return;
         }
@@ -1179,7 +1188,12 @@ export default function AuthPage() {
                         className="w-full text-center text-2xl font-bold tracking-[0.4em] py-4 rounded-2xl outline-none transition-all"
                         style={{
                           background: '#FAFDF6',
-                          border: `2px solid ${verificationCode.length === 8 ? C.green : C.border}`,
+                          // Activate the green ring as soon as the
+                          // user typed a valid length — 6 OR 8 digits
+                          // are both acceptable Supabase OTP formats.
+                          // Was hard-coded `=== 8`, which would
+                          // visually never confirm a 6-digit code.
+                          border: `2px solid ${(verificationCode.length === 6 || verificationCode.length === 8) ? C.green : C.border}`,
                           color: C.greenDark,
                           letterSpacing: '0.4em',
                         }}

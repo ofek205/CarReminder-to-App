@@ -555,10 +555,26 @@ export default function NotificationBell() {
                 // signal-to-act surface, not an archive.
                 const visible = notifications.filter(n => !readIds.has(n.id));
                 if (visible.length === 0) {
+                  // Two empty-state branches:
+                  //   • notifications.length === 0  → "אין התראות"
+                  //   • visible is empty BUT there are read items
+                  //     → "הכל קראת" + hint about /Notifications history
+                  // The user explicitly asked that marked-read items
+                  // not "alert again" — so the bell celebrates the
+                  // empty unread state instead of pretending nothing
+                  // exists.
+                  const allEmpty = notifications.length === 0;
                   return (
-                    <div className="py-8 text-center">
+                    <div className="py-8 text-center px-4">
                       <Bell className="w-8 h-8 mx-auto mb-2" style={{ color: '#D1D5DB' }} />
-                      <p className="text-sm font-medium" style={{ color: '#9CA3AF' }}>אין התראות</p>
+                      <p className="text-sm font-medium" style={{ color: '#9CA3AF' }}>
+                        {allEmpty ? 'אין התראות' : 'הכל קראת'}
+                      </p>
+                      {!allEmpty && (
+                        <p className="text-[11px] mt-1" style={{ color: '#9CA3AF' }}>
+                          להיסטוריה — &quot;כל ההתראות&quot;
+                        </p>
+                      )}
                     </div>
                   );
                 }

@@ -47,6 +47,50 @@ const KEY_BASE = {
 let activeUserId = null;
 
 /**
+ * Legacy v1 keys cleanup — one-shot migration that runs the first
+ * time the user opens v4.4.0+. The v1 schema (cr_pin_hash_v1, …)
+ * was global to the device, so we can't safely auto-migrate it to
+ * v2 per-user keys: in a multi-user device the wrong person would
+ * inherit someone else's PIN. The safest principled path is to
+ * DELETE the v1 keys + ask the user to re-enable PIN in Settings
+ * (a Hebrew toast guides them — see PinLockCard subscribe path).
+ *
+ * Idempotent — once `cr_pin_migration_v2_done` is set, this skips.
+ * Returns true if migration actually deleted v1 keys (so the
+ * caller / UI can show a one-time toast); false otherwise.
+ */
+export function migrateLegacyPinKeysIfNeeded() {
+  try {
+    if (localStorage.getItem('cr_pin_migration_v2_done') === '1') return false;
+    const hadV1 = !!localStorage.getItem('cr_pin_hash_v1');
+    [
+      'cr_pin_hash_v1', 'cr_pin_salt_v1', 'cr_pin_enabled_v1',
+      'cr_pin_unlocked_at_v1', 'cr_pin_failed_count_v1', 'cr_pin_lockout_until_v1',
+    ].forEach(k => { try { localStorage.removeItem(k); } catch {} });
+    localStorage.setItem('cr_pin_migration_v2_done', '1');
+    return hadV1;  // signal whether there was actually something to clean up
+  } catch { return false; }
+}
+
+// Run the cleanup as soon as the module loads. Done at import time
+// (not lazily) so the v1 keys are gone before any other PIN code
+// path reads them — eliminates the brief race where v1 protection
+// would have applied to the wrong user post-upgrade.
+const _migratedV1KeysOnLoad = migrateLegacyPinKeysIfNeeded();
+
+/**
+ * True iff this module just deleted v1 PIN data on load. Used by
+ * the auth bootstrap to surface a one-time "re-enable PIN" toast.
+ * Read once and reset to false to keep the toast a single fire.
+ */
+let _pendingV1MigrationNotice = _migratedV1KeysOnLoad;
+export function consumeV1MigrationNotice() {
+  if (!_pendingV1MigrationNotice) return false;
+  _pendingV1MigrationNotice = false;
+  return true;
+}
+
+/**
  * Bind the PIN module to a Supabase user id. Call this from the
  * AuthContext SIGNED_IN / INITIAL_SESSION listener. Pass `null` on
  * sign-out to make every PIN operation no-op.

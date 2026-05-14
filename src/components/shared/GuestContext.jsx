@@ -327,8 +327,26 @@ export function GuestProvider({ children }) {
         // prompted for user A's PIN — because the storage keys used
         // to be global. Now every key is namespaced by userId and the
         // module no-ops when the active user isn't set.
+        //
+        // Also: if the pinLock module just deleted legacy v1 keys on
+        // boot (multi-user migration), surface a one-time toast that
+        // guides the user to re-enable PIN in Settings. The user lost
+        // PIN protection by upgrading — that's intentional + safer
+        // than auto-migrating a stranger's PIN, but they DO need to
+        // know about it.
         import('@/lib/pinLock')
-          .then(({ setActivePinUser }) => setActivePinUser(newUser.id))
+          .then(async ({ setActivePinUser, consumeV1MigrationNotice }) => {
+            setActivePinUser(newUser.id);
+            if (consumeV1MigrationNotice()) {
+              try {
+                const { toast } = await import('sonner');
+                toast.info('שדרגנו את ה-PIN', {
+                  description: 'אנא הגדר/י קוד נעילה מחדש בהגדרות → אבטחה',
+                  duration: 8000,
+                });
+              } catch {}
+            }
+          })
           .catch(() => {});
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
           // Provision before flipping authState so pages mounting on
