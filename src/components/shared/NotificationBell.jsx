@@ -60,6 +60,110 @@ function isActionNotification(notification) {
   return ['profile', 'license', 'test', 'insurance', 'inspection', 'maintenance', 'mileage', 'safety'].includes(notification.type);
 }
 
+// ── Tier palette + classifier (visual urgency triage) ──────────────
+// Each row gets a 3-4px RTL leading-edge stripe + matching icon-chip
+// tint based on tier. Section headers reuse the same hue so the
+// reader's eye scans by urgency before reading any text. Colors are
+// SEMANTIC (don't change with vehicle theme) — urgency reads the
+// same on a green Toyota dashboard or a marine-blue boat dashboard.
+const NOTIF_TIER = {
+  urgent:    { fg: '#DC2626', bg: 'rgba(220,38,38,0.10)', label: 'דחוף',  rank: 0 },
+  warn:      { fg: '#F59E0B', bg: 'rgba(245,158,11,0.10)', label: 'בקרוב', rank: 1 },
+  share:     { fg: '#4F46E5', bg: 'rgba(79,70,229,0.10)', label: 'שיתוף', rank: 2 },
+  community: { fg: '#0D9488', bg: 'rgba(13,148,136,0.10)', label: 'קהילה', rank: 3 },
+  info:      { fg: '#16A34A', bg: 'rgba(22,163,74,0.10)', label: 'כללי',  rank: 4 },
+};
+
+function getNotifTier(n) {
+  if (!n) return 'info';
+  if (n.isExpired) return 'urgent';
+  // App-type prefix routing — share_* go to share, community_* go to community.
+  if (n.type === 'app' && typeof n.appType === 'string') {
+    if (n.appType.startsWith('share') || n.appType.startsWith('workspace_')
+        || n.appType === 'driver_assigned' || n.appType === 'task_assigned') return 'share';
+    if (n.appType === 'community_comment') return 'community';
+  }
+  if (n.type === 'community') return 'community';
+  // Date-bound items with limited horizon are "warn"; everything else
+  // (mileage nudge, seasonal, profile-incomplete, info-only) is info.
+  if (typeof n.days === 'number' && n.days >= 0 && n.days <= 14) return 'warn';
+  return 'info';
+}
+
+// ── Section header (sticky inside the popover scroll) ──────────────
+// Renders the tier dot + Hebrew label + counter chip. backdrop-blur
+// gives the sticky header that subtle glassiness when rows scroll
+// underneath. Counter chip uses tabular numerals so 1/10/100 don't
+// jitter the layout width.
+function TierHeader({ tier, count }) {
+  const t = NOTIF_TIER[tier];
+  return (
+    <div
+      className="sticky top-0 z-10 flex items-center gap-2 px-4"
+      style={{
+        height: 32,
+        background: 'rgba(255,255,255,0.95)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid #EEF2EE',
+      }}
+    >
+      <span className="rounded-full" style={{ width: 6, height: 6, background: t.fg, boxShadow: `0 0 8px ${t.fg}66` }} />
+      <span className="text-[11px] font-bold tracking-wide" style={{ color: '#5A6B5D' }}>
+        {t.label}
+      </span>
+      <span
+        className="text-[11px] font-bold px-1.5 rounded-full"
+        style={{
+          background: '#E8E2D2',
+          border: '1px solid #D8D0BD',
+          color: '#3D4F40',
+          fontVariantNumeric: 'tabular-nums',
+          minWidth: 22,
+          textAlign: 'center',
+          lineHeight: '18px',
+        }}
+      >
+        {count}
+      </span>
+    </div>
+  );
+}
+
+// ── Empty-state envelope ───────────────────────────────────────────
+// One SVG, two variants — `plain` for "אין התראות" (truly empty),
+// `checked` for "הכל קראת" (read items exist on /Notifications page).
+// Inline SVG instead of an icon library so the variant logic stays
+// self-contained and the colors track the surrounding paper bg.
+function EmptyEnvelope({ variant }) {
+  return (
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none" className="mx-auto block">
+      <rect x="8" y="16" width="48" height="32" rx="6" stroke="#B5AC9A" strokeWidth="2" />
+      <path d="M8 22l24 16 24-16" stroke="#B5AC9A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {variant === 'checked' && (
+        <g>
+          <circle cx="48" cy="48" r="9" fill="#FFFFFF" stroke="#16A34A" strokeWidth="2" />
+          <path d="M44 48l3 3 5-6" stroke="#16A34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+      )}
+    </svg>
+  );
+}
+
+function EmptyState({ allEmpty }) {
+  return (
+    <div className="py-12 px-6 text-center">
+      <EmptyEnvelope variant={allEmpty ? 'plain' : 'checked'} />
+      <p className="mt-4 text-[14px] font-semibold" style={{ color: '#1C2E20' }}>
+        {allEmpty ? 'אין התראות' : 'הכל קראת'}
+      </p>
+      <p className="mt-1 text-[12px]" style={{ color: '#8B9C8E' }}>
+        {allEmpty ? 'תוצג כאן כל התראה חדשה' : 'להיסטוריה — "כל ההתראות"'}
+      </p>
+    </div>
+  );
+}
+
 export default function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
   const [readIds, setReadIds] = useState(() => {
@@ -76,6 +180,23 @@ export default function NotificationBell() {
   });
   const [popupOpen, setPopupOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Inject the badge-pulse keyframes exactly once per page. Doing it
+  // here (instead of importing a CSS file) keeps the animation
+  // collocated with the only component that uses it — no global CSS
+  // file proliferation for a 4-line keyframe.
+  useEffect(() => {
+    if (document.getElementById('cr-bell-pulse-css')) return;
+    const s = document.createElement('style');
+    s.id = 'cr-bell-pulse-css';
+    s.textContent = `
+      @keyframes crBellPulse {
+        0%, 100% { transform: scale(1);    opacity: 1;   }
+        50%      { transform: scale(1.08); opacity: 0.82;}
+      }
+    `;
+    document.head.appendChild(s);
+  }, []);
   const { user } = useAuth();
   // activeWorkspaceId scopes the vehicle-derived reminders. Without it,
   // a multi-workspace user always saw the bell pinned to the first
@@ -511,9 +632,7 @@ export default function NotificationBell() {
     <div className="relative" data-tour="notif-bell">
       <button
         onClick={toggleBell}
-        // w-11 h-11 = 44pt — Apple HIG minimum tap target. Bumped
-        // from w-10 (40pt) so it matches the hamburger button next
-        // to it; user reported the top-bar buttons read as small.
+        // w-11 h-11 = 44pt — Apple HIG minimum tap target.
         className="relative w-11 h-11 rounded-xl flex items-center justify-center transition-all active:scale-[0.95]"
         style={{ background: unreadCount > 0 ? '#FEF2F2' : '#F3F4F6' }}
         aria-label={unreadCount > 0 ? `התראות (${unreadCount} חדשות)` : 'התראות'}
@@ -522,8 +641,18 @@ export default function NotificationBell() {
       >
         <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? '#DC2626' : '#6B7280' }} aria-hidden="true" />
         {unreadCount > 0 && (
+          // Badge with a soft outer glow + pulse animation. Outer ring
+          // (box-shadow first stop) blends into the surrounding top bar
+          // so the dot reads as "glowing on" rather than stuck on. The
+          // pulse loop runs only while popup is closed — the keyframes
+          // are injected once via the effect below.
           <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-            style={{ background: '#DC2626', boxShadow: '0 2px 6px rgba(220,38,38,0.4)' }}>
+            style={{
+              background: '#DC2626',
+              boxShadow: '0 0 0 2px #fff, 0 0 14px rgba(220,38,38,0.55)',
+              fontVariantNumeric: 'tabular-nums',
+              animation: popupOpen ? 'none' : 'crBellPulse 1800ms ease-in-out infinite',
+            }}>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -532,59 +661,86 @@ export default function NotificationBell() {
       {popupOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setPopupOpen(false)} />
-          <div className="absolute left-0 top-12 z-50 w-80 max-w-[calc(100vw-24px)] rounded-2xl bg-white shadow-2xl border overflow-hidden"
-            style={{ borderColor: '#E5E7EB' }} dir="rtl">
-            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: '#F3F4F6' }}>
-              <span className="text-sm font-bold" style={{ color: '#1C2E20' }}>התראות</span>
+          {/* Popover surface — PURE WHITE (#FFFFFF) on the app's
+              paper bg. First attempt used the same paper #FCF9F4 as
+              the page; user feedback was that it "felt disconnected"
+              — the popover merged with the dashboard behind it
+              instead of reading as a separate card. White creates a
+              clean lift: page = paper, surface = white, accents =
+              bold colors. Same pattern as iOS Notification Center,
+              Apple Reminders, Linear, GitHub — utility popovers are
+              always lighter than the surface they float over.
+              Shadow stack is two-layer + slight brand-green tint
+              to give depth without harshness. */}
+          <div className="absolute left-0 top-12 z-50 w-[360px] max-w-[calc(100vw-24px)] rounded-3xl overflow-hidden"
+            style={{
+              background: '#FFFFFF',
+              border: '1px solid #E5E7EB',
+              boxShadow: '0 24px 60px rgba(28,46,32,0.22), 0 4px 12px rgba(28,46,32,0.08)',
+            }} dir="rtl">
+            {/* Header — subtle green-tinted bg strip gives the
+                popover a "branded top edge" without polluting the
+                body. The faint tint reads as "this is CarReminder",
+                not "another generic shadcn popover". */}
+            <div
+              className="flex items-center justify-between px-4 py-3"
+              style={{ background: '#F4FAF6', borderBottom: '1px solid #E5EBE6' }}
+            >
+              <span className="text-[15px] font-bold tracking-tight" style={{ color: '#1C2E20' }}>התראות</span>
               {unreadCount > 0 && (
-                <button onClick={markAllRead} className="text-[11px] font-bold" style={{ color: '#3A7D44' }}>
+                <button onClick={markAllRead} className="text-[12px] font-semibold transition-colors hover:opacity-80" style={{ color: '#2D5233' }}>
                   סמן הכל כנקרא
                 </button>
               )}
             </div>
 
-            <div className="max-h-72 overflow-y-auto">
+            <div className="max-h-[440px] overflow-y-auto">
               {(() => {
-                // Bell shows ONLY unread items. Read items (the ones the
-                // user explicitly cleared via "סמן הכל כנקרא" or by
-                // clicking-through a row) are filtered out — the user
-                // explicitly asked for that behaviour: "אם עשיתי סמן
-                // שנקרא זה לא צריך להופיע יותר בפעמון". The full
-                // history (read + unread) is still accessible on the
-                // dedicated /Notifications page; this dropdown is a
-                // signal-to-act surface, not an archive.
+                // Bell shows ONLY unread items. Read items (cleared
+                // via "סמן הכל כנקרא" or row click) are filtered out —
+                // explicit user preference. Full history lives on the
+                // /Notifications page; this dropdown is signal-to-act.
                 const visible = notifications.filter(n => !readIds.has(n.id));
                 if (visible.length === 0) {
-                  // Two empty-state branches:
-                  //   • notifications.length === 0  → "אין התראות"
-                  //   • visible is empty BUT there are read items
-                  //     → "הכל קראת" + hint about /Notifications history
-                  // The user explicitly asked that marked-read items
-                  // not "alert again" — so the bell celebrates the
-                  // empty unread state instead of pretending nothing
-                  // exists.
                   const allEmpty = notifications.length === 0;
-                  return (
-                    <div className="py-8 text-center px-4">
-                      <Bell className="w-8 h-8 mx-auto mb-2" style={{ color: '#D1D5DB' }} />
-                      <p className="text-sm font-medium" style={{ color: '#9CA3AF' }}>
-                        {allEmpty ? 'אין התראות' : 'הכל קראת'}
-                      </p>
-                      {!allEmpty && (
-                        <p className="text-[11px] mt-1" style={{ color: '#9CA3AF' }}>
-                          להיסטוריה — &quot;כל ההתראות&quot;
-                        </p>
-                      )}
-                    </div>
-                  );
+                  return <EmptyState allEmpty={allEmpty} />;
                 }
-                return visible.slice(0, 10).map(n => {
+
+                // Group by urgency tier. Ranks order sections:
+                // urgent → warn → share → community → info. Within
+                // each section we preserve the existing chronological
+                // sort (newest first) inherited from the fetch loop.
+                const groups = new Map();
+                for (const n of visible.slice(0, 12)) {
+                  const tier = getNotifTier(n);
+                  if (!groups.has(tier)) groups.set(tier, []);
+                  groups.get(tier).push(n);
+                }
+                const orderedTiers = [...groups.entries()]
+                  .sort((a, b) => NOTIF_TIER[a[0]].rank - NOTIF_TIER[b[0]].rank);
+
+                return orderedTiers.map(([tier, rows]) => (
+                  <React.Fragment key={tier}>
+                    <TierHeader tier={tier} count={rows.length} />
+                    {rows.map(n => renderRow(n))}
+                  </React.Fragment>
+                ));
+
+                function renderRow(n) {
+                  const tier = getNotifTier(n);
+                  const t = NOTIF_TIER[tier];
+                  const isUrgent = tier === 'urgent';
                   const isRead = false;  // by construction — filtered above
                   const actionRequired = isActionNotification(n);
                   return (
                     <div key={n.id}
-                      className="flex items-center gap-3 px-4 py-3 transition-all"
-                      style={{ background: isRead ? '#fff' : '#FEFCE8', borderBottom: '1px solid #F5F5F5' }}>
+                      className="flex items-center gap-3 transition-all"
+                      style={{
+                        background: 'transparent',
+                        borderBottom: '1px solid #F3F4F6',
+                        borderRight: `${isUrgent ? 4 : 3}px solid ${t.fg}`,
+                        padding: isUrgent ? '14px 16px' : '12px 16px',
+                      }}>
                       <button
                         onClick={async () => {
                           await markItemReadState(n, true);
@@ -599,11 +755,7 @@ export default function NotificationBell() {
                             navigate(createPageUrl('Community'));
                           }
                           else if (n.type === 'app') {
-                            // navHref is pre-resolved at fetch time. As a
-                            // safety net (e.g. the row arrived after the
-                            // config map was updated but before the bell
-                            // re-rendered), recompute from the raw data
-                            // jsonb at click time.
+                            // navHref pre-resolved at fetch time; recompute as fallback.
                             const liveHref = n.navHref
                               || appConfigForType(n.appType).buildHref(n.appData || {});
                             if (liveHref) navigate(liveHref);
@@ -631,80 +783,82 @@ export default function NotificationBell() {
                           }
                           else navigate(createPageUrl('Dashboard'));
                         }}
-                        className="flex items-center gap-3 flex-1 min-w-0 text-right">
-                        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                        className="flex items-start gap-3 flex-1 min-w-0 text-right">
+                        {/* Icon chip — tier-colored (10% bg, 100% fg).
+                            The chip ROLE here is to reinforce the
+                            stripe's urgency cue and provide a glyph
+                            for the underlying notification type. Size
+                            jumps from 24px → 28px for urgent rows so
+                            the eye lands there first. */}
+                        <div className="rounded-lg flex items-center justify-center shrink-0"
                           style={{
-                            background: n.type === 'profile' ? '#EEF2FF'
-                              : n.type === 'license' ? (n.isExpired ? '#FEF2F2' : '#FFF8E1')
-                              : n.type === 'community' ? '#F5F3FF'
-                              // Per-app-type bg color from the shared
-                              // config so each share/vehicle_change
-                              // type gets its own visual signature.
-                              : n.type === 'app' ? appConfigForType(n.appType).bg
-                              : n.type === 'seasonal' ? '#F0F9FF'
-                              : n.isExpired ? '#FEF2F2'
-                              : n.type === 'safety' ? '#FFF7ED'
-                              : n.type === 'maintenance' ? '#FFF8E1'
-                              : n.type === 'mileage' ? '#F0FDF4'
-                              : '#FFF8E1',
-                            boxShadow: !isRead ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                            width:  isUrgent ? 28 : 24,
+                            height: isUrgent ? 28 : 24,
+                            background: t.bg,
+                            color: t.fg,
                           }}>
                           {n.type === 'profile'
-                            ? <User className="w-4 h-4" style={{ color: '#4338CA' }} />
+                            ? <User className="w-4 h-4" />
                             : n.type === 'license'
-                              ? <FileText className="w-4 h-4" style={{ color: n.isExpired ? '#DC2626' : '#D97706' }} />
+                              ? <FileText className="w-4 h-4" />
                             : n.type === 'community'
-                              ? <MessageSquare className="w-4 h-4" style={{ color: '#7C3AED' }} />
+                              ? <MessageSquare className="w-4 h-4" />
                             : n.type === 'app'
                               ? (() => {
-                                  // Per-app-type icon + color via config map.
                                   const cfg = appConfigForType(n.appType);
                                   const Icon = cfg.icon;
-                                  return <Icon className="w-4 h-4" style={{ color: cfg.iconColor }} />;
+                                  return <Icon className="w-4 h-4" />;
                                 })()
                             : n.type === 'seasonal'
                               ? <span className="text-sm">{n.id === 'winter-prep' ? '❄️' : '⛵'}</span>
                             : n.isExpired
-                              ? <AlertTriangle className="w-4 h-4" style={{ color: '#DC2626' }} />
+                              ? <AlertTriangle className="w-4 h-4" />
                               : n.type === 'safety'
-                                ? <AlertTriangle className="w-4 h-4" style={{ color: '#EA580C' }} />
+                                ? <AlertTriangle className="w-4 h-4" />
                                 : n.type === 'maintenance'
-                                  ? <Wrench className="w-4 h-4" style={{ color: '#D97706' }} />
+                                  ? <Wrench className="w-4 h-4" />
                                   : n.type === 'mileage'
-                                    ? <Gauge className="w-4 h-4" style={{ color: '#16A34A' }} />
-                                    : <Bell className="w-4 h-4" style={{ color: '#D97706' }} />
+                                    ? <Gauge className="w-4 h-4" />
+                                    : <Bell className="w-4 h-4" />
                           }
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-xs truncate ${isRead ? 'font-medium' : 'font-bold'}`}
-                            style={{ color: n.isExpired ? '#DC2626' : isRead ? '#6B7280' : '#1C2E20' }}>
+                          {/* Title — Heebo 500 14px, primary text. */}
+                          <p className="text-[14px] font-medium truncate" style={{ color: '#1C2E20', lineHeight: 1.35 }}>
                             {n.label}
                           </p>
-                          <p className="text-[10px] truncate" style={{ color: '#9CA3AF' }}>{n.name}</p>
-                          <span
-                            className="inline-flex mt-1 rounded-full px-2 py-0.5 text-[9px] font-bold"
-                            style={{
-                              background: actionRequired ? '#FEF3C7' : '#F3F4F6',
-                              color: actionRequired ? '#92400E' : '#6B7280',
-                            }}>
-                            {actionRequired ? 'דורש פעולה' : 'לידיעה'}
-                          </span>
-                          {/* Relative-time row for DB-backed notifications
-                              (shares, vehicle-change events, community
-                              replies). Synthetic reminders return null
-                              from the helper and the row collapses to
-                              nothing — no empty space, layout stays
-                              tight on rows that don't have a real
-                              arrival timestamp. */}
-                          {n.createdAt && (() => {
-                            const rel = formatRelativeTime(n.createdAt);
-                            return rel ? (
-                              <p className="text-[10px] flex items-center gap-1 mt-0.5" style={{ color: '#9CA3AF' }}>
-                                <Clock className="w-2.5 h-2.5 shrink-0" />
-                                <span>{rel}</span>
-                              </p>
-                            ) : null;
-                          })()}
+                          {/* Body — 12px muted; truncates after one line. */}
+                          <p className="text-[12px] truncate mt-0.5" style={{ color: '#5A6B5D' }}>{n.name}</p>
+                          {/* Meta row — relative time (when available)
+                              + a tiny "דורש פעולה" pill when relevant.
+                              Old design stacked these on separate
+                              lines; collapsing to one keeps the row
+                              tight and lets the eye scan vertically
+                              by stripe color. */}
+                          {(n.createdAt || actionRequired) && (
+                            <div className="flex items-center gap-2 mt-1">
+                              {n.createdAt && (() => {
+                                const rel = formatRelativeTime(n.createdAt);
+                                return rel ? (
+                                  <span className="text-[11px] flex items-center gap-1" style={{ color: '#8B9C8E' }}>
+                                    <Clock className="w-2.5 h-2.5 shrink-0" />
+                                    <span>{rel}</span>
+                                  </span>
+                                ) : null;
+                              })()}
+                              {actionRequired && (
+                                <span
+                                  className="inline-flex rounded-full px-1.5 text-[10px] font-bold"
+                                  style={{
+                                    background: t.bg,
+                                    color: t.fg,
+                                    lineHeight: '16px',
+                                  }}>
+                                  דורש פעולה
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </button>
                       <div className="flex items-center gap-0.5 shrink-0">
@@ -730,15 +884,15 @@ export default function NotificationBell() {
                       </div>
                     </div>
                   );
-                });
+                }
               })()}
             </div>
 
             {notifications.length > 0 && (
               <button onClick={() => { setPopupOpen(false); navigate(createPageUrl('Notifications')); }}
-                className="w-full py-2.5 text-center text-xs font-bold border-t transition-all hover:bg-gray-50"
-                style={{ color: '#3A7D44', borderColor: '#F3F4F6' }}>
-                כל ההתראות →
+                className="w-full py-3.5 text-center text-[13px] font-semibold transition-colors hover:bg-gray-50"
+                style={{ color: '#2D5233', borderTop: '1px solid #F3F4F6' }}>
+                כל ההתראות ←
               </button>
             )}
           </div>

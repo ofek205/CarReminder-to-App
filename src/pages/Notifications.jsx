@@ -50,7 +50,24 @@ function getNotifEditUrl(notif) {
 const GOV_LICENSE_URL = 'https://www.gov.il/he/service/car-license-renewal';
 const GOV_VESSEL_URL = 'https://www.gov.il/he/service/seaworthiness-certificate';
 
-//  Notification Card 
+// ── Semantic urgency palette — mirrors NotificationBell's tier system
+// so that the bell dropdown and the full /Notifications page read
+// as one product. Stripes on the RTL leading edge + tier-tinted
+// icon chips replace the rainbow of per-type colors the page used
+// to render; the eye now scans by urgency first, type second.
+const NOTIF_TIER = {
+  urgent:    { fg: '#DC2626', bg: 'rgba(220,38,38,0.10)' },
+  warn:      { fg: '#F59E0B', bg: 'rgba(245,158,11,0.10)' },
+  info:      { fg: '#16A34A', bg: 'rgba(22,163,74,0.10)' },
+};
+
+function tierForNotif(notif) {
+  if (notif?.is_overdue) return 'urgent';
+  if (notif?.days_left !== undefined && notif.days_left !== null && notif.days_left <= 7) return 'warn';
+  return 'info';
+}
+
+//  Notification Card
 function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
   const navigate = useNavigate();
   const tc = TYPE_CONFIG[notif.notification_type] || { icon: Bell, bg: '#F5F5F5', color: '#757575', border: '#E0E0E0' };
@@ -59,15 +76,25 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
   const editUrl = getNotifEditUrl(notif);
   const isTestNotif = (notif.id || '').startsWith('test-');
   const isInsNotif = (notif.id || '').startsWith('ins-');
+  const tier = tierForNotif(notif);
+  const t = NOTIF_TIER[tier];
+  const isUrgent = tier === 'urgent';
 
   return (
     <div
-      className={`rounded-2xl p-4 mb-2.5 transition-all ${editUrl ? 'cursor-pointer active:scale-[0.99]' : ''}`}
+      className={`rounded-2xl mb-2.5 transition-all ${editUrl ? 'cursor-pointer active:scale-[0.99]' : ''}`}
       style={{
-        background: isOverdue ? '#FEF2F2' : isRead ? '#FAFAFA' : '#fff',
-        border: `1.5px solid ${isOverdue ? '#FECACA' : isRead ? '#E5E7EB' : C.border}`,
-        boxShadow: isRead ? 'none' : `0 2px 10px ${C.primary}08`,
-        opacity: isRead ? 0.65 : 1,
+        // Pure white surface (matches NotificationBell popover body),
+        // with the tier color carried by the RTL leading-edge stripe
+        // instead of by the whole row's bg. Read items dim to a soft
+        // grey so the eye still parses them at a glance without
+        // distracting from unread urgency.
+        background: isRead ? '#FAFAFA' : '#FFFFFF',
+        border: `1px solid ${isRead ? '#E5E7EB' : '#E5EBE6'}`,
+        borderRight: `${isUrgent ? 4 : 3}px solid ${t.fg}`,
+        boxShadow: isRead ? 'none' : '0 2px 10px rgba(28,46,32,0.06)',
+        opacity: isRead ? 0.7 : 1,
+        padding: isUrgent ? '14px 16px' : '12px 16px',
       }}
       dir="rtl">
       <div className="flex items-center gap-3"
@@ -80,10 +107,19 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
           try { if (onMarkRead) await onMarkRead(notif.id); } catch {}
           navigate(editUrl);
         }}>
-      {/* Icon */}
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-        style={{ background: isOverdue ? '#DC2626' : tc.bg, boxShadow: isOverdue ? '0 3px 10px rgba(220,38,38,0.2)' : 'none' }}>
-        <Icon className="w-5 h-5" style={{ color: isOverdue ? '#fff' : tc.color }} />
+      {/* Icon chip — tier-tinted bg (10%) with tier-colored glyph,
+          mirrors the NotificationBell row pattern. The per-type
+          glyph (Wrench / Shield / Calendar / …) stays so the user
+          still sees WHICH category the row is about; the chip
+          background only carries the urgency signal. */}
+      <div className="rounded-xl flex items-center justify-center shrink-0"
+        style={{
+          width:  isUrgent ? 44 : 40,
+          height: isUrgent ? 44 : 40,
+          background: t.bg,
+          color: t.fg,
+        }}>
+        <Icon className="w-5 h-5" />
       </div>
 
       {/* Content */}
@@ -102,18 +138,23 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
               {notif.due_date ? formatDateHe(notif.due_date) : (notif.name || '')}
             </span>
           )}
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FEF3C7', color: '#92400E' }}>
+          {/* Urgency chips — colors are theme-bound to the row tier
+              instead of hard-coded amber/red. Keeps the row's visual
+              voice consistent (stripe + chip + icon all sing the
+              same tier) instead of mixing three different palettes
+              within one notification card. */}
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: t.bg, color: t.fg }}>
             דורש פעולה
           </span>
           {isOverdue && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FEE2E2', color: '#DC2626' }}>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: t.bg, color: t.fg }}>
               {notif.days_left !== undefined && notif.days_left < 0
                 ? `פג לפני ${Math.abs(notif.days_left)} ${Math.abs(notif.days_left) === 1 ? 'יום' : 'ימים'}`
                 : 'פג תוקף'}
             </span>
           )}
           {!isOverdue && notif.days_left !== undefined && notif.days_left <= 7 && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FEF3C7', color: '#D97706' }}>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: t.bg, color: t.fg }}>
               {notif.days_left === 0 ? 'היום' : notif.days_left === 1 ? 'מחר' : `בעוד ${notif.days_left} ימים`}
             </span>
           )}
@@ -169,23 +210,26 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
   );
 }
 
-//  Empty State 
+//  Empty State
+// Visually mirrors the NotificationBell empty state — same envelope
+// SVG, same Hebrew phrasing convention, just on a roomier page-level
+// card. The decorative gradients + colored circles the older version
+// painted competed with the actual content; replaced with a clean
+// white card that reads as "you're done, breathe".
 function NotifEmptyState() {
   return (
-    <div className="text-center py-12" dir="rtl">
-      <div className="rounded-3xl p-8 relative overflow-hidden" style={{ background: C.light }}>
-        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full" style={{ background: `${C.primary}08` }} />
-        <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full" style={{ background: `${C.yellow}15` }} />
-        <div className="relative z-10">
-          <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
-            style={{ background: C.border }}>
-            <Bell className="w-8 h-8" style={{ color: C.primary, opacity: 0.5 }} />
-          </div>
-          <h3 className="font-bold text-lg mb-2" style={{ color: C.text }}>אין התראות</h3>
-          <p className="text-sm max-w-xs mx-auto leading-relaxed" style={{ color: C.muted }}>
-            ההתראות שלך יופיעו כאן כשמועד הטסט/כושר שייט, הביטוח או הטיפול מתקרב
-          </p>
-        </div>
+    <div className="text-center py-8" dir="rtl">
+      <div className="rounded-3xl p-10 max-w-md mx-auto" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+        <svg width="80" height="80" viewBox="0 0 64 64" fill="none" className="mx-auto block mb-5">
+          <rect x="8" y="16" width="48" height="32" rx="6" stroke="#B5AC9A" strokeWidth="2" />
+          <path d="M8 22l24 16 24-16" stroke="#B5AC9A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="48" cy="48" r="9" fill="#FFFFFF" stroke="#16A34A" strokeWidth="2" />
+          <path d="M44 48l3 3 5-6" stroke="#16A34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <h3 className="font-bold text-lg mb-2" style={{ color: '#1C2E20' }}>אין התראות פעילות</h3>
+        <p className="text-sm max-w-xs mx-auto leading-relaxed" style={{ color: '#8B9C8E' }}>
+          ההתראות שלך יופיעו כאן כשמועד הטסט, הביטוח או הטיפול מתקרב
+        </p>
       </div>
     </div>
   );
