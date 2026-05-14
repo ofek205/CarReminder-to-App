@@ -50,8 +50,15 @@ export const openGoogleSearch = (name, lat, lon) =>
   );
 
 /**
- * Compact two-button row for popups inside the map.
- * Auto-stops propagation so a click doesn't trigger marker close handlers.
+ * Compact two-button row for popups inside the map. Auto-stops
+ * propagation so a click doesn't trigger marker close handlers.
+ *
+ * After repeated rounds of "shrink the popup" feedback, this is now
+ * icon-only — Waze + Google Maps brand marks in 28px square pills.
+ * Users recognise the marks alone; the labels were redundant once
+ * the popup itself shrunk to a peek tag. aria-label carries the
+ * Hebrew name for screen readers. The card view below the map keeps
+ * the full labelled buttons (NavButtonsRow) for users who need them.
  */
 export function NavButtonsCompact({ lat, lon }) {
   return (
@@ -59,22 +66,26 @@ export function NavButtonsCompact({ lat, lon }) {
       <button
         onClick={(e) => {
           e.stopPropagation();
-          openGoogleNav(lat, lon);
+          openWazeNav(lat, lon);
         }}
-        className="flex-1 flex items-center justify-center gap-1 text-xs rounded-lg px-2 py-1.5 font-bold"
-        style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#202124' }}
+        aria-label="פתח ב-Waze"
+        title="Waze"
+        className="flex-1 flex items-center justify-center rounded-md"
+        style={{ background: '#fff', border: '1px solid #E5E7EB', height: 26 }}
       >
-        <GoogleMapsMark size={13} /> Google Maps
+        <WazeMark size={14} />
       </button>
       <button
         onClick={(e) => {
           e.stopPropagation();
-          openWazeNav(lat, lon);
+          openGoogleNav(lat, lon);
         }}
-        className="flex-1 flex items-center justify-center gap-1 text-xs rounded-lg px-2 py-1.5 font-bold"
-        style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#0A73B8' }}
+        aria-label="פתח ב-Google Maps"
+        title="Google Maps"
+        className="flex-1 flex items-center justify-center rounded-md"
+        style={{ background: '#fff', border: '1px solid #E5E7EB', height: 26 }}
       >
-        <WazeMark size={13} /> Waze
+        <GoogleMapsMark size={14} />
       </button>
     </div>
   );

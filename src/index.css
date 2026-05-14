@@ -159,6 +159,31 @@ body.keyboard-visible {
   z-index: 1 !important;
 }
 
+/* Tighter Leaflet popup chrome.
+   Default leaflet popup adds ~13px padding-y + ~19px padding-x +
+   a 30px wide close-X column, which made our compact garage popup
+   look much larger than its actual content. User feedback was
+   "the popup is huge relative to the map" — shrunk both the
+   content-wrapper padding and the close button to recover ~30%
+   of the popup footprint. Scoped to .leaflet-popup so it doesn't
+   bleed into the tooltip styling (which already runs lean). */
+.leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+  padding: 4px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18) !important;
+}
+.leaflet-popup-content {
+  margin: 8px 10px !important;
+  line-height: 1.3 !important;
+}
+.leaflet-popup-close-button {
+  padding: 4px 6px 0 0 !important;
+  font-size: 16px !important;
+  width: 22px !important;
+  height: 22px !important;
+  color: #9CA3AF !important;
+}
+
 /* CR design-system skeleton shimmer — used by <LoadingState variant="skeleton"> */
 @keyframes cr-skeleton-shimmer {
   0%   { background-position: 200% 0; }
