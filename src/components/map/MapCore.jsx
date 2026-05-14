@@ -26,22 +26,34 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-// Pulsing blue dot for the user's own position.
+// Pulsing blue dot for the user's own position. Two rings staggered
+// 1.2s apart so there's always one mid-expansion — the dot reads as
+// "live, breathing" instead of "tick-tick-tick". Mirrors Apple Maps'
+// current-location dot + Waze. The dot itself is 18×18 with a 3px
+// white ring so it remains identifiable when sitting on a colored
+// road tile; shadow gives it depth above the map.
 const userIcon = new L.DivIcon({
   className: '',
-  html: `<div style="position:relative;width:20px;height:20px;">
-    <div style="position:absolute;inset:-6px;border-radius:50%;background:rgba(59,130,246,0.2);animation:pulse-ring 2s ease-out infinite;"></div>
-    <div style="width:20px;height:20px;border-radius:50%;background:#3B82F6;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>
-  </div><style>@keyframes pulse-ring{0%{transform:scale(1);opacity:1}100%{transform:scale(2.2);opacity:0}}</style>`,
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
+  html: `<div style="position:relative;width:18px;height:18px;">
+    <div style="position:absolute;inset:0;border-radius:50%;background:rgba(59,130,246,0.35);animation:cr-user-pulse 2400ms cubic-bezier(0.4,0,0.6,1) infinite;"></div>
+    <div style="position:absolute;inset:0;border-radius:50%;background:rgba(59,130,246,0.35);animation:cr-user-pulse 2400ms cubic-bezier(0.4,0,0.6,1) infinite;animation-delay:1200ms;"></div>
+    <div style="position:absolute;inset:0;width:18px;height:18px;border-radius:50%;background:#3B82F6;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);"></div>
+  </div><style>@keyframes cr-user-pulse{0%{transform:scale(1);opacity:0.6}100%{transform:scale(2.6);opacity:0}}@keyframes pulse-ring{0%{transform:scale(1);opacity:1}100%{transform:scale(2.2);opacity:0}}</style>`,
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
 });
 
-// Build a circular DivIcon: numbered, custom SVG, or solid colored dot.
-// `highlight: true` paints an extra outer ring + grows the icon — used by
-// the route maps to flag the stop the driver should hit next.
-// Returns a Leaflet DivIcon ready to pass to <Marker icon=...>.
-function buildMarkerIcon({ color = '#2D5233', number, iconSvg, highlight = false, size = 38 }) {
+// Build a DivIcon for a marker. Two shapes:
+//   • `teardrop` (FindGarage default — branded pin-on-map look) — a
+//     colored circle anchored to a downward-pointing triangle, like
+//     the iOS/Waze convention. Anchor sits at the triangle tip so
+//     the marker visually "stands on" the coordinate.
+//   • `circle` (route/fleet maps — driver context where the marker
+//     IS the stop, not a pin pointing AT it) — solid colored dot,
+//     anchored at center, optional numbered label inside.
+// `highlight: true` paints an extra pulsing outer ring + grows the
+// icon — used by route maps to flag the stop the driver should hit next.
+function buildMarkerIcon({ color = '#2D5233', number, iconSvg, highlight = false, size = 38, shape = 'circle' }) {
   const finalSize = highlight ? size + 8 : size;
   const halfShadow = `${color}60`;
   let inner = '';
@@ -52,6 +64,42 @@ function buildMarkerIcon({ color = '#2D5233', number, iconSvg, highlight = false
   } else if (iconSvg) {
     inner = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</svg>`;
   }
+
+  // ── Teardrop (FindGarage) ────────────────────────────────────
+  // Circle on top + downward triangle = the "I'm pointing at this
+  // spot" pin convention every consumer map uses (Google Maps,
+  // Apple Maps, Waze). Anchor is at the bottom-center tip so the
+  // marker rests visually on the lat/lng coordinate. Triangle
+  // dimensions (6/6/12 px borders) match the circle's radius so
+  // the silhouette reads as one tear shape.
+  if (shape === 'teardrop') {
+    const circleSize = finalSize;
+    const tailHeight = 12;
+    const totalHeight = circleSize + tailHeight - 4; // 4px overlap for seamless join
+    return new L.DivIcon({
+      className: '',
+      html: `<div style="position:relative;width:${circleSize}px;height:${totalHeight}px;">
+        <div style="
+          position:absolute;top:0;left:0;width:${circleSize}px;height:${circleSize}px;
+          border-radius:50%;background:${color};border:2.5px solid #fff;
+          box-shadow:0 4px 12px ${halfShadow};
+          display:flex;align-items:center;justify-content:center;
+        ">${inner}</div>
+        <div style="
+          position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+          width:0;height:0;
+          border-left:7px solid transparent;border-right:7px solid transparent;
+          border-top:${tailHeight}px solid ${color};
+          filter:drop-shadow(0 2px 3px ${halfShadow});
+        "></div>
+      </div>`,
+      iconSize: [circleSize, totalHeight],
+      iconAnchor: [circleSize / 2, totalHeight],  // tip of the tail
+      popupAnchor: [0, -totalHeight + 6],
+    });
+  }
+
+  // ── Circle (route / fleet) ────────────────────────────────────
   const ring = highlight
     ? `<div style="position:absolute;inset:-5px;border-radius:50%;border:2px solid ${color};opacity:0.45;animation:pulse-ring 2s ease-out infinite;"></div>`
     : '';
@@ -158,11 +206,11 @@ export default function MapCore({
   const iconsByKey = useMemo(() => {
     const cache = new Map();
     for (const m of markers) {
-      const key = `${m.color || '#2D5233'}|${m.number ?? ''}|${m.iconSvg || ''}|${m.highlight ? '1' : '0'}`;
+      const key = `${m.color || '#2D5233'}|${m.number ?? ''}|${m.iconSvg || ''}|${m.highlight ? '1' : '0'}|${m.shape || 'circle'}`;
       if (!cache.has(key)) {
         cache.set(
           key,
-          buildMarkerIcon({ color: m.color, number: m.number, iconSvg: m.iconSvg, highlight: !!m.highlight })
+          buildMarkerIcon({ color: m.color, number: m.number, iconSvg: m.iconSvg, highlight: !!m.highlight, shape: m.shape || 'circle' })
         );
       }
     }
@@ -235,9 +283,19 @@ export default function MapCore({
         style={{ height: '100%', width: '100%' }}
         ref={mapRef}
       >
+        {/* CartoDB Voyager — a designed OSM derivative with a cleaner
+            palette than raw OpenStreetMap (less yellow noise, softer
+            green for parks, muted roads). Same tile pyramid + same
+            attribution requirement. Free for non-commercial use of
+            our scale; if usage grows we move to a paid Mapbox plan
+            with a custom CarReminder style. The visual lift here is
+            "designed product" vs "default leaflet" — single biggest
+            map-page improvement we can ship without restructuring. */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+          maxZoom={20}
         />
 
         {/* Recenter when caller-supplied center prop changes */}
@@ -291,7 +349,7 @@ export default function MapCore({
         {/* Markers */}
         {markers.map((m) => {
           if (!Number.isFinite(m.lat) || !Number.isFinite(m.lng)) return null;
-          const key = `${m.color || '#2D5233'}|${m.number ?? ''}|${m.iconSvg || ''}|${m.highlight ? '1' : '0'}`;
+          const key = `${m.color || '#2D5233'}|${m.number ?? ''}|${m.iconSvg || ''}|${m.highlight ? '1' : '0'}|${m.shape || 'circle'}`;
           const icon = iconsByKey.get(key);
           return (
             <Marker

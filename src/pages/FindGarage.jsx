@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Maximize2,
   X as XIcon,
+  ChevronUp,
 } from 'lucide-react';
 
 import MapCore from '@/components/map/MapCore';
@@ -226,6 +227,13 @@ export default function FindGarage() {
   // (smaller) container and the bottom half of fullscreen stays
   // blank. The effect below calls invalidateSize() on every toggle.
   const [mapFullscreen, setMapFullscreen] = useState(false);
+  // Tracks whether the floating radius pill above the map has been
+  // expanded into an inline slider. Earlier the pill only scrolled
+  // to the page header, which broke in fullscreen mode (no page to
+  // scroll). Now the pill toggles this state and renders a small
+  // panel directly below it with a working slider — control lives
+  // where the user's attention is.
+  const [radiusPanelOpen, setRadiusPanelOpen] = useState(false);
   const [nameQuery, setNameQuery] = useState('');
   const [hasVessel, setHasVessel] = useState(false);
   const mapRef = useRef(null);
@@ -651,6 +659,11 @@ export default function FindGarage() {
 
   // Marker objects fed to MapCore. Each carries the original garage row
   // attached as `garage` so renderTooltip / renderPopup can read it directly.
+  // shape='teardrop' is the iOS/Waze/Google Maps convention — a colored
+  // circle sitting on a downward triangle tip, anchored at the lat/lng so
+  // it visually rests on the spot rather than floating over it. The
+  // route + fleet maps keep the default 'circle' shape because their
+  // markers ARE the stop, not pins pointing AT one.
   const mapMarkers = displayGarages.map(g => {
     const tc = ALL_TYPE_CONFIG[g.typeKey] || TYPE_CONFIG.garage;
     return {
@@ -659,6 +672,7 @@ export default function FindGarage() {
       lng: g.lon,
       color: tc.color,
       iconSvg: tc.svg,
+      shape: 'teardrop',
       garage: g,
     };
   });
@@ -914,7 +928,13 @@ export default function FindGarage() {
           close button overlay; the surrounding chrome (header, list,
           bottom nav) is hidden behind it via z-index. */}
       <div
-        className={mapFullscreen ? 'fixed inset-0 z-[60] bg-white flex flex-col' : 'px-3'}
+        // z-[9999] (was z-[60]): the app's top bar uses higher
+        // z-index than 60, so a "fullscreen" overlay at z-60 was
+        // sitting BELOW the bar and the user could not reach the
+        // close button at the top of the overlay (it rendered, but
+        // got visually covered by the top bar). Bumping above every
+        // chrome layer ensures the overlay is genuinely fullscreen.
+        className={mapFullscreen ? 'fixed inset-0 z-[9999] bg-white flex flex-col' : 'px-3'}
       >
         <MapCore
           markers={mapMarkers}
@@ -960,19 +980,115 @@ export default function FindGarage() {
           renderPopup={(m) => {
             const g = m.garage;
             const tc = ALL_TYPE_CONFIG[g.typeKey] || TYPE_CONFIG.garage;
+            // Ultra-compact popup — third iteration. Two more passes
+            // didn't make it small enough; user feedback was "even
+            // smaller". Dropped the address row entirely (the full
+            // address lives on the result card outside the map),
+            // dropped text labels from the nav buttons (kept just
+            // the brand marks since users recognise the Waze + Maps
+            // icons), tightened min-w to 120px. The popup is now a
+            // "peek tag" — name + distance + two action icons.
+            // Anyone needing more detail taps the card in the list.
             return (
-              <div dir="rtl" className="min-w-[200px]">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: tc.color }} />
-                  <p className="font-bold text-sm">{g.name}</p>
+              <div dir="rtl" className="min-w-[120px] max-w-[160px]">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: tc.color }} />
+                  <p className="font-bold text-[12px] leading-tight truncate">{g.name}</p>
                 </div>
-                <p className="text-xs text-gray-500 mb-1">{tc.label} · {g.distance.toFixed(1)} ק"מ</p>
-                {g.address && <p className="text-xs text-gray-400 mb-2">{g.address}</p>}
+                <p className="text-[10px] text-gray-500 mb-1.5 leading-tight">
+                  {tc.label} · <span dir="ltr" className="inline-block" style={{ fontVariantNumeric: 'tabular-nums' }}>{g.distance.toFixed(1)}</span> ק&quot;מ
+                </p>
                 <NavButtonsCompact lat={g.lat} lon={g.lon} />
               </div>
             );
           }}
         >
+          {/* Floating radius pill + inline slider panel.
+              Rendered ONLY in fullscreen mode — in embed mode the
+              user already has the radius slider in the hero header
+              above the map, so a floating pill would be a redundant
+              second control fighting for the same job. In
+              fullscreen, the hero header is hidden by the overlay,
+              so the pill becomes the user's only path to change
+              radius without exiting. Tap toggles the panel directly
+              below with a live slider. Chevron rotates 180° to
+              signal open/closed state. */}
+          {mapFullscreen && (
+          <div
+            className="absolute left-1/2 -translate-x-1/2"
+            style={{
+              top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+              zIndex: 400,
+            }}
+          >
+            <button
+              onClick={() => setRadiusPanelOpen(v => !v)}
+              aria-label={`רדיוס חיפוש: ${(searchRadius / 1000).toFixed(0)} קילומטר. ${radiusPanelOpen ? 'סגור' : 'פתח'} שינוי רדיוס`}
+              aria-expanded={radiusPanelOpen}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full transition-all active:scale-[0.97] hover:opacity-95"
+              style={{
+                background: 'rgba(255,255,255,0.96)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255,255,255,0.7)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+              }}
+            >
+              <MapPin className="w-3.5 h-3.5" style={{ color: C.primary }} />
+              <span className="text-[13px] font-bold" style={{ color: '#1C2E20', fontVariantNumeric: 'tabular-nums' }}>
+                {(searchRadius / 1000).toFixed(0)} ק&quot;מ
+              </span>
+              <ChevronUp
+                className="w-3.5 h-3.5 transition-transform"
+                style={{
+                  color: '#9CA3AF',
+                  transform: radiusPanelOpen ? 'rotate(0deg)' : 'rotate(180deg)',
+                }}
+              />
+            </button>
+
+            {radiusPanelOpen && (
+              <div
+                className="mt-2 rounded-2xl p-3.5"
+                style={{
+                  background: 'rgba(255,255,255,0.98)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255,255,255,0.7)',
+                  boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
+                  minWidth: 240,
+                }}
+                dir="rtl"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold" style={{ color: '#5A6B5D' }}>רדיוס חיפוש</span>
+                  <span className="text-[14px] font-bold" style={{ color: C.primary, fontVariantNumeric: 'tabular-nums' }}>
+                    {(searchRadius / 1000).toFixed(0)} ק&quot;מ
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={RADIUS_MIN}
+                  max={RADIUS_MAX}
+                  step={RADIUS_STEP}
+                  value={searchRadius}
+                  onChange={e => setSearchRadius(Number(e.target.value))}
+                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to left, ${C.primary} ${((searchRadius - RADIUS_MIN) / (RADIUS_MAX - RADIUS_MIN)) * 100}%, #E5E7EB ${((searchRadius - RADIUS_MIN) / (RADIUS_MAX - RADIUS_MIN)) * 100}%)`,
+                    accentColor: C.primary,
+                  }}
+                  aria-label="גרור לשינוי רדיוס חיפוש"
+                />
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-[10px]" style={{ color: '#9CA3AF', fontVariantNumeric: 'tabular-nums' }}>{RADIUS_MIN / 1000} ק&quot;מ</span>
+                  <span className="text-[10px]" style={{ color: '#9CA3AF', fontVariantNumeric: 'tabular-nums' }}>{RADIUS_MAX / 1000} ק&quot;מ</span>
+                </div>
+              </div>
+            )}
+          </div>
+          )}
+
           {/* Floating "recenter to my location" button. bottom-left of map
               in RTL feels natural for left-hand thumbs. Lives inside MapCore
               as an overlay child so it sits over the Leaflet canvas. */}
@@ -993,36 +1109,50 @@ export default function FindGarage() {
             </button>
           )}
 
-          {/* Fullscreen toggle. Embedded view shows the maximize icon
-              (bottom-right corner); fullscreen view shows the X close
-              icon (top-right corner, where users expect a "close
-              modal" action in RTL apps). Single button source-of-
-              truth so the toggle stays in one logical place.
-              In fullscreen we shift to a high-contrast dark fill +
-              larger hit-target so the close affordance stands out
-              against bright map tiles (street view often runs white)
-              and clears the iPhone status-bar / notch via
-              `env(safe-area-inset-top)`. Users were reporting "no
-              way to exit fullscreen" — the button existed but blended
-              into the white background. */}
+          {/* Fullscreen toggle. Two completely different visual
+              treatments:
+
+              EMBED mode  → small white circle bottom-right with
+              just the maximize icon, blends with the recenter
+              button on the opposite side. The fullscreen action
+              isn't urgent.
+
+              FULLSCREEN mode → RED pill with X icon + "סגור"
+              label, top-right of the viewport. Users explicitly
+              reported "can't find the close affordance after the
+              map enlarged" — making it a single ambiguous icon was
+              the bug. Red bg + visible word ("סגור") + larger
+              hit area (56px tall) puts the escape route in the
+              first place the eye scans. Clears iPhone notch via
+              env(safe-area-inset-top). Sits far enough from the
+              centered radius pill not to compete for attention. */}
           <button
             onClick={() => setMapFullscreen(v => !v)}
             aria-label={mapFullscreen ? 'סגור מסך מלא' : 'מסך מלא'}
             title={mapFullscreen ? 'סגור מסך מלא' : 'מסך מלא'}
-            className={`absolute rounded-full flex items-center justify-center transition-all active:scale-95 ${
-              mapFullscreen ? 'w-12 h-12 right-4' : 'w-10 h-10 bottom-3 right-3'
+            className={`absolute flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+              mapFullscreen
+                ? 'right-4 h-12 px-4 rounded-full font-bold text-[14px]'
+                : 'bottom-3 right-3 w-10 h-10 rounded-full'
             }`}
             style={{
-              background: mapFullscreen ? 'rgba(20, 30, 25, 0.92)' : '#fff',
-              border: mapFullscreen ? '1.5px solid rgba(255,255,255,0.25)' : `1.5px solid ${C.border}`,
+              background: mapFullscreen ? '#DC2626' : '#fff',
+              border: mapFullscreen ? '2px solid rgba(255,255,255,0.95)' : `1.5px solid ${C.border}`,
               boxShadow: mapFullscreen
-                ? '0 6px 18px rgba(0,0,0,0.35)'
+                ? '0 8px 24px rgba(220,38,38,0.5)'
                 : '0 4px 12px rgba(0,0,0,0.15)',
               zIndex: 400,
               color: mapFullscreen ? '#fff' : C.primary,
               top: mapFullscreen ? 'calc(env(safe-area-inset-top, 0px) + 12px)' : undefined,
             }}>
-            {mapFullscreen ? <XIcon className="w-6 h-6" /> : <Maximize2 className="w-5 h-5" />}
+            {mapFullscreen ? (
+              <>
+                <XIcon className="w-5 h-5" strokeWidth={2.5} />
+                <span>סגור</span>
+              </>
+            ) : (
+              <Maximize2 className="w-5 h-5" />
+            )}
           </button>
         </MapCore>
       </div>
