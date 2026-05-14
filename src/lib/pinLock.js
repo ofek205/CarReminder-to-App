@@ -19,12 +19,46 @@
  *   - 10 wrong attempts → full logout (forces password re-auth)
  */
 
-const KEY_PIN_HASH = 'cr_pin_hash_v1';
-const KEY_PIN_SALT = 'cr_pin_salt_v1';
-const KEY_PIN_ENABLED = 'cr_pin_enabled_v1';
-const KEY_LAST_UNLOCK = 'cr_pin_unlocked_at_v1';
-const KEY_FAILED_COUNT = 'cr_pin_failed_count_v1';
-const KEY_LOCKOUT_UNTIL = 'cr_pin_lockout_until_v1';
+// Per-user namespacing. Before the v2 keys we stored PIN data under a
+// global prefix (cr_pin_hash_v1, cr_pin_salt_v1, …). If user A set a
+// PIN and signed out, then user B signed in on the same device, the
+// global hash still matched A's PIN — so user B was prompted for
+// user A's PIN on every unlock. Catastrophic UX on shared devices.
+//
+// Now every key is scoped to a userId, set by `setActivePinUser(id)`
+// from AuthContext on every auth-state change. When no user is active
+// (logged out / app boot before session resolves) the public API
+// no-ops cleanly — isPinEnabled() returns false, markUnlocked() is a
+// silent skip, tryUnlock() refuses with 'no_pin_set'.
+//
+// Legacy v1 keys are intentionally left untouched: clearing them
+// would log out anyone in the middle of an unlock against the old
+// scheme. They naturally fall out of use once a user re-enables PIN
+// on the device, and won't ever be read by the v2 codepath below.
+const KEY_BASE = {
+  hash:        'cr_pin_hash_v2',
+  salt:        'cr_pin_salt_v2',
+  enabled:     'cr_pin_enabled_v2',
+  lastUnlock:  'cr_pin_unlocked_at_v2',
+  failed:      'cr_pin_failed_count_v2',
+  lockoutUntil:'cr_pin_lockout_until_v2',
+};
+
+let activeUserId = null;
+
+/**
+ * Bind the PIN module to a Supabase user id. Call this from the
+ * AuthContext SIGNED_IN / INITIAL_SESSION listener. Pass `null` on
+ * sign-out to make every PIN operation no-op.
+ */
+export function setActivePinUser(userId) {
+  activeUserId = (userId && typeof userId === 'string') ? userId : null;
+}
+
+function k(field) {
+  if (!activeUserId) return null;     // signals "no user → no PIN ops"
+  return `${KEY_BASE[field]}_${activeUserId}`;
+}
 
 // Auto-lock after this many ms of backgrounded app. 5 min balances
 // "don't nag me to unlock every time I switch apps" with "lock if I
@@ -36,10 +70,25 @@ const MAX_FAIL_BEFORE_LOCKOUT = 5;
 const LOCKOUT_DURATION_MS = 30 * 1000;
 const MAX_FAIL_BEFORE_FULL_LOGOUT = 10;
 
-//  Storage helpers 
-const safeGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
-const safeSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
-const safeRemove = (k) => { try { localStorage.removeItem(k); } catch {} };
+//  Storage helpers — every accessor takes the field name (not the raw
+//  key) and resolves to the per-user-scoped key via k(). When there's
+//  no active user, the helpers return null/no-op so callers can keep
+//  their existing shape without sprinkling guards everywhere.
+const safeGet = (field) => {
+  const key = k(field);
+  if (!key) return null;
+  try { return localStorage.getItem(key); } catch { return null; }
+};
+const safeSet = (field, v) => {
+  const key = k(field);
+  if (!key) return;
+  try { localStorage.setItem(key, v); } catch {}
+};
+const safeRemove = (field) => {
+  const key = k(field);
+  if (!key) return;
+  try { localStorage.removeItem(key); } catch {}
+};
 
 //  Hashing (WebCrypto SHA-256) 
 async function sha256(str) {
@@ -56,50 +105,52 @@ function randomSalt() {
 
 //  Public API 
 
-/** True if the user has enabled PIN lock. */
+/** True if the user has enabled PIN lock. False when no user is active. */
 export function isPinEnabled() {
-  return safeGet(KEY_PIN_ENABLED) === '1' && !!safeGet(KEY_PIN_HASH);
+  if (!activeUserId) return false;
+  return safeGet('enabled') === '1' && !!safeGet('hash');
 }
 
 /** Mark the session as unlocked right now (used after successful PIN entry). */
 export function markUnlocked() {
-  safeSet(KEY_LAST_UNLOCK, String(Date.now()));
-  safeSet(KEY_FAILED_COUNT, '0');
-  safeRemove(KEY_LOCKOUT_UNTIL);
+  safeSet('lastUnlock', String(Date.now()));
+  safeSet('failed', '0');
+  safeRemove('lockoutUntil');
 }
 
 /** True if we're inside the auto-unlock window (i.e. no PIN needed right now). */
 export function isStillUnlocked() {
   if (!isPinEnabled()) return true;
-  const last = Number(safeGet(KEY_LAST_UNLOCK) || 0);
+  const last = Number(safeGet('lastUnlock') || 0);
   return Date.now() - last < AUTO_LOCK_MS;
 }
 
 /** Force the lock on (used when app goes to background, or on explicit "Lock now"). */
 export function lockNow() {
-  safeRemove(KEY_LAST_UNLOCK);
+  safeRemove('lastUnlock');
 }
 
 /** Set (or change) the PIN. Returns true on success. */
 export async function setPin(pin) {
+  if (!activeUserId) return false;
   if (!/^\d{4,8}$/.test(pin)) return false;
   const salt = randomSalt();
   const hash = await sha256(pin + ':' + salt);
-  safeSet(KEY_PIN_SALT, salt);
-  safeSet(KEY_PIN_HASH, hash);
-  safeSet(KEY_PIN_ENABLED, '1');
+  safeSet('salt', salt);
+  safeSet('hash', hash);
+  safeSet('enabled', '1');
   markUnlocked();
   return true;
 }
 
 /** Remove PIN entirely (e.g. user disabled lock in settings). */
 export function clearPin() {
-  safeRemove(KEY_PIN_HASH);
-  safeRemove(KEY_PIN_SALT);
-  safeRemove(KEY_PIN_ENABLED);
-  safeRemove(KEY_LAST_UNLOCK);
-  safeRemove(KEY_FAILED_COUNT);
-  safeRemove(KEY_LOCKOUT_UNTIL);
+  safeRemove('hash');
+  safeRemove('salt');
+  safeRemove('enabled');
+  safeRemove('lastUnlock');
+  safeRemove('failed');
+  safeRemove('lockoutUntil');
 }
 
 /**
@@ -107,14 +158,16 @@ export function clearPin() {
  * Returns { ok, reason, lockoutMsRemaining, shouldLogout }
  */
 export async function tryUnlock(pin) {
+  if (!activeUserId) return { ok: false, reason: 'no_pin_set' };
+
   // Lockout check
-  const lockoutUntil = Number(safeGet(KEY_LOCKOUT_UNTIL) || 0);
+  const lockoutUntil = Number(safeGet('lockoutUntil') || 0);
   if (lockoutUntil > Date.now()) {
     return { ok: false, reason: 'locked_out', lockoutMsRemaining: lockoutUntil - Date.now() };
   }
 
-  const salt = safeGet(KEY_PIN_SALT);
-  const storedHash = safeGet(KEY_PIN_HASH);
+  const salt = safeGet('salt');
+  const storedHash = safeGet('hash');
   if (!salt || !storedHash) return { ok: false, reason: 'no_pin_set' };
 
   const attemptHash = await sha256(pin + ':' + salt);
@@ -124,8 +177,8 @@ export async function tryUnlock(pin) {
   }
 
   // Wrong PIN. bump fail counter
-  const failed = Number(safeGet(KEY_FAILED_COUNT) || 0) + 1;
-  safeSet(KEY_FAILED_COUNT, String(failed));
+  const failed = Number(safeGet('failed') || 0) + 1;
+  safeSet('failed', String(failed));
 
   if (failed >= MAX_FAIL_BEFORE_FULL_LOGOUT) {
     // Too many attempts. fall back to full logout
@@ -134,7 +187,7 @@ export async function tryUnlock(pin) {
   }
   if (failed >= MAX_FAIL_BEFORE_LOCKOUT) {
     const until = Date.now() + LOCKOUT_DURATION_MS;
-    safeSet(KEY_LOCKOUT_UNTIL, String(until));
+    safeSet('lockoutUntil', String(until));
     return { ok: false, reason: 'locked_out', lockoutMsRemaining: LOCKOUT_DURATION_MS };
   }
   return {

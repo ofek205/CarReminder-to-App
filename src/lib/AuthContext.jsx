@@ -68,6 +68,15 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     setUser(null);
     setIsAuthenticated(false);
+    // Clear in-flight signup/verify state. Without this, a user who
+    // started a signup, never confirmed the OTP, and then signed out
+    // would have `cr_pending_verify_email` linger in sessionStorage —
+    // so the next reload of AuthPage forced them back into the
+    // verify-email modal even though they're trying to log into a
+    // different account / reset / register fresh. Same for the EULA
+    // gate that the signup flow primes ahead of time.
+    try { sessionStorage.removeItem('cr_pending_verify_email'); } catch {}
+    try { sessionStorage.removeItem('cr_pending_eula'); } catch {}
     await supabase.auth.signOut();
   };
 

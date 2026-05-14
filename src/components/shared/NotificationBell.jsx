@@ -544,14 +544,26 @@ export default function NotificationBell() {
             </div>
 
             <div className="max-h-72 overflow-y-auto">
-              {notifications.length === 0 ? (
-                <div className="py-8 text-center">
-                  <Bell className="w-8 h-8 mx-auto mb-2" style={{ color: '#D1D5DB' }} />
-                  <p className="text-sm font-medium" style={{ color: '#9CA3AF' }}>אין התראות</p>
-                </div>
-              ) : (
-                notifications.slice(0, 10).map(n => {
-                  const isRead = readIds.has(n.id);
+              {(() => {
+                // Bell shows ONLY unread items. Read items (the ones the
+                // user explicitly cleared via "סמן הכל כנקרא" or by
+                // clicking-through a row) are filtered out — the user
+                // explicitly asked for that behaviour: "אם עשיתי סמן
+                // שנקרא זה לא צריך להופיע יותר בפעמון". The full
+                // history (read + unread) is still accessible on the
+                // dedicated /Notifications page; this dropdown is a
+                // signal-to-act surface, not an archive.
+                const visible = notifications.filter(n => !readIds.has(n.id));
+                if (visible.length === 0) {
+                  return (
+                    <div className="py-8 text-center">
+                      <Bell className="w-8 h-8 mx-auto mb-2" style={{ color: '#D1D5DB' }} />
+                      <p className="text-sm font-medium" style={{ color: '#9CA3AF' }}>אין התראות</p>
+                    </div>
+                  );
+                }
+                return visible.slice(0, 10).map(n => {
+                  const isRead = false;  // by construction — filtered above
                   const actionRequired = isActionNotification(n);
                   return (
                     <div key={n.id}
@@ -702,8 +714,8 @@ export default function NotificationBell() {
                       </div>
                     </div>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
 
             {notifications.length > 0 && (

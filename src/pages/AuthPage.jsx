@@ -1169,19 +1169,19 @@ export default function AuthPage() {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        maxLength={6}
+                        maxLength={8}
                         value={verificationCode}
-                        onChange={e => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder="123456"
+                        onChange={e => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                        placeholder="12345678"
                         autoComplete="one-time-code"
                         autoFocus
                         dir="ltr"
-                        className="w-full text-center text-2xl font-bold tracking-[0.5em] py-4 rounded-2xl outline-none transition-all"
+                        className="w-full text-center text-2xl font-bold tracking-[0.4em] py-4 rounded-2xl outline-none transition-all"
                         style={{
                           background: '#FAFDF6',
-                          border: `2px solid ${verificationCode.length === 6 ? C.green : C.border}`,
+                          border: `2px solid ${verificationCode.length === 8 ? C.green : C.border}`,
                           color: C.greenDark,
-                          letterSpacing: '0.5em',
+                          letterSpacing: '0.4em',
                         }}
                       />
                       <p className="text-[11px] mt-2 text-center" style={{ color: C.muted }}>

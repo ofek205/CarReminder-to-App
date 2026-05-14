@@ -668,9 +668,16 @@ function AuthAccountSettings({ embedded = false }) {
         <BlockedUsersList />
       </div>
 
-      {/* Invite Dialog */}
+      {/* Invite Dialog. We deliberately do NOT set max-h here — the
+          shared DialogContent already enforces
+            maxHeight = 100dvh - safe-area-inset-top - safe-area-inset-bottom - 32px
+          with overflow-y-auto. Re-declaring max-h-[90vh] used to fight
+          that default on Capacitor iOS / Android — 90vh ignores the
+          notch + home indicator so the form's bottom buttons could
+          end up below the screen with no scroll affordance to reach
+          them. mx-4 stays so the dialog has a phone-edge gutter. */}
       <Dialog open={showInvite} onOpenChange={resetInviteDialog}>
-        <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-md mx-4" dir="rtl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">הזמנת חבר חדש</DialogTitle>
           </DialogHeader>
@@ -755,9 +762,17 @@ function AuthAccountSettings({ embedded = false }) {
                   </button>
                 </div>
 
-                {/* Vehicle checkboxes - shown only when "specific" is selected */}
+                {/* Vehicle checkboxes - shown only when "specific" is selected.
+                    We used to cap this list at max-h-48 + nested overflow-y-auto,
+                    but on Capacitor mobile that created a scroll-in-scroll
+                    container — the inner list intercepted touch events and
+                    refused to let the outer DialogContent scroll past it,
+                    so users with >5 vehicles couldn't reach the bottom of
+                    the form. Letting the list flow naturally + relying on
+                    the dialog's own overflow-y-auto fixes that without
+                    adding any new scroll trap. */}
                 {!shareAll && (
-                  <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto rounded-2xl p-2"
+                  <div className="mt-2 space-y-1.5 rounded-2xl p-2"
                     style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
                     {vehicles.map(v => {
                       const vName = v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || 'רכב';

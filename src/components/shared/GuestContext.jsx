@@ -321,6 +321,15 @@ export function GuestProvider({ children }) {
       if (session?.user) {
         const newUser = normalizeUser(session.user);
         setUser(newUser);
+        // Bind the PIN module to this user FIRST, before any pages
+        // mount and read isPinEnabled(). Without this, user B logging
+        // in on a device where user A previously set a PIN would be
+        // prompted for user A's PIN — because the storage keys used
+        // to be global. Now every key is namespaced by userId and the
+        // module no-ops when the active user isn't set.
+        import('@/lib/pinLock')
+          .then(({ setActivePinUser }) => setActivePinUser(newUser.id))
+          .catch(() => {});
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
           // Provision before flipping authState so pages mounting on
           // 'authenticated' find a membership row on first query.
@@ -341,6 +350,13 @@ export function GuestProvider({ children }) {
         setUser(null);
         setAuthState('guest');
         try { window.__crAuthResolvedAt = Date.now(); } catch {}
+        // Detach PIN — every subsequent isPinEnabled() / tryUnlock()
+        // returns false / no_pin_set until another user signs in.
+        // Important: we do NOT clearPin() here, only detach. Wiping
+        // would lose user A's PIN forever if they log back in.
+        import('@/lib/pinLock')
+          .then(({ setActivePinUser }) => setActivePinUser(null))
+          .catch(() => {});
         // Tear down push listeners so a different user signing in next
         // doesn't inherit the previous session's token route.
         import('@/lib/pushNotifications')
