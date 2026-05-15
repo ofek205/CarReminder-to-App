@@ -61,6 +61,66 @@
     <style>
       @keyframes cr-boot-spin { to { transform: rotate(360deg); } }
     </style>
+    <!--
+      Static legal footer. Lives OUTSIDE #root so the React app
+      (which mounts into #root and may replace its contents) never
+      removes it. Two reasons it has to be in the SSR HTML, not just
+      inside a React component:
+
+        1. Google's OAuth verification crawler grades the home page
+           by parsing the raw HTML response and looking for an
+           anchor tag whose href ends with the declared Privacy
+           Policy URL. The "Issues found during branding review"
+           dialog explicitly flagged the absence of this link on
+           car-reminder.app (2026-05-15). Putting the link inside a
+           React component means a non-JS crawler sees an empty
+           shell and the verification keeps failing.
+
+        2. Even with full client-side React, the AuthPage already
+           buries Privacy/Terms in the sign-up form. Surfacing them
+           at the bottom of every public page (not just the form)
+           is the standard convention App Store + Play Store
+           reviewers expect to see.
+
+      Hidden on the native app shell (Capacitor) via the
+      `.capacitor-platform` class that capacitor.js sets on <body>
+      during boot — there's no point showing "© CarReminder" inside
+      the wrapped app, only the web build needs it.
+    -->
+    <footer id="cr-legal-footer" dir="rtl" style="
+      position:relative;z-index:1;
+      padding:32px 16px 24px;
+      background:#F9FAFB;
+      border-top:1px solid #E5E7EB;
+      text-align:center;
+      font-family:system-ui,-apple-system,sans-serif;
+      font-size:13px;color:#6B7280;line-height:1.6;">
+      <div style="max-width:640px;margin:0 auto;">
+        <div style="margin-bottom:8px;font-weight:600;color:#374151;">
+          CarReminder · אפליקציה לניהול רכבים
+        </div>
+        <nav>
+          <a href="/PrivacyPolicy" style="color:#2D5233;text-decoration:none;margin:0 6px;">מדיניות פרטיות</a>
+          <span style="color:#D1D5DB;">·</span>
+          <a href="/TermsOfService" style="color:#2D5233;text-decoration:none;margin:0 6px;">תנאי שימוש</a>
+          <span style="color:#D1D5DB;">·</span>
+          <a href="/Contact" style="color:#2D5233;text-decoration:none;margin:0 6px;">צור קשר</a>
+        </nav>
+        <div style="margin-top:10px;font-size:11px;color:#9CA3AF;">
+          © 2026 CarReminder · כל הזכויות שמורות
+        </div>
+      </div>
+    </footer>
+    <style>
+      /* The footer is web-only. main.jsx sets html.native-app on the
+         <html> element early in boot when isNative is true (Capacitor
+         iOS/Android), so we hide the footer for those runtimes via
+         the existing class instead of inventing a new flag. The
+         static markup still ships in the SSR HTML for Google's OAuth
+         consent screen crawler — the only consumer that requires
+         it. */
+      html.native-app #cr-legal-footer { display: none; }
+    </style>
     <script type="module" src="./src/main.jsx"></script>
   </body>
 </html>

@@ -53,6 +53,61 @@ const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1beta/models/g
 const GROQ_URL      = 'https://api.groq.com/openai/v1/chat/completions';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
+// Strip common markdown formatting from chat completions before
+// returning to the client. The /AiAssistant chat surface (ברוך /
+// יוסי) renders answers as plain text — no react-markdown wrapper —
+// so `**bold**`, `## headings`, `` `code` ``, and triple-backtick
+// fences show up as literal characters instead of formatting. The
+// system prompt itself uses markdown to instruct the model on
+// response structure ("**תסמינים תואמים**", "## שני מצבי תשובה"),
+// which trains the model to mirror those markers in its replies.
+//
+// We can't change the client without an app release, but the Edge
+// Function deploys independently — this normalizes the LLM output
+// here so the fix lands instantly for every user on every
+// platform.
+//
+// Strip rules (intentionally conservative — we do not parse full
+// markdown, just unwrap the common AI-output patterns):
+//   • **bold**       → bold
+//   • *italic*       → italic                (negative lookarounds
+//                                             keep bullets at line
+//                                             start untouched)
+//   • ## heading     → heading
+//   • `code`         → code
+//   • ```fenced```   → fenced content        (fences stripped)
+//   • --- rules      → removed
+//
+// The extract_document() / scan_extraction path uses its own
+// schema-guided prompt and never goes through call*() — so JSON
+// scan responses are unaffected.
+function stripMarkdown(text: string): string {
+  if (typeof text !== 'string' || !text) return text;
+  let s = text;
+  // Bold MUST run before italic — otherwise the inner ** in
+  // **word** matches the italic pattern first and leaves a
+  // dangling *word* instead of word.
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '$1');
+  // Italic: single * around a word, only when non-asterisk chars
+  // touch both * marks. Lookarounds avoid stripping bullets
+  // ("* item") and standalone operators ("a * b").
+  s = s.replace(/(?<=\S)\*([^\s*][^*\n]*[^\s*])\*(?=\S)/g, '$1');
+  s = s.replace(/(?<=\S)\*([^\s*])\*(?=\S)/g, '$1');
+  // Headings: leading #+ followed by space, anywhere on a line.
+  s = s.replace(/^#{1,6}\s+/gm, '');
+  // Fenced code blocks: ```js\ncode\n``` → keep inner content.
+  s = s.replace(/```[a-z0-9]*\n?/gi, '');
+  s = s.replace(/```/g, '');
+  // Inline code: `code` → code.
+  s = s.replace(/`([^`\n]+)`/g, '$1');
+  // Horizontal rules.
+  s = s.replace(/^[ \t]*-{3,}[ \t]*$/gm, '');
+  // Collapse runs of 3+ blank lines the removals may have
+  // introduced — keep the conversation visually tight.
+  s = s.replace(/\n{3,}/g, '\n\n');
+  return s.trim();
+}
+
 // CORS allow-list logic lives in _shared/cors.ts. ai-proxy is the
 // mobile-callable function so it opts into CAPACITOR_ORIGINS (the
 // other Edge Functions don't). supabase-js invoke() attaches apikey +
@@ -124,7 +179,7 @@ async function callGemini(body: any) {
     console.warn('[ai-proxy] gemini: empty completion (safety block?)');
     return null;
   }
-  return { content: [{ type: 'text', text }], provider: 'gemini' };
+  return { content: [{ type: 'text', text: stripMarkdown(text) }], provider: 'gemini' };
 }
 
 async function callGroq(body: any) {
@@ -160,7 +215,7 @@ async function callGroq(body: any) {
     console.warn('[ai-proxy] groq: empty completion');
     return null;
   }
-  return { content: [{ type: 'text', text }], provider: 'groq' };
+  return { content: [{ type: 'text', text: stripMarkdown(text) }], provider: 'groq' };
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -314,6 +369,17 @@ async function callClaude(body: any) {
   });
   if (!res.ok) return null;
   const j = await res.json();
+  // Anthropic returns { content: [{type:'text', text:'...'}, ...], ... }.
+  // Pass each text block through stripMarkdown so /AiAssistant renders
+  // clean Hebrew without ** ## ` artifacts. Non-text blocks (tool_use,
+  // etc.) pass through untouched.
+  if (Array.isArray(j?.content)) {
+    j.content = j.content.map((block: any) =>
+      block && block.type === 'text' && typeof block.text === 'string'
+        ? { ...block, text: stripMarkdown(block.text) }
+        : block
+    );
+  }
   return { ...j, provider: 'claude' };
 }
 

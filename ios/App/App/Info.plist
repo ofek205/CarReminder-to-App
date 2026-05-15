@@ -93,5 +93,21 @@
 			</array>
 		</dict>
 	</array>
+	<!-- LSApplicationQueriesSchemes — required for the FindGarage
+	     "ניווט" buttons to actually open Waze / Google Maps on iOS.
+	     Without these entries `UIApplication.canOpenURL:` returns
+	     false for `waze://` and `comgooglemaps://`, and the nav
+	     buttons silently no-op instead of launching the third-party
+	     app. (Android registers these intents differently via the
+	     `<queries>` block in AndroidManifest.xml and is unaffected.)
+	     The list is intentionally tight — App Review reads this and
+	     asks why each scheme is here, so we only declare what the
+	     app actually invokes (`waze` from NavButtons → openInWaze,
+	     `comgooglemaps` from NavButtons → openInGoogleMaps). -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>waze</string>
+		<string>comgooglemaps</string>
+	</array>
 </dict>
 </plist>
