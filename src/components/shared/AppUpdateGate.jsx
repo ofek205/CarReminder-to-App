@@ -26,7 +26,7 @@ import useAppUpdateGate from '@/hooks/useAppUpdateGate';
 const ANDROID_STORE_URL =
   'https://play.google.com/store/apps/details?id=com.carreminder.app';
 const IOS_STORE_URL =
-  'https://apps.apple.com/app/carreminder/id000000000';
+  'https://apps.apple.com/app/carreminder/id6764073107';
 const SUPPORT_URL =
   'mailto:support@car-reminder.app?subject=%D7%91%D7%A7%D7%A9%D7%AA%20%D7%92%D7%A8%D7%A1%D7%94%20%D7%A2%D7%93%D7%9B%D7%A0%D7%99%D7%AA';
 

@@ -12,6 +12,7 @@ import WelcomePopup from "@/components/shared/WelcomePopup";
 import GuestWelcomePopup from "@/components/shared/GuestWelcomePopup";
 import MileageReminderPopup from "@/components/shared/MileageReminderPopup";
 import AiScanUnavailableDialog from "@/components/shared/AiScanUnavailableDialog";
+import UpdateAvailableBanner from "@/components/shared/UpdateAvailableBanner";
 import ReviewManager from "@/components/shared/ReviewManager";
 import ReviewPopup from "@/components/shared/ReviewPopup";
 import useReviewPromptSchedule from "@/hooks/useReviewPromptSchedule";
@@ -744,6 +745,16 @@ function LayoutInner({ children }) {
           if it ever calls a scan endpoint) get the explanation. */}
       <SafeComponent label="AiScanUnavailableDialog">
         <AiScanUnavailableDialog />
+      </SafeComponent>
+      {/* UpdateAvailableBanner — sister to AppUpdateGate. The gate
+          hard-blocks the app when below *_min_version; this banner
+          softly nudges when below *_latest_version. Renders only on
+          native + when versions differ + snooze hasn't fired. Self-
+          contained — useUpdateAvailable handles all the gating;
+          mounting it everywhere is fine because it returns null when
+          there's nothing to show. */}
+      <SafeComponent label="UpdateAvailableBanner">
+        <UpdateAvailableBanner />
       </SafeComponent>
       {isAuthenticated && mileageCheckDone && <SafeComponent label="ReviewManager"><ReviewManager /></SafeComponent>}
       {/* Scheduled review prompt.
