@@ -18,6 +18,8 @@
  * against Deno. Production builds never take this path.
  */
 
+import { isAiScanEnabled, emitAiScanDisabled } from './aiScanGate';
+
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 // Cold-start on Gemini can push a single request to 15-25s, plus our
 // own network overhead. 45s gives headroom without leaving the user
@@ -231,6 +233,37 @@ async function callClaudeDev(body) {
  * `error.code` and pick the right copy.
  */
 export async function aiRequest(body) {
+  // Server-side admin kill-switch for the document-scanning flows
+  // (license, receipt, document upload, etc). When `app_config.
+  // scan_extraction_enabled` is set to false, we never even hit the
+  // edge function — we fire the gate event so the global dialog
+  // explains the situation to the user, and throw a coded error so
+  // each surface's existing catch handler can fall back to manual
+  // entry. Affects ONLY feature='scan_extraction'; the AiAssistant
+  // chat (yossi_chat / community_expert) continues to work normally
+  // because that's a different code path entirely. Default-on: a
+  // missing row or a fetch error treats the feature as ENABLED so a
+  // Supabase blip never silently kills scans for every user.
+  if (body?.feature === 'scan_extraction') {
+    try {
+      const enabled = await isAiScanEnabled();
+      if (!enabled) {
+        emitAiScanDisabled();
+        const e = new Error('שירות הסריקה הוסט זמנית. אפשר למלא את הפרטים ידנית.');
+        e.code = 'SCAN_EXTRACTION_DISABLED';
+        throw e;
+      }
+    } catch (gateErr) {
+      // Only the disabled-error has our specific code. Anything else
+      // from the gate check itself (network glitch on the flag fetch)
+      // is non-fatal — isAiScanEnabled already returns `true` as its
+      // safe default, so this branch is essentially unreachable, but
+      // we keep it so a future change to that contract can't break
+      // aiRequest catastrophically.
+      if (gateErr?.code === 'SCAN_EXTRACTION_DISABLED') throw gateErr;
+    }
+  }
+
   try {
     const result = await callEdgeProxy(body);
     if (result) return result;

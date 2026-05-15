@@ -11,6 +11,7 @@ import { FontScaleProvider } from "@/components/shared/FontScaleProvider";
 import WelcomePopup from "@/components/shared/WelcomePopup";
 import GuestWelcomePopup from "@/components/shared/GuestWelcomePopup";
 import MileageReminderPopup from "@/components/shared/MileageReminderPopup";
+import AiScanUnavailableDialog from "@/components/shared/AiScanUnavailableDialog";
 import ReviewManager from "@/components/shared/ReviewManager";
 import ReviewPopup from "@/components/shared/ReviewPopup";
 import useReviewPromptSchedule from "@/hooks/useReviewPromptSchedule";
@@ -734,6 +735,15 @@ function LayoutInner({ children }) {
           open={mileageReminderOpen}
           onClose={() => { setMileageReminderOpen(false); setMileageCheckDone(true); }}
         />
+      </SafeComponent>
+      {/* AiScanUnavailableDialog — singleton, self-managed via the
+          aiScanGate event subscription. No props: it listens for
+          gated `scan_extraction` calls anywhere in the app and shows
+          itself ONCE per browser session. Mounted unconditionally so
+          even unauthenticated users (e.g., VehicleCheck guest flow,
+          if it ever calls a scan endpoint) get the explanation. */}
+      <SafeComponent label="AiScanUnavailableDialog">
+        <AiScanUnavailableDialog />
       </SafeComponent>
       {isAuthenticated && mileageCheckDone && <SafeComponent label="ReviewManager"><ReviewManager /></SafeComponent>}
       {/* Scheduled review prompt.
