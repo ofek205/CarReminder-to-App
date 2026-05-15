@@ -911,8 +911,25 @@ function LayoutInner({ children }) {
       </div>
 
       {/* Main content */}
-      <main className={`flex-1 min-w-0 lg:mr-64 ${isGuest ? 'pt-24 lg:pt-10' : 'pt-14 lg:pt-0'} pb-0`} style={{ overflowX: 'clip' }}>
-        <div className="max-w-5xl mx-auto p-4 lg:p-8 min-w-0" style={{ overflowX: 'clip' }}>
+      {/*
+        2026-05-15 production scroll-lock fix (sev-5):
+        Removed `style={{ overflowX: 'clip' }}` from BOTH this <main>
+        and its inner <div>. Original intent was to clip decorative
+        absolutely-positioned elements that extend past the viewport.
+        That intent is ALREADY covered globally by `html, body { overflow-x: hidden }`
+        in src/index.css — so these two lines were always redundant.
+        On certain Android WebView versions (Chromium 120+ on flexbox
+        children that grow via flex-1), `overflow-x: clip` establishes
+        a clipping context that also INHIBITS VERTICAL scroll inside
+        the element. Symptom: the entire app feels unscrollable on
+        Android, but iOS WKWebView and desktop Chrome are unaffected
+        because their clip implementations are CSS-spec compliant.
+        Removing the redundant per-element clip restores normal flex-
+        layout vertical scroll behaviour on every WebView, while the
+        body-level overflow-x:hidden still catches horizontal bleed.
+      */}
+      <main className={`flex-1 min-w-0 lg:mr-64 ${isGuest ? 'pt-24 lg:pt-10' : 'pt-14 lg:pt-0'} pb-0`}>
+        <div className="max-w-5xl mx-auto p-4 lg:p-8 min-w-0">
           {children}
         </div>
         {/* Spacer so content never hides behind fixed BottomNav on mobile.
