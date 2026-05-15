@@ -420,10 +420,27 @@ export default function FindGarage() {
       // unnamed rows never reach the UI. The extra ~10-50 unnamed
       // entries that come back per query are filtered in O(n) JS
       // and the response is fast.
+      // v4.5.0 — broadened the tire-shop coverage after users reported
+      // OSM in Israel under-tags `shop=tyres`. Three additional clauses:
+      //   • `craft=tyre` — re-introduced after the earlier removal.
+      //     Yes, internationally this also tags tyre manufacturers, but
+      //     Israeli OSM uses it almost exclusively for "פנצריה" shops.
+      //     classifyType() correctly maps `craft=tyre` → 'tire'.
+      //   • `name~"פנצ"` — Hebrew name regex. Catches places tagged with
+      //     a generic `shop=car_repair` (or no `shop=` at all) but whose
+      //     `name` starts with "פנצריית X" / "פנצרית X". Overpass `~`
+      //     is a regex match against the value.
+      //   • `amenity=car_repair` — non-standard but common in Israeli
+      //     contributor data (the canonical key is `shop=car_repair`).
+      //     The same row may then surface as tire shop if its name
+      //     matches the Hebrew regex inside classifyType.
       const carQuery = `[out:json][timeout:25];(`
         + `nwr["shop"="car_repair"](around:${r},${lat},${lng});`
         + `nwr["shop"="tyres"](around:${r},${lat},${lng});`
         + `nwr["shop"="car_parts"](around:${r},${lat},${lng});`
+        + `nwr["craft"="tyre"](around:${r},${lat},${lng});`
+        + `nwr["amenity"="car_repair"](around:${r},${lat},${lng});`
+        + `nwr["name"~"פנצ"](around:${r},${lat},${lng});`
         + `nwr["service:vehicle:car_repair"="yes"](around:${r},${lat},${lng});`
         + `nwr["service:vehicle:tyres"="yes"](around:${r},${lat},${lng});`
         + `nwr["service:vehicle:body_repair"="yes"](around:${r},${lat},${lng});`

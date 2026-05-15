@@ -178,6 +178,56 @@ else
 fi
 echo
 
+# ─── Info.plist URL scheme + queries (deep-link sanity) ──────────────
+#
+# Catches two iOS-only regressions that bit production this cycle:
+#
+#   (a) CFBundleURLTypes missing the `carreminder` scheme — Google
+#       Sign-In completed inside Safari but the callback to
+#       `carreminder://auth/callback` failed with "Safari cannot open
+#       the page because the address is invalid" because iOS did not
+#       know the scheme belonged to us. v4.4.3 hotfix.
+#
+#   (b) LSApplicationQueriesSchemes missing `waze` / `comgooglemaps` —
+#       FindGarage's "ניווט" buttons silently no-op on iOS because
+#       UIApplication.canOpenURL: returns false without the
+#       declaration.
+#
+# Both are static plist entries that have no runtime check until
+# users hit them. Surfacing the absence here makes every archive
+# self-verify before the IPA ships.
+info "Info.plist deep-link declarations"
+INFO_PLIST="ios/App/App/Info.plist"
+if [[ -f "$INFO_PLIST" ]]; then
+  # CFBundleURLTypes → carreminder scheme (required for OAuth callback).
+  if grep -q "<key>CFBundleURLTypes</key>" "$INFO_PLIST" \
+     && grep -A 30 "<key>CFBundleURLTypes</key>" "$INFO_PLIST" \
+        | grep -q "<string>carreminder</string>"; then
+    ok "CFBundleURLTypes registers carreminder:// scheme"
+  else
+    fail "Info.plist is missing CFBundleURLTypes / carreminder scheme — Google Sign-In will fail on iOS with 'Safari cannot open the page' (see v4.4.3 commit message for context)"
+  fi
+  # LSApplicationQueriesSchemes → waze + comgooglemaps (FindGarage nav buttons).
+  if grep -q "<key>LSApplicationQueriesSchemes</key>" "$INFO_PLIST"; then
+    SCHEMES_BLOCK=$(awk '/<key>LSApplicationQueriesSchemes<\/key>/,/<\/array>/' "$INFO_PLIST")
+    if echo "$SCHEMES_BLOCK" | grep -q "<string>waze</string>"; then
+      ok "LSApplicationQueriesSchemes includes waze"
+    else
+      warn "LSApplicationQueriesSchemes missing 'waze' — FindGarage Waze nav button will no-op on iOS"
+    fi
+    if echo "$SCHEMES_BLOCK" | grep -q "<string>comgooglemaps</string>"; then
+      ok "LSApplicationQueriesSchemes includes comgooglemaps"
+    else
+      warn "LSApplicationQueriesSchemes missing 'comgooglemaps' — FindGarage Google Maps nav button will no-op on iOS"
+    fi
+  else
+    warn "Info.plist is missing LSApplicationQueriesSchemes — FindGarage nav buttons (Waze, Google Maps) will silently no-op on iOS"
+  fi
+else
+  fail "$INFO_PLIST missing — every iOS check below this is meaningless"
+fi
+echo
+
 # ─── Summary ─────────────────────────────────────────────────────────
 echo "═══ Summary ═══"
 if [[ "$FAIL" -eq 0 ]]; then
