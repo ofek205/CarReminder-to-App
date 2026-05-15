@@ -67,8 +67,15 @@
          through the Photo Picker rather than holding a manifest
          permission. Removing the declaration here is the policy-
          compliant path. -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- Scoped to API 32 and below — on Android 13+ these are inert (Photo Picker
+         is used instead), and leaving them unscoped triggers Google Play's
+         "broad storage access" warning and re-opens the photos/videos policy
+         declaration form. v4.4.2 hotfix: add maxSdkVersion to keep them out
+         of the runtime permissions list on modern devices. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- NOTE: We previously also declared USE_EXACT_ALARM as a "backup"
@@ -80,11 +87,17 @@
          was removed. SCHEDULE_EXACT_ALARM alone covers our use case:
          it is user-grantable and Capacitor LocalNotifications requests
          it automatically the first time we schedule a reminder. -->
-    <!-- Lets us prompt the user to disable Doze battery optimisation for
-         the app — otherwise AlarmManager.setExactAndAllowWhileIdle is
-         throttled during long idle periods and alarms batch up until
-         the next app open. -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- REQUEST_IGNORE_BATTERY_OPTIMIZATIONS was previously declared here to
+         allow prompting the user to disable Doze battery optimisation for
+         the app, BUT no app code actually invokes the prompt
+         (`requestIgnoreBatteryOptimizations` / ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+         are not called anywhere in src/). Google Play rejects declared-but-
+         unused sensitive permissions, and this one is restricted to a narrow
+         set of categories (alarm clock, calendar, healthcare, communication).
+         A car-maintenance reminder does not qualify. SCHEDULE_EXACT_ALARM
+         alone is sufficient: `setExactAndAllowWhileIdle` still fires under
+         Doze, it just batches during extreme idle periods (rarely an issue
+         for reminders that the user is expecting). -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>
