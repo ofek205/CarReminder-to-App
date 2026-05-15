@@ -69,5 +69,29 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<!-- Custom URL scheme registration — REQUIRED for native OAuth.
+	     The Google sign-in flow (and every other deep link of the form
+	     carreminder://...) redirects to this scheme. Without this
+	     declaration iOS does not know the scheme belongs to us and
+	     Safari shows "Safari cannot open the page because the address
+	     is invalid" — the user is stuck on a blank Safari page right
+	     after completing the Google consent screen.
+	     CFBundleURLName uses the reverse-DNS bundle id; the scheme name
+	     "carreminder" must match what the JS layer passes as
+	     `redirectTo` in supabase.auth.signInWithOAuth (AuthPage.jsx)
+	     and what initDeepLinks listens for (lib/capacitor.js). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.carreminders.app</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>carreminder</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
