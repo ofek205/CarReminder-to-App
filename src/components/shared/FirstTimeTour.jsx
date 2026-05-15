@@ -125,16 +125,30 @@ export default function FirstTimeTour({
     }
   }, [open, step, totalSteps]);
 
-  //  Scroll lock while the tour is open 
+  //  Scroll lock while the tour is open
   // Problem the user hit: with nothing blocking touch on the backdrop,
   // a swipe would scroll the page under the spotlight, leaving the ring
   // pointing at empty space. We block both mouse-wheel and touch-move
   // at the document level, which still lets our own `scrollIntoView`
   // run because it happens imperatively (not via a user gesture).
+  //
+  // 2026-05-15 production scroll-lock bug: the previous version ALSO
+  // managed `document.body.style.overflow`. It captured whatever value
+  // was there at mount time (`prevBodyOverflow`) and "restored" it on
+  // cleanup. When a Radix Dialog (WelcomePopup / MileageReminderPopup
+  // / etc) was open at the moment the tour started, the captured value
+  // was already `'hidden'`. When the tour closed, it restored body
+  // overflow to `'hidden'` — permanently, because the other dialog's
+  // own cleanup had already run and didn't know to recheck. The whole
+  // app then appeared scroll-locked.
+  //
+  // Fix: drop the body.style.overflow management entirely. The
+  // wheel + touchmove preventDefault handlers above already block
+  // scroll via user gestures (the only paths that ever scroll on
+  // Capacitor native), and our internal scrollIntoView still works
+  // because it's imperative, not gesture-driven.
   useEffect(() => {
     if (!open) return;
-    const prevBodyOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     const blockWheel = (e) => e.preventDefault();
     const blockTouch = (e) => {
       // Allow scroll inside the tooltip card itself (long body text on
@@ -145,7 +159,6 @@ export default function FirstTimeTour({
     window.addEventListener('wheel', blockWheel, { passive: false });
     window.addEventListener('touchmove', blockTouch, { passive: false });
     return () => {
-      document.body.style.overflow = prevBodyOverflow;
       window.removeEventListener('wheel', blockWheel);
       window.removeEventListener('touchmove', blockTouch);
     };

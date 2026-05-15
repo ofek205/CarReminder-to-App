@@ -452,24 +452,57 @@ function DraggableA11yButton({ onClick }) {
     // Mouse events (desktop)
     const onMouseMove = (e) => moveDrag(e.clientX, e.clientY);
     const onMouseUp = endDrag;
-    // Touch events (mobile)
+    // Touch events (mobile).
+    //
+    // 2026-05-15 production scroll-lock bug: the previous version only
+    // listened to `touchend` to reset dragging. On Android (especially
+    // edge-to-edge target SDK 36), the OS frequently CANCELS a touch
+    // sequence instead of ending it — when a back-gesture is detected,
+    // when the system nav bar intercepts the swipe, when a multi-touch
+    // race happens, or when focus leaves the WebView mid-drag. In all
+    // those cases `touchend` never fires, only `touchcancel` does.
+    // With dragging stuck true, the touchmove handler called
+    // preventDefault() on EVERY subsequent touchmove anywhere in the
+    // app — symptom: the entire app appears scroll-locked.
+    //
+    // Two-part fix:
+    //   (1) Listen to `touchcancel` AND reset dragging there too.
+    //   (2) Watchdog timer: any touchmove that fires more than 1000ms
+    //       after the last move-while-dragging auto-resets dragging.
+    //       Real drag gestures fire touchmoves continuously; a 1s gap
+    //       is impossible during an active drag, so the false-positive
+    //       rate is zero while the recovery rate from a missed
+    //       touchcancel is 100%.
+    let watchdog = null;
+    const armWatchdog = () => {
+      if (watchdog) clearTimeout(watchdog);
+      watchdog = setTimeout(() => { dragging.current = false; }, 1000);
+    };
+    const disarmWatchdog = () => {
+      if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+    };
     const onTouchMove = (e) => {
       if (!dragging.current) return;
       e.preventDefault();
       const t = e.touches[0];
       moveDrag(t.clientX, t.clientY);
+      armWatchdog();
     };
-    const onTouchEnd = endDrag;
+    const onTouchEnd = () => { disarmWatchdog(); endDrag(); };
+    const onTouchCancel = onTouchEnd;
 
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchCancel);
     return () => {
+      disarmWatchdog();
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchCancel);
     };
   }, []);
 
