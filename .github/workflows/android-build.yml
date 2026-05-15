@@ -19,6 +19,18 @@ name: Android Build
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        # Optional git ref (tag / branch / SHA) to build. Defaults to
+        # the branch the workflow was dispatched on. Use this to
+        # bisect scroll/UI regressions across releases: e.g. set
+        # ref=v4.2.0 to produce a v4.2.0 debug APK and side-load it
+        # to verify the bug was present back then. Empty value =
+        # workflow runs on its default ref (current behaviour).
+        description: 'Git ref to build (tag/branch/SHA). Empty = current ref.'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build:
@@ -28,6 +40,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # When the dispatcher specified a ref input, honor it. Empty
+          # string falls back to the workflow's default ref.
+          ref: ${{ github.event.inputs.ref || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -71,7 +87,20 @@ jobs:
 
       - name: Build debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        # `chmod +x ./gradlew` works around a long-standing portability
+        # issue: when the repo was first committed from a Windows
+        # machine, the executable bit on `gradlew` was lost (NTFS
+        # doesn't track POSIX permissions, and git's `core.filemode`
+        # defaults vary). On a Linux GitHub runner, `./gradlew` then
+        # fails with "Permission denied" and exit code 126. We could
+        # fix it once via `git update-index --chmod=+x gradlew`, but
+        # the chmod here is harmless and survives any future
+        # checkout-from-Windows accident. Running this BEFORE the
+        # gradle invocation rather than as a separate step keeps the
+        # fix scoped to the working-directory we're already in.
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
 
       - name: Locate APK
         id: locate_apk
