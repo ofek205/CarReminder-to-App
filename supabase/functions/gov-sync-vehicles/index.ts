@@ -146,16 +146,19 @@ const GOV_API_BASE        = 'https://data.gov.il/api/3/action/datastore_search';
 // whole cron run on a 50-vehicle batch.
 const GOV_TIMEOUT_MS = 6000;
 
-// Hard upper bound on rows pulled per run. Keeps cron run under
-// ~2 minutes (50 vehicles × ~2s per pair-of-API-calls). If platform
-// grows past 50 vehicles per day that need fresh sync, raise here
-// or shorten the inter-row delay.
-const MAX_VEHICLES_PER_RUN = 50;
+// Hard upper bound on rows pulled per run. Supabase's HTTP gateway
+// disconnects after 150s, so we size the batch + inter-row delay to
+// finish under that. 30 × (~2s API pair + 0.8s sleep) ≈ 84s plus
+// per-row RPC overhead, leaving headroom for slow gov.il calls.
+// If platform grows, run the cron more often rather than enlarge
+// the batch — successive runs pick up the next-oldest sync via the
+// 20h staleness clock.
+const MAX_VEHICLES_PER_RUN = 30;
 
 // Spacing between row processing. Gov.il is a public open-data API
 // with no documented quota, but the polite-citizen rate is ~1 req/sec.
-// We do 2 calls per vehicle in parallel + 1500ms sleep between rows.
-const INTER_ROW_DELAY_MS = 1500;
+// We do 2 calls per vehicle in parallel + 800ms sleep between rows.
+const INTER_ROW_DELAY_MS = 800;
 
 const ALLOWED_HEADERS =
   'authorization, x-client-info, x-client-ip, apikey, content-type, x-dispatch-secret';

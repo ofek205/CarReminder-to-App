@@ -223,8 +223,7 @@ begin
       test_due_date           = case when v_should_update_test_due then p_gov_test_due_date  else test_due_date            end,
       last_gov_sync_at        = now(),
       last_gov_sync_km        = p_gov_km,
-      last_gov_sync_test_date = p_gov_test_date,
-      updated_date            = now()
+      last_gov_sync_test_date = p_gov_test_date
   where id = p_vehicle_id;
 
   -- ── Resolve recipient + build notification copy ───────────────────
@@ -238,7 +237,7 @@ begin
   where m.account_id = v_account_id
     and m.status     = 'פעיל'
     and m.role       in ('בעלים', 'owner')
-  order by m.created_at asc
+  order by m.joined_at asc nulls last
   limit 1;
 
   if v_owner_user_id is null then
@@ -247,7 +246,7 @@ begin
     from public.account_members m
     where m.account_id = v_account_id
       and m.status     = 'פעיל'
-    order by m.created_at asc
+    order by m.joined_at asc nulls last
     limit 1;
   end if;
 
