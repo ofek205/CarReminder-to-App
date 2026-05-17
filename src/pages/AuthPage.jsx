@@ -169,12 +169,44 @@ export default function AuthPage() {
   // permanent spinner. The full GuestProvider tree still resolves in the
   // background and re-renders this component when auth lands, so a logged-in
   // user gets auto-navigated to Dashboard either way.
+  // Synchronous probe: did Supabase persist an auth token to storage on a
+  // previous session? If yes, this user is "almost certainly authenticated"
+  // and the 3s bypass below would flash the login form between auth-resolve
+  // and the navigate-to-Dashboard useEffect. We DON'T want that for a user
+  // who's coming back to the app — they should see a calm spinner, then the
+  // dashboard, never the login screen. The probe scans for any
+  // `sb-…-auth-token` key (Supabase v2 storage key convention).
+  // If the stored token turns out to be expired or invalid, GuestContext
+  // will eventually resolve to 'guest', isLoading flips to false, and the
+  // user falls through to the form on the next render — no harm done.
+  // Read inside useState so the lookup happens once at mount, not on every
+  // render. Wrapped in try/catch because Safari Private mode + Capacitor
+  // edge cases can throw on localStorage access.
+  const [hasStoredSession] = useState(() => {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+          const v = localStorage.getItem(k);
+          if (v && v.length > 10) return true;
+        }
+      }
+    } catch {}
+    return false;
+  });
+
   const [bypassLoading, setBypassLoading] = useState(false);
   useEffect(() => {
     if (!isLoading) return;
+    // Don't flip to the login form for users whose previous session is
+    // still in storage. The auth bootstrap will resolve momentarily and
+    // the auto-redirect useEffect will navigate them to /Dashboard. A
+    // 3s flash of the login UI was the most visible source of the
+    // "why am I seeing the login screen on every refresh" complaint.
+    if (hasStoredSession) return;
     const t = setTimeout(() => setBypassLoading(true), 3000);
     return () => clearTimeout(t);
-  }, [isLoading]);
+  }, [isLoading, hasStoredSession]);
 
   // Modes:
   //   login, signup, reset  — email-based flows.
