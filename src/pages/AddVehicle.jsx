@@ -1361,9 +1361,23 @@ export default function AddVehicle() {
                 </div>
               )}
               {lookupStatus === 'not_found' && (
-                <div className="mt-2 flex items-center gap-2 text-sm text-amber-700">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  לא נמצאו נתונים לרכב הזה, ניתן למלא ידנית
+                // Richer copy than the original one-liner so a user
+                // confronted with "no data" knows the most common
+                // reason (no test in 2+ years → ministry drops the
+                // record from the public dataset) before deciding
+                // whether to retype, fill manually, or contact us.
+                <div className="mt-2 flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-700" />
+                  <div className="flex-1 text-xs leading-relaxed">
+                    <p className="font-bold text-sm">לא נמצאו נתונים לרכב הזה</p>
+                    <p className="mt-1">בדוק שהמספר שהוקלד נכון. אם הרכב לא עבר טסט מעל שנתיים, משרד התחבורה לא מציג את הנתונים שלו ולכן ככל הנראה לא נמצא. אפשר להמשיך ולמלא ידנית למטה.</p>
+                    <a
+                      href={createPageUrl('Contact')}
+                      className="inline-block mt-2 font-bold underline underline-offset-2 hover:no-underline"
+                    >
+                      או השאר פנייה ואנחנו נבדוק
+                    </a>
+                  </div>
                 </div>
               )}
               {lookupStatus === 'error' && (

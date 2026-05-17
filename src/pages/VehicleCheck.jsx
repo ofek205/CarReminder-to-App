@@ -283,7 +283,16 @@ export default function VehicleCheck() {
 
         {limitLocked && <GuestLimitCard onAuth={goToAuth} />}
         {isBusy && <SmartLoading text={loadingMessages[loadingIndex]} />}
-        {status === 'not_found' && <StateCard tone="warning" title="לא מצאנו נתונים לרכב הזה" text="בדוק שהמספר הוזן נכון. ייתכן שהרכב שייך למאגר שאינו זמין כרגע." />}
+        {status === 'not_found' && (
+          <StateCard
+            tone="warning"
+            title="לא מצאנו נתונים לרכב הזה"
+            text="בדוק שהמספר שהוקלד נכון."
+            details="לתשומת לבך: אם הרכב לא עבר טסט מעל שנתיים, משרד התחבורה לא מציג את הנתונים שלו, ולכן ככל הנראה לא נמצא. אם אתה בטוח שהמספר תקין ולא זה המצב, השאר לנו פנייה ונבדוק."
+            ctaLabel="השאר פנייה ואנחנו נבדוק"
+            ctaHref={createPageUrl('Contact')}
+          />
+        )}
         {status === 'error' && !isBusy && <StateCard tone="danger" title="הבדיקה נכשלה" text="לא נציג שגיאות טכניות. נסה שוב בעוד רגע או בדוק את החיבור לאינטרנט." />}
 
         {result && status === 'success' && (
@@ -981,13 +990,28 @@ function GuestLimitCard({ onAuth }) {
   );
 }
 
-function StateCard({ tone, title, text }) {
+function StateCard({ tone, title, text, details, ctaLabel, ctaHref }) {
   const cls = tone === 'danger' ? 'border-red-100 bg-red-50 text-red-900' : 'border-yellow-100 bg-yellow-50 text-yellow-900';
   return (
     <section className={`rounded-3xl border p-5 mb-5 text-center ${cls}`}>
       <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
       <p className="text-lg font-bold">{title}</p>
       <p className="text-sm opacity-80 mt-1">{text}</p>
+      {/* Extended explanation — used for the not-found case where the
+          user benefits from understanding WHY the ministry didn't return
+          data (most often: vehicle hasn't passed test for 2+ years and
+          is dropped from the public dataset). Kept optional so the
+          generic error tone stays terse. */}
+      {details && (
+        <p className="text-xs opacity-75 mt-3 leading-relaxed">{details}</p>
+      )}
+      {ctaLabel && ctaHref && (
+        <a href={ctaHref}
+          className="inline-block mt-4 text-xs font-bold underline underline-offset-2 hover:no-underline"
+          style={{ color: '#92400E' }}>
+          {ctaLabel}
+        </a>
+      )}
     </section>
   );
 }
