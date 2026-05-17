@@ -1139,7 +1139,7 @@ export default function AuthPage() {
                 <div className="text-center mb-6">
                   <h2 className="text-lg font-bold" style={{ color: C.greenDark }}>אימות האימייל</h2>
                   <p className="text-xs mt-2 leading-relaxed" style={{ color: C.muted }}>
-                    שלחנו קוד בן 6 ספרות אל
+                    שלחנו את קוד האימות אל
                   </p>
                   <p className="text-sm font-bold mt-1" dir="ltr" style={{ color: C.text }}>
                     {pendingEmail}
