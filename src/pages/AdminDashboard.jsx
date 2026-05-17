@@ -324,6 +324,38 @@ function FunnelWeakestStep({ funnel }) {
 }
 
 //
+// Apple Private Relay detection
+//
+// Apple's "Hide My Email" feature gives users a forwarding address of the
+// form `<random>@privaterelay.appleid.com`. The real address is never
+// shared with the app — by Apple's policy and API design, there's no way
+// to unmask it. Detecting and labelling these addresses helps the admin
+// understand that a "weird-looking" email isn't a typo or a fake
+// signup; it's a legitimate user who exercised Apple's privacy option.
+// Emails sent to this address will reach the user, just routed via
+// Apple's mail servers.
+function isAppleRelayEmail(email) {
+  return typeof email === 'string'
+    && email.toLowerCase().endsWith('@privaterelay.appleid.com');
+}
+
+// Tiny inline chip shown next to relay addresses. Keeps the row dense
+// so it doesn't push the action buttons out of the visible width on
+// medium-sized desktop windows. Tooltip carries the longer explanation
+// for admins who haven't seen the pattern before.
+function AppleRelayChip() {
+  return (
+    <span
+      className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0"
+      style={{ background: '#F3F4F6', color: '#374151' }}
+      title="המשתמש בחר ב-Hide My Email של אפל. אפל לא חושפת את הכתובת האמיתית, אבל כל מייל שתשלח לכאן יועבר אוטומטית למשתמש דרך השרתים של אפל."
+    >
+      Apple Relay
+    </span>
+  );
+}
+
+//
 // Main Component
 //
 
@@ -1633,6 +1665,7 @@ function AdminUsersTab({ onOpenDrawer }) {
                       {!u.email_confirmed_at && (
                         <span title="אימייל לא אומת" className="text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-bold shrink-0">!</span>
                       )}
+                      {isAppleRelayEmail(u.email) && <AppleRelayChip />}
                       <button onClick={() => copyEmail(u.email)} className="text-gray-400 shrink-0" aria-label="העתק">
                         <Copy className="w-3 h-3" />
                       </button>
@@ -1716,6 +1749,7 @@ function AdminUsersTab({ onOpenDrawer }) {
                         {!u.email_confirmed_at && (
                           <span title="אימייל לא אומת" className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">!</span>
                         )}
+                        {isAppleRelayEmail(u.email) && <AppleRelayChip />}
                         <button onClick={() => copyEmail(u.email)} className="text-gray-400 hover:text-gray-700" aria-label="העתק">
                           <Copy className="w-3 h-3" />
                         </button>
