@@ -1055,6 +1055,42 @@ export default function Dashboard() {
   // vehicle_shares, so sharees would see an empty Dashboard even after
   // accepting an invite. The view also exposes is_shared_with_me +
   // share_role columns so card components can render the indicator.
+  // localStorage snapshot key — scoped to the user + workspace so a
+  // different account in the same browser doesn't see leaked data.
+  // 30-minute freshness cap is well under the realtime invalidation
+  // window (useSharedVehicleRealtime cleans the cache on every share /
+  // notification event), so even a "stale" hydration corrects itself
+  // within seconds of a real change.
+  const VEHICLES_CACHE_KEY = (user?.id && accountId)
+    ? `cr-vehicles-cache:${user.id}:${accountId}`
+    : null;
+  const VEHICLES_CACHE_TTL_MS = 30 * 60 * 1000;
+
+  // Synchronous read on render. Used as initialData below so the first
+  // paint after a cold app launch shows the cached vehicle list
+  // immediately instead of a full-screen spinner. Bug reported by
+  // users 2026-05-17: entering the app showed a long loading state,
+  // but a quick round-trip to Documents and back was instant — the
+  // difference was React Query's in-memory cache, which dies on every
+  // page reload. Persisting a slim copy to localStorage closes the
+  // gap. Returns { data, ts } | null. Caller compares ts against
+  // VEHICLES_CACHE_TTL_MS so an abandoned tab doesn't render a
+  // months-old list.
+  const readVehiclesCache = () => {
+    if (!VEHICLES_CACHE_KEY) return null;
+    try {
+      const raw = localStorage.getItem(VEHICLES_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed.ts !== 'number' || !Array.isArray(parsed.data)) return null;
+      if (Date.now() - parsed.ts > VEHICLES_CACHE_TTL_MS) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+  const cachedVehicles = readVehiclesCache();
+
   const { data: vehicles = [], isLoading: vehiclesLoading, isError: vehiclesError, refetch: refetchVehicles } = useQuery({
     queryKey: ['my-vehicles', user?.id, accountId],
     queryFn: async () => {
@@ -1084,7 +1120,43 @@ export default function Dashboard() {
     // stays exact for actual edits.
     staleTime: 10 * 60 * 1000,
     refetchOnWindowFocus: true,
+    // Seed React Query with the localStorage snapshot so the user
+    // doesn't see a full-screen spinner on cold app launch. The
+    // staleTime above kicks in immediately if the snapshot is fresh
+    // (no background refetch); if it's older, React Query refetches
+    // silently behind the still-rendered list.
+    initialData: cachedVehicles ? cachedVehicles.data : undefined,
+    initialDataUpdatedAt: cachedVehicles ? cachedVehicles.ts : undefined,
   });
+
+  // Persist successful fetches to localStorage so the NEXT cold start
+  // can hydrate from disk. Skipped when the data is empty AND fresh
+  // from cache (avoid clobbering a real list with an empty array
+  // during the brief moment before the query resolves). Wrapped in
+  // try/catch because Safari Private mode + iOS Capacitor occasionally
+  // throw QuotaExceededError, and a logging failure must not crash
+  // the dashboard.
+  useEffect(() => {
+    if (!VEHICLES_CACHE_KEY) return;
+    if (!Array.isArray(vehicles)) return;
+    // Don't overwrite a populated cache with [] during the very first
+    // mount before the query resolves — empty + no data = uninteresting.
+    if (vehicles.length === 0 && !cachedVehicles) return;
+    try {
+      localStorage.setItem(VEHICLES_CACHE_KEY, JSON.stringify({
+        ts: Date.now(),
+        data: vehicles,
+      }));
+    } catch {
+      // Quota / Private mode — silent, the in-memory React Query cache
+      // continues to work for the current session.
+    }
+    // VEHICLES_CACHE_KEY is derived from user.id + accountId so
+    // changing accounts re-evaluates it and re-writes under the new
+    // key. cachedVehicles is read once at mount; intentionally NOT
+    // a dep to avoid infinite re-write on every snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicles, VEHICLES_CACHE_KEY]);
 
   // Schedule device notifications for authenticated users.
   // Pass the FULL vehicle list (not filteredVehicles) so the user's UI
