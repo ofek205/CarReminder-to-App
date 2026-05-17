@@ -154,6 +154,12 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
         : { type: 'image',    source: { type: 'base64', media_type: mediaType, data: fileData } };
 
       const json = await aiRequest({
+        // Tags this scan so the global gate (app_config.
+        // scan_extraction_enabled) can short-circuit it. When the gate
+        // is off, aiRequest throws SCAN_EXTRACTION_DISABLED — the error
+        // mapping below routes the user to the preview step's manual
+        // entry path, which is the same fallback as a bad-image scan.
+        feature: 'scan_extraction',
         model: 'claude-sonnet-4-20250514',
         max_tokens: 500,
         messages: [{
@@ -190,7 +196,19 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     }
 
     if (!raw) {
-      // Map aiProxy error codes to Hebrew user-facing copy.
+      // Map aiProxy error codes to Hebrew user-facing copy. For the
+      // global-gate case (SCAN_EXTRACTION_DISABLED) we suppress the
+      // inline error — the AiScanUnavailableDialog at Layout level
+      // already explains it once per session, and the wizard's
+      // preview-with-manual-entry path is what the user gets either
+      // way. Same shape as the empty-extract path, no error chrome.
+      if (aiErrorCode === 'SCAN_EXTRACTION_DISABLED') {
+        setError('');
+        setExtracting(false);
+        setEditableFields({});
+        setStep('preview');
+        return;
+      }
       let msg;
       switch (aiErrorCode) {
         case 'TIMEOUT':

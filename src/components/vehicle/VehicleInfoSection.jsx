@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -6,7 +6,7 @@ import StatusBadge from "../shared/StatusBadge";
 import { getDateStatus, formatDateHe, isVessel, isOffroad, getVehicleLabels } from "../shared/DateStatusUtils";
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES } from "../vehicle/VehicleTypeSelector";
 import { COUNTRIES } from "../vehicle/CountryFlagSelect";
-import { Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Cog, ExternalLink, Camera, Loader2, Upload, AlertTriangle, Zap, Leaf, Hash } from "lucide-react";
+import { Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Cog, ExternalLink, Camera, Loader2, Upload, AlertTriangle, Zap, Leaf, Hash, Paperclip, ArrowRight, Sparkles, Info } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { db } from '@/lib/supabaseEntities';
 import { Link } from 'react-router-dom';
@@ -15,6 +15,7 @@ import { useAuth } from '../shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
+import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { compressImage } from '@/lib/imageCompress';
 
 // Israeli marinas
@@ -25,11 +26,35 @@ const ISRAEL_MARINAS = [
 ];
 import MileageUpdateWidget from "./MileageUpdateWidget";
 
-//  Renewal Dialog - scan document + update dates 
+//  Renewal Dialog - update expiry date (with optional document attach + AI scan)
+//
+//  Flow (post 2026-05-17 refactor — see ux + designer specs in commit body):
+//   1. step='upload'  → user picks: צלם / העלה / "המשך להזנה ידנית"
+//        Picking a file does NOT auto-trigger AI. It attaches the file
+//        and moves to 'manual'. This was the user-facing change request:
+//        AI scan must be an EXTRA action, not the default path.
+//   2. step='manual'  → date picker (HERO) + title (optional) + attached
+//        chip if a file was picked. An optional "✨ סרוק עם AI" button
+//        appears here only when the global `scan_extraction_enabled`
+//        flag is true AND a file is attached.
+//   3. step='scanning' → spinner during AI extraction.
+//   4. step='confirm' → AI's parse, with same fields editable.
+//   5. step='done'    → success card, auto-close after 800ms.
 function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
   const fileRef = useRef(null);
-  const [step, setStep] = useState('upload'); // upload | scanning | confirm | done
+  // upload | manual | scanning | confirm | done
+  const [step, setStep] = useState('upload');
+  // AI-extracted fields, populated only via scanDocument().
   const [aiResult, setAiResult] = useState(null);
+  // Snapshot of the uploaded file so the user can scan-with-AI later
+  // OR continue manually without re-picking. Cleared on reset().
+  const [uploadedDoc, setUploadedDoc] = useState(null); // { dataUrl, mimeType, name }
+  // Manual form state — used when the user enters values themselves.
+  const [manualForm, setManualForm] = useState({ title: '', expiry_date: '', issue_date: '' });
+  // Mirror of app_config.scan_extraction_enabled. Defaults TRUE during
+  // the load window so users on slow networks don't see the AI button
+  // flash in-out. Refreshed every time the dialog opens.
+  const [aiScanAllowed, setAiScanAllowed] = useState(true);
   const [error, setError] = useState('');
   const { isGuest, updateGuestVehicle, addGuestDocument } = useAuth();
   // Active-workspace account so the renewal document is filed under
@@ -45,8 +70,26 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
     ? (vesselMode ? 'כושר שייט' : 'רישיון רכב')
     : (vesselMode ? 'ביטוח ימי' : 'ביטוח');
 
-  const reset = () => { setStep('upload'); setAiResult(null); setError(''); };
+  // Refresh gate state every time the dialog opens. The admin can flip
+  // the flag any time; we don't cache across opens to avoid showing
+  // the "AI scan" button when it would just fail.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
+    return () => { cancelled = true; };
+  }, [open]);
 
+  const reset = () => {
+    setStep('upload');
+    setAiResult(null);
+    setUploadedDoc(null);
+    setManualForm({ title: '', expiry_date: '', issue_date: '' });
+    setError('');
+  };
+
+  // Pick a file and ATTACH it (no auto-scan). Moves to 'manual' so the
+  // user sees their attachment + the date picker right away.
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -55,18 +98,25 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
     // 8MB payload cap. PDFs and non-image files pass through unchanged.
     const ready = await compressImage(file);
     const reader = new FileReader();
-    reader.onload = (ev) => scanDocument(ev.target.result, ready?.type);
+    reader.onload = (ev) => {
+      setUploadedDoc({
+        dataUrl:  ev.target.result,
+        mimeType: ready?.type || file.type || 'image/jpeg',
+        name:     file.name || 'מסמך',
+      });
+      setError('');
+      setStep('manual');
+    };
     reader.readAsDataURL(ready);
   };
 
-  const scanDocument = async (base64, fileType) => {
+  const scanDocument = async () => {
+    if (!uploadedDoc?.dataUrl) return;
     setStep('scanning');
     setError('');
     try {
-      // Detect actual MIME from the data URL prefix (was hardcoded to
-      // PNG/JPEG which mis-tagged WEBP and PDF uploads).
-      const mimeMatch = base64.match(/^data:([^;]+);base64,/);
-      const mediaType = mimeMatch?.[1] || fileType || 'image/jpeg';
+      const base64 = uploadedDoc.dataUrl;
+      const mediaType = uploadedDoc.mimeType || 'image/jpeg';
       const imageData = base64.split(',')[1];
       const isPdf = mediaType === 'application/pdf';
       const sourcePart = isPdf
@@ -74,6 +124,11 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         : { type: 'image',    source: { type: 'base64', media_type: mediaType, data: imageData } };
 
       const json = await aiRequest({
+        // Tags this call as a scan so the global gate (`app_config.
+        // scan_extraction_enabled`) can short-circuit it. When the gate
+        // is off aiRequest throws SCAN_EXTRACTION_DISABLED and we route
+        // back to 'manual' with the file still attached.
+        feature: 'scan_extraction',
         model: 'claude-sonnet-4-20250514',
         max_tokens: 300,
         messages: [{
@@ -101,62 +156,89 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         });
         setStep('confirm');
       } else {
-        setError('לא הצלחתי לקרוא את המסמך. נסה תמונה ברורה יותר.');
-        setStep('upload');
+        // AI replied but couldn't read the doc. Don't trap the user on
+        // upload — drop them into manual entry with the file still
+        // attached. Their effort isn't lost.
+        setError('הסריקה לא חילצה פרטים. אפשר להזין ידנית.');
+        setStep('manual');
       }
     } catch (err) {
       console.error('Document scan error:', err?.code, err?.message);
-      // Surface the actual failure cause instead of the generic
-      // "שגיאה בסריקה". Network/auth/quota issues each have their
-      // own remediation.
+      // When the global gate is off, route silently to manual — the
+      // AiScanUnavailableDialog (mounted at Layout level) already
+      // explains the situation, no need for an inline error too.
+      if (err?.code === 'SCAN_EXTRACTION_DISABLED') {
+        setAiScanAllowed(false);
+        setStep('manual');
+        return;
+      }
       let msg;
       switch (err?.code) {
-        case 'TIMEOUT':              msg = 'התשובה מהשרת מאחרת. נסה ברשת יציבה יותר.'; break;
-        case 'NETWORK':              msg = 'אין חיבור לאינטרנט. בדוק את הרשת.'; break;
-        case 'RATE_LIMIT':           msg = 'יותר מדי סריקות. נסה בעוד דקה.'; break;
+        case 'TIMEOUT':              msg = 'התשובה מהשרת מאחרת. אפשר להזין ידנית.'; break;
+        case 'NETWORK':              msg = 'אין חיבור לאינטרנט. אפשר להזין ידנית.'; break;
+        case 'RATE_LIMIT':           msg = 'יותר מדי סריקות. נסה בעוד דקה או הזן ידנית.'; break;
         case 'UNAUTHORIZED':
         case 'NO_SESSION':           msg = 'ההתחברות פגה. יש להתחבר מחדש.'; break;
         case 'PROVIDER_UNAVAILABLE':
-        case 'AI_UNAVAILABLE':       msg = 'שירות AI לא זמין כרגע. נסה בעוד רגע.'; break;
-        default:                     msg = 'שגיאה בסריקה. נסה שוב או תמונה ברורה יותר.';
+        case 'AI_UNAVAILABLE':       msg = 'שירות הסריקה לא זמין כרגע. אפשר להזין ידנית.'; break;
+        default:                     msg = 'הסריקה לא הצליחה. אפשר להזין ידנית.';
       }
       setError(msg);
-      setStep('upload');
+      // Failed scans drop into manual entry, not back to upload. The
+      // user's effort (the file) is preserved; they just continue
+      // typing what they need.
+      setStep('manual');
     }
   };
 
-  const isNewer = aiResult?.expiry_date && currentDate
-    ? new Date(aiResult.expiry_date) > new Date(currentDate)
-    : true; // If no current date, anything is fine
+  // Whichever expiry_date is currently being shown (confirm uses
+  // aiResult, manual uses manualForm). Drives the "not-newer-than-
+  // current" warning chip.
+  const stagedExpiry = step === 'confirm' ? aiResult?.expiry_date : manualForm.expiry_date;
+  const isNewer = stagedExpiry && currentDate
+    ? new Date(stagedExpiry) > new Date(currentDate)
+    : true;
 
+  // Unified save — works for both 'confirm' (AI flow) and 'manual'
+  // (typed entry). Document save is best-effort and skipped when no
+  // file is attached (a pure date update is fully valid).
   const handleSave = async () => {
-    if (!aiResult?.expiry_date) { setError('חסר תאריך תוקף'); return; }
+    const fromAi = step === 'confirm';
+    const expiry = fromAi ? aiResult?.expiry_date : manualForm.expiry_date;
+    if (!expiry) { setError('חסר תאריך תוקף'); return; }
+    const title        = (fromAi ? aiResult?.title : manualForm.title) || docLabel;
+    const issue        = fromAi ? aiResult?.issue_date : manualForm.issue_date;
+    const documentType = fromAi ? aiResult?.document_type : docLabel;
+
     setStep('done');
     try {
-      // 1. Save document
-      const doc = {
-        document_type: aiResult.document_type,
-        title: aiResult.title || docLabel,
-        issue_date: aiResult.issue_date || null,
-        expiry_date: aiResult.expiry_date,
-        vehicle_id: vehicle.id,
-      };
-      if (isGuest) {
-        addGuestDocument(doc);
-      } else if (accountId) {
-        // Auth: file the renewal document under the active workspace.
-        // Skip silently if accountId hasn't resolved yet — the date
-        // update on the vehicle is the main action; the document is a
-        // bonus and can be uploaded again next time without harm.
-        try {
-          await db.documents.create({ ...doc, account_id: accountId });
-        } catch (err) {
-          console.warn('Document save skipped:', err?.message);
+      // 1. Save document — only when a file is attached. A user who
+      // just wants to update the expiry date (no doc on hand) is fully
+      // supported and we don't fabricate an empty document row.
+      if (uploadedDoc?.dataUrl) {
+        const doc = {
+          document_type: documentType,
+          title,
+          issue_date: issue || null,
+          expiry_date: expiry,
+          vehicle_id: vehicle.id,
+        };
+        if (isGuest) {
+          addGuestDocument(doc);
+        } else if (accountId) {
+          // Auth: file under the active workspace. Skip silently if
+          // accountId hasn't resolved yet — the date update on the
+          // vehicle is the main action and survives that miss.
+          try {
+            await db.documents.create({ ...doc, account_id: accountId });
+          } catch (saveErr) {
+            console.warn('Document save skipped:', saveErr?.message);
+          }
         }
       }
 
-      // 2. Update vehicle date
-      const update = { [dateField]: aiResult.expiry_date };
+      // 2. Update vehicle date — always.
+      const update = { [dateField]: expiry };
       if (isGuest) {
         updateGuestVehicle(vehicle.id, update);
       } else {
@@ -169,9 +251,11 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
     } catch (err) {
       console.error('Renewal save error:', err);
       setError('שגיאה בשמירה. נסה שוב.');
-      setStep('confirm');
+      setStep(fromAi ? 'confirm' : 'manual');
     }
   };
+
+  const canSaveManual = !!manualForm.expiry_date;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); reset(); } }}>
@@ -180,11 +264,13 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
           <DialogTitle className="text-base font-bold">{step === 'done' ? '✅ עודכן!' : `חידוש ${docLabel}`}</DialogTitle>
         </DialogHeader>
 
-        {/* Upload step */}
+        {/* Upload step — three actions: camera / upload / continue-without-doc.
+            Per UX spec, picking a file ATTACHES it and routes to manual;
+            it no longer auto-triggers AI extraction. */}
         {step === 'upload' && (
           <div className="space-y-3 pt-1">
             <p className="text-sm" style={{ color: '#6B7280' }}>
-              אם חידשת {docLabel} - העלה את המסמך כדי שנעדכן את הפרטים אוטומטית
+              עדכן את תוקף {docLabel}. אפשר לצרף מסמך לתיוק או להמשיך ישר להזנת תאריך.
             </p>
             {error && (
               <div className="flex items-center gap-2 p-2.5 rounded-xl bg-red-50 border border-red-200">
@@ -195,15 +281,127 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
             <div className="flex gap-2">
               <button type="button" onClick={() => fileRef.current?.click()}
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
+                className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
                 style={{ background: T.light, color: T.primary, border: `1.5px solid ${T.border}` }}>
-                <Upload className="w-4 h-4" /> העלה תמונה
+                <Upload className="w-5 h-5" />
+                <span>העלה קובץ</span>
               </button>
-              <label className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm cursor-pointer transition-all active:scale-[0.97]"
-                style={{ background: T.primary, color: '#fff' }}>
-                <Camera className="w-4 h-4" /> צלם
+              <label className="flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl font-bold text-sm cursor-pointer transition-all active:scale-[0.97]"
+                style={{ background: T.light, color: T.primary, border: `1.5px solid ${T.border}` }}>
+                <Camera className="w-5 h-5" />
+                <span>צלם מסמך</span>
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
               </label>
+            </div>
+
+            {/* Or-divider + direct path to manual entry — the primary
+                action for users who only want to update the date. */}
+            <div className="flex items-center gap-2 py-1">
+              <div className="flex-1 h-px" style={{ background: '#E5E7EB' }} />
+              <span className="text-xs" style={{ color: '#9CA3AF' }}>או</span>
+              <div className="flex-1 h-px" style={{ background: '#E5E7EB' }} />
+            </div>
+            <button type="button" onClick={() => setStep('manual')}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
+              style={{ background: T.primary, color: '#fff' }}>
+              <ArrowRight className="w-4 h-4" />
+              <span>המשך להזנת תאריך ידנית</span>
+            </button>
+
+            {/* AI-disabled chip — quiet info, not an alarm. Appears only
+                when the admin has flipped scan_extraction off. */}
+            {!aiScanAllowed && (
+              <div className="flex items-center justify-center gap-1.5 mt-1">
+                <Info className="w-3 h-3" style={{ color: '#92400E' }} />
+                <span className="text-[11px] font-bold" style={{ color: '#92400E' }}>
+                  סריקה אוטומטית כרגע לא פעילה
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Manual entry step — date is the hero, title is optional, the
+            attached file (if any) is shown as a chip. An "AI scan" button
+            appears here when both (a) a file is attached and (b) the
+            global gate is on. */}
+        {step === 'manual' && (
+          <div className="space-y-3 pt-1">
+            {/* Attached doc chip */}
+            {uploadedDoc && (
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl"
+                style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <Paperclip className="w-3.5 h-3.5 shrink-0" style={{ color: '#16A34A' }} />
+                  <span className="text-xs font-bold truncate" style={{ color: '#15803D' }}>
+                    {uploadedDoc.name}
+                  </span>
+                </span>
+                <button type="button" onClick={() => setUploadedDoc(null)}
+                  className="text-[11px] font-bold shrink-0" style={{ color: '#9CA3AF' }}>
+                  הסר
+                </button>
+              </div>
+            )}
+
+            {error && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-red-50 border border-red-200">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                <span className="text-xs font-bold text-red-700">{error}</span>
+              </div>
+            )}
+
+            {/* HERO field — expiry date */}
+            <div>
+              <label className="block text-sm font-bold mb-1.5" style={{ color: T.primary }}>
+                תוקף חדש <span className="text-red-500">*</span>
+              </label>
+              <Input type="date" dir="ltr"
+                value={manualForm.expiry_date}
+                onChange={e => setManualForm(f => ({ ...f, expiry_date: e.target.value }))}
+                className="h-12 text-base font-bold tabular-nums" />
+              {!isNewer && manualForm.expiry_date && (
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" style={{ color: '#D97706' }} />
+                  <span className="text-[11px]" style={{ color: '#92400E' }}>
+                    התאריך זהה או ישן יותר מהקיים ({formatDateHe(currentDate)})
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Optional title */}
+            <div>
+              <label className="block text-xs mb-1" style={{ color: '#6B7280' }}>
+                כותרת המסמך
+              </label>
+              <Input type="text"
+                placeholder={docLabel}
+                value={manualForm.title}
+                onChange={e => setManualForm(f => ({ ...f, title: e.target.value }))}
+                className="h-10 text-sm" />
+            </div>
+
+            {/* Optional AI scan — visible only with file + gate on */}
+            {uploadedDoc && aiScanAllowed && (
+              <button type="button" onClick={scanDocument}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-[0.97]"
+                style={{ background: '#FFFBEB', color: '#92400E', border: '1px solid #FDE68A' }}>
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>נסה סריקה אוטומטית עם AI</span>
+              </button>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={handleSave} disabled={!canSaveManual}
+                className="flex-1 py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: T.primary, color: '#fff' }}>
+                <CheckCircle2 className="w-4 h-4 inline ml-1" /> שמור ועדכן
+              </button>
+              <button onClick={() => { setError(''); setStep('upload'); }}
+                className="px-4 py-3 rounded-xl font-bold text-sm" style={{ color: '#9CA3AF' }}>
+                חזור
+              </button>
             </div>
           </div>
         )}

@@ -641,6 +641,22 @@ function KeyInfoGrid({ result }) {
   }
 
   const kmTile = formatKm(r.currentKm);
+  // 2026-05-17: ההערה הקטנה הזאת מציינת שמקור הקילומטראז' הוא מתוצאות
+  // הטסט האחרון של משרד התחבורה. ללא ההסבר הזה משתמשים חושבים שזה ערך
+  // בזמן אמת, וברוב המקרים הוא יושן יחסית. הפורמט "חודש בעברית + שנה"
+  // נבחר על ידי הקופירייטר כדי לא להעמיס יום ביום שאין עליו ערך מוסף.
+  const lastTestSourceText = (() => {
+    const raw = r.lastTestDate;
+    if (!raw) return 'מתוצאות הטסט האחרון';
+    try {
+      const d = new Date(raw);
+      if (Number.isNaN(d.getTime())) return 'מתוצאות הטסט האחרון';
+      const monthYear = d.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+      return `מתוצאות הטסט · ${monthYear}`;
+    } catch {
+      return 'מתוצאות הטסט האחרון';
+    }
+  })();
   const items = [
     {
       icon: Gauge,
@@ -651,6 +667,10 @@ function KeyInfoGrid({ result }) {
       hint: annualKm !== null
         ? { text: `~${annualKm.toLocaleString('he-IL')} ק״מ/שנה`, badge: annualKmBand?.label, tone: annualKmBand?.tone }
         : null,
+      // Mileage source line. Always shown on the km tile because even
+      // without a precise date, the user benefits from knowing the value
+      // is a snapshot from the last MOT test rather than a live reading.
+      source: lastTestSourceText,
     },
     { icon: Gauge, label: 'נפח מנוע', value: t.engineCc },
     { icon: Wrench, label: 'סוג דלק', value: t.fuelType },
@@ -677,6 +697,11 @@ function KeyInfoGrid({ result }) {
                   {item.hint.badge && (
                     <span className={`mr-1.5 font-bold ${item.hint.tone}`}>· {item.hint.badge}</span>
                   )}
+                </p>
+              )}
+              {item.source && (
+                <p className="text-[10px] mt-1 leading-snug text-gray-400">
+                  {item.source}
                 </p>
               )}
             </div>

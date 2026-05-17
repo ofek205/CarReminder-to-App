@@ -96,6 +96,14 @@ export default function EditVehicle() {
     insurance_company_other: v.insurance_company === 'אחר' ? (v.insurance_company_text || '') : '',
     current_km: v.current_km || '',
     current_engine_hours: v.current_engine_hours || '',
+    // 2026-05-17 gov.il auto-sync infrastructure:
+    //   _initialCurrentKm captures the value at load time so the save
+    //     handler can detect a real edit and stamp
+    //     last_manual_km_update_at only then (vs every save).
+    //   auto_sync_enabled is the per-vehicle on/off toggle; defaults
+    //     to true so existing rows opt in automatically.
+    _initialCurrentKm: v.current_km != null ? String(v.current_km) : '',
+    auto_sync_enabled: v.auto_sync_enabled ?? true,
     vehicle_photo: v.vehicle_photo || '',
     // Sprint A.B-2: Storage path for the vehicle photo. Pre-load from the
     // existing row so a user who only edits, say, the nickname keeps their
@@ -339,7 +347,11 @@ export default function EditVehicle() {
       'offroad_equipment','offroad_usage_type','last_offroad_service_date',
       'inspection_report_expiry_date',
       'ownership_hand','ownership_history',
-      'is_personal_import','personal_import_type'];
+      'is_personal_import','personal_import_type',
+      // 2026-05-17 gov.il auto-sync columns. last_manual_km_update_at is
+      // stamped further down only when current_km actually changed; the
+      // boolean toggle saves through unconditionally.
+      'auto_sync_enabled', 'last_manual_km_update_at'];
 
     const data = {};
     DB_COLUMNS.forEach(k => { if (form[k] !== undefined && form[k] !== null) data[k] = form[k]; });
@@ -355,6 +367,21 @@ export default function EditVehicle() {
     }
     if (form.current_km) data.current_km = Number(form.current_km);
     if (form.current_engine_hours) data.current_engine_hours = Number(form.current_engine_hours);
+    // 2026-05-17: stamp last_manual_km_update_at ONLY when the user
+    // actually changed the value. The gov.il auto-sync uses this
+    // timestamp to decide whether it's allowed to overwrite current_km
+    // with a fresher ministry reading — if the user has touched the
+    // field manually after the last test date, their value wins.
+    // Re-saving the form without touching the km should NOT block the
+    // sync; otherwise the user gets locked out of all future updates
+    // just because they opened the edit form once.
+    {
+      const initialKm = form._initialCurrentKm || '';
+      const currentKm = form.current_km != null ? String(form.current_km) : '';
+      if (initialKm !== currentKm) {
+        data.last_manual_km_update_at = new Date().toISOString();
+      }
+    }
     // Off-road toggleable types (jeep / ATV / dune buggy / dirt-bike)
     // can use either km or engine hours. The picker (`usesHours()`)
     // decides per row by checking that ONLY the chosen column is set —
@@ -510,6 +537,10 @@ export default function EditVehicle() {
   const vesselMode = isVesselType(form.vehicle_type, form.nickname);
   const offroadMode = isOffroad(form.vehicle_type);
   const cmeMode = isCme(form.vehicle_type);
+  // 2026-05-17: hasRegistration = false עבור מוטוקרוס בלבד.
+  // מוטוקרוס מסלולי בלבד, אין לו מספר רישוי, אין חובה לטסט שנתי,
+  // אין ביטוח חובה. שדות הרישוי בטופס מוסתרים כשהדגל false.
+  const hasRegistration = form.vehicle_type !== 'מוטוקרוס';
   const hasOffroadData = (form.offroad_equipment?.length > 0 || form.offroad_usage_type || form.last_offroad_service_date);
 
   const VehicleIcon = vesselMode ? Ship : Car;
@@ -583,11 +614,14 @@ export default function EditVehicle() {
               placeholder={vesselMode ? 'למשל: היאכטה שלי' : 'למשל: הקורולה של אבא'} />
           </div>
 
-          {/* מספר רישוי - full width */}
-          <div data-field="license_plate" className="rounded-xl p-1 -m-1 transition-all">
-            <Label>{vesselMode ? 'מספר זיהוי כלי שייט *' : 'מספר רישוי *'}</Label>
-            <Input value={form.license_plate} onChange={e => handleChange('license_plate', e.target.value)} required dir="ltr" placeholder={vesselMode ? 'IL-12345' : '00-000-00'} />
-          </div>
+          {/* מספר רישוי - full width.
+              2026-05-17: מוסתר עבור מוטוקרוס (אין רישוי בכביש). */}
+          {hasRegistration && (
+            <div data-field="license_plate" className="rounded-xl p-1 -m-1 transition-all">
+              <Label>{vesselMode ? 'מספר זיהוי כלי שייט *' : 'מספר רישוי *'}</Label>
+              <Input value={form.license_plate} onChange={e => handleChange('license_plate', e.target.value)} required dir="ltr" placeholder={vesselMode ? 'IL-12345' : '00-000-00'} />
+            </div>
+          )}
 
           {/* יצרן + דגם - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
@@ -654,17 +688,20 @@ export default function EditVehicle() {
             </div>
           </div>
 
-          {/* טסט + ביטוח - 2 columns */}
-          <div className="grid grid-cols-2 gap-3">
-            <div data-field="test_due_date" className="rounded-xl p-1 -m-1 transition-all">
-              <Label>{vesselMode ? 'כושר שייט' : 'תאריך טסט'}</Label>
-              <DateInput value={form.test_due_date} onChange={e => handleChange('test_due_date', e.target.value)} />
+          {/* טסט + ביטוח - 2 columns.
+              2026-05-17: השורה כולה מוסתרת עבור מוטוקרוס. */}
+          {hasRegistration && (
+            <div className="grid grid-cols-2 gap-3">
+              <div data-field="test_due_date" className="rounded-xl p-1 -m-1 transition-all">
+                <Label>{vesselMode ? 'כושר שייט' : 'תאריך טסט'}</Label>
+                <DateInput value={form.test_due_date} onChange={e => handleChange('test_due_date', e.target.value)} />
+              </div>
+              <div data-field="insurance_due_date" className="rounded-xl p-1 -m-1 transition-all">
+                <Label>{vesselMode ? 'תוקף ביטוח ימי' : 'חידוש ביטוח'}</Label>
+                <DateInput value={form.insurance_due_date} onChange={e => handleChange('insurance_due_date', e.target.value)} />
+              </div>
             </div>
-            <div data-field="insurance_due_date" className="rounded-xl p-1 -m-1 transition-all">
-              <Label>{vesselMode ? 'תוקף ביטוח ימי' : 'חידוש ביטוח'}</Label>
-              <DateInput value={form.insurance_due_date} onChange={e => handleChange('insurance_due_date', e.target.value)} />
-            </div>
-          </div>
+          )}
 
           {/* תסקיר — periodic safety certificate required by law for
               כלי צמ"ה only (forklifts, excavators, telehandlers,
@@ -686,8 +723,10 @@ export default function EditVehicle() {
             </div>
           )}
 
-          {/* ק"מ/שעות + חברת ביטוח - 2 columns */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* ק"מ/שעות + חברת ביטוח - 2 columns.
+              2026-05-17: כשמדובר במוטוקרוס, ה-grid עובר לעמודה אחת
+              ומציג רק את שדה הק"מ או שעות. חברת ביטוח לא רלוונטית. */}
+          <div className={hasRegistration ? "grid grid-cols-2 gap-3" : ""}>
             <div data-field={vesselMode || usageMetric === 'שעות מנוע' ? 'current_engine_hours' : 'current_km'} className="rounded-xl p-1 -m-1 transition-all">
               <div className="flex items-center justify-between mb-1">
                 <Label className="mb-0">{vesselMode || usageMetric === 'שעות מנוע' ? 'שעות מנוע' : 'קילומטראז׳'}</Label>
@@ -704,24 +743,51 @@ export default function EditVehicle() {
                 value={vesselMode || usageMetric === 'שעות מנוע' ? form.current_engine_hours : form.current_km}
                 onChange={e => handleChange(vesselMode || usageMetric === 'שעות מנוע' ? 'current_engine_hours' : 'current_km', e.target.value)} />
             </div>
-            <div>
-              <Label>{vesselMode ? 'חברת ביטוח ימי' : 'חברת ביטוח'}</Label>
-              <Select value={form.insurance_company} onValueChange={v => handleChange('insurance_company', v)}>
-                <SelectTrigger><SelectValue placeholder="בחר חברה..." /></SelectTrigger>
-                <SelectContent>
-                  {(vesselMode
-                    ? ['הכשרה','כלל','הפניקס','הראל','איילון','מגדל','שירביט','AIG','אחר']
-                    : ['הפניקס','כלל','ישיר','מגדל','הראל','איילון','ליברה','AIG','שומרה','הכשרה','מנורה מבטחים','שירביט','אחר']
-                  ).map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {form.insurance_company === 'אחר' && (
-                <Input className="mt-2" placeholder="שם החברה" value={form.insurance_company_other} onChange={e => handleChange('insurance_company_other', e.target.value)} />
-              )}
-            </div>
+            {hasRegistration && (
+              <div>
+                <Label>{vesselMode ? 'חברת ביטוח ימי' : 'חברת ביטוח'}</Label>
+                <Select value={form.insurance_company} onValueChange={v => handleChange('insurance_company', v)}>
+                  <SelectTrigger><SelectValue placeholder="בחר חברה..." /></SelectTrigger>
+                  <SelectContent>
+                    {(vesselMode
+                      ? ['הכשרה','כלל','הפניקס','הראל','איילון','מגדל','שירביט','AIG','אחר']
+                      : ['הפניקס','כלל','ישיר','מגדל','הראל','איילון','ליברה','AIG','שומרה','הכשרה','מנורה מבטחים','שירביט','אחר']
+                    ).map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.insurance_company === 'אחר' && (
+                  <Input className="mt-2" placeholder="שם החברה" value={form.insurance_company_other} onChange={e => handleChange('insurance_company_other', e.target.value)} />
+                )}
+              </div>
+            )}
           </div>
+
+          {/* 2026-05-17: gov.il auto-sync per-vehicle toggle. Shown only
+              for vehicles that have a license plate (hasRegistration —
+              motocross / unregistered → no API to sync against). Default
+              ON so existing users opt in without having to find this
+              setting first. */}
+          {hasRegistration && !vesselMode && (
+            <label className="flex items-start gap-3 rounded-xl p-3 cursor-pointer transition-colors hover:bg-gray-50"
+              style={{ border: '1px solid #E5E7EB' }}>
+              <input
+                type="checkbox"
+                checked={form.auto_sync_enabled !== false}
+                onChange={e => handleChange('auto_sync_enabled', e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded accent-[#2D5233]"
+              />
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-semibold text-gray-800">
+                  סנכרון אוטומטי ממשרד התחבורה
+                </span>
+                <span className="block text-[11px] text-gray-500 mt-0.5 leading-snug">
+                  לאחר טסט שנתי נעדכן את הקילומטראז' ותוקף הטסט אוטומטית, ונשלח התראה.
+                </span>
+              </span>
+            </label>
+          )}
 
           {/* דגל + מרינה - vessels only */}
           {vesselMode && (

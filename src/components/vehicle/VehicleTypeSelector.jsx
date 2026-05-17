@@ -14,11 +14,19 @@ export const BOAT_SUBCATEGORIES = [
   { label: 'סירת גומי',   dbName: 'סירת גומי',    usageMetric: 'שעות מנוע' },
 ];
 
-//  Sub-categories for "אופנועים" (כולל אופנוע שטח) 
+//  Sub-categories for "אופנועים" (כולל אופנוע שטח)
+//
+//  2026-05-17 — "אופנוע שטח" was split into two: אנדורו (street-legal,
+//  carries a license plate, has annual test + insurance) and מוטוקרוס
+//  (track-only, no plate, no test, no insurance). The dbName for the
+//  legacy bucket is preserved as an alias in MaintenanceCatalog so
+//  existing rows with vehicle_type='אופנוע שטח' keep functioning,
+//  but new vehicles pick one of the two specific options.
 export const MOTO_SUBCATEGORIES = [
   { label: 'אופנוע כביש',  dbName: 'אופנוע כביש',  usageMetric: 'קילומטרים' },
   { label: 'קטנוע',        dbName: 'קטנוע',         usageMetric: 'קילומטרים' },
-  { label: 'אופנוע שטח',  dbName: 'אופנוע שטח',   usageMetric: 'קילומטרים' },
+  { label: 'אנדורו',       dbName: 'אנדורו',        usageMetric: 'קילומטרים' },
+  { label: 'מוטוקרוס',     dbName: 'מוטוקרוס',      usageMetric: 'קילומטרים' },
 ];
 
 //  Sub-categories for "מיוחדים"
@@ -83,11 +91,13 @@ export const CME_SUBCATEGORIES = [
   { label: 'ציוד קידוח',    dbName: 'ציוד קידוח',    usageMetric: 'שעות מנוע' },
 ];
 
-//  Sub-categories for "כלי שטח" (כולל אופנוע שטח וטרקטורון) 
+//  Sub-categories for "כלי שטח" (כולל אופנוע שטח וטרקטורון)
+//  2026-05-17: אופנוע שטח split into אנדורו / מוטוקרוס (see MOTO_SUBCATEGORIES).
 export const OFFROAD_SUBCATEGORIES = [
   { label: "ג'יפ שטח",       dbName: "ג'יפ שטח",       usageMetric: 'קילומטרים' },
   { label: 'טרקטורון',       dbName: 'טרקטורון',        usageMetric: 'קילומטרים' },
-  { label: 'אופנוע שטח',    dbName: 'אופנוע שטח',     usageMetric: 'קילומטרים' },
+  { label: 'אנדורו',         dbName: 'אנדורו',          usageMetric: 'קילומטרים' },
+  { label: 'מוטוקרוס',       dbName: 'מוטוקרוס',        usageMetric: 'קילומטרים' },
   { label: 'RZR / באגי',     dbName: 'RZR',             usageMetric: 'שעות מנוע' },
   { label: "ריינג'ר / מיול", dbName: 'מיול',            usageMetric: 'שעות מנוע' },
   { label: 'באגי חולות',     dbName: 'באגי חולות',      usageMetric: 'קילומטרים' },
@@ -118,6 +128,8 @@ export const OFFROAD_USAGE_TYPES = [
 export const MANUFACTURERS_BY_SUBCATEGORY = {
   'אופנוע כביש':  ['Honda', 'Yamaha', 'SYM', 'Kawasaki', 'Suzuki', 'KTM', 'BMW Motorrad', 'Ducati', 'Harley-Davidson', 'Triumph', 'Royal Enfield', 'Aprilia'],
   'אופנוע שטח':   ['KTM', 'Husqvarna', 'Honda', 'Yamaha', 'Kawasaki', 'Suzuki', 'GasGas', 'Beta', 'Sherco', 'TM Racing', 'Fantic'],
+  'אנדורו':       ['KTM', 'Husqvarna', 'Honda', 'Yamaha', 'Kawasaki', 'Suzuki', 'GasGas', 'Beta', 'Sherco', 'TM Racing', 'Fantic'],
+  'מוטוקרוס':     ['KTM', 'Husqvarna', 'Honda', 'Yamaha', 'Kawasaki', 'Suzuki', 'GasGas', 'Beta', 'Sherco', 'TM Racing', 'Fantic'],
   'קטנוע':        ['Honda', 'Yamaha', 'SYM', 'Kymco', 'Vespa', 'Aprilia', 'Suzuki', 'Kawasaki', 'Peugeot'],
   'מפרשית':       ['Beneteau', 'Jeanneau', 'Bavaria', 'Dufour', 'Hanse', 'Catalina', 'Hunter', 'Hallberg-Rassy', 'Oyster', 'Swan', 'Dehler', 'J/Boats'],
   'סירה מנועית':  ['Beneteau', 'Sea Ray', 'Boston Whaler', 'Bayliner', 'Chaparral', 'Jeanneau', 'Yamaha', 'Grady-White', 'Sunseeker', 'Riva', 'MasterCraft', 'Cobalt'],
@@ -278,10 +290,14 @@ const LOCAL_VEHICLE_TYPES = [
   { id: 'vt-motor',     name: 'סירה מנועית',     usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-jetski',    name: 'אופנוע ים',       usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-dinghy',    name: 'סירת גומי',       usage_metric: 'שעות מנוע',  scope: 'global' },
-  //  כלי שטח (אופנוע שטח + טרקטורון כאן בלבד) 
+  //  כלי שטח (אופנוע שטח + טרקטורון כאן בלבד)
+  //  2026-05-17: אנדורו ומוטוקרוס נוספו כיורשי אופנוע שטח הישן.
+  //  אופנוע שטח עצמו נשמר במרשם לתאימות לרכבים קיימים שכבר תויגו בו.
   { id: 'vt-jeep-off',  name: "ג'יפ שטח",       usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-atv',       name: 'טרקטורון',        usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-moto-off',  name: 'אופנוע שטח',     usage_metric: 'קילומטרים',  scope: 'global' },
+  { id: 'vt-enduro',    name: 'אנדורו',          usage_metric: 'קילומטרים',  scope: 'global' },
+  { id: 'vt-mx',        name: 'מוטוקרוס',        usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-rzr',       name: 'RZR',             usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-mule',      name: 'מיול',            usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-dunebuggy', name: 'באגי חולות',      usage_metric: 'קילומטרים',  scope: 'global' },

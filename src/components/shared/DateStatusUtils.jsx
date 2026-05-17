@@ -22,6 +22,9 @@ export function getVehicleTypeIcon(type) {
     case 'רכב': return '🚗';
     case 'אופנוע כביש': return '🏍️';
     case 'אופנוע שטח': return '🏔️';
+    // 2026-05-17: אנדורו ומוטוקרוס שניהם אופנועי שטח מבחינת אייקון.
+    case 'אנדורו': return '🏔️';
+    case 'מוטוקרוס': return '🏔️';
     case 'טרקטורון': return '🏎️';
     case 'קטנוע': return '🛵';
     case "ג'יפ שטח": case 'כלי שטח': return '🏔️';
@@ -37,9 +40,11 @@ export function normalizePlate(plate) {
   return plate.replace(/[^0-9]/g, '');
 }
 
-/** Off-road vehicle types */
+/** Off-road vehicle types.
+ *  2026-05-17: אנדורו ומוטוקרוס נוספו כי הם החלפים החדשים של "אופנוע שטח"
+ *  הישן. שניהם כלי שטח לכל דבר ועניין מבחינת לוגיקת תצוגה. */
 const OFFROAD_TYPES = new Set([
-  'כלי שטח', "ג'יפ שטח", 'טרקטורון', 'אופנוע שטח', 'RZR', 'מיול', 'באגי חולות',
+  'כלי שטח', "ג'יפ שטח", 'טרקטורון', 'אופנוע שטח', 'אנדורו', 'מוטוקרוס', 'RZR', 'מיול', 'באגי חולות',
 ]);
 // Always-hours types: read engine hours, never km. Includes the
 // off-road toys that physically use a Hobbs meter (RZR / מיול) AND the
@@ -93,7 +98,9 @@ export function isVessel(vehicleType, nickname) {
 // Off-road types where the user can choose either metric (km *or* engine hours).
 // For these, we detect the active metric from the vehicle's own data. if
 // current_engine_hours is set and current_km isn't, the user picked hours.
-const OFFROAD_TOGGLE_TYPES = new Set(["ג'יפ שטח", 'טרקטורון', 'באגי חולות', 'אופנוע שטח']);
+// 2026-05-17: אנדורו ומוטוקרוס נוספו כיורשי 'אופנוע שטח' הישן. שניהם
+// יכולים להימדד בק"מ או בשעות לבחירת המשתמש, כמו כל אופנוע שטח.
+const OFFROAD_TOGGLE_TYPES = new Set(["ג'יפ שטח", 'טרקטורון', 'באגי חולות', 'אופנוע שטח', 'אנדורו', 'מוטוקרוס']);
 
 // Both helpers accept EITHER (vehicleType, nickname). original signature used
 // all over the app. OR a full vehicle object (preferred for toggle-able

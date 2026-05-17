@@ -871,6 +871,25 @@ export default function Dashboard() {
   const [profileMissing, setProfileMissing] = useState(false);
   const [quickCheckPlate, setQuickCheckPlate] = useState('');
   const [quickCheckSubmitting, setQuickCheckSubmitting] = useState(false);
+  // Sequencing flag: while the daily WelcomePopup ("טוב שחזרת") is on
+  // screen, defer the FirstTimeTour so two onboarding layers don't stack
+  // on the same render. Layout.jsx broadcasts `cr:welcome-open` /
+  // `cr:welcome-closed` whenever its internal welcomeState transitions,
+  // and mirrors the same state synchronously on window.__crWelcomeActive
+  // so this component can read it on first mount before the events fire.
+  const [welcomeBlocking, setWelcomeBlocking] = useState(
+    () => typeof window !== 'undefined' && !!window.__crWelcomeActive
+  );
+  useEffect(() => {
+    const onOpen = () => setWelcomeBlocking(true);
+    const onClosed = () => setWelcomeBlocking(false);
+    window.addEventListener('cr:welcome-open', onOpen);
+    window.addEventListener('cr:welcome-closed', onClosed);
+    return () => {
+      window.removeEventListener('cr:welcome-open', onOpen);
+      window.removeEventListener('cr:welcome-closed', onClosed);
+    };
+  }, []);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -1337,27 +1356,25 @@ export default function Dashboard() {
       <PullToRefreshIndicator pulling={pulling} progress={progress} />
       {/* First-time user tooltip tour. narrowly targeted so we don't annoy
           engaged users. Shown only when:
-            (a) The account was created within the last 24h, OR
-            (b) The account is >10 days old AND the user still has zero vehicles
-                (they never completed onboarding. the tour is the nudge they need).
-          The hook self-gates with localStorage so a user who skipped it once
-          never sees it again. */}
+            (a) The account was created within the last 24h, AND
+            (b) The user has zero vehicles (still in onboarding), AND
+            (c) The daily WelcomePopup ("טוב שחזרת") is no longer on screen.
+          The hook self-gates with localStorage so a user who skipped it
+          once never sees it again.
+
+          2026-05-17 product decision: the previous "stuck for 10+ days
+          with no vehicles" branch was removed. The tour is a first-run
+          aid only — users that have been around for over a week and
+          still haven't added a vehicle aren't going to be convinced
+          by a tooltip walkthrough, and the tour stacking on top of
+          the welcome popup was confusing them on every login. */}
       {(() => {
         const createdAt = user?.created_at ? new Date(user.created_at).getTime() : 0;
         const ageMs = createdAt ? Date.now() - createdAt : 0;
         const dayMs = 24 * 60 * 60 * 1000;
         const noVehicles = (vehicles?.length || 0) === 0;
-        // Both "just registered" and "stuck onboarding" sub-conditions
-        // require zero vehicles at the source. The earlier code relied
-        // on a single outer `!hasAnyVehicle` guard; pushing the check
-        // down to each sub-condition makes the gate self-protecting
-        // against future refactors.
         const justRegistered = createdAt > 0 && ageMs < dayMs && noVehicles;
-        const stuckNoVehicles = createdAt > 0 && ageMs >= 10 * dayMs && noVehicles;
-        const shouldTour = isAuthenticated && !isGuest && (justRegistered || stuckNoVehicles);
-        // Product decision: tool-tip tours are for brand-new users only.
-        // Once any vehicle exists the user has completed setup and doesn't
-        // need further hand-holding on this page.
+        const shouldTour = isAuthenticated && !isGuest && justRegistered && !welcomeBlocking;
         return <FirstTimeTour enabled={shouldTour} />;
       })()}
       <div className="px-4 pt-6">

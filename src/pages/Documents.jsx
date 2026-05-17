@@ -287,6 +287,12 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
         : { type: 'image',    source: { type: 'base64', media_type: mediaType, data: imageData } };
 
       const json = await aiRequest({
+        // Tags this scan so the global gate (app_config.
+        // scan_extraction_enabled) can short-circuit it. When the gate
+        // is off, aiRequest throws SCAN_EXTRACTION_DISABLED — the catch
+        // block below already shows the right Hebrew copy, and the
+        // form's manual fields stay fully functional.
+        feature: 'scan_extraction',
         model: 'claude-sonnet-4-20250514',
         max_tokens: 300,
         messages: [{
@@ -316,6 +322,13 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
       }
     } catch (err) {
       console.error('Document AI scan error:', err?.code, err?.message);
+      // When the global gate is off, the singleton AiScanUnavailable
+      // dialog (mounted at Layout level) already explains the
+      // situation. No need to also fire a toast — would be noisy.
+      if (err?.code === 'SCAN_EXTRACTION_DISABLED') {
+        setAiScanning(false);
+        return;
+      }
       let msg;
       switch (err?.code) {
         case 'TIMEOUT':              msg = 'התשובה מהשרת מאחרת. נסה ברשת יציבה יותר.'; break;
