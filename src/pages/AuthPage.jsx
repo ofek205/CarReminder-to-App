@@ -917,7 +917,7 @@ export default function AuthPage() {
         else import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_LOGIN));
       } else {
         if (password.length < 6) { setError('הסיסמה חייבת להכיל לפחות 6 תווים'); setLoading(false); return; }
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email, password,
           options: {
             data: { full_name: fullName },
@@ -931,11 +931,43 @@ export default function AuthPage() {
         if (error) {
           console.warn('signUp error:', error.message);
           setError(localizeAuthError(error.message));
+        } else if (data?.session) {
+          // Supabase Auth → "Confirm email" is OFF. The signUp call
+          // already created a session, so the user is fully logged in.
+          // Skip the verify-email screen entirely (no email is being
+          // sent, and waiting there for a code that never arrives is
+          // the bug that prompted this branch).
+          //
+          // Write the EULA audit row inline — same shape as the
+          // post-verifyOtp path further up — so we don't lose the
+          // acceptance record. Fire-and-forget; a row failure must
+          // NOT block sign-in.
+          try {
+            const uid = data.session.user?.id || data.user?.id;
+            if (uid) {
+              const rows = [
+                { user_id: uid, document_type: 'tos',     document_version: TOS_VERSION,     user_agent: navigator.userAgent.slice(0, 200) },
+                { user_id: uid, document_type: 'privacy', document_version: PRIVACY_VERSION, user_agent: navigator.userAgent.slice(0, 200) },
+              ];
+              supabase.from('eula_acceptances').insert(rows).then(({ error: eulaErr }) => {
+                if (eulaErr && eulaErr.code !== '23505') {
+                  console.warn('eula_acceptances insert failed:', eulaErr.message);
+                }
+              });
+            }
+          } catch (eulaWriteErr) {
+            console.warn('eula audit row write threw:', eulaWriteErr?.message);
+          }
+          import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_SIGNUP));
+          setSuccess('ברוך/ה הבא/ה ל-CarReminder! מעביר לאפליקציה...');
+          // The isAuthenticated useEffect (line ~432) sees the new
+          // session and routes to Dashboard. We don't navigate here
+          // explicitly to keep the redirect logic in one place.
         } else {
-          // Persist pendingEmail across refresh and switch to the OTP
-          // entry screen. Don't track AUTH_SIGNUP here — that fires on
-          // verifyOtp success so the funnel reflects fully-confirmed
-          // accounts, not abandoned-mid-verification ones.
+          // No session returned → Supabase Auth → "Confirm email" is ON
+          // and the user must enter the 6-digit OTP from the email.
+          // This is the original verify-email flow, kept as a safety
+          // net so the codebase handles both Supabase configurations.
           try { sessionStorage.setItem('cr_pending_verify_email', email); } catch {}
           // Stash the EULA versions the user accepted so the post-verify
           // branch can write the audit row once the session exists. Stored
