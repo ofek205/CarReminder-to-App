@@ -31,7 +31,7 @@ export class EmailsPausedError extends Error {
 
 //  Low-level dispatch 
 
-export async function sendEmail({ to, subject, html, text, from, replyTo }) {
+export async function sendEmail({ to, subject, html, text, from, replyTo, notificationKey }) {
   if (!to) throw new Error('sendEmail: "to" is required');
   if (!subject) throw new Error('sendEmail: "subject" is required');
   if (!html && !text) throw new Error('sendEmail: "html" or "text" is required');
@@ -46,8 +46,13 @@ export async function sendEmail({ to, subject, html, text, from, replyTo }) {
     throw new EmailsPausedError(state.reason);
   }
 
+  // notification_key is forwarded to the Edge so it writes a row in
+  // email_send_log → makes the send appear in the EmailCenter "sent"
+  // stat. Callers that don't pass one default to 'system_alert' inside
+  // the Edge Function, which is a valid notification key and keeps the
+  // ad-hoc bucket separable from real reminders.
   const { data, error } = await supabase.functions.invoke('send-email', {
-    body: { to, subject, html, text, from, reply_to: replyTo },
+    body: { to, subject, html, text, from, reply_to: replyTo, notification_key: notificationKey },
   });
 
   if (error) {
@@ -98,5 +103,6 @@ export async function sendTemplatedEmail(notificationKey, { to, vars = {}, rawVa
     text: rendered.text,
     from: `${rendered.fromName} <${rendered.fromEmail}>`,
     replyTo: replyTo || rendered.replyTo || undefined,
+    notificationKey,
   });
 }

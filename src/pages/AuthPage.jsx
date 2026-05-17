@@ -54,6 +54,9 @@ async function dispatchWelcomeEmail(email, fullName) {
       subject: `ברוך/ה הבא/ה ל-CarReminder${firstName ? `, ${firstName}` : ''}`,
       html: buildWelcomeEmail({ firstName, appUrl: 'https://car-reminder.app' }),
       text: buildWelcomeText({ firstName, appUrl: 'https://car-reminder.app' }),
+      // Tag the send so the EmailCenter dashboard buckets it under
+      // 'welcome' rather than the catch-all 'system_alert'.
+      notificationKey: 'welcome',
     });
   } catch (err) {
     if (import.meta.env?.DEV) {

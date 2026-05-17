@@ -328,7 +328,9 @@ function AuthAccountSettings({ embedded = false }) {
         const subject = `${inviterName} הזמין/ה אותך ל-CarReminder`;
         const html = buildInviteEmail({ inviterName, roleLabel, inviteLink: link });
         const text = buildInviteText({ inviterName, roleLabel, inviteLink: link });
-        await sendEmail({ to: inviteeEmail, subject, html, text });
+        // notificationKey makes the send appear in EmailCenter stats
+        // bucketed as 'invite' rather than the catch-all 'system_alert'.
+        await sendEmail({ to: inviteeEmail, subject, html, text, notificationKey: 'invite' });
       }
 
       setEmailSent(true);
