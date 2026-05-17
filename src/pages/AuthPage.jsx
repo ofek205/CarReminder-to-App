@@ -32,7 +32,38 @@ import { SignInWithApple } from '@capacitor-community/apple-sign-in';
 const TOS_VERSION = '2026-05-13';
 const PRIVACY_VERSION = '2026-05-13';
 
-//  Design tokens 
+//  Welcome email dispatch helper
+// Lives at module scope so the same call sites (session-returned signup
+// + post-verifyOtp signup) can fire-and-forget without duplicating the
+// build + send chain. Imports are lazy so the Auth bundle stays light
+// for the much more common login path.
+//
+// Failure handling is intentionally silent — a kill-switched outbound
+// pipeline, a Resend outage, or a missing Edge Function secret must
+// NOT block the user from reaching Dashboard. We log to the console
+// in DEV so engineers see it; in prod the user just doesn't get the
+// welcome and the support team can re-send manually.
+async function dispatchWelcomeEmail(email, fullName) {
+  if (!email) return;
+  try {
+    const firstName = (fullName || '').trim().split(/\s+/)[0] || '';
+    const { sendEmail } = await import('@/lib/sendEmail');
+    const { buildWelcomeEmail, buildWelcomeText } = await import('@/lib/emailTemplates');
+    await sendEmail({
+      to: email,
+      subject: `ברוך/ה הבא/ה ל-CarReminder${firstName ? `, ${firstName}` : ''}`,
+      html: buildWelcomeEmail({ firstName, appUrl: 'https://car-reminder.app' }),
+      text: buildWelcomeText({ firstName, appUrl: 'https://car-reminder.app' }),
+    });
+  } catch (err) {
+    if (import.meta.env?.DEV) {
+      // eslint-disable-next-line no-console
+      console.warn('[welcome-email] dispatch failed:', err?.message);
+    }
+  }
+}
+
+//  Design tokens
 const C = {
   green:     '#4B7A53',
   greenDark: '#2D5233',
@@ -809,6 +840,11 @@ export default function AuthPage() {
           }
           setSuccess('האימייל אומת! מעביר לאפליקציה...');
           import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_SIGNUP));
+          // Same fire-and-forget welcome dispatch as the
+          // session-returned branch. firstName may be empty here if
+          // the user refreshed the tab mid-verification — the helper
+          // falls back to "אורח" so the email still goes out.
+          dispatchWelcomeEmail(pendingEmail, fullName);
         }
         setLoading(false);
         return;
@@ -959,6 +995,12 @@ export default function AuthPage() {
             console.warn('eula audit row write threw:', eulaWriteErr?.message);
           }
           import('@/lib/analytics').then(({ trackEvent, EVENTS }) => trackEvent(EVENTS.AUTH_SIGNUP));
+          // Fire-and-forget welcome email via Resend. Failures must
+          // NOT block sign-in (kill switch, network, missing template
+          // — none of those are the user's problem to retry). Helper
+          // imports lazily so the cold path doesn't bloat the auth
+          // bundle for the 99% of visits that are sign-IN, not signup.
+          dispatchWelcomeEmail(email, fullName);
           setSuccess('ברוך/ה הבא/ה ל-CarReminder! מעביר לאפליקציה...');
           // The isAuthenticated useEffect (line ~432) sees the new
           // session and routes to Dashboard. We don't navigate here
