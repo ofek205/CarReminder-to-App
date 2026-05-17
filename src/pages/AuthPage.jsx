@@ -748,17 +748,15 @@ export default function AuthPage() {
         // session, so a successful call drops us straight into
         // Dashboard via the isAuthenticated useEffect above.
         //
-        // Token length: Supabase templates emit either 6 or 8 digits
-        // depending on project settings (the default for new signup
-        // OTP is 8, but other flows like recovery/magic-link stick
-        // with 6, and projects on the older template still emit 6).
-        // We accept both — the server is the source of truth and
-        // will reject anything malformed. Hard-coding `^\d{6}$` used
-        // to reject the valid 8-digit codes the email actually
-        // contained.
+        // Token length: project is configured to emit a 6-digit OTP
+        // (Supabase Dashboard → Auth → Providers → Email → OTP
+        // Length = 6). The server is the source of truth and will
+        // reject anything malformed; this client check is just so
+        // the user gets an immediate "wrong length" hint without a
+        // network round-trip.
         const code = (verificationCode || '').trim();
-        if (!/^\d{6}$|^\d{8}$/.test(code)) {
-          setError('הזן/י את הקוד מהאימייל (6 או 8 ספרות)');
+        if (!/^\d{6}$/.test(code)) {
+          setError('הזן/י את קוד האימות בן 6 הספרות');
           setLoading(false);
           return;
         }
@@ -1178,22 +1176,21 @@ export default function AuthPage() {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        maxLength={8}
+                        maxLength={6}
                         value={verificationCode}
-                        onChange={e => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                        placeholder="12345678"
+                        onChange={e => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="123456"
                         autoComplete="one-time-code"
                         autoFocus
                         dir="ltr"
                         className="w-full text-center text-2xl font-bold tracking-[0.4em] py-4 rounded-2xl outline-none transition-all"
                         style={{
                           background: '#FAFDF6',
-                          // Activate the green ring as soon as the
-                          // user typed a valid length — 6 OR 8 digits
-                          // are both acceptable Supabase OTP formats.
-                          // Was hard-coded `=== 8`, which would
-                          // visually never confirm a 6-digit code.
-                          border: `2px solid ${(verificationCode.length === 6 || verificationCode.length === 8) ? C.green : C.border}`,
+                          // Activate the green ring as soon as the user
+                          // has typed the full 6-digit code. Project is
+                          // configured for 6-digit OTPs (Supabase Auth
+                          // → Providers → Email → OTP Length = 6).
+                          border: `2px solid ${verificationCode.length === 6 ? C.green : C.border}`,
                           color: C.greenDark,
                           letterSpacing: '0.4em',
                         }}
