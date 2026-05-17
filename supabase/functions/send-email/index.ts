@@ -109,6 +109,14 @@ serve(async (req) => {
     text?: string;
     from?: string;
     reply_to?: string;
+    // 2026-05-17: optional notification_key so every send is logged
+    // to email_send_log. Without it the admin stats strip in
+    // EmailCenter shows 0 for ad-hoc/invite/welcome emails because
+    // only the reminder dispatcher writes to that table. Default
+    // 'system_alert' covers any call site that hasn't been updated
+    // — it's a valid notification key in the seed, and tagging
+    // strays as system_alert is more accurate than dropping them.
+    notification_key?: string;
   };
   try {
     payload = await req.json();
@@ -116,7 +124,7 @@ serve(async (req) => {
     return json({ error: 'Invalid JSON body' }, 400, req);
   }
 
-  const { to, subject, html, text, from, reply_to } = payload;
+  const { to, subject, html, text, from, reply_to, notification_key } = payload;
 
   // Validation — at minimum need a recipient, a subject, and either html or text
   if (!to || (Array.isArray(to) && to.length === 0)) {
@@ -156,6 +164,37 @@ serve(async (req) => {
     if (!res.ok) {
       // Resend errors look like { name, message, statusCode }
       return json({ error: data.message || 'Resend error', details: data }, res.status, req);
+    }
+
+    // 2026-05-17: Audit-log every successful send to email_send_log so
+    // the EmailCenter admin "sent" stat reflects reality. Without this
+    // only the reminder dispatcher writes to the table — invite,
+    // welcome, and admin test sends all disappear from the dashboard.
+    //
+    // Fire-and-forget. A logging failure must NOT roll back a send
+    // that already went out on Resend's side — the email is in the
+    // user's inbox either way. ON CONFLICT DO NOTHING absorbs the
+    // (user_id, key, date) UNIQUE collision when the same notification
+    // is queued twice in one day.
+    try {
+      const key = notification_key && typeof notification_key === 'string'
+        ? notification_key
+        : 'system_alert';
+      const recipients = Array.isArray(to) ? to : [to];
+      const rows = recipients.map(r => ({
+        notification_key: key,
+        recipient_email: String(r),
+        status:          'sent',
+        message_id:      data.id || null,
+      }));
+      // ignoreDuplicates so the UNIQUE constraint on (user_id,
+      // notification_key, reference_date) doesn't blow up the response.
+      await supabaseAdmin
+        .from('email_send_log')
+        .upsert(rows, { onConflict: 'user_id,notification_key,reference_date', ignoreDuplicates: true });
+    } catch (logErr) {
+      // Surface for engineers but don't fail the request.
+      console.warn('email_send_log write failed:', (logErr as Error)?.message);
     }
 
     return json({ ok: true, id: data.id }, 200, req);
