@@ -54,11 +54,34 @@ export function useToggleNotification() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ key, enabled }) => {
+      // Flip the UI flag first. RLS scopes this to admins so a non-admin
+      // hitting the mutation just sees an error toast.
       const { error } = await supabase
         .from('email_notifications')
         .update({ enabled })
         .eq('key', key);
       if (error) throw error;
+
+      // Coordinate with the dispatcher gate. The reminder cron filters
+      // candidates by email_triggers.enabled, NOT email_notifications.
+      // enabled — without this second call the admin's toggle would
+      // light up the UI but the cron would keep skipping the type.
+      // The RPC is admin-gated server-side so we can safely call it
+      // for every notification type; for non-reminder types (invite,
+      // welcome, system_alert) it's a no-op-but-harmless upsert.
+      const { error: trigErr } = await supabase
+        .rpc('set_email_trigger_enabled', {
+          p_notification_key: key,
+          p_enabled: enabled,
+        });
+      if (trigErr) {
+        // Don't fail the whole toggle — the UI flag already flipped
+        // and the admin can see the row is enabled. Surface the
+        // mismatch so we know to investigate, but let the optimistic
+        // flow continue.
+        // eslint-disable-next-line no-console
+        console.warn('[useToggleNotification] trigger flag sync failed:', trigErr.message);
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: K.notifications }),
   });
