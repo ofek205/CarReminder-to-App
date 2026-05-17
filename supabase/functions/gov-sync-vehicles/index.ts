@@ -45,8 +45,89 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { logSecurityEvent } from '../_shared/securityLog.ts';
-import { buildCorsHeaders } from '../_shared/cors.ts';
+
+// ── Inlined helpers ────────────────────────────────────────────────────────
+// 2026-05-17: Originally these came from ../_shared/securityLog.ts and
+// ../_shared/cors.ts. The Supabase dashboard's "paste-and-deploy" path
+// doesn't walk relative imports, so we inline a minimal version here.
+// Deployment via the CLI (`supabase functions deploy`) would have
+// bundled the imports — we chose paste compatibility over DRY because
+// these helpers are small and rarely change.
+
+type SecurityEvent =
+  | 'auth_failed'
+  | 'permission_denied'
+  | 'rate_limit_hit'
+  | 'rate_limit_error'
+  | 'ssrf_rejected'
+  | 'payload_rejected';
+
+function logSecurityEvent(
+  fn: string,
+  event: SecurityEvent,
+  details: Record<string, unknown> = {},
+): void {
+  const safe: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(details)) {
+    if (v !== undefined && v !== null) safe[k] = v;
+  }
+  // eslint-disable-next-line no-console
+  console.warn(JSON.stringify({
+    _:      'security_event',
+    fn,
+    event,
+    ts:     new Date().toISOString(),
+    ...safe,
+  }));
+}
+
+const LOCAL_WEB_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+];
+
+function isTrustedVercelPreview(origin: string): boolean {
+  if (!origin) return false;
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (protocol !== 'https:') return false;
+    if (!hostname.endsWith('.vercel.app')) return false;
+    return (
+      hostname.startsWith('car-reminder-to-app-git-') ||
+      hostname.startsWith('car-manage-hub-git-')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function pickAllowedOrigin(req: Request, extraOrigins: string[] = []): string {
+  const origin = req.headers.get('origin') || '';
+  const fromAllowed = (Deno.env.get('ALLOWED_ORIGIN') || '').split(',');
+  const fromApp     = (Deno.env.get('APP_ORIGIN')     || '').split(',');
+  const envAllowed  = [...fromAllowed, ...fromApp]
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (envAllowed.length === 0) envAllowed.push('https://car-reminder.app');
+  const allowList = [...envAllowed, ...LOCAL_WEB_ORIGINS, ...extraOrigins];
+  return (allowList.includes(origin) || isTrustedVercelPreview(origin)) ? origin : 'null';
+}
+
+function buildCorsHeaders(
+  req: Request,
+  options: { allowedHeaders?: string; allowedMethods?: string; extraOrigins?: string[] } = {},
+): HeadersInit {
+  return {
+    'Access-Control-Allow-Origin':  pickAllowedOrigin(req, options.extraOrigins),
+    'Access-Control-Allow-Headers': options.allowedHeaders || 'authorization, content-type, apikey, x-client-info',
+    'Access-Control-Allow-Methods': options.allowedMethods || 'POST, OPTIONS',
+    'Vary':                         'Origin',
+  };
+}
+
+// ── End inlined helpers ────────────────────────────────────────────────────
 
 const SUPABASE_URL    = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
