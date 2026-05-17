@@ -106,11 +106,16 @@ export function isVesselType(vehicleType, nickname) {
  * Then use a map to render the actual icon component.
  */
 const MOTO_KEYWORDS = ['קטנוע', 'moto', 'bike', 'scooter'];
-const MOTO_EXACT = new Set(['אופנוע כביש', 'אופנוע שטח', 'קטנוע']);
+// 2026-05-17: 'אנדורו' joins the moto set (street-legal, plate-carrying
+// dual-sport). 'מוטוקרוס' stays out of MOTO_EXACT — it's off-road only,
+// no plate, no road registration — and lives in OFFROAD_EXACT alone.
+// Both share the same maintenance catalog via aliases in
+// MaintenanceCatalog.jsx.
+const MOTO_EXACT = new Set(['אופנוע כביש', 'אופנוע שטח', 'קטנוע', 'אנדורו']);
 const MOTO_MANUFACTURERS = ['sym', 'kymco', 'vespa', 'piaggio', 'yamaha moto', 'honda moto', 'ktm', 'bmw motorrad', 'harley', 'ducati', 'kawasaki', 'suzuki moto', 'aprilia', 'triumph', 'royal enfield'];
 const TRUCK_KEYWORDS = ['משאית', 'truck'];
 const TRUCK_MANUFACTURERS = ['man', 'scania', 'volvo trucks', 'daf', 'iveco', 'mercedes trucks'];
-const OFFROAD_EXACT = new Set(["כלי שטח", "ג'יפ שטח", 'טרקטורון', 'אופנוע שטח', 'RZR', 'מיול', 'באגי חולות']);
+const OFFROAD_EXACT = new Set(["כלי שטח", "ג'יפ שטח", 'טרקטורון', 'אופנוע שטח', 'אנדורו', 'מוטוקרוס', 'RZR', 'מיול', 'באגי חולות']);
 // כלי צמ"ה (Construction Machinery). Mirrors CME_SUBCATEGORIES dbName
 // list in VehicleTypeSelector.jsx + the legacy 'רכב צמ"ה' that pre-CME
 // rows might still carry. Anything in this set categorises as 'cme'.
@@ -167,8 +172,13 @@ export function getVehicleVisual(vehicle) {
   // Vessel
   if (checkVesselFull(vt, nick, mfr)) return { iconKey: 'ship', theme: marine };
 
-  // Off-road specifics
-  if (vt === 'אופנוע שטח') return { iconKey: 'dirt-bike', theme: offroad };
+  // Off-road specifics.
+  // 2026-05-17: אנדורו ומוטוקרוס שניהם אופנועי שטח לכל דבר ועניין
+  // מבחינת אייקון ועיצוב. ההבדל ביניהם נוגע רק לטופס הרכב (רישוי,
+  // טסט, ביטוח), לא לתצוגה ויזואלית.
+  if (vt === 'אופנוע שטח' || vt === 'אנדורו' || vt === 'מוטוקרוס') {
+    return { iconKey: 'dirt-bike', theme: offroad };
+  }
   if (vt === 'טרקטורון') return { iconKey: 'atv', theme: offroad };
   if (vt === "ג'יפ שטח") return { iconKey: 'jeep-off', theme: offroad };
   if (vt === 'RZR' || vt === 'מיול') return { iconKey: 'buggy', theme: offroad };

@@ -510,6 +510,10 @@ export default function EditVehicle() {
   const vesselMode = isVesselType(form.vehicle_type, form.nickname);
   const offroadMode = isOffroad(form.vehicle_type);
   const cmeMode = isCme(form.vehicle_type);
+  // 2026-05-17: hasRegistration = false עבור מוטוקרוס בלבד.
+  // מוטוקרוס מסלולי בלבד, אין לו מספר רישוי, אין חובה לטסט שנתי,
+  // אין ביטוח חובה. שדות הרישוי בטופס מוסתרים כשהדגל false.
+  const hasRegistration = form.vehicle_type !== 'מוטוקרוס';
   const hasOffroadData = (form.offroad_equipment?.length > 0 || form.offroad_usage_type || form.last_offroad_service_date);
 
   const VehicleIcon = vesselMode ? Ship : Car;
@@ -583,11 +587,14 @@ export default function EditVehicle() {
               placeholder={vesselMode ? 'למשל: היאכטה שלי' : 'למשל: הקורולה של אבא'} />
           </div>
 
-          {/* מספר רישוי - full width */}
-          <div data-field="license_plate" className="rounded-xl p-1 -m-1 transition-all">
-            <Label>{vesselMode ? 'מספר זיהוי כלי שייט *' : 'מספר רישוי *'}</Label>
-            <Input value={form.license_plate} onChange={e => handleChange('license_plate', e.target.value)} required dir="ltr" placeholder={vesselMode ? 'IL-12345' : '00-000-00'} />
-          </div>
+          {/* מספר רישוי - full width.
+              2026-05-17: מוסתר עבור מוטוקרוס (אין רישוי בכביש). */}
+          {hasRegistration && (
+            <div data-field="license_plate" className="rounded-xl p-1 -m-1 transition-all">
+              <Label>{vesselMode ? 'מספר זיהוי כלי שייט *' : 'מספר רישוי *'}</Label>
+              <Input value={form.license_plate} onChange={e => handleChange('license_plate', e.target.value)} required dir="ltr" placeholder={vesselMode ? 'IL-12345' : '00-000-00'} />
+            </div>
+          )}
 
           {/* יצרן + דגם - 2 columns */}
           <div className="grid grid-cols-2 gap-3">
@@ -654,17 +661,20 @@ export default function EditVehicle() {
             </div>
           </div>
 
-          {/* טסט + ביטוח - 2 columns */}
-          <div className="grid grid-cols-2 gap-3">
-            <div data-field="test_due_date" className="rounded-xl p-1 -m-1 transition-all">
-              <Label>{vesselMode ? 'כושר שייט' : 'תאריך טסט'}</Label>
-              <DateInput value={form.test_due_date} onChange={e => handleChange('test_due_date', e.target.value)} />
+          {/* טסט + ביטוח - 2 columns.
+              2026-05-17: השורה כולה מוסתרת עבור מוטוקרוס. */}
+          {hasRegistration && (
+            <div className="grid grid-cols-2 gap-3">
+              <div data-field="test_due_date" className="rounded-xl p-1 -m-1 transition-all">
+                <Label>{vesselMode ? 'כושר שייט' : 'תאריך טסט'}</Label>
+                <DateInput value={form.test_due_date} onChange={e => handleChange('test_due_date', e.target.value)} />
+              </div>
+              <div data-field="insurance_due_date" className="rounded-xl p-1 -m-1 transition-all">
+                <Label>{vesselMode ? 'תוקף ביטוח ימי' : 'חידוש ביטוח'}</Label>
+                <DateInput value={form.insurance_due_date} onChange={e => handleChange('insurance_due_date', e.target.value)} />
+              </div>
             </div>
-            <div data-field="insurance_due_date" className="rounded-xl p-1 -m-1 transition-all">
-              <Label>{vesselMode ? 'תוקף ביטוח ימי' : 'חידוש ביטוח'}</Label>
-              <DateInput value={form.insurance_due_date} onChange={e => handleChange('insurance_due_date', e.target.value)} />
-            </div>
-          </div>
+          )}
 
           {/* תסקיר — periodic safety certificate required by law for
               כלי צמ"ה only (forklifts, excavators, telehandlers,
@@ -686,8 +696,10 @@ export default function EditVehicle() {
             </div>
           )}
 
-          {/* ק"מ/שעות + חברת ביטוח - 2 columns */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* ק"מ/שעות + חברת ביטוח - 2 columns.
+              2026-05-17: כשמדובר במוטוקרוס, ה-grid עובר לעמודה אחת
+              ומציג רק את שדה הק"מ או שעות. חברת ביטוח לא רלוונטית. */}
+          <div className={hasRegistration ? "grid grid-cols-2 gap-3" : ""}>
             <div data-field={vesselMode || usageMetric === 'שעות מנוע' ? 'current_engine_hours' : 'current_km'} className="rounded-xl p-1 -m-1 transition-all">
               <div className="flex items-center justify-between mb-1">
                 <Label className="mb-0">{vesselMode || usageMetric === 'שעות מנוע' ? 'שעות מנוע' : 'קילומטראז׳'}</Label>
@@ -704,23 +716,25 @@ export default function EditVehicle() {
                 value={vesselMode || usageMetric === 'שעות מנוע' ? form.current_engine_hours : form.current_km}
                 onChange={e => handleChange(vesselMode || usageMetric === 'שעות מנוע' ? 'current_engine_hours' : 'current_km', e.target.value)} />
             </div>
-            <div>
-              <Label>{vesselMode ? 'חברת ביטוח ימי' : 'חברת ביטוח'}</Label>
-              <Select value={form.insurance_company} onValueChange={v => handleChange('insurance_company', v)}>
-                <SelectTrigger><SelectValue placeholder="בחר חברה..." /></SelectTrigger>
-                <SelectContent>
-                  {(vesselMode
-                    ? ['הכשרה','כלל','הפניקס','הראל','איילון','מגדל','שירביט','AIG','אחר']
-                    : ['הפניקס','כלל','ישיר','מגדל','הראל','איילון','ליברה','AIG','שומרה','הכשרה','מנורה מבטחים','שירביט','אחר']
-                  ).map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {form.insurance_company === 'אחר' && (
-                <Input className="mt-2" placeholder="שם החברה" value={form.insurance_company_other} onChange={e => handleChange('insurance_company_other', e.target.value)} />
-              )}
-            </div>
+            {hasRegistration && (
+              <div>
+                <Label>{vesselMode ? 'חברת ביטוח ימי' : 'חברת ביטוח'}</Label>
+                <Select value={form.insurance_company} onValueChange={v => handleChange('insurance_company', v)}>
+                  <SelectTrigger><SelectValue placeholder="בחר חברה..." /></SelectTrigger>
+                  <SelectContent>
+                    {(vesselMode
+                      ? ['הכשרה','כלל','הפניקס','הראל','איילון','מגדל','שירביט','AIG','אחר']
+                      : ['הפניקס','כלל','ישיר','מגדל','הראל','איילון','ליברה','AIG','שומרה','הכשרה','מנורה מבטחים','שירביט','אחר']
+                    ).map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.insurance_company === 'אחר' && (
+                  <Input className="mt-2" placeholder="שם החברה" value={form.insurance_company_other} onChange={e => handleChange('insurance_company_other', e.target.value)} />
+                )}
+              </div>
+            )}
           </div>
 
           {/* דגל + מרינה - vessels only */}

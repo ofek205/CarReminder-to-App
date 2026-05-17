@@ -260,9 +260,15 @@ export default function AddVehicle() {
   // Two-wheelers (road motorcycle, scooter, off-road motorcycle) only
   // ever have 2 tires — showing the 1/2/3/4 selector for them was
   // confusing and let users pick "כל ה-4" by accident on an אופנוע.
+  // 2026-05-17: אנדורו ומוטוקרוס נוספו כיורשים של 'אופנוע שטח' הישן.
   const isTwoWheeler =
     selectedCategory?.label === 'אופנועים' ||
-    ['אופנוע כביש', 'אופנוע שטח', 'קטנוע'].includes(form.vehicle_type);
+    ['אופנוע כביש', 'אופנוע שטח', 'אנדורו', 'מוטוקרוס', 'קטנוע'].includes(form.vehicle_type);
+  // hasRegistration — האם זה כלי שמותר לחוקית בכביש ולכן יש לו מספר
+  // רישוי, טסט שנתי וביטוח חובה. מוטוקרוס הוא היחיד שלא, כי הוא
+  // מסלולי בלבד. שדות הרישוי בטופס וההשלמה האוטומטית מבסיס נתוני
+  // התחבורה מוגנים על ידי הדגל הזה.
+  const hasRegistration = form.vehicle_type !== 'מוטוקרוס';
   // Normalise tires_changed_count when the user lands on a two-wheeler
   // category — EMPTY_FORM defaults to 4, which is illegal for a
   // motorcycle. We don't override an explicit 1 the user already
@@ -684,17 +690,24 @@ export default function AddVehicle() {
     const plateFormat = isVesselCategory
       ? (v) => !v || /^[A-Z0-9\-]{3,15}$/i.test((v || '').trim())
       : (v) => !v || /^[\d\-\s]{4,12}$/.test((v || '').trim());
-    // vehicle_type is required by the backend
+    // vehicle_type is required by the backend.
+    // license_plate is required only for vehicles that legally need
+    // road registration. Motocross (track-only, no plate) is exempt
+    // and the field is hidden in the form when vehicle_type === 'מוטוקרוס'.
+    const plateRule = hasRegistration
+      ? {
+          required: 'יש להזין מספר רישוי',
+          custom: [plateFormat, isVesselCategory ? 'מספר זיהוי לא תקין (אותיות/ספרות בלבד)' : 'מספר רישוי לא תקין (4-8 ספרות)'],
+        }
+      : { custom: [plateFormat, 'מספר רישוי לא תקין'] };
     if (!validate(form, {
       vehicle_type: { custom: [v => v && v.trim() !== '', 'יש לבחור סוג כלי רכב'] },
-      license_plate: {
-        required: 'יש להזין מספר רישוי',
-        custom: [plateFormat, isVesselCategory ? 'מספר זיהוי לא תקין (אותיות/ספרות בלבד)' : 'מספר רישוי לא תקין (4-8 ספרות)'],
-      },
+      license_plate: plateRule,
     })) return;
 
     // Check for duplicate license plate. Empty normalized value = skip
-    // (vessels with letter-only IDs, or users who haven't entered a plate yet).
+    // (vessels with letter-only IDs, motocross without a plate, or
+    // users who haven't entered a plate yet).
     const normalizedNew = normalizePlate(form.license_plate);
     if (normalizedNew) {
       const vehicles = isGuest ? guestVehicles : existingVehicles;
@@ -713,7 +726,8 @@ export default function AddVehicle() {
 
     // Auto-enrich: if license plate exists, fetch technical spec from gov API
     // and fill missing fields (model_code, trim_level, vin, pollution_group, etc.)
-    if (form.license_plate && !isVesselCategory) {
+    // Motocross is skipped: no plate, no gov record.
+    if (form.license_plate && !isVesselCategory && hasRegistration) {
       try {
         const govData = await lookupVehicleByPlate(form.license_plate);
         if (govData) {
@@ -1504,19 +1518,25 @@ export default function AddVehicle() {
                         placeholder={isVesselCategory ? 'היאכטה שלי' : 'הקורולה שלי'}
                       />
                     </div>
-                    <div data-field="license_plate">
-                      <Label>{isVesselCategory ? 'מספר זיהוי' : 'מספר רישוי'} <span className="text-red-400">*</span></Label>
-                      <Input
-                        value={form.license_plate}
-                        onChange={e => { handleChange('license_plate', e.target.value); clearError('license_plate'); }}
-                        onClear={() => handleChange('license_plate', '')}
-                        dir="ltr" placeholder={isVesselCategory ? 'IL-12345' : '00-000-00'}
-                        error={!!errors.license_plate}
-                        className={autofillCls('license_plate', autofillFields)}
-                      />
-                      <AutofillHint name="license_plate" autofillFields={autofillFields} />
-                      <FieldError message={errors.license_plate} />
-                    </div>
+                    {/* 2026-05-17: license plate hidden for מוטוקרוס.
+                        Track-only motorcycles don't have road registration,
+                        so requiring (or even showing) a plate field made no
+                        sense and prevented users from saving the vehicle. */}
+                    {hasRegistration && (
+                      <div data-field="license_plate">
+                        <Label>{isVesselCategory ? 'מספר זיהוי' : 'מספר רישוי'} <span className="text-red-400">*</span></Label>
+                        <Input
+                          value={form.license_plate}
+                          onChange={e => { handleChange('license_plate', e.target.value); clearError('license_plate'); }}
+                          onClear={() => handleChange('license_plate', '')}
+                          dir="ltr" placeholder={isVesselCategory ? 'IL-12345' : '00-000-00'}
+                          error={!!errors.license_plate}
+                          className={autofillCls('license_plate', autofillFields)}
+                        />
+                        <AutofillHint name="license_plate" autofillFields={autofillFields} />
+                        <FieldError message={errors.license_plate} />
+                      </div>
+                    )}
                   </div>
 
                   {/* יצרן + דגם - 2 columns */}
@@ -1630,25 +1650,31 @@ export default function AddVehicle() {
                   </div>
                   </div>{/* end grid שנה+דלק/מנוע */}
 
-                  {/* טסט + ביטוח + ק"מ/שעות + חברת ביטוח - 2x2 grid */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>{isVesselCategory ? 'כושר שייט' : 'תאריך טסט'}</Label>
-                      <DateInput
-                        value={form.test_due_date}
-                        onChange={e => handleChange('test_due_date', e.target.value)}
-                        className={autofillCls('test_due_date', autofillFields)}
-                      />
-                      <AutofillHint name="test_due_date" autofillFields={autofillFields} />
+                  {/* טסט + ביטוח + ק"מ/שעות + חברת ביטוח - 2x2 grid.
+                      2026-05-17: השורה של תאריך טסט וחידוש ביטוח מוסתרת
+                      למוטוקרוס. הוא לא ניתן לרישוי בכביש, ולכן אין לו
+                      טסט שנתי ואין חובת ביטוח חובה. השאר (ק"מ + חברת
+                      ביטוח) ממשיך להופיע כי הוא כללי. */}
+                  {hasRegistration && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>{isVesselCategory ? 'כושר שייט' : 'תאריך טסט'}</Label>
+                        <DateInput
+                          value={form.test_due_date}
+                          onChange={e => handleChange('test_due_date', e.target.value)}
+                          className={autofillCls('test_due_date', autofillFields)}
+                        />
+                        <AutofillHint name="test_due_date" autofillFields={autofillFields} />
+                      </div>
+                      <div>
+                        <Label>{isVesselCategory ? 'תוקף ביטוח ימי' : 'חידוש ביטוח'}</Label>
+                        <DateInput
+                          value={form.insurance_due_date}
+                          onChange={e => handleChange('insurance_due_date', e.target.value)}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <Label>{isVesselCategory ? 'תוקף ביטוח ימי' : 'חידוש ביטוח'}</Label>
-                      <DateInput
-                        value={form.insurance_due_date}
-                        onChange={e => handleChange('insurance_due_date', e.target.value)}
-                      />
-                    </div>
-                  </div>
+                  )}
 
                   {/* Inspection report ("תסקיר") — periodic safety
                       certificate required by law for כלי צמ"ה only
@@ -1670,7 +1696,10 @@ export default function AddVehicle() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* 2026-05-17: כשמדובר במוטוקרוס, ה-grid עובר לעמודה
+                      אחת — חברת ביטוח לא רלוונטית והשדה הוסר. שדה
+                      הק"מ או שעות נשאר כי הוא לא תלוי ברישוי. */}
+                  <div className={hasRegistration ? "grid grid-cols-2 gap-3" : ""}>
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <Label className="mb-0">{usageMetric === 'שעות מנוע' ? 'שעות מנוע' : 'קילומטראז׳'}</Label>
@@ -1706,36 +1735,38 @@ export default function AddVehicle() {
                         </>
                       )}
                     </div>
-                    <div>
-                      <Label>{isVesselCategory ? 'חברת ביטוח ימי' : 'חברת ביטוח'}</Label>
-                    <SelectWithClear
-                      value={form.insurance_company}
-                      onValueChange={v => handleChange('insurance_company', v)}
-                      onClear={() => handleChange('insurance_company', '')}
-                      placeholder="בחר חברה..."
-                    >
-                      <SelectContent>
-                        {(() => {
-                          const catLabel = selectedCategory?.label;
-                          if (catLabel === 'כלי שייט')
-                            return ['הכשרה', 'כלל', 'הפניקס', 'הראל', 'איילון', 'מגדל', 'שירביט', 'AIG', 'אחר'];
-                          if (catLabel === 'אופנועים')
-                            return ['הפול', 'הפניקס', 'הראל', 'מנורה מבטחים', 'כלל', 'AIG', 'אחר'];
-                          if (catLabel === 'משאיות')
-                            return ['הכשרה', 'הפניקס', 'כלל', 'הראל', 'מגדל', 'איילון', 'שירביט', 'מנורה מבטחים', 'AIG', 'אחר'];
-                          if (catLabel === 'כלי שטח')
-                            return ['הפניקס', 'כלל', 'הראל', 'מגדל', 'איילון', 'AIG', 'שירביט', 'אחר'];
-                          // רכב פרטי + מיוחדים
-                          return ['הפניקס', 'כלל', 'ישיר', 'מגדל', 'הראל', 'איילון', 'ליברה', 'AIG', 'שומרה', 'הכשרה', 'מנורה מבטחים', 'שירביט', 'אחר'];
-                        })().map(c => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </SelectWithClear>
-                    {form.insurance_company === 'אחר' && (
-                      <Input className="mt-2" placeholder="שם החברה" value={form.insurance_company_other} onChange={e => handleChange('insurance_company_other', e.target.value)} />
+                    {hasRegistration && (
+                      <div>
+                        <Label>{isVesselCategory ? 'חברת ביטוח ימי' : 'חברת ביטוח'}</Label>
+                        <SelectWithClear
+                          value={form.insurance_company}
+                          onValueChange={v => handleChange('insurance_company', v)}
+                          onClear={() => handleChange('insurance_company', '')}
+                          placeholder="בחר חברה..."
+                        >
+                          <SelectContent>
+                            {(() => {
+                              const catLabel = selectedCategory?.label;
+                              if (catLabel === 'כלי שייט')
+                                return ['הכשרה', 'כלל', 'הפניקס', 'הראל', 'איילון', 'מגדל', 'שירביט', 'AIG', 'אחר'];
+                              if (catLabel === 'אופנועים')
+                                return ['הפול', 'הפניקס', 'הראל', 'מנורה מבטחים', 'כלל', 'AIG', 'אחר'];
+                              if (catLabel === 'משאיות')
+                                return ['הכשרה', 'הפניקס', 'כלל', 'הראל', 'מגדל', 'איילון', 'שירביט', 'מנורה מבטחים', 'AIG', 'אחר'];
+                              if (catLabel === 'כלי שטח')
+                                return ['הפניקס', 'כלל', 'הראל', 'מגדל', 'איילון', 'AIG', 'שירביט', 'אחר'];
+                              // רכב פרטי + מיוחדים
+                              return ['הפניקס', 'כלל', 'ישיר', 'מגדל', 'הראל', 'איילון', 'ליברה', 'AIG', 'שומרה', 'הכשרה', 'מנורה מבטחים', 'שירביט', 'אחר'];
+                            })().map(c => (
+                              <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </SelectWithClear>
+                        {form.insurance_company === 'אחר' && (
+                          <Input className="mt-2" placeholder="שם החברה" value={form.insurance_company_other} onChange={e => handleChange('insurance_company_other', e.target.value)} />
+                        )}
+                      </div>
                     )}
-                  </div>
                   </div>{/* end grid ק"מ+ביטוח */}
 
                   {/* דגל + מרינה - vessels only */}
