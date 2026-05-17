@@ -96,6 +96,14 @@ export default function EditVehicle() {
     insurance_company_other: v.insurance_company === 'אחר' ? (v.insurance_company_text || '') : '',
     current_km: v.current_km || '',
     current_engine_hours: v.current_engine_hours || '',
+    // 2026-05-17 gov.il auto-sync infrastructure:
+    //   _initialCurrentKm captures the value at load time so the save
+    //     handler can detect a real edit and stamp
+    //     last_manual_km_update_at only then (vs every save).
+    //   auto_sync_enabled is the per-vehicle on/off toggle; defaults
+    //     to true so existing rows opt in automatically.
+    _initialCurrentKm: v.current_km != null ? String(v.current_km) : '',
+    auto_sync_enabled: v.auto_sync_enabled ?? true,
     vehicle_photo: v.vehicle_photo || '',
     // Sprint A.B-2: Storage path for the vehicle photo. Pre-load from the
     // existing row so a user who only edits, say, the nickname keeps their
@@ -339,7 +347,11 @@ export default function EditVehicle() {
       'offroad_equipment','offroad_usage_type','last_offroad_service_date',
       'inspection_report_expiry_date',
       'ownership_hand','ownership_history',
-      'is_personal_import','personal_import_type'];
+      'is_personal_import','personal_import_type',
+      // 2026-05-17 gov.il auto-sync columns. last_manual_km_update_at is
+      // stamped further down only when current_km actually changed; the
+      // boolean toggle saves through unconditionally.
+      'auto_sync_enabled', 'last_manual_km_update_at'];
 
     const data = {};
     DB_COLUMNS.forEach(k => { if (form[k] !== undefined && form[k] !== null) data[k] = form[k]; });
@@ -355,6 +367,21 @@ export default function EditVehicle() {
     }
     if (form.current_km) data.current_km = Number(form.current_km);
     if (form.current_engine_hours) data.current_engine_hours = Number(form.current_engine_hours);
+    // 2026-05-17: stamp last_manual_km_update_at ONLY when the user
+    // actually changed the value. The gov.il auto-sync uses this
+    // timestamp to decide whether it's allowed to overwrite current_km
+    // with a fresher ministry reading — if the user has touched the
+    // field manually after the last test date, their value wins.
+    // Re-saving the form without touching the km should NOT block the
+    // sync; otherwise the user gets locked out of all future updates
+    // just because they opened the edit form once.
+    {
+      const initialKm = form._initialCurrentKm || '';
+      const currentKm = form.current_km != null ? String(form.current_km) : '';
+      if (initialKm !== currentKm) {
+        data.last_manual_km_update_at = new Date().toISOString();
+      }
+    }
     // Off-road toggleable types (jeep / ATV / dune buggy / dirt-bike)
     // can use either km or engine hours. The picker (`usesHours()`)
     // decides per row by checking that ONLY the chosen column is set —
@@ -736,6 +763,31 @@ export default function EditVehicle() {
               </div>
             )}
           </div>
+
+          {/* 2026-05-17: gov.il auto-sync per-vehicle toggle. Shown only
+              for vehicles that have a license plate (hasRegistration —
+              motocross / unregistered → no API to sync against). Default
+              ON so existing users opt in without having to find this
+              setting first. */}
+          {hasRegistration && !vesselMode && (
+            <label className="flex items-start gap-3 rounded-xl p-3 cursor-pointer transition-colors hover:bg-gray-50"
+              style={{ border: '1px solid #E5E7EB' }}>
+              <input
+                type="checkbox"
+                checked={form.auto_sync_enabled !== false}
+                onChange={e => handleChange('auto_sync_enabled', e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded accent-[#2D5233]"
+              />
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-semibold text-gray-800">
+                  סנכרון אוטומטי ממשרד התחבורה
+                </span>
+                <span className="block text-[11px] text-gray-500 mt-0.5 leading-snug">
+                  לאחר טסט שנתי נעדכן את הקילומטראז' ותוקף הטסט אוטומטית, ונשלח התראה.
+                </span>
+              </span>
+            </label>
+          )}
 
           {/* דגל + מרינה - vessels only */}
           {vesselMode && (

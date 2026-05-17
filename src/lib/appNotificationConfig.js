@@ -157,6 +157,21 @@ export const APP_NOTIF_CONFIG = {
     iconBg: '#16A34A',
     buildHref: hrefForVehicleDetail,
   },
+  gov_sync_update: {
+    // 2026-05-17: sibling of test_renewed, but for the km side of the
+    // gov.il sync. Fires when the daily sync detects that the ministry
+    // pushed a higher current_km value than we have stored AND the
+    // user has not overridden it manually since the last test date.
+    // Same green/shield language family so the two reads as a single
+    // "we picked something up for you" experience. The actual title +
+    // body strings are written by the server-side RPC (gov_sync.sql)
+    // so they can interpolate the specific km / test-date values.
+    icon: ShieldCheck,
+    bg: '#F0FDF4',
+    iconColor: '#16A34A',
+    iconBg: '#16A34A',
+    buildHref: hrefForVehicleDetail,
+  },
   community_comment: {
     // Reused for any community thread reply on the user's own post.
     // Purple matches the existing "תגובות בקהילה" chrome elsewhere
