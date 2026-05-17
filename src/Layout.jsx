@@ -725,6 +725,27 @@ function LayoutInner({ children }) {
     try { window.dispatchEvent(new CustomEvent('cr:close-popups')); } catch {}
   }, [isAuthenticated, user]);
 
+  // Broadcast welcome-popup transitions so other components (specifically
+  // the FirstTimeTour mounted inside Dashboard) can sequence themselves
+  // after it. We can't lift the tour up here because its `enabled`
+  // condition depends on Dashboard-local data (whether the user has a
+  // vehicle yet), so we keep it where it is and bridge via a window
+  // event + a synchronous mirror flag.
+  //
+  // 2026-05-17 — added because the first-time tour was opening on top
+  // of the welcome popup ("טוב שחזרת") and stacking two onboarding
+  // layers in the same moment. Now Dashboard listens for these events
+  // and defers the tour until welcome is fully dismissed.
+  useEffect(() => {
+    if (welcomeState !== null) {
+      window.__crWelcomeActive = true;
+      try { window.dispatchEvent(new CustomEvent('cr:welcome-open')); } catch {}
+    } else if (window.__crWelcomeActive) {
+      window.__crWelcomeActive = false;
+      try { window.dispatchEvent(new CustomEvent('cr:welcome-closed')); } catch {}
+    }
+  }, [welcomeState]);
+
   // Mileage reminder. skip for now (database not migrated yet)
   useEffect(() => {
     if (!isAuthenticated) return;

@@ -101,11 +101,19 @@ export default function useFirstTimeTour({
     setStep(0);
   }, []);
 
-  const finish = useCallback(() => {
+  // finish() accepts an optional flag to suppress the scroll-to-top
+  // jump. The default (no opts) preserves the original behaviour:
+  // when the user reaches the last step and taps "סיימתי", the page
+  // glides back to the top so they can start interacting from a clean
+  // slate. When the caller is the click-anywhere-completes handler
+  // (the user tapped some other UI element while the tour was open),
+  // jumping to the top would yank the page out from under the action
+  // they just initiated. Pass { scrollToTop: false } in that case.
+  const finish = useCallback((opts) => {
     markSeen();
     setOpen(false);
     setStep(0);
-    scrollToTop();
+    if (!opts || opts.scrollToTop !== false) scrollToTop();
   }, []);
 
   // Android hardware back button → treat as skip (native only, no-op on web).
