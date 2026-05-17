@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
-import { isNative, initStatusBar, initKeyboard, initBackButton, hideSplash, initSessionKeepAlive } from '@/lib/capacitor'
+import { isNative, isIOS, isAndroid, initStatusBar, initKeyboard, initBackButton, hideSplash, initSessionKeepAlive } from '@/lib/capacitor'
 import { reportError } from '@/lib/crashReporter';
 import { initBootLog, recordBootStage, markBootSucceeded, flushPreviousFailedBoot } from '@/lib/bootDiagnostics';
 import { validateEnv } from '@/lib/envValidator';
@@ -35,9 +35,22 @@ try {
   recordBootStage('env_check_threw', { level: 'error', message: e?.message || String(e) });
 }
 
-// Mark document for native-specific CSS
+// Mark document for native-specific CSS.
+//
+// 2026-05-17 Android scroll-lockup fix: previously only the `native-app`
+// class was added, and CSS rules such as `overscroll-behavior: none`
+// (added for iOS WKWebView bounce) targeted that class. On Android
+// WebView (Chromium 120+), `overscroll-behavior: none` on the root
+// scrolling element does NOT just disable the bounce/glow — it disables
+// touch-driven scroll entirely while leaving programmatic scroll intact.
+// Symptom: the entire app feels unscrollable on every Android page,
+// but iOS WKWebView and desktop Chrome are unaffected. Splitting the
+// class into iOS/Android variants lets each platform's CSS opt in
+// independently to behaviors that are safe on its rendering engine.
 if (isNative) {
   document.documentElement.classList.add('native-app');
+  if (isIOS) document.documentElement.classList.add('ios-app');
+  if (isAndroid) document.documentElement.classList.add('android-app');
 }
 
 // Initialize native plugins (no-op on web)
