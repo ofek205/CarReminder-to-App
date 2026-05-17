@@ -333,7 +333,14 @@ export default function FirstTimeTour({
   // Target not in DOM yet (e.g. appears only after the user selects a
   // category on AddVehicle). Render nothing and let the user interact.
   // The poll loop above will re-compute as soon as the target mounts.
-  if (!targetRect) return null;
+  //
+  // 2026-05-17 render-time belt-and-suspenders: even if some upstream
+  // path managed to set targetRect to a zero-sized rect (stale cache
+  // serving older compute() logic, an asynchronous race between
+  // setTargetRect and the next render, etc.), render nothing. This
+  // is the second line of defence on top of the compute() guard so a
+  // user never sees a green halo dot anchored to (0,0).
+  if (!targetRect || !targetRect.width || !targetRect.height) return null;
 
   // Swipe-to-navigate gesture handlers were removed in the 2026-05-17
   // coachmark redesign. The wrapper is now pointer-events: none so
