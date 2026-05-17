@@ -122,12 +122,27 @@ html.native-app body {
   padding-bottom: var(--sab);
 }
 
-/* Prevent overscroll bounce on native. overscroll-behavior is honored
-   by WKWebView on iOS 16+; combined with capacitor.config.ts
-   `ios.contentInset: 'never'` this keeps the fixed top bar + BottomNav
-   anchored even when the user pulls past the content edges. */
-html.native-app,
-html.native-app body {
+/* Prevent overscroll bounce on iOS WKWebView. Combined with
+   `ios.contentInset: 'never'` in capacitor.config.ts this keeps the
+   fixed top bar + BottomNav anchored even when the user pulls past
+   the content edges on iPhone.
+
+   IMPORTANT: scoped to `.ios-app` (NOT `.native-app`) on purpose.
+   Android WebView (Chromium 120+) has a behaviour where
+   `overscroll-behavior: none` on the root scrolling element disables
+   touch-driven scroll ENTIRELY, while leaving programmatic scroll
+   intact. The CSS spec only authorises blocking the bounce/glow and
+   scroll-chaining — Android's implementation goes further and the
+   whole app feels unscrollable on every page. iOS WKWebView and
+   desktop Chrome honour the spec correctly, so they're unaffected.
+   Confirmed live via chrome://inspect on a Pixel 7 emulator
+   (2026-05-17): touchmoves fired ~140x with defaultPrevented=false,
+   touch-action was `auto` everywhere, programmatic
+   `window.scrollTo(0, 500)` moved the page visually, yet user
+   gestures triggered zero scroll motion. Flipping these two values
+   to `auto` at runtime restored scroll instantly. */
+html.ios-app,
+html.ios-app body {
   overscroll-behavior: none;
 }
 html.native-app {
