@@ -200,28 +200,58 @@ export default function FirstTimeTour({
   // user selects a category first), we poll every 400ms instead of
   // failing. The overlay stays invisible until the target materializes,
   // so the user can keep interacting with the page.
+  //
+  // 2026-05-17 follow-up: also reject zero-sized targets. The
+  // BottomNav uses `lg:hidden` (and returns null while roleLoading),
+  // so its data-tour="ai-tab" element exists in the DOM but renders
+  // with width/height 0 in those states. Without this check the
+  // halo + bubble would anchor to (0,0) and the user would see a
+  // green dot in the top-left corner pointing at nothing. If the
+  // target stays unreachable for ~2s we auto-advance past the step
+  // instead of trapping the user on a phantom highlight.
   useLayoutEffect(() => {
     if (!open) return;
     const currentKey = STEPS[step]?.key;
     if (!currentKey) return;
 
     let pollTimer = null;
+    let autoAdvanceTimer = null;
 
     const compute = () => {
       const el = document.querySelector(`[data-tour="${currentKey}"]`);
-      if (!el) {
+      const elRect = el ? el.getBoundingClientRect() : null;
+      const isVisible = elRect && elRect.width > 0 && elRect.height > 0;
+
+      if (!isVisible) {
         setTargetRect(null);
         // Keep polling. target may appear after the user interacts with
-        // the page (selecting a category, expanding a section, etc.).
+        // the page (selecting a category, expanding a section, etc.)
+        // or after a deferred render flushes (role check finishing,
+        // viewport rotation, etc.).
         pollTimer = setTimeout(compute, 400);
+        // Safety net: if the target never materialises for this step
+        // (e.g. it's a layout-conditional element that doesn't exist
+        // on the current viewport breakpoint), auto-advance instead
+        // of leaving the user stuck on an invisible step.
+        if (!autoAdvanceTimer) {
+          autoAdvanceTimer = setTimeout(() => {
+            if (step + 1 < totalSteps) next();
+            else finish({ scrollToTop: false });
+          }, 2000);
+        }
         return;
+      }
+      // Target became visible — cancel any pending auto-advance.
+      if (autoAdvanceTimer) {
+        clearTimeout(autoAdvanceTimer);
+        autoAdvanceTimer = null;
       }
       // Always pull the target toward the center of the viewport so the
       // card has room above AND below. Use smooth scroll when the target
       // is only a little off; instant when it's far away to keep the
       // spotlight from chasing the page. scrollIntoView is imperative,
-      // so it bypasses the wheel/touch listeners set above.
-      const r = el.getBoundingClientRect();
+      // so it bypasses any user-gesture listeners.
+      const r = elRect;
       const vh = window.innerHeight;
       const needsScroll = r.top < 80 || r.bottom > vh - 80;
       if (needsScroll) {
@@ -235,6 +265,12 @@ export default function FirstTimeTour({
       // the spotlight ring doesn't land on a stale rect.
       requestAnimationFrame(() => requestAnimationFrame(() => {
         const fresh = el.getBoundingClientRect();
+        // Defensive: if the target became hidden between scheduling
+        // the frame and now (e.g. a re-render unmounted it), bail.
+        if (!fresh.width || !fresh.height) {
+          setTargetRect(null);
+          return;
+        }
         setTargetRect(fresh);
         positionCard(fresh);
       }));
@@ -282,11 +318,12 @@ export default function FirstTimeTour({
     observeTarget();
     return () => {
       if (pollTimer) clearTimeout(pollTimer);
+      if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer);
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
       try { ro?.disconnect(); } catch {}
     };
-  }, [open, step]);
+  }, [open, step, totalSteps, next, finish]);
 
   if (!open) return null;
 
