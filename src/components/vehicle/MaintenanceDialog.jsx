@@ -7,19 +7,24 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Check, Plus, X, Clock } from "lucide-react";
-import { usesKm, usesHours } from "../shared/DateStatusUtils";
+import { usesKm, usesHours, isVessel } from "../shared/DateStatusUtils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
-import { getCatalogForVehicleType } from '@/components/shared/MaintenanceCatalog';
+import { getCatalogChipsForService } from '@/components/shared/MaintenanceCatalog';
 import { toast } from 'sonner';
 
-// Baseline quick-add chips. These stay hardcoded. they are the "safe
-// bets" we surface first so a new user sees something useful even if
-// they never visited /MaintenanceTemplates. User-defined custom items
-// from that page are merged in below as additional chips.
-const PRESET_SMALL = ['החלפת שמן', 'החלפת פילטר שמן', 'החלפת פילטר אוויר', 'החלפת פילטר מזגן'];
-const PRESET_LARGE = ['החלפת פלאגים', 'החלפת ציריות', 'החלפת רצועת טיימינג', 'החלפת בולמי זעזועים', 'החלפת רצועות', 'בדיקת בלמים', 'החלפת נוזל בלמים', 'החלפת מצבר'];
+// 2026-05-17 product decision: the previous hardcoded PRESET_SMALL /
+// PRESET_LARGE arrays only fit private cars. Off-road bikes wanted
+// chain-lube + chain-tension as their small-service basics; boats
+// wanted impeller + zinc anodes; trucks wanted AdBlue + water-
+// separator. We now derive the chips from MaintenanceCatalog using
+// the catalog's per-item `serviceSize` tag, so each sub-category
+// surfaces a curated 3-6 chip list of its own. The previous
+// "user always sees the same 4 chips" UX is replaced with a
+// "user sees the chips relevant to their vehicle" UX, while keeping
+// the same two-button modal shape (טיפול קטן / טיפול גדול) for
+// consistency across the app.
 
 function AddCustomItemDialog({ open, onClose, onSave, user }) {
   const [form, setForm] = useState({
@@ -167,24 +172,28 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
     .filter(p => p.is_custom && p.enabled && p.custom_name)
     .map(p => p.custom_name);
 
-  // Catalog-backed "large service" list. supplements the hardcoded PRESET_LARGE
-  // with whatever the catalog knows for this vehicle type. Dedup against the
-  // small-preset list so names don't appear twice.
-  const catalogItems = vehicle?.vehicle_type
-    ? (getCatalogForVehicleType(vehicle.vehicle_type) || []).map(i => i.name)
-    : [];
-  const extraLarge = catalogItems.filter(n =>
-    !PRESET_SMALL.includes(n) && !PRESET_LARGE.includes(n)
-  );
+  // Per-vehicle-type chip lists, sourced from MaintenanceCatalog. Each
+  // catalog item carries a `serviceSize` tag and we filter by the user's
+  // active selection (small / large). Items the user defined themselves
+  // in /MaintenanceTemplates are appended after the catalog chips, on
+  // whichever side (small or large) they were registered under.
+  //
+  // We pass vehicle?.vehicle_type directly (including empty/undefined).
+  // getCatalogChipsForService falls back to the private-car catalog
+  // when the type is missing or unrecognised, so legacy rows without a
+  // vehicle_type still see a sane default set of chips instead of an
+  // empty list.
+  const smallChips = getCatalogChipsForService(vehicle?.vehicle_type, 'small');
+  const largeChips = getCatalogChipsForService(vehicle?.vehicle_type, 'large');
 
-  const allPreset = [...PRESET_SMALL, ...PRESET_LARGE, ...extraLarge, ...userCustomNames];
+  const allPreset = [...smallChips, ...largeChips, ...userCustomNames];
   const customItems = (logForm.selected_items || []).filter(i => !allPreset.includes(i));
 
   const currentPreset =
     logForm.service_type === 'small'
-      ? [...PRESET_SMALL]
+      ? [...smallChips, ...userCustomNames.filter(n => myPrefs.find(p => p.custom_name === n)?.service_type === 'small')]
       : logForm.service_type === 'large'
-        ? [...PRESET_LARGE, ...extraLarge, ...userCustomNames]
+        ? [...largeChips, ...userCustomNames.filter(n => myPrefs.find(p => p.custom_name === n)?.service_type !== 'small')]
         : [];
 
   const toggleItem = (item) => {
@@ -280,14 +289,33 @@ export default function MaintenanceDialog({ open, onOpenChange, vehicle, logForm
 
           <div className="px-5 py-5 space-y-6">
 
-            {/*  Service Type Cards  */}
+            {/*  Service Type Cards.
+                 2026-05-17: secondary description swaps for vessels so it
+                 actually matches what shows in the chips below. Land
+                 vehicles keep the original phrasing (oil/filters/AC for
+                 small; brakes/timing/suspension for large); marine ones
+                 mention the items the user expects to see for a boat
+                 (impeller, anodes, safety gear) instead of car parts. */}
             <div className="space-y-3">
               <p className="text-sm font-semibold text-gray-700">סוג הטיפול</p>
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { key: 'small', emoji: '🔵', title: 'טיפול קטן', desc: 'שמן, פילטרים, מזגן', activeClass: 'border-blue-500 bg-blue-50', checkClass: 'bg-blue-500' },
-                  { key: 'large', emoji: '🟠', title: 'טיפול גדול', desc: 'פלאגים, טיימינג, בולמים', activeClass: 'border-orange-500 bg-orange-50', checkClass: 'bg-orange-500' },
-                ].map(opt => {
+                {(() => {
+                  const vessel = isVessel(vehicle?.vehicle_type, vehicle?.nickname);
+                  return [
+                    {
+                      key: 'small', emoji: '🔵', title: 'טיפול קטן',
+                      desc: vessel ? 'שמן, פילטרים, אנודות' : 'שמן, פילטרים, מזגן',
+                      activeClass: 'border-blue-500 bg-blue-50',
+                      checkClass: 'bg-blue-500',
+                    },
+                    {
+                      key: 'large', emoji: '🟠', title: 'טיפול גדול',
+                      desc: vessel ? 'impeller, רגל, ציוד בטיחות' : 'בלמים, רצועות, חשמל',
+                      activeClass: 'border-orange-500 bg-orange-50',
+                      checkClass: 'bg-orange-500',
+                    },
+                  ];
+                })().map(opt => {
                   const active = logForm.service_type === opt.key;
                   return (
                     <button
