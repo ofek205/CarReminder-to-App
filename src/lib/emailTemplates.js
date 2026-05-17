@@ -237,3 +237,68 @@ export function buildInviteText({ inviterName, roleLabel, inviteLink }) {
     'אם לא ציפית להזמנה, אפשר להתעלם ממייל זה.',
   ].join('\n');
 }
+
+/**
+ * Welcome email. Fires once, fire-and-forget, right after the user
+ * completes signup. Two callsites in AuthPage.jsx:
+ *   1. signUp returned a session (Confirm email = OFF path)
+ *   2. verifyOtp succeeded (Confirm email = ON path)
+ *
+ * Content mirrors the seed in supabase-email-management.sql so the
+ * admin-managed DB template and this JS builder render the same words
+ * — whichever one ships the email, the user gets the same content.
+ *
+ * @param {object} opts
+ * @param {string} opts.firstName  — best-effort, falls back to "אורח"
+ *                                    if the signup form didn't capture it
+ * @param {string} opts.appUrl     — link inside the primary CTA
+ */
+export function buildWelcomeEmail({ firstName, appUrl }) {
+  const safeName = escapeHtml(firstName || 'אורח');
+  const safeUrl  = appUrl || EMAIL_BRAND.siteUrl;
+
+  const bodyHtml = `
+    ${infoBox(`
+      <p style="margin:0">שמחים שהצטרפת ל-CarReminder. בעוד כמה דקות תוכל/י להתחיל לנהל את הרכבים, התזכורות והמסמכים שלך במקום אחד.</p>
+    `)}
+
+    <p style="margin:0 0 12px;font-weight:700">מה כדאי לעשות כעת:</p>
+    <ul style="margin:0 0 20px;padding-right:20px;line-height:1.9">
+      <li>להוסיף את הרכב הראשון שלך</li>
+      <li>להעלות תעודת ביטוח ורישיון רכב</li>
+      <li>להפעיל תזכורות אוטומטיות לטיפולים, טסט וביטוח</li>
+    </ul>
+
+    <p style="margin:0 0 8px">יש שאלה? פשוט השב/י למייל הזה ונענה.</p>
+
+    <div style="margin:28px 0 8px">
+      ${ctaButton('כניסה לאפליקציה', safeUrl)}
+    </div>
+  `;
+
+  return buildEmailHtml({
+    preheader: `${safeName}, בוא/י נתחיל לנהל את הרכבים שלך`,
+    title: `ברוכים הבאים, ${safeName}!`,
+    subtitle: EMAIL_BRAND.tagline,
+    bodyHtml,
+    footerNote: 'תודה שבחרת ב-CarReminder.<br>אפשר להפסיק לקבל מיילים שיווקיים מההגדרות באפליקציה.',
+  });
+}
+
+/**
+ * Plain-text counterpart for the welcome email.
+ */
+export function buildWelcomeText({ firstName, appUrl }) {
+  return [
+    `ברוכים הבאים, ${firstName || 'אורח'}!`,
+    '',
+    'שמחים שהצטרפת ל-CarReminder. בעוד כמה דקות תוכל/י:',
+    '- להוסיף את הרכב הראשון שלך',
+    '- להעלות תעודת ביטוח ורישיון רכב',
+    '- להפעיל תזכורות אוטומטיות לטיפולים, טסט וביטוח',
+    '',
+    'יש שאלה? פשוט השב/י למייל הזה.',
+    '',
+    `כניסה לאפליקציה: ${appUrl || EMAIL_BRAND.siteUrl}`,
+  ].join('\n');
+}
