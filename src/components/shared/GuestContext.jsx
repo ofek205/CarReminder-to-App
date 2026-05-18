@@ -360,12 +360,29 @@ export function GuestProvider({ children }) {
             .then(({ initPushNotifications }) => initPushNotifications(newUser.id))
             .catch(() => {});
         }
+        // Synchronous "has-session" flag for RootGate. Supabase v2
+        // stores the actual token in Capacitor Preferences on native
+        // (UserDefaults / SharedPreferences) — NOT in localStorage —
+        // so the localStorage scan in RootGate can never see it on
+        // iOS / Android. This flag bridges that gap: it sits in
+        // localStorage (works on every platform) and tracks "user has
+        // a live Supabase session". RootGate treats its presence as
+        // a strong hint that we should navigate to /Dashboard rather
+        // than mount AuthPage. Value is just '1' — we only ever check
+        // presence; never trust contents.
+        try { localStorage.setItem('cr_has_session', '1'); } catch {}
         setAuthState('authenticated');
         try { window.__crAuthResolvedAt = Date.now(); } catch {}
         // Migrate guest data after login/signup (non-blocking).
         migrateGuestDataIfNeeded(newUser);
       } else {
         setUser(null);
+        // Mirror the cr_has_session removal here so a SIGNED_OUT or
+        // session-expired event clears the gate-relevant flag immediately.
+        // Defensive: even if our handleLogout path already cleared this,
+        // this keeps the flag accurate against external sign-outs (e.g.
+        // server-revoked token on next API call).
+        try { localStorage.removeItem('cr_has_session'); } catch {}
         setAuthState('guest');
         try { window.__crAuthResolvedAt = Date.now(); } catch {}
         // Detach PIN — every subsequent isPinEnabled() / tryUnlock()

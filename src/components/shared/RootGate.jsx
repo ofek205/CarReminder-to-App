@@ -67,12 +67,29 @@ import AuthPage from '@/pages/AuthPage';
 function resolveBootDestination() {
   let hasToken = false;
   try {
+    // Primary signal — Supabase v2 storage key. Present on WEB always
+    // (the storage adapter writes there). On CAPACITOR this key is
+    // empty because supabase-js writes to Capacitor Preferences
+    // (UserDefaults / SharedPreferences) instead — see src/lib/supabase.js,
+    // `nativeStorage` adapter. That's exactly why the cr_has_session
+    // mirror below exists: it's a synchronous breadcrumb we write
+    // ourselves from GuestContext.onAuthStateChange, so RootGate has
+    // something to read on native cold-launch before any async API
+    // call resolves.
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
         const v = localStorage.getItem(k);
         if (v && v.length > 10) { hasToken = true; break; }
       }
+    }
+    // Secondary signal — written by GuestContext on every SIGNED_IN /
+    // INITIAL_SESSION event, cleared on SIGNED_OUT (and again in
+    // handleLogout for belt-and-suspenders). This is the ONLY signal
+    // available on Capacitor; on web it's a redundant but harmless
+    // cross-check. Presence is enough — we don't trust contents.
+    if (!hasToken && localStorage.getItem('cr_has_session') === '1') {
+      hasToken = true;
     }
   } catch {
     // localStorage denied (Safari private mode, GDPR holdouts). Treat
