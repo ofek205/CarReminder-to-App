@@ -1163,7 +1163,35 @@ export default function Dashboard() {
   // filter doesn't silently suppress pushes for filtered-out vehicles.
   const { unreadCount } = useNotificationScheduler(vehicles || [], accountId);
 
-  if (isLoading) return <LoadingSpinner />;
+  // Auth context still booting — would have been a full-screen
+  // LoadingSpinner pre-RootGate. With RootGate now sending authenticated
+  // users straight to /Dashboard before the auth context has resolved,
+  // this branch fires for the brief window between Navigate and the
+  // auth bootstrap finishing. A skeleton (instead of a centred logo +
+  // spinner) keeps the visual rhythm continuous with the cached-data
+  // path and avoids a second "loading" surface inside one boot.
+  if (isLoading) {
+    return (
+      <div className="px-4 pt-4 pb-24" dir="rtl">
+        <div className="h-7 w-44 rounded-lg mb-4 animate-pulse" style={{ background: '#E5E7EB' }} />
+        {[0, 1, 2].map(i => (
+          <div key={i}
+            className="mb-3 rounded-2xl overflow-hidden animate-pulse"
+            style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}
+            aria-hidden="true"
+          >
+            <div className="flex items-center gap-3 p-4">
+              <div className="w-14 h-14 rounded-xl shrink-0" style={{ background: '#E5E7EB' }} />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="h-4 w-32 rounded" style={{ background: '#E5E7EB' }} />
+                <div className="h-3 w-24 rounded" style={{ background: '#F3F4F6' }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   // Driver in business workspace — the redirect useEffect above sends
   // them to /MyVehicles, but it runs after the first paint. Without
   // this short-circuit they briefly see the manager-style vehicle
