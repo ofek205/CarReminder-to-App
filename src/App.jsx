@@ -9,6 +9,7 @@ import PageNotFound from './lib/PageNotFound';
 import { PinGate } from '@/components/shared/PinLock';
 import AppUpdateGate from '@/components/shared/AppUpdateGate';
 import BootDebug from './pages/BootDebug';
+import RootGate from './components/shared/RootGate';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -234,9 +235,20 @@ function App() {
             <NavigationTracker />
             <PinGate>
             <Routes>
+              {/* The `/` route used to render <MainPage /> = AuthPage,
+                  which caused a visible flash of the login screen on
+                  every refresh / cold app launch for already-signed-in
+                  users — AuthPage's loading spinner + 3s bypass timer
+                  showed before the auto-redirect useEffect kicked in.
+                  RootGate replaces that with a synchronous router
+                  decision: if a Supabase session token sits in
+                  localStorage, navigate straight to /Dashboard (or the
+                  remembered last route) without ever mounting AuthPage.
+                  If no token is found, it falls through to AuthPage as
+                  before. See src/components/shared/RootGate.jsx. */}
               <Route path="/" element={
                 <LayoutWrapper currentPageName={mainPageKey}>
-                  <MainPage />
+                  <RootGate />
                 </LayoutWrapper>
               } />
               {Object.entries(Pages).map(([path, Page]) => (
