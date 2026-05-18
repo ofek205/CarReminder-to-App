@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"
@@ -76,6 +77,27 @@
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
+
+    <!-- Explicit removal of broad media permissions that @capacitor/camera
+         (and any other photo-picker-aware library) might still declare in
+         its own manifest as a back-compat fallback. Google Play's May 2024
+         "photos and videos" policy rejects any app that uses photos only
+         occasionally (receipt scanning, document upload, vehicle photo)
+         and still ships these manifest permissions — the policy demands
+         the system Photo Picker, which needs NO permission at all.
+         tools:node="remove" instructs the manifest merger to strip these
+         entries from the final merged AAB even when a library declares
+         them. Without this hint, the merger inherits the library's
+         permission and the Play Console rejection re-fires on every
+         submission.
+         Rejection ref: "שימוש לא תקין בהרשאות הגישה לתמונות ולסרטונים" /
+         "Invalid use of permissions for photos and videos". -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+        tools:node="remove" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- NOTE: We previously also declared USE_EXACT_ALARM as a "backup"
