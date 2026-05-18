@@ -838,9 +838,20 @@ export default function Dashboard() {
   useEffect(() => {
     if (isGuest) return;
     if (activeWorkspace?.account_type !== 'business') return;
+    // Prefetch the destination chunk synchronously with the navigate.
+    // BusinessDashboard and MyVehicles are React.lazy() in pages.config,
+    // so a direct navigate would trigger React Suspense and the user
+    // would see the bundle-load fallback ("טוען...") between Dashboard's
+    // skeleton and the destination's first paint. Calling import() here
+    // starts the network fetch immediately; by the time React renders
+    // the new route, the chunk has usually already landed and the
+    // fallback never appears. Fire-and-forget — failures are handled by
+    // Suspense's normal flow.
     if (isDriver && !canManageRoutes) {
+      import('@/pages/MyVehicles').catch(() => {});
       navigateRef(createPageUrl('MyVehicles'), { replace: true });
     } else {
+      import('@/pages/BusinessDashboard').catch(() => {});
       navigateRef(createPageUrl('BusinessDashboard'), { replace: true });
     }
   }, [activeWorkspace, isGuest, isDriver, canManageRoutes, navigateRef]);
