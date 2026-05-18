@@ -1342,7 +1342,46 @@ export default function Dashboard() {
       </div>
     );
   }
-  if (!accountId || vehiclesLoading) return <LoadingSpinner />;
+  // Loading state — show a Skeleton with the actual Dashboard chrome
+  // shape instead of a full-screen centred spinner. The chrome
+  // (header + bottom nav) already comes from Layout, so the user
+  // sees the app frame populated immediately and only the data area
+  // animates with placeholder cards. This is the difference between
+  // "the app is loading" (spinner = nothing useful yet) and "your
+  // content is on the way" (skeleton = the app is there, just
+  // populating). Per the v4.6.4 hydration path the cached case
+  // already skips this branch entirely — this only fires when the
+  // user has NO cached snapshot, i.e. first launch after install,
+  // after logout-then-login, or a different account on the same
+  // browser. Acceptable to keep one fallback path.
+  if (!accountId || vehiclesLoading) {
+    return (
+      <div className="px-4 pt-4 pb-24" dir="rtl">
+        {/* Greeting line placeholder — same spacing as the real
+            header inside Dashboard's success render. */}
+        <div className="h-7 w-44 rounded-lg mb-4 animate-pulse" style={{ background: '#E5E7EB' }} />
+        {/* Vehicle card placeholders — three cards, sized to match
+            VehicleCard's outer dimensions so the layout doesn't jump
+            when the real data arrives. animate-pulse from Tailwind
+            gives the standard "loading" treatment. */}
+        {[0, 1, 2].map(i => (
+          <div key={i}
+            className="mb-3 rounded-2xl overflow-hidden animate-pulse"
+            style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}
+            aria-hidden="true"
+          >
+            <div className="flex items-center gap-3 p-4">
+              <div className="w-14 h-14 rounded-xl shrink-0" style={{ background: '#E5E7EB' }} />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="h-4 w-32 rounded" style={{ background: '#E5E7EB' }} />
+                <div className="h-3 w-24 rounded" style={{ background: '#F3F4F6' }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   // Status severity used when the user sorts by status. most urgent first.
   // Matches the intent on /Vehicles: expired > upcoming > ok.
