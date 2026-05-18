@@ -102,6 +102,21 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon
 
+      - name: Guard against Google Play media-permission rejection
+        # Hard gate against re-introducing READ_MEDIA_IMAGES /
+        # READ_MEDIA_VIDEO / READ_MEDIA_VISUAL_USER_SELECTED into the
+        # merged Android manifest. Google Play rejected v4.6.8 over this
+        # exact policy and the failure mode was silent — our own
+        # AndroidManifest doesn't declare these, but a library (e.g.
+        # @capacitor/camera) bundled them via manifest merging and we
+        # only found out via a Play Console rejection email days after
+        # upload. This step scans the post-merge manifest and fails the
+        # build if any of the forbidden permissions reappear, catching
+        # a regression at build time rather than at Play Console review.
+        # See scripts/check-android-permissions.sh for the full
+        # rationale + remediation steps.
+        run: bash scripts/check-android-permissions.sh
+
       - name: Locate APK
         id: locate_apk
         run: |
