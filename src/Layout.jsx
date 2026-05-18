@@ -205,6 +205,18 @@ function UserPopover() {
     } catch (err) {
       console.warn('[layout] logout localStorage clear failed:', err?.message || err);
     }
+    // Clear the cached vehicle snapshots and the RootGate last-route
+    // hint so the next sign-in (possibly as a different user) doesn't
+    // get routed back to a private route from the previous session
+    // OR shown stale data for the wrong account.
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('cr-vehicles-cache:'))
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
+    try {
+      sessionStorage.removeItem('cr_last_route');
+    } catch {}
     await supabase.auth.signOut();
   };
 
@@ -324,6 +336,17 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
     } catch (err) {
       console.warn('[layout] logout localStorage clear failed:', err?.message || err);
     }
+    // Same cleanup as the UserPopover logout — vehicle cache + last-route
+    // hint must die with the session so the next signed-in user starts
+    // fresh.
+    try {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('cr-vehicles-cache:'))
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
+    try {
+      sessionStorage.removeItem('cr_last_route');
+    } catch {}
     await supabase.auth.signOut();
   };
 
@@ -630,6 +653,23 @@ function LayoutInner({ children }) {
     import('@/lib/analytics').then(({ trackEvent }) => {
       trackEvent(`page_view:${page}`);
     });
+  }, [location.pathname]);
+
+  // Remember where the user is so the next cold launch can route them
+  // back to the same screen. RootGate reads `cr_last_route` from
+  // sessionStorage on `/` and Navigates there if it looks safe. We
+  // store only pathname (no query/hash) so we don't accidentally
+  // re-open a stale modal or carry over a one-shot intent (`?next=…`
+  // style params). Public/auth routes are skipped — there's no point
+  // restoring a signed-in user to `/Auth`. Errors are swallowed; an
+  // unwritable sessionStorage just means RootGate falls back to
+  // `/Dashboard`, which is the default anyway.
+  useEffect(() => {
+    const REMEMBER_SKIP = ['/', '/Auth', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
+    if (REMEMBER_SKIP.includes(location.pathname)) return;
+    try {
+      sessionStorage.setItem('cr_last_route', location.pathname);
+    } catch {}
   }, [location.pathname]);
 
   // Detect if user has vessels

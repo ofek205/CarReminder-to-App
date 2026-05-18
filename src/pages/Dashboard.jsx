@@ -838,9 +838,20 @@ export default function Dashboard() {
   useEffect(() => {
     if (isGuest) return;
     if (activeWorkspace?.account_type !== 'business') return;
+    // Prefetch the destination chunk synchronously with the navigate.
+    // BusinessDashboard and MyVehicles are React.lazy() in pages.config,
+    // so a direct navigate would trigger React Suspense and the user
+    // would see the bundle-load fallback ("טוען...") between Dashboard's
+    // skeleton and the destination's first paint. Calling import() here
+    // starts the network fetch immediately; by the time React renders
+    // the new route, the chunk has usually already landed and the
+    // fallback never appears. Fire-and-forget — failures are handled by
+    // Suspense's normal flow.
     if (isDriver && !canManageRoutes) {
+      import('@/pages/MyVehicles').catch(() => {});
       navigateRef(createPageUrl('MyVehicles'), { replace: true });
     } else {
+      import('@/pages/BusinessDashboard').catch(() => {});
       navigateRef(createPageUrl('BusinessDashboard'), { replace: true });
     }
   }, [activeWorkspace, isGuest, isDriver, canManageRoutes, navigateRef]);
@@ -1163,7 +1174,35 @@ export default function Dashboard() {
   // filter doesn't silently suppress pushes for filtered-out vehicles.
   const { unreadCount } = useNotificationScheduler(vehicles || [], accountId);
 
-  if (isLoading) return <LoadingSpinner />;
+  // Auth context still booting — would have been a full-screen
+  // LoadingSpinner pre-RootGate. With RootGate now sending authenticated
+  // users straight to /Dashboard before the auth context has resolved,
+  // this branch fires for the brief window between Navigate and the
+  // auth bootstrap finishing. A skeleton (instead of a centred logo +
+  // spinner) keeps the visual rhythm continuous with the cached-data
+  // path and avoids a second "loading" surface inside one boot.
+  if (isLoading) {
+    return (
+      <div className="px-4 pt-4 pb-24" dir="rtl">
+        <div className="h-7 w-44 rounded-lg mb-4 animate-pulse" style={{ background: '#E5E7EB' }} />
+        {[0, 1, 2].map(i => (
+          <div key={i}
+            className="mb-3 rounded-2xl overflow-hidden animate-pulse"
+            style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}
+            aria-hidden="true"
+          >
+            <div className="flex items-center gap-3 p-4">
+              <div className="w-14 h-14 rounded-xl shrink-0" style={{ background: '#E5E7EB' }} />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="h-4 w-32 rounded" style={{ background: '#E5E7EB' }} />
+                <div className="h-3 w-24 rounded" style={{ background: '#F3F4F6' }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   // Driver in business workspace — the redirect useEffect above sends
   // them to /MyVehicles, but it runs after the first paint. Without
   // this short-circuit they briefly see the manager-style vehicle
@@ -1342,7 +1381,46 @@ export default function Dashboard() {
       </div>
     );
   }
-  if (!accountId || vehiclesLoading) return <LoadingSpinner />;
+  // Loading state — show a Skeleton with the actual Dashboard chrome
+  // shape instead of a full-screen centred spinner. The chrome
+  // (header + bottom nav) already comes from Layout, so the user
+  // sees the app frame populated immediately and only the data area
+  // animates with placeholder cards. This is the difference between
+  // "the app is loading" (spinner = nothing useful yet) and "your
+  // content is on the way" (skeleton = the app is there, just
+  // populating). Per the v4.6.4 hydration path the cached case
+  // already skips this branch entirely — this only fires when the
+  // user has NO cached snapshot, i.e. first launch after install,
+  // after logout-then-login, or a different account on the same
+  // browser. Acceptable to keep one fallback path.
+  if (!accountId || vehiclesLoading) {
+    return (
+      <div className="px-4 pt-4 pb-24" dir="rtl">
+        {/* Greeting line placeholder — same spacing as the real
+            header inside Dashboard's success render. */}
+        <div className="h-7 w-44 rounded-lg mb-4 animate-pulse" style={{ background: '#E5E7EB' }} />
+        {/* Vehicle card placeholders — three cards, sized to match
+            VehicleCard's outer dimensions so the layout doesn't jump
+            when the real data arrives. animate-pulse from Tailwind
+            gives the standard "loading" treatment. */}
+        {[0, 1, 2].map(i => (
+          <div key={i}
+            className="mb-3 rounded-2xl overflow-hidden animate-pulse"
+            style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}
+            aria-hidden="true"
+          >
+            <div className="flex items-center gap-3 p-4">
+              <div className="w-14 h-14 rounded-xl shrink-0" style={{ background: '#E5E7EB' }} />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="h-4 w-32 rounded" style={{ background: '#E5E7EB' }} />
+                <div className="h-3 w-24 rounded" style={{ background: '#F3F4F6' }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   // Status severity used when the user sorts by status. most urgent first.
   // Matches the intent on /Vehicles: expired > upcoming > ok.
