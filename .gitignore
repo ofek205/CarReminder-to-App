@@ -85,3 +85,10 @@ staging-init-consolidated.sql
 # Local screenshots produced by scripts/screenshot-*.mjs verification helpers.
 # Re-runnable via the script; not source.
 sprint*-*.png
+
+# Backfill recipient lists — contain real user emails / names exported
+# from auth.users for one-off scripts. Never commit; re-export from the
+# SQL query inside the corresponding scripts/*-backfill-*.sql file.
+scripts/welcome-recipients.json
+scripts/*-recipients.json
+scripts/*-recipients.csv

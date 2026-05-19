@@ -24,6 +24,63 @@ const DEFAULT_REMINDER_SETTINGS = {
   daily_job_hour:                 8,
 };
 
+//  Welcome email dispatch — OAuth signup paths
+// Email+password signups dispatch their welcome from AuthPage (which has
+// the user's full name from form state). OAuth signups (Google / Apple,
+// web + native) skip AuthPage's dispatcher entirely — they exchange a
+// code/token for a session and SIGNED_IN fires here. Without this
+// helper they'd never receive a welcome email.
+//
+// Discovery context: launch day for v4.7.0, ~45 signups, only 2 welcome
+// emails reached Resend because all but 2 came in via OAuth.
+//
+// Gates (must all pass):
+//   1. provider !== 'email' — email/password path is owned by AuthPage,
+//      so this helper stays out of its way and we never race two dispatches.
+//   2. user.created_at within last 5 minutes — INITIAL_SESSION fires on
+//      every page load when a session is stored, so without an age check
+//      we'd re-fire welcome on every return visit during the same hour.
+//   3. localStorage flag not set — protects against tab refresh during
+//      the OAuth callback (a real path on slow networks). Per-device only,
+//      which is fine: a second-device sign-in within 5 min is extremely rare.
+//
+// Failure policy: silent. Welcome is best-effort, must never block auth
+// or surface an error to the user.
+async function dispatchOAuthWelcomeEmail(user) {
+  if (!user || !user.id || !user.email) return;
+  const provider = user.app_metadata?.provider;
+  if (!provider || provider === 'email') return;
+
+  const createdAtMs = user.created_at ? new Date(user.created_at).getTime() : 0;
+  if (!createdAtMs || Date.now() - createdAtMs > 5 * 60 * 1000) return;
+
+  const flagKey = `cr_welcome_sent_${user.id}`;
+  try { if (localStorage.getItem(flagKey)) return; } catch {}
+
+  try {
+    const fullName =
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      '';
+    const firstName = String(fullName).trim().split(/\s+/)[0] || '';
+    const { sendEmail } = await import('@/lib/sendEmail');
+    const { buildWelcomeEmail, buildWelcomeText } = await import('@/lib/emailTemplates');
+    await sendEmail({
+      to: user.email,
+      subject: `ברוך/ה הבא/ה ל-CarReminder${firstName ? `, ${firstName}` : ''}`,
+      html: buildWelcomeEmail({ firstName, appUrl: 'https://car-reminder.app' }),
+      text: buildWelcomeText({ firstName, appUrl: 'https://car-reminder.app' }),
+      notificationKey: 'welcome',
+    });
+    try { localStorage.setItem(flagKey, '1'); } catch {}
+  } catch (err) {
+    if (import.meta.env?.DEV) {
+      // eslint-disable-next-line no-console
+      console.warn('[welcome-email] OAuth dispatch failed:', err?.message);
+    }
+  }
+}
+
 export function GuestProvider({ children }) {
   const [authState, setAuthState] = useState('loading'); // 'loading' | 'authenticated' | 'guest'
   const [user, setUser] = useState(null);
@@ -359,6 +416,11 @@ export function GuestProvider({ children }) {
           import('@/lib/pushNotifications')
             .then(({ initPushNotifications }) => initPushNotifications(newUser.id))
             .catch(() => {});
+          // Welcome email for OAuth signups (Google / Apple). Email+password
+          // signups are dispatched from AuthPage with the form's fullName,
+          // so this helper short-circuits on provider==='email' to avoid
+          // double-dispatch. See dispatchOAuthWelcomeEmail above for gates.
+          dispatchOAuthWelcomeEmail(session.user);
         }
         // Synchronous "has-session" flag for RootGate. Supabase v2
         // stores the actual token in Capacitor Preferences on native
