@@ -26,17 +26,17 @@ ALTER TABLE app_errors ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS app_errors_insert ON app_errors;
 CREATE POLICY app_errors_insert ON app_errors FOR INSERT TO authenticated, anon WITH CHECK (true);
 
--- Only admins may read / update / resolve
+-- Only admins may read / update / resolve. Uses the project's existing
+-- is_current_user_admin() RPC (defined in supabase-email-center-full-control.sql)
+-- because the authenticated role can't SELECT directly from auth.users —
+-- a query like `SELECT email FROM auth.users WHERE id = auth.uid()` inside
+-- the policy itself errors out with "permission denied for table users",
+-- so the admin can never read the table even when they ARE an admin.
+-- The RPC is SECURITY DEFINER and centralises the admin list lookup.
 DROP POLICY IF EXISTS app_errors_admin_read ON app_errors;
 CREATE POLICY app_errors_admin_read ON app_errors FOR SELECT TO authenticated
-  USING (
-    (SELECT email FROM auth.users WHERE id = auth.uid()) = 'ofek205@gmail.com'
-    OR (SELECT raw_user_meta_data->>'role' FROM auth.users WHERE id = auth.uid()) = 'admin'
-  );
+  USING (public.is_current_user_admin());
 
 DROP POLICY IF EXISTS app_errors_admin_update ON app_errors;
 CREATE POLICY app_errors_admin_update ON app_errors FOR UPDATE TO authenticated
-  USING (
-    (SELECT email FROM auth.users WHERE id = auth.uid()) = 'ofek205@gmail.com'
-    OR (SELECT raw_user_meta_data->>'role' FROM auth.users WHERE id = auth.uid()) = 'admin'
-  );
+  USING (public.is_current_user_admin());
