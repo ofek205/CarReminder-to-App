@@ -115,7 +115,7 @@ function buildText(firstName) {
 
 async function sendOne(rec) {
   const firstName = (rec.full_name || '').trim().split(/\s+/)[0] || '';
-  const subject = `ברוך/ה הבא/ה ל-CarReminder${firstName ? `, ${firstName}` : ''}`;
+  const subject = `ברוכים הבאים ל-CarReminder${firstName ? `, ${firstName}` : ''}`;
   const body = {
     to:               rec.recipient_email,
     subject,

@@ -67,7 +67,7 @@ async function dispatchOAuthWelcomeEmail(user) {
     const { buildWelcomeEmail, buildWelcomeText } = await import('@/lib/emailTemplates');
     await sendEmail({
       to: user.email,
-      subject: `ברוך/ה הבא/ה ל-CarReminder${firstName ? `, ${firstName}` : ''}`,
+      subject: `ברוכים הבאים ל-CarReminder${firstName ? `, ${firstName}` : ''}`,
       html: buildWelcomeEmail({ firstName, appUrl: 'https://car-reminder.app' }),
       text: buildWelcomeText({ firstName, appUrl: 'https://car-reminder.app' }),
       notificationKey: 'welcome',

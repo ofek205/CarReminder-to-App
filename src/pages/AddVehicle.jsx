@@ -5,6 +5,7 @@ import { compressImage } from '@/lib/imageCompress';
 import useFileUpload from '@/hooks/useFileUpload';
 import FirstTimeTour from '@/components/shared/FirstTimeTour';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
+import MultipleMatchDialog from '@/components/vehicle/MultipleMatchDialog';
 
 // Mini tour shown the first time a user lands on /AddVehicle with no
 // vehicles yet. Kept intentionally short: two steps, plain Hebrew,
@@ -35,7 +36,7 @@ import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectWithClear } from "@/components/ui/select";
-import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft, Car, Construction, Info } from "lucide-react";
+import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft } from "lucide-react";
 import { lookupVehicleByPlate } from "../services/vehicleLookup";
 import { normalizePlate, isVintageVehicle, isVessel } from "../components/shared/DateStatusUtils";
 import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, CME_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
@@ -660,13 +661,17 @@ export default function AddVehicle() {
       return;
     }
     if (fields._isInactive) {
-      const dateLine = fields._cancellationDate
-        ? ` (תאריך ביטול: ${fields._cancellationDate})`
-        : '';
-      toast.warning(
-        `שים לב: רכב זה ירד מהכביש ובסטטוס ביטול סופי${dateLine}. הפרטים מולאו לצורך מעקב, אך הרכב לא רשום פעיל.`,
-        { duration: 8000 }
-      );
+      // Two distinct kinds of "inactive": (a) `inactive` registry with
+      // `bitul_dt` = vehicle was finally cancelled, (b) `inactive_classic`
+      // registry = test expired >13 months but NOT cancelled (this is
+      // where collector/vintage cars live). The previous copy said
+      // "ביטול סופי" for both, which was inaccurate (and worrying) for
+      // the second group. Branch on `_cancellationDate` presence to
+      // pick the right wording.
+      const wording = fields._cancellationDate
+        ? `שים לב: רכב זה ירד מהכביש בסטטוס ביטול סופי (תאריך ביטול: ${fields._cancellationDate}). הפרטים מולאו לצורך מעקב.`
+        : `שים לב: רכב זה אינו פעיל ברישומי משרד התחבורה (טסט פג לפני יותר משנה). הפרטים מולאו לצורך מעקב.`;
+      toast.warning(wording, { duration: 8000 });
     }
     applyLookupToForm(fields, buildUpdatesFromFields(fields));
   };
@@ -1051,95 +1056,14 @@ export default function AddVehicle() {
           Herald in inactive-no-model AND 2024 SCHMIDT street sweeper in
           CME). User picks the one they actually own. Visual register is
           INFO (sky blue), not warning (amber) — this isn't an error. */}
-      {multipleMatches && (
-        <div
-          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
-          dir="rtl"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="multimatch-title"
-          onClick={(e) => { if (e.target === e.currentTarget) cancelMultiMatch(); }}
-        >
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto"
-              style={{ background: '#DBEAFE' }}
-            >
-              <Info className="w-7 h-7" style={{ color: '#1E40AF' }} />
-            </div>
-            <div className="text-center space-y-2">
-              <h2 id="multimatch-title" className="text-lg font-bold" style={{ color: '#1C2E20' }}>
-                נמצאו 2 רכבים עם אותה לוחית
-              </h2>
-              <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
-                המספר{' '}
-                <span
-                  dir="ltr"
-                  className="inline-block px-2 py-0.5 rounded-md font-mono font-bold align-middle"
-                  style={{ background: '#F4F7F3', color: '#2D5233' }}
-                >
-                  {multipleMatches.plate}
-                </span>
-                {' '}רשום במשרד התחבורה כשני רכבים שונים. איזה מהם הרכב שלך?
-              </p>
-            </div>
-            <div className="space-y-2.5">
-              {multipleMatches.matches.map((m, idx) => {
-                const isCme = m.fields._detectedType === 'cme';
-                const tint = isCme
-                  ? { bg: '#FEF3C7', text: '#92400E' }
-                  : { bg: '#E8F2EA', text: '#1C3620' };
-                const Icon = isCme ? Construction : Car;
-                const titleParts = [m.fields.manufacturer, m.fields.model].filter(Boolean).join(' ').trim();
-                const metaParts = [m.fields.year, m.fields.fuel_type || m.fields.country_of_origin].filter(Boolean).join(' · ');
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => chooseMultiMatch(idx)}
-                    aria-label={`בחר ${titleParts || 'רכב'} ${m.fields.year || ''}, ${m.fields._detectedTypeLabel || ''}`}
-                    className="w-full text-right p-4 rounded-2xl transition-all active:scale-[0.98] hover:bg-[#F4F7F3] focus:outline-none focus:ring-2 focus:ring-green-700"
-                    style={{ background: '#fff', border: '1.5px solid #E5E7EB' }}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className="w-11 h-11 shrink-0 rounded-xl flex items-center justify-center"
-                        style={{ background: tint.bg }}
-                      >
-                        <Icon className="w-5 h-5" style={{ color: tint.text }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-sm truncate" style={{ color: '#1C2E20' }}>
-                          {titleParts || 'יצרן/דגם לא ידוע'}
-                        </div>
-                        {metaParts && (
-                          <div className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
-                            {metaParts}
-                          </div>
-                        )}
-                        <span
-                          className="inline-block mt-1.5 px-2 py-0.5 rounded-lg text-[11px] font-bold"
-                          style={{ background: tint.bg, color: tint.text }}
-                        >
-                          {m.fields._detectedTypeLabel || 'רכב'}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              onClick={cancelMultiMatch}
-              className="w-full py-2 text-xs font-medium transition-colors"
-              style={{ color: '#DC2626' }}
-            >
-              אף אחד מהם לא הרכב שלי / ביטול
-            </button>
-          </div>
-        </div>
-      )}
+      <MultipleMatchDialog
+        open={!!multipleMatches}
+        plate={multipleMatches?.plate}
+        matches={multipleMatches?.matches}
+        onChoose={chooseMultiMatch}
+        onCancel={cancelMultiMatch}
+        titleId="av-multimatch-title"
+      />
 
       {/* Category-mismatch Modal. opens when gov.il says the plate belongs
           to a different vehicle class than the one the user picked. */}
