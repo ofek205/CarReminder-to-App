@@ -492,6 +492,11 @@ export default function AddVehicle() {
       // שריפה") so the user can still pick the precise subtype from
       // CME_SUBCATEGORIES on the next step.
       case 'cme':        return VEHICLE_CATEGORIES.find(c => c.label === 'כלי צמ"ה');
+      // Collector vehicles ("רכב אספנות") sit inside "מיוחדים". The
+      // lookup service flags them when a CME-registry record's subtype
+      // text mentions אספנות / וטרן / וינטג. Confirm flow also
+      // auto-selects the "רכב אספנות" subcategory (see confirmSwitchCategory).
+      case 'collector':  return VEHICLE_CATEGORIES.find(c => c.label === 'מיוחדים');
       // Trailers and buses both live in the "מיוחדים" bucket together
       // with tractors, forklifts and operational vehicles. The heavy
       // gov.il API distinguishes them via tkina_EU; we route all three
@@ -604,6 +609,10 @@ export default function AddVehicle() {
       // Default subcategory for motorcycle = "אופנוע כביש" (most common)
       if (typeMismatch.detectedType === 'motorcycle') {
         setSelectedSubcategory(MOTO_SUBCATEGORIES.find(s => s.label === 'אופנוע כביש') || MOTO_SUBCATEGORIES[0]);
+      }
+      // Collector vehicles → preselect "רכב אספנות" inside "מיוחדים"
+      if (typeMismatch.detectedType === 'collector') {
+        setSelectedSubcategory(SPECIAL_SUBCATEGORIES.find(s => s.label === 'רכב אספנות') || SPECIAL_SUBCATEGORIES[0]);
       }
     }
     applyLookupToForm(typeMismatch.pendingFields, typeMismatch.pendingUpdates);
