@@ -70,8 +70,15 @@ const DEFAULT_FORM = {
   notify_document: true,
   notify_safety: true,
   // Channel toggles
+  // email_enabled default: TRUE — reminder emails are operational/
+  // transactional (not marketing). The user is free to flip them off
+  // here in /Settings → התראות. This matches the in-app push default
+  // (device_notifications_enabled: true) so a new signup receives all
+  // the channels by default and curates from there. Marketing emails
+  // live behind a different gate (user_notification_preferences per key)
+  // so flipping this true does NOT subscribe anyone to marketing.
   device_notifications_enabled: true,
-  email_enabled: false,
+  email_enabled: true,
   whatsapp_enabled: false,
   // Quiet hours. suppress pushes outside of user's active window.
   // Default off (00→00 meaning "no quiet hours applied").

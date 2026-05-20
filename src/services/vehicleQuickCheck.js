@@ -170,6 +170,29 @@ export async function lookupVehicleQuickCheck(plate) {
   const raw = await lookupVehicleByPlate(validation.plate);
   if (!raw) return null;
 
+  // Dual-registry collision. The plate digits exist in two MoT
+  // datasets (e.g. mispar_tzama=229080 SCHMIDT sweeper + mispar_rechev=
+  // 229080 1965 Triumph Herald). lookupVehicleByPlate returned both
+  // candidates; bubble them up so the calling page (VehicleCheck or
+  // Dashboard hero) can render the picker dialog. Each candidate is
+  // pre-normalized so the caller can use either one directly after
+  // the user picks.
+  if (raw._multipleMatches) {
+    const normalizedMatches = raw.matches.map((m) => ({
+      source: m.source,
+      fields: m.fields,
+      normalized: normalizeLookupResult(m.fields, validation.plate),
+    }));
+    // Intentionally NOT cached — the cached value would be the choice-
+    // pending state, and re-entry should re-show the dialog (or, more
+    // likely, the user already navigated past it).
+    return {
+      _multipleMatches: true,
+      plate: validation.plate,
+      matches: normalizedMatches,
+    };
+  }
+
   const result = normalizeLookupResult(raw, validation.plate);
   cache.set(validation.plate, { result, cachedAt: Date.now() });
   return result;

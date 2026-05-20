@@ -524,7 +524,21 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
     (async () => {
       try {
         const { lookupVehicleByPlate } = await import('../services/vehicleLookup');
-        const govData = await lookupVehicleByPlate(vehicle.license_plate);
+        const govRaw = await lookupVehicleByPlate(vehicle.license_plate);
+        // Dual-registry collision on a vehicle that's already in our
+        // DB — no UI here (this is background enrichment). Match by
+        // category: if the stored vehicle is "כלי צמ"ה", prefer the
+        // CME candidate; otherwise prefer the non-CME (car/collector)
+        // candidate. Fall back to the first candidate if neither side
+        // matches cleanly.
+        let govData = govRaw;
+        if (govRaw && govRaw._multipleMatches) {
+          const wantCme = vehicle.vehicle_type === 'כלי צמ"ה';
+          const pick = govRaw.matches.find(
+            (m) => (m.fields?._detectedType === 'cme') === wantCme
+          );
+          govData = (pick || govRaw.matches[0])?.fields || null;
+        }
         if (!govData) { localStorage.setItem(enrichKey, '1'); setEnrichDone(true); return; }
         const allFields = ['engine_model','model_code','trim_level','vin','pollution_group',
           'vehicle_class','safety_rating','front_tire','rear_tire','color','ownership',

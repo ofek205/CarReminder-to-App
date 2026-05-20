@@ -23,6 +23,21 @@ const CME_RESOURCE_ID = '58dc4654-16b1-42ed-8170-98fadec153ea';
 // (vintage / keepsake / etc.) — but flag it so the UI can warn
 // before silently filling the form.
 const INACTIVE_RESOURCE_ID = '851ecab1-0622-4dbe-a6c7-f950cf82abf9';
+// "רכב לא פעיל ללא קוד דגם" — vehicles missing a model_cd (older
+// imports, classic cars, custom-built) that lapsed >13 months ago but
+// aren't stolen or finally cancelled. The key insight: this is where
+// **collector cars** ("רכבי אספנות") with short 4-6 digit plates from
+// the 60s/70s actually live. They were registered before the modern
+// degem_cd taxonomy and never re-coded.
+//
+// Critical: shares the `mispar_rechev` namespace with the active
+// private-car registry, NOT `mispar_tzama` like CME. So plate "229080"
+// can legitimately exist as BOTH a SCHMIDT street-sweeper (CME) AND a
+// 1965 Triumph Herald (this registry) — different namespaces, same
+// digits. The lookup cascade must check this dataset for short plates
+// BEFORE falling through to CME, otherwise the collector gets
+// mislabelled as a forklift.
+const INACTIVE_NO_MODEL_RESOURCE_ID = '6f6acd03-f351-4a8f-8ecf-df792f4f573a';
 // "תוצאות מבחני רישוי שנתיים" — yearly inspection (test) results
 // keyed by mispar_rechev. The headline field for our purposes is
 // `kilometraj_test_aharon` — odometer reading recorded at the last
@@ -378,6 +393,72 @@ function mapCmeRecord(r) {
 async function fetchCmeApi(plateDigits) {
   const filters = JSON.stringify({ mispar_tzama: Number(plateDigits) });
   const url = `${API_BASE}?resource_id=${encodeURIComponent(CME_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.success || !json.result?.records?.length) return null;
+    return json.result.records;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') throw new Error('הבקשה לשרת הממשלתי ארכה יותר מדי. נסה שנית.');
+    return null;
+  }
+}
+
+/**
+ * Map a raw record from `rechev_le_pail_without-degem` (the
+ * inactive-no-model registry where collector / classic / personally-
+ * imported cars without a modern degem_cd live). Schema overlaps the
+ * active private-car registry but is narrower:
+ *   - No tokef_dt / mivchan_acharon_dt (test dates) — these are off-road
+ *   - No baalut / ramat_gimur — basic registration data only
+ *   - Has tkina_EU (M1/M2/M3 etc.) instead of sug_degem
+ *   - tozeret_eretz_nm gives country of manufacture (often UK/USA/IT
+ *     for classic cars worth flagging)
+ */
+function mapInactiveNoModelRecord(r) {
+  const fields = {};
+
+  if (r.mispar_rechev)       fields.license_plate = safeStr(String(r.mispar_rechev), 12);
+  if (r.tozeret_nm)          fields.manufacturer  = safeStr(r.tozeret_nm, 60);
+  if (r.degem_nm)            fields.model         = safeStr(r.degem_nm, 60);
+  if (r.shnat_yitzur)        fields.year          = safeYear(r.shnat_yitzur);
+  if (r.mispar_shilda)       fields.vin           = safeStr(String(r.mispar_shilda), 30);
+  if (r.sug_delek_nm)        fields.fuel_type     = safeStr(r.sug_delek_nm, 30);
+  if (r.degem_manoa)         fields.engine_model  = safeStr(r.degem_manoa, 40);
+
+  // Engine displacement — comes in cm³ here (nefach_manoa) and we use
+  // the same unit string the rest of the app does.
+  if (r.nefach_manoa && Number(r.nefach_manoa) > 0) {
+    fields.engine_cc = safeNum(r.nefach_manoa) + ' סמ"ק';
+  }
+
+  // Country-of-manufacture is the strongest collector signal we have
+  // here — surface it so the form/UI can highlight "רכב אספנות בריטי" etc.
+  if (r.tozeret_eretz_nm) fields.country_of_origin = safeStr(r.tozeret_eretz_nm, 30);
+
+  // Drive layout (`hanaa_nm` like "4X2" / "4X4") — keep as-is, the app
+  // already handles this shape from the heavy/CME mappers.
+  if (r.hanaa_nm && r.hanaa_nm !== 'לא ידוע קוד') {
+    fields.drivetrain = safeStr(r.hanaa_nm, 30);
+  }
+
+  return fields;
+}
+
+/**
+ * Fetch a single inactive-no-model record by exact mispar_rechev match.
+ * Same exact-filter pattern as fetchCmeApi — safe for short plates
+ * (4-6 digits) where the standard q=fulltext on the active datasets
+ * would false-match unrelated rows.
+ */
+async function fetchInactiveNoModelApi(plateDigits) {
+  const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
+  const url = `${API_BASE}?resource_id=${encodeURIComponent(INACTIVE_NO_MODEL_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
   try {
@@ -853,19 +934,28 @@ export async function lookupVehicleByPlate(plate) {
   // Source priority — chosen by plate length so we don't fuzz-match
   // short CME numbers against the road-vehicle datasets:
   //
-  //   • 4-6 digits → CME ONLY. The car / moto / heavy datasets use a
-  //     fulltext q= search; a 4-digit string like "1002" would
-  //     happily match any record where "1002" appears in any column
-  //     (year, partial VIN, etc.) and return a spurious hit before
-  //     CME is even tried. Skipping straight to CME (which uses an
-  //     exact-match `filters` on mispar_tzama) avoids that.
+  //   • 4-6 digits → inactive-no-model FIRST, then CME. Both use
+  //     exact-match `filters` so they're safe to query for short plates
+  //     (no fulltext false-positives). The inactive-no-model registry
+  //     is where collector cars with vintage 4-6 digit plates actually
+  //     live (e.g. Triumph Herald 229080) — checking it first means a
+  //     real classic car wins over a same-digits namespace collision
+  //     against CME (e.g. SCHMIDT street sweeper mispar_tzama=229080).
   //
   //   • 7-8 digits → Standard cascade: car → moto → heavy → cme →
-  //     inactive (off-road). The inactive registry is tried LAST so
-  //     a plate that's still active never hits a stale cancelled
-  //     record by accident.
+  //     inactive-no-model → inactive (off-road, with-degem). The
+  //     two inactive tiers are tried LAST so a plate that's still
+  //     active never hits a stale cancelled record by accident.
   let records = null;
   let source = null;
+  // When a SHORT plate (4-6 digits) hits BOTH the inactive-no-model
+  // registry AND the CME registry, the user owns one of them but the
+  // app has no way of knowing which. We surface BOTH so the user can
+  // pick, instead of silently picking one and getting the wrong vehicle.
+  // For real-world example: plate 229080 = 1965 Triumph Herald (classic)
+  // AND 2024 SCHMIDT street sweeper (CME) at the same time.
+  let altRecord = null;
+  let altSource = null;
   const isShort = clean.length < 7;
 
   if (!isShort) {
@@ -880,7 +970,41 @@ export async function lookupVehicleByPlate(plate) {
       if (records) source = 'heavy';
     }
   }
-  if (!records) {
+
+  // Inactive-no-model + CME for short plates → probe in PARALLEL so we
+  // can detect the dual-registry collision case. Both endpoints use
+  // exact-match `filters` (not fulltext) so neither produces spurious
+  // hits — running them concurrently costs the same as either one
+  // alone latency-wise.
+  if (!records && isShort) {
+    const [classicRes, cmeRes] = await Promise.all([
+      fetchInactiveNoModelApi(clean),
+      fetchCmeApi(clean),
+    ]);
+    if (classicRes && cmeRes) {
+      // Dual-registry hit. Pick classic as the "primary" the caller
+      // sees in the single-result path, expose CME as `altRecord` so
+      // the caller can render a "choose which vehicle" dialog.
+      records = classicRes;
+      source = 'inactive_classic';
+      altRecord = cmeRes[0];
+      altSource = 'cme';
+    } else if (classicRes) {
+      records = classicRes;
+      source = 'inactive_classic';
+    } else if (cmeRes) {
+      records = cmeRes;
+      source = 'cme';
+    }
+  }
+  // For NORMAL plates (7-8 digits) the two registries are still tried,
+  // but sequentially — collisions between the two are vanishingly rare
+  // for full-length plates (the namespaces don't really overlap there).
+  if (!records && !isShort) {
+    records = await fetchInactiveNoModelApi(clean);
+    if (records) source = 'inactive_classic';
+  }
+  if (!records && !isShort) {
     records = await fetchCmeApi(clean);
     if (records) source = 'cme';
   }
@@ -920,11 +1044,13 @@ export async function lookupVehicleByPlate(plate) {
 
   // Pick the matching mapper. The `inactive` (off-road / cancelled)
   // dataset uses the same private-car schema, so mapRecord is reused;
-  // the cancellation date is appended after.
-  const fields = source === 'moto'           ? mapMotoRecord(record)
-              : source === 'heavy'          ? mapHeavyRecord(record)
-              : source === 'cme'            ? mapCmeRecord(record)
-              : source === 'personal_import' ? mapPersonalImportRecord(record)
+  // the cancellation date is appended after. `inactive_classic` is the
+  // no-degem dataset (collectors etc.) with a slightly trimmed schema.
+  const fields = source === 'moto'             ? mapMotoRecord(record)
+              : source === 'heavy'            ? mapHeavyRecord(record)
+              : source === 'cme'              ? mapCmeRecord(record)
+              : source === 'inactive_classic' ? mapInactiveNoModelRecord(record)
+              : source === 'personal_import'  ? mapPersonalImportRecord(record)
               : mapRecord(record); // 'car' OR 'inactive'
 
   // Inactive-registry hit → tag the result so AddVehicle can warn the
@@ -936,6 +1062,52 @@ export async function lookupVehicleByPlate(plate) {
     if (record.bitul_dt) {
       fields._cancellationDate = safeDate(record.bitul_dt) || null;
     }
+  }
+  // inactive_classic — same "off-road" status. The dataset is older
+  // private cars / classic cars without a model code, expired >13 months
+  // back. Flag _isInactive so the warning toast fires; vintage owners
+  // see "אספנות" in the category selector and are expected to confirm.
+  if (source === 'inactive_classic') {
+    fields._isInactive = true;
+  }
+
+  // Dual-registry collision (short plate present in BOTH inactive-no-model
+  // AND CME). The user owns exactly one of these two vehicles — we have
+  // no way to know which, so we return both as candidates and let the
+  // UI ask. Skip the expensive enrichment block for the same reason:
+  // running detailed-specs / ownership / recalls for both vehicles when
+  // only one is going to be kept is wasteful. If the user wants
+  // enrichment, they can re-run the lookup after picking.
+  if (altRecord) {
+    // Decorate the primary (classic) fields with detectedType + label
+    // here, instead of relying on the big switch at the end of the
+    // function (which we're about to skip).
+    const primaryYr = Number(record.shnat_yitzur || 0);
+    const primaryAge = primaryYr ? new Date().getFullYear() - primaryYr : 0;
+    fields._detectedType = primaryAge >= 30 ? 'collector' : 'car';
+    fields._detectedTypeLabel = fields._detectedType === 'collector'
+      ? 'רכב אספנות'
+      : 'רכב פרטי';
+    delete fields._tozeret_cd;
+    delete fields._degem_cd;
+
+    // Build the alt (CME) match the same way mapCmeRecord +
+    // detectedType assignment normally would.
+    const altFields = mapCmeRecord(altRecord);
+    const altSubtype = String(altRecord.sug_tzama_nm || '');
+    altFields._detectedType = /אספנות|וטרן|וינטג/.test(altSubtype) ? 'collector' : 'cme';
+    altFields._detectedTypeLabel = altFields._detectedType === 'collector'
+      ? 'רכב אספנות'
+      : 'כלי צמ"ה';
+
+    return {
+      _multipleMatches: true,
+      plate: clean,
+      matches: [
+        { source,    fields },
+        { source: altSource, fields: altFields },
+      ],
+    };
   }
 
   // Detailed specs lookup + last-test odometer enrichment. Both run
@@ -1040,11 +1212,34 @@ export async function lookupVehicleByPlate(plate) {
   // selected category doesn't match what the Ministry of Transport says.
   let detectedType;
   if (source === 'cme') {
-    // Anything from the CME registry — forklifts, excavators, loaders,
-    // rollers, telehandlers — falls under "כלי צמ"ה" in the UI's
-    // top-level category list. Subtype refinement (sug_tzama_nm)
-    // already lives inside fields.vehicle_class for the form.
-    detectedType = 'cme';
+    // The CME registry is the catch-all for short plates (< 7 digits)
+    // because the road-vehicle datasets use fulltext search and would
+    // false-match. Most CME hits are real construction equipment, but
+    // the Ministry of Transport occasionally routes vintage / collector
+    // vehicles ("רכב אספנות") through this dataset — those usually have
+    // a short plate too, so they land here and get mislabelled as
+    // forklifts. Detect the collector case via the equipment-subtype
+    // text. Stay conservative: only trigger on words that are unique
+    // to vintage cars (אספנות / וטרן / וינטג). Anything ambiguous keeps
+    // its current 'cme' classification so real CME records (and their
+    // dedicated insights / certificate-date handling) are untouched.
+    const subtypeText = String(record.sug_tzama_nm || '');
+    if (/אספנות|וטרן|וינטג/.test(subtypeText)) {
+      detectedType = 'collector';
+    } else {
+      detectedType = 'cme';
+    }
+  } else if (source === 'inactive_classic') {
+    // No-degem inactive registry. Classic British/Italian/American cars
+    // from the 60s-70s end up here because they predate the modern
+    // degem_cd taxonomy. The strongest "is it a collector" signal we
+    // have is shnat_yitzur — anything ≥ 30 years old is classic by
+    // Israeli MoT convention (also the in-app `isVintageVehicle` rule).
+    // Younger inactive vehicles default to 'car' so the user sees the
+    // standard private-car category + the _isInactive warning toast.
+    const yr = Number(record.shnat_yitzur || 0);
+    const ageYears = yr ? new Date().getFullYear() - yr : 0;
+    detectedType = ageYears >= 30 ? 'collector' : 'car';
   } else if (source === 'moto') {
     detectedType = 'motorcycle';
   } else if (source === 'heavy') {
@@ -1078,6 +1273,7 @@ export async function lookupVehicleByPlate(plate) {
     bus: 'אוטובוס',
     trailer: 'גרור',
     cme: 'כלי צמ"ה',
+    collector: 'רכב אספנות',
   }[detectedType] || 'רכב';
 
   return fields;
