@@ -67,9 +67,16 @@ const FORCE_GUEST_ONCE_KEY = 'cr_force_guest_once';
 function markBootStage(stage, extra = {}) {
   try { console.info('[boot]', stage, extra); } catch {}
   // Persistent telemetry — synchronous, survives a hard hang.
+  // `recordBootStage` (in @/lib/bootTelemetry) writes to localStorage only,
+  // which is the right place for boot-success traces. The Admin → Bugs
+  // tab uses these for cold-start debugging via /BootDebug.
   try { recordBootStage(stage, extra); } catch {}
-  // Keep remote (Supabase) telemetry low-noise: only native app or explicit failures.
-  if (isNative || extra?.level === 'error') {
+  // Remote (Supabase app_errors) — ONLY for actual failures. The earlier
+  // version reported every boot stage on native, which spammed the
+  // bugs table with `non_critical_init_ok` / `splash_hide` / etc. as
+  // if they were errors. They're not — they're successful trace points.
+  // The Admin Bugs tab should only show real problems.
+  if (extra?.level === 'error') {
     try { reportError('boot_stage', new Error(stage), extra); } catch {}
   }
 }
@@ -121,9 +128,32 @@ window.addEventListener('error', (e) => {
   try { recordBootStage('window_error', { level: 'error', message: e?.message || e?.error?.message || 'unknown' }); } catch {}
   reportError('Error', e.error || e);
 });
+// Stale-chunk detection — same regex AppErrorBoundary uses. When a deploy
+// lands while a user has a tab open and they click a feature that does
+// `import('./lazy-page')`, the old chunk hash is gone from the CDN and
+// the promise rejects with "Failed to fetch dynamically imported module".
+// React boundary only sees errors that bubble through render; an
+// unhandled rejection from an event handler or async hook never gets
+// there — so we mirror the auto-reload here at the window level.
+const STALE_CHUNK_RE = /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError|error loading dynamically imported module/i;
+const STALE_RELOAD_TTL_MS = 30 * 1000;
+
 window.addEventListener('unhandledrejection', (e) => {
-  try { recordBootStage('unhandled_rejection', { level: 'error', message: e?.reason?.message || String(e?.reason) }); } catch {}
+  const msg = e?.reason?.message || String(e?.reason);
+  try { recordBootStage('unhandled_rejection', { level: 'error', message: msg }); } catch {}
   reportError('Promise', e.reason);
+  // Stale-chunk auto-recover. Single reload within a 30s window so we
+  // don't loop forever if CDN is genuinely broken (the boundary uses
+  // the same key to coordinate, so it won't double-reload either).
+  if (STALE_CHUNK_RE.test(msg)) {
+    try {
+      const lastAt = Number(sessionStorage.getItem('cr:stale-chunk-reload-at') || 0);
+      if (Date.now() - lastAt > STALE_RELOAD_TTL_MS) {
+        sessionStorage.setItem('cr:stale-chunk-reload-at', String(Date.now()));
+        window.location.reload();
+      }
+    } catch {}
+  }
 });
 
 // Global accessor for boot snapshot — used by:
