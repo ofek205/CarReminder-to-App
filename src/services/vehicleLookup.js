@@ -410,6 +410,37 @@ async function fetchCmeApi(plateDigits) {
 }
 
 /**
+ * Single source of truth for "is this record a collector vehicle?"
+ *
+ * Two registries hint at collector status with different signals:
+ *   - CME registry: `sug_tzama_nm` text contains a Hebrew vintage
+ *     keyword (אספנות / וטרן / וינטג). Rare — most CME records are
+ *     real construction equipment.
+ *   - Inactive-no-model registry: age. Israeli MoT convention + our
+ *     in-app `isVintageVehicle` rule both treat ≥ 30 years as classic.
+ *
+ * Returns the appropriate detectedType for the source:
+ *   - CME:               'collector' or 'cme'
+ *   - inactive_classic:  'collector' or 'car'
+ *   - other sources:     null (caller picks via its own logic)
+ *
+ * Centralises the regex + age threshold so future tweaks (e.g. adding
+ * 'היסטורי' to the keyword list) only need ONE edit.
+ */
+function detectCollectorType(record, source) {
+  if (source === 'cme') {
+    const subtypeText = String(record?.sug_tzama_nm || '');
+    return /אספנות|וטרן|וינטג/.test(subtypeText) ? 'collector' : 'cme';
+  }
+  if (source === 'inactive_classic') {
+    const yr = Number(record?.shnat_yitzur || 0);
+    const ageYears = yr ? new Date().getFullYear() - yr : 0;
+    return ageYears >= 30 ? 'collector' : 'car';
+  }
+  return null;
+}
+
+/**
  * Map a raw record from `rechev_le_pail_without-degem` (the
  * inactive-no-model registry where collector / classic / personally-
  * imported cars without a modern degem_cd live). Schema overlaps the
@@ -1081,10 +1112,10 @@ export async function lookupVehicleByPlate(plate) {
   if (altRecord) {
     // Decorate the primary (classic) fields with detectedType + label
     // here, instead of relying on the big switch at the end of the
-    // function (which we're about to skip).
-    const primaryYr = Number(record.shnat_yitzur || 0);
-    const primaryAge = primaryYr ? new Date().getFullYear() - primaryYr : 0;
-    fields._detectedType = primaryAge >= 30 ? 'collector' : 'car';
+    // function (which we're about to skip). Use the shared
+    // detectCollectorType helper so the age threshold / keyword regex
+    // stay consistent with the single-match path.
+    fields._detectedType = detectCollectorType(record, source);
     fields._detectedTypeLabel = fields._detectedType === 'collector'
       ? 'רכב אספנות'
       : 'רכב פרטי';
@@ -1094,8 +1125,7 @@ export async function lookupVehicleByPlate(plate) {
     // Build the alt (CME) match the same way mapCmeRecord +
     // detectedType assignment normally would.
     const altFields = mapCmeRecord(altRecord);
-    const altSubtype = String(altRecord.sug_tzama_nm || '');
-    altFields._detectedType = /אספנות|וטרן|וינטג/.test(altSubtype) ? 'collector' : 'cme';
+    altFields._detectedType = detectCollectorType(altRecord, altSource);
     altFields._detectedTypeLabel = altFields._detectedType === 'collector'
       ? 'רכב אספנות'
       : 'כלי צמ"ה';
@@ -1211,35 +1241,13 @@ export async function lookupVehicleByPlate(plate) {
   // Expose the detected type so callers can warn the user when the
   // selected category doesn't match what the Ministry of Transport says.
   let detectedType;
-  if (source === 'cme') {
-    // The CME registry is the catch-all for short plates (< 7 digits)
-    // because the road-vehicle datasets use fulltext search and would
-    // false-match. Most CME hits are real construction equipment, but
-    // the Ministry of Transport occasionally routes vintage / collector
-    // vehicles ("רכב אספנות") through this dataset — those usually have
-    // a short plate too, so they land here and get mislabelled as
-    // forklifts. Detect the collector case via the equipment-subtype
-    // text. Stay conservative: only trigger on words that are unique
-    // to vintage cars (אספנות / וטרן / וינטג). Anything ambiguous keeps
-    // its current 'cme' classification so real CME records (and their
-    // dedicated insights / certificate-date handling) are untouched.
-    const subtypeText = String(record.sug_tzama_nm || '');
-    if (/אספנות|וטרן|וינטג/.test(subtypeText)) {
-      detectedType = 'collector';
-    } else {
-      detectedType = 'cme';
-    }
-  } else if (source === 'inactive_classic') {
-    // No-degem inactive registry. Classic British/Italian/American cars
-    // from the 60s-70s end up here because they predate the modern
-    // degem_cd taxonomy. The strongest "is it a collector" signal we
-    // have is shnat_yitzur — anything ≥ 30 years old is classic by
-    // Israeli MoT convention (also the in-app `isVintageVehicle` rule).
-    // Younger inactive vehicles default to 'car' so the user sees the
-    // standard private-car category + the _isInactive warning toast.
-    const yr = Number(record.shnat_yitzur || 0);
-    const ageYears = yr ? new Date().getFullYear() - yr : 0;
-    detectedType = ageYears >= 30 ? 'collector' : 'car';
+  if (source === 'cme' || source === 'inactive_classic') {
+    // Single source of truth for "is this a collector?" — see
+    // detectCollectorType for the keyword + age threshold rules.
+    // CME falls back to 'cme' when no vintage keyword; inactive_classic
+    // falls back to 'car' (with _isInactive flag already set above so
+    // the caller can show the off-road warning toast).
+    detectedType = detectCollectorType(record, source);
   } else if (source === 'moto') {
     detectedType = 'motorcycle';
   } else if (source === 'heavy') {

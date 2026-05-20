@@ -10,7 +10,8 @@ import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ManufacturerSelector from '@/components/vehicle/ManufacturerSelector';
-import { Camera, Loader2, Search, CheckCircle2, X, AlertTriangle, Car, FileText, Shield, Calendar, ZoomIn, LocateFixed, Download, Upload, ChevronDown, Construction, Info } from 'lucide-react';
+import { Camera, Loader2, Search, CheckCircle2, X, AlertTriangle, Car, FileText, Shield, Calendar, ZoomIn, LocateFixed, Download, Upload, ChevronDown } from 'lucide-react';
+import MultipleMatchDialog from '@/components/vehicle/MultipleMatchDialog';
 import AccidentPrintReport, { AccidentPrintStyles } from '../components/accidents/AccidentPrintReport';
 import AccidentReportModal from '../components/accidents/AccidentReportModal';
 import { getCurrentPosition } from '@/lib/capacitor';
@@ -1059,95 +1060,16 @@ export default function AddAccident() {
       {/* Multi-match Modal. opens when the OTHER DRIVER's plate digits
           exist in two different MoT registries. Mirrors the dialog in
           AddVehicle.jsx + VehicleCheck.jsx for visual consistency. */}
-      {multipleMatches && (
-        <div
-          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
-          dir="rtl"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="aa-multimatch-title"
-          onClick={(e) => { if (e.target === e.currentTarget) cancelMultiMatch(); }}
-        >
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto"
-              style={{ background: '#DBEAFE' }}
-            >
-              <Info className="w-7 h-7" style={{ color: '#1E40AF' }} />
-            </div>
-            <div className="text-center space-y-2">
-              <h2 id="aa-multimatch-title" className="text-lg font-bold" style={{ color: '#1C2E20' }}>
-                נמצאו 2 רכבים עם אותה לוחית
-              </h2>
-              <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
-                המספר{' '}
-                <span
-                  dir="ltr"
-                  className="inline-block px-2 py-0.5 rounded-md font-mono font-bold align-middle"
-                  style={{ background: '#F4F7F3', color: '#2D5233' }}
-                >
-                  {multipleMatches.plate}
-                </span>
-                {' '}רשום במשרד התחבורה כשני רכבים שונים. איזה מהם הרכב שמעורב בתאונה?
-              </p>
-            </div>
-            <div className="space-y-2.5">
-              {multipleMatches.matches.map((m, idx) => {
-                const isCme = m.fields?._detectedType === 'cme';
-                const tint = isCme
-                  ? { bg: '#FEF3C7', text: '#92400E' }
-                  : { bg: '#E8F2EA', text: '#1C3620' };
-                const Icon = isCme ? Construction : Car;
-                const titleParts = [m.fields?.manufacturer, m.fields?.model].filter(Boolean).join(' ').trim();
-                const metaParts = [m.fields?.year, m.fields?.fuel_type || m.fields?.country_of_origin].filter(Boolean).join(' · ');
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => chooseMultiMatch(idx)}
-                    aria-label={`בחר ${titleParts || 'רכב'} ${m.fields?.year || ''}, ${m.fields?._detectedTypeLabel || ''}`}
-                    className="w-full text-right p-4 rounded-2xl transition-all active:scale-[0.98] hover:bg-[#F4F7F3] focus:outline-none focus:ring-2 focus:ring-green-700"
-                    style={{ background: '#fff', border: '1.5px solid #E5E7EB' }}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className="w-11 h-11 shrink-0 rounded-xl flex items-center justify-center"
-                        style={{ background: tint.bg }}
-                      >
-                        <Icon className="w-5 h-5" style={{ color: tint.text }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-sm truncate" style={{ color: '#1C2E20' }}>
-                          {titleParts || 'יצרן/דגם לא ידוע'}
-                        </div>
-                        {metaParts && (
-                          <div className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
-                            {metaParts}
-                          </div>
-                        )}
-                        <span
-                          className="inline-block mt-1.5 px-2 py-0.5 rounded-lg text-[11px] font-bold"
-                          style={{ background: tint.bg, color: tint.text }}
-                        >
-                          {m.fields?._detectedTypeLabel || 'רכב'}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              onClick={cancelMultiMatch}
-              className="w-full py-2 text-xs font-medium transition-colors"
-              style={{ color: '#DC2626' }}
-            >
-              אף אחד מהם לא הרכב שלי / ביטול
-            </button>
-          </div>
-        </div>
-      )}
+      <MultipleMatchDialog
+        open={!!multipleMatches}
+        plate={multipleMatches?.plate}
+        matches={multipleMatches?.matches}
+        onChoose={chooseMultiMatch}
+        onCancel={cancelMultiMatch}
+        questionCopy="איזה מהם הרכב שמעורב בתאונה?"
+        cancelCopy="אף אחד מאלה לא הרכב המעורב"
+        titleId="aa-multimatch-title"
+      />
     </div>
   );
 }

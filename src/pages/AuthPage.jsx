@@ -51,7 +51,7 @@ async function dispatchWelcomeEmail(email, fullName) {
     const { buildWelcomeEmail, buildWelcomeText } = await import('@/lib/emailTemplates');
     await sendEmail({
       to: email,
-      subject: `ברוך/ה הבא/ה ל-CarReminder${firstName ? `, ${firstName}` : ''}`,
+      subject: `ברוכים הבאים ל-CarReminder${firstName ? `, ${firstName}` : ''}`,
       html: buildWelcomeEmail({ firstName, appUrl: 'https://car-reminder.app' }),
       text: buildWelcomeText({ firstName, appUrl: 'https://car-reminder.app' }),
       // Tag the send so the EmailCenter dashboard buckets it under
@@ -1036,7 +1036,7 @@ export default function AuthPage() {
           // imports lazily so the cold path doesn't bloat the auth
           // bundle for the 99% of visits that are sign-IN, not signup.
           dispatchWelcomeEmail(email, fullName);
-          setSuccess('ברוך/ה הבא/ה ל-CarReminder! מעביר לאפליקציה...');
+          setSuccess('ברוכים הבאים ל-CarReminder! מעביר לאפליקציה...');
           // The isAuthenticated useEffect (line ~432) sees the new
           // session and routes to Dashboard. We don't navigate here
           // explicitly to keep the redirect logic in one place.
