@@ -38,7 +38,13 @@ export const DEFAULT_REMINDER_SETTINGS = {
   remind_maintenance_days_before: 7,
   overdue_repeat_every_days: 3,
   daily_job_hour: 8,
-  email_enabled: false,
+  // email_enabled default: TRUE. Reminder emails are operational (the
+  // user signed up to get reminders; this is the channel they reach
+  // through), not marketing. Marketing opt-in lives in a separate table
+  // (user_notification_preferences per notification_key) so true here
+  // does not subscribe anyone to marketing. Mirror change is in
+  // src/pages/ReminderSettingsPage.jsx DEFAULT_FORM.
+  email_enabled: true,
   whatsapp_enabled: false,
 };
 
