@@ -948,6 +948,14 @@ export async function lookupVehicleByPlate(plate) {
   //     active never hits a stale cancelled record by accident.
   let records = null;
   let source = null;
+  // When a SHORT plate (4-6 digits) hits BOTH the inactive-no-model
+  // registry AND the CME registry, the user owns one of them but the
+  // app has no way of knowing which. We surface BOTH so the user can
+  // pick, instead of silently picking one and getting the wrong vehicle.
+  // For real-world example: plate 229080 = 1965 Triumph Herald (classic)
+  // AND 2024 SCHMIDT street sweeper (CME) at the same time.
+  let altRecord = null;
+  let altSource = null;
   const isShort = clean.length < 7;
 
   if (!isShort) {
@@ -962,15 +970,41 @@ export async function lookupVehicleByPlate(plate) {
       if (records) source = 'heavy';
     }
   }
-  // Inactive-no-model tier — exact-match by mispar_rechev. Safe for any
-  // plate length. For SHORT plates this MUST run before CME so a
-  // namespace collision (same digits in mispar_tzama) doesn't shadow
-  // a legitimate classic-car hit.
-  if (!records) {
+
+  // Inactive-no-model + CME for short plates → probe in PARALLEL so we
+  // can detect the dual-registry collision case. Both endpoints use
+  // exact-match `filters` (not fulltext) so neither produces spurious
+  // hits — running them concurrently costs the same as either one
+  // alone latency-wise.
+  if (!records && isShort) {
+    const [classicRes, cmeRes] = await Promise.all([
+      fetchInactiveNoModelApi(clean),
+      fetchCmeApi(clean),
+    ]);
+    if (classicRes && cmeRes) {
+      // Dual-registry hit. Pick classic as the "primary" the caller
+      // sees in the single-result path, expose CME as `altRecord` so
+      // the caller can render a "choose which vehicle" dialog.
+      records = classicRes;
+      source = 'inactive_classic';
+      altRecord = cmeRes[0];
+      altSource = 'cme';
+    } else if (classicRes) {
+      records = classicRes;
+      source = 'inactive_classic';
+    } else if (cmeRes) {
+      records = cmeRes;
+      source = 'cme';
+    }
+  }
+  // For NORMAL plates (7-8 digits) the two registries are still tried,
+  // but sequentially — collisions between the two are vanishingly rare
+  // for full-length plates (the namespaces don't really overlap there).
+  if (!records && !isShort) {
     records = await fetchInactiveNoModelApi(clean);
     if (records) source = 'inactive_classic';
   }
-  if (!records) {
+  if (!records && !isShort) {
     records = await fetchCmeApi(clean);
     if (records) source = 'cme';
   }
@@ -1035,6 +1069,45 @@ export async function lookupVehicleByPlate(plate) {
   // see "אספנות" in the category selector and are expected to confirm.
   if (source === 'inactive_classic') {
     fields._isInactive = true;
+  }
+
+  // Dual-registry collision (short plate present in BOTH inactive-no-model
+  // AND CME). The user owns exactly one of these two vehicles — we have
+  // no way to know which, so we return both as candidates and let the
+  // UI ask. Skip the expensive enrichment block for the same reason:
+  // running detailed-specs / ownership / recalls for both vehicles when
+  // only one is going to be kept is wasteful. If the user wants
+  // enrichment, they can re-run the lookup after picking.
+  if (altRecord) {
+    // Decorate the primary (classic) fields with detectedType + label
+    // here, instead of relying on the big switch at the end of the
+    // function (which we're about to skip).
+    const primaryYr = Number(record.shnat_yitzur || 0);
+    const primaryAge = primaryYr ? new Date().getFullYear() - primaryYr : 0;
+    fields._detectedType = primaryAge >= 30 ? 'collector' : 'car';
+    fields._detectedTypeLabel = fields._detectedType === 'collector'
+      ? 'רכב אספנות'
+      : 'רכב פרטי';
+    delete fields._tozeret_cd;
+    delete fields._degem_cd;
+
+    // Build the alt (CME) match the same way mapCmeRecord +
+    // detectedType assignment normally would.
+    const altFields = mapCmeRecord(altRecord);
+    const altSubtype = String(altRecord.sug_tzama_nm || '');
+    altFields._detectedType = /אספנות|וטרן|וינטג/.test(altSubtype) ? 'collector' : 'cme';
+    altFields._detectedTypeLabel = altFields._detectedType === 'collector'
+      ? 'רכב אספנות'
+      : 'כלי צמ"ה';
+
+    return {
+      _multipleMatches: true,
+      plate: clean,
+      matches: [
+        { source,    fields },
+        { source: altSource, fields: altFields },
+      ],
+    };
   }
 
   // Detailed specs lookup + last-test odometer enrichment. Both run

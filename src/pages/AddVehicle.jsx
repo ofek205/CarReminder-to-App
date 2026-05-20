@@ -35,7 +35,7 @@ import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectWithClear } from "@/components/ui/select";
-import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft } from "lucide-react";
+import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft, Car, Construction, Info } from "lucide-react";
 import { lookupVehicleByPlate } from "../services/vehicleLookup";
 import { normalizePlate, isVintageVehicle, isVessel } from "../components/shared/DateStatusUtils";
 import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, CME_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
@@ -205,6 +205,14 @@ export default function AddVehicle() {
   // Category-mismatch dialog state. opens when gov.il says the plate belongs
   // to a different vehicle class than the one the user picked
   const [typeMismatch, setTypeMismatch] = useState(null); // { detectedType, detectedLabel, pendingFields, pendingUpdates }
+  // Set when the gov.il lookup returns the SAME plate digits in two
+  // different MoT registries (e.g. plate 229080 = 1965 Triumph Herald
+  // in the inactive-no-model registry AND 2024 SCHMIDT street sweeper
+  // in CME). Shape: { plate, matches: [{ source, fields }, ...] }.
+  // Mutually exclusive with typeMismatch: the multi-match dialog
+  // resolves first; AFTER the user picks, the type-mismatch flow may
+  // fire if the chosen vehicle doesn't match the selected category.
+  const [multipleMatches, setMultipleMatches] = useState(null);
 
   // Draft auto-save. The `extras` bag persists the three UI selectors
   // (category / subcategory / method) alongside the form data. Without
@@ -633,50 +641,70 @@ export default function AddVehicle() {
     setLookupStatus('idle');
   };
 
+  // Apply a single lookup result to the form — runs the type-mismatch
+  // check + inactive warning toast, then writes fields. Factored out so
+  // the multi-match dialog can re-enter the same flow after the user
+  // picks one of the candidates.
+  const applyLookupResult = (fields) => {
+    const expected = expectedTypesForCategory(selectedCategory);
+    const detected = fields._detectedType;
+    if (expected && detected && !expected.includes(detected)) {
+      setTypeMismatch({
+        detectedType: detected,
+        detectedLabel: fields._detectedTypeLabel,
+        pendingFields: fields,
+        pendingUpdates: buildUpdatesFromFields(fields),
+      });
+      setLookupStatus('idle');
+      hapticFeedback('medium');
+      return;
+    }
+    if (fields._isInactive) {
+      const dateLine = fields._cancellationDate
+        ? ` (תאריך ביטול: ${fields._cancellationDate})`
+        : '';
+      toast.warning(
+        `שים לב: רכב זה ירד מהכביש ובסטטוס ביטול סופי${dateLine}. הפרטים מולאו לצורך מעקב, אך הרכב לא רשום פעיל.`,
+        { duration: 8000 }
+      );
+    }
+    applyLookupToForm(fields, buildUpdatesFromFields(fields));
+  };
+
+  // User picked one of the candidates from the multi-match dialog.
+  const chooseMultiMatch = (idx) => {
+    if (!multipleMatches) return;
+    const chosen = multipleMatches.matches[idx];
+    setMultipleMatches(null);
+    if (chosen?.fields) {
+      applyLookupResult(chosen.fields);
+    }
+  };
+
+  const cancelMultiMatch = () => {
+    setMultipleMatches(null);
+    setLookupStatus('idle');
+  };
+
   const handleLookup = async () => {
     if (!plateQuery.trim()) return;
     setLookupStatus('loading');
     try {
-      const fields = await lookupVehicleByPlate(plateQuery.trim());
-      if (!fields) { setLookupStatus('not_found'); return; }
+      const result = await lookupVehicleByPlate(plateQuery.trim());
+      if (!result) { setLookupStatus('not_found'); return; }
 
-      //  Category-mismatch check 
-      // If the user already chose a category, verify gov.il's classification
-      // matches. If not, pause and ask the user what to do.
-      const expected = expectedTypesForCategory(selectedCategory);
-      const detected = fields._detectedType;
-      if (expected && detected && !expected.includes(detected)) {
-        setTypeMismatch({
-          detectedType: detected,
-          detectedLabel: fields._detectedTypeLabel,
-          pendingFields: fields,
-          pendingUpdates: buildUpdatesFromFields(fields),
-        });
+      // Dual-registry collision (e.g. plate 229080 = 1965 Triumph Herald
+      // AND 2024 SCHMIDT street sweeper). Surface both so the user can
+      // pick the right one instead of getting whichever the cascade
+      // happened to find first.
+      if (result._multipleMatches) {
+        setMultipleMatches(result);
         setLookupStatus('idle');
         hapticFeedback('medium');
         return;
       }
 
-      // Off-road / cancelled vehicle warning. The lookup found the
-      // plate ONLY in the inactive registry — meaning the vehicle was
-      // permanently removed from the road. We still populate the form
-      // (vintage / keepsake owners might legitimately want to track
-      // it) but surface a persistent toast so the user knows what they
-      // just imported. Toast.warning auto-dismisses after the default
-      // window; the duration is bumped so it survives the 1-2 seconds
-      // it takes the user to scan the autofilled fields.
-      if (fields._isInactive) {
-        const dateLine = fields._cancellationDate
-          ? ` (תאריך ביטול: ${fields._cancellationDate})`
-          : '';
-        toast.warning(
-          `שים לב: רכב זה ירד מהכביש ובסטטוס ביטול סופי${dateLine}. הפרטים מולאו לצורך מעקב, אך הרכב לא רשום פעיל.`,
-          { duration: 8000 }
-        );
-      }
-
-      // No mismatch. apply fields directly
-      applyLookupToForm(fields, buildUpdatesFromFields(fields));
+      applyLookupResult(result);
     } catch (_) {
       setLookupStatus('error');
     }
@@ -738,7 +766,20 @@ export default function AddVehicle() {
     // Motocross is skipped: no plate, no gov record.
     if (form.license_plate && !isVesselCategory && hasRegistration) {
       try {
-        const govData = await lookupVehicleByPlate(form.license_plate);
+        const govRaw = await lookupVehicleByPlate(form.license_plate);
+        // Dual-registry collision on save-time enrichment. Pick the
+        // candidate whose detectedType matches the category the user
+        // selected; fall back to the first match. The user already
+        // chose at form-fill time via the multi-match dialog, so this
+        // is just topping up technical specs — no second dialog here.
+        let govData = govRaw;
+        if (govRaw && govRaw._multipleMatches) {
+          const want = selectedCategory?.label === 'כלי צמ"ה' ? 'cme' : null;
+          const pick = want
+            ? govRaw.matches.find((m) => m.fields?._detectedType === want)
+            : null;
+          govData = (pick || govRaw.matches[0])?.fields || null;
+        }
         if (govData) {
           // Only fill fields that are currently empty - don't overwrite user input
           const enrichFields = [
@@ -1001,6 +1042,101 @@ export default function AddVehicle() {
                 ביטול
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Multi-match Modal. opens when the same plate digits exist in
+          TWO different MoT registries (e.g. plate 229080 = 1965 Triumph
+          Herald in inactive-no-model AND 2024 SCHMIDT street sweeper in
+          CME). User picks the one they actually own. Visual register is
+          INFO (sky blue), not warning (amber) — this isn't an error. */}
+      {multipleMatches && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+          dir="rtl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="multimatch-title"
+          onClick={(e) => { if (e.target === e.currentTarget) cancelMultiMatch(); }}
+        >
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto"
+              style={{ background: '#DBEAFE' }}
+            >
+              <Info className="w-7 h-7" style={{ color: '#1E40AF' }} />
+            </div>
+            <div className="text-center space-y-2">
+              <h2 id="multimatch-title" className="text-lg font-bold" style={{ color: '#1C2E20' }}>
+                נמצאו 2 רכבים עם אותה לוחית
+              </h2>
+              <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
+                המספר{' '}
+                <span
+                  dir="ltr"
+                  className="inline-block px-2 py-0.5 rounded-md font-mono font-bold align-middle"
+                  style={{ background: '#F4F7F3', color: '#2D5233' }}
+                >
+                  {multipleMatches.plate}
+                </span>
+                {' '}רשום במשרד התחבורה כשני רכבים שונים. איזה מהם הרכב שלך?
+              </p>
+            </div>
+            <div className="space-y-2.5">
+              {multipleMatches.matches.map((m, idx) => {
+                const isCme = m.fields._detectedType === 'cme';
+                const tint = isCme
+                  ? { bg: '#FEF3C7', text: '#92400E' }
+                  : { bg: '#E8F2EA', text: '#1C3620' };
+                const Icon = isCme ? Construction : Car;
+                const titleParts = [m.fields.manufacturer, m.fields.model].filter(Boolean).join(' ').trim();
+                const metaParts = [m.fields.year, m.fields.fuel_type || m.fields.country_of_origin].filter(Boolean).join(' · ');
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => chooseMultiMatch(idx)}
+                    aria-label={`בחר ${titleParts || 'רכב'} ${m.fields.year || ''}, ${m.fields._detectedTypeLabel || ''}`}
+                    className="w-full text-right p-4 rounded-2xl transition-all active:scale-[0.98] hover:bg-[#F4F7F3] focus:outline-none focus:ring-2 focus:ring-green-700"
+                    style={{ background: '#fff', border: '1.5px solid #E5E7EB' }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="w-11 h-11 shrink-0 rounded-xl flex items-center justify-center"
+                        style={{ background: tint.bg }}
+                      >
+                        <Icon className="w-5 h-5" style={{ color: tint.text }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm truncate" style={{ color: '#1C2E20' }}>
+                          {titleParts || 'יצרן/דגם לא ידוע'}
+                        </div>
+                        {metaParts && (
+                          <div className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
+                            {metaParts}
+                          </div>
+                        )}
+                        <span
+                          className="inline-block mt-1.5 px-2 py-0.5 rounded-lg text-[11px] font-bold"
+                          style={{ background: tint.bg, color: tint.text }}
+                        >
+                          {m.fields._detectedTypeLabel || 'רכב'}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={cancelMultiMatch}
+              className="w-full py-2 text-xs font-medium transition-colors"
+              style={{ color: '#DC2626' }}
+            >
+              אף אחד מהם לא הרכב שלי / ביטול
+            </button>
           </div>
         </div>
       )}

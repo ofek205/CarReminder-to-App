@@ -156,7 +156,12 @@ async function lookupAll(plates, onProgress) {
     const chunkResults = await Promise.all(
       chunk.map(async (plate) => {
         try {
-          const data = await lookupVehicleByPlate(plate);
+          const raw = await lookupVehicleByPlate(plate);
+          // Dual-registry collision in bulk import → no UI to choose,
+          // so default to the FIRST candidate (the classic-car tier wins
+          // over CME by the lookup ordering). User can edit per-row
+          // after the bulk preview if the wrong vehicle was picked.
+          const data = raw && raw._multipleMatches ? raw.matches[0]?.fields || null : raw;
           return { plate, data, error: null };
         } catch (err) {
           return { plate, data: null, error: err?.message || 'lookup_failed' };
