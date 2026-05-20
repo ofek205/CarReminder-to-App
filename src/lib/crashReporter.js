@@ -75,6 +75,31 @@ function scheduleFlush() {
 }
 
 /**
+ * Best-effort grab of the current user id at the moment of the error.
+ *
+ * Reads the persisted Supabase auth state directly from storage (sync,
+ * cheap) instead of awaiting `supabase.auth.getUser()` so a crash inside
+ * an async error handler can't deadlock or take an extra tick before
+ * the entry is pushed. Returns null for guest/anon callers.
+ */
+function readCurrentUserId() {
+  try {
+    if (typeof window === 'undefined') return null;
+    // Supabase v2 stores the session under a key like `sb-<projectRef>-auth-token`
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith('sb-') || !k.endsWith('-auth-token')) continue;
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      const id = parsed?.user?.id || parsed?.currentSession?.user?.id;
+      if (id) return id;
+    }
+  } catch {}
+  return null;
+}
+
+/**
  * Record an error. Always writes to localStorage; attempts a remote insert
  * (best-effort) a short time later so a crash storm can't flood Supabase.
  *
@@ -89,6 +114,7 @@ export function reportError(type, error, extra) {
     stack: (error?.stack || '').slice(0, 2000) || null,
     url: typeof window !== 'undefined' ? window.location.pathname : null,
     user_agent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 200) : null,
+    user_id: readCurrentUserId(),
     extra: extra ? JSON.parse(JSON.stringify(extra)) : null,
     created_at: new Date().toISOString(),
     timestamp: Date.now(), // legacy field for localStorage reader

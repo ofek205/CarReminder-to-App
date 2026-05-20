@@ -2039,35 +2039,207 @@ function AdminMessagesTab() {
 }
 
 function AdminBugsTab() {
-  // Bugs from localStorage (app-side logged) + placeholder for Sentry/crash reports
+  // Bugs come from TWO sources:
+  //   1. Supabase `app_errors` table — synced across every device/admin
+  //      (crashReporter best-effort writes there for all users incl.
+  //      anon. Admin-only SELECT via RLS).
+  //   2. localStorage `app_error_log` — fallback for the current device
+  //      only (used if the table doesn't exist or RLS blocks the read).
+  //
+  // We attempt the remote read first; fall back to local on error. This
+  // is why a bug seen on the mobile app didn't appear in the web admin
+  // panel and vice versa — the previous tab read ONLY localStorage.
   const [bugs, setBugs] = useState([]);
-  useEffect(() => {
+  const [source, setSource] = useState('loading'); // 'remote' | 'local' | 'loading' | 'error'
+  const [errorMsg, setErrorMsg] = useState('');
+  const [filterDays, setFilterDays] = useState(7);     // 1 / 7 / 30 / null=all
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'Error' | 'Promise' | 'React'
+  const [filterResolved, setFilterResolved] = useState('unresolved'); // 'all' | 'resolved' | 'unresolved'
+
+  const loadBugs = useCallback(async () => {
+    setSource('loading');
     try {
-      const logged = JSON.parse(localStorage.getItem('app_error_log') || '[]');
-      setBugs(logged.slice(-50).reverse());
-    } catch {}
-  }, []);
+      let query = supabase
+        .from('app_errors')
+        .select('id, type, message, stack, url, user_agent, user_id, extra, resolved, created_at, timestamp')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (filterDays) {
+        const since = new Date(Date.now() - filterDays * 24 * 60 * 60 * 1000).toISOString();
+        query = query.gte('created_at', since);
+      }
+      if (filterType !== 'all') query = query.eq('type', filterType);
+      if (filterResolved === 'resolved')   query = query.eq('resolved', true);
+      if (filterResolved === 'unresolved') query = query.eq('resolved', false);
+      const { data, error } = await query;
+      if (error) throw error;
+      setBugs(data || []);
+      setSource('remote');
+      setErrorMsg('');
+    } catch (e) {
+      // Fall back to localStorage. Show clear status so the admin
+      // knows they're seeing per-device data only.
+      try {
+        const logged = JSON.parse(localStorage.getItem('app_error_log') || '[]');
+        setBugs(logged.slice(-50).reverse());
+        setSource('local');
+        setErrorMsg(e?.message || 'remote_unavailable');
+      } catch (localErr) {
+        setBugs([]);
+        setSource('error');
+        setErrorMsg(localErr?.message || 'no_data');
+      }
+    }
+  }, [filterDays, filterType, filterResolved]);
+
+  useEffect(() => { loadBugs(); }, [loadBugs]);
+
+  // Mark a single bug as resolved on the remote table. No-op for local
+  // mode (the entry isn't ours to update).
+  const markResolved = async (bug) => {
+    if (source !== 'remote' || !bug.id) return;
+    try {
+      const { error } = await supabase.from('app_errors').update({ resolved: true }).eq('id', bug.id);
+      if (error) throw error;
+      toast.success('סומן כטופל');
+      loadBugs();
+    } catch (e) {
+      toast.error(`עדכון נכשל: ${e?.message || 'unknown'}`);
+    }
+  };
+
+  // Export currently-displayed bugs as a JSON file. Useful for offline
+  // triage with an LLM / pasting into a thread without copy-paste loss.
+  const exportJson = () => {
+    try {
+      const payload = {
+        exported_at: new Date().toISOString(),
+        source,
+        filters: { days: filterDays, type: filterType, resolved: filterResolved },
+        total: bugs.length,
+        bugs,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.href = url;
+      a.download = `bugs-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`יוצאו ${bugs.length} שורות ל-JSON`);
+    } catch (e) {
+      toast.error(`ייצוא נכשל: ${e?.message || 'unknown'}`);
+    }
+  };
+
+  const sourceBadge = source === 'remote'
+    ? { label: 'מסונכרן מ-Supabase (כל המכשירים)', bg: '#E8F2EA', text: '#1C3620' }
+    : source === 'local'
+      ? { label: 'מקומי בלבד (הדפדפן הזה) — Supabase לא זמין', bg: '#FEF3C7', text: '#92400E' }
+      : source === 'loading'
+        ? { label: 'טוען...', bg: '#F3F4F6', text: '#6B7280' }
+        : { label: 'שגיאה בטעינה', bg: '#FEE2E2', text: '#991B1B' };
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-gray-100 p-4">
-        <h2 className="font-bold text-gray-900 mb-3">קראשים ובאגים ({bugs.length})</h2>
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div>
+            <h2 className="font-bold text-gray-900">קראשים ובאגים ({bugs.length})</h2>
+            <span className="inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold"
+              style={{ background: sourceBadge.bg, color: sourceBadge.text }}>
+              {sourceBadge.label}
+            </span>
+            {errorMsg && source === 'local' && (
+              <p className="text-[10px] text-gray-400 mt-1 max-w-md">
+                סיבה: {errorMsg.slice(0, 120)}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={loadBugs}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50">
+              ↻ רענן
+            </button>
+            <button onClick={exportJson} disabled={bugs.length === 0}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1"
+              style={{
+                background: bugs.length > 0 ? '#2D5233' : '#9CA3AF',
+                color: '#fff',
+                opacity: bugs.length > 0 ? 1 : 0.6,
+                cursor: bugs.length > 0 ? 'pointer' : 'not-allowed',
+              }}>
+              <Download className="w-3.5 h-3.5" />
+              ייצוא JSON
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 mb-3 flex-wrap text-xs">
+          <select value={filterDays ?? 'all'}
+            onChange={(e) => setFilterDays(e.target.value === 'all' ? null : Number(e.target.value))}
+            className="border border-gray-200 rounded-lg px-2 py-1 bg-white">
+            <option value={1}>24 שעות אחרונות</option>
+            <option value={7}>7 ימים</option>
+            <option value={30}>30 ימים</option>
+            <option value="all">הכל</option>
+          </select>
+          <select value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="border border-gray-200 rounded-lg px-2 py-1 bg-white">
+            <option value="all">כל הסוגים</option>
+            <option value="Error">Error</option>
+            <option value="Promise">Promise</option>
+            <option value="React">React</option>
+          </select>
+          <select value={filterResolved}
+            onChange={(e) => setFilterResolved(e.target.value)}
+            className="border border-gray-200 rounded-lg px-2 py-1 bg-white">
+            <option value="unresolved">לא טופלו</option>
+            <option value="resolved">טופלו</option>
+            <option value="all">הכל</option>
+          </select>
+        </div>
+
         {bugs.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-sm text-gray-400">אין באגים רשומים כרגע</p>
-            <p className="text-[11px] text-gray-300 mt-1">באגים שנוצרו בזמן שימוש יופיעו כאן</p>
+            <p className="text-sm text-gray-400">אין באגים תואמים את הסינון</p>
+            <p className="text-[11px] text-gray-300 mt-1">שנה את הפילטרים מעל או חכה לבאג חדש</p>
           </div>
         ) : (
           <div className="space-y-2">
             {bugs.map((b, i) => (
-              <div key={i} className="border border-red-100 bg-red-50/30 rounded-xl p-3">
-                <div className="flex items-center justify-between mb-1">
+              <div key={b.id || i} className="border border-red-100 bg-red-50/30 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
                   <span className="font-bold text-sm text-red-800">{b.type || 'Error'}</span>
-                  <span className="text-[10px] text-gray-500">
-                    {b.timestamp ? format(new Date(b.timestamp), 'dd/MM HH:mm') : ''}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {b.resolved && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: '#E8F2EA', color: '#1C3620' }}>טופל</span>
+                    )}
+                    <span className="text-[10px] text-gray-500">
+                      {b.created_at
+                        ? format(new Date(b.created_at), 'dd/MM HH:mm')
+                        : b.timestamp
+                          ? format(new Date(b.timestamp), 'dd/MM HH:mm')
+                          : ''}
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-700">{b.message || JSON.stringify(b).slice(0, 150)}</p>
+                <p className="text-xs text-gray-700 break-words">{b.message || JSON.stringify(b).slice(0, 150)}</p>
                 {b.url && <p className="text-[10px] text-gray-400 mt-1">{b.url}</p>}
+                {b.user_id && (
+                  <p className="text-[10px] text-gray-400 mt-0.5">user: <span dir="ltr">{b.user_id.slice(0, 8)}…</span></p>
+                )}
+                {source === 'remote' && !b.resolved && b.id && (
+                  <button onClick={() => markResolved(b)}
+                    className="mt-2 text-[10px] font-bold px-2 py-0.5 rounded border border-green-700 text-green-800 hover:bg-green-50">
+                    סמן כטופל
+                  </button>
+                )}
               </div>
             ))}
           </div>
