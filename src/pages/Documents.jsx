@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { openFileUrlSafely } from '@/lib/securityUtils';
@@ -122,6 +123,16 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
   const [fileDataUrl, setFileDataUrl] = useState('');
   const [aiScanning, setAiScanning] = useState(false);
   const [aiResult, setAiResult] = useState(null);
+  // Mirror of app_config.scan_extraction_enabled — hides the AI-scan
+  // banner inside the upload dialog while the global gate is off so
+  // users don't see a "סרוק" button whose only outcome would be the
+  // AiScanUnavailableDialog.
+  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
+    return () => { cancelled = true; };
+  }, []);
   const [fileName, setFileName] = useState('');
 
   // Storage upload hook. Wraps validation + (re-)compression + signed
@@ -521,8 +532,12 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
             </div>
           )}
 
-          {/*  AI Scan banner  */}
-          {!isGuest && form.file_url && !aiResult && (
+          {/*  AI Scan banner — only when the global gate is ON. When off,
+               the user uploads the file as a document attachment (still
+               possible above) but the auto-extract banner is hidden so
+               they don't see a button whose only outcome is the
+               unavailable-dialog. */}
+          {!isGuest && form.file_url && !aiResult && aiScanAllowed && (
             <div className="flex items-center justify-between gap-3 bg-purple-50 border border-purple-200 rounded-xl px-4 py-3">
               <div>
                 <p className="text-sm font-semibold text-purple-800 flex items-center gap-1.5">

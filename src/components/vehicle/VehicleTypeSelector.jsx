@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronsUpDown, Check, Car, Truck, Ship, Star, Bike, Mountain, Wrench } from "lucide-react";
+import { ChevronsUpDown, Check, Car, Truck, Ship, Star, Bike, Mountain, Wrench, Plane } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getTheme } from '@/lib/designTokens';
 
@@ -27,6 +27,18 @@ export const MOTO_SUBCATEGORIES = [
   { label: 'קטנוע',        dbName: 'קטנוע',         usageMetric: 'קילומטרים' },
   { label: 'אנדורו',       dbName: 'אנדורו',        usageMetric: 'קילומטרים' },
   { label: 'מוטוקרוס',     dbName: 'מוטוקרוס',      usageMetric: 'קילומטרים' },
+];
+
+//  Sub-categories for "כלי טיס"
+//  Two MVP buckets: light/private aircraft (Cessna, Piper, Cirrus, Tecnam,
+//  ICP, etc. — anything in the Israeli civil registry, ~547 records)
+//  and drones (no national registry available yet, so manual entry only).
+//  Both meter by 'שעות מנוע' — Hobbs-meter for aircraft, motor-hours
+//  for drones — even though they're physically different units, the
+//  app's reminder/usage logic treats them identically.
+export const AVIATION_SUBCATEGORIES = [
+  { label: 'מטוס פרטי / קל', dbName: 'מטוס פרטי', usageMetric: 'שעות מנוע' },
+  { label: 'רחפן',             dbName: 'רחפן',         usageMetric: 'שעות מנוע' },
 ];
 
 //  Sub-categories for "מיוחדים"
@@ -186,6 +198,12 @@ export const MANUFACTURERS_BY_SUBCATEGORY = {
   'RZR':           ['Polaris', 'Can-Am', 'Yamaha', 'Honda', 'Kawasaki', 'CFMOTO', 'Arctic Cat', 'Segway'],
   'מיול':          ['Polaris', 'Kawasaki', 'Can-Am', 'John Deere', 'Kubota', 'Honda', 'Yamaha', 'CFMOTO'],
   'באגי חולות':    ['Polaris', 'Can-Am', 'Yamaha', 'Arctic Cat', 'Kawasaki', 'CFMOTO'],
+  // Aviation — light/private aircraft and drones. Aircraft list mirrors
+  // the most common manufacturers seen in the Israeli civil registry
+  // (data.gov.il bc00ed41); drones list covers the consumer/prosumer
+  // market that's actually owned by individual users in Israel.
+  'מטוס פרטי':    ['CESSNA', 'PIPER', 'CIRRUS', 'TECNAM', 'BEECHCRAFT', 'DIAMOND', 'MOONEY', 'ROBINSON', 'BELL', 'PILATUS', 'EMBRAER', 'BOEING'],
+  'רחפן':         ['DJI', 'Autel', 'Skydio', 'Parrot', 'Yuneec', 'Hubsan', 'Holy Stone', 'Potensic'],
 };
 
 //  The 6 main categories (fixed, maps to DB by keyword) 
@@ -253,6 +271,22 @@ export const VEHICLE_CATEGORIES = [
     hasSubcategories: true,
   },
   {
+    // Aviation — Israeli civil aircraft + drones. Added 2026-05-21 as
+    // its own top-level category (not under "מיוחדים") because the
+    // plate format and registry are entirely separate from ground
+    // vehicles. methods=['plate','manual'] — no scan, you can't sensibly
+    // OCR an aviation registration off a tail. The lookup branch in
+    // vehicleLookup routes 4X-XXX plates straight to the aircraft
+    // tier; the rest of the cascade is bypassed.
+    label: 'כלי טיס',
+    icon: Plane,
+    keywords: ['טיס', 'מטוס', 'רחפן'],
+    dbName: 'כלי טיס',
+    usageMetric: 'שעות מנוע',
+    methods: ['plate', 'manual'],
+    hasSubcategories: true,
+  },
+  {
     // "מיוחדים" lives last on purpose — it's the catch-all bucket
     // for everything that didn't fit a primary category (collectors,
     // tractors, trailers, buses, plows, motor caravans). Keeping it
@@ -311,6 +345,9 @@ const LOCAL_VEHICLE_TYPES = [
   { id: 'vt-caravan',   name: 'קרוואן',          usage_metric: 'קילומטרים',  scope: 'global' },
   { id: 'vt-plow',      name: 'מחרשה',           usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-bus',       name: 'אוטובוס',         usage_metric: 'קילומטרים',  scope: 'global' },
+  //  כלי טיס
+  { id: 'vt-aircraft',  name: 'מטוס פרטי',       usage_metric: 'שעות מנוע',  scope: 'global' },
+  { id: 'vt-drone',     name: 'רחפן',             usage_metric: 'שעות מנוע',  scope: 'global' },
 ];
 
 // Find the best matching type for a category

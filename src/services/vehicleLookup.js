@@ -38,6 +38,14 @@ const INACTIVE_RESOURCE_ID = '851ecab1-0622-4dbe-a6c7-f950cf82abf9';
 // BEFORE falling through to CME, otherwise the collector gets
 // mislabelled as a forklift.
 const INACTIVE_NO_MODEL_RESOURCE_ID = '6f6acd03-f351-4a8f-8ecf-df792f4f573a';
+// "מספרי רישוי של כלי רכב לא פעילים עם קוד דגם" — 584K records, the
+// biggest of the three "inactive" datasets. Covers vehicles whose annual
+// test (tokef_dt) lapsed but which haven't yet been officially cancelled
+// (no bitul_dt). The schema mirrors the active private-car registry,
+// so mapRecord works on it as-is. Without this tier in the cascade, a
+// user looking up a plate that's been off the road for 1-3 years got
+// "not found" even though the ministry still has full registration data.
+const INACTIVE_WITH_MODEL_RESOURCE_ID = 'f6efe89a-fb3d-43a4-bb61-9bf12a9b9099';
 // "תוצאות מבחני רישוי שנתיים" — yearly inspection (test) results
 // keyed by mispar_rechev. The headline field for our purposes is
 // `kilometraj_test_aharon` — odometer reading recorded at the last
@@ -68,6 +76,16 @@ const PERSONAL_IMPORT_RESOURCE_ID = '03adc637-b6fe-402b-9937-7c3d3afc9140';
 // SUG_TAKALA (defect type — typically "ליקוי בטיחותי"), TAARICH_PTICHA
 // (recall opening date). 137K records as of 2026-05.
 const OPEN_RECALL_RESOURCE_ID = '36bf1404-0be4-49d2-82dc-2f1ead4a8b93';
+// "מאגר נתוני כלי טיס ישראליים" — the entire Israeli civil aviation
+// fleet (547 records as of 2026-05). Keyed by `Expr1` which holds the
+// ICAO registration mark (always "4X-XXX" — Israel's national prefix
+// + 3 uppercase letters; verified 100% format compliance across the
+// dataset). Auto-updated monthly. Schema: SHM_ITZRN_MTOS (manufacturer),
+// SHM_DGM_MTOS (model), SHNT_IITZOR_MTOS (year), MSPR_SIDORI_MTOS
+// (serial), FLIGHT_WEIGHT_KG (MTOW). No engine hours, no airworthiness
+// data, no certificates — those live in CAMO systems we deliberately
+// don't try to replace.
+const AIRCRAFT_RESOURCE_ID = 'bc00ed41-75d0-4d0f-9eca-3cd0a2c332cc';
 import { isNative } from '@/lib/capacitor';
 
 // In dev browser ONLY, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
@@ -103,9 +121,48 @@ const API_BASE = (() => {
  */
 const PLATE_REGEX = /^[\d\-]{4,11}$/;
 
+// Israeli aircraft registration marks: ICAO national prefix "4X-" + 3
+// uppercase letters. Verified 100% format compliance across the entire
+// 547-record civil aviation registry (resource bc00ed41). No exceptions,
+// no digits, no other patterns. Exported so vehicleQuickCheck can share
+// the same source of truth without duplicating the regex.
+export const AIRCRAFT_PLATE_REGEX = /^4X-[A-Z]{3}$/;
+
+// Aircraft serial numbers (MSPR_SIDORI_MTOS) are free-form ASCII —
+// mixes digits, letters, and dashes. Floor of 4 chars matches the
+// ground-plate minimum and avoids accidental routing of 2-char garbage
+// to the aircraft tier. Live registry max as of 2026-05 is 15 chars
+// (verified across all 547 records), so 20 leaves comfortable headroom.
+const AIRCRAFT_SERIAL_REGEX = /^[A-Z0-9-]{4,20}$/;
+
+export function isAircraftPlate(plate) {
+  if (typeof plate !== 'string') return false;
+  const t = plate.trim().toUpperCase();
+  if (AIRCRAFT_PLATE_REGEX.test(t)) return true;
+  // Serial branch requires at least one letter — without it any 4-digit
+  // ground plate would mis-route to the aircraft tier (e.g. forklift
+  // mispar_tzama "1002" must reach the CME registry, not aviation).
+  return /[A-Z]/.test(t) && AIRCRAFT_SERIAL_REGEX.test(t);
+}
+
+// True only for the canonical 4X- registration mark — used to decide
+// which registry column to filter against (Expr1 vs MSPR_SIDORI_MTOS).
+function isRegistrationMark(plate) {
+  return AIRCRAFT_PLATE_REGEX.test(String(plate || '').trim().toUpperCase());
+}
+
 function validatePlateInput(plate) {
   if (typeof plate !== 'string') throw new Error('invalid_input');
   const stripped = plate.replace(/[\s]/g, '');
+  const upper = stripped.toUpperCase();
+  // Aircraft routing has two paths:
+  //   • "4X-XXX" canonical registration mark → uppercase exact form
+  //   • Any other alphanumeric+dash value with at least one letter →
+  //     treated as a possible aircraft serial (the lookup tier will
+  //     try MSPR_SIDORI_MTOS and return null if nothing matches)
+  // Pure-digit values fall through to the ground-vehicle cascade so a
+  // forklift owner typing "1002" still hits the CME tier.
+  if (isAircraftPlate(upper)) return upper;
   if (!PLATE_REGEX.test(stripped)) throw new Error('invalid_plate_format');
   const digits = stripped.replace(/\D/g, '');
   if (digits.length < 4 || digits.length > 8) throw new Error('invalid_plate_length');
@@ -507,6 +564,87 @@ function mapInactiveNoModelRecord(r) {
 async function fetchInactiveNoModelApi(plateDigits) {
   const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
   const url = `${API_BASE}?resource_id=${encodeURIComponent(INACTIVE_NO_MODEL_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.success || !json.result?.records?.length) return null;
+    return json.result.records;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') throw new Error('הבקשה לשרת הממשלתי ארכה יותר מדי. נסה שנית.');
+    return null;
+  }
+}
+
+/**
+ * Fetch a single inactive-with-model record by exact mispar_rechev match.
+ * Same exact-filter pattern as the other inactive tiers. Schema mirrors
+ * the active private-car registry (mispar_rechev, tozeret_nm, degem_cd,
+ * kinuy_mishari, shnat_yitzur, tokef_dt, mivchan_acharon_dt, baalut,
+ * tzeva_rechev, sug_delek_nm, ramat_gimur, ...) so the caller can run
+ * mapRecord on the result without a dedicated mapper.
+ */
+async function fetchInactiveWithModelApi(plateDigits) {
+  const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
+  const url = `${API_BASE}?resource_id=${encodeURIComponent(INACTIVE_WITH_MODEL_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.success || !json.result?.records?.length) return null;
+    return json.result.records;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') throw new Error('הבקשה לשרת הממשלתי ארכה יותר מדי. נסה שנית.');
+    return null;
+  }
+}
+
+/**
+ * Map a raw aircraft record (from the Israeli civil aviation registry,
+ * resource bc00ed41) to sanitized form fields. The schema is narrower
+ * than ground-vehicle registries — just manufacturer, model, year,
+ * serial, MTOW. No fuel type, no test dates, no ownership history. We
+ * deliberately don't fabricate values for missing fields; aviation
+ * maintenance lives in CAMO systems and we don't try to replace them.
+ */
+function mapAircraftRecord(r) {
+  const fields = {};
+  if (r.Expr1)              fields.license_plate = safeStr(String(r.Expr1).toUpperCase(), 10);
+  if (r.SHM_ITZRN_MTOS)     fields.manufacturer  = safeStr(r.SHM_ITZRN_MTOS, 60);
+  if (r.SHM_DGM_MTOS)       fields.model         = safeStr(String(r.SHM_DGM_MTOS), 60);
+  if (r.SHNT_IITZOR_MTOS)   fields.year          = safeYear(r.SHNT_IITZOR_MTOS);
+  if (r.MSPR_SIDORI_MTOS)   fields.vin           = safeStr(String(r.MSPR_SIDORI_MTOS), 40);
+  // FLIGHT_WEIGHT_KG = MTOW (maximum take-off weight). Some records have
+  // 0 — treat as missing rather than displaying "0 kg".
+  if (r.FLIGHT_WEIGHT_KG && Number(r.FLIGHT_WEIGHT_KG) > 0) {
+    fields.total_weight = safeNum(r.FLIGHT_WEIGHT_KG) + ' ק"ג';
+  }
+  return fields;
+}
+
+/**
+ * Fetch a single aircraft record from the civil aviation registry.
+ * Routes the query by input shape:
+ *   • Registration mark ("4X-XXX") → exact filter on Expr1
+ *   • Anything else (serial number, mixed alphanumeric) → exact filter
+ *     on MSPR_SIDORI_MTOS
+ * Uses the datastore `filters` mechanism for exact matches; q=fulltext
+ * across a small dataset would produce too many false-positives for
+ * short serial fragments.
+ */
+async function fetchAircraftApi(plate) {
+  const upper = String(plate).toUpperCase();
+  const column = AIRCRAFT_PLATE_REGEX.test(upper) ? 'Expr1' : 'MSPR_SIDORI_MTOS';
+  const filters = JSON.stringify({ [column]: upper });
+  const url = `${API_BASE}?resource_id=${encodeURIComponent(AIRCRAFT_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
   try {
@@ -979,6 +1117,21 @@ async function fetchGovApi(resourceId, query) {
 export async function lookupVehicleByPlate(plate) {
   const clean = validatePlateInput(plate);
 
+  // Aircraft fast path — registration marks (4X-XXX) live in a single,
+  // disjoint dataset and can't legitimately collide with ground-vehicle
+  // plate digits, so we route them straight to the aviation tier and
+  // skip the whole digit-cascade. Pattern check happens via
+  // validatePlateInput which already returned the uppercased mark for
+  // aircraft plates.
+  if (isAircraftPlate(clean)) {
+    const aircraftRecords = await fetchAircraftApi(clean);
+    if (!aircraftRecords) return null;
+    const fields = mapAircraftRecord(aircraftRecords[0]);
+    fields._detectedType = 'aircraft';
+    fields._detectedTypeLabel = 'כלי טיס';
+    return fields;
+  }
+
   // Source priority — chosen by plate length so we don't fuzz-match
   // short CME numbers against the road-vehicle datasets:
   //
@@ -1045,9 +1198,15 @@ export async function lookupVehicleByPlate(plate) {
       source = 'cme';
     }
   }
-  // For NORMAL plates (7-8 digits) the two registries are still tried,
-  // but sequentially — collisions between the two are vanishingly rare
-  // for full-length plates (the namespaces don't really overlap there).
+  // For NORMAL plates (7-8 digits), inactive-with-model is the biggest
+  // and most common "lapsed test" bucket (584K records vs the 1.16M of
+  // the cancelled-only inactive registry). Probe it BEFORE CME / cancelled
+  // so a user who looks up a vehicle whose test expired 1-2 years ago
+  // (very common case) hits the right record on the first non-active try.
+  if (!records && !isShort) {
+    records = await fetchInactiveWithModelApi(clean);
+    if (records) source = 'inactive_with_model';
+  }
   if (!records && !isShort) {
     records = await fetchInactiveNoModelApi(clean);
     if (records) source = 'inactive_classic';
@@ -1090,16 +1249,17 @@ export async function lookupVehicleByPlate(plate) {
     record = exact ?? records[0];
   }
 
-  // Pick the matching mapper. The `inactive` (off-road / cancelled)
-  // dataset uses the same private-car schema, so mapRecord is reused;
-  // the cancellation date is appended after. `inactive_classic` is the
-  // no-degem dataset (collectors etc.) with a slightly trimmed schema.
+  // Pick the matching mapper. The `inactive` (cancelled, has bitul_dt)
+  // and `inactive_with_model` (test expired, no bitul_dt) datasets both
+  // use the same private-car schema, so mapRecord is reused; the
+  // cancellation date is appended after for `inactive`. `inactive_classic`
+  // is the no-degem dataset (collectors etc.) with a trimmed schema.
   const fields = source === 'moto'             ? mapMotoRecord(record)
               : source === 'heavy'            ? mapHeavyRecord(record)
               : source === 'cme'              ? mapCmeRecord(record)
               : source === 'inactive_classic' ? mapInactiveNoModelRecord(record)
               : source === 'personal_import'  ? mapPersonalImportRecord(record)
-              : mapRecord(record); // 'car' OR 'inactive'
+              : mapRecord(record); // 'car' OR 'inactive' OR 'inactive_with_model'
 
   // Inactive-registry hit → tag the result so AddVehicle can warn the
   // user before silently populating the form. We still return the data
@@ -1110,6 +1270,13 @@ export async function lookupVehicleByPlate(plate) {
     if (record.bitul_dt) {
       fields._cancellationDate = safeDate(record.bitul_dt) || null;
     }
+  }
+  // inactive_with_model — test expired but NOT formally cancelled. Same
+  // _isInactive flag so the same warning toast fires; the AddVehicle
+  // copy branches on _cancellationDate presence to pick the right
+  // wording ("ביטול סופי" vs "טסט פג לפני יותר משנה").
+  if (source === 'inactive_with_model') {
+    fields._isInactive = true;
   }
   // inactive_classic — same "off-road" status. The dataset is older
   // private cars / classic cars without a model code, expired >13 months

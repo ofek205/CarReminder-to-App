@@ -1,5 +1,5 @@
 import { db } from '@/lib/supabaseEntities';
-import { lookupVehicleByPlate } from '@/services/vehicleLookup';
+import { lookupVehicleByPlate, isAircraftPlate } from '@/services/vehicleLookup';
 import { generateVehicleInsights } from '@/lib/vehicleInsights';
 
 export const QUICK_CHECK_USED_KEY = 'vehicle_quick_check_used';
@@ -35,13 +35,35 @@ const NUMBER_FIELDS = new Set([
   'tow_capacity', 'ownership_hand',
 ]);
 
+// Aviation routing for quick-check shares the same source of truth as
+// the lookup tier (vehicleLookup.isAircraftPlate / AIRCRAFT_PLATE_REGEX
+// imported above) — no local regex copy to keep in sync.
+export function isAviationQuickCheckPlate(value) {
+  return isAircraftPlate(value);
+}
+
 export function normalizeQuickCheckPlate(value) {
-  return String(value || '').replace(/\D/g, '');
+  const raw = String(value || '');
+  // Aviation values (letters present) are preserved as alphanumeric+dash
+  // so the lookup tier can route to the right registry column. Ground
+  // values (digits only) follow the original digit-strip behaviour so
+  // the existing 4-8 digit ground-vehicle cascade still works.
+  if (/[A-Za-z]/.test(raw)) {
+    return raw.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  }
+  return raw.replace(/\D/g, '');
 }
 
 export function validateQuickCheckPlate(value) {
   const clean = normalizeQuickCheckPlate(value);
   if (!clean) return { ok: false, plate: clean, message: 'יש להזין מספר רישוי' };
+  // Aviation branch — aircraft registration mark or serial number.
+  if (/[A-Z]/.test(clean)) {
+    if (clean.length < 2 || clean.length > 20) {
+      return { ok: false, plate: clean, message: 'מזהה כלי טיס בין 2 ל-20 תווים (אותיות/ספרות/מקפים)' };
+    }
+    return { ok: true, plate: clean, message: '' };
+  }
   if (clean.length < 4 || clean.length > 8) {
     return { ok: false, plate: clean, message: 'מספר רישוי צריך להכיל 4 עד 8 ספרות' };
   }

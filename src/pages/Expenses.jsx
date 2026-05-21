@@ -28,6 +28,7 @@
  * aggregates BOTH sources together.
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { useQuery, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import {
   Plus, Trash2, Pencil, Loader2, Briefcase, Receipt, X, Upload, Camera,
@@ -402,6 +403,15 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
   const [uploading,   setUploading]   = useState(false);
   const [scanning,    setScanning]    = useState(false);
   const [scanError,   setScanError]   = useState('');
+  // Mirror of app_config.scan_extraction_enabled — when off, the AI-
+  // scan buttons in ReceiptScanCard render disabled with a "כרגע לא
+  // זמין" label. File-upload-as-attachment paths stay enabled.
+  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
+    return () => { cancelled = true; };
+  }, []);
   const [didChangeReceipt, setDidChangeReceipt] = useState(false);
   const newOrphanPathRef = useRef(null); // path uploaded in THIS session
   const savedRef         = useRef(false);
@@ -622,6 +632,7 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
             uploading={uploading}
             scanning={scanning}
             scanError={scanError}
+            aiScanAllowed={aiScanAllowed}
             onUpload={(file, opts) => handleFile(file, opts)}
             onScan={() => runAiScan()}
             onRemove={removeReceipt}
@@ -678,7 +689,7 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
 
 // ---------- Receipt scan card ----------------------------------------
 
-function ReceiptScanCard({ receiptUrl, uploading, scanning, scanError, onUpload, onScan, onRemove, fileInputRef }) {
+function ReceiptScanCard({ receiptUrl, uploading, scanning, scanError, aiScanAllowed = true, onUpload, onScan, onRemove, fileInputRef }) {
   // Camera input gives mobile users the OS camera picker; the regular
   // file input gives desktop users their file dialog. Both feed the
   // same upload handler.
@@ -727,18 +738,22 @@ function ReceiptScanCard({ receiptUrl, uploading, scanning, scanError, onUpload,
             />
 
             {/* Both buttons sized to clear iOS's 44px tap target —
-                py-3 + the icon row gives ~52px of comfortable thumb area. */}
+                py-3 + the icon row gives ~52px of comfortable thumb area.
+                "צלם וסרוק" gated on aiScanAllowed; "צרף קובץ בלבד" stays
+                enabled — that path is pure upload and doesn't call the
+                AI extractor. */}
             <button
               type="button"
-              disabled={uploading || scanning}
+              disabled={uploading || scanning || !aiScanAllowed}
               onClick={() => cameraRef.current?.click()}
-              className="min-h-[52px] flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold active:scale-[0.97] disabled:opacity-60 shadow-sm"
+              title={!aiScanAllowed ? 'סריקה חכמה אינה זמינה כרגע' : undefined}
+              className="min-h-[52px] flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
             >
               <span className="flex items-center gap-1">
                 <Sparkles className="h-3.5 w-3.5" />
                 <Camera className="h-3.5 w-3.5" />
               </span>
-              <span>צלם וסרוק עם AI</span>
+              <span>{aiScanAllowed ? 'צלם וסרוק עם AI' : 'סריקה — לא זמין'}</span>
             </button>
             <button
               type="button"
@@ -798,12 +813,13 @@ function ReceiptScanCard({ receiptUrl, uploading, scanning, scanError, onUpload,
           <div className="flex gap-2">
             <button
               type="button"
-              disabled={scanning}
+              disabled={scanning || !aiScanAllowed}
               onClick={onScan}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold disabled:opacity-60 active:scale-[0.97]"
+              title={!aiScanAllowed ? 'סריקה חכמה אינה זמינה כרגע' : undefined}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-[#2D5233] text-white text-[11px] font-bold disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.97]"
             >
               {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {scanning ? 'מנתח חשבונית...' : 'סרוק שדות עם AI'}
+              {scanning ? 'מנתח חשבונית...' : (aiScanAllowed ? 'סרוק שדות עם AI' : 'סריקה — לא זמין')}
             </button>
             <button
               type="button"

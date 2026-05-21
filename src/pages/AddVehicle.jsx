@@ -5,6 +5,7 @@ import { compressImage } from '@/lib/imageCompress';
 import useFileUpload from '@/hooks/useFileUpload';
 import FirstTimeTour from '@/components/shared/FirstTimeTour';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
+import AviationPlateInput from '@/components/shared/AviationPlateInput';
 import MultipleMatchDialog from '@/components/vehicle/MultipleMatchDialog';
 
 // Mini tour shown the first time a user lands on /AddVehicle with no
@@ -36,13 +37,14 @@ import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectWithClear } from "@/components/ui/select";
-import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft } from "lucide-react";
+import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft, Info } from "lucide-react";
 import { lookupVehicleByPlate } from "../services/vehicleLookup";
 import { normalizePlate, isVintageVehicle, isVessel } from "../components/shared/DateStatusUtils";
-import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, CME_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
+import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, CME_SUBCATEGORIES, AVIATION_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { trackUserAction } from "../components/shared/ReviewManager";
 import VehicleScanWizard from "../components/vehicle/VehicleScanWizard";
+import { isAiScanEnabled } from '@/lib/aiScanGate';
 import VesselScanWizard from "../components/vehicle/VesselScanWizard";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
@@ -163,6 +165,16 @@ export default function AddVehicle() {
   const [userId, setUserId] = useState(null);
   const [showScanWizard, setShowScanWizard] = useState(false);
   const [showVesselScanWizard, setShowVesselScanWizard] = useState(false);
+  // Mirrors app_config.scan_extraction_enabled — defaults TRUE during
+  // the load window so the scan tile doesn't flash in-out on slow
+  // networks. Same pattern VehicleInfoSection uses. Re-fetched on
+  // every category change so an admin flip propagates within ~60s.
+  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
+    return () => { cancelled = true; };
+  }, [selectedCategory?.label]);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showGuestSignup, setShowGuestSignup] = useState(false);
@@ -245,6 +257,7 @@ export default function AddVehicle() {
           cat.label === 'אופנועים' ? MOTO_SUBCATEGORIES :
           cat.label === 'כלי שטח' ? OFFROAD_SUBCATEGORIES :
           cat.label === 'כלי צמ"ה' ? CME_SUBCATEGORIES :
+          cat.label === 'כלי טיס' ? AVIATION_SUBCATEGORIES :
           SPECIAL_SUBCATEGORIES;
         const sub = list.find(s => s.dbName === e.subcategoryDbName) || null;
         setSelectedSubcategory(sub);
@@ -265,6 +278,11 @@ export default function AddVehicle() {
   // telehandlers, rollers). Showing it for every vehicle clutters the
   // form for a private car owner who has no use for the field.
   const isCmeCategory = selectedCategory?.label === 'כלי צמ"ה';
+  // Aviation category — drives a bunch of UI customisations: aviation-
+  // specific plate label ("מספר רישום"), engine-hours metric (not km),
+  // hidden test_due_date / tire / ownership / pollution sections (none
+  // apply to aircraft we're not trying to manage CAMO-style).
+  const isAviationCategory = selectedCategory?.label === 'כלי טיס';
   const isJeepOffroad = selectedSubcategory?.dbName === "ג'יפ שטח";
   // Two-wheelers (road motorcycle, scooter, off-road motorcycle) only
   // ever have 2 tires — showing the 1/2/3/4 selector for them was
@@ -345,6 +363,13 @@ export default function AddVehicle() {
     const correctType = sub?.dbName || cat?.dbName || 'רכב';
     setForm(prev => ({ ...prev, vehicle_type: correctType }));
     if (method === 'scan') {
+      // Belt-and-braces: the tile renders disabled when !aiScanAllowed,
+      // but if the click slips through (race during gate refresh) we
+      // bail here too instead of opening a modal that would only fail.
+      if (!aiScanAllowed) {
+        toast?.error?.('סריקה חכמה אינה זמינה כרגע') ?? null;
+        return;
+      }
       if (cat?.label === 'כלי שייט') {
         setShowVesselScanWizard(true);
       } else {
@@ -485,6 +510,7 @@ export default function AddVehicle() {
       case 'אופנועים':        return ['motorcycle'];
       case 'משאיות':           return ['truck', 'commercial'];
       case 'כלי צמ"ה':        return ['cme'];
+      case 'כלי טיס':         return ['aircraft'];
       case 'כלי שטח':         return null; // gov.il can't classify reliably. skip
       case 'מיוחדים':          return null; // same. skip for special subcategories
       default: return null;
@@ -515,6 +541,12 @@ export default function AddVehicle() {
       case 'bus':        return VEHICLE_CATEGORIES.find(c => c.label === 'מיוחדים');
       case 'car':
       case 'commercial': return VEHICLE_CATEGORIES.find(c => c.label === 'פרטיים ומסחריים');
+      // Aircraft (registry resource bc00ed41) — its own top-level
+      // category. confirmSwitchCategory below auto-picks the "מטוס פרטי"
+      // subcategory since the registry is mostly Cessna/Piper/Tecnam-
+      // class light aircraft; drones aren't in the registry at all and
+      // would never reach this branch.
+      case 'aircraft':   return VEHICLE_CATEGORIES.find(c => c.label === 'כלי טיס');
       default: return null;
     }
   };
@@ -623,6 +655,12 @@ export default function AddVehicle() {
       if (typeMismatch.detectedType === 'collector') {
         setSelectedSubcategory(SPECIAL_SUBCATEGORIES.find(s => s.label === 'רכב אספנות') || SPECIAL_SUBCATEGORIES[0]);
       }
+      // Aircraft → preselect "מטוס פרטי / קל" inside "כלי טיס". The
+      // registry hit guarantees this is a manned aircraft (drones aren't
+      // in the gov.il dataset and would never trigger a type-mismatch).
+      if (typeMismatch.detectedType === 'aircraft') {
+        setSelectedSubcategory(AVIATION_SUBCATEGORIES.find(s => s.label === 'מטוס פרטי / קל') || AVIATION_SUBCATEGORIES[0]);
+      }
     }
     applyLookupToForm(typeMismatch.pendingFields, typeMismatch.pendingUpdates);
     setTypeMismatch(null);
@@ -729,19 +767,34 @@ export default function AddVehicle() {
     // We accept 4-8 digits across non-vessel categories so a
     // forklift owner with plate "1002" can still save — matches the
     // floor the gov.il lookup validator uses.
+    // Aviation: accept the canonical registration mark ("4X-XXX") OR
+    // the manufacturer serial number — serials in the registry are
+    // alphanumeric with dashes, no fixed pattern ("172-65629",
+    // "0022-1115", "S-01071794", "0338E", plain digits). Drones are
+    // free-form identifiers (DJI serials, owner-chosen labels).
+    // isAviationCategory + isDroneSubcategory live at component scope.
     const plateFormat = isVesselCategory
       ? (v) => !v || /^[A-Z0-9\-]{3,15}$/i.test((v || '').trim())
-      : (v) => !v || /^[\d\-\s]{4,12}$/.test((v || '').trim());
+      : isAviationCategory
+        ? (v) => !v || /^[A-Z0-9\-\s]{2,30}$/i.test((v || '').trim())
+        : (v) => !v || /^[\d\-\s]{4,12}$/.test((v || '').trim());
     // vehicle_type is required by the backend.
     // license_plate is required only for vehicles that legally need
     // road registration. Motocross (track-only, no plate) is exempt
     // and the field is hidden in the form when vehicle_type === 'מוטוקרוס'.
+    const aviationPlateMsg = isDroneSubcategory
+      ? 'מזהה לא תקין (אותיות/ספרות/מקפים, 2-30 תווים)'
+      : 'סימן רישום (4X-AIU) או מספר סידורי — אותיות, ספרות, מקפים';
     const plateRule = hasRegistration
       ? {
-          required: 'יש להזין מספר רישוי',
-          custom: [plateFormat, isVesselCategory ? 'מספר זיהוי לא תקין (אותיות/ספרות בלבד)' : 'מספר רישוי לא תקין (4-8 ספרות)'],
+          required: isAviationCategory && !isDroneSubcategory ? 'יש להזין סימן רישום או מספר סידורי' : 'יש להזין מספר רישוי',
+          custom: [plateFormat, isVesselCategory
+            ? 'מספר זיהוי לא תקין (אותיות/ספרות בלבד)'
+            : isAviationCategory
+              ? aviationPlateMsg
+              : 'מספר רישוי לא תקין (4-8 ספרות)'],
         }
-      : { custom: [plateFormat, 'מספר רישוי לא תקין'] };
+      : { custom: [plateFormat, isAviationCategory ? aviationPlateMsg : 'מספר רישוי לא תקין'] };
     if (!validate(form, {
       vehicle_type: { custom: [v => v && v.trim() !== '', 'יש לבחור סוג כלי רכב'] },
       license_plate: plateRule,
@@ -943,7 +996,17 @@ export default function AddVehicle() {
   // If category has subcategories, require one to be selected before showing step 2+
   const categoryReady = selectedCategory !== null &&
     (!selectedCategory.hasSubcategories || selectedSubcategory !== null);
-  const formVisible = categoryReady && selectedMethod !== null;
+  // Drone has no plate registry — skip the method picker entirely and
+  // jump to the manual form so the user doesn't sit on a one-option
+  // chooser. Aircraft (manned) still picks between plate lookup and
+  // manual entry like every other category.
+  const isDroneSubcategory = selectedSubcategory?.label === 'רחפן';
+  useEffect(() => {
+    if (isDroneSubcategory && selectedMethod !== 'manual') {
+      setSelectedMethod('manual');
+    }
+  }, [isDroneSubcategory, selectedMethod]);
+  const formVisible = categoryReady && (selectedMethod !== null || isDroneSubcategory);
 
   // Quick manufacturer list based on selected sub-category or category
   const quickManufacturers = selectedSubcategory
@@ -1282,7 +1345,9 @@ export default function AddVehicle() {
                       ? OFFROAD_SUBCATEGORIES
                       : selectedCategory.label === 'כלי צמ"ה'
                         ? CME_SUBCATEGORIES
-                        : SPECIAL_SUBCATEGORIES),
+                        : selectedCategory.label === 'כלי טיס'
+                          ? AVIATION_SUBCATEGORIES
+                          : SPECIAL_SUBCATEGORIES),
                 ...(customSubcategories[selectedCategory.label] || []),
               ].map(sub => {
                 const active = selectedSubcategory?.label === sub.label;
@@ -1389,7 +1454,9 @@ export default function AddVehicle() {
               <Search className="h-5 w-5 text-[#003DA5]" />
             </div>
             <div>
-              <p className="font-semibold text-gray-800 text-sm">🔍 חיפוש לפי מספר רכב</p>
+              <p className="font-semibold text-gray-800 text-sm">
+                {selectedCategory?.label === 'כלי טיס' ? '🔍 חיפוש לפי מספר רישום' : '🔍 חיפוש לפי מספר רכב'}
+              </p>
               <p className="text-xs text-gray-500">ממלא את הפרטים אוטומטית</p>
             </div>
           </div>
@@ -1402,14 +1469,24 @@ export default function AddVehicle() {
             <div className="mt-4" onClick={e => e.stopPropagation()}>
               <div className="flex gap-2 items-stretch">
                 <div className="flex-1">
-                  <VehicleCheckPlateInput
-                    value={plateQuery}
-                    onChange={v => { setPlateQuery(v); setLookupStatus('idle'); }}
-                    onEnter={handleLookup}
-                    disabled={lookupStatus === 'loading'}
-                    autoFocus
-                    compact
-                  />
+                  {selectedCategory?.label === 'כלי טיס' ? (
+                    <AviationPlateInput
+                      value={plateQuery}
+                      onChange={v => { setPlateQuery(v); setLookupStatus('idle'); }}
+                      onEnter={handleLookup}
+                      disabled={lookupStatus === 'loading'}
+                      autoFocus
+                    />
+                  ) : (
+                    <VehicleCheckPlateInput
+                      value={plateQuery}
+                      onChange={v => { setPlateQuery(v); setLookupStatus('idle'); }}
+                      onEnter={handleLookup}
+                      disabled={lookupStatus === 'loading'}
+                      autoFocus
+                      compact
+                    />
+                  )}
                 </div>
                 <Button
                   type="button"
@@ -1418,10 +1495,14 @@ export default function AddVehicle() {
                   className="bg-[#003DA5] hover:bg-[#002d7a] text-white h-10 px-4 gap-2 shrink-0"
                 >
                   {lookupStatus === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                  מצא רכב
+                  {selectedCategory?.label === 'כלי טיס' ? 'מצא כלי טיס' : 'מצא רכב'}
                 </Button>
               </div>
-              <p className="text-[11px] text-gray-400 mt-2">הנתונים מגיעים ישירות ממשרד התחבורה</p>
+              <p className="text-[11px] text-gray-400 mt-2">
+                {selectedCategory?.label === 'כלי טיס'
+                  ? 'הנתונים מגיעים ישירות ממאגר רת"א (רשות התעופה האזרחית)'
+                  : 'הנתונים מגיעים ישירות ממשרד התחבורה'}
+              </p>
 
               {lookupStatus === 'found' && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-green-700">
@@ -1460,24 +1541,35 @@ export default function AddVehicle() {
         </div>
         )}
 
-        {/* 2. AI scan */}
+        {/* 2. AI scan — gated by aiScanAllowed. When the global flag is
+            off (admin-controlled via app_config.scan_extraction_enabled),
+            the tile renders disabled with a "כרגע לא זמין" badge instead
+            of opening a wizard that would just fail at the extract step. */}
         {selectedCategory?.methods.includes('scan') && (
         <div
-          className={`rounded-2xl border-2 bg-white p-4 transition-all duration-200 cursor-pointer ${isSelected('scan') ? 'border-amber-400 shadow-md' : 'border-gray-200 hover:border-amber-300'}`}
-          onClick={() => selectMethod('scan')}
+          className={`rounded-2xl border-2 p-4 transition-all duration-200 ${aiScanAllowed
+            ? `bg-white cursor-pointer ${isSelected('scan') ? 'border-amber-400 shadow-md' : 'border-gray-200 hover:border-amber-300'}`
+            : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-70'}`}
+          onClick={aiScanAllowed ? () => selectMethod('scan') : undefined}
+          aria-disabled={!aiScanAllowed}
           dir="rtl"
         >
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
-              style={{ background: '#FEF3C7', borderColor: '#FDE68A' }}>
-              <FileText className="h-5 w-5" style={{ color: '#D97706' }} />
+              style={{ background: aiScanAllowed ? '#FEF3C7' : '#F3F4F6', borderColor: aiScanAllowed ? '#FDE68A' : '#E5E7EB' }}>
+              <FileText className="h-5 w-5" style={{ color: aiScanAllowed ? '#D97706' : '#9CA3AF' }} />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-gray-800 text-sm flex items-center gap-1.5">
+              <p className="font-semibold text-gray-800 text-sm flex items-center gap-1.5 flex-wrap">
                 📷 סריקת רישיון רכב
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#FFBF00', color: '#2D5233' }}>AI</span>
+                {!aiScanAllowed && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">
+                    כרגע לא זמין
+                  </span>
+                )}
               </p>
-              <p className="text-xs text-gray-500">מילוי אוטומטי של הפרטים</p>
+              <p className="text-xs text-gray-500">{aiScanAllowed ? 'מילוי אוטומטי של הפרטים' : 'נחזור בקרוב — בינתיים השתמש בחיפוש לפי מספר רכב או בהזנה ידנית'}</p>
             </div>
             <ChevronLeft className="w-5 h-5 shrink-0 text-gray-400" />
           </div>
@@ -1607,12 +1699,26 @@ export default function AddVehicle() {
                         sense and prevented users from saving the vehicle. */}
                     {hasRegistration && (
                       <div data-field="license_plate">
-                        <Label>{isVesselCategory ? 'מספר זיהוי' : 'מספר רישוי'} <span className="text-red-400">*</span></Label>
+                        <Label>
+                          {isVesselCategory
+                            ? 'מספר זיהוי'
+                            : isAviationCategory
+                              ? (isDroneSubcategory ? 'מזהה / מספר סידורי' : 'סימן רישום')
+                              : 'מספר רישוי'}
+                          {' '}<span className="text-red-400">*</span>
+                        </Label>
                         <Input
                           value={form.license_plate}
                           onChange={e => { handleChange('license_plate', e.target.value); clearError('license_plate'); }}
                           onClear={() => handleChange('license_plate', '')}
-                          dir="ltr" placeholder={isVesselCategory ? 'IL-12345' : '00-000-00'}
+                          dir="ltr"
+                          placeholder={
+                            isVesselCategory
+                              ? 'IL-12345'
+                              : isAviationCategory
+                                ? (isDroneSubcategory ? 'DJI-MINI-12345' : '4X-AIU')
+                                : '00-000-00'
+                          }
                           error={!!errors.license_plate}
                           className={autofillCls('license_plate', autofillFields)}
                         />
@@ -1722,7 +1828,17 @@ export default function AddVehicle() {
                           triggerClassName={autofillCls('fuel_type', autofillFields)}
                         >
                           <SelectContent>
-                            {['בנזין', 'סולר', 'חשמלי', 'היברידי', 'גז'].map(f => (
+                            {/* Aviation fuels are functionally a separate
+                                taxonomy from road fuels — AVGAS 100LL for
+                                piston aircraft, Jet-A1 for turbines, plus
+                                a few smaller categories. Showing "בנזין /
+                                סולר / חשמלי" for a Cessna would be wrong. */}
+                            {(isAviationCategory && !isDroneSubcategory
+                              ? ['AVGAS 100LL', 'AVGAS 100', 'Jet-A1', 'MOGAS (95)', 'דיזל אווירי', 'חשמלי']
+                              : isDroneSubcategory
+                                ? ['חשמלי / סוללה']
+                                : ['בנזין', 'סולר', 'חשמלי', 'היברידי', 'גז']
+                            ).map(f => (
                               <SelectItem key={f} value={f}>{f}</SelectItem>
                             ))}
                           </SelectContent>
@@ -1739,18 +1855,31 @@ export default function AddVehicle() {
                       טסט שנתי ואין חובת ביטוח חובה. השאר (ק"מ + חברת
                       ביטוח) ממשיך להופיע כי הוא כללי. */}
                   {hasRegistration && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className={`grid gap-3 ${isAviationCategory ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                      {/* Aircraft don't have an annual road-test equivalent
+                          this app manages (CofA / annual inspection live in
+                          CAMO systems per PM scope), so we drop the date
+                          field entirely for aviation and leave only the
+                          insurance row. */}
+                      {!isAviationCategory && (
+                        <div>
+                          <Label>{isVesselCategory ? 'כושר שייט' : 'תאריך טסט'}</Label>
+                          <DateInput
+                            value={form.test_due_date}
+                            onChange={e => handleChange('test_due_date', e.target.value)}
+                            className={autofillCls('test_due_date', autofillFields)}
+                          />
+                          <AutofillHint name="test_due_date" autofillFields={autofillFields} />
+                        </div>
+                      )}
                       <div>
-                        <Label>{isVesselCategory ? 'כושר שייט' : 'תאריך טסט'}</Label>
-                        <DateInput
-                          value={form.test_due_date}
-                          onChange={e => handleChange('test_due_date', e.target.value)}
-                          className={autofillCls('test_due_date', autofillFields)}
-                        />
-                        <AutofillHint name="test_due_date" autofillFields={autofillFields} />
-                      </div>
-                      <div>
-                        <Label>{isVesselCategory ? 'תוקף ביטוח ימי' : 'חידוש ביטוח'}</Label>
+                        <Label>
+                          {isVesselCategory
+                            ? 'תוקף ביטוח ימי'
+                            : isAviationCategory
+                              ? 'תוקף ביטוח אווירי'
+                              : 'חידוש ביטוח'}
+                        </Label>
                         <DateInput
                           value={form.insurance_due_date}
                           onChange={e => handleChange('insurance_due_date', e.target.value)}
@@ -1965,8 +2094,9 @@ export default function AddVehicle() {
                   )}
                 </div>
 
-                {/* Tire question */}
-                {selectedCategory?.label !== 'כלי שייט' && (
+                {/* Tire question — hidden for vessels (no road tires) and
+                    aviation (we don't manage aircraft tire reminders). */}
+                {selectedCategory?.label !== 'כלי שייט' && !isAviationCategory && (
                   <div className="rounded-2xl p-5 space-y-3"
                     style={{ background: T.light, border: `1.5px solid ${T.border}` }}>
                     <div className="flex items-center gap-3" dir="rtl">
@@ -2159,6 +2289,22 @@ export default function AddVehicle() {
                   </div>
                 )}
 
+                {/* Aviation-only disclaimer. CAMO (Continuing Airworthiness
+                    Management Organisation) is the regulator-sanctioned
+                    body that signs off aircraft maintenance; we deliberately
+                    don't try to replicate it, and want owners to know that
+                    upfront so they don't lean on reminders as a substitute
+                    for real maintenance records. */}
+                {selectedCategory?.label === 'כלי טיס' && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-start gap-2 text-[11px] leading-relaxed text-amber-900 italic">
+                    <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-700 not-italic" aria-hidden="true" />
+                    <span>
+                      לתזכורות בלבד — האפליקציה אינה תחליף ל-CAMO או לרישומי תחזוקה רשמיים.
+                      לתחזוקה רשמית פנה למוסך תעופה מורשה.
+                    </span>
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={handleSubmit}
@@ -2178,7 +2324,11 @@ export default function AddVehicle() {
                   }}
                 >
                   {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="w-5 h-5" />}
-                  {saving ? 'שומר...' : isVesselCategory ? 'שמור כלי שייט' : 'שמור רכב'}
+                  {saving
+                    ? 'שומר...'
+                    : selectedCategory?.label === 'כלי טיס'
+                      ? (isDroneSubcategory ? 'שמור רחפן' : 'שמור כלי טיס')
+                      : isVesselCategory ? 'שמור כלי שייט' : 'שמור רכב'}
                 </button>
               </form>
             </div>

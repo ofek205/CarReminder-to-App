@@ -110,7 +110,12 @@ export default function VehicleCheck() {
   }, [isBusy]);
 
   const handlePlateChange = (value) => {
-    const clean = normalizeQuickCheckPlate(value).slice(0, 8);
+    // Aviation values can be up to 20 chars (serials like "01-05-51-047"
+    // are 12; the cap leaves headroom). Ground values stay at 8 since
+    // the longest Israeli civilian plate is 8 digits.
+    const normalized = normalizeQuickCheckPlate(value);
+    const cap = /[A-Z]/.test(normalized) ? 20 : 8;
+    const clean = normalized.slice(0, cap);
     setPlate(clean);
     setError('');
     setLimitLocked(false);

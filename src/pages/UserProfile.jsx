@@ -18,6 +18,7 @@ import { createPageUrl } from '@/utils';
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import DriverLicenseScanDialog from "../components/profile/DriverLicenseScanDialog";
+import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
 import useFormValidation from '@/hooks/useFormValidation';
@@ -226,6 +227,16 @@ function AuthUserProfile({ embedded = false }) {
   });
   const [fullName, setFullName] = useState('');
   const [showScan, setShowScan] = useState(false);
+  // Mirrors app_config.scan_extraction_enabled. While the global AI
+  // scan gate is off, the "סרוק רישיון נהיגה (AI)" button renders
+  // disabled with a "כרגע לא זמין" badge instead of opening a wizard
+  // whose only outcome would be the AiScanUnavailableDialog.
+  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
+    return () => { cancelled = true; };
+  }, []);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const { errors, validate, clearError } = useFormValidation();
@@ -481,11 +492,16 @@ function AuthUserProfile({ embedded = false }) {
             <Button
               onClick={() => setShowScan(true)}
               variant="outline"
-              className="gap-2 text-sm w-full sm:w-auto"
-              style={{ borderColor: '#10B981', color: '#10B981', background: '#FFFFFF' }}
+              disabled={!aiScanAllowed}
+              className="gap-2 text-sm w-full sm:w-auto disabled:opacity-60 disabled:cursor-not-allowed"
+              style={aiScanAllowed
+                ? { borderColor: '#10B981', color: '#10B981', background: '#FFFFFF' }
+                : { borderColor: '#D1D5DB', color: '#6B7280', background: '#F9FAFB' }
+              }
+              title={aiScanAllowed ? undefined : 'סריקה חכמה אינה זמינה כרגע'}
             >
               <ScanLine className="h-4 w-4" />
-              סרוק רישיון נהיגה (AI)
+              {aiScanAllowed ? 'סרוק רישיון נהיגה (AI)' : 'סריקה חכמה — כרגע לא זמין'}
             </Button>
           </div>
 
