@@ -749,28 +749,27 @@ export default function AddVehicle() {
     // We accept 4-8 digits across non-vessel categories so a
     // forklift owner with plate "1002" can still save — matches the
     // floor the gov.il lookup validator uses.
-    // Aviation aircraft plates (Israeli ICAO marks) are "4X-XXX" — three
-    // uppercase letters after a fixed prefix. Drones have no registry
-    // and accept any free-form identifier (serial number, custom label).
-    // isAviationCategory + isDroneSubcategory are declared at component
-    // scope above — no redeclaration needed here.
+    // Aviation: accept the canonical registration mark ("4X-XXX") OR
+    // the manufacturer serial number — serials in the registry are
+    // alphanumeric with dashes, no fixed pattern ("172-65629",
+    // "0022-1115", "S-01071794", "0338E", plain digits). Drones are
+    // free-form identifiers (DJI serials, owner-chosen labels).
+    // isAviationCategory + isDroneSubcategory live at component scope.
     const plateFormat = isVesselCategory
       ? (v) => !v || /^[A-Z0-9\-]{3,15}$/i.test((v || '').trim())
       : isAviationCategory
-        ? (v) => !v || (isDroneSubcategory
-            ? /^[A-Z0-9\-\s]{2,30}$/i.test((v || '').trim())
-            : /^4X-[A-Z]{3}$/i.test((v || '').trim()))
+        ? (v) => !v || /^[A-Z0-9\-\s]{2,30}$/i.test((v || '').trim())
         : (v) => !v || /^[\d\-\s]{4,12}$/.test((v || '').trim());
     // vehicle_type is required by the backend.
     // license_plate is required only for vehicles that legally need
     // road registration. Motocross (track-only, no plate) is exempt
     // and the field is hidden in the form when vehicle_type === 'מוטוקרוס'.
     const aviationPlateMsg = isDroneSubcategory
-      ? 'מזהה לא תקין (אותיות/ספרות בלבד, 2-30 תווים)'
-      : 'סימן רישום של כלי טיס בפורמט 4X-XXX (3 אותיות)';
+      ? 'מזהה לא תקין (אותיות/ספרות/מקפים, 2-30 תווים)'
+      : 'סימן רישום (4X-AIU) או מספר סידורי — אותיות, ספרות, מקפים';
     const plateRule = hasRegistration
       ? {
-          required: isAviationCategory && !isDroneSubcategory ? 'יש להזין סימן רישום (4X-XXX)' : 'יש להזין מספר רישוי',
+          required: isAviationCategory && !isDroneSubcategory ? 'יש להזין סימן רישום או מספר סידורי' : 'יש להזין מספר רישוי',
           custom: [plateFormat, isVesselCategory
             ? 'מספר זיהוי לא תקין (אותיות/ספרות בלבד)'
             : isAviationCategory

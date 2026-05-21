@@ -1,61 +1,50 @@
 import React from 'react';
 
-// AviationPlateInput — input for Israeli ICAO aircraft registration marks.
+// AviationPlateInput — free-form identifier for Israeli civil aircraft.
 //
-// Israeli civil aviation plates are always "4X-XXX" (4X- prefix + exactly
-// 3 uppercase letters). We render "4X-" as a static, non-editable visual
-// prefix so the user only types the 3-letter suffix. Stripping the prefix
-// from any pasted/typed value (in case the user pastes the whole mark)
-// keeps state clean — onChange always receives the full "4X-XXX" string.
+// The registry indexes records by TWO fields the user might know:
+//   • Expr1 = registration mark "4X-XXX" (the tail number painted on
+//     the aircraft — 100% letter format across all 547 records)
+//   • MSPR_SIDORI_MTOS = manufacturer serial number, mixed format
+//     ("172-65629", "0022-1115", "01-05-51-047", "S-01071794", "0338E",
+//     plain digits, alphanumeric — no single pattern works)
+//
+// Earlier iteration locked the input to "4X-" + 3 letters. Owners who
+// know their serial but not their registration (common for buyers
+// inheriting paperwork) couldn't search at all. Now: free-form ASCII
+// alphanumeric + dash, uppercase-on-render. The lookup tier inspects
+// the value and routes to the right column (Expr1 vs serial).
 //
 // Visual language is deliberately different from the yellow Israeli
-// car-plate input: white background, dark text, mono font. An aircraft
-// reg mark IS visually a metal plate but not a road plate, and forcing
-// it into the yellow design would mislead users.
+// car-plate input: white background, dark mono text. Aircraft IDs are
+// not road plates.
 export default function AviationPlateInput({ value, onChange, onEnter, disabled, autoFocus = false }) {
   const inputRef = React.useRef(null);
-
-  // value coming in is the canonical "4X-XXX" form (or a partial like
-  // "4X-AI"). The input only ever displays the 3-letter suffix; we
-  // extract it on render and rebuild the full mark on each keystroke.
-  // Strip the "4X-" prefix first so a user who pastes the FULL mark
-  // ("4X-AIU") still ends up with just the suffix in the input — without
-  // the prefix-strip first, the digit-removal regex would leave "XAIU"
-  // and slice to "XAI" (wrong).
-  const suffix = String(value || '').toUpperCase().replace(/^4X-?/, '').replace(/[^A-Z]/g, '').slice(0, 3);
+  const display = String(value || '').toUpperCase();
 
   const handleChange = (e) => {
-    // Same order as `suffix` derivation: strip the optional "4X-" prefix
-    // BEFORE removing non-letters. Otherwise paste of "4X-AIU" loses the
-    // '4' and '-' first, leaving "XAIU" → sliced to "XAI". Same logic
-    // also tolerates pasting "4XAIU" (no dash) or "4x-aiu" (lowercase).
-    const raw = String(e.target.value || '').toUpperCase().replace(/^4X-?/, '');
-    const next = raw.replace(/[^A-Z]/g, '').slice(0, 3);
-    onChange?.(next ? `4X-${next}` : '');
+    // Permit Latin letters, digits, and dashes only — strips Hebrew,
+    // spaces, punctuation, anything else. Length cap at 20 covers the
+    // longest seen in the registry ("01-01-51-047" is 12, S-prefixed
+    // serials go to ~12, generous headroom). Uppercase normalises so
+    // the lookup-tier regex (`^4X-[A-Z]{3}$`) sees a stable form.
+    const next = String(e.target.value || '').toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20);
+    onChange?.(next);
   };
 
-  // Clicking on the visual "4X-" prefix should focus the input — without
-  // this, users who tap the prefix (it looks like part of the same field)
-  // get no feedback and the input never gains focus.
   const focusInput = () => { if (!disabled) inputRef.current?.focus(); };
 
   return (
     <div className="space-y-1.5">
       <div
-        className="relative flex items-stretch border-2 rounded-2xl overflow-hidden shadow-sm h-14 bg-white cursor-text"
+        className="relative border-2 rounded-2xl overflow-hidden shadow-sm h-14 bg-white cursor-text"
         style={{ borderColor: '#2D5233' }}
         dir="ltr"
         onClick={focusInput}
       >
-        <div
-          className="flex items-center justify-center px-3 font-mono font-bold text-2xl tabular-nums select-none"
-          style={{ color: '#6B7280', background: '#F3F4F6', letterSpacing: '0.04em' }}
-        >
-          4X-
-        </div>
         <input
           ref={inputRef}
-          value={suffix}
+          value={display}
           disabled={disabled}
           autoFocus={autoFocus}
           onChange={handleChange}
@@ -64,17 +53,13 @@ export default function AviationPlateInput({ value, onChange, onEnter, disabled,
           autoComplete="off"
           autoCapitalize="characters"
           spellCheck={false}
-          placeholder="AIU"
-          aria-label="סימן רישום של כלי טיס"
-          maxLength={3}
-          // No type=text/lang restrictions on Hebrew keyboards beyond the
-          // regex-strip, but UI hints (uppercase + mono + placeholder
-          // "AIU") make it obvious that English letters are required.
-          className="flex-1 bg-transparent text-center font-mono font-bold text-2xl tabular-nums tracking-[0.15em] text-gray-900 placeholder:text-gray-300 outline-none disabled:opacity-60 uppercase"
+          placeholder="4X-AIU או 172-65629"
+          aria-label="סימן רישום או מספר סידורי של כלי טיס"
+          className="w-full h-full bg-transparent text-center font-mono font-bold text-xl tabular-nums tracking-wider text-gray-900 placeholder:text-gray-300 placeholder:font-normal outline-none disabled:opacity-60 uppercase px-3"
         />
       </div>
       <p className="text-xs text-gray-500 text-right" dir="rtl">
-        3 אותיות אנגליות (לדוגמה: AIU, EKS, HRX). אם המקלדת בעברית — החלף ל-English.
+        סימן רישום (4X-AIU) או מספר סידורי (172-65629). אותיות אנגליות, ספרות, מקפים.
       </p>
     </div>
   );

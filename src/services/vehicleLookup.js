@@ -119,21 +119,39 @@ const PLATE_REGEX = /^[\d\-]{4,11}$/;
 // no digits, no other patterns.
 const AIRCRAFT_PLATE_REGEX = /^4X-[A-Z]{3}$/;
 
+// Aircraft serial numbers (MSPR_SIDORI_MTOS) are free-form ASCII —
+// mixes digits, letters, and dashes. The cleanest signal we can use is:
+// "starts with 4X-" → registration mark; everything else letter+digit
+// → treat as a possible serial. ≥2 chars + valid ASCII subset filters
+// out empty/garbage. Aircraft search routes through this for both
+// formats and the lookup tier picks the right registry column.
+const AIRCRAFT_SERIAL_REGEX = /^[A-Z0-9-]{2,20}$/;
+
 export function isAircraftPlate(plate) {
   if (typeof plate !== 'string') return false;
-  return AIRCRAFT_PLATE_REGEX.test(plate.trim().toUpperCase());
+  const t = plate.trim().toUpperCase();
+  return AIRCRAFT_PLATE_REGEX.test(t) || AIRCRAFT_SERIAL_REGEX.test(t);
+}
+
+// True only for the canonical 4X- registration mark — used to decide
+// which registry column to filter against (Expr1 vs MSPR_SIDORI_MTOS).
+function isRegistrationMark(plate) {
+  return AIRCRAFT_PLATE_REGEX.test(String(plate || '').trim().toUpperCase());
 }
 
 function validatePlateInput(plate) {
   if (typeof plate !== 'string') throw new Error('invalid_input');
   const stripped = plate.replace(/[\s]/g, '');
-  // Aircraft path bypasses the digits-only regex entirely. The caller
-  // routes aviation plates straight to the aircraft tier; reaching this
-  // validator with one means we should return it normalized so the
-  // aircraft tier's exact-match filter (Expr1 = ...) hits correctly.
-  if (AIRCRAFT_PLATE_REGEX.test(stripped.toUpperCase())) {
-    return stripped.toUpperCase();
-  }
+  const upper = stripped.toUpperCase();
+  // Aircraft routing has two paths:
+  //   • "4X-XXX" canonical registration mark → uppercase exact form
+  //   • Any other alphanumeric+dash value with at least one letter →
+  //     treated as a possible aircraft serial (the lookup tier will
+  //     try MSPR_SIDORI_MTOS and return null if nothing matches)
+  // Pure-digit values fall through to the ground-vehicle cascade so a
+  // forklift owner typing "1002" still hits the CME tier.
+  if (AIRCRAFT_PLATE_REGEX.test(upper)) return upper;
+  if (/[A-Z]/.test(upper) && AIRCRAFT_SERIAL_REGEX.test(upper)) return upper;
   if (!PLATE_REGEX.test(stripped)) throw new Error('invalid_plate_format');
   const digits = stripped.replace(/\D/g, '');
   if (digits.length < 4 || digits.length > 8) throw new Error('invalid_plate_length');
@@ -575,13 +593,19 @@ function mapAircraftRecord(r) {
 }
 
 /**
- * Fetch a single aircraft record by exact registration-mark match.
- * Same exact-filter pattern as fetchCmeApi — q=fulltext on letter-only
- * patterns produces too much noise across small datasets, so we use the
- * datastore `filters` mechanism for an exact `Expr1` match.
+ * Fetch a single aircraft record from the civil aviation registry.
+ * Routes the query by input shape:
+ *   • Registration mark ("4X-XXX") → exact filter on Expr1
+ *   • Anything else (serial number, mixed alphanumeric) → exact filter
+ *     on MSPR_SIDORI_MTOS
+ * Uses the datastore `filters` mechanism for exact matches; q=fulltext
+ * across a small dataset would produce too many false-positives for
+ * short serial fragments.
  */
 async function fetchAircraftApi(plate) {
-  const filters = JSON.stringify({ Expr1: String(plate).toUpperCase() });
+  const upper = String(plate).toUpperCase();
+  const column = AIRCRAFT_PLATE_REGEX.test(upper) ? 'Expr1' : 'MSPR_SIDORI_MTOS';
+  const filters = JSON.stringify({ [column]: upper });
   const url = `${API_BASE}?resource_id=${encodeURIComponent(AIRCRAFT_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
