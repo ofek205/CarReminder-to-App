@@ -68,6 +68,16 @@ const PERSONAL_IMPORT_RESOURCE_ID = '03adc637-b6fe-402b-9937-7c3d3afc9140';
 // SUG_TAKALA (defect type — typically "ליקוי בטיחותי"), TAARICH_PTICHA
 // (recall opening date). 137K records as of 2026-05.
 const OPEN_RECALL_RESOURCE_ID = '36bf1404-0be4-49d2-82dc-2f1ead4a8b93';
+// "מאגר נתוני כלי טיס ישראליים" — the entire Israeli civil aviation
+// fleet (547 records as of 2026-05). Keyed by `Expr1` which holds the
+// ICAO registration mark (always "4X-XXX" — Israel's national prefix
+// + 3 uppercase letters; verified 100% format compliance across the
+// dataset). Auto-updated monthly. Schema: SHM_ITZRN_MTOS (manufacturer),
+// SHM_DGM_MTOS (model), SHNT_IITZOR_MTOS (year), MSPR_SIDORI_MTOS
+// (serial), FLIGHT_WEIGHT_KG (MTOW). No engine hours, no airworthiness
+// data, no certificates — those live in CAMO systems we deliberately
+// don't try to replace.
+const AIRCRAFT_RESOURCE_ID = 'bc00ed41-75d0-4d0f-9eca-3cd0a2c332cc';
 import { isNative } from '@/lib/capacitor';
 
 // In dev browser ONLY, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
@@ -103,9 +113,27 @@ const API_BASE = (() => {
  */
 const PLATE_REGEX = /^[\d\-]{4,11}$/;
 
+// Israeli aircraft registration marks: ICAO national prefix "4X-" + 3
+// uppercase letters. Verified 100% format compliance across the entire
+// 547-record civil aviation registry (resource bc00ed41). No exceptions,
+// no digits, no other patterns.
+const AIRCRAFT_PLATE_REGEX = /^4X-[A-Z]{3}$/;
+
+export function isAircraftPlate(plate) {
+  if (typeof plate !== 'string') return false;
+  return AIRCRAFT_PLATE_REGEX.test(plate.trim().toUpperCase());
+}
+
 function validatePlateInput(plate) {
   if (typeof plate !== 'string') throw new Error('invalid_input');
   const stripped = plate.replace(/[\s]/g, '');
+  // Aircraft path bypasses the digits-only regex entirely. The caller
+  // routes aviation plates straight to the aircraft tier; reaching this
+  // validator with one means we should return it normalized so the
+  // aircraft tier's exact-match filter (Expr1 = ...) hits correctly.
+  if (AIRCRAFT_PLATE_REGEX.test(stripped.toUpperCase())) {
+    return stripped.toUpperCase();
+  }
   if (!PLATE_REGEX.test(stripped)) throw new Error('invalid_plate_format');
   const digits = stripped.replace(/\D/g, '');
   if (digits.length < 4 || digits.length > 8) throw new Error('invalid_plate_length');
@@ -507,6 +535,54 @@ function mapInactiveNoModelRecord(r) {
 async function fetchInactiveNoModelApi(plateDigits) {
   const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
   const url = `${API_BASE}?resource_id=${encodeURIComponent(INACTIVE_NO_MODEL_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.success || !json.result?.records?.length) return null;
+    return json.result.records;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') throw new Error('הבקשה לשרת הממשלתי ארכה יותר מדי. נסה שנית.');
+    return null;
+  }
+}
+
+/**
+ * Map a raw aircraft record (from the Israeli civil aviation registry,
+ * resource bc00ed41) to sanitized form fields. The schema is narrower
+ * than ground-vehicle registries — just manufacturer, model, year,
+ * serial, MTOW. No fuel type, no test dates, no ownership history. We
+ * deliberately don't fabricate values for missing fields; aviation
+ * maintenance lives in CAMO systems and we don't try to replace them.
+ */
+function mapAircraftRecord(r) {
+  const fields = {};
+  if (r.Expr1)              fields.license_plate = safeStr(String(r.Expr1).toUpperCase(), 10);
+  if (r.SHM_ITZRN_MTOS)     fields.manufacturer  = safeStr(r.SHM_ITZRN_MTOS, 60);
+  if (r.SHM_DGM_MTOS)       fields.model         = safeStr(String(r.SHM_DGM_MTOS), 60);
+  if (r.SHNT_IITZOR_MTOS)   fields.year          = safeYear(r.SHNT_IITZOR_MTOS);
+  if (r.MSPR_SIDORI_MTOS)   fields.vin           = safeStr(String(r.MSPR_SIDORI_MTOS), 40);
+  // FLIGHT_WEIGHT_KG = MTOW (maximum take-off weight). Some records have
+  // 0 — treat as missing rather than displaying "0 kg".
+  if (r.FLIGHT_WEIGHT_KG && Number(r.FLIGHT_WEIGHT_KG) > 0) {
+    fields.total_weight = safeNum(r.FLIGHT_WEIGHT_KG) + ' ק"ג';
+  }
+  return fields;
+}
+
+/**
+ * Fetch a single aircraft record by exact registration-mark match.
+ * Same exact-filter pattern as fetchCmeApi — q=fulltext on letter-only
+ * patterns produces too much noise across small datasets, so we use the
+ * datastore `filters` mechanism for an exact `Expr1` match.
+ */
+async function fetchAircraftApi(plate) {
+  const filters = JSON.stringify({ Expr1: String(plate).toUpperCase() });
+  const url = `${API_BASE}?resource_id=${encodeURIComponent(AIRCRAFT_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
   try {
@@ -978,6 +1054,21 @@ async function fetchGovApi(resourceId, query) {
  */
 export async function lookupVehicleByPlate(plate) {
   const clean = validatePlateInput(plate);
+
+  // Aircraft fast path — registration marks (4X-XXX) live in a single,
+  // disjoint dataset and can't legitimately collide with ground-vehicle
+  // plate digits, so we route them straight to the aviation tier and
+  // skip the whole digit-cascade. Pattern check happens via
+  // validatePlateInput which already returned the uppercased mark for
+  // aircraft plates.
+  if (isAircraftPlate(clean)) {
+    const aircraftRecords = await fetchAircraftApi(clean);
+    if (!aircraftRecords) return null;
+    const fields = mapAircraftRecord(aircraftRecords[0]);
+    fields._detectedType = 'aircraft';
+    fields._detectedTypeLabel = 'כלי טיס';
+    return fields;
+  }
 
   // Source priority — chosen by plate length so we don't fuzz-match
   // short CME numbers against the road-vehicle datasets:
