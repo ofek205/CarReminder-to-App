@@ -134,21 +134,12 @@ export default function VehicleCheck() {
   }, [status]);
 
   const search = async () => {
-    // Diagnostic — temporarily enabled to debug the "button disabled" reports.
-    // eslint-disable-next-line no-console
-    console.log('[VehicleCheck.search] called', { plate, validationOk: validation.ok, isBusy, isAuthenticated, hasUsedQuickCheck: hasUsedQuickCheck(), limitLocked });
-    if (isBusy) {
-      // eslint-disable-next-line no-console
-      console.log('[VehicleCheck.search] BAILED — isBusy=true (status is loading). Likely stuck from a previous attempt.');
-      return;
-    }
+    if (isBusy) return;
     setError('');
     setLimitLocked(false);
     setSaved(false);
 
     const v = validateQuickCheckPlate(plate);
-    // eslint-disable-next-line no-console
-    console.log('[VehicleCheck.search] validation:', v);
     if (!v.ok) {
       setError(v.message);
       setStatus('idle');
@@ -156,8 +147,6 @@ export default function VehicleCheck() {
     }
 
     if (!isAuthenticated && hasUsedQuickCheck() && (!result || result.plate !== v.plate)) {
-      // eslint-disable-next-line no-console
-      console.log('[VehicleCheck.search] BLOCKED — guest already used quick-check once');
       setLimitLocked(true);
       return;
     }
@@ -321,7 +310,7 @@ export default function VehicleCheck() {
                 <Button
                   type="button"
                   onClick={search}
-                  disabled={isBusy || !validation.ok}
+                  disabled={isBusy}
                   className="h-14 rounded-2xl px-6 font-bold shadow-lg shadow-[#2D5233]/20"
                   style={{ background: C.primary, color: '#fff' }}
                 >
