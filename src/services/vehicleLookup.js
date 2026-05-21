@@ -70,11 +70,28 @@ const PERSONAL_IMPORT_RESOURCE_ID = '03adc637-b6fe-402b-9937-7c3d3afc9140';
 const OPEN_RECALL_RESOURCE_ID = '36bf1404-0be4-49d2-82dc-2f1ead4a8b93';
 import { isNative } from '@/lib/capacitor';
 
-// In dev browser, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
-// In production (browser or Capacitor native) call the API directly.
-const API_BASE = (import.meta.env.DEV && !isNative)
-  ? '/gov-api/api/3/action/datastore_search'
-  : 'https://data.gov.il/api/3/action/datastore_search';
+// In dev browser ONLY, Vite proxies /gov-api → https://data.gov.il to avoid CORS.
+// In production (browser or Capacitor native), call data.gov.il directly.
+//
+// PREVIOUS BUG: this used `import.meta.env.DEV && !isNative` which relied
+// on Vite statically replacing `DEV` at build time. On Vercel, that
+// replacement somehow left the ternary as a runtime expression and
+// resolved to the `/gov-api` branch in production — Vercel then served
+// index.html (no such path), JSON.parse choked on the HTML, every short-
+// plate lookup returned null. See v4.8.5 commit for the trace.
+//
+// New approach: runtime hostname check. localhost / 127.0.0.1 / *.local
+// hits the dev proxy; everything else (Vercel previews, prod, native)
+// hits data.gov.il directly. Zero dependency on Vite env replacement.
+const DATA_GOV_DIRECT = 'https://data.gov.il/api/3/action/datastore_search';
+const DEV_PROXY = '/gov-api/api/3/action/datastore_search';
+const API_BASE = (() => {
+  if (isNative) return DATA_GOV_DIRECT;
+  if (typeof window === 'undefined') return DATA_GOV_DIRECT;
+  const host = window.location.hostname || '';
+  const isLocalDev = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local');
+  return isLocalDev ? DEV_PROXY : DATA_GOV_DIRECT;
+})();
 
 //  Input validation
 /**
