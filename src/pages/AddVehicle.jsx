@@ -1431,7 +1431,9 @@ export default function AddVehicle() {
               <Search className="h-5 w-5 text-[#003DA5]" />
             </div>
             <div>
-              <p className="font-semibold text-gray-800 text-sm">🔍 חיפוש לפי מספר רכב</p>
+              <p className="font-semibold text-gray-800 text-sm">
+                {selectedCategory?.label === 'כלי טיס' ? '🔍 חיפוש לפי מספר רישום' : '🔍 חיפוש לפי מספר רכב'}
+              </p>
               <p className="text-xs text-gray-500">ממלא את הפרטים אוטומטית</p>
             </div>
           </div>
