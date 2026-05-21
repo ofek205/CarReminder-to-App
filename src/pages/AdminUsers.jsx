@@ -204,10 +204,13 @@ export default function AdminUsers() {
       "90d": now - 90 * day,
     }[filterSignup];
 
+    // Normalize search query: strip dashes/spaces for phone matching.
+    const qNorm = q.replace(/[\s-]/g, "");
     return users.filter((u) => {
       if (q) {
-        const haystack = `${u.full_name || ""} ${u.email || ""} ${u.phone || ""}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
+        const phoneNorm = (u.phone || "").replace(/[\s-]/g, "");
+        const haystack = `${u.full_name || ""} ${u.email || ""} ${u.phone || ""} ${phoneNorm}`.toLowerCase();
+        if (!haystack.includes(q) && !haystack.includes(qNorm)) return false;
       }
       if (filterStatus !== "all" && u.activity_status !== filterStatus) return false;
 

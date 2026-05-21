@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
+import { toast } from "sonner";
 import { C } from "@/lib/designTokens";
 
 //  Kind / severity visual mapping. Pulls from the project design tokens
@@ -98,6 +99,9 @@ export default function AdminAlerts() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-alerts"] });
       qc.invalidateQueries({ queryKey: ["admin-alerts-unack-count"] });
+    },
+    onError: (err) => {
+      toast.error("לא הצלחנו לסמן את ההתראה. נסה שוב.", { description: err?.message });
     },
   });
 
