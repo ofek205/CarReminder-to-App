@@ -9,10 +9,25 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
-    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <!-- 2026-05-21: parent forced to Light (was DayNight). Two real users
+         reported "black screen on input focus" on Android: when the soft
+         keyboard opens, Keyboard.resize='native' shrinks the WebView, the
+         body content briefly fails to fill the new viewport, and the
+         Activity background paints through. DayNight on a phone in dark
+         mode = black activity background → the user sees a black gap
+         between the fixed top header and the keyboard. Light theme +
+         explicit white windowBackground gives a benign white gap during
+         that same race instead of an alarming black void. The React app
+         itself has no dark-mode UI, so locking the Android theme to Light
+         doesn't lose functionality. -->
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <item name="android:background">@null</item>
+        <!-- Was @null which left the Activity background unpainted, exposing
+             whatever the window manager renders underneath. Explicit white
+             matches the React app's white body bg + the iOS WebView
+             backgroundColor='#FFFFFF' in capacitor.config.ts. -->
+        <item name="android:windowBackground">@android:color/white</item>
         <!-- System bar colors so the app's top/bottom chrome blends with them -->
         <item name="android:statusBarColor">#2D5233</item>
         <item name="android:navigationBarColor">#FFFFFF</item>

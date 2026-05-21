@@ -288,6 +288,19 @@ body.keyboard-visible {
 
 /* Keyboard-aware viewport. ensures focused input scrolls into view */
 html, body {
+  /* Explicit white background so the keyboard-resize race on Android
+     (Keyboard.resize='native' shrinks the WebView a frame before the
+     body content reflows) shows a benign white surface instead of the
+     Activity's window background peeking through. Two real users on
+     Android dark mode reported a "black gap between the top bar and
+     the keyboard" on input focus before this rule + the matching
+     styles.xml windowBackground=white + capacitor.config.ts android
+     backgroundColor='#FFFFFF' were added. Hardcoded value (not the
+     Tailwind --background variable) on purpose — the variable flips to
+     near-black in `.dark` mode, and the React app deliberately has no
+     dark-mode UI on native; relying on the variable would re-introduce
+     the bug if the .dark class ever lands on <html>. */
+  background-color: #FFFFFF;
   /* Use dynamic viewport height (accounts for keyboard on mobile) */
   min-height: 100vh;
   min-height: 100dvh;
