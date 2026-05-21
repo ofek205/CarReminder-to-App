@@ -75,6 +75,20 @@ const config: CapacitorConfig = {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
   },
+  // Android-specific WebView settings. Without `backgroundColor` here
+  // Capacitor doesn't tell the Android WebView what colour to paint
+  // its background, so the user sees the Activity's window background
+  // peeking through during keyboard transitions (`Keyboard.resize:
+  // 'native'` resizes the WebView mid-flight and the body content lags
+  // one frame behind). On a phone in dark mode this previously rendered
+  // as a startling black gap between the fixed top header and the
+  // keyboard — see the two bug videos in 2026-05-20. Combined with the
+  // forced Light theme + white windowBackground in
+  // android/.../styles.xml this gives the keyboard transition a
+  // consistent white surface across Android system themes.
+  android: {
+    backgroundColor: '#FFFFFF',
+  },
   // iOS-specific WebView settings. Without an explicit ios block, Capacitor
   // ships defaults that on real iPhones produce two symptoms users have
   // reported on TestFlight build 153:
