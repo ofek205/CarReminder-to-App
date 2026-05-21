@@ -490,17 +490,21 @@ function mapInactiveNoModelRecord(r) {
 async function fetchInactiveNoModelApi(plateDigits) {
   const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
   const url = `${API_BASE}?resource_id=${encodeURIComponent(INACTIVE_NO_MODEL_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+  lookupLog('fetchInactiveNoModelApi URL:', url);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
+    lookupLog('fetchInactiveNoModelApi status:', res.status, 'ok:', res.ok);
     if (!res.ok) return null;
     const json = await res.json();
+    lookupLog('fetchInactiveNoModelApi json.success:', json?.success, 'records:', json?.result?.records?.length);
     if (!json.success || !json.result?.records?.length) return null;
     return json.result.records;
   } catch (err) {
     clearTimeout(timeoutId);
+    lookupLog('fetchInactiveNoModelApi caught:', err?.name, err?.message);
     if (err.name === 'AbortError') throw new Error('הבקשה לשרת הממשלתי ארכה יותר מדי. נסה שנית.');
     return null;
   }
@@ -959,8 +963,21 @@ async function fetchGovApi(resourceId, query) {
  * Tries the car API first, then the motorcycle API if not found.
  * Returns registration data + detailed tech specs merged together.
  */
+// Diagnostic logger — ACTIVE FOR ALL USERS as part of the v4.8.4 hotfix
+// to triage the "plate 229080 returns null" report from 2026-05-21.
+// Temporarily noisy on purpose; will be gated behind a localStorage
+// flag or removed entirely in a follow-up once root cause is fixed.
+function lookupLog(...args) {
+  try {
+    // eslint-disable-next-line no-console
+    console.log('[lookupVehicleByPlate]', ...args);
+  } catch {}
+}
+
 export async function lookupVehicleByPlate(plate) {
+  lookupLog('called with:', JSON.stringify(plate));
   const clean = validatePlateInput(plate);
+  lookupLog('clean:', clean, 'length:', clean.length, 'isShort:', clean.length < 7);
 
   // Source priority — chosen by plate length so we don't fuzz-match
   // short CME numbers against the road-vehicle datasets:
@@ -1008,10 +1025,12 @@ export async function lookupVehicleByPlate(plate) {
   // hits — running them concurrently costs the same as either one
   // alone latency-wise.
   if (!records && isShort) {
+    lookupLog('short-plate parallel probe starting (classic + cme)...');
     const [classicRes, cmeRes] = await Promise.all([
-      fetchInactiveNoModelApi(clean),
-      fetchCmeApi(clean),
+      fetchInactiveNoModelApi(clean).catch((e) => { lookupLog('classic probe THREW:', e?.message); return null; }),
+      fetchCmeApi(clean).catch((e) => { lookupLog('cme probe THREW:', e?.message); return null; }),
     ]);
+    lookupLog('probe results — classic:', classicRes ? `${classicRes.length} records` : 'null', '| cme:', cmeRes ? `${cmeRes.length} records` : 'null');
     if (classicRes && cmeRes) {
       // Dual-registry hit. Pick classic as the "primary" the caller
       // sees in the single-result path, expose CME as `altRecord` so
@@ -1020,12 +1039,17 @@ export async function lookupVehicleByPlate(plate) {
       source = 'inactive_classic';
       altRecord = cmeRes[0];
       altSource = 'cme';
+      lookupLog('DUAL-REGISTRY HIT — will return _multipleMatches');
     } else if (classicRes) {
       records = classicRes;
       source = 'inactive_classic';
+      lookupLog('classic-only hit');
     } else if (cmeRes) {
       records = cmeRes;
       source = 'cme';
+      lookupLog('cme-only hit');
+    } else {
+      lookupLog('BOTH PROBES RETURNED NULL — falling through to remaining tiers');
     }
   }
   // For NORMAL plates (7-8 digits) the two registries are still tried,

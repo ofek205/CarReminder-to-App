@@ -117,13 +117,38 @@ export default function VehicleCheck() {
     setSaved(false);
   };
 
+  // Auto-recover: if the lookup hangs (e.g. data.gov.il is slow / a
+  // promise never settles), isBusy stays true and the search button
+  // looks disabled forever, leaving the user with no path forward.
+  // 20s is well above the per-fetch 8s timeout in vehicleLookup, so
+  // this only triggers when something genuinely went wrong.
+  useEffect(() => {
+    if (status !== 'loading') return undefined;
+    const recoveryTimer = setTimeout(() => {
+      // eslint-disable-next-line no-console
+      console.warn('[VehicleCheck] auto-recovering from stuck loading state after 20s');
+      setStatus('error');
+      setError('הבדיקה ארכה יותר מדי. נסה שוב בבקשה.');
+    }, 20000);
+    return () => clearTimeout(recoveryTimer);
+  }, [status]);
+
   const search = async () => {
-    if (isBusy) return;
+    // Diagnostic — temporarily enabled to debug the "button disabled" reports.
+    // eslint-disable-next-line no-console
+    console.log('[VehicleCheck.search] called', { plate, validationOk: validation.ok, isBusy, isAuthenticated, hasUsedQuickCheck: hasUsedQuickCheck(), limitLocked });
+    if (isBusy) {
+      // eslint-disable-next-line no-console
+      console.log('[VehicleCheck.search] BAILED — isBusy=true (status is loading). Likely stuck from a previous attempt.');
+      return;
+    }
     setError('');
     setLimitLocked(false);
     setSaved(false);
 
     const v = validateQuickCheckPlate(plate);
+    // eslint-disable-next-line no-console
+    console.log('[VehicleCheck.search] validation:', v);
     if (!v.ok) {
       setError(v.message);
       setStatus('idle');
@@ -131,6 +156,8 @@ export default function VehicleCheck() {
     }
 
     if (!isAuthenticated && hasUsedQuickCheck() && (!result || result.plate !== v.plate)) {
+      // eslint-disable-next-line no-console
+      console.log('[VehicleCheck.search] BLOCKED — guest already used quick-check once');
       setLimitLocked(true);
       return;
     }
