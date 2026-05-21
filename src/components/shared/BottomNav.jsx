@@ -98,22 +98,29 @@ export default function BottomNav({ sheetOpen = false }) {
         //     the menu. Layout's own useEffect on location.pathname will
         //     then close the sheet after the tap routes away.
         zIndex: sheetOpen ? 10010 : 40,
-        // System-nav inset handling, split by platform because the same
-        // `env(safe-area-inset-bottom)` value means very different things:
+        // Bottom inset handling — split by platform.
         //
-        //   • Android (Capacitor WebView, windowOptOutEdgeToEdgeEnforcement=
-        //     true): the OS already reserves space for the nav bar BELOW
-        //     our WebView and paints it with android:navigationBarColor
-        //     (white, matches this bar). Any padding we add here becomes a
-        //     visible band between our labels and the system buttons. the
-        //     user's "הרווח הזה" complaint. Drop to 0 so the bar is flush.
-        //   • iOS / gesture-pill devices: env(safe-area-inset-bottom) is a
-        //     real ~34 px reserved area we DO need to clear. Use the FULL
-        //     value, not a cap — capping to 10px hides the tabs behind the
-        //     home indicator on iPhone X+ and made the BottomNav appear
-        //     "missing" on iOS while showing correctly on Android.
+        // 2026-05-21 take 2: removing the Android userAgent hack and
+        // relying on env(safe-area-inset-bottom) failed too — Chromium's
+        // env() on Android WebView returns inconsistent values across
+        // OEMs and Android versions when the Activity is edge-to-edge
+        // (Capacitor 8's default). Some devices reported 0 (BottomNav
+        // hid under the system nav), some reported ~48dp (huge gap).
+        //
+        // The real fix is in MainActivity.java: WindowCompat.setDecor-
+        // FitsSystemWindows(window, true) at boot forces the WebView to
+        // sit ABOVE the system nav bar / gesture pill on every Android
+        // version (Capacitor default + Android 15+ enforcement both
+        // overridden in one place). With that in place, env() values on
+        // Android become meaningless — the WebView is already inset, so
+        // there's nothing to clear. We use a fixed 4 px breathing room
+        // here, not env().
+        //
+        // iOS: env(safe-area-inset-bottom) works correctly on WKWebView.
+        // ~34 px on iPhone X+ home-indicator devices → padding clears
+        // it. 0 on classic iPhones → 4 px floor.
         paddingBottom: /Android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '')
-          ? '0px'
+          ? '4px'
           : 'max(env(safe-area-inset-bottom, 0px), 4px)',
         // Horizontal safe-area: WKWebView's 100vw includes the device's
         // curved corner region, so `fixed inset-x-0` extends edge-to-
