@@ -15,6 +15,7 @@
  * VehicleDetail page (deep-link).
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -272,6 +273,16 @@ export default function MyExpenses() {
   // the initial mode based on count (1 vehicle → that vehicle, 2+ → aggregate).
   const [vehicleId, setVehicleId]   = useState(null);
   const [dialog, setDialog]         = useState(null); // null | {mode, initial?, scanFirst?}
+  // Mirror of app_config.scan_extraction_enabled — drives the "סרוק
+  // חשבונית" button into a disabled state while the global AI scan
+  // gate is off, instead of letting users open the dialog only to see
+  // a failure mid-flow. See feedback_ai_scan_disabled.md.
+  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
+    return () => { cancelled = true; };
+  }, []);
   // Initial mode is chosen ONCE when vehicles first arrive. Without this
   // ref the default-mode effect would clobber a user's later picker tap
   // (they pick "Civic" → vehicles array re-renders → effect fires again
@@ -575,12 +586,13 @@ export default function MyExpenses() {
           <button
             type="button"
             onClick={() => setDialog({ mode: 'add', scanFirst: true })}
-            disabled={vehicles.length === 0}
-            className="h-12 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 border bg-white transition-all active:scale-[0.98] disabled:opacity-50"
+            disabled={vehicles.length === 0 || !aiScanAllowed}
+            title={!aiScanAllowed ? 'סריקה חכמה אינה זמינה כרגע' : undefined}
+            className="h-12 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 border bg-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ borderColor: C.border, color: C.primary }}
           >
             <ScanLine className="w-4 h-4" />
-            סרוק חשבונית
+            {aiScanAllowed ? 'סרוק חשבונית' : 'סריקה — לא זמין'}
           </button>
         </div>
 

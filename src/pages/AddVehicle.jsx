@@ -44,6 +44,7 @@ import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SU
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { trackUserAction } from "../components/shared/ReviewManager";
 import VehicleScanWizard from "../components/vehicle/VehicleScanWizard";
+import { isAiScanEnabled } from '@/lib/aiScanGate';
 import VesselScanWizard from "../components/vehicle/VesselScanWizard";
 import { toast } from "sonner";
 import { useAuth } from "../components/shared/GuestContext";
@@ -164,6 +165,16 @@ export default function AddVehicle() {
   const [userId, setUserId] = useState(null);
   const [showScanWizard, setShowScanWizard] = useState(false);
   const [showVesselScanWizard, setShowVesselScanWizard] = useState(false);
+  // Mirrors app_config.scan_extraction_enabled — defaults TRUE during
+  // the load window so the scan tile doesn't flash in-out on slow
+  // networks. Same pattern VehicleInfoSection uses. Re-fetched on
+  // every category change so an admin flip propagates within ~60s.
+  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
+    return () => { cancelled = true; };
+  }, [selectedCategory?.label]);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showGuestSignup, setShowGuestSignup] = useState(false);
@@ -352,6 +363,13 @@ export default function AddVehicle() {
     const correctType = sub?.dbName || cat?.dbName || 'רכב';
     setForm(prev => ({ ...prev, vehicle_type: correctType }));
     if (method === 'scan') {
+      // Belt-and-braces: the tile renders disabled when !aiScanAllowed,
+      // but if the click slips through (race during gate refresh) we
+      // bail here too instead of opening a modal that would only fail.
+      if (!aiScanAllowed) {
+        toast?.error?.('סריקה חכמה אינה זמינה כרגע') ?? null;
+        return;
+      }
       if (cat?.label === 'כלי שייט') {
         setShowVesselScanWizard(true);
       } else {
@@ -1523,24 +1541,35 @@ export default function AddVehicle() {
         </div>
         )}
 
-        {/* 2. AI scan */}
+        {/* 2. AI scan — gated by aiScanAllowed. When the global flag is
+            off (admin-controlled via app_config.scan_extraction_enabled),
+            the tile renders disabled with a "כרגע לא זמין" badge instead
+            of opening a wizard that would just fail at the extract step. */}
         {selectedCategory?.methods.includes('scan') && (
         <div
-          className={`rounded-2xl border-2 bg-white p-4 transition-all duration-200 cursor-pointer ${isSelected('scan') ? 'border-amber-400 shadow-md' : 'border-gray-200 hover:border-amber-300'}`}
-          onClick={() => selectMethod('scan')}
+          className={`rounded-2xl border-2 p-4 transition-all duration-200 ${aiScanAllowed
+            ? `bg-white cursor-pointer ${isSelected('scan') ? 'border-amber-400 shadow-md' : 'border-gray-200 hover:border-amber-300'}`
+            : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-70'}`}
+          onClick={aiScanAllowed ? () => selectMethod('scan') : undefined}
+          aria-disabled={!aiScanAllowed}
           dir="rtl"
         >
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
-              style={{ background: '#FEF3C7', borderColor: '#FDE68A' }}>
-              <FileText className="h-5 w-5" style={{ color: '#D97706' }} />
+              style={{ background: aiScanAllowed ? '#FEF3C7' : '#F3F4F6', borderColor: aiScanAllowed ? '#FDE68A' : '#E5E7EB' }}>
+              <FileText className="h-5 w-5" style={{ color: aiScanAllowed ? '#D97706' : '#9CA3AF' }} />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-gray-800 text-sm flex items-center gap-1.5">
+              <p className="font-semibold text-gray-800 text-sm flex items-center gap-1.5 flex-wrap">
                 📷 סריקת רישיון רכב
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#FFBF00', color: '#2D5233' }}>AI</span>
+                {!aiScanAllowed && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">
+                    כרגע לא זמין
+                  </span>
+                )}
               </p>
-              <p className="text-xs text-gray-500">מילוי אוטומטי של הפרטים</p>
+              <p className="text-xs text-gray-500">{aiScanAllowed ? 'מילוי אוטומטי של הפרטים' : 'נחזור בקרוב — בינתיים השתמש בחיפוש לפי מספר רכב או בהזנה ידנית'}</p>
             </div>
             <ChevronLeft className="w-5 h-5 shrink-0 text-gray-400" />
           </div>
