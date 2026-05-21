@@ -33,7 +33,6 @@ import { C } from '@/lib/designTokens';
 // taps "Export PDF".
 import { OwnershipHistoryPanel } from '@/components/vehicle/VehicleInfoSection';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
-import AviationPlateInput from '@/components/shared/AviationPlateInput';
 
 const loadingMessages = [
   'בודקים נתוני רישוי...',
@@ -65,11 +64,6 @@ export default function VehicleCheck() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { accountId, isLoading: accountLoading } = useAccountRole();
   const [plate, setPlate] = useState('');
-  // Mode toggle — 'ground' (default, yellow IL plate, 4-8 digits) vs
-  // 'aviation' (white aircraft input, 4X-XXX or serial). Lives at page
-  // scope so swapping modes clears the plate and resets any previous
-  // result/error so the user starts fresh in the new lookup space.
-  const [searchMode, setSearchMode] = useState('ground');
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
@@ -302,65 +296,20 @@ export default function VehicleCheck() {
                 בדיקה חכמה תוך שניות
               </div>
               <h1 className="text-2xl sm:text-4xl font-bold text-[#1C2E20] mb-2">
-                {searchMode === 'aviation' ? 'בדיקת כלי טיס לפי סימן רישום' : 'בדיקת רכב לפי מספר רישוי'}
+                בדיקת רכב לפי מספר רישוי
               </h1>
-              <p className="text-sm text-gray-500 leading-relaxed mb-5">
-                {searchMode === 'aviation'
-                  ? 'הזן סימן רישום (4X-AIU) או מספר סידורי וקבל פרטים ממאגר רת"א.'
-                  : 'הזן מספר רישוי וקבל סיכום מובנה, תובנות ומפרט טכני.'}
+              <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                הזן מספר רישוי וקבל סיכום מובנה, תובנות ומפרט טכני. תומך גם בכלי טיס (4X-AIU או מספר סידורי).
               </p>
-
-              {/* Mode toggle. Two-button group, default to ground. Switching
-                  clears the previous plate + error so the user doesn't see
-                  a 7-digit value lingering when they switch to aviation. */}
-              <div className="inline-flex items-center gap-1 p-1 mb-4 rounded-2xl bg-gray-100 border border-gray-200" role="tablist" aria-label="סוג חיפוש">
-                {[
-                  { id: 'ground', label: '🚗 רכב' },
-                  { id: 'aviation', label: '✈️ כלי טיס' },
-                ].map(opt => {
-                  const active = searchMode === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={active}
-                      onClick={() => {
-                        if (active) return;
-                        setSearchMode(opt.id);
-                        setPlate('');
-                        setError('');
-                        setStatus('idle');
-                      }}
-                      className="px-4 py-2 rounded-xl text-sm font-bold transition-all"
-                      style={active
-                        ? { background: '#fff', color: '#2D5233', boxShadow: '0 2px 6px rgba(45,82,51,0.15)' }
-                        : { background: 'transparent', color: '#6B7280' }
-                      }
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">
                 <div>
-                  {searchMode === 'aviation' ? (
-                    <AviationPlateInput
-                      value={plate}
-                      onChange={handlePlateChange}
-                      onEnter={search}
-                      disabled={isBusy}
-                    />
-                  ) : (
-                    <VehicleCheckPlateInput
-                      value={plate}
-                      onChange={handlePlateChange}
-                      onEnter={search}
-                      disabled={isBusy}
-                    />
-                  )}
+                  <VehicleCheckPlateInput
+                    value={plate}
+                    onChange={handlePlateChange}
+                    onEnter={search}
+                    disabled={isBusy}
+                  />
                   {error && <p className="text-xs text-red-600 text-right mt-2">{error}</p>}
                 </div>
                 <Button
@@ -371,7 +320,7 @@ export default function VehicleCheck() {
                   style={{ background: C.primary, color: '#fff' }}
                 >
                   {isBusy ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Search className="h-4 w-4 ml-2" />}
-                  {searchMode === 'aviation' ? 'בדוק כלי טיס' : 'בדוק רכב'}
+                  בדוק רכב
                 </Button>
               </div>
             </div>
