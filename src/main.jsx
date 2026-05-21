@@ -191,7 +191,28 @@ if (!isNative && 'serviceWorker' in navigator && import.meta.env.PROD) {
   });
 }
 
-// Keyboard handling: scroll focused input into view on mobile when keyboard opens
+// Keyboard handling: scroll focused input into view on mobile when keyboard opens.
+//
+// 2026-05-21: `block: 'center'` was over-scrolling near-top inputs on Android
+// when the on-screen keyboard opened. Two real users hit this — keyboard pops,
+// the input got centered vertically against the (now-shrunken) visualViewport,
+// and the page content above it scrolled off screen. The fixed top header
+// stayed in place, the keyboard stayed at the bottom, and the area between
+// went blank (white over CompleteProfileScreen's light-gradient fixed overlay,
+// black over the Dashboard's body bg where the Activity window background
+// peeked through). On top of that the focusin handler and the
+// visualViewport.resize handler each fire their own smooth-animated scroll,
+// so the two animations overlapped on Android keyboard open and the user
+// saw the form appear to "fly away".
+//
+// `block: 'nearest'` is the standard mobile-keyboard recommendation: scroll
+// the minimum needed to make the element visible, leave it alone if it
+// already is. Removes the over-scroll, lets the browser's native focus
+// scroll do most of the work, and stops the two competing animations from
+// racing. We keep both handlers — focusin covers the case the browser
+// doesn't auto-scroll on (e.g. focus moved by JS), and visualViewport
+// resize covers the case where the keyboard finishes opening AFTER the
+// focusin scroll already ran.
 if (typeof window !== 'undefined' && 'visualViewport' in window) {
   let lastFocused = null;
   document.addEventListener('focusin', (e) => {
@@ -199,13 +220,13 @@ if (typeof window !== 'undefined' && 'visualViewport' in window) {
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) {
       lastFocused = el;
       setTimeout(() => {
-        try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+        try { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch {}
       }, 300);
     }
   });
   window.visualViewport.addEventListener('resize', () => {
     if (lastFocused && document.activeElement === lastFocused) {
-      try { lastFocused.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+      try { lastFocused.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch {}
     }
   });
 }
