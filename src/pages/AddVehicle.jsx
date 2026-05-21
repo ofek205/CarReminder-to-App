@@ -693,13 +693,9 @@ export default function AddVehicle() {
 
   const handleLookup = async () => {
     if (!plateQuery.trim()) return;
-    // eslint-disable-next-line no-console
-    console.log('[AddVehicle.handleLookup] called', { plateQuery: plateQuery.trim(), length: plateQuery.trim().length });
     setLookupStatus('loading');
     try {
       const result = await lookupVehicleByPlate(plateQuery.trim());
-      // eslint-disable-next-line no-console
-      console.log('[AddVehicle.handleLookup] lookup returned:', result ? { multi: !!result._multipleMatches, manufacturer: result.manufacturer, license_plate: result.license_plate, detectedType: result._detectedType } : 'NULL');
       if (!result) { setLookupStatus('not_found'); return; }
 
       // Dual-registry collision (e.g. plate 229080 = 1965 Triumph Herald
