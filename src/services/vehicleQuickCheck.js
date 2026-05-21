@@ -35,13 +35,42 @@ const NUMBER_FIELDS = new Set([
   'tow_capacity', 'ownership_hand',
 ]);
 
+// Aircraft registration mark: ICAO national prefix "4X-" + 3 uppercase
+// letters. Single source of truth lives in vehicleLookup but duplicated
+// here to keep this service standalone (no circular import).
+const AIRCRAFT_PLATE_REGEX = /^4X-[A-Z]{3}$/;
+
+export function isAviationQuickCheckPlate(value) {
+  if (typeof value !== 'string') return false;
+  const t = value.trim().toUpperCase();
+  // Either the canonical registration mark, or anything with a letter
+  // in it (serials like "172-65629", "S-01071794", "0338E"). Pure-digit
+  // values are treated as ground-vehicle plates by default.
+  return AIRCRAFT_PLATE_REGEX.test(t) || /[A-Z]/.test(t);
+}
+
 export function normalizeQuickCheckPlate(value) {
-  return String(value || '').replace(/\D/g, '');
+  const raw = String(value || '');
+  // Aviation values (letters present) are preserved as alphanumeric+dash
+  // so the lookup tier can route to the right registry column. Ground
+  // values (digits only) follow the original digit-strip behaviour so
+  // the existing 4-8 digit ground-vehicle cascade still works.
+  if (/[A-Za-z]/.test(raw)) {
+    return raw.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  }
+  return raw.replace(/\D/g, '');
 }
 
 export function validateQuickCheckPlate(value) {
   const clean = normalizeQuickCheckPlate(value);
   if (!clean) return { ok: false, plate: clean, message: 'יש להזין מספר רישוי' };
+  // Aviation branch — aircraft registration mark or serial number.
+  if (/[A-Z]/.test(clean)) {
+    if (clean.length < 2 || clean.length > 20) {
+      return { ok: false, plate: clean, message: 'מזהה כלי טיס בין 2 ל-20 תווים (אותיות/ספרות/מקפים)' };
+    }
+    return { ok: true, plate: clean, message: '' };
+  }
   if (clean.length < 4 || clean.length > 8) {
     return { ok: false, plate: clean, message: 'מספר רישוי צריך להכיל 4 עד 8 ספרות' };
   }
