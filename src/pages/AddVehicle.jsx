@@ -267,6 +267,11 @@ export default function AddVehicle() {
   // telehandlers, rollers). Showing it for every vehicle clutters the
   // form for a private car owner who has no use for the field.
   const isCmeCategory = selectedCategory?.label === 'כלי צמ"ה';
+  // Aviation category — drives a bunch of UI customisations: aviation-
+  // specific plate label ("מספר רישום"), engine-hours metric (not km),
+  // hidden test_due_date / tire / ownership / pollution sections (none
+  // apply to aircraft we're not trying to manage CAMO-style).
+  const isAviationCategory = selectedCategory?.label === 'כלי טיס';
   const isJeepOffroad = selectedSubcategory?.dbName === "ג'יפ שטח";
   // Two-wheelers (road motorcycle, scooter, off-road motorcycle) only
   // ever have 2 tires — showing the 1/2/3/4 selector for them was
@@ -747,7 +752,8 @@ export default function AddVehicle() {
     // Aviation aircraft plates (Israeli ICAO marks) are "4X-XXX" — three
     // uppercase letters after a fixed prefix. Drones have no registry
     // and accept any free-form identifier (serial number, custom label).
-    const isAviationCategory = selectedCategory?.label === 'כלי טיס';
+    // isAviationCategory + isDroneSubcategory are declared at component
+    // scope above — no redeclaration needed here.
     const plateFormat = isVesselCategory
       ? (v) => !v || /^[A-Z0-9\-]{3,15}$/i.test((v || '').trim())
       : isAviationCategory
@@ -1665,12 +1671,26 @@ export default function AddVehicle() {
                         sense and prevented users from saving the vehicle. */}
                     {hasRegistration && (
                       <div data-field="license_plate">
-                        <Label>{isVesselCategory ? 'מספר זיהוי' : 'מספר רישוי'} <span className="text-red-400">*</span></Label>
+                        <Label>
+                          {isVesselCategory
+                            ? 'מספר זיהוי'
+                            : isAviationCategory
+                              ? (isDroneSubcategory ? 'מזהה / מספר סידורי' : 'סימן רישום')
+                              : 'מספר רישוי'}
+                          {' '}<span className="text-red-400">*</span>
+                        </Label>
                         <Input
                           value={form.license_plate}
                           onChange={e => { handleChange('license_plate', e.target.value); clearError('license_plate'); }}
                           onClear={() => handleChange('license_plate', '')}
-                          dir="ltr" placeholder={isVesselCategory ? 'IL-12345' : '00-000-00'}
+                          dir="ltr"
+                          placeholder={
+                            isVesselCategory
+                              ? 'IL-12345'
+                              : isAviationCategory
+                                ? (isDroneSubcategory ? 'DJI-MINI-12345' : '4X-AIU')
+                                : '00-000-00'
+                          }
                           error={!!errors.license_plate}
                           className={autofillCls('license_plate', autofillFields)}
                         />
@@ -1780,7 +1800,17 @@ export default function AddVehicle() {
                           triggerClassName={autofillCls('fuel_type', autofillFields)}
                         >
                           <SelectContent>
-                            {['בנזין', 'סולר', 'חשמלי', 'היברידי', 'גז'].map(f => (
+                            {/* Aviation fuels are functionally a separate
+                                taxonomy from road fuels — AVGAS 100LL for
+                                piston aircraft, Jet-A1 for turbines, plus
+                                a few smaller categories. Showing "בנזין /
+                                סולר / חשמלי" for a Cessna would be wrong. */}
+                            {(isAviationCategory && !isDroneSubcategory
+                              ? ['AVGAS 100LL', 'AVGAS 100', 'Jet-A1', 'MOGAS (95)', 'דיזל אווירי', 'חשמלי']
+                              : isDroneSubcategory
+                                ? ['חשמלי / סוללה']
+                                : ['בנזין', 'סולר', 'חשמלי', 'היברידי', 'גז']
+                            ).map(f => (
                               <SelectItem key={f} value={f}>{f}</SelectItem>
                             ))}
                           </SelectContent>
@@ -1797,18 +1827,31 @@ export default function AddVehicle() {
                       טסט שנתי ואין חובת ביטוח חובה. השאר (ק"מ + חברת
                       ביטוח) ממשיך להופיע כי הוא כללי. */}
                   {hasRegistration && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className={`grid gap-3 ${isAviationCategory ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                      {/* Aircraft don't have an annual road-test equivalent
+                          this app manages (CofA / annual inspection live in
+                          CAMO systems per PM scope), so we drop the date
+                          field entirely for aviation and leave only the
+                          insurance row. */}
+                      {!isAviationCategory && (
+                        <div>
+                          <Label>{isVesselCategory ? 'כושר שייט' : 'תאריך טסט'}</Label>
+                          <DateInput
+                            value={form.test_due_date}
+                            onChange={e => handleChange('test_due_date', e.target.value)}
+                            className={autofillCls('test_due_date', autofillFields)}
+                          />
+                          <AutofillHint name="test_due_date" autofillFields={autofillFields} />
+                        </div>
+                      )}
                       <div>
-                        <Label>{isVesselCategory ? 'כושר שייט' : 'תאריך טסט'}</Label>
-                        <DateInput
-                          value={form.test_due_date}
-                          onChange={e => handleChange('test_due_date', e.target.value)}
-                          className={autofillCls('test_due_date', autofillFields)}
-                        />
-                        <AutofillHint name="test_due_date" autofillFields={autofillFields} />
-                      </div>
-                      <div>
-                        <Label>{isVesselCategory ? 'תוקף ביטוח ימי' : 'חידוש ביטוח'}</Label>
+                        <Label>
+                          {isVesselCategory
+                            ? 'תוקף ביטוח ימי'
+                            : isAviationCategory
+                              ? 'תוקף ביטוח אווירי'
+                              : 'חידוש ביטוח'}
+                        </Label>
                         <DateInput
                           value={form.insurance_due_date}
                           onChange={e => handleChange('insurance_due_date', e.target.value)}
@@ -2023,8 +2066,9 @@ export default function AddVehicle() {
                   )}
                 </div>
 
-                {/* Tire question */}
-                {selectedCategory?.label !== 'כלי שייט' && (
+                {/* Tire question — hidden for vessels (no road tires) and
+                    aviation (we don't manage aircraft tire reminders). */}
+                {selectedCategory?.label !== 'כלי שייט' && !isAviationCategory && (
                   <div className="rounded-2xl p-5 space-y-3"
                     style={{ background: T.light, border: `1.5px solid ${T.border}` }}>
                     <div className="flex items-center gap-3" dir="rtl">
