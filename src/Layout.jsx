@@ -28,6 +28,8 @@ import BottomNav from "@/components/shared/BottomNav";
 import StagingBanner from "@/components/shared/StagingBanner";
 import useIsAdmin from "@/hooks/useIsAdmin";
 import useSharedVehicleRealtime from "@/hooks/useSharedVehicleRealtime";
+import { useQuery } from "@tanstack/react-query";
+import { withTimeout } from "@/lib/supabaseQuery";
 // Lazy-load the 568-line bell + its useEffect-heavy data fetching. It
 // renders only for authenticated users, so deferring it keeps the
 // initial bundle smaller and avoids parsing notification logic for
@@ -274,6 +276,25 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   // for users the page would block, or vice-versa.
   const adminCheck = useIsAdmin();
   const isAdmin = adminCheck === true;
+
+  // Unacknowledged admin alerts — drives the red dot on the "התראות" nav
+  // item (Stream 7). Refreshes every 60s alongside the AdminAlerts page so
+  // the count stays warm without aggressive polling.
+  const { data: unackAlertCount = 0 } = useQuery({
+    queryKey: ['admin-alerts-unack-count'],
+    queryFn: async () => {
+      const { data, error } = await withTimeout(
+        supabase.rpc('admin_alert_count_unacknowledged'),
+        'admin_alert_count_unacknowledged'
+      );
+      if (error) throw error;
+      return data || 0;
+    },
+    enabled: isAdmin,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
   // Phase 6 — workspace-aware nav gating. isBusiness becomes true only
   // when the active workspace is a business workspace; private users
   // never see businessOnly items.
@@ -421,6 +442,15 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
               }>
               <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-[#2D5233]' : 'text-gray-400'}`} />
               <span className="truncate">{item.label}</span>
+              {item.name === 'AdminAlerts' && unackAlertCount > 0 && (
+                <span
+                  className="ms-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full text-white shrink-0"
+                  style={{ background: '#DC2626' }}
+                  aria-label={`${unackAlertCount} התראות לא טופלו`}
+                >
+                  {unackAlertCount > 9 ? '9+' : unackAlertCount}
+                </span>
+              )}
             </Link>
           );
         })}
