@@ -441,6 +441,16 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
             הירשם / התחבר
           </button>
         )}
+        {/* Version footer — mirrors the one inside UserProfile.jsx but lives
+            in the sidebar so guests (who can't reach UserProfile) can read
+            their installed app version. Critical for triaging "which build
+            is this user on?" support questions, especially right after a
+            Play Store rollout when half the install base is on the new
+            version and half is still on the old one. Sourced from
+            package.json via the __APP_VERSION__ Vite define. */}
+        <p className="text-center text-[10px] pt-2" style={{ color: '#9CA3AF' }}>
+          CarReminder &middot; גרסה {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—'}
+        </p>
       </div>
     </div>
   );
