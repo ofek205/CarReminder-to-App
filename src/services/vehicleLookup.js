@@ -124,21 +124,25 @@ const PLATE_REGEX = /^[\d\-]{4,11}$/;
 // Israeli aircraft registration marks: ICAO national prefix "4X-" + 3
 // uppercase letters. Verified 100% format compliance across the entire
 // 547-record civil aviation registry (resource bc00ed41). No exceptions,
-// no digits, no other patterns.
-const AIRCRAFT_PLATE_REGEX = /^4X-[A-Z]{3}$/;
+// no digits, no other patterns. Exported so vehicleQuickCheck can share
+// the same source of truth without duplicating the regex.
+export const AIRCRAFT_PLATE_REGEX = /^4X-[A-Z]{3}$/;
 
 // Aircraft serial numbers (MSPR_SIDORI_MTOS) are free-form ASCII —
-// mixes digits, letters, and dashes. The cleanest signal we can use is:
-// "starts with 4X-" → registration mark; everything else letter+digit
-// → treat as a possible serial. ≥2 chars + valid ASCII subset filters
-// out empty/garbage. Aircraft search routes through this for both
-// formats and the lookup tier picks the right registry column.
-const AIRCRAFT_SERIAL_REGEX = /^[A-Z0-9-]{2,20}$/;
+// mixes digits, letters, and dashes. Floor of 4 chars matches the
+// ground-plate minimum and avoids accidental routing of 2-char garbage
+// to the aircraft tier. Live registry max as of 2026-05 is 15 chars
+// (verified across all 547 records), so 20 leaves comfortable headroom.
+const AIRCRAFT_SERIAL_REGEX = /^[A-Z0-9-]{4,20}$/;
 
 export function isAircraftPlate(plate) {
   if (typeof plate !== 'string') return false;
   const t = plate.trim().toUpperCase();
-  return AIRCRAFT_PLATE_REGEX.test(t) || AIRCRAFT_SERIAL_REGEX.test(t);
+  if (AIRCRAFT_PLATE_REGEX.test(t)) return true;
+  // Serial branch requires at least one letter — without it any 4-digit
+  // ground plate would mis-route to the aircraft tier (e.g. forklift
+  // mispar_tzama "1002" must reach the CME registry, not aviation).
+  return /[A-Z]/.test(t) && AIRCRAFT_SERIAL_REGEX.test(t);
 }
 
 // True only for the canonical 4X- registration mark — used to decide
@@ -158,8 +162,7 @@ function validatePlateInput(plate) {
   //     try MSPR_SIDORI_MTOS and return null if nothing matches)
   // Pure-digit values fall through to the ground-vehicle cascade so a
   // forklift owner typing "1002" still hits the CME tier.
-  if (AIRCRAFT_PLATE_REGEX.test(upper)) return upper;
-  if (/[A-Z]/.test(upper) && AIRCRAFT_SERIAL_REGEX.test(upper)) return upper;
+  if (isAircraftPlate(upper)) return upper;
   if (!PLATE_REGEX.test(stripped)) throw new Error('invalid_plate_format');
   const digits = stripped.replace(/\D/g, '');
   if (digits.length < 4 || digits.length > 8) throw new Error('invalid_plate_length');

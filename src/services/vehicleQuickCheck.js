@@ -1,5 +1,5 @@
 import { db } from '@/lib/supabaseEntities';
-import { lookupVehicleByPlate } from '@/services/vehicleLookup';
+import { lookupVehicleByPlate, isAircraftPlate } from '@/services/vehicleLookup';
 import { generateVehicleInsights } from '@/lib/vehicleInsights';
 
 export const QUICK_CHECK_USED_KEY = 'vehicle_quick_check_used';
@@ -35,18 +35,11 @@ const NUMBER_FIELDS = new Set([
   'tow_capacity', 'ownership_hand',
 ]);
 
-// Aircraft registration mark: ICAO national prefix "4X-" + 3 uppercase
-// letters. Single source of truth lives in vehicleLookup but duplicated
-// here to keep this service standalone (no circular import).
-const AIRCRAFT_PLATE_REGEX = /^4X-[A-Z]{3}$/;
-
+// Aviation routing for quick-check shares the same source of truth as
+// the lookup tier (vehicleLookup.isAircraftPlate / AIRCRAFT_PLATE_REGEX
+// imported above) — no local regex copy to keep in sync.
 export function isAviationQuickCheckPlate(value) {
-  if (typeof value !== 'string') return false;
-  const t = value.trim().toUpperCase();
-  // Either the canonical registration mark, or anything with a letter
-  // in it (serials like "172-65629", "S-01071794", "0338E"). Pure-digit
-  // values are treated as ground-vehicle plates by default.
-  return AIRCRAFT_PLATE_REGEX.test(t) || /[A-Z]/.test(t);
+  return isAircraftPlate(value);
 }
 
 export function normalizeQuickCheckPlate(value) {
