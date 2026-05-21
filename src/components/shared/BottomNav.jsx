@@ -98,34 +98,30 @@ export default function BottomNav({ sheetOpen = false }) {
         //     the menu. Layout's own useEffect on location.pathname will
         //     then close the sheet after the tap routes away.
         zIndex: sheetOpen ? 10010 : 40,
-        // Bottom inset handling — unified across iOS and Android via the
-        // standard CSS env() value.
+        // Bottom inset handling — split by platform.
         //
-        // 2026-05-21: the previous Android-userAgent branch hardcoded 0px
-        // to "stay flush against the system nav bar". That assumed
-        // `windowOptOutEdgeToEdgeEnforcement=true` (styles.xml) was inset-
-        // ing the WebView above the nav bar on every Android — but that
-        // attribute is Android 15+ (API 35) only, silently ignored on
-        // Android 14 and below. Capacitor 8 sets
-        // `decorFitsSystemWindows=false` by default on every Activity, so
-        // on Android ≤14 (still most installed devices) the WebView IS
-        // edge-to-edge and our BottomNav was sitting underneath the
-        // system nav buttons / gesture pill. Multiple users reported
-        // labels cropped behind back/home/recent (see project_android_
-        // bottomnav_inset_bug.md).
+        // 2026-05-21 take 2: removing the Android userAgent hack and
+        // relying on env(safe-area-inset-bottom) failed too — Chromium's
+        // env() on Android WebView returns inconsistent values across
+        // OEMs and Android versions when the Activity is edge-to-edge
+        // (Capacitor 8's default). Some devices reported 0 (BottomNav
+        // hid under the system nav), some reported ~48dp (huge gap).
         //
-        // Behaviour after the unification:
-        //   • Android 15+ with opt-out working: env() = 0 → max(0, 4px)
-        //     = 4px breathing room. Worst case = the same "tiny band"
-        //     the original commit tried to eliminate, but 4px not 24px.
-        //   • Android ≤14 (Capacitor default edge-to-edge) or 15+ where
-        //     opt-out didn't fire: env() = real nav-bar/gesture height
-        //     → padding clears the system UI correctly.
-        //   • iOS gesture pill (iPhone X+): env() = ~34px → padding
-        //     clears the home indicator (unchanged from before).
-        //   • iOS classic (no notch): env() = 0 → max(0, 4px) = 4px floor
-        //     (unchanged).
-        paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 4px)',
+        // The real fix is in MainActivity.java: WindowCompat.setDecor-
+        // FitsSystemWindows(window, true) at boot forces the WebView to
+        // sit ABOVE the system nav bar / gesture pill on every Android
+        // version (Capacitor default + Android 15+ enforcement both
+        // overridden in one place). With that in place, env() values on
+        // Android become meaningless — the WebView is already inset, so
+        // there's nothing to clear. We use a fixed 4 px breathing room
+        // here, not env().
+        //
+        // iOS: env(safe-area-inset-bottom) works correctly on WKWebView.
+        // ~34 px on iPhone X+ home-indicator devices → padding clears
+        // it. 0 on classic iPhones → 4 px floor.
+        paddingBottom: /Android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '')
+          ? '4px'
+          : 'max(env(safe-area-inset-bottom, 0px), 4px)',
         // Horizontal safe-area: WKWebView's 100vw includes the device's
         // curved corner region, so `fixed inset-x-0` extends edge-to-
         // edge but the inner tabs distributed via `justify-around` got
