@@ -26,12 +26,18 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode pkgVersionCode
         versionName pkgVersionName
-        // Output filename carries the version so we never confuse two
-        // AAB/APK files in the Downloads folder. With this set:
-        //   release  → carreminder-2.9.0-release.aab
-        //   debug    → carreminder-2.9.0-debug.apk
-        // Without it Capacitor produces the generic `app-release.aab`.
-        setProperty("archivesBaseName", "carreminder-${pkgVersionName}")
+        // 2026-05-21: removed the previous
+        //   setProperty("archivesBaseName", "carreminder-${pkgVersionName}")
+        // line. Newer AGP versions (8.13+ / 9.x) dropped the
+        // `archivesBaseName` property on `defaultConfig`, breaking the
+        // sync with `Could not set unknown property 'archivesBaseName'`.
+        // The line was purely cosmetic — it gave the output APK/AAB a
+        // version-suffixed filename. Default `app-debug.apk` /
+        // `app-release.aab` is fine; release scripts can rename in
+        // post-processing if needed. If we ever want this back, the
+        // modern equivalent lives at the android level:
+        //   android { archivesName = "carreminder-${pkgVersionName}" }
+        // but only on AGP versions where that DSL is supported.
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
