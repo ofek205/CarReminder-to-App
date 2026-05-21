@@ -111,6 +111,19 @@ export default function Settings() {
         {active === 'account' && <AccountSettings embedded />}
         {active === 'alerts'  && <ReminderSettingsPage embedded />}
       </Suspense>
+
+      {/* Version footer — lives at the page level so it shows for every
+          tab AND every user, including guests (the embedded UserProfile
+          renders a "register to manage" gate for guests instead of the
+          full profile, which previously hid the version line at the
+          bottom of that page). Critical for support triage: "what build
+          is this user on?" is the first question we ask, especially
+          right after a Play Store rollout when half the install base
+          is on the new version and half isn't. Sourced from
+          package.json via the __APP_VERSION__ Vite define. */}
+      <p className="text-center text-[11px] mt-6 mb-2" style={{ color: '#9CA3AF' }}>
+        CarReminder &middot; גרסה {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—'}
+      </p>
     </PageShell>
   );
 }

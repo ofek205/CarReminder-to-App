@@ -98,30 +98,22 @@ export default function BottomNav({ sheetOpen = false }) {
         //     the menu. Layout's own useEffect on location.pathname will
         //     then close the sheet after the tap routes away.
         zIndex: sheetOpen ? 10010 : 40,
-        // Bottom inset handling — split by platform.
+        // Bottom inset handling — unified env() across iOS and Android.
         //
-        // 2026-05-21 take 2: removing the Android userAgent hack and
-        // relying on env(safe-area-inset-bottom) failed too — Chromium's
-        // env() on Android WebView returns inconsistent values across
-        // OEMs and Android versions when the Activity is edge-to-edge
-        // (Capacitor 8's default). Some devices reported 0 (BottomNav
-        // hid under the system nav), some reported ~48dp (huge gap).
-        //
-        // The real fix is in MainActivity.java: WindowCompat.setDecor-
-        // FitsSystemWindows(window, true) at boot forces the WebView to
-        // sit ABOVE the system nav bar / gesture pill on every Android
-        // version (Capacitor default + Android 15+ enforcement both
-        // overridden in one place). With that in place, env() values on
-        // Android become meaningless — the WebView is already inset, so
-        // there's nothing to clear. We use a fixed 4 px breathing room
-        // here, not env().
-        //
-        // iOS: env(safe-area-inset-bottom) works correctly on WKWebView.
-        // ~34 px on iPhone X+ home-indicator devices → padding clears
-        // it. 0 on classic iPhones → 4 px floor.
-        paddingBottom: /Android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '')
-          ? '4px'
-          : 'max(env(safe-area-inset-bottom, 0px), 4px)',
+        // 2026-05-21 take 3: tried `decorFitsSystemWindows=true` in
+        // MainActivity to make the WebView strictly inset, paired with a
+        // fixed 4 px padding here. On the Pixel 7 emulator that produced
+        // a visible green strip between the BottomNav's white bg and the
+        // system nav buttons — the user pointed out the BottomNav should
+        // flow flush against the system nav with the white bg continuing
+        // under the buttons (the standard Android pattern). Reverting
+        // to Capacitor's edge-to-edge default and using
+        // env(safe-area-inset-bottom) for the padding directly: now the
+        // WebView extends to the bottom of the screen, env() reports the
+        // nav bar height, and the BottomNav's padding pushes the labels
+        // above the system buttons while the white background flows
+        // under them. Same value works on iOS for the home indicator.
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         // Horizontal safe-area: WKWebView's 100vw includes the device's
         // curved corner region, so `fixed inset-x-0` extends edge-to-
         // edge but the inner tabs distributed via `justify-around` got
