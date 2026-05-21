@@ -38,6 +38,14 @@ const INACTIVE_RESOURCE_ID = '851ecab1-0622-4dbe-a6c7-f950cf82abf9';
 // BEFORE falling through to CME, otherwise the collector gets
 // mislabelled as a forklift.
 const INACTIVE_NO_MODEL_RESOURCE_ID = '6f6acd03-f351-4a8f-8ecf-df792f4f573a';
+// "מספרי רישוי של כלי רכב לא פעילים עם קוד דגם" — 584K records, the
+// biggest of the three "inactive" datasets. Covers vehicles whose annual
+// test (tokef_dt) lapsed but which haven't yet been officially cancelled
+// (no bitul_dt). The schema mirrors the active private-car registry,
+// so mapRecord works on it as-is. Without this tier in the cascade, a
+// user looking up a plate that's been off the road for 1-3 years got
+// "not found" even though the ministry still has full registration data.
+const INACTIVE_WITH_MODEL_RESOURCE_ID = 'f6efe89a-fb3d-43a4-bb61-9bf12a9b9099';
 // "תוצאות מבחני רישוי שנתיים" — yearly inspection (test) results
 // keyed by mispar_rechev. The headline field for our purposes is
 // `kilometraj_test_aharon` — odometer reading recorded at the last
@@ -553,6 +561,33 @@ function mapInactiveNoModelRecord(r) {
 async function fetchInactiveNoModelApi(plateDigits) {
   const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
   const url = `${API_BASE}?resource_id=${encodeURIComponent(INACTIVE_NO_MODEL_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.success || !json.result?.records?.length) return null;
+    return json.result.records;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') throw new Error('הבקשה לשרת הממשלתי ארכה יותר מדי. נסה שנית.');
+    return null;
+  }
+}
+
+/**
+ * Fetch a single inactive-with-model record by exact mispar_rechev match.
+ * Same exact-filter pattern as the other inactive tiers. Schema mirrors
+ * the active private-car registry (mispar_rechev, tozeret_nm, degem_cd,
+ * kinuy_mishari, shnat_yitzur, tokef_dt, mivchan_acharon_dt, baalut,
+ * tzeva_rechev, sug_delek_nm, ramat_gimur, ...) so the caller can run
+ * mapRecord on the result without a dedicated mapper.
+ */
+async function fetchInactiveWithModelApi(plateDigits) {
+  const filters = JSON.stringify({ mispar_rechev: Number(plateDigits) });
+  const url = `${API_BASE}?resource_id=${encodeURIComponent(INACTIVE_WITH_MODEL_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
   try {
@@ -1160,9 +1195,15 @@ export async function lookupVehicleByPlate(plate) {
       source = 'cme';
     }
   }
-  // For NORMAL plates (7-8 digits) the two registries are still tried,
-  // but sequentially — collisions between the two are vanishingly rare
-  // for full-length plates (the namespaces don't really overlap there).
+  // For NORMAL plates (7-8 digits), inactive-with-model is the biggest
+  // and most common "lapsed test" bucket (584K records vs the 1.16M of
+  // the cancelled-only inactive registry). Probe it BEFORE CME / cancelled
+  // so a user who looks up a vehicle whose test expired 1-2 years ago
+  // (very common case) hits the right record on the first non-active try.
+  if (!records && !isShort) {
+    records = await fetchInactiveWithModelApi(clean);
+    if (records) source = 'inactive_with_model';
+  }
   if (!records && !isShort) {
     records = await fetchInactiveNoModelApi(clean);
     if (records) source = 'inactive_classic';
@@ -1205,16 +1246,17 @@ export async function lookupVehicleByPlate(plate) {
     record = exact ?? records[0];
   }
 
-  // Pick the matching mapper. The `inactive` (off-road / cancelled)
-  // dataset uses the same private-car schema, so mapRecord is reused;
-  // the cancellation date is appended after. `inactive_classic` is the
-  // no-degem dataset (collectors etc.) with a slightly trimmed schema.
+  // Pick the matching mapper. The `inactive` (cancelled, has bitul_dt)
+  // and `inactive_with_model` (test expired, no bitul_dt) datasets both
+  // use the same private-car schema, so mapRecord is reused; the
+  // cancellation date is appended after for `inactive`. `inactive_classic`
+  // is the no-degem dataset (collectors etc.) with a trimmed schema.
   const fields = source === 'moto'             ? mapMotoRecord(record)
               : source === 'heavy'            ? mapHeavyRecord(record)
               : source === 'cme'              ? mapCmeRecord(record)
               : source === 'inactive_classic' ? mapInactiveNoModelRecord(record)
               : source === 'personal_import'  ? mapPersonalImportRecord(record)
-              : mapRecord(record); // 'car' OR 'inactive'
+              : mapRecord(record); // 'car' OR 'inactive' OR 'inactive_with_model'
 
   // Inactive-registry hit → tag the result so AddVehicle can warn the
   // user before silently populating the form. We still return the data
@@ -1225,6 +1267,13 @@ export async function lookupVehicleByPlate(plate) {
     if (record.bitul_dt) {
       fields._cancellationDate = safeDate(record.bitul_dt) || null;
     }
+  }
+  // inactive_with_model — test expired but NOT formally cancelled. Same
+  // _isInactive flag so the same warning toast fires; the AddVehicle
+  // copy branches on _cancellationDate presence to pick the right
+  // wording ("ביטול סופי" vs "טסט פג לפני יותר משנה").
+  if (source === 'inactive_with_model') {
+    fields._isInactive = true;
   }
   // inactive_classic — same "off-road" status. The dataset is older
   // private cars / classic cars without a model code, expired >13 months
