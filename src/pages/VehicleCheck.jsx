@@ -299,7 +299,7 @@ export default function VehicleCheck() {
                 בדיקת רכב לפי מספר רישוי
               </h1>
               <p className="text-sm text-gray-500 leading-relaxed mb-6">
-                הזן מספר רישוי וקבל סיכום מובנה, תובנות ומפרט טכני. תומך גם בכלי טיס (4X-AIU או מספר סידורי).
+                הזן מספר רישוי וקבל סיכום מובנה, תובנות ומפרט טכני.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-start">

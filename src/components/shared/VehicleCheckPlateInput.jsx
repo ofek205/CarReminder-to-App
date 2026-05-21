@@ -65,7 +65,7 @@ export default function VehicleCheckPlateInput({ value, onChange, onEnter, disab
         autoComplete="off"
         autoCapitalize="characters"
         spellCheck={false}
-        placeholder="הזן מספר רישוי או 4X-AIU"
+        placeholder="הזן מספר רישוי"
         aria-label="מספר רישוי או סימן רישום של כלי טיס"
         className={`w-full h-full bg-transparent text-center font-bold tabular-nums text-black placeholder:text-black/50 placeholder:font-normal outline-none disabled:opacity-60 uppercase ${
           // Text size is ~50% of plate height — proportional to a real
