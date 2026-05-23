@@ -21,7 +21,9 @@ export default function useIsAdmin() {
     queryFn: async () => {
       const { data, error } = await supabase.rpc('is_admin');
       if (error) return false;
-      return data === true;
+      const isAdmin = data === true;
+      try { localStorage.setItem('cr_is_admin', isAdmin ? '1' : '0'); } catch {}
+      return isAdmin;
     },
   });
 

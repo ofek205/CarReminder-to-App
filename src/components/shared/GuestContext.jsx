@@ -450,6 +450,7 @@ export function GuestProvider({ children }) {
         // this keeps the flag accurate against external sign-outs (e.g.
         // server-revoked token on next API call).
         try { localStorage.removeItem('cr_has_session'); } catch {}
+        try { localStorage.removeItem('cr_is_admin'); } catch {}
         setAuthState('guest');
         try { window.__crAuthResolvedAt = Date.now(); } catch {}
         // Detach PIN — every subsequent isPinEnabled() / tryUnlock()
