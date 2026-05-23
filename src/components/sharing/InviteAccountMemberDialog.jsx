@@ -1,23 +1,12 @@
 /**
- * ShareVehicleDialog — per-vehicle email-based sharing.
+ * InviteAccountMemberDialog — account-level email-based invite.
  *
- * Replaces the legacy account-wide invite flow for the new
- * "share THIS vehicle with someone" flow on VehicleDetail.
+ * Mirrors ShareVehicleDialog's UX: email is primary input, registered
+ * users get a pending in-app invite (accept/decline via notification),
+ * unregistered users get a token link to share via WhatsApp / Copy.
  *
- * Flow:
- *   1. Caller (vehicle owner) opens the dialog with `vehicle` prop
- *   2. Picks role (viewer / editor) + enters recipient email
- *   3. Submit calls `share_vehicle_with_email` RPC
- *   4. On success: show the share link + WhatsApp / Email / Copy buttons
- *      so the owner can ping the recipient via any channel
- *   5. The recipient also gets an in-app notification (created server-side
- *      by the RPC) and a Resend email (sent client-side from here)
- *
- * The DB enforces:
- *   - Caller must own the vehicle (account_members role='בעלים')
- *   - No duplicate active invite for same (vehicle, email)
- *   - Cap of 3 ACCEPTED users per vehicle (pending unlimited)
- *   - 7-day TTL on pending invites
+ * Calls the `invite_account_member_by_email` RPC which handles both
+ * paths server-side (SECURITY DEFINER).
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -25,39 +14,21 @@ import { supabase } from '@/lib/supabase';
 import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Copy, Check, Eye, Edit, Share2, Clock, UserPlus, Mail, Shield, Users } from 'lucide-react';
+import { Loader2, Copy, Check, Eye, Shield, Share2, Clock, UserPlus, Mail, Users, Car } from 'lucide-react';
 import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { getRecentShareEmails, rememberShareEmail } from '@/lib/recentShareEmails';
+import { isNative } from '@/lib/capacitor';
+import VehicleImage, { hasVehiclePhoto } from '@/components/shared/VehicleImage';
 
-// WhatsApp icon — kept inline so we don't add an asset dependency.
 const WhatsAppIcon = ({ size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
   </svg>
 );
 
-const VEHICLE_ROLES = [
-  {
-    value: 'editor',
-    label: 'עורך',
-    description: 'מוסיף ועורך הכל, חוץ ממחיקת הרכב',
-    icon: Edit,
-    color: '#2D5233',
-    bg: '#E8F5E9',
-  },
-  {
-    value: 'viewer',
-    label: 'צופה',
-    description: 'רואה הכל, בלי אפשרות לערוך',
-    icon: Eye,
-    color: '#1565C0',
-    bg: '#E3F2FD',
-  },
-];
-
-const ACCOUNT_ROLES = [
+const ROLES = [
   {
     value: 'מנהל',
     label: 'שותף עורך',
@@ -76,20 +47,7 @@ const ACCOUNT_ROLES = [
   },
 ];
 
-// Errors raised by share_vehicle_with_email — translate to Hebrew so we
-// don't dump raw codes in the UI. Anything not on the list falls back
-// to a generic message; we still surface the raw error in DEV console.
-const VEHICLE_ERROR_COPY = {
-  not_authenticated:    'צריך להתחבר כדי לשתף רכב',
-  not_vehicle_owner:    'רק בעלי הרכב יכולים לשתף אותו',
-  vehicle_not_found:    'הרכב לא נמצא',
-  share_already_exists: 'הרכב כבר משותף עם המייל הזה',
-  vehicle_share_cap_exceeded: 'הרכב כבר משותף עם 3 משתמשים — המקסימום. כדי להוסיף חדש, צריך לבטל אחד קיים.',
-  invalid_email:        'כתובת מייל לא תקינה',
-  invalid_role:         'הרשאה לא תקינה',
-};
-
-const ACCOUNT_ERROR_COPY = {
+const ERROR_COPY = {
   not_authenticated:  'צריך להתחבר כדי להזמין',
   not_authorized:     'רק בעלים או מנהלים יכולים להזמין',
   invalid_role:       'תפקיד לא תקין',
@@ -98,18 +56,16 @@ const ACCOUNT_ERROR_COPY = {
   already_member:     'המשתמש כבר חבר בחשבון או שיש הזמנה ממתינה',
 };
 
-export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
+export default function InviteAccountMemberDialog({ open, onOpenChange, accountId, vehicles = [] }) {
   const { user } = useAuth();
-  const [mode, setMode] = useState('vehicle'); // 'vehicle' | 'account'
-  const [role, setRole] = useState('editor');
+  const [role, setRole] = useState('שותף');
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [shareResult, setShareResult] = useState(null);
+  const [result, setResult] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [shareAll, setShareAll] = useState(true);
+  const [selectedVehicleIds, setSelectedVehicleIds] = useState([]);
   const [recents, setRecents] = useState([]);
-
-  const isAccountMode = mode === 'account';
-  const roles = isAccountMode ? ACCOUNT_ROLES : VEHICLE_ROLES;
 
   useEffect(() => {
     if (open) setRecents(getRecentShareEmails(user?.id));
@@ -122,22 +78,24 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
   }, [recents, email]);
 
   const reset = () => {
-    setMode('vehicle');
-    setRole('editor');
+    setRole('שותף');
     setEmail('');
     setSubmitting(false);
-    setShareResult(null);
+    setResult(null);
     setCopied(false);
-  };
-
-  const switchMode = (newMode) => {
-    setMode(newMode);
-    setRole(newMode === 'account' ? 'שותף' : 'editor');
+    setShareAll(true);
+    setSelectedVehicleIds([]);
   };
 
   const handleClose = (next) => {
     if (!next) reset();
     onOpenChange(next);
+  };
+
+  const toggleVehicle = (vId) => {
+    setSelectedVehicleIds(prev =>
+      prev.includes(vId) ? prev.filter(id => id !== vId) : [...prev, vId]
+    );
   };
 
   const submit = async () => {
@@ -146,68 +104,47 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
       toast.error('המייל לא תקין, נסה/י שוב');
       return;
     }
-
+    if (!shareAll && selectedVehicleIds.length === 0) {
+      toast.error('בחר/י לפחות רכב אחד');
+      return;
+    }
     setSubmitting(true);
     try {
-      if (isAccountMode) {
-        const { data, error } = await supabase.rpc('invite_account_member_by_email', {
-          p_email: cleanEmail,
-          p_role: role,
-        });
-        if (error) {
-          const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
-          const msg = ACCOUNT_ERROR_COPY[code] || `שגיאה בהזמנה: ${error.message}`;
-          toast.error(msg);
-          if (import.meta.env.DEV) console.warn('invite_account_member_by_email error:', error);
-          setSubmitting(false);
-          return;
-        }
-        setShareResult(data);
-        rememberShareEmail(user?.id, cleanEmail);
-        if (data?.recipient_existing_user) {
-          toast.success('ההזמנה נשלחה — ממתין לאישור');
-        } else {
-          toast.success('קישור הזמנה נוצר');
-          if (data?.invite_token) {
-            sendShareEmail(cleanEmail, data.invite_token).catch(() => {});
-          }
-        }
+      const { data, error } = await supabase.rpc('invite_account_member_by_email', {
+        p_email: cleanEmail,
+        p_role: role,
+        p_vehicle_ids: shareAll ? null : selectedVehicleIds,
+      });
+      if (error) {
+        const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
+        const msg = ERROR_COPY[code] || `שגיאה בהזמנה: ${error.message}`;
+        toast.error(msg);
+        if (import.meta.env.DEV) console.warn('invite_account_member_by_email error:', error);
+        setSubmitting(false);
+        return;
+      }
+      setResult(data);
+      rememberShareEmail(user?.id, cleanEmail);
+
+      if (data?.recipient_existing_user) {
+        toast.success('ההזמנה נשלחה — ממתין לאישור');
       } else {
-        if (!vehicle?.id) {
-          toast.error('רכב לא נמצא');
-          setSubmitting(false);
-          return;
+        toast.success('קישור הזמנה נוצר');
+        if (data?.invite_token) {
+          sendInviteEmail(cleanEmail, data.invite_token).catch(() => {});
         }
-        const { data, error } = await supabase.rpc('share_vehicle_with_email', {
-          p_vehicle_id: vehicle.id,
-          p_email:      cleanEmail,
-          p_role:       role,
-        });
-        if (error) {
-          const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
-          const msg = VEHICLE_ERROR_COPY[code] || `שגיאה בשיתוף: ${error.message}`;
-          toast.error(msg);
-          if (import.meta.env.DEV) console.warn('share_vehicle_with_email error:', error);
-          setSubmitting(false);
-          return;
-        }
-        setShareResult(data);
-        rememberShareEmail(user?.id, cleanEmail);
-        toast.success('ההזמנה נשלחה');
-        sendShareEmail(cleanEmail, data?.invite_token).catch(() => {});
       }
     } catch (e) {
-      toast.error(`שגיאה בשיתוף: ${e?.message || 'נסה שוב'}`);
-      if (import.meta.env.DEV) console.warn('share dialog exception:', e);
+      toast.error(`שגיאה בהזמנה: ${e?.message || 'נסה שוב'}`);
+      if (import.meta.env.DEV) console.warn('invite dialog exception:', e);
     } finally {
       setSubmitting(false);
     }
   };
 
   const PUBLIC_DOMAIN = import.meta.env.VITE_PUBLIC_APP_URL || 'https://car-reminder.app';
-  const linkType = isAccountMode ? 'account' : 'vehicle';
-  const inviteLink = shareResult?.invite_token
-    ? `${PUBLIC_DOMAIN}/JoinInvite?token=${shareResult.invite_token}&type=${linkType}`
+  const inviteLink = result?.invite_token
+    ? `${PUBLIC_DOMAIN}/JoinInvite?token=${result.invite_token}&type=account`
     : '';
 
   const copyLink = async () => {
@@ -223,29 +160,34 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
   };
 
   const openWhatsApp = () => {
-    const text = isAccountMode
-      ? `הצטרף/י לחשבון הרכבים שלי ב-CarReminder. לחץ להצטרפות:\n${inviteLink}`
-      : `שיתפתי איתך את ${vehicleName}. אשר/י את השיתוף בקישור:\n${inviteLink}`;
+    const roleLabel = role === 'מנהל' ? 'שותף עורך' : 'שותף צופה';
+    const text = `הצטרף/י לחשבון הרכבים שלי ב-CarReminder כ${roleLabel}. לחץ להצטרפות:\n${inviteLink}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
-  // openEmailClient was the manual "open mailto:" handler the success
-  // state used to expose. Removed because share emails are sent
-  // automatically on submit and a second manual button confused users
-  // ("did the email actually go out, do I need to click this?").
-  // WhatsApp + Copy still cover the unregistered-recipient flow.
-
-  const vehicleName = vehicle?.nickname
-    || `${vehicle?.manufacturer || ''} ${vehicle?.model || ''}`.trim()
-    || 'הרכב';
+  const shareNative = async () => {
+    if (isNative) {
+      try {
+        const { shareContent } = await import('@/lib/capacitor');
+        await shareContent({
+          title: 'הזמנה ל-CarReminder',
+          text: 'הצטרף/י לחשבון הרכבים שלי ב-CarReminder',
+          url: inviteLink,
+        });
+      } catch { /* cancelled */ }
+    } else if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'הזמנה ל-CarReminder',
+          text: 'הצטרף/י לחשבון הרכבים שלי',
+          url: inviteLink,
+        });
+      } catch { /* cancelled */ }
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      {/* max-h uses calc(100dvh - safe-area insets) so the dialog
-          never extends behind the iOS status bar / Dynamic Island
-          and the user can always scroll to its top. The previous
-          90vh hid the top behind the inset and there was no scroll
-          affordance to reach it. */}
       <DialogContent
         className="max-w-md mx-4 overflow-y-auto"
         style={{
@@ -255,45 +197,18 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
       >
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
-            {isAccountMode
-              ? <><Users className="w-5 h-5" style={{ color: C.primary }} /> הזמנה לחשבון</>
-              : <><Share2 className="w-5 h-5" style={{ color: C.primary }} /> שיתוף הרכב {vehicleName}</>}
+            <UserPlus className="w-5 h-5" style={{ color: C.primary }} />
+            הזמנת חבר לחשבון
           </DialogTitle>
         </DialogHeader>
 
-        {!shareResult ? (
+        {!result ? (
           <div className="space-y-5 pt-2">
-            {/* Mode toggle */}
-            <div className="flex rounded-2xl p-1" style={{ background: '#F3F4F6' }}>
-              <button type="button"
-                onClick={() => switchMode('vehicle')}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all"
-                style={{
-                  background: !isAccountMode ? 'white' : 'transparent',
-                  color: !isAccountMode ? C.primary : '#6B7280',
-                  boxShadow: !isAccountMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                }}>
-                <Share2 className="w-4 h-4" />
-                שתף רכב
-              </button>
-              <button type="button"
-                onClick={() => switchMode('account')}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all"
-                style={{
-                  background: isAccountMode ? 'white' : 'transparent',
-                  color: isAccountMode ? C.primary : '#6B7280',
-                  boxShadow: isAccountMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                }}>
-                <Users className="w-4 h-4" />
-                שתף חשבון שלם
-              </button>
-            </div>
-
             {/* Role picker */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">סוג הרשאה</label>
               <div className="space-y-2">
-                {roles.map(opt => {
+                {ROLES.map(opt => {
                   const active = role === opt.value;
                   const Icon = opt.icon;
                   return (
@@ -326,9 +241,93 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
               </div>
             </div>
 
+            {/* Vehicle selection */}
+            {vehicles.length > 0 && (
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">אילו רכבים לשתף?</label>
+                <div className="space-y-2">
+                  <button type="button" onClick={() => { setShareAll(true); setSelectedVehicleIds([]); }}
+                    className="w-full rounded-2xl p-3 text-right transition-all border-2 flex items-center gap-3"
+                    style={{
+                      borderColor: shareAll ? C.primary : '#E5E7EB',
+                      background: shareAll ? C.light : '#FAFAFA',
+                    }}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                      style={{ background: shareAll ? C.primary : '#F3F4F6' }}>
+                      <Users className="w-4 h-4" style={{ color: shareAll ? 'white' : '#9CA3AF' }} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-sm" style={{ color: shareAll ? C.primary : '#6B7280' }}>כל הרכבים</p>
+                      <p className="text-xs" style={{ color: '#9CA3AF' }}>גישה לכל הרכבים בחשבון</p>
+                    </div>
+                    {shareAll && <Check className="w-5 h-5" style={{ color: C.primary }} />}
+                  </button>
+
+                  <button type="button" onClick={() => setShareAll(false)}
+                    className="w-full rounded-2xl p-3 text-right transition-all border-2 flex items-center gap-3"
+                    style={{
+                      borderColor: !shareAll ? C.primary : '#E5E7EB',
+                      background: !shareAll ? C.light : '#FAFAFA',
+                    }}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                      style={{ background: !shareAll ? C.primary : '#F3F4F6' }}>
+                      <Car className="w-4 h-4" style={{ color: !shareAll ? 'white' : '#9CA3AF' }} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-sm" style={{ color: !shareAll ? C.primary : '#6B7280' }}>רכבים ספציפיים</p>
+                      <p className="text-xs" style={{ color: '#9CA3AF' }}>בחר אילו רכבים לשתף</p>
+                    </div>
+                    {!shareAll && <Check className="w-5 h-5" style={{ color: C.primary }} />}
+                  </button>
+                </div>
+
+                {!shareAll && (
+                  <div className="mt-2 space-y-1.5 rounded-2xl p-2"
+                    style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
+                    {vehicles.map(v => {
+                      const vName = v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || 'רכב';
+                      const selected = selectedVehicleIds.includes(v.id);
+                      return (
+                        <button key={v.id} type="button" onClick={() => toggleVehicle(v.id)}
+                          className="w-full rounded-xl p-2.5 flex items-center gap-3 transition-all"
+                          style={{
+                            background: selected ? '#E8F5E9' : 'white',
+                            border: `1.5px solid ${selected ? '#4CAF50' : '#E5E7EB'}`,
+                          }}>
+                          <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-gray-100">
+                            {hasVehiclePhoto(v) ? (
+                              <VehicleImage vehicle={v} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Car className="w-4 h-4 text-gray-400" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 text-right min-w-0">
+                            <p className="font-bold text-sm text-gray-900 truncate">{vName}</p>
+                            <p className="text-xs text-gray-500">{v.license_plate || ''}</p>
+                          </div>
+                          <div className="w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0"
+                            style={{
+                              borderColor: selected ? '#4CAF50' : '#D1D5DB',
+                              background: selected ? '#4CAF50' : 'white',
+                            }}>
+                            {selected && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {selectedVehicleIds.length === 0 && (
+                      <p className="text-xs text-center text-red-500 font-medium py-1">בחר לפחות רכב אחד</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Email */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">המייל של מי שמקבל את השיתוף</label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">המייל של מי שמוזמן</label>
               <div className="relative">
                 <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 <input
@@ -344,13 +343,9 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                 />
               </div>
               <p className="text-[11px] text-gray-400 mt-1.5">
-                ההזמנה בתוקף ל-7 ימים. אם המייל רשום אצלנו, תישלח גם התראה באפליקציה.
+                אם המייל רשום אצלנו, תישלח הזמנה ישירות באפליקציה. אחרת, ייווצר קישור הצטרפות.
               </p>
 
-              {/* Recent contacts — shown only when there are any AND
-                  what the user typed (or hasn't typed) doesn't already
-                  match the only candidate. Tap a chip to fill the
-                  input; saves a re-typing cycle for repeat sharees. */}
               {filteredRecents.length > 0 && (
                 <div className="mt-3">
                   <p className="text-[10px] font-bold text-gray-500 mb-1.5 flex items-center gap-1">
@@ -379,45 +374,30 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
 
             <Button
               onClick={submit}
-              disabled={submitting || !email.trim()}
+              disabled={submitting || !email.trim() || (!shareAll && selectedVehicleIds.length === 0)}
               className="w-full h-12 rounded-2xl font-bold text-base gap-2"
-              style={{ background: C.grad, color: 'white', opacity: !email.trim() ? 0.5 : 1 }}>
+              style={{ background: C.grad, color: 'white', opacity: (!email.trim() || (!shareAll && selectedVehicleIds.length === 0)) ? 0.5 : 1 }}>
               {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                 <>
-                  {isAccountMode ? <UserPlus className="h-5 w-5" /> : <Share2 className="h-5 w-5" />}
+                  <UserPlus className="h-5 w-5" />
                   שליחת הזמנה
                 </>
               )}
             </Button>
           </div>
         ) : (
-          //  Step 2: success — show link + share buttons
           <div className="space-y-4 pt-2">
-            {/* Success banner — copy switches based on whether the
-                recipient already has an account. The "needs to register"
-                case is called out explicitly so the owner knows to
-                expect a registration delay before the recipient can
-                accept. Without this hint, owners reported "I shared with
-                X 30 minutes ago, why isn't it showing up on their side?"
-                — answer: X hasn't created an account yet. */}
-            {shareResult.recipient_existing_user ? (
-              // Registered recipient → email goes out automatically + a
-              // realtime app_notification + bell ping fires for them.
-              // No manual share buttons needed; just confirm and close.
-              // Showing the recipient's name closes the loop ("did it
-              // really go to that person?").
+            {result.recipient_existing_user ? (
               <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: '#E8F5E9', border: '1.5px solid #A5D6A7' }}>
                 <Check className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#2E7D32' }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold" style={{ color: '#1B5E20' }}>
-                    {shareResult.recipient_name
-                      ? <>ההזמנה נשלחה ל־<strong>{shareResult.recipient_name}</strong></>
+                    {result.recipient_name
+                      ? <>ההזמנה נשלחה ל־<strong>{result.recipient_name}</strong></>
                       : 'ההזמנה נשלחה'}
                   </p>
                   <p className="text-xs mt-0.5 leading-relaxed" style={{ color: '#2E7D32' }}>
-                    {isAccountMode
-                      ? 'ההתראה תופיע בפעמון שלו באפליקציה. ההזמנה ממתינה לאישור.'
-                      : 'מייל נשלח אוטומטית. ההתראה תופיע גם בפעמון שלו באפליקציה.'}
+                    ההתראה תופיע בפעמון שלו באפליקציה. ההזמנה ממתינה לאישור.
                   </p>
                 </div>
               </div>
@@ -427,7 +407,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold" style={{ color: '#92400E' }}>המייל הזה לא רשום אצלנו עדיין</p>
                   <p className="text-xs mt-1 leading-relaxed" style={{ color: '#B45309' }}>
-                    שלחנו מייל עם קישור הצטרפות. <strong>הוא יצטרך להירשם תחילה</strong> (עם אותה כתובת מייל). אחרי ההרשמה ההזמנה תחכה לו ויוכל לאשר אותה.
+                    שלחנו מייל עם קישור הצטרפות. <strong>הוא יצטרך להירשם תחילה</strong> (עם אותה כתובת מייל). אחרי ההרשמה ההזמנה תחכה לו.
                   </p>
                   <p className="text-[11px] mt-1.5" style={{ color: '#B45309' }}>
                     אפשר גם לשתף את הקישור ב־WhatsApp או להעתיק כדי לזרז.
@@ -436,12 +416,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
               </div>
             )}
 
-            {/* Link + manual-share channels. Shown ONLY when the
-                recipient isn't registered yet — registered users get
-                everything via the auto-email + realtime path and don't
-                need the link surface. Removing it for the registered
-                case keeps the success state focused. */}
-            {!shareResult.recipient_existing_user && (
+            {!result.recipient_existing_user && (
               <>
                 <div className="min-w-0">
                   <label className="block text-sm font-bold text-gray-700 mb-2">קישור הזמנה</label>
@@ -465,16 +440,18 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                   </div>
                 </div>
 
-                {/* WhatsApp only — the dedicated "Email" channel button
-                    was removed because the email is sent automatically
-                    on submit (line 149 in submit()); a second manual
-                    button confused users into thinking they needed to
-                    click it for the email to actually go out. */}
                 <Button onClick={openWhatsApp} variant="outline" className="w-full rounded-2xl h-12 gap-2 text-sm font-bold"
                   style={{ color: '#25D366', borderColor: '#25D36640' }}>
                   <WhatsAppIcon size={18} />
                   שתף ב־WhatsApp
                 </Button>
+
+                {(isNative || typeof navigator.share === 'function') && (
+                  <Button onClick={shareNative} variant="outline" className="w-full rounded-2xl h-12 gap-2 text-sm font-bold">
+                    <Share2 className="h-5 w-5" />
+                    שתף באפליקציה אחרת
+                  </Button>
+                )}
               </>
             )}
 
@@ -488,27 +465,24 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
   );
 }
 
-// Best-effort email send. Mirrors AccountSettings.jsx invite-email flow —
-// uses the existing Resend-backed pipeline if available, no-ops otherwise.
-async function sendShareEmail(toEmail, inviteToken) {
+async function sendInviteEmail(toEmail, inviteToken) {
   if (!toEmail || !inviteToken) return;
   try {
-    const { sendEmail } = await import('@/lib/sendEmail');
-    if (typeof sendEmail !== 'function') return;
+    const { sendEmail, sendTemplatedEmail } = await import('@/lib/sendEmail');
     const PUBLIC_DOMAIN = import.meta.env.VITE_PUBLIC_APP_URL || 'https://car-reminder.app';
-    const link = `${PUBLIC_DOMAIN}/JoinInvite?token=${inviteToken}&type=vehicle`;
-    await sendEmail({
-      to: toEmail,
-      subject: 'הזמנה לשיתוף רכב ב-CarReminder',
-      html: `
-        <div dir="rtl" style="font-family: Arial, sans-serif; padding: 16px;">
-          <h2 style="color: #2D5233;">הוזמנת לשיתוף רכב</h2>
-          <p>מישהו שיתף איתך רכב ב-CarReminder.</p>
-          <p>לחץ על הקישור כדי לאשר את השיתוף ולהוסיף את הרכב לרשימה שלך:</p>
-          <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background: #2D5233; color: white; text-decoration: none; border-radius: 12px; font-weight: bold;">פתח אישור שיתוף</a></p>
-          <p style="color: #6B7280; font-size: 13px;">הקישור תקף ל-7 ימים.</p>
-        </div>
-      `,
-    });
+    const link = `${PUBLIC_DOMAIN}/JoinInvite?token=${inviteToken}&type=account`;
+    try {
+      await sendTemplatedEmail('invite', {
+        to: toEmail,
+        vars: { inviterName: 'משתמש CarReminder', roleLabel: 'חבר', inviteLink: link },
+      });
+    } catch (e) {
+      if (e.name === 'EmailsPausedError') throw e;
+      const { buildInviteEmail, buildInviteText } = await import('@/lib/emailTemplates');
+      const subject = 'הוזמנת להצטרף לחשבון ב-CarReminder';
+      const html = buildInviteEmail({ inviterName: 'משתמש', roleLabel: 'חבר', inviteLink: link });
+      const text = buildInviteText({ inviterName: 'משתמש', roleLabel: 'חבר', inviteLink: link });
+      await sendEmail({ to: toEmail, subject, html, text, notificationKey: 'invite' });
+    }
   } catch { /* best-effort */ }
 }

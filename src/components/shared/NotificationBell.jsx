@@ -20,7 +20,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { MEMBER_STATUS } from '@/lib/enums';
-import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X, Clock } from 'lucide-react';
+import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X, Clock, Check, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { he as heLocale } from 'date-fns/locale';
 import { configForType as appConfigForType, requiresActionForType } from '@/lib/appNotificationConfig';
@@ -180,6 +181,29 @@ export default function NotificationBell() {
   });
   const [popupOpen, setPopupOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [inviteActing, setInviteActing] = useState(null);
+
+  const handleInviteAction = async (n, action) => {
+    const memberId = n.appData?.member_id;
+    if (!memberId) return;
+    setInviteActing(`${n.id}-${action}`);
+    try {
+      const rpc = action === 'accept' ? 'accept_account_invite' : 'decline_account_invite';
+      const { error } = await supabase.rpc(rpc, { p_member_id: memberId });
+      if (error) throw error;
+      await persistRemoteReadState(n, true);
+      markRead(n.id);
+      setRefreshKey(k => k + 1);
+      toast.success(action === 'accept' ? 'הצטרפת לחשבון בהצלחה' : 'ההזמנה נדחתה');
+    } catch (e) {
+      const msg = (e?.message || '').includes('invite_not_pending')
+        ? 'ההזמנה כבר טופלה'
+        : `שגיאה: ${e?.message || 'נסה שוב'}`;
+      toast.error(msg);
+    } finally {
+      setInviteActing(null);
+    }
+  };
 
   // Inject the badge-pulse keyframes exactly once per page. Doing it
   // here (instead of importing a CSS file) keeps the animation
@@ -857,6 +881,30 @@ export default function NotificationBell() {
                                   דורש פעולה
                                 </span>
                               )}
+                            </div>
+                          )}
+                          {n.appType === 'account_invite_offered' && n.appData?.member_id && (
+                            <div className="flex gap-2 mt-2" onClick={e => e.stopPropagation()}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleInviteAction(n, 'accept'); }}
+                                disabled={!!inviteActing}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95"
+                                style={{ background: '#059669', color: 'white' }}>
+                                {inviteActing === `${n.id}-accept`
+                                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                                  : <Check className="w-3 h-3" />}
+                                אישור
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleInviteAction(n, 'decline'); }}
+                                disabled={!!inviteActing}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95"
+                                style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                                {inviteActing === `${n.id}-decline`
+                                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                                  : <X className="w-3 h-3" />}
+                                דחייה
+                              </button>
                             </div>
                           )}
                         </div>

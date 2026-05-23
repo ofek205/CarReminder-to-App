@@ -278,7 +278,7 @@ export default function MyExpenses() {
   // חשבונית" button into a disabled state while the global AI scan
   // gate is off, instead of letting users open the dialog only to see
   // a failure mid-flow. See feedback_ai_scan_disabled.md.
-  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  const [aiScanAllowed, setAiScanAllowed] = useState(false);
   useEffect(() => {
     let cancelled = false;
     isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
