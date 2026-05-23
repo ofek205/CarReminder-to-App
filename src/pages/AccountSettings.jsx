@@ -237,6 +237,52 @@ function AuthAccountSettings({ embedded = false }) {
   });
 
   //  Create invite 
+  // Send the invite link to the invitee by email via the Resend-backed
+  // Edge Function. The actual sending lives in src/lib/sendEmail.js.
+  // Declared before createInvite so the auto-fire path can call it
+  // without TDZ — both are const arrow functions inside the component.
+  const sendInviteEmail = async (link) => {
+    if (!inviteeEmail) return;
+    setEmailSending(true);
+    try {
+      const { sendEmail, sendTemplatedEmail } = await import('@/lib/sendEmail');
+      const inviterName = user?.full_name || user?.email || 'משתמש CarReminder';
+      const roleLabel = inviteRole; // 'מנהל' / 'שותף'
+
+      // Primary path: DB-managed template (admin editable via /EmailCenter).
+      // Falls back to the in-code builder if the feature flag is off, the
+      // template row is missing, or the DB lookup errors. Keeps the invite
+      // flow working end-to-end even mid-migration.
+      try {
+        await sendTemplatedEmail('invite', {
+          to: inviteeEmail,
+          vars: { inviterName, roleLabel, inviteLink: link },
+        });
+      } catch (e) {
+        if (e.name === 'EmailsPausedError') throw e;          // bubble up
+        if (import.meta.env.DEV) console.warn('DB template path failed, falling back:', e.message);
+        const { buildInviteEmail, buildInviteText } = await import('@/lib/emailTemplates');
+        const subject = `${inviterName} הזמין/ה אותך ל-CarReminder`;
+        const html = buildInviteEmail({ inviterName, roleLabel, inviteLink: link });
+        const text = buildInviteText({ inviterName, roleLabel, inviteLink: link });
+        // notificationKey makes the send appear in EmailCenter stats
+        // bucketed as 'invite' rather than the catch-all 'system_alert'.
+        await sendEmail({ to: inviteeEmail, subject, html, text, notificationKey: 'invite' });
+      }
+
+      setEmailSent(true);
+      toast.success(`המייל נשלח ל-${inviteeEmail}`);
+    } catch (e) {
+      if (import.meta.env.DEV) console.error('Invite email send error:', e);
+      const msg = e.name === 'EmailsPausedError'
+        ? 'שליחת מיילים מושעתה על ידי אדמין'
+        : 'שליחת המייל נכשלה. אפשר לשתף דרך WhatsApp או להעתיק את הקישור.';
+      toast.error(msg);
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
   const createInvite = async () => {
     setCreating(true);
     setLinkCopied(false);
@@ -299,50 +345,6 @@ function AuthAccountSettings({ embedded = false }) {
       toast.error('שגיאה ביצירת ההזמנה. נסה שוב.');
     } finally {
       setCreating(false);
-    }
-  };
-
-  // Send the invite link to the invitee by email via the Resend-backed
-  // Edge Function. The actual sending lives in src/lib/sendEmail.js.
-  const sendInviteEmail = async (link) => {
-    if (!inviteeEmail) return;
-    setEmailSending(true);
-    try {
-      const { sendEmail, sendTemplatedEmail } = await import('@/lib/sendEmail');
-      const inviterName = user?.full_name || user?.email || 'משתמש CarReminder';
-      const roleLabel = inviteRole; // 'מנהל' / 'שותף'
-
-      // Primary path: DB-managed template (admin editable via /EmailCenter).
-      // Falls back to the in-code builder if the feature flag is off, the
-      // template row is missing, or the DB lookup errors. Keeps the invite
-      // flow working end-to-end even mid-migration.
-      try {
-        await sendTemplatedEmail('invite', {
-          to: inviteeEmail,
-          vars: { inviterName, roleLabel, inviteLink: link },
-        });
-      } catch (e) {
-        if (e.name === 'EmailsPausedError') throw e;          // bubble up
-        if (import.meta.env.DEV) console.warn('DB template path failed, falling back:', e.message);
-        const { buildInviteEmail, buildInviteText } = await import('@/lib/emailTemplates');
-        const subject = `${inviterName} הזמין/ה אותך ל-CarReminder`;
-        const html = buildInviteEmail({ inviterName, roleLabel, inviteLink: link });
-        const text = buildInviteText({ inviterName, roleLabel, inviteLink: link });
-        // notificationKey makes the send appear in EmailCenter stats
-        // bucketed as 'invite' rather than the catch-all 'system_alert'.
-        await sendEmail({ to: inviteeEmail, subject, html, text, notificationKey: 'invite' });
-      }
-
-      setEmailSent(true);
-      toast.success(`המייל נשלח ל-${inviteeEmail}`);
-    } catch (e) {
-      if (import.meta.env.DEV) console.error('Invite email send error:', e);
-      const msg = e.name === 'EmailsPausedError'
-        ? 'שליחת מיילים מושעתה על ידי אדמין'
-        : 'שליחת המייל נכשלה. אפשר לשתף דרך WhatsApp או להעתיק את הקישור.';
-      toast.error(msg);
-    } finally {
-      setEmailSending(false);
     }
   };
 

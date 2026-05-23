@@ -30,6 +30,16 @@ const TYPE_CONFIG = {
   'תסקיר':       { icon: FileText,  bg: '#FEF3C7', color: '#92400E', border: '#FDE68A' },
 };
 
+//  Map ReminderEngine output → NotifCard shape
+const REMINDER_TYPE_FALLBACK = {
+  test: 'טסט',
+  insurance: 'ביטוח',
+  inspection: 'תסקיר',
+  maintenance: 'טיפול',
+  safety: 'טיפול',
+  document: 'מסמך',
+};
+
 // Map notification id prefix to EditVehicle field
 const NOTIF_TO_FIELD = {
   test: 'test_due_date', ins: 'insurance_due_date',
@@ -350,16 +360,6 @@ function GuestNotifications() {
     </div>
   );
 }
-
-//  Map ReminderEngine output → NotifCard shape 
-const REMINDER_TYPE_FALLBACK = {
-  test: 'טסט',
-  insurance: 'ביטוח',
-  inspection: 'תסקיר',
-  maintenance: 'טיפול',
-  safety: 'טיפול',
-  document: 'מסמך',
-};
 
 function remindersToNotifs(reminders) {
   return reminders.map(r => ({

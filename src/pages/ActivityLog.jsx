@@ -33,6 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PageShell, Card } from '@/components/business/system';
 
 const PAGE_SIZE = 30;
+const selectTriggerCls = "h-10 rounded-xl text-xs font-bold";
 
 // Hebrew label + icon per action_type, plus an `accent` keyed to the
 // Living Dashboard palette so each row's Card stripe color hints at
@@ -368,8 +369,6 @@ function FilterRow({ label, children }) {
     </div>
   );
 }
-
-const selectTriggerCls = "h-10 rounded-xl text-xs font-bold";
 
 function Empty({ icon, title, text, embedded }) {
   return (

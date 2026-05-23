@@ -217,6 +217,29 @@ export default function FirstTimeTour({
     let pollTimer = null;
     let autoAdvanceTimer = null;
 
+    const positionCard = (r) => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      // Measure actual card height if mounted; otherwise estimate
+      const cardH = cardRef.current?.offsetHeight || 180;
+      const cardW = Math.min(CARD_WIDTH, vw - VIEWPORT_PAD * 2);
+
+      // Prefer below target unless there's more room above.
+      const spaceBelow = vh - r.bottom;
+      const spaceAbove = r.top;
+      const placement = spaceBelow >= cardH + 16 || spaceBelow > spaceAbove ? 'below' : 'above';
+
+      const top = placement === 'below'
+        ? Math.min(r.bottom + ARROW_SIZE + 4, vh - cardH - VIEWPORT_PAD)
+        : Math.max(r.top - cardH - ARROW_SIZE - 4, VIEWPORT_PAD);
+
+      // Center horizontally on the target, clamped to viewport
+      const idealLeft = r.left + r.width / 2 - cardW / 2;
+      const left = Math.max(VIEWPORT_PAD, Math.min(idealLeft, vw - cardW - VIEWPORT_PAD));
+
+      setCardPos({ top, left, placement });
+    };
+
     const compute = () => {
       const el = document.querySelector(`[data-tour="${currentKey}"]`);
       const elRect = el ? el.getBoundingClientRect() : null;
@@ -274,29 +297,6 @@ export default function FirstTimeTour({
         setTargetRect(fresh);
         positionCard(fresh);
       }));
-    };
-
-    const positionCard = (r) => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      // Measure actual card height if mounted; otherwise estimate
-      const cardH = cardRef.current?.offsetHeight || 180;
-      const cardW = Math.min(CARD_WIDTH, vw - VIEWPORT_PAD * 2);
-
-      // Prefer below target unless there's more room above.
-      const spaceBelow = vh - r.bottom;
-      const spaceAbove = r.top;
-      const placement = spaceBelow >= cardH + 16 || spaceBelow > spaceAbove ? 'below' : 'above';
-
-      const top = placement === 'below'
-        ? Math.min(r.bottom + ARROW_SIZE + 4, vh - cardH - VIEWPORT_PAD)
-        : Math.max(r.top - cardH - ARROW_SIZE - 4, VIEWPORT_PAD);
-
-      // Center horizontally on the target, clamped to viewport
-      const idealLeft = r.left + r.width / 2 - cardW / 2;
-      const left = Math.max(VIEWPORT_PAD, Math.min(idealLeft, vw - cardW - VIEWPORT_PAD));
-
-      setCardPos({ top, left, placement });
     };
 
     compute();

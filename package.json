@@ -1,13 +1,13 @@
 {
   "name": "car-reminders",
   "private": true,
-  "version": "4.8.10",
+  "version": "4.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "prebuild": "node ./scripts/update-sw-version.cjs",
     "build": "vite build",
-    "lint": "eslint . --quiet",
+    "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",

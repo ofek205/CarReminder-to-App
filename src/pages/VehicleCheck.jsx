@@ -56,6 +56,12 @@ const toneIcons = {
 };
 
 const reportDisclaimer = 'המידע בדוח נמשך ממאגרי משרד התחבורה וממקורות מידע ציבוריים זמינים. ייתכנו פערים, עיכובים או חוסרים בנתונים, ולכן יש לקחת את המידע בערבון מוגבל ולא להסתמך עליו כתחליף לבדיקה מקצועית או משפטית.';
+const TONE_TEXT = {
+  success: 'text-emerald-700',
+  info:    'text-gray-700',
+  warning: 'text-amber-700',
+  danger:  'text-red-700',
+};
 const QUICK_CHECK_PREFILL_KEY = 'vehicle_quick_check_prefill_plate';
 
 export default function VehicleCheck() {
@@ -934,12 +940,6 @@ const HUMANIZE_BY_KEY = {
   pollutionGroup: humanPollutionGroup,
   greenIndex:     humanGreenIndex,
   safetyRating:   humanSafetyRating,
-};
-const TONE_TEXT = {
-  success: 'text-emerald-700',
-  info:    'text-gray-700',
-  warning: 'text-amber-700',
-  danger:  'text-red-700',
 };
 // Per-key formatter used by the spec rows. Falls back to the plain
 // formatSpecValue for keys without a humanizer so we don't clobber

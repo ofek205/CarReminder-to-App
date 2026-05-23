@@ -122,50 +122,9 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
     }
   };
 
-  const handleSubmit = async () => {
-    if (!body.trim() || body.trim().length < 10) { setBodyError('יש לכתוב לפחות 10 תווים'); return; }
-    setSaving(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const realName = user.user_metadata?.full_name || user.email || 'משתמש';
-
-      let authorName = realName;
-      let anonymousNumber = null;
-
-      if (isAnonymous) {
-        // Poster is always anonymous #1 in their own thread
-        anonymousNumber = 1;
-        authorName = `אנונימי #${anonymousNumber}`;
-      }
-
-      const post = await db.community_posts.create({
-        user_id: user.id, author_name: authorName, domain,
-        body: body.trim(),
-        image_url: imageUrl || null,
-        image_storage_path: imageStoragePath || null,
-        linked_vehicle_id: (linkedVehicleId && linkedVehicleId !== 'none') ? linkedVehicleId : null,
-        is_anonymous: isAnonymous,
-        anonymous_number: anonymousNumber,
-      });
-
-      queryClient.invalidateQueries({ queryKey: ['community_posts', domain] });
-      draft.clearDraft();
-      reset();
-      onClose();
-      // Surface a small confirmation. Without this the dialog just
-      // disappears with no signal that the post actually landed.
-      toast.success('הפוסט פורסם');
-
-      generateAiResponse(post, linkedVehicleId ? vehicles.find(v => v.id === linkedVehicleId) : null);
-    } catch (err) {
-      console.error('Post create error:', err);
-      toast.error('שגיאה ביצירת הפוסט');
-    } finally {
-      setSaving(false);
-    }
-  };
-
+  // Defined ahead of handleSubmit because the submit handler fires
+  // this in the background after a post lands. Both are const arrow
+  // functions so the lexical order matters (TDZ otherwise).
   const generateAiResponse = async (post, vehicle) => {
     try {
       let vehicleContext = '';
@@ -229,6 +188,50 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
         queryClient.invalidateQueries({ queryKey: ['community_comment_counts', domain] });
       }
     } catch (err) { console.error('AI response error:', err); }
+  };
+
+  const handleSubmit = async () => {
+    if (!body.trim() || body.trim().length < 10) { setBodyError('יש לכתוב לפחות 10 תווים'); return; }
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const realName = user.user_metadata?.full_name || user.email || 'משתמש';
+
+      let authorName = realName;
+      let anonymousNumber = null;
+
+      if (isAnonymous) {
+        // Poster is always anonymous #1 in their own thread
+        anonymousNumber = 1;
+        authorName = `אנונימי #${anonymousNumber}`;
+      }
+
+      const post = await db.community_posts.create({
+        user_id: user.id, author_name: authorName, domain,
+        body: body.trim(),
+        image_url: imageUrl || null,
+        image_storage_path: imageStoragePath || null,
+        linked_vehicle_id: (linkedVehicleId && linkedVehicleId !== 'none') ? linkedVehicleId : null,
+        is_anonymous: isAnonymous,
+        anonymous_number: anonymousNumber,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['community_posts', domain] });
+      draft.clearDraft();
+      reset();
+      onClose();
+      // Surface a small confirmation. Without this the dialog just
+      // disappears with no signal that the post actually landed.
+      toast.success('הפוסט פורסם');
+
+      generateAiResponse(post, linkedVehicleId ? vehicles.find(v => v.id === linkedVehicleId) : null);
+    } catch (err) {
+      console.error('Post create error:', err);
+      toast.error('שגיאה ביצירת הפוסט');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const DomainIcon = domain === 'vessel' ? Ship : Car;
