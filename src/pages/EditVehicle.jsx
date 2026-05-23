@@ -390,7 +390,7 @@ export default function EditVehicle() {
     // current_km row from MoT was never cleared, so the dashboard
     // still rendered "קילומטראז'". Clear the unused column on save
     // so the picker reads the user's actual choice.
-    if (offroadMode) {
+    if (isOffroad(form.vehicle_type)) {
       if (usageMetric === 'שעות מנוע') {
         data.current_km = null;
       } else {

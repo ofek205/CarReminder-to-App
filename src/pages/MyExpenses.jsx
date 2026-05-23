@@ -52,6 +52,11 @@ const LAST_USED_VEHICLE_KEY = 'my_expenses_last_used_vehicle_id';
 //   3491.6 → "3,492 ₪"
 const fmtMoney = (n) => `${Math.round(Number(n) || 0).toLocaleString('he-IL')} ₪`;
 
+const HEBREW_MONTHS = [
+  'ינואר','פברואר','מרץ','אפריל','מאי','יוני',
+  'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר',
+];
+
 function periodLabel(period) {
   if (!period) return '';
   if (period.type === 'year')  return period.year;
@@ -96,10 +101,6 @@ function vehicleDisplayName(v) {
     || v.license_plate
     || 'רכב';
 }
-const HEBREW_MONTHS = [
-  'ינואר','פברואר','מרץ','אפריל','מאי','יוני',
-  'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר',
-];
 
 /**
  * VehiclePicker — selects either a specific vehicle or the "all vehicles"

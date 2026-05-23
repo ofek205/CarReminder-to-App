@@ -80,19 +80,21 @@ export default [
       "react-hooks/rules-of-hooks": "error",
       // TDZ catcher — fires when a `let`/`const` is referenced before
       // its declaration in the same scope. Real bug magnet: this is what
-      // crashed the AI Assistant page in Sprint A (`const expert = ...`
-      // used in derived constants several lines above the declaration).
+      // crashed the AI Assistant page in Sprint A and /AddVehicle in
+      // v4.8.7 (the AI-scan-gate useEffect referenced `selectedCategory`
+      // in its deps array several lines above the const declaration —
+      // minified to `r`, threw "Cannot access 'r' before initialization"
+      // on every first render on staging).
+      //
       // Hoisted function declarations are intentionally allowed because
       // there's no TDZ for those, and forbidding them would force a
       // mass refactor of helper-below-component patterns.
       //
-      // Set to "warn" because the codebase carries ~20 pre-existing
-      // violations (Auth.jsx, Expenses.jsx, FontScaleProvider.jsx, etc).
-      // Each one is a latent TDZ bug waiting for a minifier to rename
-      // it into a crash. Promote to "error" after the warnings list is
-      // cleaned (tracked in the same backlog as the base64 migration).
+      // Set to "error" 2026-05-21 after cleaning the 28 pre-existing
+      // violations as part of the v4.8.7 post-mortem. KEEP IT AT "error"
+      // — every time this rule got demoted to "warn" we burned someone.
       "no-use-before-define": [
-        "warn",
+        "error",
         {
           functions: false,
           classes: false,

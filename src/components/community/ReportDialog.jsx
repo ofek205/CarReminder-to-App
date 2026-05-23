@@ -22,6 +22,12 @@ export default function ReportDialog({ open, onClose, postId, postAuthorName }) 
   const [details, setDetails] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const handleClose = () => {
+    setReason('');
+    setDetails('');
+    onClose?.();
+  };
+
   const handleSubmit = async () => {
     if (!user) {
       toast.error('יש להתחבר כדי לדווח');
@@ -61,12 +67,6 @@ export default function ReportDialog({ open, onClose, postId, postAuthorName }) 
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleClose = () => {
-    setReason('');
-    setDetails('');
-    onClose?.();
   };
 
   return (

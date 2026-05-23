@@ -169,12 +169,9 @@ export default function AddVehicle() {
   // the load window so the scan tile doesn't flash in-out on slow
   // networks. Same pattern VehicleInfoSection uses. Re-fetched on
   // every category change so an admin flip propagates within ~60s.
+  // The matching useEffect lives below, after selectedCategory is
+  // declared — putting it here would TDZ on selectedCategory?.label.
   const [aiScanAllowed, setAiScanAllowed] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
-    return () => { cancelled = true; };
-  }, [selectedCategory?.label]);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showGuestSignup, setShowGuestSignup] = useState(false);
@@ -270,6 +267,18 @@ export default function AddVehicle() {
   const { errors, validate, clearError } = useFormValidation();
   const [systemError, setSystemError] = useState(null);
 
+  // AI scan gate — declared up top alongside the other UI flags, but
+  // the effect lives down here because the deps array reads
+  // selectedCategory?.label and `selectedCategory` is a const declared
+  // a few lines above (placing the effect next to its useState would
+  // TDZ on every first render — that's how this whole bug crashed
+  // /AddVehicle on staging for v4.8.7).
+  useEffect(() => {
+    let cancelled = false;
+    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
+    return () => { cancelled = true; };
+  }, [selectedCategory?.label]);
+
   // Dynamic theme - switches to marine when כלי שייט is selected
   const isVesselCategory = selectedCategory?.label === 'כלי שייט';
   const isOffroadCategory = selectedCategory?.label === 'כלי שטח';
@@ -283,6 +292,11 @@ export default function AddVehicle() {
   // hidden test_due_date / tire / ownership / pollution sections (none
   // apply to aircraft we're not trying to manage CAMO-style).
   const isAviationCategory = selectedCategory?.label === 'כלי טיס';
+  // Drone has no plate registry — skip the method picker entirely and
+  // jump to the manual form so the user doesn't sit on a one-option
+  // chooser. Aircraft (manned) still picks between plate lookup and
+  // manual entry like every other category.
+  const isDroneSubcategory = selectedSubcategory?.label === 'רחפן';
   const isJeepOffroad = selectedSubcategory?.dbName === "ג'יפ שטח";
   // Two-wheelers (road motorcycle, scooter, off-road motorcycle) only
   // ever have 2 tires — showing the 1/2/3/4 selector for them was
@@ -302,9 +316,9 @@ export default function AddVehicle() {
   // picked, only the impossible 3/4 values.
   useEffect(() => {
     if (isTwoWheeler && (form.tires_changed_count === 4 || form.tires_changed_count === 3)) {
-      handleChange('tires_changed_count', 2);
+      setForm(prev => ({ ...prev, tires_changed_count: 2 }));
     }
-     
+
   }, [isTwoWheeler]);
   const [showOffroadSection, setShowOffroadSection] = useState(false);
   const T = isVesselCategory ? getTheme('כלי שייט') : defaultC;
@@ -996,11 +1010,6 @@ export default function AddVehicle() {
   // If category has subcategories, require one to be selected before showing step 2+
   const categoryReady = selectedCategory !== null &&
     (!selectedCategory.hasSubcategories || selectedSubcategory !== null);
-  // Drone has no plate registry — skip the method picker entirely and
-  // jump to the manual form so the user doesn't sit on a one-option
-  // chooser. Aircraft (manned) still picks between plate lookup and
-  // manual entry like every other category.
-  const isDroneSubcategory = selectedSubcategory?.label === 'רחפן';
   useEffect(() => {
     if (isDroneSubcategory && selectedMethod !== 'manual') {
       setSelectedMethod('manual');
