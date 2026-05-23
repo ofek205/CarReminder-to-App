@@ -107,13 +107,10 @@ export default function BottomNav({ sheetOpen = false }) {
         // system nav buttons — the user pointed out the BottomNav should
         // flow flush against the system nav with the white bg continuing
         // under the buttons (the standard Android pattern). Reverting
-        // to Capacitor's edge-to-edge default and using
-        // env(safe-area-inset-bottom) for the padding directly: now the
-        // WebView extends to the bottom of the screen, env() reports the
-        // nav bar height, and the BottomNav's padding pushes the labels
-        // above the system buttons while the white background flows
-        // under them. Same value works on iOS for the home indicator.
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        // Android: --cap-nav-bar-height is injected by MainActivity.java
+        // (actual nav-bar height in dp). iOS: falls back to env() which
+        // reports the home-indicator height. Web: falls back to 0px.
+        paddingBottom: 'var(--cap-nav-bar-height, env(safe-area-inset-bottom, 0px))',
         // Horizontal safe-area: WKWebView's 100vw includes the device's
         // curved corner region, so `fixed inset-x-0` extends edge-to-
         // edge but the inner tabs distributed via `justify-around` got
