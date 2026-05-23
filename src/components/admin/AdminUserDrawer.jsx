@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/business/system';
+import { buildEmailHtml, escapeHtml } from '@/lib/emailTemplates';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 
 // Format an ILS amount with no decimals — same convention as /Reports.
@@ -946,7 +947,13 @@ function SendEmailForm({ email, userId }) {
     if (!canSend) return;
     setSending(true);
     try {
-      const html = body.replace(/\n/g, '<br/>');
+      const bodyHtml = `<p style="font-size:15px;line-height:1.75;color:#1F2937;margin:0">${escapeHtml(body).replace(/\n/g, '<br/>')}</p>`;
+      const html = buildEmailHtml({
+        preheader: subject.trim(),
+        title: subject.trim(),
+        bodyHtml,
+        footerNote: 'הודעה זו נשלחה אליך מצוות Car Reminder',
+      });
       const { error } = await supabase.functions.invoke('send-email', {
         body: {
           to: email,
