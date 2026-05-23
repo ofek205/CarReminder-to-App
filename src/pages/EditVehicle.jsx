@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
+import { supabase } from '@/lib/supabase';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
-import { MEMBER_STATUS } from '@/lib/enums';
 import useFileUpload from '@/hooks/useFileUpload';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
@@ -177,16 +177,13 @@ export default function EditVehicle() {
         return;
       }
 
-      const { data: { user: supaUser } } = await (await import('@/lib/supabase')).supabase.auth.getUser();
-      if (!supaUser) { setLoading(false); return; }
-      const members = await db.account_members.filter({ user_id: supaUser.id, status: MEMBER_STATUS.ACTIVE });
-      const userAccountIds = members.map(m => m.account_id);
-
-      let found = null;
-      for (const aid of userAccountIds) {
-        const results = await db.vehicles.filter({ id: vehicleId, account_id: aid });
-        if (results.length > 0) { found = results[0]; break; }
-      }
+      const { data: vRows, error: vErr } = await supabase
+        .from('my_vehicles_v')
+        .select('*')
+        .eq('id', vehicleId)
+        .limit(1);
+      if (vErr) throw vErr;
+      const found = vRows?.[0] || null;
       if (found) {
         const v = found;
         setAccountId(v.account_id);

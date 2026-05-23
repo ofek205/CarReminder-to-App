@@ -15,6 +15,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { formatDateHe } from '../shared/DateStatusUtils';
 import { compressImage } from '@/lib/imageCompress';
+import { validateUploadFile } from '@/lib/securityUtils';
+import { uploadToBucket } from '@/lib/supabaseStorage';
 import { notifyVehicleChange } from '@/lib/notifyVehicleChange';
 import { getRecommendedInterval, computeNextReminder, reminderFireDate } from '@/lib/maintenanceRecommendations';
 import { scheduleLocalNotification } from '@/lib/notificationChannels';
@@ -31,6 +33,9 @@ export default function MaintenanceSection({ vehicle }) {
   const [saving, setSaving] = useState(false);
   const [serviceSize, setServiceSize] = useState('small');
   const [receiptPhoto, setReceiptPhoto] = useState(null);
+  const [receiptUrl, setReceiptUrl] = useState(null);
+  const [receiptStoragePath, setReceiptStoragePath] = useState(null);
+  const [receiptUploading, setReceiptUploading] = useState(false);
   const [aiScanning, setAiScanning] = useState(false);
   const [garageDropdownOpen, setGarageDropdownOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -110,8 +115,8 @@ export default function MaintenanceSection({ vehicle }) {
   const handleReceiptUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Compress receipts before embedding. quality 0.78 keeps text legible
-    // for AI OCR while shrinking egress dramatically.
+    const v = validateUploadFile(file, 'photo', 10);
+    if (!v.ok) { toast.error(v.error); return; }
     const compressed = await compressImage(file, { maxWidth: 1400, maxHeight: 1400, quality: 0.78 });
     const reader = new FileReader();
     reader.onload = ev => {
@@ -120,6 +125,19 @@ export default function MaintenanceSection({ vehicle }) {
       scanReceipt(base64);
     };
     reader.readAsDataURL(compressed);
+    setReceiptUploading(true);
+    try {
+      const pathPrefix = `${vehicle.account_id}/${vehicle.id}`;
+      const { file_url, storage_path } = await uploadToBucket(compressed, pathPrefix);
+      setReceiptUrl(file_url);
+      setReceiptStoragePath(storage_path);
+    } catch (err) {
+      toast.error('שגיאה בהעלאת הקבלה: ' + (err?.message || 'נסה שוב'));
+      setReceiptUrl(null);
+      setReceiptStoragePath(null);
+    } finally {
+      setReceiptUploading(false);
+    }
   };
 
   const openDialog = (type, opts = {}) => {
@@ -137,6 +155,8 @@ export default function MaintenanceSection({ vehicle }) {
     if (opts.serviceSize) setServiceSize(opts.serviceSize);
     else setServiceSize(vesselMode ? 'engine' : 'small');
     setReceiptPhoto(null);
+    setReceiptUrl(null);
+    setReceiptStoragePath(null);
     // Reset the optional "next reminder" block every time we open
     // for a fresh entry. The block only renders for type='טיפול'.
     //
@@ -207,7 +227,9 @@ export default function MaintenanceSection({ vehicle }) {
     else if (log.type === 'טיפול מנוע') setServiceSize('engine');
     else if (log.type === 'טיפול גוף') setServiceSize('hull');
     else setServiceSize(vesselMode ? 'engine' : 'small');
-    setReceiptPhoto(log.receipt_photo || null);
+    setReceiptPhoto(log.receipt_url || null);
+    setReceiptUrl(log.receipt_url || null);
+    setReceiptStoragePath(log.receipt_storage_path || null);
     // Rehydrate the next-service reminder state from the row so the
     // user sees their existing setting when re-opening for edit. We
     // can't recover the original interval input (DB only stores the
@@ -245,7 +267,8 @@ export default function MaintenanceSection({ vehicle }) {
       if (form.km_at_service) row.km_at_service = Number(form.km_at_service);
       if (form.garage_name?.trim()) { row.garage_name = form.garage_name.trim(); saveGarage(row.garage_name); }
       if (form.performed_by?.trim()) row.performed_by = form.performed_by.trim();
-      if (receiptPhoto) row.receipt_photo = receiptPhoto;
+      if (receiptUrl) row.receipt_url = receiptUrl;
+      if (receiptStoragePath) row.receipt_storage_path = receiptStoragePath;
 
       // Next-service reminder. Only for maintenance entries (not
       // repairs) and only when the user opted in via the toggle.
@@ -648,7 +671,7 @@ export default function MaintenanceSection({ vehicle }) {
                       <span className="text-xs font-bold" style={{ color: '#6366F1' }}>סורק קבלה...</span>
                     </div>
                   )}
-                  <button type="button" onClick={() => { setReceiptPhoto(null); setAiScanning(false); }}
+                  <button type="button" onClick={() => { setReceiptPhoto(null); setReceiptUrl(null); setReceiptStoragePath(null); setAiScanning(false); }}
                     className="absolute top-2 left-2 w-7 h-7 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg">
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -777,9 +800,9 @@ export default function MaintenanceSection({ vehicle }) {
               );
             })()}
 
-            <Button onClick={handleSave} disabled={saving} className="w-full h-11 rounded-2xl font-bold"
+            <Button onClick={handleSave} disabled={saving || receiptUploading} className="w-full h-11 rounded-2xl font-bold"
               style={{ background: dialogType === 'תיקון' ? '#DC2626' : T.primary, color: '#fff' }}>
-              {saving ? 'שומר...' : dialogType === 'תיקון' ? 'שמור תיקון' : 'שמור טיפול'}
+              {receiptUploading ? 'מעלה קבלה...' : saving ? 'שומר...' : dialogType === 'תיקון' ? 'שמור תיקון' : 'שמור טיפול'}
             </Button>
           </div>
         </DialogContent>

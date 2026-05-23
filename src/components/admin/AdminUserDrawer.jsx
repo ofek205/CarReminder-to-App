@@ -17,12 +17,13 @@ import { he } from 'date-fns/locale';
 import {
   X, Mail, Phone, Calendar, Truck, FileText, Users,
   Activity, Wrench, Shield, AlertTriangle, Briefcase,
-  Copy, Anchor, TrendingUp, Trash2, UserCog, Pencil,
+  Copy, Anchor, TrendingUp, Trash2, UserCog, Pencil, Send,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/business/system';
+import { buildEmailHtml, escapeHtml } from '@/lib/emailTemplates';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 
 // Format an ILS amount with no decimals — same convention as /Reports.
@@ -456,6 +457,9 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
 
       {/* ADMIN NOTES ────────────────────────────────────────────────── */}
       <AdminNotes userId={owner?.id} />
+
+      {/* SEND EMAIL ────────────────────────────────────────────────── */}
+      <SendEmailForm email={owner?.email} userId={owner?.id} />
 
       {/* ADMIN ACTIONS ─────────────────────────────────────────────── */}
       <AdminActions
@@ -924,6 +928,91 @@ function AdminNotes({ userId }) {
             )}
           </div>
         </>
+      )}
+    </Card>
+  );
+}
+
+function SendEmailForm({ email, userId }) {
+  const [open, setOpen] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+
+  if (!email) return null;
+
+  const canSend = subject.trim().length > 0 && body.trim().length > 0;
+
+  const handleSend = async () => {
+    if (!canSend) return;
+    setSending(true);
+    try {
+      const bodyHtml = `<p style="font-size:15px;line-height:1.75;color:#1F2937;margin:0">${escapeHtml(body).replace(/\n/g, '<br/>')}</p>`;
+      const html = buildEmailHtml({
+        preheader: subject.trim(),
+        title: subject.trim(),
+        bodyHtml,
+        footerNote: 'הודעה זו נשלחה אליך מצוות Car Reminder',
+      });
+      const { error } = await supabase.functions.invoke('send-email', {
+        body: {
+          to: email,
+          subject: subject.trim(),
+          html,
+          notification_key: 'admin_direct',
+          recipient_user_id: userId || undefined,
+        },
+      });
+      if (error) throw error;
+      toast.success(`המייל נשלח ל-${email}`);
+      setSubject('');
+      setBody('');
+      setOpen(false);
+    } catch (err) {
+      toast.error('שליחת המייל נכשלה');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Card className="p-3" style={{ borderRight: '3px solid #3B82F6' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 w-full text-right"
+      >
+        <Send className="w-3.5 h-3.5" style={{ color: '#3B82F6' }} />
+        <span className="text-[11px] font-bold" style={{ color: '#1E40AF' }}>שלח מייל למשתמש</span>
+        <span className="text-[10px] text-gray-400 mr-auto truncate max-w-[180px]" dir="ltr">{email}</span>
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2">
+          <input
+            className="w-full text-xs border rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            placeholder="נושא"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            dir="rtl"
+          />
+          <textarea
+            className="w-full text-xs border rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-300"
+            rows={4}
+            placeholder="תוכן ההודעה..."
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            dir="rtl"
+          />
+          <div className="flex justify-end">
+            <button
+              onClick={handleSend}
+              disabled={!canSend || sending}
+              className="text-[11px] font-medium px-3 py-1.5 rounded-lg transition disabled:opacity-40"
+              style={{ background: '#DBEAFE', color: '#1E40AF' }}
+            >
+              {sending ? 'שולח...' : 'שלח'}
+            </button>
+          </div>
+        </div>
       )}
     </Card>
   );

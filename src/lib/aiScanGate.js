@@ -126,7 +126,7 @@ export async function isAiScanEnabled() {
     } catch (err) {
       // eslint-disable-next-line no-console
       if (import.meta.env?.DEV) console.warn('[aiScanGate] flag fetch failed:', err?.message);
-      cachedValue = true;  // safe default
+      cachedValue = false;  // safe default — scan is OFF until explicitly enabled
     } finally {
       cachedAt = Date.now();
       inFlight = null;

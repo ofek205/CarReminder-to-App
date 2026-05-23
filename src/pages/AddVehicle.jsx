@@ -171,7 +171,7 @@ export default function AddVehicle() {
   // every category change so an admin flip propagates within ~60s.
   // The matching useEffect lives below, after selectedCategory is
   // declared — putting it here would TDZ on selectedCategory?.label.
-  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  const [aiScanAllowed, setAiScanAllowed] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showGuestSignup, setShowGuestSignup] = useState(false);

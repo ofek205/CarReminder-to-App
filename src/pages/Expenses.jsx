@@ -406,7 +406,7 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
   // Mirror of app_config.scan_extraction_enabled — when off, the AI-
   // scan buttons in ReceiptScanCard render disabled with a "כרגע לא
   // זמין" label. File-upload-as-attachment paths stay enabled.
-  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  const [aiScanAllowed, setAiScanAllowed] = useState(false);
   useEffect(() => {
     let cancelled = false;
     isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
@@ -692,7 +692,7 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
 
 // ---------- Receipt scan card ----------------------------------------
 
-function ReceiptScanCard({ receiptUrl, uploading, scanning, scanError, aiScanAllowed = true, onUpload, onScan, onRemove, fileInputRef }) {
+function ReceiptScanCard({ receiptUrl, uploading, scanning, scanError, aiScanAllowed = false, onUpload, onScan, onRemove, fileInputRef }) {
   // Camera input gives mobile users the OS camera picker; the regular
   // file input gives desktop users their file dialog. Both feed the
   // same upload handler.
