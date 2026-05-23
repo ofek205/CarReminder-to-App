@@ -1043,7 +1043,7 @@ function LayoutInner({ children }) {
             iPhone X+). Use calc so iPhone with home indicator gets full
             clearance, while older devices stay tight. lg+ uses h-0 because
             BottomNav is hidden on lg. */}
-        <div className="h-[calc(60px+env(safe-area-inset-bottom,4px))] lg:h-0 shrink-0" aria-hidden="true" />
+        <div className="h-[calc(60px+var(--cap-nav-bar-height,env(safe-area-inset-bottom,4px)))] lg:h-0 shrink-0" aria-hidden="true" />
       </main>
 
       {/* Bottom navigation. mobile only. `sheetOpen` lifts it above the
