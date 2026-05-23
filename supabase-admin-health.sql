@@ -89,7 +89,7 @@ BEGIN
   -- 3. Email delivery (Resend webhook)
   SELECT COUNT(*) INTO v_email_events
   FROM public.email_events
-  WHERE received_at >= v_now - interval '2 hours';
+  WHERE created_at >= v_now - interval '2 hours';
 
   probe      := 'email_webhook';
   value      := v_email_events || ' אירועים (2 שעות)';
