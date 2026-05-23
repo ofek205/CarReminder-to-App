@@ -65,6 +65,9 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.admin_welcome_backfill_list(int) FROM public;
+REVOKE ALL ON FUNCTION public.admin_welcome_backfill_list(int) FROM authenticated;
+
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- pg_cron job: every 10 minutes, send welcome to recent signups who missed it

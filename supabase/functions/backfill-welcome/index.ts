@@ -174,6 +174,6 @@ serve(async (req) => {
 
     return json({ ok: true, total: users.length, sent, failed, results });
   } catch (err: any) {
-    return json({ error: err?.message || 'Unknown error', stack: err?.stack }, 500);
+    return json({ error: err?.message || 'Unknown error' }, 500);
   }
 });
