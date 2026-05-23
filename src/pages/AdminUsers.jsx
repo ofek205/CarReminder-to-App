@@ -50,6 +50,7 @@ import {
 import { format, parseISO, differenceInYears } from "date-fns";
 import { he } from "date-fns/locale";
 import { C } from "@/lib/designTokens";
+import { toast } from "sonner";
 
 //  ──────────────────────────────────────────────────────────────────────
 //  Constants
@@ -74,8 +75,8 @@ const STATUS_OPTIONS = [
 
 const ASSET_OPTIONS = [
   { value: "all",          label: "כל הנכסים"          },
-  { value: "has_vehicles", label: "עם רכבים"            },
-  { value: "no_vehicles",  label: "ללא רכבים"            },
+  { value: "has_vehicles", label: "עם כלי תחבורה"       },
+  { value: "no_vehicles",  label: "ללא כלי תחבורה"       },
   { value: "shared_only",  label: "שותפים בלבד"         },
 ];
 
@@ -117,7 +118,8 @@ const hueFromName = (name) => {
 function exportToCsv(rows, filename) {
   const headers = [
     "שם", "אימייל", "טלפון", "גיל", "תאריך לידה",
-    "רכבים (בעלות)", "רכבים (משותפים)", "מסמכים", "חברים",
+    "כלי תחבורה (בעלות)", "כלי תחבורה (משותפים)", "מסמכים", "חברים",
+    "חשבון עסקי", "נהג",
     "סטטוס", "הרשמה", "התחברות אחרונה", "ימים מהרשמה",
   ];
   const esc = (v) => {
@@ -132,6 +134,8 @@ function exportToCsv(rows, filename) {
       calcAge(u.birth_date) ?? "",
       u.birth_date ?? "",
       u.vehicles_owned, u.vehicles_shared, u.documents_total, u.members_total,
+      u.has_business ? "כן" : "לא",
+      u.is_driver ? "כן" : "לא",
       STATUS_META[u.activity_status]?.label || u.activity_status,
       u.signup_at ? format(parseISO(u.signup_at), "dd/MM/yyyy") : "",
       u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), "dd/MM/yyyy HH:mm") : "",
@@ -190,6 +194,28 @@ export default function AdminUsers() {
     retry: 1,
     retryDelay: 500,
     staleTime: 60 * 1000,
+  });
+
+  const { data: guestStats } = useQuery({
+    queryKey: ["admin-guest-stats"],
+    queryFn: async () => {
+      const cutoff = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+      const { data, error } = await withTimeout(
+        supabase
+          .from("anonymous_analytics")
+          .select("event, count")
+          .in("event", ["guest_session", "auth_signup"])
+          .gte("date", cutoff),
+        "guest_stats"
+      );
+      if (error) throw error;
+      const rows = data || [];
+      const guests  = rows.filter((r) => r.event === "guest_session").reduce((s, r) => s + (r.count || 0), 0);
+      const signups = rows.filter((r) => r.event === "auth_signup").reduce((s, r) => s + (r.count || 0), 0);
+      return { guests, signups, rate: guests > 0 ? Math.round((signups / guests) * 100) : 0 };
+    },
+    enabled: isAdmin === true,
+    staleTime: 120_000,
   });
 
   //  Filter pipeline
@@ -264,6 +290,7 @@ export default function AdminUsers() {
   const handleExport = () => {
     const ts = format(new Date(), "yyyy-MM-dd-HHmm");
     exportToCsv(sorted, `users-export-${ts}.csv`);
+    toast.success(`יוצא ${sorted.length} משתמשים ל-CSV`);
   };
 
   //  Guards
@@ -302,6 +329,20 @@ export default function AdminUsers() {
       style={{ fontVariantNumeric: "tabular-nums" }}
     >
       <PageHeader title="ניהול משתמשים" subtitle="כל החשבונות הרשומים במערכת" />
+
+      {/* Guest conversion banner */}
+      {guestStats && guestStats.guests > 0 && (
+        <Card className="p-3 mb-3 flex items-center justify-between flex-wrap gap-2" style={{ borderRight: `3px solid ${C.warn}`, background: C.warnBg }}>
+          <div className="text-xs text-gray-700">
+            <span className="font-bold" style={{ color: C.warn }}>ביקורי אורחים (30 ימים):</span>{" "}
+            <span dir="ltr" className="font-bold">{guestStats.guests}</span> ביקורים →{" "}
+            <span dir="ltr" className="font-bold">{guestStats.signups}</span> הרשמות
+          </div>
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: "#FFF", color: C.warn }}>
+            המרה <span dir="ltr">{guestStats.rate}%</span>
+          </span>
+        </Card>
+      )}
 
       {/* Hero — total count + supporting stats. The "184" is the headline. */}
       <div className="mb-5 grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -396,7 +437,11 @@ export default function AdminUsers() {
       )}
 
       {/* Drawer */}
-      <AdminUserDrawer account={drawerAccount} onClose={() => setDrawerAccount(null)} />
+      <AdminUserDrawer
+        account={drawerAccount}
+        onClose={() => setDrawerAccount(null)}
+        onAccountDeleted={() => { setDrawerAccount(null); refetch(); }}
+      />
     </div>
   );
 }
@@ -445,10 +490,11 @@ function UsersTable({ users, sortKey, sortDir, onSort, onRowClick }) {
             <Th name="email"          label="אימייל"     sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <Th name="phone"          label="טלפון"      sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <Th name="birth_date"     label="גיל"        sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="left" />
-            <Th name="vehicles_owned" label="רכבים"      sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="left"
+            <Th name="vehicles_owned" label="כלי תחבורה" sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="left"
                 tooltip="בעלות / משותף" />
             <Th name="documents_total"label="מסמכים"     sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="left" />
             <Th name="members_total"  label="חברים"      sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="left" />
+            <th className="py-2 px-2 font-medium text-gray-600 text-xs text-right whitespace-nowrap">תגים</th>
             <Th name="activity_status"label="סטטוס"      sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <Th name="signup_at"      label="הרשמה"      sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="left" />
             <Th name="last_sign_in_at" label="אחרון"     sortKey={sortKey} sortDir={sortDir} onSort={onSort} align="left" />
@@ -503,11 +549,29 @@ function UserRowDesktop({ user, onClick }) {
       </td>
       <td className="py-2 px-2 text-left text-gray-700" dir="ltr">{user.documents_total}</td>
       <td className="py-2 px-2 text-left text-gray-700" dir="ltr">{user.members_total}</td>
+      <td className="py-2 px-2">
+        <div className="flex gap-1 flex-wrap">
+          {user.has_business && <TagBadge label="עסקי" tone="purple" />}
+          {user.is_driver && <TagBadge label="נהג" tone="teal" />}
+          {!user.has_business && !user.is_driver && <span className="text-gray-300 text-[10px]">—</span>}
+        </div>
+      </td>
       <td className="py-2 px-2"><StatusPill status={user.activity_status} /></td>
       <td className="py-2 px-2 text-left text-gray-500 text-xs" dir="ltr">{fmtDate(user.signup_at)}</td>
       <td className="py-2 px-2 text-left text-gray-500 text-xs" dir="ltr">{fmtDate(user.last_sign_in_at)}</td>
       <td className="py-2 px-2 text-left">
-        {clickable && <Eye className="w-4 h-4 text-gray-400 inline" />}
+        {clickable ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className="text-[11px] font-medium px-2 py-1 rounded-lg transition hover:opacity-80"
+            style={{ background: C.light, color: C.primary }}
+          >
+            <Eye className="w-3 h-3 inline ml-1" />
+            הצג
+          </button>
+        ) : (
+          <span className="text-[10px] text-gray-400">אין חשבון</span>
+        )}
       </td>
     </tr>
   );
@@ -538,9 +602,15 @@ function UserCardMobile({ user, onClick }) {
           <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-500" dir="rtl">
             {user.phone && <span dir="ltr">{user.phone}</span>}
             {age !== null && <span>גיל <span dir="ltr">{age}</span></span>}
-            <span>רכבים <span dir="ltr">{user.vehicles_owned}{user.vehicles_shared > 0 && ` / ${user.vehicles_shared}`}</span></span>
+            <span>כלי תחבורה <span dir="ltr">{user.vehicles_owned}{user.vehicles_shared > 0 && ` / ${user.vehicles_shared}`}</span></span>
             <span>מסמכים <span dir="ltr">{user.documents_total}</span></span>
           </div>
+          {(user.has_business || user.is_driver) && (
+            <div className="flex gap-1 mt-1.5">
+              {user.has_business && <TagBadge label="עסקי" tone="purple" />}
+              {user.is_driver && <TagBadge label="נהג" tone="teal" />}
+            </div>
+          )}
           <div className="text-[10px] text-gray-400 mt-1" dir="ltr">{fmtDate(user.signup_at)}</div>
         </div>
       </div>
@@ -561,6 +631,22 @@ function StatusPill({ status, compact }) {
     >
       <span className="w-1.5 h-1.5 rounded-full ml-1" style={{ background: meta.color }} />
       {meta.label}
+    </span>
+  );
+}
+
+function TagBadge({ label, tone }) {
+  const tones = {
+    purple: { bg: "#F3E8FF", color: "#7C3AED" },
+    teal:   { bg: "#E0F7FA", color: "#0891B2" },
+  };
+  const t = tones[tone] || tones.purple;
+  return (
+    <span
+      className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+      style={{ background: t.bg, color: t.color }}
+    >
+      {label}
     </span>
   );
 }

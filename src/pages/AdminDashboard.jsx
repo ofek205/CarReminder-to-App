@@ -1993,6 +1993,7 @@ function LeaderboardCard({ title, icon: Icon, accent = 'emerald', metricLabel, r
 function AdminMessagesTab() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filterStatus, setMsgFilter] = useState('all');
   useEffect(() => {
     (async () => {
       try {
@@ -2002,16 +2003,58 @@ function AdminMessagesTab() {
       setLoading(false);
     })();
   }, []);
+
+  const updateStatus = async (id, status) => {
+    try {
+      await db.contact_messages.update(id, { status });
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, status } : m));
+      toast.success(status === 'replied' ? 'סומן כנענה' : status === 'archived' ? 'הועבר לארכיון' : 'עודכן');
+    } catch {
+      toast.error('שגיאה בעדכון הסטטוס');
+    }
+  };
+
+  const filtered = filterStatus === 'all' ? messages : messages.filter(m => m.status === filterStatus);
+  const counts = {
+    all: messages.length,
+    new: messages.filter(m => m.status === 'new').length,
+    replied: messages.filter(m => m.status === 'replied').length,
+    archived: messages.filter(m => m.status === 'archived').length,
+  };
+
   if (loading) return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-gray-100 p-4">
-        <h2 className="font-bold text-gray-900 mb-3">הודעות צור קשר ({messages.length})</h2>
-        {messages.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-8">אין הודעות חדשות</p>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold text-gray-900">הודעות צור קשר ({messages.length})</h2>
+          <div className="flex gap-1">
+            {[
+              { key: 'all', label: 'הכל' },
+              { key: 'new', label: 'חדשות' },
+              { key: 'replied', label: 'נענו' },
+              { key: 'archived', label: 'ארכיון' },
+            ].map(f => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setMsgFilter(f.key)}
+                className={`text-[10px] px-2 py-1 rounded-full font-medium transition ${
+                  filterStatus === f.key ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {f.label} {counts[f.key] > 0 && `(${counts[f.key]})`}
+              </button>
+            ))}
+          </div>
+        </div>
+        {filtered.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">
+            {filterStatus === 'new' ? 'אין הודעות חדשות' : 'אין הודעות בסינון זה'}
+          </p>
         ) : (
           <div className="space-y-2">
-            {messages.map(m => (
+            {filtered.map(m => (
               <div key={m.id} className="border border-gray-100 rounded-xl p-3">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
@@ -2022,13 +2065,38 @@ function AdminMessagesTab() {
                     m.status === 'new' ? 'bg-blue-100 text-blue-700' :
                     m.status === 'replied' ? 'bg-green-100 text-green-700' :
                     'bg-gray-100 text-gray-500'
-                  }`}>{m.status}</span>
+                  }`}>{m.status === 'new' ? 'חדש' : m.status === 'replied' ? 'נענה' : 'ארכיון'}</span>
                 </div>
                 {m.subject && <p className="text-sm font-medium text-gray-700">{m.subject}</p>}
                 <p className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">{m.message}</p>
-                <p className="text-[10px] text-gray-400 mt-2">
-                  {m.created_at ? format(parseISO(m.created_at), 'dd/MM/yyyy HH:mm') : ''}
-                </p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-[10px] text-gray-400">
+                    {m.created_at ? format(parseISO(m.created_at), 'dd/MM/yyyy HH:mm') : ''}
+                  </p>
+                  <div className="flex gap-1.5">
+                    {m.email && (
+                      <a
+                        href={`mailto:${m.email}?subject=Re: ${encodeURIComponent(m.subject || 'פנייתך ל-CardDocs')}`}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-blue-50 text-blue-700 font-medium hover:bg-blue-100 transition"
+                        onClick={() => { if (m.status === 'new') updateStatus(m.id, 'replied'); }}
+                      >
+                        השב
+                      </a>
+                    )}
+                    {m.status !== 'replied' && (
+                      <button type="button" onClick={() => updateStatus(m.id, 'replied')}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-green-50 text-green-700 font-medium hover:bg-green-100 transition">
+                        סמן כנענה
+                      </button>
+                    )}
+                    {m.status !== 'archived' && (
+                      <button type="button" onClick={() => updateStatus(m.id, 'archived')}
+                        className="text-[10px] px-2 py-1 rounded-lg bg-gray-50 text-gray-500 font-medium hover:bg-gray-100 transition">
+                        ארכיון
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             ))}
           </div>

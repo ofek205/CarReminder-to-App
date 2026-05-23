@@ -273,7 +273,7 @@ BEGIN
     'account', jsonb_build_object(
       'id',            v_account.id,
       'name',          v_account.name,
-      'kind',          v_account.account_type,
+      'kind',          v_account.type,
       'created_at',    v_account.created_at,
       'business_meta', v_account.business_meta
     ),
