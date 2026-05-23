@@ -57,6 +57,12 @@ async function dispatchOAuthWelcomeEmail(user) {
   const flagKey = `cr_welcome_sent_${user.id}`;
   try { if (localStorage.getItem(flagKey)) return; } catch {}
 
+  // Set flag BEFORE sending to prevent race condition: INITIAL_SESSION
+  // and SIGNED_IN fire back-to-back, both check the flag before either
+  // finishes the async send → duplicate emails. Setting early means a
+  // failed send won't retry, but that's acceptable for a welcome email.
+  try { localStorage.setItem(flagKey, '1'); } catch {}
+
   try {
     const fullName =
       user.user_metadata?.full_name ||
@@ -72,7 +78,6 @@ async function dispatchOAuthWelcomeEmail(user) {
       text: buildWelcomeText({ firstName, appUrl: 'https://car-reminder.app' }),
       notificationKey: 'welcome',
     });
-    try { localStorage.setItem(flagKey, '1'); } catch {}
   } catch (err) {
     if (import.meta.env?.DEV) {
       // eslint-disable-next-line no-console
