@@ -210,6 +210,10 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
     ? `${PUBLIC_DOMAIN}/JoinInvite?token=${shareResult.invite_token}&type=${linkType}`
     : '';
 
+  const vehicleName = vehicle?.nickname
+    || `${vehicle?.manufacturer || ''} ${vehicle?.model || ''}`.trim()
+    || 'הרכב';
+
   const copyLink = async () => {
     if (!inviteLink) return;
     try {
@@ -228,16 +232,6 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
       : `שיתפתי איתך את ${vehicleName}. אשר/י את השיתוף בקישור:\n${inviteLink}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
-
-  // openEmailClient was the manual "open mailto:" handler the success
-  // state used to expose. Removed because share emails are sent
-  // automatically on submit and a second manual button confused users
-  // ("did the email actually go out, do I need to click this?").
-  // WhatsApp + Copy still cover the unregistered-recipient flow.
-
-  const vehicleName = vehicle?.nickname
-    || `${vehicle?.manufacturer || ''} ${vehicle?.model || ''}`.trim()
-    || 'הרכב';
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>

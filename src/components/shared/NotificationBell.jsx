@@ -183,28 +183,6 @@ export default function NotificationBell() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [inviteActing, setInviteActing] = useState(null);
 
-  const handleInviteAction = async (n, action) => {
-    const memberId = n.appData?.member_id;
-    if (!memberId) return;
-    setInviteActing(`${n.id}-${action}`);
-    try {
-      const rpc = action === 'accept' ? 'accept_account_invite' : 'decline_account_invite';
-      const { error } = await supabase.rpc(rpc, { p_member_id: memberId });
-      if (error) throw error;
-      await persistRemoteReadState(n, true);
-      markRead(n.id);
-      setRefreshKey(k => k + 1);
-      toast.success(action === 'accept' ? 'הצטרפת לחשבון בהצלחה' : 'ההזמנה נדחתה');
-    } catch (e) {
-      const msg = (e?.message || '').includes('invite_not_pending')
-        ? 'ההזמנה כבר טופלה'
-        : `שגיאה: ${e?.message || 'נסה שוב'}`;
-      toast.error(msg);
-    } finally {
-      setInviteActing(null);
-    }
-  };
-
   // Inject the badge-pulse keyframes exactly once per page. Doing it
   // here (instead of importing a CSS file) keeps the animation
   // collocated with the only component that uses it — no global CSS
@@ -565,6 +543,28 @@ export default function NotificationBell() {
         window.dispatchEvent(new CustomEvent('cr:notifications-changed'));
       }
     } catch {}
+  };
+
+  const handleInviteAction = async (n, action) => {
+    const memberId = n.appData?.member_id;
+    if (!memberId) return;
+    setInviteActing(`${n.id}-${action}`);
+    try {
+      const rpc = action === 'accept' ? 'accept_account_invite' : 'decline_account_invite';
+      const { error } = await supabase.rpc(rpc, { p_member_id: memberId });
+      if (error) throw error;
+      await persistRemoteReadState(n, true);
+      markRead(n.id);
+      setRefreshKey(k => k + 1);
+      toast.success(action === 'accept' ? 'הצטרפת לחשבון בהצלחה' : 'ההזמנה נדחתה');
+    } catch (e) {
+      const msg = (e?.message || '').includes('invite_not_pending')
+        ? 'ההזמנה כבר טופלה'
+        : `שגיאה: ${e?.message || 'נסה שוב'}`;
+      toast.error(msg);
+    } finally {
+      setInviteActing(null);
+    }
   };
 
   const markItemReadState = async (notification, nextRead = true) => {
