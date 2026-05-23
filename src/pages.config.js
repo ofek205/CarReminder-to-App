@@ -73,6 +73,8 @@ const DriverDetail      = React.lazy(() => import('./pages/DriverDetail'));
 const AdminBusinessRequests = React.lazy(() => import('./pages/AdminBusinessRequests'));
 const AdminAlerts           = React.lazy(() => import('./pages/AdminAlerts'));
 const AdminUsers            = React.lazy(() => import('./pages/AdminUsers'));
+const AdminAuditLog         = React.lazy(() => import('./pages/AdminAuditLog'));
+const AdminHealth           = React.lazy(() => import('./pages/AdminHealth'));
 const Fleet                 = React.lazy(() => import('./pages/Fleet'));
 const BusinessDashboard     = React.lazy(() => import('./pages/BusinessDashboard'));
 const BusinessSettings      = React.lazy(() => import('./pages/BusinessSettings'));
@@ -142,6 +144,8 @@ export const PAGES = {
     "AdminBusinessRequests": AdminBusinessRequests,
     "AdminAlerts": AdminAlerts,
     "AdminUsers": AdminUsers,
+    "AdminAuditLog": AdminAuditLog,
+    "AdminHealth": AdminHealth,
     "Fleet":        Fleet,
     "BusinessDashboard": BusinessDashboard,
     "BusinessSettings": BusinessSettings,
