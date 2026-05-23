@@ -117,6 +117,7 @@ serve(async (req) => {
     // — it's a valid notification key in the seed, and tagging
     // strays as system_alert is more accurate than dropping them.
     notification_key?: string;
+    recipient_user_id?: string;
   };
   try {
     payload = await req.json();
@@ -124,7 +125,7 @@ serve(async (req) => {
     return json({ error: 'Invalid JSON body' }, 400, req);
   }
 
-  const { to, subject, html, text, from, reply_to, notification_key } = payload;
+  const { to, subject, html, text, from, reply_to, notification_key, recipient_user_id } = payload;
 
   // Validation — at minimum need a recipient, a subject, and either html or text
   if (!to || (Array.isArray(to) && to.length === 0)) {
@@ -164,6 +165,26 @@ serve(async (req) => {
     if (!res.ok) {
       // Resend errors look like { name, message, statusCode }
       return json({ error: data.message || 'Resend error', details: data }, res.status, req);
+    }
+
+    // Admin direct messages also create an in-app notification so the
+    // recipient sees it in the bell + gets a push notification via the
+    // existing AFTER INSERT trigger on app_notifications.
+    if (notification_key === 'admin_direct' && recipient_user_id) {
+      try {
+        const plainBody = (text || (html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')).slice(0, 500);
+        await supabaseAdmin
+          .from('app_notifications')
+          .insert({
+            user_id: recipient_user_id,
+            type:    'admin_message',
+            title:   subject,
+            body:    plainBody,
+            data:    { from_admin: true, subject, body: plainBody },
+          });
+      } catch (notifErr) {
+        console.warn('app_notifications insert failed:', (notifErr as Error)?.message);
+      }
     }
 
     // 2026-05-17: Audit-log every successful send to email_send_log so

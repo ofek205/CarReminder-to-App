@@ -20,7 +20,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { MEMBER_STATUS } from '@/lib/enums';
-import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X, Clock, Check, Loader2 } from 'lucide-react';
+import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X, Clock, Check, Loader2, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { he as heLocale } from 'date-fns/locale';
@@ -182,6 +182,7 @@ export default function NotificationBell() {
   const [popupOpen, setPopupOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [inviteActing, setInviteActing] = useState(null);
+  const [adminMsg, setAdminMsg] = useState(null);
 
   // Inject the badge-pulse keyframes exactly once per page. Doing it
   // here (instead of importing a CSS file) keeps the animation
@@ -778,8 +779,10 @@ export default function NotificationBell() {
                           else if (n.type === 'community') {
                             navigate(createPageUrl('Community'));
                           }
+                          else if (n.type === 'app' && n.appType === 'admin_message') {
+                            setAdminMsg({ title: n.appData?.subject || n.label, body: n.appData?.body || n.name, createdAt: n.createdAt });
+                          }
                           else if (n.type === 'app') {
-                            // navHref pre-resolved at fetch time; recompute as fallback.
                             const liveHref = n.navHref
                               || appConfigForType(n.appType).buildHref(n.appData || {});
                             if (liveHref) navigate(liveHref);
@@ -943,6 +946,45 @@ export default function NotificationBell() {
                 כל ההתראות ←
               </button>
             )}
+          </div>
+        </>
+      )}
+
+      {adminMsg && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/40" onClick={() => setAdminMsg(null)} />
+          <div className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={() => setAdminMsg(null)}>
+            <div
+              className="w-full max-w-sm rounded-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+              style={{ background: '#FFFFFF', boxShadow: '0 24px 60px rgba(0,0,0,0.25)' }}
+              dir="rtl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 px-4 py-3" style={{ background: '#DBEAFE', borderBottom: '1px solid #BFDBFE' }}>
+                <Mail className="w-4 h-4" style={{ color: '#1D4ED8' }} />
+                <span className="text-[13px] font-bold flex-1" style={{ color: '#1E40AF' }}>הודעה מ-Car Reminder</span>
+                <button onClick={() => setAdminMsg(null)} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-blue-200/50 transition">
+                  <X className="w-4 h-4" style={{ color: '#1D4ED8' }} />
+                </button>
+              </div>
+              <div className="px-4 py-3">
+                <p className="text-[14px] font-semibold mb-1" style={{ color: '#1C2E20' }}>{adminMsg.title}</p>
+                {adminMsg.createdAt && (() => {
+                  const rel = formatRelativeTime(adminMsg.createdAt);
+                  return rel ? <p className="text-[11px] mb-3" style={{ color: '#8B9C8E' }}>{rel}</p> : null;
+                })()}
+                <p className="text-[13px] leading-relaxed whitespace-pre-wrap" style={{ color: '#374151' }}>{adminMsg.body}</p>
+              </div>
+              <div className="px-4 pb-3">
+                <button
+                  onClick={() => setAdminMsg(null)}
+                  className="w-full py-2 rounded-xl text-[13px] font-semibold transition-colors hover:opacity-90"
+                  style={{ background: '#DBEAFE', color: '#1D4ED8' }}
+                >
+                  הבנתי
+                </button>
+              </div>
+            </div>
           </div>
         </>
       )}

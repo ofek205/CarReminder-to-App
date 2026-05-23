@@ -458,7 +458,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
       <AdminNotes userId={owner?.id} />
 
       {/* SEND EMAIL ────────────────────────────────────────────────── */}
-      <SendEmailForm email={owner?.email} />
+      <SendEmailForm email={owner?.email} userId={owner?.id} />
 
       {/* ADMIN ACTIONS ─────────────────────────────────────────────── */}
       <AdminActions
@@ -932,7 +932,7 @@ function AdminNotes({ userId }) {
   );
 }
 
-function SendEmailForm({ email }) {
+function SendEmailForm({ email, userId }) {
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -953,6 +953,7 @@ function SendEmailForm({ email }) {
           subject: subject.trim(),
           html,
           notification_key: 'admin_direct',
+          recipient_user_id: userId || undefined,
         },
       });
       if (error) throw error;

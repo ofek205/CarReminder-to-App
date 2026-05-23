@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { MEMBER_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User, Check, X, Loader2 } from "lucide-react";
+import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User, Check, X, Loader2, Mail } from "lucide-react";
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { configForType as appConfigForType, requiresActionForType } from '@/lib/appNotificationConfig';
@@ -507,6 +507,7 @@ function AuthNotifications() {
   };
 
   const [inviteActing, setInviteActing] = useState(null);
+  const [adminMsg, setAdminMsg] = useState(null);
 
   const handleInviteAction = async (notif, action) => {
     const memberId = notif.data?.member_id;
@@ -709,6 +710,10 @@ function AuthNotifications() {
               onClick={async () => {
                 if (an.type === 'account_invite_offered' && !isRead) return;
                 if (!isRead) await markAppNotifRead(an.id, true);
+                if (an.type === 'admin_message') {
+                  setAdminMsg({ title: an.data?.subject || an.title, body: an.data?.body || an.body, createdAt: an.created_at });
+                  return;
+                }
                 if (href) navigate(href);
               }}
               className="flex-1 min-w-0 text-right">
@@ -805,6 +810,44 @@ function AuthNotifications() {
           )}
         </>
       ) : null}
+
+      {adminMsg && (
+        <>
+          <div className="fixed inset-0 z-[60] bg-black/40" onClick={() => setAdminMsg(null)} />
+          <div className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={() => setAdminMsg(null)}>
+            <div
+              className="w-full max-w-sm rounded-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+              style={{ background: '#FFFFFF', boxShadow: '0 24px 60px rgba(0,0,0,0.25)' }}
+              dir="rtl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 px-4 py-3" style={{ background: '#DBEAFE', borderBottom: '1px solid #BFDBFE' }}>
+                <Mail className="w-4 h-4" style={{ color: '#1D4ED8' }} />
+                <span className="text-[13px] font-bold flex-1" style={{ color: '#1E40AF' }}>הודעה מ-Car Reminder</span>
+                <button onClick={() => setAdminMsg(null)} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-blue-200/50 transition">
+                  <X className="w-4 h-4" style={{ color: '#1D4ED8' }} />
+                </button>
+              </div>
+              <div className="px-4 py-3">
+                <p className="text-[14px] font-semibold mb-1" style={{ color: '#1C2E20' }}>{adminMsg.title}</p>
+                {adminMsg.createdAt && (
+                  <p className="text-[11px] mb-3" style={{ color: '#8B9C8E' }}>{formatDateHe(adminMsg.createdAt)}</p>
+                )}
+                <p className="text-[13px] leading-relaxed whitespace-pre-wrap" style={{ color: '#374151' }}>{adminMsg.body}</p>
+              </div>
+              <div className="px-4 pb-3">
+                <button
+                  onClick={() => setAdminMsg(null)}
+                  className="w-full py-2 rounded-xl text-[13px] font-semibold transition-colors hover:opacity-90"
+                  style={{ background: '#DBEAFE', color: '#1D4ED8' }}
+                >
+                  הבנתי
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

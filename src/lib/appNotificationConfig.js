@@ -10,7 +10,7 @@
  * this module is purely visual / navigational.
  */
 
-import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus } from 'lucide-react';
+import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, Mail, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus } from 'lucide-react';
 
 const ACTION_REQUIRED_TYPES = new Set([
   'share_offered',
@@ -188,6 +188,13 @@ export const APP_NOTIF_CONFIG = {
     buildHref: (data) => data?.post_id
       ? `/Community?post=${encodeURIComponent(data.post_id)}`
       : '/Community',
+  },
+  admin_message: {
+    icon: Mail,
+    bg: '#DBEAFE',
+    iconColor: '#1D4ED8',
+    iconBg: '#1D4ED8',
+    buildHref: () => null,
   },
   account_invite_offered: {
     icon: UserPlus,
