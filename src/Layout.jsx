@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3 } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -157,6 +157,7 @@ const navItems = [
   { name: 'AdminAlerts',        label: 'התראות',        icon: Bell,        guestAllowed: false, adminOnly: true },
   { name: 'AdminAuditLog',     label: 'יומן פעולות',   icon: ClipboardList, guestAllowed: false, adminOnly: true },
   { name: 'AdminHealth',       label: 'בריאות מערכת',  icon: HeartPulse,    guestAllowed: false, adminOnly: true },
+  { name: 'AdminAnalytics',   label: 'אנליטיקה',      icon: BarChart3,     guestAllowed: false, adminOnly: true },
   { name: 'EmailCenter',        label: 'מיילים',        icon: Mail,        guestAllowed: false, adminOnly: true },
   { name: 'AdminAiSettings',    label: 'הגדרות AI',     icon: Sparkles,    guestAllowed: false, adminOnly: true },
   { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase, guestAllowed: false, adminOnly: true },

@@ -35,6 +35,8 @@ RETURNS TABLE (
   vehicles_shared      integer,
   documents_total      integer,
   members_total        integer,
+  has_business         boolean,
+  is_driver            boolean,
   activity_status      text
 )
 LANGUAGE plpgsql
@@ -97,6 +99,19 @@ BEGIN
     JOIN public.account_members m2 ON m2.account_id = mr.account_id
     WHERE mr.is_owner = true
     GROUP BY mr.user_id
+  ),
+  -- Does the user belong to any business workspace?
+  business_check AS (
+    SELECT DISTINCT am.user_id
+    FROM public.account_members am
+    JOIN public.accounts a ON a.id = am.account_id
+    WHERE a.type = 'business' AND am.status = 'פעיל'
+  ),
+  -- Does the user have a driver role in any workspace?
+  driver_check AS (
+    SELECT DISTINCT am.user_id
+    FROM public.account_members am
+    WHERE am.role = 'driver' AND am.status = 'פעיל'
   )
   SELECT
     u.id                                                              AS user_id,
@@ -115,6 +130,8 @@ BEGIN
     COALESCE(vc.shared, 0)::integer                                   AS vehicles_shared,
     COALESCE(dc.c,      0)::integer                                   AS documents_total,
     COALESCE(mc.c,      0)::integer                                   AS members_total,
+    (bc.user_id IS NOT NULL)                                           AS has_business,
+    (drc.user_id IS NOT NULL)                                          AS is_driver,
     CASE
       WHEN u.last_sign_in_at IS NULL                              THEN 'never'
       WHEN u.last_sign_in_at >= now() - interval '7 days'         THEN 'active_7d'
@@ -127,6 +144,8 @@ BEGIN
   LEFT JOIN vehicle_counts        vc ON vc.user_id = u.id
   LEFT JOIN doc_counts            dc ON dc.user_id = u.id
   LEFT JOIN member_counts         mc ON mc.user_id = u.id
+  LEFT JOIN business_check        bc ON bc.user_id = u.id
+  LEFT JOIN driver_check         drc ON drc.user_id = u.id
   ORDER BY u.created_at DESC;
 END;
 $$;

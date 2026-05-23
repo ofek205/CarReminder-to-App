@@ -17,7 +17,7 @@ import { he } from 'date-fns/locale';
 import {
   X, Mail, Phone, Calendar, Truck, FileText, Users,
   Activity, Wrench, Shield, AlertTriangle, Briefcase,
-  Copy, Anchor, TrendingUp, Trash2, UserCog,
+  Copy, Anchor, TrendingUp, Trash2, UserCog, Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -454,6 +454,9 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
         </Card>
       )}
 
+      {/* ADMIN NOTES ────────────────────────────────────────────────── */}
+      <AdminNotes userId={owner?.id} />
+
       {/* ADMIN ACTIONS ─────────────────────────────────────────────── */}
       <AdminActions
         accountId={accountProp?.id}
@@ -841,6 +844,88 @@ function ActivityRow({ item }) {
         </span>
       )}
     </li>
+  );
+}
+
+function AdminNotes({ userId }) {
+  const [note, setNote] = useState('');
+  const [savedNote, setSavedNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from('admin_user_notes')
+      .select('note, updated_at')
+      .eq('user_id', userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const n = data?.note || '';
+        setNote(n);
+        setSavedNote(n);
+        setLastSaved(data?.updated_at || null);
+        setLoaded(true);
+      });
+  }, [userId]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase.rpc('admin_set_user_note', {
+      p_user_id: userId,
+      p_note: note,
+    });
+    setSaving(false);
+    if (error) {
+      toast.error('שגיאה בשמירת ההערה');
+    } else {
+      setSavedNote(note);
+      setLastSaved(new Date().toISOString());
+      toast.success('ההערה נשמרה');
+    }
+  };
+
+  if (!userId) return null;
+
+  const isDirty = loaded && note !== savedNote;
+
+  return (
+    <Card style={{ borderRight: '3px solid #F59E0B' }} className="p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Pencil className="w-3.5 h-3.5" style={{ color: '#F59E0B' }} />
+        <span className="text-[11px] font-bold" style={{ color: '#92400E' }}>הערות אדמין</span>
+      </div>
+      {!loaded ? (
+        <div className="h-16 flex items-center justify-center"><LoadingDot /></div>
+      ) : (
+        <>
+          <textarea
+            className="w-full text-xs border rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-amber-300"
+            rows={3}
+            placeholder="הוסף הערה על המשתמש..."
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            dir="rtl"
+          />
+          <div className="flex items-center justify-between mt-1.5">
+            <div className="text-[10px] text-gray-400">
+              {lastSaved && `עודכן ${fmtRelative(lastSaved)}`}
+            </div>
+            {isDirty && (
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition"
+                style={{ background: '#FEF3C7', color: '#92400E' }}
+              >
+                {saving ? 'שומר...' : 'שמור'}
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </Card>
   );
 }
 
