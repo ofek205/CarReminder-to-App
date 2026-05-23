@@ -10,10 +10,11 @@
  * this module is purely visual / navigational.
  */
 
-import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck } from 'lucide-react';
+import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, Mail, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus } from 'lucide-react';
 
 const ACTION_REQUIRED_TYPES = new Set([
   'share_offered',
+  'account_invite_offered',
   'task_assigned',
   'driver_assigned',
   'workspace_member_added',
@@ -188,8 +189,34 @@ export const APP_NOTIF_CONFIG = {
       ? `/Community?post=${encodeURIComponent(data.post_id)}`
       : '/Community',
   },
-  // Fallback for any new type we haven't classified yet — the row
-  // still renders but with neutral chrome.
+  admin_message: {
+    icon: Mail,
+    bg: '#DBEAFE',
+    iconColor: '#1D4ED8',
+    iconBg: '#1D4ED8',
+    buildHref: () => null,
+  },
+  account_invite_offered: {
+    icon: UserPlus,
+    bg: '#ECFDF5',
+    iconColor: '#059669',
+    iconBg: '#059669',
+    buildHref: () => '/AccountSettings',
+  },
+  account_invite_accepted: {
+    icon: Check,
+    bg: '#F0FDF4',
+    iconColor: '#16A34A',
+    iconBg: '#16A34A',
+    buildHref: () => '/AccountSettings',
+  },
+  account_invite_declined: {
+    icon: X,
+    bg: '#FEF2F2',
+    iconColor: '#DC2626',
+    iconBg: '#DC2626',
+    buildHref: () => '/AccountSettings',
+  },
   _default: {
     icon: Bell,
     bg: '#F9FAFB',

@@ -231,7 +231,7 @@ function AuthUserProfile({ embedded = false }) {
   // scan gate is off, the "סרוק רישיון נהיגה (AI)" button renders
   // disabled with a "כרגע לא זמין" badge instead of opening a wizard
   // whose only outcome would be the AiScanUnavailableDialog.
-  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  const [aiScanAllowed, setAiScanAllowed] = useState(false);
   useEffect(() => {
     let cancelled = false;
     isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });

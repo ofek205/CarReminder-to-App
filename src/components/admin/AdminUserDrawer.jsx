@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/business/system';
+import { buildEmailHtml, escapeHtml } from '@/lib/emailTemplates';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 
 // Format an ILS amount with no decimals — same convention as /Reports.
@@ -458,7 +459,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
       <AdminNotes userId={owner?.id} />
 
       {/* SEND EMAIL ────────────────────────────────────────────────── */}
-      <SendEmailForm email={owner?.email} />
+      <SendEmailForm email={owner?.email} userId={owner?.id} />
 
       {/* ADMIN ACTIONS ─────────────────────────────────────────────── */}
       <AdminActions
@@ -932,7 +933,7 @@ function AdminNotes({ userId }) {
   );
 }
 
-function SendEmailForm({ email }) {
+function SendEmailForm({ email, userId }) {
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -946,13 +947,20 @@ function SendEmailForm({ email }) {
     if (!canSend) return;
     setSending(true);
     try {
-      const html = body.replace(/\n/g, '<br/>');
+      const bodyHtml = `<p style="font-size:15px;line-height:1.75;color:#1F2937;margin:0">${escapeHtml(body).replace(/\n/g, '<br/>')}</p>`;
+      const html = buildEmailHtml({
+        preheader: subject.trim(),
+        title: subject.trim(),
+        bodyHtml,
+        footerNote: 'הודעה זו נשלחה אליך מצוות Car Reminder',
+      });
       const { error } = await supabase.functions.invoke('send-email', {
         body: {
           to: email,
           subject: subject.trim(),
           html,
           notification_key: 'admin_direct',
+          recipient_user_id: userId || undefined,
         },
       });
       if (error) throw error;

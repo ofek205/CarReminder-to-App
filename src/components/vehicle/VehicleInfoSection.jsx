@@ -54,7 +54,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
   // Mirror of app_config.scan_extraction_enabled. Defaults TRUE during
   // the load window so users on slow networks don't see the AI button
   // flash in-out. Refreshed every time the dialog opens.
-  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  const [aiScanAllowed, setAiScanAllowed] = useState(false);
   const [error, setError] = useState('');
   const { isGuest, updateGuestVehicle, addGuestDocument } = useAuth();
   // Active-workspace account so the renewal document is filed under

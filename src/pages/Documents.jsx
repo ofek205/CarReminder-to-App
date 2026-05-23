@@ -127,7 +127,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
   // banner inside the upload dialog while the global gate is off so
   // users don't see a "סרוק" button whose only outcome would be the
   // AiScanUnavailableDialog.
-  const [aiScanAllowed, setAiScanAllowed] = useState(true);
+  const [aiScanAllowed, setAiScanAllowed] = useState(false);
   useEffect(() => {
     let cancelled = false;
     isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
@@ -395,7 +395,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-right">{isGuest ? 'הוסף מסמך' : 'סרוק / העלה מסמך'}</DialogTitle>
+          <DialogTitle className="text-right">{isGuest ? 'הוסף מסמך' : (aiScanAllowed ? 'סרוק / העלה מסמך' : 'העלה מסמך')}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4" dir="rtl">
@@ -1151,6 +1151,7 @@ function AuthDocuments({ vehicleIdParam }) {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [openingDocId, setOpeningDocId] = useState(null);
+  const [aiScanOn, setAiScanOn] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -1160,6 +1161,7 @@ function AuthDocuments({ vehicleIdParam }) {
       setUserId(user.id);
     }
     init();
+    isAiScanEnabled().then(v => setAiScanOn(!!v));
   }, []);
 
   // Driver assignments — used to scope both the documents query and
@@ -1404,7 +1406,7 @@ function AuthDocuments({ vehicleIdParam }) {
         actions={canEdit(role) && (
           <Button onClick={() => setShowAdd(true)} className="gap-2 text-xs sm:text-sm rounded-2xl font-bold" style={{ background: '#FFBF00', color: '#2D5233' }}>
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">סרוק / העלה מסמך</span>
+            <span className="hidden sm:inline">{aiScanOn ? 'סרוק / העלה מסמך' : 'העלה מסמך'}</span>
             <span className="sm:hidden">העלה</span>
           </Button>
         )}
