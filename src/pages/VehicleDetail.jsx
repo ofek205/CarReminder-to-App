@@ -75,6 +75,8 @@ import { daysUntil } from '../components/shared/ReminderEngine';
 import { getDateStatus, getVehicleLabels, usesHours } from '../components/shared/DateStatusUtils';
 import StatusBadge from '../components/shared/StatusBadge';
 import LicensePlate from '../components/shared/LicensePlate';
+import DisabilityPermitBadge from '../components/shared/DisabilityPermitBadge';
+import useDisabilityPermit from '@/hooks/useDisabilityPermit';
 
 
 //  Inline Reminders Section 
@@ -479,6 +481,8 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   });
 
   const vehicle = vehicles[0];
+  const isVesselV = vehicle ? isVesselType(vehicle.vehicle_type, vehicle.nickname) : false;
+  const { data: disabilityPermit } = useDisabilityPermit(vehicle?.license_plate, { enabled: !!vehicle && !isVesselV && !vehicle._isDemo });
 
   // Hash-based deep link → scroll to a named section once the vehicle
   // has loaded. Used by /MyExpenses to land the user on the maintenance
@@ -762,6 +766,9 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         <div className="absolute top-4 left-4 z-20 flex flex-col items-start gap-2">
           {vehicle.license_plate && !isVessel && (
             <LicensePlate value={vehicle.license_plate} size="sm" showCopy />
+          )}
+          {disabilityPermit && (
+            <DisabilityPermitBadge type={disabilityPermit.type} />
           )}
           <div className="flex items-center gap-2">
             {vehicleIsOwned && !isViewOnly(role) && isBusiness && !driverReadOnly && (

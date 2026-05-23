@@ -11,6 +11,8 @@ import VehicleImage, { hasVehiclePhoto } from '../shared/VehicleImage';
 import { getDateStatus, usesKm, usesHours, getVehicleLabels, isVessel } from '../shared/DateStatusUtils';
 import StatusBadge from '../shared/StatusBadge';
 import LicensePlate from '../shared/LicensePlate';
+import DisabilityPermitBadge from '../shared/DisabilityPermitBadge';
+import useDisabilityPermit from '@/hooks/useDisabilityPermit';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '../shared/GuestContext';
 import {
@@ -186,6 +188,7 @@ function VehicleCardEnhanced({ vehicle }) {
 
   // Missing fields detection
   const isVesselV = isVessel(vehicle.vehicle_type, vehicle.nickname);
+  const { data: disabilityPermit } = useDisabilityPermit(vehicle.license_plate, { enabled: !isVesselV && !vehicle._isDemo });
   // Missing fields. only truly essential ones, adapted per vehicle type
   const missingFields = [];
   if (!vehicle.test_due_date) missingFields.push(labels.testWord);
@@ -316,6 +319,9 @@ function VehicleCardEnhanced({ vehicle }) {
             <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
               {vehicle.license_plate && (
                 <LicensePlate value={vehicle.license_plate} size="sm" />
+              )}
+              {disabilityPermit && (
+                <DisabilityPermitBadge type={disabilityPermit.type} variant="icon" />
               )}
               {isKm && vehicle.current_km && (
                 <span className="text-[10px] font-medium" style={{ color: C.muted }}>
