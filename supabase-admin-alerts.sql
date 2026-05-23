@@ -245,14 +245,17 @@ GRANT EXECUTE ON FUNCTION public.admin_acknowledge_alert(uuid) TO authenticated;
 -- ── 4. admin_alert_count_unacknowledged() — for nav red-dot ───────────────
 CREATE OR REPLACE FUNCTION public.admin_alert_count_unacknowledged()
 RETURNS integer
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT COUNT(*)::integer
-  FROM public.admin_alerts
-  WHERE acknowledged_at IS NULL;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'admin_only' USING ERRCODE = '42501';
+  END IF;
+  RETURN (SELECT COUNT(*)::integer FROM public.admin_alerts WHERE acknowledged_at IS NULL);
+END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.admin_alert_count_unacknowledged() TO authenticated;

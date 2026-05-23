@@ -20,6 +20,16 @@ const MAX_LOCAL = 50;
 const MAX_QUEUE = 100;
 const FLUSH_DEBOUNCE_MS = 2000;
 
+// Known-benign errors that should not be logged to the bugs table.
+// Each pattern is a real noise source observed in production telemetry:
+//   • Stale chunks: deploy changes chunk hashes; cached HTML tries to
+//     fetch the old hash and fails. Auto-reload in main.jsx recovers.
+//   • Supabase lock: auth token refresh contention between tabs/requests.
+//     The "stolen" request retries internally; session always works.
+//   • WebKit messageHandlers: Capacitor native bridge probed on a
+//     non-native context (regular browser, older WebView, FB in-app).
+const NOISE_RE = /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError|error loading dynamically imported module|Lock was stolen|was released because another request stole it|webkit\.messageHandlers/i;
+
 let flushTimer = null;
 
 function safeParse(str, fallback = []) {
@@ -108,6 +118,9 @@ function readCurrentUserId() {
  * @param {object} [extra]. free-form context (page, action, etc.)
  */
 export function reportError(type, error, extra) {
+  const msg = error?.message || String(error);
+  if (NOISE_RE.test(msg)) return;
+
   const entry = {
     type,
     message: (error?.message || String(error)).slice(0, 500),
