@@ -427,43 +427,10 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
     onClose();
   };
 
-  // -- file upload ---------------------------------------------------
-  const handleFile = async (file, { thenScan } = {}) => {
-    if (!file) return;
-    const validation = validateUploadFile(file, 'doc', 10);
-    if (!validation.ok) { setScanError(validation.error); return; }
-
-    setScanError('');
-    setUploading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('no user');
-      const { file_url, storage_path } = await uploadScanFile({ file, userId: user.id });
-
-      // If the user is replacing an EXISTING receipt, queue the previous
-      // one for cleanup once the row is saved. We don't delete it yet
-      // because if the user cancels, the original is still referenced.
-      // Easiest correct approach: if didChangeReceipt was already true
-      // (already an orphan from this session), nuke it immediately.
-      if (newOrphanPathRef.current) {
-        deleteFile(newOrphanPathRef.current).catch(() => {});
-      }
-      newOrphanPathRef.current = storage_path;
-      setReceiptUrl(file_url);
-      setReceiptPath(storage_path);
-      setDidChangeReceipt(true);
-
-      if (thenScan) {
-        await runAiScan(file_url);
-      }
-    } catch {
-      setScanError('שגיאה בהעלאת הקובץ. נסה שנית.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
   // -- AI scan -------------------------------------------------------
+  // Declared before handleFile so the auto-scan path (`thenScan: true`)
+  // can call it without TDZ — both are const arrow functions inside
+  // the component.
   const runAiScan = async (urlOverride) => {
     const url = urlOverride || receiptUrl;
     if (!url) { setScanError('יש להעלות חשבונית קודם'); return; }
@@ -497,11 +464,47 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
       if (out.vendor && !note) setNote(out.vendor);
       toast.success('הסריקה הושלמה — בדוק את הפרטים והוסף');
     } catch (err) {
-       
+
       console.error('receipt scan failed:', err);
       setScanError('הסריקה לא הצליחה — מלא את הפרטים ידנית');
     } finally {
       setScanning(false);
+    }
+  };
+
+  // -- file upload ---------------------------------------------------
+  const handleFile = async (file, { thenScan } = {}) => {
+    if (!file) return;
+    const validation = validateUploadFile(file, 'doc', 10);
+    if (!validation.ok) { setScanError(validation.error); return; }
+
+    setScanError('');
+    setUploading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('no user');
+      const { file_url, storage_path } = await uploadScanFile({ file, userId: user.id });
+
+      // If the user is replacing an EXISTING receipt, queue the previous
+      // one for cleanup once the row is saved. We don't delete it yet
+      // because if the user cancels, the original is still referenced.
+      // Easiest correct approach: if didChangeReceipt was already true
+      // (already an orphan from this session), nuke it immediately.
+      if (newOrphanPathRef.current) {
+        deleteFile(newOrphanPathRef.current).catch(() => {});
+      }
+      newOrphanPathRef.current = storage_path;
+      setReceiptUrl(file_url);
+      setReceiptPath(storage_path);
+      setDidChangeReceipt(true);
+
+      if (thenScan) {
+        await runAiScan(file_url);
+      }
+    } catch {
+      setScanError('שגיאה בהעלאת הקובץ. נסה שנית.');
+    } finally {
+      setUploading(false);
     }
   };
 

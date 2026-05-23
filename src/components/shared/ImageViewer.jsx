@@ -19,6 +19,9 @@ export default function ImageViewer({ images = [], initialIndex = 0, open, onClo
 
   useEffect(() => { if (open) { setIndex(initialIndex); setZoom(1); } }, [open, initialIndex]);
 
+  const prev = () => setIndex(i => (i - 1 + images.length) % images.length);
+  const next = () => setIndex(i => (i + 1) % images.length);
+
   useEffect(() => {
     if (!open) return;
     const handleKey = (e) => {
@@ -34,9 +37,6 @@ export default function ImageViewer({ images = [], initialIndex = 0, open, onClo
 
   const current = images[index];
   const hasMultiple = images.length > 1;
-
-  const prev = () => setIndex(i => (i - 1 + images.length) % images.length);
-  const next = () => setIndex(i => (i + 1) % images.length);
 
   const handleDownload = async () => {
     try {

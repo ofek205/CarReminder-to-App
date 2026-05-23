@@ -156,7 +156,50 @@ function AuthInput({ icon: Icon, label, type: initialType, value, onChange, plac
   );
 }
 
-//  Main component 
+// Pick the redirect base for transactional emails (password reset,
+// magic link, signup confirm). On native we hard-code the prod URL
+// because Capacitor's WebView origin is capacitor://localhost and that
+// won't survive a round-trip to Supabase. On web we prefer the
+// explicit VITE_PUBLIC_APP_URL (set per environment) so staging emails
+// redirect back to staging and prod back to prod — even if the user
+// happened to land on a one-off preview URL. window.location.origin
+// is the last-resort fallback for local dev where the env var is unset.
+function getEmailRedirectBase() {
+  if (isNative) return 'https://car-reminder.app';
+  return import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
+}
+
+// Map common Supabase auth errors to user-friendly Hebrew. Anything
+// unrecognized falls through to a generic Hebrew message rather than
+// surfacing raw English text.
+//
+// SECURITY: login-side errors are intentionally collapsed to a single
+// message — both "user not found" and "invalid login credentials" map
+// to the same Hebrew string. Distinct messages would let an attacker
+// enumerate which emails belong to real users. See audit finding H-2
+// (2026-05-12). The signup "already registered" message is left as-is
+// because the UX guidance ("try to sign in") materially helps real
+// users, and signup enumeration is mitigated by Supabase's per-IP
+// rate limit + the verification email gate.
+function localizeAuthError(msg) {
+  const m = (msg || '').toLowerCase();
+  if (m.includes('rate limit') || m.includes('too many') || m.includes('for security purposes'))
+    return 'נשלחו יותר מדי אימיילים. נסה/י שוב בעוד מספר דקות.';
+  if (m.includes('redirect') && (m.includes('not allowed') || m.includes('invalid')))
+    return 'שגיאת תצורה זמנית. אם הבעיה ממשיכה, פנה/י לתמיכה.';
+  if (
+    m.includes('user not found') ||
+    m.includes('not registered') ||
+    m.includes('no user') ||
+    m.includes('invalid login credentials')
+  ) return 'אימייל או סיסמה שגויים. אם הבעיה חוזרת — אפס/י סיסמה.';
+  if (m.includes('already registered')) return 'האימייל הזה כבר רשום. נסה להתחבר.';
+  if (m.includes('network') || m.includes('fetch'))
+    return 'בעיית רשת. בדוק/י את החיבור ונסה/י שוב.';
+  return 'שליחת האימייל נכשלה. נסה/י שוב או פנה/י לתמיכה.';
+}
+
+//  Main component
 export default function AuthPage() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth();
@@ -711,45 +754,8 @@ export default function AuthPage() {
   // Native: hard-pin to prod URL because the WKWebView origin is
   // `https://localhost`, which is not on Supabase's auth redirect
   // allowlist. Web: prefer the env-injected canonical URL (Vercel sets
-  // VITE_PUBLIC_APP_URL per environment) so staging emails redirect
-  // back to staging and prod back to prod — even if the user happened
-  // to land on a one-off preview URL. window.location.origin is the
-  // last-resort fallback for local dev where the env var is unset.
-  const getEmailRedirectBase = () => {
-    if (isNative) return 'https://car-reminder.app';
-    return import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
-  };
-
-  // Map common Supabase auth errors to user-friendly Hebrew. Anything
-  // unrecognized falls through to a generic Hebrew message rather than
-  // surfacing raw English text.
-  //
-  // SECURITY: login-side errors are intentionally collapsed to a single
-  // message — both "user not found" and "invalid login credentials" map
-  // to the same Hebrew string. Distinct messages would let an attacker
-  // enumerate which emails belong to real users. See audit finding H-2
-  // (2026-05-12). The signup "already registered" message is left as-is
-  // because the UX guidance ("try to sign in") materially helps real
-  // users, and signup enumeration is mitigated by Supabase's per-IP
-  // rate limit + the verification email gate.
-  const localizeAuthError = (msg) => {
-    const m = (msg || '').toLowerCase();
-    if (m.includes('rate limit') || m.includes('too many') || m.includes('for security purposes'))
-      return 'נשלחו יותר מדי אימיילים. נסה/י שוב בעוד מספר דקות.';
-    if (m.includes('redirect') && (m.includes('not allowed') || m.includes('invalid')))
-      return 'שגיאת תצורה זמנית. אם הבעיה ממשיכה, פנה/י לתמיכה.';
-    // Collapsed: same message for "no such user" and "wrong password".
-    if (
-      m.includes('user not found') ||
-      m.includes('not registered') ||
-      m.includes('no user') ||
-      m.includes('invalid login credentials')
-    ) return 'אימייל או סיסמה שגויים. אם הבעיה חוזרת — אפס/י סיסמה.';
-    if (m.includes('already registered')) return 'האימייל הזה כבר רשום. נסה להתחבר.';
-    if (m.includes('network') || m.includes('fetch'))
-      return 'בעיית רשת. בדוק/י את החיבור ונסה/י שוב.';
-    return 'שליחת האימייל נכשלה. נסה/י שוב או פנה/י לתמיכה.';
-  };
+  // getEmailRedirectBase + localizeAuthError were hoisted to module scope
+  // above the component (they have no dependency on hooks or props).
 
   const handleSubmit = async (e) => {
     e.preventDefault();

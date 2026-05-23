@@ -9,24 +9,28 @@ function getDeviceDefault() {
   return isMobile ? 0.7 : 0.9;
 }
 
+// Pure DOM mutation, no React state — extracted to module scope so
+// the useEffect mount and the in-component applyScale can both reach
+// it without lexical-order acrobatics (and without TDZ).
+//
+// We only set the CSS variable; we used to also do
+//   document.documentElement.style.fontSize = `${scale * 16}px`
+// which pinned the html root to a fixed pixel value and, as a side
+// effect, completely blocked the OS/browser font-size accessibility
+// setting — users who bumped their Android font size up saw the rest
+// of the UI unchanged while their WebView's text zoom still enlarged
+// certain elements, so layout "lost its proportions" (v2.6.1 bug).
+//
+// Keeping only the --font-scale variable still lets our in-app slider
+// control size (via calc(1rem * var(--font-scale)) in globals.css)
+// while letting the OS control the rem baseline.
+function applyFontScale(scale) {
+  document.documentElement.style.setProperty('--font-scale', scale);
+}
+
 export function FontScaleProvider({ children }) {
   const [fontScale, setFontScale] = useState(1.0);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Load from localStorage first (instant)
-    const saved = localStorage.getItem('font_scale');
-    if (saved) {
-      const scale = parseFloat(saved);
-      if (FONT_SCALES.includes(scale)) {
-        applyFontScale(scale);
-        setFontScale(scale);
-      }
-    }
-
-    // Then try to load from user preferences
-    loadFromUser();
-  }, []);
 
   const loadFromUser = async () => {
     try {
@@ -44,23 +48,20 @@ export function FontScaleProvider({ children }) {
     }
   };
 
-  const applyFontScale = (scale) => {
-    // Only set the CSS variable. We used to also do
-    //   document.documentElement.style.fontSize = `${scale * 16}px`
-    // which pinned the html root to a fixed pixel value and, as a side
-    // effect, completely blocked the OS/browser font-size accessibility
-    // setting — users who bumped their Android font size up saw the
-    // rest of the UI unchanged while their WebView's text zoom still
-    // enlarged certain elements, so layout "lost its proportions"
-    // (user bug report, v2.6.1).
-    //
-    // Keeping only the --font-scale variable still lets our in-app
-    // slider control size (via calc(1rem * var(--font-scale)) in
-    // globals.css) while letting the OS control the rem baseline.
-    // Result: OS font scaling works AND everything scales together,
-    // so side proportions stay intact.
-    document.documentElement.style.setProperty('--font-scale', scale);
-  };
+  useEffect(() => {
+    // Load from localStorage first (instant)
+    const saved = localStorage.getItem('font_scale');
+    if (saved) {
+      const scale = parseFloat(saved);
+      if (FONT_SCALES.includes(scale)) {
+        applyFontScale(scale);
+        setFontScale(scale);
+      }
+    }
+
+    // Then try to load from user preferences
+    loadFromUser();
+  }, []);
 
   const applyScale = async (newScale) => {
     if (!FONT_SCALES.includes(newScale)) return;

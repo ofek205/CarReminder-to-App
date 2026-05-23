@@ -172,6 +172,77 @@ export default function ExpenseFormDialog({
     onClose?.();
   };
 
+  // Whether the form already has user-entered data that an AI scan
+  // would overwrite. Used to decide whether to ask for confirmation
+  // before re-running scan.
+  const hasFormData = () => {
+    const amt = Number(amount);
+    return (Number.isFinite(amt) && amt > 0)
+        || !!title.trim()
+        || !!vendor.trim();
+  };
+
+  const _runAiScanInternal = async (urlOverride) => {
+    const url = urlOverride || receiptUrl;
+    if (!url) { setScanError('צריך להעלות חשבונית לפני סריקה.'); return; }
+    setScanning(true);
+    setScanError('');
+    try {
+      const enumCodes = MANUAL_EXPENSE_CATEGORIES.map(c => c.code);
+      const schema = {
+        type: 'object',
+        properties: {
+          amount: { type: 'number', description: 'הסכום הסופי לתשלום בשקלים. אם המסמך באנגלית: שדה total.' },
+          date:   { type: 'string', description: 'תאריך החשבונית בפורמט YYYY-MM-DD. אם DD/MM/YYYY: המר.' },
+          vendor: { type: 'string', description: 'שם בית העסק / המוסך / תחנת הדלק / סוכנות הביטוח.' },
+          title:  { type: 'string', description: 'תיאור קצר של ההוצאה (1-4 מילים), למשל "תדלוק", "טסט שנתי", "ביטוח חובה 2026". אם לא ברור: השאר ריק.' },
+          license_plate: { type: 'string', description: 'מספר רישוי אם מופיע בחשבונית (ספרות בלבד, ללא מקפים). אם אין: השאר ריק.' },
+          category: { type: 'string', enum: enumCodes,
+                      description: 'אחת מהקטגוריות. fuel=דלק, inspection=טסט, license_fee=אגרת רישוי, insurance_mtpl=ביטוח חובה, insurance_comp=ביטוח מקיף, insurance_3p=ביטוח צד ג׳, parking=חניה, wash=שטיפה, tires=צמיגים, toll=כביש אגרה, towing=גרירה, accessories=אביזרים, general=כללי, other=אחר.' },
+        },
+      };
+      const result = await extractDataFromUploadedFile({
+        file_url: url,
+        json_schema: schema,
+        instructions: 'חלץ פרטי חשבונית כספית. החזר רק ערכים שמופיעים בבירור במסמך. אם שדה לא ברור: השאר ריק.',
+      });
+      if (result?.status !== 'success' || !result.output) {
+        setScanError('לא הצלחנו לקרוא את כל הפרטים, אפשר להשלים ידנית.');
+        return;
+      }
+      const out = result.output;
+
+      let filledAny = false;
+      if (out.amount && Number(out.amount) > 0)             { setAmount(String(out.amount)); filledAny = true; }
+      if (out.date && /^\d{4}-\d{2}-\d{2}$/.test(out.date)) { setDate(out.date); filledAny = true; }
+      if (out.category && enumCodes.includes(out.category)) { setCategory(out.category); filledAny = true; }
+      if (out.vendor) { setVendor(String(out.vendor).slice(0, 80)); filledAny = true; }
+      if (out.title)  { setTitle(String(out.title).slice(0, 80));   filledAny = true; }
+
+      if (!filledAny) {
+        setScanError('לא הצלחנו לקרוא את כל הפרטים, אפשר להשלים ידנית.');
+        return;
+      }
+
+      toast.success('הסריקה הושלמה. בדוק את הפרטים והוסף.');
+    } catch (err) {
+      console.error('receipt scan failed:', err);
+      setScanError('לא הצלחנו לקרוא את כל הפרטים, אפשר להשלים ידנית.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // Public entry point — checks if confirmation is needed, defers to
+  // _runAiScanInternal if not.
+  const runAiScan = async (urlOverride) => {
+    if (hasFormData()) {
+      setConfirmOverwrite(true);
+      return;
+    }
+    return _runAiScanInternal(urlOverride);
+  };
+
   // ── File upload + optional AI scan ─────────────────────────────────
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -214,90 +285,6 @@ export default function ExpenseFormDialog({
     setReceiptUrl('');
     setReceiptPath('');
     setDidChangeReceipt(true);
-  };
-
-  // Whether the form already has user-entered data that an AI scan
-  // would overwrite. Used to decide whether to ask for confirmation
-  // before re-running scan.
-  const hasFormData = () => {
-    const amt = Number(amount);
-    return (Number.isFinite(amt) && amt > 0)
-        || !!title.trim()
-        || !!vendor.trim();
-  };
-
-  // Public entry point — checks if confirmation is needed, defers to
-  // _runAiScanInternal if not.
-  const runAiScan = async (urlOverride) => {
-    if (hasFormData()) {
-      setConfirmOverwrite(true);
-      return;
-    }
-    return _runAiScanInternal(urlOverride);
-  };
-
-  const _runAiScanInternal = async (urlOverride) => {
-    const url = urlOverride || receiptUrl;
-    if (!url) { setScanError('צריך להעלות חשבונית לפני סריקה.'); return; }
-    setScanning(true);
-    setScanError('');
-    try {
-      const enumCodes = MANUAL_EXPENSE_CATEGORIES.map(c => c.code);
-      const schema = {
-        type: 'object',
-        properties: {
-          amount: { type: 'number', description: 'הסכום הסופי לתשלום בשקלים. אם המסמך באנגלית: שדה total.' },
-          date:   { type: 'string', description: 'תאריך החשבונית בפורמט YYYY-MM-DD. אם DD/MM/YYYY: המר.' },
-          vendor: { type: 'string', description: 'שם בית העסק / המוסך / תחנת הדלק / סוכנות הביטוח.' },
-          title:  { type: 'string', description: 'תיאור קצר של ההוצאה (1-4 מילים), למשל "תדלוק", "טסט שנתי", "ביטוח חובה 2026". אם לא ברור: השאר ריק.' },
-          license_plate: { type: 'string', description: 'מספר רישוי אם מופיע בחשבונית (ספרות בלבד, ללא מקפים). אם אין: השאר ריק.' },
-          category: { type: 'string', enum: enumCodes,
-                      description: 'אחת מהקטגוריות. fuel=דלק, inspection=טסט, license_fee=אגרת רישוי, insurance_mtpl=ביטוח חובה, insurance_comp=ביטוח מקיף, insurance_3p=ביטוח צד ג׳, parking=חניה, wash=שטיפה, tires=צמיגים, toll=כביש אגרה, towing=גרירה, accessories=אביזרים, general=כללי, other=אחר.' },
-        },
-      };
-      const result = await extractDataFromUploadedFile({
-        file_url: url,
-        json_schema: schema,
-        instructions: 'חלץ פרטי חשבונית כספית. החזר רק ערכים שמופיעים בבירור במסמך. אם שדה לא ברור: השאר ריק.',
-      });
-      if (result?.status !== 'success' || !result.output) {
-        // Service-level failure (network, AI provider, etc). Treat
-        // as a soft "couldn't read" — never expose the technical
-        // reason to the user.
-        setScanError('לא הצלחנו לקרוא את כל הפרטים, אפשר להשלים ידנית.');
-        return;
-      }
-      const out = result.output;
-
-      // Apply only fields that the AI confidently extracted; leave
-      // the rest untouched so a partial scan still helps. Overwrite
-      // semantics are uniform across all fields — the user already
-      // confirmed (via confirmOverwrite) if there was prior input,
-      // so we don't second-guess per-field.
-      let filledAny = false;
-      if (out.amount && Number(out.amount) > 0)             { setAmount(String(out.amount)); filledAny = true; }
-      if (out.date && /^\d{4}-\d{2}-\d{2}$/.test(out.date)) { setDate(out.date); filledAny = true; }
-      if (out.category && enumCodes.includes(out.category)) { setCategory(out.category); filledAny = true; }
-      if (out.vendor) { setVendor(String(out.vendor).slice(0, 80)); filledAny = true; }
-      if (out.title)  { setTitle(String(out.title).slice(0, 80));   filledAny = true; }
-
-      if (!filledAny) {
-        // Provider returned success but every field was empty.
-        setScanError('לא הצלחנו לקרוא את כל הפרטים, אפשר להשלים ידנית.');
-        return;
-      }
-
-      // license_plate is informational for now — surfaced as a hint in
-      // the title if no title was extracted (keeps things simple; we
-      // don't auto-switch the selected vehicle).
-      toast.success('הסריקה הושלמה. בדוק את הפרטים והוסף.');
-    } catch (err) {
-      // Any unexpected error → friendly text, no technical detail to user.
-      console.error('receipt scan failed:', err);
-      setScanError('לא הצלחנו לקרוא את כל הפרטים, אפשר להשלים ידנית.');
-    } finally {
-      setScanning(false);
-    }
   };
 
   // ── Validation + Submit ──────────────────────────────────────────────

@@ -55,6 +55,11 @@ export default function OnboardingTour({ onComplete }) {
     return () => { document.body.style.overflow = ''; };
   }, []);
 
+  const finish = () => {
+    try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch {}
+    hapticFeedback('medium');
+    onComplete?.();
+  };
   const next = () => {
     hapticFeedback('light');
     if (slide < total - 1) setSlide(s => s + 1);
@@ -63,11 +68,6 @@ export default function OnboardingTour({ onComplete }) {
   const prev = () => {
     hapticFeedback('light');
     if (slide > 0) setSlide(s => s - 1);
-  };
-  const finish = () => {
-    try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch {}
-    hapticFeedback('medium');
-    onComplete?.();
   };
   const skip = () => {
     try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch {}
