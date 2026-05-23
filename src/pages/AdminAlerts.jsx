@@ -42,6 +42,8 @@ import { format, formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { C } from "@/lib/designTokens";
+import { buildEmailHtml, escapeHtml } from "@/lib/emailTemplates";
+import { Send } from "lucide-react";
 
 //  Kind / severity visual mapping. Pulls from the project design tokens
 //  (C.error/warn/success) so admin pages stay consistent. New kinds added
@@ -258,6 +260,44 @@ function AlertCard({ alert, onAcknowledge, isAcknowledging }) {
   const Icon = kindMeta.icon;
   const acknowledged = !!alert.acknowledged_at;
 
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replySubject, setReplySubject] = useState("");
+  const [replyBody, setReplyBody] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const contactEmail = alert.context?.email;
+
+  const handleSendReply = async () => {
+    if (!replySubject.trim() || !replyBody.trim() || !contactEmail) return;
+    setSending(true);
+    try {
+      const bodyHtml = `<p style="font-size:15px;line-height:1.75;color:#1F2937;margin:0">${escapeHtml(replyBody).replace(/\n/g, '<br/>')}</p>`;
+      const html = buildEmailHtml({
+        preheader: replySubject.trim(),
+        title: replySubject.trim(),
+        bodyHtml,
+        footerNote: 'הודעה זו נשלחה אליך מצוות Car Reminder בתגובה לפנייתך',
+      });
+      const { error } = await supabase.functions.invoke('send-email', {
+        body: {
+          to: contactEmail,
+          subject: replySubject.trim(),
+          html,
+          notification_key: 'admin_direct',
+        },
+      });
+      if (error) throw error;
+      toast.success(`התגובה נשלחה ל-${contactEmail}`);
+      setReplySubject("");
+      setReplyBody("");
+      setReplyOpen(false);
+    } catch {
+      toast.error("שליחת התגובה נכשלה");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <Card className={`p-4 ${acknowledged ? "opacity-60" : ""}`}>
       <div className="flex items-start gap-3">
@@ -321,20 +361,73 @@ function AlertCard({ alert, onAcknowledge, isAcknowledging }) {
               </pre>
             </details>
           )}
+
+          {contactEmail && replyOpen && (
+            <div className="mt-3 space-y-2 p-3 rounded-xl" style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Mail className="w-3.5 h-3.5" style={{ color: '#3B82F6' }} />
+                <span className="text-[11px] font-bold" style={{ color: '#1E40AF' }}>תגובה ל-{contactEmail}</span>
+              </div>
+              <input
+                className="w-full text-xs border rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                placeholder="נושא"
+                value={replySubject}
+                onChange={(e) => setReplySubject(e.target.value)}
+                dir="rtl"
+              />
+              <textarea
+                className="w-full text-xs border rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-300"
+                rows={3}
+                placeholder="תוכן התגובה..."
+                value={replyBody}
+                onChange={(e) => setReplyBody(e.target.value)}
+                dir="rtl"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setReplyOpen(false)}
+                  className="text-[11px] font-medium px-3 py-1.5 rounded-lg transition text-gray-500 hover:bg-gray-100"
+                >
+                  ביטול
+                </button>
+                <button
+                  onClick={handleSendReply}
+                  disabled={!replySubject.trim() || !replyBody.trim() || sending}
+                  className="text-[11px] font-medium px-3 py-1.5 rounded-lg transition disabled:opacity-40"
+                  style={{ background: '#DBEAFE', color: '#1E40AF' }}
+                >
+                  {sending ? 'שולח...' : 'שלח תגובה'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {!acknowledged && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onAcknowledge}
-            disabled={isAcknowledging}
-            className="shrink-0 gap-1"
-          >
-            <Check className="w-4 h-4" />
-            סמן כטופל
-          </Button>
-        )}
+        <div className="flex flex-col gap-1.5 shrink-0">
+          {contactEmail && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setReplyOpen(!replyOpen)}
+              className="gap-1"
+            >
+              <Send className="w-4 h-4" />
+              שלח מייל
+            </Button>
+          )}
+          {!acknowledged && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onAcknowledge}
+              disabled={isAcknowledging}
+              className="gap-1"
+            >
+              <Check className="w-4 h-4" />
+              סמן כטופל
+            </Button>
+          )}
+        </div>
       </div>
     </Card>
   );
