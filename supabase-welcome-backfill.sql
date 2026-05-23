@@ -49,6 +49,7 @@ BEGIN
       'test@test.com',
       'apple-review@car-reminder.app'
     )
+    AND u.email::text NOT LIKE '%@privaterelay.appleid.com'
     AND NOT EXISTS (
       SELECT 1
       FROM public.email_send_log esl
