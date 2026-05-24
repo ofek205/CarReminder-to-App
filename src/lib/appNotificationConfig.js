@@ -10,7 +10,7 @@
  * this module is purely visual / navigational.
  */
 
-import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, Mail, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus } from 'lucide-react';
+import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, Mail, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus, Download } from 'lucide-react';
 
 const ACTION_REQUIRED_TYPES = new Set([
   'share_offered',
@@ -194,6 +194,13 @@ export const APP_NOTIF_CONFIG = {
     bg: '#DBEAFE',
     iconColor: '#1D4ED8',
     iconBg: '#1D4ED8',
+    buildHref: () => null,
+  },
+  app_update: {
+    icon: Download,
+    bg: '#FEF3C7',
+    iconColor: '#D97706',
+    iconBg: '#D97706',
     buildHref: () => null,
   },
   account_invite_offered: {
