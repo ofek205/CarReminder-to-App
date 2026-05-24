@@ -962,9 +962,13 @@ function LayoutInner({ children }) {
           capacitor.config.ts, so the status bar zone and the
           Capacitor-painted status bar share one continuous color. */}
       <div className="lg:hidden fixed inset-x-0 top-0" style={{
-        paddingTop: 'env(safe-area-inset-top, 0px)',
-        paddingLeft: 'env(safe-area-inset-left, 0px)',
-        paddingRight: 'env(safe-area-inset-right, 0px)',
+        // Use the unified --inset-* vars so on Android (edge-to-edge) the
+        // value matches what MainActivity injected — avoids a 1-2px seam
+        // between the green status-bar paint and the system status-bar
+        // icons. Falls back to env() on iOS / web.
+        paddingTop:   'var(--inset-top,   env(safe-area-inset-top,   0px))',
+        paddingLeft:  'var(--inset-left,  env(safe-area-inset-left,  0px))',
+        paddingRight: 'var(--inset-right, env(safe-area-inset-right, 0px))',
         background: '#2D5233',
         zIndex: 9998,
       }}>
@@ -1043,7 +1047,7 @@ function LayoutInner({ children }) {
             iPhone X+). Use calc so iPhone with home indicator gets full
             clearance, while older devices stay tight. lg+ uses h-0 because
             BottomNav is hidden on lg. */}
-        <div className="h-[calc(60px+var(--cap-nav-bar-height,env(safe-area-inset-bottom,4px)))] lg:h-0 shrink-0" aria-hidden="true" />
+        <div className="h-[calc(60px+var(--inset-bottom,env(safe-area-inset-bottom,4px)))] lg:h-0 shrink-0" aria-hidden="true" />
       </main>
 
       {/* Bottom navigation. mobile only. `sheetOpen` lifts it above the

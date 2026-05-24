@@ -52,14 +52,21 @@ const config: CapacitorConfig = {
       overlaysWebView: false,
     },
     Keyboard: {
-      // 'native' lets iOS/Android shrink the WebView when the on-screen
-      // keyboard opens, so 100dvh / fixed-bottom elements reflow above
-      // the keyboard automatically. The previous 'none' kept the WebView
-      // at full viewport height while the keyboard overlaid the bottom,
-      // hiding inputs and breaking page proportions on every focused
-      // field across the app (AI chat, search, forms).
-      resize: 'native',
-      resizeOnFullScreen: true,
+      // 'none' on Android because MainActivity owns the IME insets via
+      // WindowInsetsCompat (single source of truth — see MainActivity.java).
+      // Letting the plugin also resize the WebView causes double-shrink
+      // (Java padding + plugin resize) which historically produced the
+      // "white screen on input focus" bug.
+      //
+      // On iOS, 'none' is also correct: WKWebView naturally shrinks the
+      // visual viewport when the system keyboard opens, and the existing
+      // `body.keyboard-visible` CSS rule (scoped to html.ios-app) handles
+      // the home-indicator gap.
+      //
+      // The Keyboard plugin still fires keyboardWillShow / keyboardDidShow
+      // events for JS consumers (src/lib/capacitor.js) — only the WebView
+      // resize side-effect is disabled.
+      resize: 'none',
     },
     LocalNotifications: {
       smallIcon: 'ic_notification',

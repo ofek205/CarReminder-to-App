@@ -220,12 +220,23 @@ export async function shareContent({ title, text, url }) {
   } catch { return false; }
 }
 
-//  Keyboard 
+//  Keyboard
+//
+// On Android, MainActivity.java owns the `keyboard-visible` body class
+// via the WindowInsetsCompat listener — it toggles in lockstep with the
+// IME inset dispatch, including animation frames. We deliberately do
+// NOT add JS listeners on Android to avoid two writers fighting over the
+// same class.
+//
+// On iOS, there's no Java pathway, so we keep the JS listeners as the
+// single source of truth for `body.keyboard-visible` (which the
+// `html.ios-app body.keyboard-visible` CSS rule depends on to neutralise
+// the home-indicator padding when the keyboard is up).
 export async function initKeyboard() {
   if (!isNative) return;
+  if (!isIOS) return; // Android handled natively in MainActivity.java
   try {
     const { Keyboard } = await import('@capacitor/keyboard');
-    // On Android, keyboard pushes content up
     Keyboard.addListener('keyboardWillShow', () => {
       document.body.classList.add('keyboard-visible');
     });

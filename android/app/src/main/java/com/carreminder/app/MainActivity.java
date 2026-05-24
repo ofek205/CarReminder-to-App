@@ -1,83 +1,124 @@
 package com.carreminder.app;
 
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.view.View;
-import android.view.WindowManager;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
+/**
+ * Edge-to-edge layout, single source of truth for insets.
+ *
+ * Why edge-to-edge: on Android 16+ (target SDK 36 in this project) the
+ * framework forces edge-to-edge regardless of windowOptOutEdgeToEdgeEnforcement
+ * — that flag is a no-op on API 36. Rather than fight the framework, we
+ * commit fully to edge-to-edge and pipe the real inset values into CSS so
+ * the React layout reflows correctly for status bar, gesture nav bar, and
+ * IME (keyboard).
+ *
+ * Why setBackgroundDrawable(WHITE): BridgeActivity does NOT call
+ * SplashScreen.installSplashScreen(), so Theme.SplashScreen's
+ * postSplashScreenTheme swap never fires. The launch theme's green splash
+ * drawable would otherwise remain as the window backdrop indefinitely.
+ * Explicitly painting the window white in onCreate is the only protection
+ * against that drawable showing through the keyboard / system bar regions.
+ * DO NOT remove this line without also calling installSplashScreen().
+ *
+ * Why we don't return WindowInsetsCompat.CONSUMED: Capacitor's Keyboard
+ * plugin (and any future view-tree consumer) needs the insets too. We
+ * read them in our listener and inject CSS vars, but pass them through
+ * unchanged so other consumers keep working.
+ */
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // ── Edge-to-edge: let the WebView extend behind the nav bar ──
-        // With the default decorFitsSystemWindows=true the framework adds
-        // bottom padding on the DecorView equal to the nav-bar height.
-        // That pushes the entire WebView UP, creating a gap between the
-        // BottomNav (CSS bottom:0) and the system navigation buttons.
-        // Switching to false removes the framework padding; we manage
-        // insets ourselves on the WebView parent.
+        // Belt-and-suspenders white window background.
+        // See class javadoc for why this is mandatory.
+        getWindow().setBackgroundDrawable(new ColorDrawable(Color.WHITE));
+
+        // Commit to edge-to-edge explicitly across all Android versions
+        // (API 30-35: opt-in here; API 36+: framework-forced anyway).
+        // Single code path = less surface for OEM divergence.
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
-        // Keep bars opaque so they don't show page content behind them
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-        getWindow().setNavigationBarColor(Color.WHITE);
-        getWindow().setStatusBarColor(0xFF2D5233);
-        WindowInsetsControllerCompat ctrl =
-            WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
-        if (ctrl != null) {
-            ctrl.setAppearanceLightStatusBars(false);
-            ctrl.setAppearanceLightNavigationBars(true);
+        // Guard against bridge/WebView not being ready yet on some
+        // BridgeActivity init paths. The view tree must exist before
+        // we attach listeners.
+        View target = getBridge() != null && getBridge().getWebView() != null
+            ? getBridge().getWebView()
+            : findViewById(android.R.id.content);
+        if (target == null) return;
+
+        // Paint the WebView itself white so even a one-frame paint miss
+        // during keyboard transitions shows white, not the splash green
+        // peeking through a transparent surface.
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().setBackgroundColor(Color.WHITE);
         }
 
-        // ── Insets listener on WebView parent ────────────────────────
-        // Top padding = status bar + cutout  → content below status bar
-        // Bottom padding = 0 (keyboard: IME) → WebView reaches nav bar
-        // The nav-bar height is injected as a CSS variable so the
-        // BottomNav component can pad its content above the buttons
-        // while its white background extends behind them.
-        View parent = (View) getBridge().getWebView().getParent();
-        parent.setBackgroundColor(Color.WHITE);
+        final float density = getResources().getDisplayMetrics().density;
 
-        ViewCompat.setOnApplyWindowInsetsListener(parent, (v, insets) -> {
-            Insets bars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars()
-                    | WindowInsetsCompat.Type.displayCutout()
-            );
+        // Per-event listener: fires on attach + every steady-state inset
+        // change (rotation, gesture-bar reveal, etc.). We do NOT consume
+        // (return original insets) so Capacitor plugins still work.
+        //
+        // IMPORTANT: We inject only the SYSTEM BARS bottom (gesture nav)
+        // — NOT max(systemBars, ime). Reason: Chrome WebView on Android
+        // resizes the layout viewport when the IME opens (default
+        // interactive-widget behaviour). With the layout viewport
+        // already shrunk to fit above the keyboard, anything anchored
+        // at `bottom: 0` (BottomNav) lands at the keyboard top. If we
+        // were to ALSO add ime.bottom as bottom padding on BottomNav,
+        // its buttons would be pushed up by the keyboard height — twice
+        // the keyboard height of total displacement — producing exactly
+        // the giant white gap reported in v5.0.5 testing.
+        //
+        // The body.keyboard-visible class is still toggled so CSS can
+        // hide chrome that competes with the keyboard if needed (e.g.,
+        // home-indicator padding on iOS via the existing scoped rule).
+        ViewCompat.setOnApplyWindowInsetsListener(target, (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
 
-            // Bottom padding is always 0: the system nav bar is handled by
-            // CSS env(safe-area-inset-bottom) and the keyboard resize is
-            // handled by Chrome's interactive-widget=resizes-content (set in
-            // the viewport meta tag). Previously ime.bottom was added here
-            // when the keyboard was visible, but that DOUBLE-shrinks the
-            // content area (Java padding + Chrome viewport resize) and
-            // pushes everything off-screen → white screen on input focus.
-            v.setPadding(bars.left, bars.top, bars.right, 0);
+            int topDp    = Math.round(bars.top    / density);
+            int bottomDp = Math.round(bars.bottom / density);
+            int leftDp   = Math.round(bars.left   / density);
+            int rightDp  = Math.round(bars.right  / density);
 
-            // Tell CSS exactly how tall the nav bar is
-            float density = getResources().getDisplayMetrics().density;
-            int navDp = Math.round(bars.bottom / density);
-            getBridge().getWebView().evaluateJavascript(
-                "document.documentElement.style.setProperty('--cap-nav-bar-height','"
-                    + navDp + "px')",
-                null
-            );
+            pushInsetsToCss(topDp, bottomDp, leftDp, rightDp, imeVisible);
 
-            return new WindowInsetsCompat.Builder(insets)
-                .setInsets(
-                    WindowInsetsCompat.Type.systemBars()
-                        | WindowInsetsCompat.Type.displayCutout(),
-                    Insets.of(0, 0, 0, 0)
-                )
-                .build();
+            // Return ORIGINAL insets — do NOT consume. Capacitor's
+            // Keyboard plugin and any other view-tree listeners need to
+            // see these too.
+            return insets;
         });
-        parent.requestApplyInsets();
+
+        // Force first dispatch in case the view is already attached.
+        target.requestApplyInsets();
+    }
+
+    /**
+     * Push the current inset values to CSS via a single evaluateJavascript
+     * call. Kept tight on purpose (no DOM queries, no event dispatches in
+     * the hot path) so per-frame calls during IME animation stay cheap on
+     * budget devices.
+     */
+    private void pushInsetsToCss(int topDp, int bottomDp, int leftDp, int rightDp, boolean imeVisible) {
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+        String js =
+            "(function(){var d=document.documentElement.style;" +
+            "d.setProperty('--android-inset-top','"    + topDp    + "px');" +
+            "d.setProperty('--android-inset-bottom','" + bottomDp + "px');" +
+            "d.setProperty('--android-inset-left','"   + leftDp   + "px');" +
+            "d.setProperty('--android-inset-right','"  + rightDp  + "px');" +
+            "document.body&&document.body.classList.toggle('keyboard-visible'," + imeVisible + ");" +
+            "})();";
+        getBridge().getWebView().evaluateJavascript(js, null);
     }
 }
