@@ -1,7 +1,7 @@
 {
   "name": "car-reminders",
   "private": true,
-  "version": "4.9.1",
+  "version": "5.0.3",
   "type": "module",
   "scripts": {
     "dev": "vite",

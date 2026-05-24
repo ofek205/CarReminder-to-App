@@ -69,7 +69,10 @@ BEGIN
   -- 2. Error rate (24h)
   SELECT COUNT(*) INTO v_err_count
   FROM public.app_errors
-  WHERE created_at >= v_now - interval '24 hours';
+  WHERE created_at >= v_now - interval '24 hours'
+    AND type NOT IN ('boot_stage')
+    AND message NOT LIKE 'Lock was stolen%'
+    AND message NOT LIKE 'Lock broken%';
 
   probe      := 'error_rate_24h';
   value      := v_err_count || ' שגיאות';
@@ -89,7 +92,7 @@ BEGIN
   -- 3. Email delivery (Resend webhook)
   SELECT COUNT(*) INTO v_email_events
   FROM public.email_events
-  WHERE received_at >= v_now - interval '2 hours';
+  WHERE created_at >= v_now - interval '2 hours';
 
   probe      := 'email_webhook';
   value      := v_email_events || ' אירועים (2 שעות)';
@@ -118,24 +121,26 @@ BEGIN
   END IF;
   RETURN NEXT;
 
-  -- 4. pg_cron health — check if check_admin_alerts ran recently
-  SELECT MAX(a.created_at) INTO v_cron_last
-  FROM public.admin_alerts a;
+  -- 4. pg_cron health — check actual cron.job_run_details
+  SELECT MAX(d.start_time) INTO v_cron_last
+  FROM cron.job_run_details d
+  JOIN cron.job j ON j.jobid = d.jobid
+  WHERE j.jobname = 'check-admin-alerts';
 
   probe      := 'pg_cron';
   checked_at := v_now;
   IF v_cron_last IS NULL THEN
     status  := 'yellow';
     value   := 'אין נתונים';
-    message := 'אין התראות ביומן — ייתכן שה-cron עדיין לא רץ';
-  ELSIF v_cron_last >= v_now - interval '15 minutes' THEN
+    message := 'לא נמצאו ריצות של cron — ייתכן שעדיין לא הופעל';
+  ELSIF v_cron_last >= v_now - interval '10 minutes' THEN
     status  := 'green';
     value   := 'רץ לפני ' || round(EXTRACT(minutes FROM v_now - v_cron_last)) || ' דקות';
     message := 'תקין';
   ELSIF v_cron_last >= v_now - interval '30 minutes' THEN
     status  := 'yellow';
     value   := 'רץ לפני ' || round(EXTRACT(minutes FROM v_now - v_cron_last)) || ' דקות';
-    message := 'ריצה אחרונה לפני יותר מ-15 דקות';
+    message := 'ריצה אחרונה לפני יותר מ-10 דקות';
   ELSE
     status  := 'red';
     value   := 'רץ לפני ' || round(EXTRACT(hours FROM v_now - v_cron_last)) || ' שעות';

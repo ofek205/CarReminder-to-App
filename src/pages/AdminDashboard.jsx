@@ -1990,6 +1990,32 @@ function LeaderboardCard({ title, icon: Icon, accent = 'emerald', metricLabel, r
   );
 }
 
+function escCsvDash(v) {
+  if (v === null || v === undefined) return "";
+  const s = String(v).replace(/"/g, '""');
+  return /[",\n\r]/.test(s) ? `"${s}"` : s;
+}
+
+function exportMessagesCsv(rows) {
+  const headers = ["שם", "אימייל", "נושא", "הודעה", "סטטוס", "תאריך"];
+  const statusLabel = { new: "חדש", replied: "נענה", archived: "ארכיון" };
+  const dataRows = rows.map((m) => [
+    m.name || "",
+    m.email || "",
+    m.subject || "",
+    m.message || "",
+    statusLabel[m.status] || m.status || "",
+    m.created_at ? format(parseISO(m.created_at), "dd/MM/yyyy HH:mm") : "",
+  ]);
+  const lines = [headers.join(","), ...dataRows.map((row) => row.map(escCsvDash).join(","))];
+  const csv = "﻿" + lines.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `messages-${format(new Date(), "yyyy-MM-dd")}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function AdminMessagesTab() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2027,7 +2053,17 @@ function AdminMessagesTab() {
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-gray-100 p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-gray-900">הודעות צור קשר ({messages.length})</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-bold text-gray-900">הודעות צור קשר ({messages.length})</h2>
+            {filtered.length > 0 && (
+              <button
+                onClick={() => exportMessagesCsv(filtered)}
+                className="flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition text-gray-600"
+              >
+                <Download className="w-3 h-3" /> CSV
+              </button>
+            )}
+          </div>
           <div className="flex gap-1">
             {[
               { key: 'all', label: 'הכל' },

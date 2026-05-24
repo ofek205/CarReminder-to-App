@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { withTimeout } from "@/lib/supabaseQuery";
@@ -19,16 +19,21 @@ import {
   Clock,
   HardDrive,
   Bell,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
 } from "lucide-react";
 import { C } from "@/lib/designTokens";
+import { formatDistanceToNow, parseISO } from "date-fns";
+import { he } from "date-fns/locale";
 
 const PROBE_META = {
-  db_latency:     { label: "מסד נתונים",      icon: Database,   description: "זמן תגובה של DB" },
-  error_rate_24h: { label: "שגיאות (24 שעות)", icon: Zap,        description: "שגיאות אפליקציה ביממה האחרונה" },
-  email_webhook:  { label: "Resend Webhook",   icon: Mail,       description: "אירועי מייל שהתקבלו" },
-  pg_cron:        { label: "pg_cron",          icon: Clock,      description: "משימות מתוזמנות" },
-  storage:        { label: "נפח נתונים",       icon: HardDrive,  description: "גודל טבלאות מרכזיות" },
-  unack_alerts:   { label: "התראות פתוחות",    icon: Bell,       description: "התראות שלא טופלו" },
+  db_latency:     { label: "מסד נתונים",      icon: Database,   description: "זמן תגובה של DB",              drillable: false },
+  error_rate_24h: { label: "שגיאות (24 שעות)", icon: Zap,        description: "שגיאות אפליקציה ביממה האחרונה", drillable: true  },
+  email_webhook:  { label: "Resend Webhook",   icon: Mail,       description: "אירועי מייל שהתקבלו",          drillable: true  },
+  pg_cron:        { label: "pg_cron",          icon: Clock,      description: "משימות מתוזמנות",               drillable: true  },
+  storage:        { label: "נפח נתונים",       icon: HardDrive,  description: "גודל טבלאות מרכזיות",           drillable: true  },
+  unack_alerts:   { label: "התראות פתוחות",    icon: Bell,       description: "התראות שלא טופלו",              drillable: true  },
 };
 
 const STATUS_STYLE = {
@@ -122,44 +127,264 @@ export default function AdminHealth() {
 }
 
 function ProbeCard({ probe }) {
-  const meta = PROBE_META[probe.probe] || { label: probe.probe, icon: AlertCircle, description: "" };
+  const meta = PROBE_META[probe.probe] || { label: probe.probe, icon: AlertCircle, description: "", drillable: false };
   const statusStyle = STATUS_STYLE[probe.status] || STATUS_STYLE.green;
   const ProbeIcon = meta.icon;
   const StatusIcon = statusStyle.icon;
+  const [open, setOpen] = useState(false);
+
+  const canDrill = meta.drillable;
 
   return (
-    <Card className="p-4">
-      <div className="flex items-start gap-3">
-        <div className="rounded-full p-2.5 shrink-0" style={{ background: statusStyle.bg }}>
-          <ProbeIcon className="w-5 h-5" style={{ color: statusStyle.color }} />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-bold text-gray-900">{meta.label}</h3>
-            <StatusIcon className="w-4 h-4 shrink-0" style={{ color: statusStyle.color }} />
+    <Card className="overflow-hidden">
+      <button
+        type="button"
+        onClick={() => canDrill && setOpen((v) => !v)}
+        className={`w-full p-4 text-right ${canDrill ? "cursor-pointer hover:bg-gray-50 transition" : "cursor-default"}`}
+        disabled={!canDrill}
+      >
+        <div className="flex items-start gap-3">
+          <div className="rounded-full p-2.5 shrink-0" style={{ background: statusStyle.bg }}>
+            <ProbeIcon className="w-5 h-5" style={{ color: statusStyle.color }} />
           </div>
 
-          <p className="text-sm text-gray-700 mb-1">{probe.message}</p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-bold text-gray-900">{meta.label}</h3>
+              <StatusIcon className="w-4 h-4 shrink-0" style={{ color: statusStyle.color }} />
+            </div>
 
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span className="font-medium" dir="ltr">{probe.value}</span>
-            {meta.description && (
-              <>
-                <span>·</span>
-                <span>{meta.description}</span>
-              </>
+            <p className="text-sm text-gray-700 mb-1">{probe.message}</p>
+
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span className="font-medium" dir="ltr">{probe.value}</span>
+              {meta.description && (
+                <>
+                  <span>·</span>
+                  <span>{meta.description}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 mt-1">
+            <span
+              className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+              style={{ background: statusStyle.bg, color: statusStyle.color }}
+            >
+              {statusStyle.label}
+            </span>
+            {canDrill && (
+              open
+                ? <ChevronUp className="w-4 h-4 text-gray-400" />
+                : <ChevronDown className="w-4 h-4 text-gray-400" />
             )}
           </div>
         </div>
+      </button>
 
-        <span
-          className="text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0 mt-1"
-          style={{ background: statusStyle.bg, color: statusStyle.color }}
-        >
-          {statusStyle.label}
-        </span>
-      </div>
+      {open && <DrillDown probe={probe.probe} />}
     </Card>
+  );
+}
+
+const DRILL_RENDERERS = {
+  error_rate_24h: errorRenderer,
+  pg_cron:        cronRenderer,
+  email_webhook:  webhookRenderer,
+  storage:        storageRenderer,
+  unack_alerts:   alertsRenderer,
+};
+
+function DrillDown({ probe }) {
+  const { data: rows = [], isLoading, isError } = useQuery({
+    queryKey: ["admin-health-drilldown", probe],
+    queryFn: async () => {
+      const { data, error } = await withTimeout(
+        supabase.rpc("admin_health_drilldown", { p_probe: probe }),
+        "admin_health_drilldown"
+      );
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 30 * 1000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="border-t bg-gray-50 p-4 flex justify-center">
+        <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="border-t bg-gray-50 p-4 text-center text-xs text-red-500">
+        שגיאה בטעינת פרטים
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <div className="border-t bg-gray-50 p-4 text-center text-xs text-gray-400">
+        אין נתונים נוספים
+      </div>
+    );
+  }
+
+  const renderer = DRILL_RENDERERS[probe] || defaultRenderer;
+  return (
+    <div className="border-t bg-gray-50 p-4">
+      {renderer(rows)}
+    </div>
+  );
+}
+
+function defaultRenderer(rows) {
+  return (
+    <div className="space-y-1.5 text-xs">
+      {rows.map((r, i) => (
+        <div key={i} className="flex items-center justify-between gap-2 bg-white rounded-lg border px-3 py-2">
+          <span className="text-gray-700 truncate">{r.item_label}</span>
+          <span className="text-gray-500 shrink-0 font-medium" dir="ltr">{r.item_value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function errorRenderer(rows) {
+  return (
+    <div className="space-y-1.5 text-xs">
+      <div className="text-[11px] font-bold text-gray-600 mb-2">שגיאות נפוצות (24 שעות אחרונות)</div>
+      {rows.map((r, i) => (
+        <div key={i} className="bg-white rounded-lg border px-3 py-2">
+          <div className="flex items-center justify-between gap-2 mb-0.5">
+            <span className="font-medium text-gray-800 truncate">{r.item_label}</span>
+            <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600">
+              {r.item_value}×
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] text-gray-400">
+            <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{r.item_key}</span>
+            {r.item_extra && <span className="truncate">{r.item_extra}</span>}
+            {r.item_time && (
+              <span className="shrink-0">
+                {formatDistanceToNow(parseISO(r.item_time), { addSuffix: true, locale: he })}
+              </span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function cronRenderer(rows) {
+  const statusColors = {
+    succeeded: { bg: "#D1FAE5", fg: "#047857" },
+    failed:    { bg: "#FEE2E2", fg: "#991B1B" },
+    starting:  { bg: "#FEF3C7", fg: "#92400E" },
+  };
+  return (
+    <div className="space-y-1.5 text-xs">
+      <div className="text-[11px] font-bold text-gray-600 mb-2">ריצות אחרונות</div>
+      {rows.map((r, i) => {
+        const sc = statusColors[r.item_value] || statusColors.starting;
+        return (
+          <div key={i} className="bg-white rounded-lg border px-3 py-2 flex items-center gap-3">
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+              style={{ background: sc.bg, color: sc.fg }}
+            >
+              {r.item_value}
+            </span>
+            <span className="text-gray-700 font-medium truncate">{r.item_label}</span>
+            {r.item_time && (
+              <span className="text-[10px] text-gray-400 shrink-0 mr-auto" dir="ltr">
+                {formatDistanceToNow(parseISO(r.item_time), { addSuffix: true, locale: he })}
+              </span>
+            )}
+            {r.item_extra && r.item_value === "failed" && (
+              <span className="text-[10px] text-red-500 truncate max-w-[200px]" title={r.item_extra}>
+                {r.item_extra}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function webhookRenderer(rows) {
+  return (
+    <div className="space-y-1.5 text-xs">
+      <div className="text-[11px] font-bold text-gray-600 mb-2">אירועי webhook אחרונים</div>
+      {rows.map((r, i) => (
+        <div key={i} className="bg-white rounded-lg border px-3 py-2 flex items-center gap-3">
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 shrink-0">
+            {r.item_key}
+          </span>
+          <span className="text-gray-700 truncate">{r.item_label}</span>
+          {r.item_time && (
+            <span className="text-[10px] text-gray-400 shrink-0 mr-auto" dir="ltr">
+              {formatDistanceToNow(parseISO(r.item_time), { addSuffix: true, locale: he })}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function storageRenderer(rows) {
+  return (
+    <div className="space-y-1.5 text-xs">
+      <div className="text-[11px] font-bold text-gray-600 mb-2">פירוט טבלאות</div>
+      {rows.map((r, i) => (
+        <div key={i} className="bg-white rounded-lg border px-3 py-2 flex items-center justify-between">
+          <span className="text-gray-700 font-medium">{r.item_label}</span>
+          <span className="font-bold text-gray-900" dir="ltr">{Number(r.item_value).toLocaleString("he-IL")}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function alertsRenderer(rows) {
+  const sevColors = {
+    critical: { bg: "#FEE2E2", fg: "#991B1B" },
+    warning:  { bg: "#FEF3C7", fg: "#92400E" },
+    info:     { bg: "#DBEAFE", fg: "#1E40AF" },
+  };
+  return (
+    <div className="space-y-1.5 text-xs">
+      <div className="text-[11px] font-bold text-gray-600 mb-2">התראות פתוחות</div>
+      {rows.map((r, i) => {
+        const sc = sevColors[r.item_value] || sevColors.info;
+        return (
+          <div key={i} className="bg-white rounded-lg border px-3 py-2">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                style={{ background: sc.bg, color: sc.fg }}
+              >
+                {r.item_value}
+              </span>
+              <span className="text-gray-800 font-medium truncate">{r.item_label}</span>
+              {r.item_time && (
+                <span className="text-[10px] text-gray-400 shrink-0 mr-auto">
+                  {formatDistanceToNow(parseISO(r.item_time), { addSuffix: true, locale: he })}
+                </span>
+              )}
+            </div>
+            {r.item_extra && (
+              <p className="text-[10px] text-gray-500 mt-1 truncate">{r.item_extra}</p>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }

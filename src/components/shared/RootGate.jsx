@@ -110,6 +110,9 @@ function resolveBootDestination() {
   if (last && /^\/[A-Za-z][\w/-]*$/.test(last) && last !== '/' && last !== '/Auth') {
     return last;
   }
+  try {
+    if (localStorage.getItem('cr_is_admin') === '1') return '/AdminUsers';
+  } catch {}
   return '/Dashboard';
 }
 

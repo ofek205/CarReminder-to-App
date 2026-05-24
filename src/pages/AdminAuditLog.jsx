@@ -26,6 +26,7 @@ import {
   CheckCircle,
   Shield,
   Activity,
+  Download,
 } from "lucide-react";
 import { format, parseISO, formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
@@ -40,6 +41,37 @@ const ACTION_META = {
 };
 
 const FALLBACK_META = { label: "פעולה",  icon: Activity,  color: C.muted, bg: "#F3F4F6" };
+
+function escCsv(v) {
+  if (v === null || v === undefined) return "";
+  const s = String(v).replace(/"/g, '""');
+  return /[",\n\r]/.test(s) ? `"${s}"` : s;
+}
+
+function exportAuditLogCsv(rows) {
+  const headers = ["פעולה", "מבצע", "סוג יעד", "מזהה יעד", "פרטים", "תאריך"];
+  const dataRows = rows.map((r) => {
+    const meta = ACTION_META[r.action] || FALLBACK_META;
+    const detailStr = r.detail && Object.keys(r.detail).length > 0
+      ? Object.entries(r.detail).map(([k, v]) => `${k}: ${v}`).join("; ")
+      : "";
+    return [
+      meta.label || r.action,
+      r.actor_email || "",
+      r.target_type || "",
+      r.target_id || "",
+      detailStr,
+      r.created_at ? format(parseISO(r.created_at), "dd/MM/yyyy HH:mm:ss") : "",
+    ];
+  });
+  const lines = [headers.join(","), ...dataRows.map((row) => row.map(escCsv).join(","))];
+  const csv = "﻿" + lines.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `audit-log-${format(new Date(), "yyyy-MM-dd")}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export default function AdminAuditLog() {
   const isAdmin = useIsAdmin();
@@ -134,6 +166,13 @@ export default function AdminAuditLog() {
               ))}
             </SelectContent>
           </Select>
+
+          {rows.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => exportAuditLogCsv(rows)} className="shrink-0 gap-1">
+              <Download className="w-3.5 h-3.5" />
+              CSV
+            </Button>
+          )}
 
           <Button size="sm" variant="outline" onClick={() => refetch()} className="shrink-0 gap-1" disabled={isFetching}>
             <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />

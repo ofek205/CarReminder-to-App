@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Loader2, CheckCircle2, XCircle, Clock, MinusCircle, Mail, Eye, MousePointerClick, AlertCircle, Send } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Clock, MinusCircle, Mail, Eye, MousePointerClick, AlertCircle, Send, Download } from 'lucide-react';
 import { useSendLog, useEmailNotifications, useSendEvents } from '@/hooks/useEmailAdmin';
 
 const STATUS_VISUAL = {
@@ -22,13 +22,32 @@ const EVENT_VISUAL = {
   other:            { icon: Mail,               label: 'אירוע',      fg: '#6B7280' },
 };
 
-/**
- * SendLogTab. recent dispatch history.
- *
- * Read-only table of the last 100 send attempts, grouped by status, with
- * basic filtering. Admins can click a row to see the metadata (template
- * variables, error message, Resend message id).
- */
+function escCsv(v) {
+  if (v === null || v === undefined) return "";
+  const s = String(v).replace(/"/g, '""');
+  return /[",\n\r]/.test(s) ? `"${s}"` : s;
+}
+
+function exportSendLogCsv(rows, nameFor) {
+  const headers = ["סוג מייל", "נמען", "סטטוס", "תאריך שליחה", "תאריך יעד", "שגיאה", "Resend ID"];
+  const dataRows = rows.map((r) => [
+    nameFor(r.notification_key),
+    r.recipient_email,
+    STATUS_VISUAL[r.status]?.label || r.status,
+    r.sent_at ? new Date(r.sent_at).toLocaleString('he-IL') : "",
+    r.reference_date ? new Date(r.reference_date).toLocaleDateString('he-IL') : "",
+    r.error || "",
+    r.message_id || "",
+  ]);
+  const lines = [headers.join(","), ...dataRows.map((row) => row.map(escCsv).join(","))];
+  const csv = "﻿" + lines.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `email-log-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export default function SendLogTab() {
   const [filter, setFilter] = useState('');
   const { data: log = [], isLoading } = useSendLog({ limit: 100, notificationKey: filter || undefined });
@@ -57,6 +76,14 @@ export default function SendLogTab() {
           ))}
         </select>
         <span className="text-xs text-gray-500 mr-auto">{log.length} רשומות</span>
+        {log.length > 0 && (
+          <button
+            onClick={() => exportSendLogCsv(log, nameFor)}
+            className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition"
+          >
+            <Download className="w-3.5 h-3.5" /> CSV
+          </button>
+        )}
       </div>
 
       {/* Log list */}

@@ -114,33 +114,16 @@ const hueFromName = (name) => {
   return h % 360;
 };
 
-// CSV export. UTF-8 BOM so Excel opens it correctly with Hebrew.
-function exportToCsv(rows, filename) {
-  const headers = [
-    "שם", "אימייל", "טלפון", "גיל", "תאריך לידה",
-    "כלי תחבורה (בעלות)", "כלי תחבורה (משותפים)", "מסמכים", "חברים",
-    "חשבון עסקי", "נהג",
-    "סטטוס", "הרשמה", "התחברות אחרונה", "ימים מהרשמה",
-  ];
-  const esc = (v) => {
-    if (v === null || v === undefined) return "";
-    const s = String(v).replace(/"/g, '""');
-    return /[",\n\r]/.test(s) ? `"${s}"` : s;
-  };
+// CSV helper. UTF-8 BOM so Excel opens it correctly with Hebrew.
+function escCsv(v) {
+  if (v === null || v === undefined) return "";
+  const s = String(v).replace(/"/g, '""');
+  return /[",\n\r]/.test(s) ? `"${s}"` : s;
+}
+function downloadCsv(headers, dataRows, filename) {
   const lines = [
     headers.join(","),
-    ...rows.map((u) => [
-      u.full_name, u.email, u.phone,
-      calcAge(u.birth_date) ?? "",
-      u.birth_date ?? "",
-      u.vehicles_owned, u.vehicles_shared, u.documents_total, u.members_total,
-      u.has_business ? "כן" : "לא",
-      u.is_driver ? "כן" : "לא",
-      STATUS_META[u.activity_status]?.label || u.activity_status,
-      u.signup_at ? format(parseISO(u.signup_at), "dd/MM/yyyy") : "",
-      u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), "dd/MM/yyyy HH:mm") : "",
-      u.days_since_signup,
-    ].map(esc).join(",")),
+    ...dataRows.map((row) => row.map(escCsv).join(",")),
   ];
   const csv = "﻿" + lines.join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -148,6 +131,30 @@ function exportToCsv(rows, filename) {
   const a = document.createElement("a");
   a.href = url; a.download = filename; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportUsersCsv(rows) {
+  const headers = [
+    "שם", "אימייל", "טלפון", "גיל", "תאריך לידה",
+    "כלי תחבורה (בעלות)", "כלי תחבורה (משותפים)",
+    "מסמכים", "חברים",
+    "חשבון עסקי", "נהג",
+    "סטטוס", "תאריך הרשמה", "התחברות אחרונה", "ימים מהרשמה",
+  ];
+  const dataRows = rows.map((u) => [
+    u.full_name, u.email, u.phone,
+    calcAge(u.birth_date) ?? "",
+    u.birth_date ? format(parseISO(u.birth_date), "dd/MM/yyyy") : "",
+    u.vehicles_owned ?? 0, u.vehicles_shared ?? 0,
+    u.documents_total ?? 0, u.members_total ?? 0,
+    u.has_business ? "כן" : "לא",
+    u.is_driver ? "כן" : "לא",
+    STATUS_META[u.activity_status]?.label || u.activity_status || "",
+    u.signup_at ? format(parseISO(u.signup_at), "dd/MM/yyyy") : "",
+    u.last_sign_in_at ? format(parseISO(u.last_sign_in_at), "dd/MM/yyyy HH:mm") : "",
+    u.days_since_signup ?? "",
+  ]);
+  downloadCsv(headers, dataRows, `users-export-${format(new Date(), "yyyy-MM-dd")}.csv`);
 }
 
 function useDebounced(value, ms = 300) {
@@ -288,8 +295,7 @@ export default function AdminUsers() {
   };
 
   const handleExport = () => {
-    const ts = format(new Date(), "yyyy-MM-dd-HHmm");
-    exportToCsv(sorted, `users-export-${ts}.csv`);
+    exportUsersCsv(sorted);
     toast.success(`יוצא ${sorted.length} משתמשים ל-CSV`);
   };
 
