@@ -149,22 +149,13 @@ html.native-app {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Keyboard visible — standard mobile pattern.
-   1. Reset body padding so the keyboard doesn't fight with bottom space
-   2. Zero out the system nav-bar inset variable: when the keyboard is
-      open the system nav bar is covered by the keyboard, so any element
-      using `--cap-nav-bar-height` for safe-area should treat it as 0
-   3. Hide the BottomNav entirely: it competes with the keyboard for
-      thumb-reach space and creates a visible gap between itself and
-      the keyboard top on Android (Instagram / WhatsApp / Twitter all
-      hide their tab bar when the keyboard opens — this is the expected
-      pattern, not a regression). */
+/* Keyboard visible — Android adjustResize shrinks the whole window,
+   so BottomNav and page content naturally reflow above the keyboard
+   with no extra handling needed. We just neutralise the body's
+   safe-area-bottom padding (used for the home indicator / nav bar)
+   so the resized content doesn't leave a gap above the keyboard. */
 body.keyboard-visible {
   padding-bottom: 0 !important;
-  --cap-nav-bar-height: 0px;
-}
-body.keyboard-visible [aria-label="ניווט ראשי"] {
-  display: none !important;
 }
 
 /* Leaflet map. keep below modals/sheets/overlays/BottomNav */
