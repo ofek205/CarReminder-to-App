@@ -163,7 +163,7 @@ body.keyboard-visible {
   padding-bottom: 0 !important;
   --cap-nav-bar-height: 0px;
 }
-body.keyboard-visible nav[aria-label="ניווט ראשי"] {
+body.keyboard-visible [aria-label="ניווט ראשי"] {
   display: none !important;
 }
 
