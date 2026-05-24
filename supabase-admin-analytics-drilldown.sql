@@ -122,6 +122,74 @@ BEGIN
     END;
 
   -- ═══════════════════════════════════════════════════════════════════
+  -- vehicle_family — vehicles in a Tier-1 marketing family (e.g.
+  -- "דו-גלגלי" contains אופנוע כביש + קטנוע + אנדורו + מוטוקרוס).
+  -- The family→subtype map is duplicated client-side in AdminAnalytics
+  -- (FAMILY_MAP); keep them in sync if you add a new family or subtype.
+  -- ═══════════════════════════════════════════════════════════════════
+  ELSIF v_type = 'vehicle_family' THEN
+    DECLARE
+      v_family text := p_segment->>'family';
+      v_subtypes text[] := CASE v_family
+        WHEN 'רכבים פרטיים'   THEN ARRAY['רכב','רכב פרטי','רכב אספנות']
+        WHEN 'דו-גלגלי'        THEN ARRAY['אופנוע','אופנוע כביש','קטנוע','אנדורו','מוטוקרוס']
+        WHEN 'מסחרי / מקצועי' THEN ARRAY['משאית','אוטובוס','רכב תפעולי','נגרר','קרוואן','מחרשה','טרקטור','רכב מסחרי','גרור','נתמך']
+        WHEN 'כלי שייט'        THEN ARRAY['מפרשית','סירה מנועית','אופנוע ים','סירת גומי']
+        WHEN 'כלי טיס'         THEN ARRAY['מטוס פרטי','רחפן']
+        WHEN 'כלי צמ"ה'        THEN ARRAY[
+          'מחפר','מחפר זחלי','מחפר אופני','מיני מחפר','מחפרון',
+          'דחפור','דחפור זחלי','שופל','מעמיס אופני','מעמיס זחלי',
+          'מלגזה','מלגזת שטח','טלהנדלר','גלגלת','גלגלת אספלט','גלגלת רטט',
+          'משאבת בטון','מערבל בטון','עגלת מערבל','עגורן','עגורן צריח',
+          'מנוף','מנוף שטח','מקדח','מקדח שטח','רכב צמ"ה'
+        ]
+        ELSE NULL
+      END;
+    BEGIN
+      v_title   := 'רכבים: משפחת ' || v_family;
+      v_columns := v_cols_vehicle;
+      IF v_subtypes IS NULL THEN
+        -- "אחר" / unknown family: show vehicles whose type is NOT in any mapped family.
+        SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC), '[]'::jsonb), COUNT(*)
+        INTO v_rows, v_total
+        FROM (
+          SELECT
+            v.license_plate, v.vehicle_type, v.make, v.model, v.year,
+            owner.email AS owner_email, v.created_at
+          FROM public.vehicles v
+          LEFT JOIN public.account_members am ON am.account_id = v.account_id
+                AND am.role IN ('בעלים','owner')
+          LEFT JOIN auth.users owner ON owner.id = am.user_id
+          WHERE COALESCE(v.vehicle_type, '') NOT IN (
+            'רכב','רכב פרטי','רכב אספנות',
+            'אופנוע','אופנוע כביש','קטנוע','אנדורו','מוטוקרוס',
+            'משאית','אוטובוס','רכב תפעולי','נגרר','קרוואן','מחרשה','טרקטור','רכב מסחרי','גרור','נתמך',
+            'מפרשית','סירה מנועית','אופנוע ים','סירת גומי',
+            'מטוס פרטי','רחפן',
+            'מחפר','מחפר זחלי','מחפר אופני','מיני מחפר','מחפרון',
+            'דחפור','דחפור זחלי','שופל','מעמיס אופני','מעמיס זחלי',
+            'מלגזה','מלגזת שטח','טלהנדלר','גלגלת','גלגלת אספלט','גלגלת רטט',
+            'משאבת בטון','מערבל בטון','עגלת מערבל','עגורן','עגורן צריח',
+            'מנוף','מנוף שטח','מקדח','מקדח שטח','רכב צמ"ה'
+          )
+        ) r;
+      ELSE
+        SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC), '[]'::jsonb), COUNT(*)
+        INTO v_rows, v_total
+        FROM (
+          SELECT
+            v.license_plate, v.vehicle_type, v.make, v.model, v.year,
+            owner.email AS owner_email, v.created_at
+          FROM public.vehicles v
+          LEFT JOIN public.account_members am ON am.account_id = v.account_id
+                AND am.role IN ('בעלים','owner')
+          LEFT JOIN auth.users owner ON owner.id = am.user_id
+          WHERE v.vehicle_type = ANY(v_subtypes)
+        ) r;
+      END IF;
+    END;
+
+  -- ═══════════════════════════════════════════════════════════════════
   -- vehicle_type — vehicles of a specific type + their owner
   -- ═══════════════════════════════════════════════════════════════════
   ELSIF v_type = 'vehicle_type' THEN

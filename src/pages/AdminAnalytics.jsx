@@ -31,6 +31,42 @@ function fmtDate(d) {
   try { return format(parseISO(d), "dd/MM"); } catch { return d; }
 }
 
+// Vehicle family taxonomy — groups the flat DB vehicle_type values into
+// Tier-1 marketing segments (private cars / two-wheelers / commercial /
+// boats / aviation / heavy machinery / other). The SAME map is duplicated
+// in supabase-admin-analytics-drilldown.sql for the vehicle_family
+// drill-down branch — keep both in sync if you add a new subtype.
+const VEHICLE_FAMILY_MAP = {
+  'רכבים פרטיים':   ['רכב','רכב פרטי','רכב אספנות'],
+  'דו-גלגלי':        ['אופנוע','אופנוע כביש','קטנוע','אנדורו','מוטוקרוס'],
+  'מסחרי / מקצועי': ['משאית','אוטובוס','רכב תפעולי','נגרר','קרוואן','מחרשה','טרקטור','רכב מסחרי','גרור','נתמך'],
+  'כלי שייט':        ['מפרשית','סירה מנועית','אופנוע ים','סירת גומי'],
+  'כלי טיס':         ['מטוס פרטי','רחפן'],
+  'כלי צמ"ה':        ['מחפר','מחפר זחלי','מחפר אופני','מיני מחפר','מחפרון','דחפור','דחפור זחלי','שופל','מעמיס אופני','מעמיס זחלי','מלגזה','מלגזת שטח','טלהנדלר','גלגלת','גלגלת אספלט','גלגלת רטט','משאבת בטון','מערבל בטון','עגלת מערבל','עגורן','עגורן צריח','מנוף','מנוף שטח','מקדח','מקדח שטח','רכב צמ"ה'],
+};
+
+// Reverse lookup: subtype → family. Used to aggregate the raw
+// vehicle_types data (subtype-keyed) into family buckets on the client
+// when the chart toggle is set to "משפחה".
+const VEHICLE_SUBTYPE_TO_FAMILY = Object.entries(VEHICLE_FAMILY_MAP).reduce(
+  (acc, [family, subtypes]) => {
+    for (const st of subtypes) acc[st] = family;
+    return acc;
+  },
+  {},
+);
+
+function aggregateByFamily(rawData) {
+  const buckets = new Map();
+  for (const row of rawData) {
+    const family = VEHICLE_SUBTYPE_TO_FAMILY[row.vehicle_type] || 'אחר';
+    buckets.set(family, (buckets.get(family) || 0) + (row.count || 0));
+  }
+  return [...buckets.entries()]
+    .map(([family, count]) => ({ vehicle_type: family, count, _isFamily: true }))
+    .sort((a, b) => b.count - a.count);
+}
+
 export default function AdminAnalytics() {
   const isAdmin = useIsAdmin();
   // The current drill-down segment (null when sheet is closed). The
@@ -186,8 +222,9 @@ export default function AdminAnalytics() {
         </ChartCard>
 
         <ChartCard title="התפלגות סוגי רכב" icon={Car} color={BI.purple}>
-          <TypesChart data={vehicle_types}
-            onPointClick={(row) => setDrillSegment({ type: 'vehicle_type', vehicle_type: row.vehicle_type })} />
+          <TypesChartWithToggle data={vehicle_types}
+            onFamilyClick={(family) => setDrillSegment({ type: 'vehicle_family', family })}
+            onSubtypeClick={(row)   => setDrillSegment({ type: 'vehicle_type', vehicle_type: row.vehicle_type })} />
         </ChartCard>
 
         <ChartCard title="מסמכים שהועלו לשבוע" icon={FileText} color={BI.amber}>
@@ -528,6 +565,51 @@ function AgeChart({ data, onPointClick }) {
         />
       </PieChart>
     </ResponsiveContainer>
+  );
+}
+
+// Wrapper that lets the admin flip between Tier-1 family view ("משפחה")
+// and the flat subtype view ("תת-סוג"). Family is default = better for
+// audience segmentation; subtype is one click away for deep-dives.
+// State lives here so the toggle survives parent re-renders (filter
+// changes refresh `data` but the mode persists).
+function TypesChartWithToggle({ data, onFamilyClick, onSubtypeClick }) {
+  const [mode, setMode] = useState('family');
+  const familyData = useMemo(() => aggregateByFamily(data || []), [data]);
+  const isFamily = mode === 'family';
+  return (
+    <div>
+      <div className="flex justify-end mb-2 -mt-1">
+        <div className="inline-flex rounded-lg bg-gray-100 p-0.5">
+          <button
+            type="button"
+            onClick={() => setMode('family')}
+            className={`px-2.5 py-0.5 text-[11px] rounded-md transition ${
+              isFamily ? 'bg-white shadow-sm font-bold text-gray-900'
+                       : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            משפחה
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('subtype')}
+            className={`px-2.5 py-0.5 text-[11px] rounded-md transition ${
+              !isFamily ? 'bg-white shadow-sm font-bold text-gray-900'
+                        : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            תת-סוג
+          </button>
+        </div>
+      </div>
+      <TypesChart
+        data={isFamily ? familyData : data}
+        onPointClick={isFamily
+          ? (row) => onFamilyClick(row.vehicle_type)
+          : onSubtypeClick}
+      />
+    </div>
   );
 }
 
