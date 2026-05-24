@@ -4,6 +4,7 @@ import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
 import useFileUpload from '@/hooks/useFileUpload';
 import FirstTimeTour from '@/components/shared/FirstTimeTour';
+import { reportUserError } from '@/lib/crashReporter';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 import AviationPlateInput from '@/components/shared/AviationPlateInput';
 import MultipleMatchDialog from '@/components/vehicle/MultipleMatchDialog';
@@ -989,6 +990,7 @@ export default function AddVehicle() {
       } else {
         setSystemError('אירעה שגיאה בשמירת הרכב');
       }
+      reportUserError('create_vehicle', err);
     }
     } finally {
       // Single point of cleanup — any throw or early return inside this

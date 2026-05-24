@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { createPageUrl } from '@/utils';
 import { isValidEmail } from '@/lib/validators';
+import { reportUserError } from '@/lib/crashReporter';
 
 const SUPPORT_EMAIL = 'support@car-reminder.app';
 const FAQ_ITEMS = [
@@ -64,6 +65,7 @@ export default function Contact() {
         // any analytics pixel the default mail client happens to hit.
         console.warn('Contact message DB insert failed:', insertErr.message);
         toast.error('לא הצלחנו לשלוח את הפנייה. נסה שוב מאוחר יותר או שלח למייל support@car-reminder.app');
+        reportUserError('send_contact', insertErr);
         setSaving(false);
         return;
       }
@@ -78,6 +80,7 @@ export default function Contact() {
       // Network-level failure (e.g. offline) — supabase-js throws here.
       console.warn('Contact submit network error:', outerErr?.message);
       toast.error('שגיאה בשליחה');
+      reportUserError('send_contact', outerErr);
     } finally {
       setSaving(false);
     }

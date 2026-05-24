@@ -22,6 +22,7 @@ import { C, getTheme, isVesselType } from '@/lib/designTokens';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { isViewOnly } from '@/lib/permissions';
+import { reportUserError } from '@/lib/crashReporter';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
 import AiDateScan from '../components/shared/AiDateScan';
 
@@ -488,6 +489,7 @@ export default function EditVehicle() {
         } else {
           toast.error(`שגיאה בעדכון: ${msg.slice(0, 80) || 'נסה שוב בעוד רגע'}`);
         }
+        reportUserError('update_vehicle', retryErr, { vehicleId });
         setSaving(false);
       }
     }

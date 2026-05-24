@@ -138,6 +138,20 @@ export function reportError(type, error, extra) {
   scheduleFlush();
 }
 
+/**
+ * Report a user-facing action failure (save, delete, upload, share, etc.).
+ * Unlike reportError (which captures crashes/unhandled errors), this captures
+ * the moment a user tries to do something and it fails — the kind of problem
+ * that makes a user frustrated but doesn't crash the app.
+ *
+ * @param {string} action  . short label: 'save_document', 'delete_vehicle', 'share_vehicle'
+ * @param {Error|string} error
+ * @param {object} [context] . free-form: { vehicleId, page, etc. }
+ */
+export function reportUserError(action, error, context) {
+  reportError('user_action', error, { action, ...context });
+}
+
 // Flush queued errors when we come back online
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => { flushQueue(); });

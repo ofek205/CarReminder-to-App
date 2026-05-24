@@ -52,10 +52,7 @@ export default function AdminHealth() {
         supabase.rpc("admin_health_status"),
         "admin_health_status"
       );
-      if (error) {
-        console.error('[AdminHealth] RPC error:', error);
-        throw error;
-      }
+      if (error) throw error;
       return data || [];
     },
     enabled: isAdmin === true,

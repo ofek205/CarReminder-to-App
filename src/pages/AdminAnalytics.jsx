@@ -33,16 +33,11 @@ export default function AdminAnalytics() {
   const { data, isLoading, isError, error: queryError, refetch, isFetching } = useQuery({
     queryKey: ["admin-analytics"],
     queryFn: async () => {
-      console.log('[AdminAnalytics] calling admin_analytics_summary RPC...');
       const { data: result, error } = await withTimeout(
         supabase.rpc("admin_analytics_summary"),
         "admin_analytics_summary"
       );
-      if (error) {
-        console.error('[AdminAnalytics] RPC error:', error);
-        throw error;
-      }
-      console.log('[AdminAnalytics] RPC success, keys:', result ? Object.keys(result) : 'null');
+      if (error) throw error;
       return result;
     },
     enabled: isAdmin === true,
