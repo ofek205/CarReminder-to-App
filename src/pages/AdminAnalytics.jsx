@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { withTimeout } from "@/lib/supabaseQuery";
@@ -38,11 +39,48 @@ export default function AdminAnalytics() {
   // queries and renders when it's non-null.
   const [drillSegment, setDrillSegment] = useState(null);
 
+  // ─── Filter Bar state (URL-persisted) ──────────────────────────────
+  // All filters live in the URL so the page is shareable and the back
+  // button works. Defaults mirror the SQL defaults (30d, all, all).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => ({
+    date_range:    searchParams.get('range')    || '30d',
+    account_type:  searchParams.get('account')  || 'all',
+    vehicle_types: searchParams.get('vtypes')
+      ? searchParams.get('vtypes').split(',').filter(Boolean)
+      : [],
+  }), [searchParams]);
+
+  const updateFilter = (key, value) => {
+    const next = new URLSearchParams(searchParams);
+    const paramKey = key === 'date_range' ? 'range'
+                   : key === 'account_type' ? 'account'
+                   : key === 'vehicle_types' ? 'vtypes'
+                   : key;
+    const isDefault = (key === 'date_range' && value === '30d')
+                   || (key === 'account_type' && value === 'all')
+                   || (key === 'vehicle_types' && Array.isArray(value) && value.length === 0);
+    if (isDefault) {
+      next.delete(paramKey);
+    } else {
+      next.set(paramKey, Array.isArray(value) ? value.join(',') : value);
+    }
+    setSearchParams(next, { replace: false });
+  };
+
+  const resetFilters = () => setSearchParams(new URLSearchParams(), { replace: false });
+
+  const filtersForRpc = useMemo(() => ({
+    date_range: filters.date_range,
+    account_type: filters.account_type,
+    vehicle_types: filters.vehicle_types,
+  }), [filters]);
+
   const { data, isLoading, isError, error: queryError, refetch, isFetching } = useQuery({
-    queryKey: ["admin-analytics"],
+    queryKey: ["admin-analytics", filtersForRpc],
     queryFn: async () => {
       const { data: result, error } = await withTimeout(
-        supabase.rpc("admin_analytics_summary"),
+        supabase.rpc("admin_analytics_summary", { p_filters: filtersForRpc }),
         "admin_analytics_summary"
       );
       if (error) throw error;
@@ -99,12 +137,14 @@ export default function AdminAnalytics() {
     <div className="p-4 sm:p-6 max-w-5xl mx-auto" dir="rtl" style={{ fontVariantNumeric: "tabular-nums" }}>
       <PageHeader title="אנליטיקה" subtitle="נתוני שימוש, צמיחה ומעורבות." />
 
-      <div className="flex justify-end mb-4">
-        <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching} className="gap-1">
-          <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
-          רענן
-        </Button>
-      </div>
+      <FilterBar
+        filters={filters}
+        updateFilter={updateFilter}
+        resetFilters={resetFilters}
+        availableVehicleTypes={vehicle_types}
+        onRefresh={() => refetch()}
+        isFetching={isFetching}
+      />
 
       {/* Row 1: CarReminder-specific KPIs (the ones that actually drive product decisions).
           Reminder-to-Return is the North Star — keep it first.
@@ -176,6 +216,139 @@ export default function AdminAnalytics() {
       <EmailCard stats={email_stats} />
       <CohortCard cohorts={cohorts} />
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// FilterBar — sticky top filter strip (Power-BI-style global filter).
+// All filters live in URL params so the view is shareable; default
+// values are not serialised (clean URL).
+//
+// Three filters wired to the RPC:
+//   • range      → date_range  (7d / 30d / 90d / 12w / all)
+//   • account    → account_type (all / personal / business)
+//   • vtypes     → vehicle_types (multi, comma-separated)
+//
+// The bar mirrors how Tableau/Looker present global filters: chips
+// for the active selections + reset link. No "Apply" button — every
+// change triggers a React Query refetch instantly (~100ms for 184 users).
+// ──────────────────────────────────────────────────────────────────
+function FilterBar({ filters, updateFilter, resetFilters, availableVehicleTypes, onRefresh, isFetching }) {
+  const dateOptions = [
+    { value: '7d',  label: '7 ימים'  },
+    { value: '30d', label: '30 ימים' },
+    { value: '90d', label: '90 ימים' },
+    { value: '12w', label: '12 שבועות' },
+    { value: 'all', label: 'הכל'    },
+  ];
+  const accountOptions = [
+    { value: 'all',      label: 'הכל'    },
+    { value: 'personal', label: 'פרטי'   },
+    { value: 'business', label: 'עסקי'   },
+  ];
+
+  const hasActiveFilters =
+    filters.date_range !== '30d'
+    || filters.account_type !== 'all'
+    || (filters.vehicle_types && filters.vehicle_types.length > 0);
+
+  const toggleVehicleType = (vt) => {
+    const set = new Set(filters.vehicle_types || []);
+    if (set.has(vt)) set.delete(vt); else set.add(vt);
+    updateFilter('vehicle_types', [...set]);
+  };
+
+  return (
+    <Card className="p-3 mb-4 sticky top-2 z-20 bg-white/95 backdrop-blur shadow-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Date range — segmented pill */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-gray-500 font-medium">תקופה</span>
+          <div className="inline-flex rounded-lg bg-gray-100 p-0.5">
+            {dateOptions.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => updateFilter('date_range', o.value)}
+                className={`px-2.5 py-1 text-xs rounded-md transition ${
+                  filters.date_range === o.value
+                    ? 'bg-white shadow-sm font-bold text-gray-900'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Account type — segmented pill */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-gray-500 font-medium">סוג חשבון</span>
+          <div className="inline-flex rounded-lg bg-gray-100 p-0.5">
+            {accountOptions.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => updateFilter('account_type', o.value)}
+                className={`px-2.5 py-1 text-xs rounded-md transition ${
+                  filters.account_type === o.value
+                    ? 'bg-white shadow-sm font-bold text-gray-900'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Vehicle types — chip multi-select. Populated from the
+            vehicle_types chart data so the user sees options that
+            actually exist in their data. */}
+        {availableVehicleTypes && availableVehicleTypes.length > 0 && (
+          <div className="flex flex-col gap-1 min-w-0">
+            <span className="text-[10px] text-gray-500 font-medium">סוגי רכב</span>
+            <div className="flex flex-wrap gap-1 max-w-md">
+              {availableVehicleTypes.slice(0, 8).map((vt) => {
+                const isOn = (filters.vehicle_types || []).includes(vt.vehicle_type);
+                return (
+                  <button
+                    key={vt.vehicle_type}
+                    type="button"
+                    onClick={() => toggleVehicleType(vt.vehicle_type)}
+                    className={`px-2 py-0.5 text-[11px] rounded-full transition border ${
+                      isOn
+                        ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    {vt.vehicle_type}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Spacer + Reset + Refresh */}
+        <div className="ms-auto flex items-center gap-2">
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2"
+            >
+              איפוס
+            </button>
+          )}
+          <Button size="sm" variant="outline" onClick={onRefresh} disabled={isFetching} className="gap-1">
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            רענן
+          </Button>
+        </div>
+      </div>
+    </Card>
   );
 }
 

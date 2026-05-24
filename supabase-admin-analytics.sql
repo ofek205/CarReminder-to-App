@@ -12,8 +12,9 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 
 DROP FUNCTION IF EXISTS public.admin_analytics_summary();
+DROP FUNCTION IF EXISTS public.admin_analytics_summary(jsonb);
 
-CREATE FUNCTION public.admin_analytics_summary()
+CREATE FUNCTION public.admin_analytics_summary(p_filters jsonb DEFAULT '{}'::jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -35,12 +36,50 @@ DECLARE
   v_kpi_activation_rate numeric;
   v_kpi_power_users integer;
   v_kpi_churn_risk integer;
+
+  -- ─────────────────────────────────────────────────────────────────
+  -- FILTER VARS — derived from p_filters jsonb (Phase 2).
+  -- p_filters shape:
+  --   { date_range: '7d'|'30d'|'90d'|'12w'|'all',  (default '30d')
+  --     vehicle_types: ['פרטי','מסחרי',...],        (default all)
+  --     account_type: 'all'|'personal'|'business' (default all)
+  --   }
+  -- Frontend sends the filter object from the Filter Bar URL state.
+  -- Backwards compat: empty jsonb {} → same behaviour as v1.
+  -- ─────────────────────────────────────────────────────────────────
+  v_date_range text   := COALESCE(p_filters->>'date_range', '30d');
+  v_account_type text := COALESCE(p_filters->>'account_type', 'all');
+  v_vehicle_types text[] := CASE
+    WHEN jsonb_typeof(p_filters->'vehicle_types') = 'array'
+      AND jsonb_array_length(p_filters->'vehicle_types') > 0
+    THEN ARRAY(SELECT jsonb_array_elements_text(p_filters->'vehicle_types'))
+    ELSE NULL
+  END;
+  v_days_back int;    -- for daily series + day-window KPIs
+  v_weeks_back int;   -- for weekly series + cohort
 BEGIN
+  -- Translate date_range token → numeric windows.
+  v_days_back := CASE v_date_range
+    WHEN '7d'  THEN 7
+    WHEN '30d' THEN 30
+    WHEN '90d' THEN 90
+    WHEN '12w' THEN 84
+    WHEN 'all' THEN 3650        -- 10 years = effectively "all"
+    ELSE 30
+  END;
+  v_weeks_back := CASE v_date_range
+    WHEN '7d'  THEN 1
+    WHEN '30d' THEN 4
+    WHEN '90d' THEN 13
+    WHEN '12w' THEN 12
+    WHEN 'all' THEN 520
+    ELSE 12
+  END;
   IF NOT public.is_admin() THEN
     RAISE EXCEPTION 'unauthorized' USING ERRCODE = '42501';
   END IF;
 
-  -- 1. Daily signups (last 30 days)
+  -- 1. Daily signups (windowed by filter date_range)
   SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.day), '[]'::jsonb)
   INTO v_signups
   FROM (
@@ -48,7 +87,7 @@ BEGIN
       d.day::date AS day,
       COUNT(u.id) AS count
     FROM generate_series(
-      (now() - interval '30 days')::date,
+      (now() - (v_days_back || ' days')::interval)::date,
       now()::date,
       '1 day'
     ) AS d(day)
@@ -56,7 +95,7 @@ BEGIN
     GROUP BY d.day
   ) t;
 
-  -- 2. Weekly active users (last 12 weeks)
+  -- 2. Weekly active users (windowed by filter)
   SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.week_start), '[]'::jsonb)
   INTO v_wau
   FROM (
@@ -64,7 +103,7 @@ BEGIN
       date_trunc('week', d.day)::date AS week_start,
       COUNT(DISTINCT u.id) AS active_users
     FROM generate_series(
-      (now() - interval '12 weeks')::date,
+      (now() - (v_weeks_back || ' weeks')::interval)::date,
       now()::date,
       '1 day'
     ) AS d(day)
@@ -73,7 +112,7 @@ BEGIN
     GROUP BY date_trunc('week', d.day)
   ) t;
 
-  -- 3. Vehicles added per week (last 12 weeks)
+  -- 3. Vehicles added per week (windowed; respects vehicle_types + account_type)
   SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.week_start), '[]'::jsonb)
   INTO v_vehicles_trend
   FROM (
@@ -81,28 +120,35 @@ BEGIN
       date_trunc('week', d.day)::date AS week_start,
       COUNT(v.id) AS count
     FROM generate_series(
-      (now() - interval '12 weeks')::date,
+      (now() - (v_weeks_back || ' weeks')::interval)::date,
       now()::date,
       '1 day'
     ) AS d(day)
     LEFT JOIN public.vehicles v ON v.created_at::date = d.day
+      AND (v_vehicle_types IS NULL OR COALESCE(v.vehicle_type, 'לא צוין') = ANY(v_vehicle_types))
+    LEFT JOIN public.accounts a ON a.id = v.account_id
+      AND (v_account_type = 'all' OR a.type = v_account_type)
+    WHERE v.id IS NULL OR a.id IS NOT NULL OR v_account_type = 'all'
     GROUP BY date_trunc('week', d.day)
   ) t;
 
-  -- 4. Vehicle type distribution
+  -- 4. Vehicle type distribution (respects account_type filter — but
+  -- NOT vehicle_types filter, since this IS the chart that shows them).
   SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.count DESC), '[]'::jsonb)
   INTO v_vehicle_types
   FROM (
     SELECT
-      COALESCE(vehicle_type, 'לא צוין') AS vehicle_type,
+      COALESCE(v.vehicle_type, 'לא צוין') AS vehicle_type,
       COUNT(*) AS count
-    FROM public.vehicles
-    GROUP BY vehicle_type
+    FROM public.vehicles v
+    LEFT JOIN public.accounts a ON a.id = v.account_id
+    WHERE v_account_type = 'all' OR a.type = v_account_type
+    GROUP BY v.vehicle_type
     ORDER BY count DESC
     LIMIT 10
   ) t;
 
-  -- 5. Documents uploaded per week (last 12 weeks)
+  -- 5. Documents uploaded per week (windowed; respects account_type filter)
   SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.week_start), '[]'::jsonb)
   INTO v_docs_trend
   FROM (
@@ -110,16 +156,19 @@ BEGIN
       date_trunc('week', d.day)::date AS week_start,
       COUNT(doc.id) AS count
     FROM generate_series(
-      (now() - interval '12 weeks')::date,
+      (now() - (v_weeks_back || ' weeks')::interval)::date,
       now()::date,
       '1 day'
     ) AS d(day)
     LEFT JOIN public.documents doc ON doc.created_at::date = d.day
+    LEFT JOIN public.accounts a ON a.id = doc.account_id
+      AND (v_account_type = 'all' OR a.type = v_account_type)
+    WHERE doc.id IS NULL OR a.id IS NOT NULL OR v_account_type = 'all'
     GROUP BY date_trunc('week', d.day)
   ) t;
 
-  -- 6. Errors per day (last 14 days)
-  -- Graceful: app_errors may not exist yet.
+  -- 6. Errors per day (windowed by filter; capped at 30d max — long
+  -- error history is rarely useful and the chart becomes unreadable).
   BEGIN
     SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.day), '[]'::jsonb)
     INTO v_errors_trend
@@ -128,7 +177,7 @@ BEGIN
         d.day::date AS day,
         COUNT(e.id) AS count
       FROM generate_series(
-        (now() - interval '14 days')::date,
+        (now() - (LEAST(v_days_back, 30) || ' days')::interval)::date,
         now()::date,
         '1 day'
       ) AS d(day)
@@ -143,17 +192,17 @@ BEGIN
   -- Graceful: email_send_log / email_events may not exist yet.
   BEGIN
     SELECT jsonb_build_object(
-      'sent',      (SELECT COUNT(*) FROM public.email_send_log WHERE sent_at >= now() - interval '30 days'),
-      'delivered', (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'delivered' AND occurred_at >= now() - interval '30 days'),
-      'opened',    (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'opened' AND occurred_at >= now() - interval '30 days'),
-      'clicked',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'clicked' AND occurred_at >= now() - interval '30 days'),
-      'bounced',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type IN ('bounced','complained') AND occurred_at >= now() - interval '30 days')
+      'sent',      (SELECT COUNT(*) FROM public.email_send_log WHERE sent_at >= now() - (v_days_back || ' days')::interval),
+      'delivered', (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'delivered' AND occurred_at >= now() - (v_days_back || ' days')::interval),
+      'opened',    (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'opened' AND occurred_at >= now() - (v_days_back || ' days')::interval),
+      'clicked',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'clicked' AND occurred_at >= now() - (v_days_back || ' days')::interval),
+      'bounced',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type IN ('bounced','complained') AND occurred_at >= now() - (v_days_back || ' days')::interval)
     ) INTO v_email_stats;
   EXCEPTION WHEN undefined_table OR undefined_column THEN
     v_email_stats := '{"sent":0,"delivered":0,"opened":0,"clicked":0,"bounced":0}'::jsonb;
   END;
 
-  -- 8. Signup cohort retention (simplified: weekly cohorts, did they return?)
+  -- 8. Signup cohort retention (weekly cohorts within filter window).
   SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.cohort_week), '[]'::jsonb)
   INTO v_cohorts
   FROM (
@@ -164,7 +213,7 @@ BEGIN
       COUNT(*) FILTER (WHERE u.last_sign_in_at > u.created_at + interval '7 days') AS returned_d7,
       COUNT(*) FILTER (WHERE u.last_sign_in_at > u.created_at + interval '30 days') AS returned_d30
     FROM auth.users u
-    WHERE u.created_at >= now() - interval '12 weeks'
+    WHERE u.created_at >= now() - (v_weeks_back || ' weeks')::interval
     GROUP BY date_trunc('week', u.created_at)
     HAVING COUNT(*) >= 1
   ) t;
@@ -213,7 +262,7 @@ BEGIN
   WITH cohort AS (
     SELECT u.id, u.created_at, u.email_confirmed_at
     FROM auth.users u
-    WHERE u.created_at >= now() - interval '30 days'
+    WHERE u.created_at >= now() - (v_days_back || ' days')::interval
   ),
   with_vehicle AS (
     SELECT DISTINCT c.id
@@ -259,7 +308,7 @@ BEGIN
       SELECT DISTINCT ON (user_id) user_id, sent_at
       FROM public.email_send_log
       WHERE notification_key LIKE 'reminder_%'
-        AND sent_at >= now() - interval '30 days'
+        AND sent_at >= now() - (v_days_back || ' days')::interval
         AND user_id IS NOT NULL
       ORDER BY user_id, sent_at DESC
     ),
@@ -287,7 +336,7 @@ BEGIN
   -- signup → first_vehicle → first_reminder → first_document. Mirrors
   -- the activation funnel's terminal stage.
   WITH cohort AS (
-    SELECT u.id FROM auth.users u WHERE u.created_at >= now() - interval '30 days'
+    SELECT u.id FROM auth.users u WHERE u.created_at >= now() - (v_days_back || ' days')::interval
   ),
   completed AS (
     SELECT DISTINCT c.id
@@ -349,17 +398,39 @@ BEGIN
     'kpi_north_star_pct',    COALESCE(v_kpi_north_star, 0),
     'kpi_activation_rate_pct', COALESCE(v_kpi_activation_rate, 0),
     'kpi_power_users',       COALESCE(v_kpi_power_users, 0),
-    'kpi_churn_risk',        COALESCE(v_kpi_churn_risk, 0)
+    'kpi_churn_risk',        COALESCE(v_kpi_churn_risk, 0),
+    'filters_applied',       jsonb_build_object(
+      'date_range',    v_date_range,
+      'days_back',     v_days_back,
+      'weeks_back',    v_weeks_back,
+      'account_type',  v_account_type,
+      'vehicle_types', COALESCE(to_jsonb(v_vehicle_types), 'null'::jsonb)
+    )
   );
 
   RETURN v_result;
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.admin_analytics_summary() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_analytics_summary(jsonb) TO authenticated;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SMOKE TEST — uncomment to verify:
+-- SMOKE TESTS — uncomment to verify:
+--   -- Default (= last 30 days, no filters)
 --   SELECT public.admin_analytics_summary();
+--
+--   -- Last 7 days only
+--   SELECT public.admin_analytics_summary('{"date_range":"7d"}'::jsonb);
+--
+--   -- Business accounts only
+--   SELECT public.admin_analytics_summary('{"account_type":"business"}'::jsonb);
+--
+--   -- Specific vehicle types
+--   SELECT public.admin_analytics_summary(
+--     '{"vehicle_types":["פרטי","מסחרי"]}'::jsonb
+--   );
+--
+--   -- Verify filters_applied echo in response
+--   SELECT public.admin_analytics_summary('{"date_range":"90d"}'::jsonb)->'filters_applied';
 -- ═══════════════════════════════════════════════════════════════════════════
