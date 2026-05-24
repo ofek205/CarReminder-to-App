@@ -22,6 +22,8 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Copy,
+  Check,
 } from "lucide-react";
 import { C } from "@/lib/designTokens";
 import { formatDistanceToNow, parseISO } from "date-fns";
@@ -254,10 +256,33 @@ function defaultRenderer(rows) {
   );
 }
 
+function CopyErrorsButton({ rows }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    const text = rows.map(r =>
+      `[${r.item_key || ''}] ${r.item_label} (×${r.item_value})${r.item_extra ? ` — ${r.item_extra}` : ''}${r.item_time ? ` @ ${r.item_time}` : ''}`
+    ).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
+  return (
+    <button onClick={handleCopy} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600 transition">
+      {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+      {copied ? 'הועתק' : 'העתק הכל'}
+    </button>
+  );
+}
+
 function errorRenderer(rows) {
   return (
     <div className="space-y-1.5 text-xs">
-      <div className="text-[11px] font-bold text-gray-600 mb-2">שגיאות נפוצות (24 שעות אחרונות)</div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[11px] font-bold text-gray-600">שגיאות נפוצות (24 שעות אחרונות)</div>
+        <CopyErrorsButton rows={rows} />
+      </div>
       {rows.map((r, i) => (
         <div key={i} className="bg-white rounded-lg border px-3 py-2">
           <div className="flex items-center justify-between gap-2 mb-0.5">

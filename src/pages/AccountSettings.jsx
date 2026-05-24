@@ -34,7 +34,7 @@ function RoleBadge({ role }) {
 function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChangeRole, onRemove, onRoleChange }) {
   const IconMap = { 'בעלים': Crown, 'מנהל': Shield, 'חבר': User };
   const Icon = IconMap[member.role] || User;
-  const info = ROLE_INFO[member.role] || ROLE_INFO['חבר'];
+  const info = ROLE_INFO[member.role] || ROLE_INFO['שותף'];
   const [changingRole, setChangingRole] = useState(false);
 
   const handleRoleChange = async (newRole) => {
