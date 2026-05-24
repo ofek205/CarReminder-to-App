@@ -170,18 +170,48 @@ serve(async (req) => {
     // Admin direct messages also create an in-app notification so the
     // recipient sees it in the bell + gets a push notification via the
     // existing AFTER INSERT trigger on app_notifications.
-    if (notification_key === 'admin_direct' && recipient_user_id) {
+    // SECURITY: gate on is_admin() RPC — a non-admin could otherwise
+    // craft a request with notification_key='admin_direct' and inject
+    // fake admin messages into any user's bell.
+    if (notification_key === 'admin_direct') {
       try {
-        const plainBody = (text || (html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')).slice(0, 500);
-        await supabaseAdmin
-          .from('app_notifications')
-          .insert({
-            user_id: recipient_user_id,
-            type:    'admin_message',
-            title:   subject,
-            body:    plainBody,
-            data:    { from_admin: true, subject, body: plainBody },
-          });
+        const { data: isAdminFlag } = await supabaseAdmin!.rpc('is_admin', { uid: user.id });
+        if (!isAdminFlag) {
+          logSecurityEvent('send-email', 'admin_notif_blocked', { user_id: user.id, recipient_user_id });
+        } else {
+          // Resolve recipient: explicit user_id takes priority, otherwise
+          // look up by the `to` email so replies from AdminAlerts (which
+          // only have the contact email) also land in the user's bell.
+          // Uses the GoTrue admin endpoint which supports email filter.
+          let resolvedUserId = recipient_user_id;
+          if (!resolvedUserId && to && !Array.isArray(to)) {
+            const gotrue = `${SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(to as string)}&per_page=1`;
+            try {
+              const luRes = await fetch(gotrue, {
+                headers: { Authorization: `Bearer ${SERVICE_ROLE}`, apikey: SERVICE_ROLE },
+              });
+              if (luRes.ok) {
+                const luData = await luRes.json();
+                const match = (luData.users || []).find(
+                  (u: { email?: string }) => u.email?.toLowerCase() === (to as string).toLowerCase()
+                );
+                resolvedUserId = match?.id;
+              }
+            } catch { /* lookup failed — notification won't be created, email still sent */ }
+          }
+          if (resolvedUserId) {
+            const plainBody = (text || (html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')).slice(0, 500);
+            await supabaseAdmin!
+              .from('app_notifications')
+              .insert({
+                user_id: resolvedUserId,
+                type:    'admin_message',
+                title:   subject,
+                body:    plainBody,
+                data:    { from_admin: true, subject, body: plainBody },
+              });
+          }
+        }
       } catch (notifErr) {
         console.warn('app_notifications insert failed:', (notifErr as Error)?.message);
       }
