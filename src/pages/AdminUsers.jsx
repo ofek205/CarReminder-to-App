@@ -58,19 +58,27 @@ import { toast } from "sonner";
 
 const PAGE_SIZE = 50;
 
+// Activity thresholds (must match supabase-admin-user-list.sql):
+//   active_7d  : last sign-in within 7 days
+//   active_30d : last sign-in 8-30 days ago
+//   inactive   : last sign-in 31-90 days ago (didn't visit in the last month)
+//   dormant    : last sign-in over 90 days ago (truly inactive)
+//   never      : last_sign_in_at is null
 const STATUS_META = {
-  active_7d:  { label: "פעיל",     color: C.success, bg: C.successBg },
-  active_30d: { label: "פעיל בחודש", color: C.primary, bg: C.light    },
-  dormant:    { label: "דורם",     color: C.warn,    bg: C.warnBg   },
-  never:      { label: "לא חיבר",  color: C.muted,   bg: "#F3F4F6"  },
+  active_7d:  { label: "פעיל",         color: C.success, bg: C.successBg },
+  active_30d: { label: "פעיל בחודש",   color: C.primary, bg: C.light    },
+  inactive:   { label: "לא פעיל",      color: C.warn,    bg: C.warnBg   },
+  dormant:    { label: "דורם",         color: C.error,   bg: C.errorBg  },
+  never:      { label: "לא חיבר",      color: C.muted,   bg: "#F3F4F6"  },
 };
 
 const STATUS_OPTIONS = [
   { value: "all",        label: "כל הסטטוסים" },
-  { value: "active_7d",  label: "פעילים (7י׳)"  },
-  { value: "active_30d", label: "פעילים בחודש"   },
-  { value: "dormant",    label: "דורמים"        },
-  { value: "never",      label: "לא התחברו"     },
+  { value: "active_7d",  label: "פעילים (7י׳)"          },
+  { value: "active_30d", label: "פעילים בחודש"           },
+  { value: "inactive",   label: "לא פעילים (חודש-3 ח׳)" },
+  { value: "dormant",    label: "דורמים (3 ח׳+)"        },
+  { value: "never",      label: "לא התחברו"              },
 ];
 
 const ASSET_OPTIONS = [
@@ -323,6 +331,7 @@ export default function AdminUsers() {
   const stats = {
     total:      users.length,
     active_7d:  users.filter((u) => u.activity_status === "active_7d").length,
+    inactive:   users.filter((u) => u.activity_status === "inactive").length,
     dormant:    users.filter((u) => u.activity_status === "dormant").length,
     never:      users.filter((u) => u.activity_status === "never").length,
     unverified: users.filter((u) => u.email && !u.email_confirmed_at).length,
@@ -351,9 +360,10 @@ export default function AdminUsers() {
       )}
 
       {/* Hero — total count + supporting stats. The "184" is the headline. */}
-      <div className="mb-5 grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="mb-5 grid grid-cols-2 sm:grid-cols-6 gap-2">
         <HeroPill label="סה״כ"        value={stats.total}      isHero />
         <SubPill  label="פעילים (7י׳)" value={stats.active_7d} tone="green" />
+        <SubPill  label="לא פעילים"    value={stats.inactive}   tone="amber" />
         <SubPill  label="דורמים"       value={stats.dormant}    tone="amber" />
         <SubPill  label="לא התחברו"    value={stats.never}      tone="gray" />
         <SubPill  label="לא אומתו"     value={stats.unverified} tone="amber" />

@@ -81,6 +81,12 @@ function getNotifTier(n) {
   if (n.isExpired) return 'urgent';
   // App-type prefix routing — share_* go to share, community_* go to community.
   if (n.type === 'app' && typeof n.appType === 'string') {
+    // Admin direct messages should grab attention — they are sent
+    // hand-by-admin for a reason, not algorithmic noise. Route to the
+    // urgent tier so they sit at the top of the bell with newest-first
+    // ordering within the tier (vs the previous behaviour where they
+    // fell through to "info" rank 4 and sank to the bottom).
+    if (n.appType === 'admin_message') return 'urgent';
     if (n.appType.startsWith('share') || n.appType.startsWith('workspace_')
         || n.appType === 'driver_assigned' || n.appType === 'task_assigned') return 'share';
     if (n.appType === 'community_comment') return 'community';

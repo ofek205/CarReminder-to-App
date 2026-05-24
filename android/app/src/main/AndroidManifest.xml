@@ -51,6 +51,29 @@
         </provider>
     </application>
 
+    <!-- Hardware feature declarations.
+         CRITICAL: Google Play AUTO-DERIVES feature requirements from
+         permissions if we don't override. Specifically:
+           CAMERA permission       → adds <uses-feature camera required="true"/>
+           ACCESS_FINE_LOCATION    → adds <uses-feature location.gps required="true"/>
+           ACCESS_COARSE_LOCATION  → adds <uses-feature location.network required="true"/>
+         Devices missing those features (some tablets without GPS, devices
+         with no camera, emulators, restricted Samsung profiles, ChromeOS
+         laptops) get "This app is available only for your other devices"
+         in the Play Store — even when minSdk and architecture match.
+         Declaring them here with required="false" tells Play that the
+         app USES these capabilities when available but doesn't NEED them,
+         widening device compatibility without removing functionality
+         (CameraPicker / Geolocation fail gracefully when absent). -->
+    <uses-feature android:name="android.hardware.camera"            android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus"  android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any"        android:required="false" />
+    <uses-feature android:name="android.hardware.location"          android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps"      android:required="false" />
+    <uses-feature android:name="android.hardware.location.network"  android:required="false" />
+    <uses-feature android:name="android.hardware.telephony"         android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen"       android:required="false" />
+
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />

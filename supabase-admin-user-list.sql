@@ -136,6 +136,7 @@ BEGIN
       WHEN u.last_sign_in_at IS NULL                              THEN 'never'
       WHEN u.last_sign_in_at >= now() - interval '7 days'         THEN 'active_7d'
       WHEN u.last_sign_in_at >= now() - interval '30 days'        THEN 'active_30d'
+      WHEN u.last_sign_in_at >= now() - interval '90 days'        THEN 'inactive'
       ELSE                                                              'dormant'
     END                                                               AS activity_status
   FROM auth.users u
