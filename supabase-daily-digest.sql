@@ -101,7 +101,7 @@ BEGIN
   SELECT COUNT(*) INTO v_bounces_today
     FROM public.email_events
     WHERE event_type IN ('email.bounced', 'email.complained')
-      AND received_at::date = v_today;
+      AND occurred_at::date = v_today;
   IF v_bounces_today > 0 THEN
     v_highlights := v_highlights || jsonb_build_array(
       jsonb_build_object('type', 'bounces',
