@@ -21,6 +21,7 @@ import { notifyVehicleChange } from '@/lib/notifyVehicleChange';
 import { getRecommendedInterval, computeNextReminder, reminderFireDate } from '@/lib/maintenanceRecommendations';
 import { scheduleLocalNotification } from '@/lib/notificationChannels';
 import { db } from '@/lib/supabaseEntities';
+import { reportUserError } from '@/lib/crashReporter';
 import ManufacturerScheduleCard from './ManufacturerScheduleCard';
 
 export default function MaintenanceSection({ vehicle }) {
@@ -357,6 +358,7 @@ export default function MaintenanceSection({ vehicle }) {
       setDialogOpen(false);
     } catch (err) {
       toast.error('שגיאה בשמירה: ' + (err?.message || 'נסה שוב'));
+      reportUserError('save_maintenance', err, { vehicleId: vehicle?.id });
     } finally {
       setSaving(false);
     }
@@ -370,6 +372,7 @@ export default function MaintenanceSection({ vehicle }) {
     } catch (err) {
       console.error('Delete maintenance error:', err);
       toast.error('שגיאה במחיקת טיפול');
+      reportUserError('delete_maintenance', err, { vehicleId: vehicle?.id });
     }
   };
 

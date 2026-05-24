@@ -22,6 +22,8 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Copy,
+  Check,
 } from "lucide-react";
 import { C } from "@/lib/designTokens";
 import { formatDistanceToNow, parseISO } from "date-fns";
@@ -45,7 +47,7 @@ const STATUS_STYLE = {
 export default function AdminHealth() {
   const isAdmin = useIsAdmin();
 
-  const { data: probes = [], isLoading, isError, refetch, isFetching, dataUpdatedAt } = useQuery({
+  const { data: probes = [], isLoading, isError, error: queryError, refetch, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["admin-health"],
     queryFn: async () => {
       const { data, error } = await withTimeout(
@@ -81,6 +83,7 @@ export default function AdminHealth() {
         <Card className="p-6 text-center">
           <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-500" />
           <p className="font-bold mb-2">לא הצלחנו לטעון את סטטוס המערכת</p>
+          <p className="text-xs text-gray-400 mb-3 font-mono" dir="ltr">{queryError?.message || queryError?.code || JSON.stringify(queryError)}</p>
           <Button onClick={() => refetch()}>נסה שוב</Button>
         </Card>
       </div>
@@ -253,10 +256,33 @@ function defaultRenderer(rows) {
   );
 }
 
+function CopyErrorsButton({ rows }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    const text = rows.map(r =>
+      `[${r.item_key || ''}] ${r.item_label} (×${r.item_value})${r.item_extra ? ` — ${r.item_extra}` : ''}${r.item_time ? ` @ ${r.item_time}` : ''}`
+    ).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
+  return (
+    <button onClick={handleCopy} className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600 transition">
+      {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+      {copied ? 'הועתק' : 'העתק הכל'}
+    </button>
+  );
+}
+
 function errorRenderer(rows) {
   return (
     <div className="space-y-1.5 text-xs">
-      <div className="text-[11px] font-bold text-gray-600 mb-2">שגיאות נפוצות (24 שעות אחרונות)</div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[11px] font-bold text-gray-600">שגיאות נפוצות (24 שעות אחרונות)</div>
+        <CopyErrorsButton rows={rows} />
+      </div>
       {rows.map((r, i) => (
         <div key={i} className="bg-white rounded-lg border px-3 py-2">
           <div className="flex items-center justify-between gap-2 mb-0.5">

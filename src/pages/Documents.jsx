@@ -18,6 +18,7 @@ import { buttonVariants } from "@/components/ui/button";
 import PageHeader from "../components/shared/PageHeader";
 import { ListSkeleton } from "../components/shared/Skeletons";
 import { hapticFeedback } from "@/lib/capacitor";
+import { reportUserError } from "@/lib/crashReporter";
 import useFileUpload from "@/hooks/useFileUpload";
 import { getSignedUrl } from "@/hooks/useSignedUrl";
 import EmptyState from "../components/shared/EmptyState";
@@ -1296,6 +1297,7 @@ function AuthDocuments({ vehicleIdParam }) {
       hapticFeedback('heavy');
       const msg = err?.message || 'שגיאה לא ידועה';
       toast.error('שגיאה בשמירת המסמך: ' + msg);
+      reportUserError('save_document', err);
     } finally {
       setSaving(false);
     }
@@ -1384,6 +1386,7 @@ function AuthDocuments({ vehicleIdParam }) {
     } catch (err) {
       console.error('Document delete error:', err);
       toast.error('שגיאה במחיקת המסמך');
+      reportUserError('delete_document', err);
     }
   };
 

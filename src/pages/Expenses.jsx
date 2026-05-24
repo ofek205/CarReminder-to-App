@@ -48,6 +48,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { uploadScanFile, deleteFile } from '@/lib/supabaseStorage';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
 import { validateUploadFile } from '@/lib/securityUtils';
+import { reportUserError } from '@/lib/crashReporter';
 // Living Dashboard system - one language across all B2B pages.
 import {
   PageShell,
@@ -245,8 +246,9 @@ export default function Expenses() {
                     if (e.receipt_storage_path) deleteFile(e.receipt_storage_path).catch(() => {});
                     toast.success('ההוצאה נמחקה');
                     await queryClient.invalidateQueries({ queryKey: ['expenses'] });
-                  } catch {
+                  } catch (delErr) {
                     toast.error('המחיקה נכשלה. נסה שוב.');
+                    reportUserError('delete_expense', delErr);
                   }
                 }}
               />
@@ -571,8 +573,9 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
       else if (msg.includes('invalid_amount'))           toast.error('הסכום לא תקין');
       else if (msg.includes('invalid_category'))         toast.error('קטגוריה לא תקינה');
       else                                                toast.error('השמירה נכשלה. נסה שוב.');
-       
+
       console.error('expense save failed:', err);
+      reportUserError('save_expense', err);
     } finally {
       setSubmitting(false);
     }

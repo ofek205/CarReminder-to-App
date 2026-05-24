@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { getRecentShareEmails, rememberShareEmail } from '@/lib/recentShareEmails';
+import { reportUserError } from '@/lib/crashReporter';
 
 // WhatsApp icon — kept inline so we don't add an asset dependency.
 const WhatsAppIcon = ({ size = 16 }) => (
@@ -198,6 +199,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
       }
     } catch (e) {
       toast.error(`שגיאה בשיתוף: ${e?.message || 'נסה שוב'}`);
+      reportUserError('share_vehicle', e);
       if (import.meta.env.DEV) console.warn('share dialog exception:', e);
     } finally {
       setSubmitting(false);

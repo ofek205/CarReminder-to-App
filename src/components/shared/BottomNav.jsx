@@ -98,19 +98,19 @@ export default function BottomNav({ sheetOpen = false }) {
         //     the menu. Layout's own useEffect on location.pathname will
         //     then close the sheet after the tap routes away.
         zIndex: sheetOpen ? 10010 : 40,
-        // Bottom inset handling — unified env() across iOS and Android.
-        //
-        // 2026-05-21 take 3: tried `decorFitsSystemWindows=true` in
-        // MainActivity to make the WebView strictly inset, paired with a
-        // fixed 4 px padding here. On the Pixel 7 emulator that produced
-        // a visible green strip between the BottomNav's white bg and the
-        // system nav buttons — the user pointed out the BottomNav should
-        // flow flush against the system nav with the white bg continuing
-        // under the buttons (the standard Android pattern). Reverting
-        // Android: --cap-nav-bar-height is injected by MainActivity.java
-        // (actual nav-bar height in dp). iOS: falls back to env() which
-        // reports the home-indicator height. Web: falls back to 0px.
-        paddingBottom: 'var(--cap-nav-bar-height, env(safe-area-inset-bottom, 0px))',
+        // Bottom inset handling — driven by the unified --inset-bottom
+        // variable defined in src/index.css.
+        //   Android (native): MainActivity.java injects
+        //     --android-inset-bottom = max(gesture nav bar, keyboard)
+        //     in real time. When the keyboard opens this jumps to the
+        //     keyboard height, so BottomNav's content rides above the
+        //     keyboard while its white background extends down into
+        //     the area the keyboard covers (which is fine — keyboard
+        //     paints on top).
+        //   iOS (native): falls back to env(safe-area-inset-bottom)
+        //     = home-indicator height.
+        //   Web: falls back to 0px.
+        paddingBottom: 'var(--inset-bottom, env(safe-area-inset-bottom, 0px))',
         // Horizontal safe-area: WKWebView's 100vw includes the device's
         // curved corner region, so `fixed inset-x-0` extends edge-to-
         // edge but the inner tabs distributed via `justify-around` got

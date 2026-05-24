@@ -136,6 +136,7 @@ BEGIN
       WHEN u.last_sign_in_at IS NULL                              THEN 'never'
       WHEN u.last_sign_in_at >= now() - interval '7 days'         THEN 'active_7d'
       WHEN u.last_sign_in_at >= now() - interval '30 days'        THEN 'active_30d'
+      WHEN u.last_sign_in_at >= now() - interval '90 days'        THEN 'inactive'
       ELSE                                                              'dormant'
     END                                                               AS activity_status
   FROM auth.users u
@@ -184,10 +185,10 @@ BEGIN
   event_agg AS (
     SELECT
       ul.id AS log_id,
-      bool_or(e.event_type = 'email.delivered')   AS delivered,
-      bool_or(e.event_type = 'email.opened')      AS opened,
-      bool_or(e.event_type = 'email.clicked')     AS clicked,
-      bool_or(e.event_type IN ('email.bounced','email.complained')) AS failed
+      bool_or(e.event_type = 'delivered')   AS delivered,
+      bool_or(e.event_type = 'opened')      AS opened,
+      bool_or(e.event_type = 'clicked')     AS clicked,
+      bool_or(e.event_type IN ('bounced','complained')) AS failed
     FROM user_logs ul
     LEFT JOIN public.email_events e ON e.send_log_id = ul.id
     GROUP BY ul.id
@@ -204,7 +205,7 @@ BEGIN
   FROM event_agg ea;
 
   -- Last 10 emails sent (any status).
-  SELECT COALESCE(jsonb_agg(row_to_jsonb(t)), '[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(to_jsonb(t)), '[]'::jsonb)
   INTO v_recent
   FROM (
     SELECT
@@ -213,8 +214,8 @@ BEGIN
       l.recipient_email,
       l.sent_at,
       l.status,
-      EXISTS (SELECT 1 FROM public.email_events e WHERE e.send_log_id = l.id AND e.event_type = 'email.opened') AS opened,
-      EXISTS (SELECT 1 FROM public.email_events e WHERE e.send_log_id = l.id AND e.event_type = 'email.clicked') AS clicked
+      EXISTS (SELECT 1 FROM public.email_events e WHERE e.send_log_id = l.id AND e.event_type = 'opened') AS opened,
+      EXISTS (SELECT 1 FROM public.email_events e WHERE e.send_log_id = l.id AND e.event_type = 'clicked') AS clicked
     FROM public.email_send_log l
     WHERE l.user_id = p_user_id
     ORDER BY l.sent_at DESC
@@ -230,7 +231,7 @@ BEGIN
       jsonb_build_object(
         'sent',   COUNT(*),
         'opened', COUNT(*) FILTER (WHERE EXISTS (
-          SELECT 1 FROM public.email_events e WHERE e.send_log_id = l.id AND e.event_type = 'email.opened'
+          SELECT 1 FROM public.email_events e WHERE e.send_log_id = l.id AND e.event_type = 'opened'
         ))
       ) AS v
     FROM public.email_send_log l

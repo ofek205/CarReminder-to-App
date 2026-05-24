@@ -23,21 +23,28 @@
     <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <!-- Was @null which left the Activity background unpainted, exposing
-             whatever the window manager renders underneath. Explicit white
-             matches the React app's white body bg + the iOS WebView
-             backgroundColor='#FFFFFF' in capacitor.config.ts. -->
+        <!-- White windowBackground: critical safety net. BridgeActivity does
+             not call SplashScreen.installSplashScreen(), so the launch
+             theme's green splash drawable would persist as the window
+             backdrop without this. MainActivity.onCreate also calls
+             setBackgroundDrawable(WHITE) as belt-and-suspenders. -->
         <item name="android:windowBackground">@android:color/white</item>
-        <!-- System bar colors so the app's top/bottom chrome blends with them -->
-        <item name="android:statusBarColor">#2D5233</item>
-        <item name="android:navigationBarColor">#FFFFFF</item>
+        <!-- windowLightStatusBar=false: white status-bar icons (over the
+             dark green CSS-painted status bar in Layout.jsx).
+             windowLightNavigationBar=true: dark gesture-bar icons (over
+             the white BottomNav background that extends to the bottom). -->
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">true</item>
-        <!-- Android 15+ (target SDK 35+) forces edge-to-edge by default, which
-             makes the WebView draw UNDER the status bar + gesture navigation.
-             Opt out so system bars are respected and the in-app top/bottom
-             chrome sits in the real viewport — like every standard Android app. -->
-        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+        <!-- We are committed to edge-to-edge across all Android versions.
+             MainActivity calls WindowCompat.setDecorFitsSystemWindows(false)
+             explicitly. The WebView covers the whole window; CSS receives
+             the inset values via injected android-inset CSS variables
+             and lays out content accordingly.
+             setStatusBarColor / setNavigationBarColor were here previously
+             but are deprecated on API 35+ (we target SDK 36). The system
+             bar regions are painted in CSS instead: Layout.jsx mobile
+             top bar (#2D5233) and BottomNav (white) extend into the
+             inset regions. -->
     </style>
 
 

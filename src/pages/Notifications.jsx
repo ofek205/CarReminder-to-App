@@ -7,7 +7,7 @@ import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, C
 import AdminMessageDialog from "../components/shared/AdminMessageDialog";
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { configForType as appConfigForType, requiresActionForType } from '@/lib/appNotificationConfig';
+import { configForType as appConfigForType, requiresActionForType, decodeNotifBody } from '@/lib/appNotificationConfig';
 import { ListSkeleton } from "../components/shared/Skeletons";
 import { formatDateHe } from "../components/shared/DateStatusUtils";
 import { useAuth } from "../components/shared/GuestContext";
@@ -712,7 +712,7 @@ function AuthNotifications() {
                 if (an.type === 'account_invite_offered' && !isRead) return;
                 if (!isRead) await markAppNotifRead(an.id, true);
                 if (an.type === 'admin_message') {
-                  setAdminMsg({ title: an.data?.subject || an.title, body: an.data?.body || an.body, createdAt: an.created_at });
+                  setAdminMsg({ title: decodeNotifBody(an.data?.subject || an.title), body: decodeNotifBody(an.data?.body || an.body), createdAt: an.created_at });
                   return;
                 }
                 if (href) navigate(href);
@@ -720,10 +720,10 @@ function AuthNotifications() {
               className="flex-1 min-w-0 text-right">
               <p className={`text-sm ${isRead ? 'font-medium' : 'font-bold'}`}
                 style={{ color: isRead ? '#6B7280' : cfg.iconColor }}>
-                {an.title}
+                {an.type === 'admin_message' ? decodeNotifBody(an.title) : an.title}
               </p>
               {an.body && (
-                <p className="text-xs mt-0.5" style={{ color: isRead ? '#9CA3AF' : cfg.iconColor + 'CC' }}>{an.body}</p>
+                <p className="text-xs mt-0.5" style={{ color: isRead ? '#9CA3AF' : cfg.iconColor + 'CC' }}>{decodeNotifBody(an.body)}</p>
               )}
               <span
                 className="inline-flex mt-2 rounded-full px-2 py-0.5 text-[10px] font-bold"
@@ -760,13 +760,12 @@ function AuthNotifications() {
             </button>
             <button
               onClick={() => markAppNotifRead(an.id, !isRead)}
-              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/60 transition-all shrink-0"
+              className="w-8 h-8 rounded-xl flex items-center justify-center transition-all shrink-0"
+              style={{ background: isRead ? '#F3F4F6' : cfg.iconColor + '18' }}
               title={isRead ? 'סמן כלא נקרא' : 'סמן כנקרא'}>
-              <div className="w-2.5 h-2.5 rounded-full border-2 transition-all"
-                style={{
-                  background: isRead ? 'transparent' : cfg.iconColor,
-                  borderColor: isRead ? '#D1D5DB' : cfg.iconColor,
-                }} />
+              {isRead
+                ? <Bell className="w-3.5 h-3.5" style={{ color: '#9CA3AF' }} />
+                : <X className="w-3.5 h-3.5" style={{ color: cfg.iconColor }} />}
             </button>
           </div>
         );

@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Pin, Plus, Wrench, Anchor, Trash2, Check, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VEHICLE_ID, DEMO_VESSEL_ID } from '@/components/shared/demoVehicleData';
+import { reportUserError } from '@/lib/crashReporter';
 
 //  Note Colors 
 const COLORS = {
@@ -417,6 +418,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
           noteData.id ? `עודכן פתק: ${noteData.title || 'פתק'}` : `נוסף פתק: ${noteData.title || 'פתק חדש'}`);
       } catch (e) {
         toast.error('שגיאה בשמירת הפתק');
+        reportUserError('save_cork_note', e, { vehicleId: vehicle?.id });
         console.error(e);
       }
     }
@@ -431,8 +433,9 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
         queryClient.invalidateQueries({ queryKey: ['cork-notes', vehicle.id] });
         const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
         notifyVehicleChange(vehicle.id, 'note_deleted', 'נמחק פתק מלוח הפתקים');
-      } catch {
+      } catch (e) {
         toast.error('שגיאה במחיקה');
+        reportUserError('delete_cork_note', e, { vehicleId: vehicle?.id });
       }
     }
   };

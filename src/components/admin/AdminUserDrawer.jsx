@@ -243,6 +243,8 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
                   <Briefcase className="w-3 h-3" /> עסקי
                 </span>
               )}
+              {/* Activity chip — matches AdminUsers.jsx STATUS_META buckets:
+                  ≤7 active, ≤30 active_30d, ≤90 inactive, >90 dormant. */}
               {daysSinceSignin === null ? (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                   style={{ background: '#F0F7F4', color: '#6B7C72' }}>
@@ -255,13 +257,18 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
                 </span>
               ) : daysSinceSignin <= 30 ? (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                  style={{ background: '#DCFCE7', color: '#166534' }}>
+                  פעיל בחודש ({daysSinceSignin} ימים)
+                </span>
+              ) : daysSinceSignin <= 90 ? (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                   style={{ background: '#FEF3C7', color: '#92400E' }}>
-                  לא פעיל {daysSinceSignin} ימים
+                  לא פעיל ({daysSinceSignin} ימים)
                 </span>
               ) : (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                   style={{ background: '#FEE2E2', color: '#991B1B' }}>
-                  רדום {daysSinceSignin} ימים
+                  דורם ({daysSinceSignin} ימים)
                 </span>
               )}
             </div>
@@ -961,6 +968,11 @@ function SendEmailForm({ email, userId }) {
           html,
           notification_key: 'admin_direct',
           recipient_user_id: userId || undefined,
+          // Send the raw admin input so the edge function can store a
+          // clean in-app notification body. Without this, the function
+          // strips the rendered email HTML (which includes header,
+          // tagline, footer) and corrupts the notification text.
+          plain_body: body.trim(),
         },
       });
       if (error) throw error;

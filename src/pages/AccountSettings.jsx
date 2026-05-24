@@ -32,9 +32,9 @@ function RoleBadge({ role }) {
 
 //  Member card 
 function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChangeRole, onRemove, onRoleChange }) {
-  const IconMap = { 'בעלים': Crown, 'מנהל': Shield, 'חבר': User };
+  const IconMap = { 'בעלים': Crown, 'מנהל': Shield, 'שותף': User };
   const Icon = IconMap[member.role] || User;
-  const info = ROLE_INFO[member.role] || ROLE_INFO['חבר'];
+  const info = ROLE_INFO[member.role] || ROLE_INFO['שותף'];
   const [changingRole, setChangingRole] = useState(false);
 
   const handleRoleChange = async (newRole) => {
@@ -80,7 +80,7 @@ function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChang
               </AlertDialogTrigger>
               <AlertDialogContent dir="rtl">
                 <AlertDialogHeader>
-                  <AlertDialogTitle>הסרת חבר</AlertDialogTitle>
+                  <AlertDialogTitle>הסרת משתמש</AlertDialogTitle>
                   <AlertDialogDescription>
                     האם להסיר את {memberName || 'המשתמש'} מהחשבון? לא יוכל לראות את הרכבים שלך.
                   </AlertDialogDescription>
@@ -220,7 +220,7 @@ function AuthAccountSettings({ embedded = false }) {
   const removeMember = async (member) => {
     await db.account_members.update(member.id, { status: MEMBER_STATUS.REMOVED });
     queryClient.invalidateQueries({ queryKey: ['account-members'] });
-    toast.success('החבר הוסר');
+    toast.success('המשתמש הוסר מהחשבון');
   };
 
   const changeRole = async (member, newRole) => {
@@ -257,7 +257,7 @@ function AuthAccountSettings({ embedded = false }) {
                   <SharingHelpButton size="sm" />
                 </div>
                 <p className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
-                  {members.length} {members.length === 1 ? 'חבר' : 'חברים'} &bull; {ROLE_INFO[myRole]?.label || myRole}
+                  {members.length} {members.length === 1 ? 'משתמש' : 'משתמשים'} &bull; {ROLE_INFO[myRole]?.label || myRole}
                 </p>
               </div>
             </div>
@@ -279,9 +279,9 @@ function AuthAccountSettings({ embedded = false }) {
           style={{ background: C.light, border: `1px solid ${C.border}` }}>
           <div>
             <p className="text-sm font-bold" style={{ color: C.text }}>
-              {members.length} {members.length === 1 ? 'חבר' : 'חברים'}
+              {members.length} {members.length === 1 ? 'משתמש' : 'משתמשים'}
             </p>
-            <p className="text-[11px]" style={{ color: C.muted }}>התפקיד שלך: {myRole}</p>
+            <p className="text-[11px]" style={{ color: C.muted }}>התפקיד שלך: {ROLE_INFO[myRole]?.label || myRole}</p>
           </div>
           <Button onClick={() => setShowInvite(true)}
             className="rounded-xl font-bold gap-2 h-10 px-4"
@@ -315,13 +315,13 @@ function AuthAccountSettings({ embedded = false }) {
       {/* Members list */}
       <div className="mb-6">
         <h2 className="font-bold text-base text-gray-900 mb-3">
-          חברי החשבון ({members.length})
+          משתמשי החשבון ({members.length})
         </h2>
         {members.map(member => (
           <MemberCard
             key={member.id}
             member={member}
-            memberName={member.user_id === user?.id ? (user.full_name || user.email) : 'חבר'}
+            memberName={member.user_id === user?.id ? (user.full_name || user.email) : (ROLE_INFO[member.role]?.label || 'משתמש')}
             memberEmail={member.user_id === user?.id ? user.email : ''}
             isMe={member.user_id === user?.id}
             canRemove={isOwner(myRole) && member.role !== 'בעלים' && member.user_id !== user?.id}

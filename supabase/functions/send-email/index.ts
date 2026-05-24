@@ -118,6 +118,14 @@ serve(async (req) => {
     // strays as system_alert is more accurate than dropping them.
     notification_key?: string;
     recipient_user_id?: string;
+    // Raw admin input for the in-app notification body when this is an
+    // admin_direct send. The client (AdminUserDrawer) wraps the message
+    // in branded email HTML before sending; without this raw text we
+    // would have to strip tags from the rendered email and the
+    // notification would end up containing the header, tagline, and
+    // footer along with the body — exactly the bug reported in the
+    // bell popup on 2026-05-24.
+    plain_body?: string;
   };
   try {
     payload = await req.json();
@@ -125,7 +133,7 @@ serve(async (req) => {
     return json({ error: 'Invalid JSON body' }, 400, req);
   }
 
-  const { to, subject, html, text, from, reply_to, notification_key, recipient_user_id } = payload;
+  const { to, subject, html, text, from, reply_to, notification_key, recipient_user_id, plain_body } = payload;
 
   // Validation — at minimum need a recipient, a subject, and either html or text
   if (!to || (Array.isArray(to) && to.length === 0)) {
@@ -200,7 +208,25 @@ serve(async (req) => {
             } catch { /* lookup failed — notification won't be created, email still sent */ }
           }
           if (resolvedUserId) {
-            const plainBody = (text || (html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')).slice(0, 500);
+            // Prefer the explicit raw admin input. Falls back to the
+            // legacy strip-HTML path only when the client didn't send
+            // plain_body — that path concatenates the email title,
+            // tagline, and footer into the notification body, which
+            // produced the corrupted notifications reported in the
+            // bell popup. The fallback stays for legacy callers that
+            // haven't been updated yet (broadcast/dispatch flows).
+            const stripped = (text || (html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ''))
+              .replace(/&#39;/g, "'")
+              .replace(/&quot;/g, '"')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&amp;/g, '&')
+              .replace(/&#8203;/g, '')
+              .replace(/&nbsp;/g, ' ');
+            const plainBody = (typeof plain_body === 'string' && plain_body.trim().length > 0
+              ? plain_body
+              : stripped
+            ).slice(0, 500);
             await supabaseAdmin!
               .from('app_notifications')
               .insert({

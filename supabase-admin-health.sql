@@ -67,12 +67,16 @@ BEGIN
   RETURN NEXT;
 
   -- 2. Error rate (24h)
-  SELECT COUNT(*) INTO v_err_count
-  FROM public.app_errors
-  WHERE created_at >= v_now - interval '24 hours'
-    AND type NOT IN ('boot_stage')
-    AND message NOT LIKE 'Lock was stolen%'
-    AND message NOT LIKE 'Lock broken%';
+  BEGIN
+    SELECT COUNT(*) INTO v_err_count
+    FROM public.app_errors ae
+    WHERE ae.created_at >= v_now - interval '24 hours'
+      AND ae.type NOT IN ('boot_stage')
+      AND ae.message NOT LIKE 'Lock was stolen%'
+      AND ae.message NOT LIKE 'Lock broken%';
+  EXCEPTION WHEN undefined_table THEN
+    v_err_count := 0;
+  END;
 
   probe      := 'error_rate_24h';
   value      := v_err_count || ' שגיאות';
@@ -90,9 +94,13 @@ BEGIN
   RETURN NEXT;
 
   -- 3. Email delivery (Resend webhook)
-  SELECT COUNT(*) INTO v_email_events
-  FROM public.email_events
-  WHERE created_at >= v_now - interval '2 hours';
+  BEGIN
+    SELECT COUNT(*) INTO v_email_events
+    FROM public.email_events
+    WHERE created_at >= v_now - interval '2 hours';
+  EXCEPTION WHEN undefined_table THEN
+    v_email_events := 0;
+  END;
 
   probe      := 'email_webhook';
   value      := v_email_events || ' אירועים (2 שעות)';
@@ -101,9 +109,6 @@ BEGIN
     status  := 'green';
     message := 'Webhook פעיל';
   ELSE
-    -- Check if any emails were sent in the last 2h. If none sent, silence
-    -- is expected (no emails = no webhook events). Only flag as problem
-    -- if emails were sent but no events came back.
     DECLARE v_emails_sent bigint;
     BEGIN
       SELECT COUNT(*) INTO v_emails_sent
@@ -117,35 +122,44 @@ BEGIN
         status  := 'green';
         message := 'לא נשלחו מיילים — שקט תקין';
       END IF;
+    EXCEPTION WHEN undefined_table THEN
+      status  := 'green';
+      message := 'לא נשלחו מיילים — שקט תקין';
     END;
   END IF;
   RETURN NEXT;
 
   -- 4. pg_cron health — check actual cron.job_run_details
-  SELECT MAX(d.start_time) INTO v_cron_last
-  FROM cron.job_run_details d
-  JOIN cron.job j ON j.jobid = d.jobid
-  WHERE j.jobname = 'check-admin-alerts';
-
   probe      := 'pg_cron';
   checked_at := v_now;
-  IF v_cron_last IS NULL THEN
+  BEGIN
+    SELECT MAX(d.start_time) INTO v_cron_last
+    FROM cron.job_run_details d
+    JOIN cron.job j ON j.jobid = d.jobid
+    WHERE j.jobname = 'check-admin-alerts';
+
+    IF v_cron_last IS NULL THEN
+      status  := 'yellow';
+      value   := 'אין נתונים';
+      message := 'לא נמצאו ריצות של cron — ייתכן שעדיין לא הופעל';
+    ELSIF v_cron_last >= v_now - interval '10 minutes' THEN
+      status  := 'green';
+      value   := 'רץ לפני ' || round(EXTRACT(minutes FROM v_now - v_cron_last)) || ' דקות';
+      message := 'תקין';
+    ELSIF v_cron_last >= v_now - interval '30 minutes' THEN
+      status  := 'yellow';
+      value   := 'רץ לפני ' || round(EXTRACT(minutes FROM v_now - v_cron_last)) || ' דקות';
+      message := 'ריצה אחרונה לפני יותר מ-10 דקות';
+    ELSE
+      status  := 'red';
+      value   := 'רץ לפני ' || round(EXTRACT(hours FROM v_now - v_cron_last)) || ' שעות';
+      message := 'pg_cron לא רץ כבר הרבה זמן';
+    END IF;
+  EXCEPTION WHEN undefined_table OR invalid_schema_name THEN
     status  := 'yellow';
-    value   := 'אין נתונים';
-    message := 'לא נמצאו ריצות של cron — ייתכן שעדיין לא הופעל';
-  ELSIF v_cron_last >= v_now - interval '10 minutes' THEN
-    status  := 'green';
-    value   := 'רץ לפני ' || round(EXTRACT(minutes FROM v_now - v_cron_last)) || ' דקות';
-    message := 'תקין';
-  ELSIF v_cron_last >= v_now - interval '30 minutes' THEN
-    status  := 'yellow';
-    value   := 'רץ לפני ' || round(EXTRACT(minutes FROM v_now - v_cron_last)) || ' דקות';
-    message := 'ריצה אחרונה לפני יותר מ-10 דקות';
-  ELSE
-    status  := 'red';
-    value   := 'רץ לפני ' || round(EXTRACT(hours FROM v_now - v_cron_last)) || ' שעות';
-    message := 'pg_cron לא רץ כבר הרבה זמן';
-  END IF;
+    value   := 'לא זמין';
+    message := 'תוסף pg_cron לא מותקן';
+  END;
   RETURN NEXT;
 
   -- 5. Storage / table sizes

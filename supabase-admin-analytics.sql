@@ -35,7 +35,7 @@ BEGIN
   END IF;
 
   -- 1. Daily signups (last 30 days)
-  SELECT COALESCE(jsonb_agg(row_to_jsonb(t) ORDER BY t.day), '[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.day), '[]'::jsonb)
   INTO v_signups
   FROM (
     SELECT
@@ -51,7 +51,7 @@ BEGIN
   ) t;
 
   -- 2. Weekly active users (last 12 weeks)
-  SELECT COALESCE(jsonb_agg(row_to_jsonb(t) ORDER BY t.week_start), '[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.week_start), '[]'::jsonb)
   INTO v_wau
   FROM (
     SELECT
@@ -68,7 +68,7 @@ BEGIN
   ) t;
 
   -- 3. Vehicles added per week (last 12 weeks)
-  SELECT COALESCE(jsonb_agg(row_to_jsonb(t) ORDER BY t.week_start), '[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.week_start), '[]'::jsonb)
   INTO v_vehicles_trend
   FROM (
     SELECT
@@ -84,7 +84,7 @@ BEGIN
   ) t;
 
   -- 4. Vehicle type distribution
-  SELECT COALESCE(jsonb_agg(row_to_jsonb(t) ORDER BY t.count DESC), '[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.count DESC), '[]'::jsonb)
   INTO v_vehicle_types
   FROM (
     SELECT
@@ -97,7 +97,7 @@ BEGIN
   ) t;
 
   -- 5. Documents uploaded per week (last 12 weeks)
-  SELECT COALESCE(jsonb_agg(row_to_jsonb(t) ORDER BY t.week_start), '[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.week_start), '[]'::jsonb)
   INTO v_docs_trend
   FROM (
     SELECT
@@ -113,32 +113,42 @@ BEGIN
   ) t;
 
   -- 6. Errors per day (last 14 days)
-  SELECT COALESCE(jsonb_agg(row_to_jsonb(t) ORDER BY t.day), '[]'::jsonb)
-  INTO v_errors_trend
-  FROM (
-    SELECT
-      d.day::date AS day,
-      COUNT(e.id) AS count
-    FROM generate_series(
-      (now() - interval '14 days')::date,
-      now()::date,
-      '1 day'
-    ) AS d(day)
-    LEFT JOIN public.app_errors e ON e.created_at::date = d.day
-    GROUP BY d.day
-  ) t;
+  -- Graceful: app_errors may not exist yet.
+  BEGIN
+    SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.day), '[]'::jsonb)
+    INTO v_errors_trend
+    FROM (
+      SELECT
+        d.day::date AS day,
+        COUNT(e.id) AS count
+      FROM generate_series(
+        (now() - interval '14 days')::date,
+        now()::date,
+        '1 day'
+      ) AS d(day)
+      LEFT JOIN public.app_errors e ON e.created_at::date = d.day
+      GROUP BY d.day
+    ) t;
+  EXCEPTION WHEN undefined_table THEN
+    v_errors_trend := '[]'::jsonb;
+  END;
 
   -- 7. Email engagement (last 30 days aggregate)
-  SELECT jsonb_build_object(
-    'sent',      (SELECT COUNT(*) FROM public.email_send_log WHERE sent_at >= now() - interval '30 days'),
-    'delivered', (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'email.delivered' AND received_at >= now() - interval '30 days'),
-    'opened',    (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'email.opened' AND received_at >= now() - interval '30 days'),
-    'clicked',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'email.clicked' AND received_at >= now() - interval '30 days'),
-    'bounced',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type IN ('email.bounced','email.complained') AND received_at >= now() - interval '30 days')
-  ) INTO v_email_stats;
+  -- Graceful: email_send_log / email_events may not exist yet.
+  BEGIN
+    SELECT jsonb_build_object(
+      'sent',      (SELECT COUNT(*) FROM public.email_send_log WHERE sent_at >= now() - interval '30 days'),
+      'delivered', (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'delivered' AND occurred_at >= now() - interval '30 days'),
+      'opened',    (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'opened' AND occurred_at >= now() - interval '30 days'),
+      'clicked',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'clicked' AND occurred_at >= now() - interval '30 days'),
+      'bounced',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type IN ('bounced','complained') AND occurred_at >= now() - interval '30 days')
+    ) INTO v_email_stats;
+  EXCEPTION WHEN undefined_table OR undefined_column THEN
+    v_email_stats := '{"sent":0,"delivered":0,"opened":0,"clicked":0,"bounced":0}'::jsonb;
+  END;
 
   -- 8. Signup cohort retention (simplified: weekly cohorts, did they return?)
-  SELECT COALESCE(jsonb_agg(row_to_jsonb(t) ORDER BY t.cohort_week), '[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.cohort_week), '[]'::jsonb)
   INTO v_cohorts
   FROM (
     SELECT

@@ -96,12 +96,23 @@
 }
 
 /*  Capacitor Native Safe Areas  */
-/* Adds padding for status bar, notch, and navigation gestures on native */
+/* Adds padding for status bar, notch, navigation gestures, and IME on native.
+   On Android (edge-to-edge), the actual inset values are injected by
+   MainActivity.java as --android-inset-* custom properties. On iOS, where
+   we don't run native code, we fall back to env() which reports the
+   home-indicator / dynamic-island insets. The variable names --sat/--sab/etc
+   are preserved for any existing consumers; --inset-top/--inset-bottom are
+   the canonical names going forward. */
 html.native-app {
-  --sat: env(safe-area-inset-top, 0px);
-  --sab: env(safe-area-inset-bottom, 0px);
-  --sal: env(safe-area-inset-left, 0px);
-  --sar: env(safe-area-inset-right, 0px);
+  --inset-top:    var(--android-inset-top,    env(safe-area-inset-top,    0px));
+  --inset-bottom: var(--android-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --inset-left:   var(--android-inset-left,   env(safe-area-inset-left,   0px));
+  --inset-right:  var(--android-inset-right,  env(safe-area-inset-right,  0px));
+  /* Legacy aliases — kept for backwards compatibility with any old consumers */
+  --sat: var(--inset-top);
+  --sab: var(--inset-bottom);
+  --sal: var(--inset-left);
+  --sar: var(--inset-right);
 }
 /* Vertical safe-area only — top for status bar, bottom for home
    indicator. Horizontal safe-area (--sal / --sar) is intentionally NOT
@@ -149,22 +160,15 @@ html.native-app {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Keyboard visible — standard mobile pattern.
-   1. Reset body padding so the keyboard doesn't fight with bottom space
-   2. Zero out the system nav-bar inset variable: when the keyboard is
-      open the system nav bar is covered by the keyboard, so any element
-      using `--cap-nav-bar-height` for safe-area should treat it as 0
-   3. Hide the BottomNav entirely: it competes with the keyboard for
-      thumb-reach space and creates a visible gap between itself and
-      the keyboard top on Android (Instagram / WhatsApp / Twitter all
-      hide their tab bar when the keyboard opens — this is the expected
-      pattern, not a regression). */
-body.keyboard-visible {
+/* iOS-only: when the keyboard opens, neutralise the home-indicator
+   safe-area-bottom padding so the resized WKWebView content doesn't
+   leave a gap above the keyboard.
+   On Android we INSTEAD rely on --android-inset-bottom (injected by
+   MainActivity.java) which already grows to the keyboard height — so
+   no extra rule is needed there. Java already toggles this class on
+   the body in lockstep with the IME insets dispatch. */
+html.ios-app body.keyboard-visible {
   padding-bottom: 0 !important;
-  --cap-nav-bar-height: 0px;
-}
-body.keyboard-visible [aria-label="ניווט ראשי"] {
-  display: none !important;
 }
 
 /* Leaflet map. keep below modals/sheets/overlays/BottomNav */
