@@ -49,7 +49,7 @@ DECLARE
   -- ─────────────────────────────────────────────────────────────────
   v_date_range text   := COALESCE(p_filters->>'date_range', '30d');
   v_account_type text := COALESCE(p_filters->>'account_type', 'all');
-  v_vehicle_types text[] := CASE
+  v_filter_vtypes text[] := CASE
     WHEN jsonb_typeof(p_filters->'vehicle_types') = 'array'
       AND jsonb_array_length(p_filters->'vehicle_types') > 0
     THEN ARRAY(SELECT jsonb_array_elements_text(p_filters->'vehicle_types'))
@@ -125,7 +125,7 @@ BEGIN
       '1 day'
     ) AS d(day)
     LEFT JOIN public.vehicles v ON v.created_at::date = d.day
-      AND (v_vehicle_types IS NULL OR COALESCE(v.vehicle_type, 'לא צוין') = ANY(v_vehicle_types))
+      AND (v_filter_vtypes IS NULL OR COALESCE(v.vehicle_type, 'לא צוין') = ANY(v_filter_vtypes))
     LEFT JOIN public.accounts a ON a.id = v.account_id
       AND (v_account_type = 'all' OR a.type = v_account_type)
     WHERE v.id IS NULL OR a.id IS NOT NULL OR v_account_type = 'all'
@@ -404,7 +404,7 @@ BEGIN
       'days_back',     v_days_back,
       'weeks_back',    v_weeks_back,
       'account_type',  v_account_type,
-      'vehicle_types', COALESCE(to_jsonb(v_vehicle_types), 'null'::jsonb)
+      'vehicle_types', COALESCE(to_jsonb(v_filter_vtypes), 'null'::jsonb)
     )
   );
 
