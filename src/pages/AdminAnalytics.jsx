@@ -30,14 +30,19 @@ function fmtDate(d) {
 export default function AdminAnalytics() {
   const isAdmin = useIsAdmin();
 
-  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+  const { data, isLoading, isError, error: queryError, refetch, isFetching } = useQuery({
     queryKey: ["admin-analytics"],
     queryFn: async () => {
+      console.log('[AdminAnalytics] calling admin_analytics_summary RPC...');
       const { data: result, error } = await withTimeout(
         supabase.rpc("admin_analytics_summary"),
         "admin_analytics_summary"
       );
-      if (error) throw error;
+      if (error) {
+        console.error('[AdminAnalytics] RPC error:', error);
+        throw error;
+      }
+      console.log('[AdminAnalytics] RPC success, keys:', result ? Object.keys(result) : 'null');
       return result;
     },
     enabled: isAdmin === true,
@@ -57,12 +62,14 @@ export default function AdminAnalytics() {
     return <div className="flex justify-center py-16"><LoadingSpinner /></div>;
   }
   if (isError) {
+    const errMsg = queryError?.message || queryError?.code || JSON.stringify(queryError);
     return (
       <div className="p-4 sm:p-6 max-w-5xl mx-auto" dir="rtl">
         <PageHeader title="אנליטיקה" />
         <Card className="p-6 text-center">
           <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-500" />
           <p className="font-bold mb-2">לא הצלחנו לטעון את הנתונים</p>
+          <p className="text-xs text-gray-400 mb-3 font-mono" dir="ltr">{errMsg}</p>
           <Button onClick={() => refetch()}>נסה שוב</Button>
         </Card>
       </div>
