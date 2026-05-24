@@ -25,7 +25,7 @@ import AdminMessageDialog from '@/components/shared/AdminMessageDialog';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { he as heLocale } from 'date-fns/locale';
-import { configForType as appConfigForType, requiresActionForType } from '@/lib/appNotificationConfig';
+import { configForType as appConfigForType, requiresActionForType, decodeNotifBody } from '@/lib/appNotificationConfig';
 import { calcAllReminders } from '@/components/shared/ReminderEngine';
 
 // Hebrew "X ago" label for an ISO timestamp. Returns null for
@@ -781,7 +781,7 @@ export default function NotificationBell() {
                             navigate(createPageUrl('Community'));
                           }
                           else if (n.type === 'app' && n.appType === 'admin_message') {
-                            setAdminMsg({ title: n.appData?.subject || n.label, body: n.appData?.body || n.name, createdAt: n.createdAt });
+                            setAdminMsg({ title: decodeNotifBody(n.appData?.subject || n.label), body: decodeNotifBody(n.appData?.body || n.name), createdAt: n.createdAt });
                           }
                           else if (n.type === 'app') {
                             const liveHref = n.navHref
@@ -853,10 +853,10 @@ export default function NotificationBell() {
                         <div className="flex-1 min-w-0">
                           {/* Title — Heebo 500 14px, primary text. */}
                           <p className="text-[14px] font-medium truncate" style={{ color: '#1C2E20', lineHeight: 1.35 }}>
-                            {n.label}
+                            {n.appType === 'admin_message' ? decodeNotifBody(n.label) : n.label}
                           </p>
                           {/* Body — 12px muted; truncates after one line. */}
-                          <p className="text-[12px] truncate mt-0.5" style={{ color: '#5A6B5D' }}>{n.name}</p>
+                          <p className="text-[12px] truncate mt-0.5" style={{ color: '#5A6B5D' }}>{n.appType === 'admin_message' ? decodeNotifBody(n.name) : n.name}</p>
                           {/* Meta row — relative time (when available)
                               + a tiny "דורש פעולה" pill when relevant.
                               Old design stacked these on separate

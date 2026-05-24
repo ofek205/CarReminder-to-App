@@ -233,3 +233,15 @@ export function configForType(type) {
 export function requiresActionForType(type) {
   return ACTION_REQUIRED_TYPES.has(type);
 }
+
+export function decodeNotifBody(s) {
+  if (!s) return s;
+  return s
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&#8203;/g, '')
+    .replace(/&nbsp;/g, ' ');
+}

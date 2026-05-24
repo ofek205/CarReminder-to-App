@@ -131,10 +131,10 @@ BEGIN
   -- 7. Email engagement (last 30 days aggregate)
   SELECT jsonb_build_object(
     'sent',      (SELECT COUNT(*) FROM public.email_send_log WHERE sent_at >= now() - interval '30 days'),
-    'delivered', (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'email.delivered' AND received_at >= now() - interval '30 days'),
-    'opened',    (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'email.opened' AND received_at >= now() - interval '30 days'),
-    'clicked',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'email.clicked' AND received_at >= now() - interval '30 days'),
-    'bounced',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type IN ('email.bounced','email.complained') AND received_at >= now() - interval '30 days')
+    'delivered', (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'delivered' AND occurred_at >= now() - interval '30 days'),
+    'opened',    (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'opened' AND occurred_at >= now() - interval '30 days'),
+    'clicked',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type = 'clicked' AND occurred_at >= now() - interval '30 days'),
+    'bounced',   (SELECT COUNT(DISTINCT send_log_id) FROM public.email_events WHERE event_type IN ('bounced','complained') AND occurred_at >= now() - interval '30 days')
   ) INTO v_email_stats;
 
   -- 8. Signup cohort retention (simplified: weekly cohorts, did they return?)

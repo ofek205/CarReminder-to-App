@@ -200,7 +200,15 @@ serve(async (req) => {
             } catch { /* lookup failed — notification won't be created, email still sent */ }
           }
           if (resolvedUserId) {
-            const plainBody = (text || (html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')).slice(0, 500);
+            const plainBody = (text || (html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ''))
+              .replace(/&#39;/g, "'")
+              .replace(/&quot;/g, '"')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/&amp;/g, '&')
+              .replace(/&#8203;/g, '')
+              .replace(/&nbsp;/g, ' ')
+              .slice(0, 500);
             await supabaseAdmin!
               .from('app_notifications')
               .insert({
