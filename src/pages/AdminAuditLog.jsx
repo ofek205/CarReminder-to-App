@@ -32,6 +32,16 @@ import { format, parseISO, formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
 import { C } from "@/lib/designTokens";
 
+const PAGE_SIZE = 50;
+
+const ACTION_META = {
+  delete_account:    { label: "מחיקת חשבון",   icon: Trash2,      color: C.error,   bg: C.errorBg   },
+  set_role:          { label: "שינוי הרשאה",   icon: UserCog,     color: C.warn,    bg: C.warnBg    },
+  acknowledge_alert: { label: "סימון התראה",   icon: CheckCircle, color: C.success, bg: C.successBg },
+};
+
+const FALLBACK_META = { label: "פעולה",  icon: Activity,  color: C.muted, bg: "#F3F4F6" };
+
 function escCsv(v) {
   if (v === null || v === undefined) return "";
   const s = String(v).replace(/"/g, '""');
@@ -62,16 +72,6 @@ function exportAuditLogCsv(rows) {
   a.href = url; a.download = `audit-log-${format(new Date(), "yyyy-MM-dd")}.csv`; a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-
-const PAGE_SIZE = 50;
-
-const ACTION_META = {
-  delete_account:    { label: "מחיקת חשבון",   icon: Trash2,      color: C.error,   bg: C.errorBg   },
-  set_role:          { label: "שינוי הרשאה",   icon: UserCog,     color: C.warn,    bg: C.warnBg    },
-  acknowledge_alert: { label: "סימון התראה",   icon: CheckCircle, color: C.success, bg: C.successBg },
-};
-
-const FALLBACK_META = { label: "פעולה",  icon: Activity,  color: C.muted, bg: "#F3F4F6" };
 
 export default function AdminAuditLog() {
   const isAdmin = useIsAdmin();

@@ -188,6 +188,14 @@ function ProbeCard({ probe }) {
   );
 }
 
+const DRILL_RENDERERS = {
+  error_rate_24h: errorRenderer,
+  pg_cron:        cronRenderer,
+  email_webhook:  webhookRenderer,
+  storage:        storageRenderer,
+  unack_alerts:   alertsRenderer,
+};
+
 function DrillDown({ probe }) {
   const { data: rows = [], isLoading, isError } = useQuery({
     queryKey: ["admin-health-drilldown", probe],
@@ -380,11 +388,3 @@ function alertsRenderer(rows) {
     </div>
   );
 }
-
-const DRILL_RENDERERS = {
-  error_rate_24h: errorRenderer,
-  pg_cron:        cronRenderer,
-  email_webhook:  webhookRenderer,
-  storage:        storageRenderer,
-  unack_alerts:   alertsRenderer,
-};
