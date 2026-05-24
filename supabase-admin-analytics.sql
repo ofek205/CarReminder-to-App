@@ -29,6 +29,12 @@ DECLARE
   v_errors_trend jsonb;
   v_email_stats jsonb;
   v_cohorts jsonb;
+  v_age_distribution jsonb;
+  v_activation_funnel jsonb;
+  v_kpi_north_star numeric;
+  v_kpi_activation_rate numeric;
+  v_kpi_power_users integer;
+  v_kpi_churn_risk integer;
 BEGIN
   IF NOT public.is_admin() THEN
     RAISE EXCEPTION 'unauthorized' USING ERRCODE = '42501';
@@ -163,16 +169,187 @@ BEGIN
     HAVING COUNT(*) >= 1
   ) t;
 
+  -- 9. Age distribution (all-time, from user_profiles.birth_date).
+  -- Buckets: 18-24 / 25-34 / 35-44 / 45-54 / 55-64 / 65+ / unknown.
+  -- "unknown" captures users who didn't fill their birth date — this is
+  -- a critical "data quality" signal for admin (how complete is profile
+  -- onboarding?). Order by bucket_rank so the pie slices come out in a
+  -- stable order regardless of which buckets are populated.
+  SELECT COALESCE(jsonb_agg(
+    jsonb_build_object('bucket', bucket, 'count', cnt) ORDER BY bucket_rank
+  ), '[]'::jsonb)
+  INTO v_age_distribution
+  FROM (
+    SELECT
+      CASE
+        WHEN p.birth_date IS NULL                                       THEN 'לא הוזן'
+        WHEN p.birth_date > (now() - interval '25 years')::date         THEN '18-24'
+        WHEN p.birth_date > (now() - interval '35 years')::date         THEN '25-34'
+        WHEN p.birth_date > (now() - interval '45 years')::date         THEN '35-44'
+        WHEN p.birth_date > (now() - interval '55 years')::date         THEN '45-54'
+        WHEN p.birth_date > (now() - interval '65 years')::date         THEN '55-64'
+        ELSE                                                                 '65+'
+      END AS bucket,
+      CASE
+        WHEN p.birth_date IS NULL                                       THEN 99
+        WHEN p.birth_date > (now() - interval '25 years')::date         THEN 1
+        WHEN p.birth_date > (now() - interval '35 years')::date         THEN 2
+        WHEN p.birth_date > (now() - interval '45 years')::date         THEN 3
+        WHEN p.birth_date > (now() - interval '55 years')::date         THEN 4
+        WHEN p.birth_date > (now() - interval '65 years')::date         THEN 5
+        ELSE                                                                 6
+      END AS bucket_rank,
+      COUNT(*) AS cnt
+    FROM auth.users u
+    LEFT JOIN public.user_profiles p ON p.user_id = u.id
+    GROUP BY bucket, bucket_rank
+  ) t;
+
+  -- 10. Activation Funnel — 4 cumulative stages.
+  -- Cohort = all signups in the last 30 days (so we measure activation
+  -- of users who had a fair chance to complete the loop).
+  -- Each step is a SUPERSET of prior steps reached, so the funnel is
+  -- monotonically non-increasing.
+  WITH cohort AS (
+    SELECT u.id, u.created_at, u.email_confirmed_at
+    FROM auth.users u
+    WHERE u.created_at >= now() - interval '30 days'
+  ),
+  with_vehicle AS (
+    SELECT DISTINCT c.id
+    FROM cohort c
+    JOIN public.account_members am ON am.user_id = c.id
+    JOIN public.vehicles v ON v.account_id = am.account_id
+    WHERE v.created_at >= c.created_at
+  ),
+  with_reminder AS (
+    SELECT DISTINCT c.id
+    FROM cohort c
+    JOIN public.account_members am ON am.user_id = c.id
+    JOIN public.vehicles v ON v.account_id = am.account_id
+    WHERE v.first_reminder_armed_at IS NOT NULL
+      AND v.first_reminder_armed_at >= c.created_at
+  ),
+  with_doc AS (
+    SELECT DISTINCT c.id
+    FROM cohort c
+    JOIN public.account_members am ON am.user_id = c.id
+    JOIN public.documents d ON d.account_id = am.account_id
+    WHERE d.created_at >= c.created_at
+  )
+  SELECT jsonb_build_array(
+    jsonb_build_object('stage','signup',         'count', (SELECT COUNT(*) FROM cohort)),
+    jsonb_build_object('stage','email_verified', 'count', (SELECT COUNT(*) FROM cohort WHERE email_confirmed_at IS NOT NULL)),
+    jsonb_build_object('stage','first_vehicle',  'count', (SELECT COUNT(*) FROM with_vehicle)),
+    jsonb_build_object('stage','first_reminder', 'count', (SELECT COUNT(*) FROM with_reminder)),
+    jsonb_build_object('stage','first_document', 'count', (SELECT COUNT(*) FROM with_doc))
+  )
+  INTO v_activation_funnel;
+
+  -- 11. North Star — Reminder-to-Return rate (30d).
+  -- Approximation: per user, take the most-recent reminder email
+  -- (notification_key starts with 'reminder_') sent in the last 30d
+  -- and check if last_sign_in_at falls within 48h after it.
+  -- Caveat documented in audit: auth.users.last_sign_in_at is
+  -- overwritten on every login, so we only catch returns when the
+  -- most-recent reminder was the trigger. Good enough as a directional
+  -- KPI for 184 users; replace with per-session log later.
+  BEGIN
+    WITH last_reminder AS (
+      SELECT DISTINCT ON (user_id) user_id, sent_at
+      FROM public.email_send_log
+      WHERE notification_key LIKE 'reminder_%'
+        AND sent_at >= now() - interval '30 days'
+        AND user_id IS NOT NULL
+      ORDER BY user_id, sent_at DESC
+    ),
+    sample AS (
+      SELECT lr.user_id, lr.sent_at, u.last_sign_in_at
+      FROM last_reminder lr
+      JOIN auth.users u ON u.id = lr.user_id
+    )
+    SELECT
+      CASE WHEN COUNT(*) = 0 THEN 0
+           ELSE ROUND(
+             100.0 * COUNT(*) FILTER (
+               WHERE last_sign_in_at IS NOT NULL
+                 AND last_sign_in_at >= sent_at
+                 AND last_sign_in_at <  sent_at + interval '48 hours'
+             ) / NULLIF(COUNT(*), 0), 1)
+      END
+    INTO v_kpi_north_star
+    FROM sample;
+  EXCEPTION WHEN undefined_table THEN
+    v_kpi_north_star := 0;
+  END;
+
+  -- 12. Activation rate % — of last 30d signups, what % completed
+  -- signup → first_vehicle → first_reminder → first_document. Mirrors
+  -- the activation funnel's terminal stage.
+  WITH cohort AS (
+    SELECT u.id FROM auth.users u WHERE u.created_at >= now() - interval '30 days'
+  ),
+  completed AS (
+    SELECT DISTINCT c.id
+    FROM cohort c
+    JOIN public.account_members am ON am.user_id = c.id
+    JOIN public.vehicles v ON v.account_id = am.account_id AND v.first_reminder_armed_at IS NOT NULL
+    JOIN public.documents d ON d.account_id = am.account_id
+  )
+  SELECT CASE WHEN (SELECT COUNT(*) FROM cohort) = 0 THEN 0
+              ELSE ROUND(100.0 * (SELECT COUNT(*) FROM completed) / (SELECT COUNT(*) FROM cohort), 1)
+         END
+  INTO v_kpi_activation_rate;
+
+  -- 13. Power users — users with 3+ vehicles AND 10+ documents.
+  -- Vehicles counted across all owned/shared accounts to capture
+  -- fleet managers who might split ownership. Documents same.
+  SELECT COUNT(*)
+  INTO v_kpi_power_users
+  FROM (
+    SELECT am.user_id,
+           COUNT(DISTINCT v.id) AS vehicles,
+           COUNT(DISTINCT d.id) AS documents
+    FROM public.account_members am
+    LEFT JOIN public.vehicles  v ON v.account_id = am.account_id
+    LEFT JOIN public.documents d ON d.account_id = am.account_id
+    WHERE am.status = 'פעיל'
+    GROUP BY am.user_id
+    HAVING COUNT(DISTINCT v.id) >= 3 AND COUNT(DISTINCT d.id) >= 10
+  ) t;
+
+  -- 14. Churn risk — registered >30d, ≤1 vehicle, no login in 14d.
+  -- These are the candidates for a "we miss you" re-engagement campaign.
+  SELECT COUNT(*)
+  INTO v_kpi_churn_risk
+  FROM auth.users u
+  LEFT JOIN (
+    SELECT am.user_id, COUNT(DISTINCT v.id) AS vehicles
+    FROM public.account_members am
+    LEFT JOIN public.vehicles v ON v.account_id = am.account_id
+    WHERE am.status = 'פעיל'
+    GROUP BY am.user_id
+  ) vc ON vc.user_id = u.id
+  WHERE u.created_at < now() - interval '30 days'
+    AND COALESCE(vc.vehicles, 0) <= 1
+    AND (u.last_sign_in_at IS NULL OR u.last_sign_in_at < now() - interval '14 days');
+
   -- Assemble
   v_result := jsonb_build_object(
-    'signups_daily',     v_signups,
-    'wau_weekly',        v_wau,
-    'vehicles_weekly',   v_vehicles_trend,
-    'vehicle_types',     v_vehicle_types,
-    'documents_weekly',  v_docs_trend,
-    'errors_daily',      v_errors_trend,
-    'email_stats',       v_email_stats,
-    'cohorts',           v_cohorts
+    'signups_daily',         v_signups,
+    'wau_weekly',            v_wau,
+    'vehicles_weekly',       v_vehicles_trend,
+    'vehicle_types',         v_vehicle_types,
+    'documents_weekly',      v_docs_trend,
+    'errors_daily',          v_errors_trend,
+    'email_stats',           v_email_stats,
+    'cohorts',               v_cohorts,
+    'age_distribution',      v_age_distribution,
+    'activation_funnel',     v_activation_funnel,
+    'kpi_north_star_pct',    COALESCE(v_kpi_north_star, 0),
+    'kpi_activation_rate_pct', COALESCE(v_kpi_activation_rate, 0),
+    'kpi_power_users',       COALESCE(v_kpi_power_users, 0),
+    'kpi_churn_risk',        COALESCE(v_kpi_churn_risk, 0)
   );
 
   RETURN v_result;

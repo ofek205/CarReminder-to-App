@@ -792,7 +792,8 @@ export default function NotificationBell() {
                           else if (n.type === 'app') {
                             const liveHref = n.navHref
                               || appConfigForType(n.appType).buildHref(n.appData || {});
-                            if (liveHref) navigate(liveHref);
+                            if (liveHref?.startsWith('http')) window.open(liveHref, '_blank');
+                            else if (liveHref) navigate(liveHref);
                           }
                           else if (n.vehicleId) {
                             const NOTIF_FIELD_MAP = {

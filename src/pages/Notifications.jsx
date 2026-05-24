@@ -715,7 +715,8 @@ function AuthNotifications() {
                   setAdminMsg({ title: decodeNotifBody(an.data?.subject || an.title), body: decodeNotifBody(an.data?.body || an.body), createdAt: an.created_at });
                   return;
                 }
-                if (href) navigate(href);
+                if (href?.startsWith('http')) window.open(href, '_blank');
+                else if (href) navigate(href);
               }}
               className="flex-1 min-w-0 text-right">
               <p className={`text-sm ${isRead ? 'font-medium' : 'font-bold'}`}
