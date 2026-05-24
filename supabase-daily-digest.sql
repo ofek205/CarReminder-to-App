@@ -66,7 +66,7 @@ BEGIN
   -- ── Highlights ──
 
   -- High/medium unack'd alerts
-  SELECT COALESCE(jsonb_agg(row_to_jsonb(t)), '[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(to_jsonb(t)), '[]'::jsonb)
     INTO v_alert_highlights
     FROM (
       SELECT 'alert'::text AS type, title AS text, severity

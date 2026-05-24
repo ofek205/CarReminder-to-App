@@ -45,14 +45,17 @@ const STATUS_STYLE = {
 export default function AdminHealth() {
   const isAdmin = useIsAdmin();
 
-  const { data: probes = [], isLoading, isError, refetch, isFetching, dataUpdatedAt } = useQuery({
+  const { data: probes = [], isLoading, isError, error: queryError, refetch, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["admin-health"],
     queryFn: async () => {
       const { data, error } = await withTimeout(
         supabase.rpc("admin_health_status"),
         "admin_health_status"
       );
-      if (error) throw error;
+      if (error) {
+        console.error('[AdminHealth] RPC error:', error);
+        throw error;
+      }
       return data || [];
     },
     enabled: isAdmin === true,
@@ -81,6 +84,7 @@ export default function AdminHealth() {
         <Card className="p-6 text-center">
           <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-500" />
           <p className="font-bold mb-2">לא הצלחנו לטעון את סטטוס המערכת</p>
+          <p className="text-xs text-gray-400 mb-3 font-mono" dir="ltr">{queryError?.message || queryError?.code || JSON.stringify(queryError)}</p>
           <Button onClick={() => refetch()}>נסה שוב</Button>
         </Card>
       </div>

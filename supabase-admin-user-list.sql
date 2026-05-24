@@ -204,7 +204,7 @@ BEGIN
   FROM event_agg ea;
 
   -- Last 10 emails sent (any status).
-  SELECT COALESCE(jsonb_agg(row_to_jsonb(t)), '[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(to_jsonb(t)), '[]'::jsonb)
   INTO v_recent
   FROM (
     SELECT
