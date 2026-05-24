@@ -1,6 +1,7 @@
 package com.carreminder.app;
 
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
@@ -15,6 +16,21 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // ── Force a WHITE window background ──────────────────────────
+        // The launch theme (AppTheme.NoActionBarLaunch) sets the window
+        // background to @drawable/splash (a solid green #16A34A used as
+        // the splash backdrop). Theme.SplashScreen's postSplashScreenTheme
+        // is supposed to swap the theme to AppTheme.NoActionBar (white
+        // windowBackground) after the splash hides, but that swap only
+        // fires if installSplashScreen() is called explicitly — which
+        // Capacitor's BridgeActivity does not do. Without the swap, the
+        // green splash drawable stays as the window background forever,
+        // visible whenever the WebView shrinks (e.g. keyboard open) and
+        // exposes the area beneath it. Override directly with a white
+        // ColorDrawable so the keyboard reveal shows a benign white
+        // surface instead of a startling green stripe.
+        getWindow().setBackgroundDrawable(new ColorDrawable(Color.WHITE));
 
         // ── Edge-to-edge: let the WebView extend behind the nav bar ──
         // With the default decorFitsSystemWindows=true the framework adds
