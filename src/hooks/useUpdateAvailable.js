@@ -184,15 +184,13 @@ export default function useUpdateAvailable() {
       const needsUpdate = latestVersion
         ? compareVersions(currentVersion, latestVersion) < 0
         : false;
-      const snoozed = isSnoozed();
-
       // Step 6 — respect the 2.5s post-boot grace period to avoid
       // stacking with welcome modals / toast splash.
       const reveal = () => {
         if (cancelled) return;
         setState({
           ready: true,
-          show: needsUpdate && !snoozed,
+          show: needsUpdate,
           currentVersion,
           latestVersion,
           platform,
