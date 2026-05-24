@@ -29,6 +29,7 @@ DECLARE
   v_errors_trend jsonb;
   v_email_stats jsonb;
   v_cohorts jsonb;
+  v_age_distribution jsonb;
 BEGIN
   IF NOT public.is_admin() THEN
     RAISE EXCEPTION 'unauthorized' USING ERRCODE = '42501';
@@ -163,6 +164,42 @@ BEGIN
     HAVING COUNT(*) >= 1
   ) t;
 
+  -- 9. Age distribution (all-time, from user_profiles.birth_date).
+  -- Buckets: 18-24 / 25-34 / 35-44 / 45-54 / 55-64 / 65+ / unknown.
+  -- "unknown" captures users who didn't fill their birth date — this is
+  -- a critical "data quality" signal for admin (how complete is profile
+  -- onboarding?). Order by bucket_rank so the pie slices come out in a
+  -- stable order regardless of which buckets are populated.
+  SELECT COALESCE(jsonb_agg(
+    jsonb_build_object('bucket', bucket, 'count', cnt) ORDER BY bucket_rank
+  ), '[]'::jsonb)
+  INTO v_age_distribution
+  FROM (
+    SELECT
+      CASE
+        WHEN p.birth_date IS NULL                                       THEN 'לא הוזן'
+        WHEN p.birth_date > (now() - interval '25 years')::date         THEN '18-24'
+        WHEN p.birth_date > (now() - interval '35 years')::date         THEN '25-34'
+        WHEN p.birth_date > (now() - interval '45 years')::date         THEN '35-44'
+        WHEN p.birth_date > (now() - interval '55 years')::date         THEN '45-54'
+        WHEN p.birth_date > (now() - interval '65 years')::date         THEN '55-64'
+        ELSE                                                                 '65+'
+      END AS bucket,
+      CASE
+        WHEN p.birth_date IS NULL                                       THEN 99
+        WHEN p.birth_date > (now() - interval '25 years')::date         THEN 1
+        WHEN p.birth_date > (now() - interval '35 years')::date         THEN 2
+        WHEN p.birth_date > (now() - interval '45 years')::date         THEN 3
+        WHEN p.birth_date > (now() - interval '55 years')::date         THEN 4
+        WHEN p.birth_date > (now() - interval '65 years')::date         THEN 5
+        ELSE                                                                 6
+      END AS bucket_rank,
+      COUNT(*) AS cnt
+    FROM auth.users u
+    LEFT JOIN public.user_profiles p ON p.user_id = u.id
+    GROUP BY bucket, bucket_rank
+  ) t;
+
   -- Assemble
   v_result := jsonb_build_object(
     'signups_daily',     v_signups,
@@ -172,7 +209,8 @@ BEGIN
     'documents_weekly',  v_docs_trend,
     'errors_daily',      v_errors_trend,
     'email_stats',       v_email_stats,
-    'cohorts',           v_cohorts
+    'cohorts',           v_cohorts,
+    'age_distribution',  v_age_distribution
   );
 
   RETURN v_result;

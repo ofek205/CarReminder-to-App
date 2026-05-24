@@ -10,10 +10,11 @@ import useIsAdmin from "@/hooks/useIsAdmin";
 import {
   Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Line, ComposedChart, Cell,
+  PieChart, Pie, Legend,
 } from "recharts";
 import {
   AlertCircle, RefreshCw, Users, Car, FileText,
-  Mail, Bug, TrendingUp,
+  Mail, Bug, TrendingUp, Cake,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -74,7 +75,7 @@ export default function AdminAnalytics() {
   const {
     signups_daily = [], wau_weekly = [], vehicles_weekly = [],
     vehicle_types = [], documents_weekly = [], errors_daily = [],
-    email_stats = {}, cohorts = [],
+    email_stats = {}, cohorts = [], age_distribution = [],
   } = data || {};
 
   const totalSignups = signups_daily.reduce((s, r) => s + (r.count || 0), 0);
@@ -124,6 +125,10 @@ export default function AdminAnalytics() {
         <ChartCard title="שגיאות יומיות (14 ימים)" icon={Bug} color={BI.red}>
           <MiniChart data={errors_daily} dataKey="count" xKey="day" color={BI.red} label="שגיאות" />
         </ChartCard>
+
+        <ChartCard title="התפלגות גילאים" icon={Cake} color={BI.purple}>
+          <AgeChart data={age_distribution} />
+        </ChartCard>
       </div>
 
       <EmailCard stats={email_stats} />
@@ -169,6 +174,59 @@ function MiniChart({ data, dataKey, xKey, color, type = "bar", label }) {
           : <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
         }
       </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+function AgeChart({ data }) {
+  if (!data.length) return <p className="text-xs text-gray-400 text-center py-10">אין נתונים</p>;
+
+  // "לא הוזן" (unknown) deserves a distinct neutral gray — the rest of
+  // the buckets use the BI palette in age-order so the visual reads
+  // young→old left-to-right in the legend.
+  const COLORS = {
+    "18-24": "#3B82F6",
+    "25-34": "#10B981",
+    "35-44": "#F59E0B",
+    "45-54": "#8B5CF6",
+    "55-64": "#0891B2",
+    "65+":   "#EF4444",
+    "לא הוזן": "#94A3B8",
+  };
+
+  const total = data.reduce((s, r) => s + (r.count || 0), 0) || 1;
+
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <PieChart>
+        <Pie
+          data={data}
+          dataKey="count"
+          nameKey="bucket"
+          cx="50%"
+          cy="50%"
+          outerRadius={70}
+          innerRadius={36}
+          paddingAngle={2}
+          isAnimationActive={false}
+          label={({ count }) => `${Math.round((count / total) * 100)}%`}
+          labelLine={false}
+        >
+          {data.map((row, i) => (
+            <Cell key={i} fill={COLORS[row.bucket] || PALETTE[i % PALETTE.length]} />
+          ))}
+        </Pie>
+        <Tooltip
+          formatter={(v, name) => [`${v} (${Math.round((v / total) * 100)}%)`, name]}
+          contentStyle={{ fontSize: 12, direction: "rtl" }}
+        />
+        <Legend
+          verticalAlign="bottom"
+          align="center"
+          iconType="circle"
+          wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+        />
+      </PieChart>
     </ResponsiveContainer>
   );
 }
