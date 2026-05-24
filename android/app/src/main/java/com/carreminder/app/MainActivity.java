@@ -51,10 +51,15 @@ public class MainActivity extends BridgeActivity {
                 WindowInsetsCompat.Type.systemBars()
                     | WindowInsetsCompat.Type.displayCutout()
             );
-            Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
-            boolean kb = insets.isVisible(WindowInsetsCompat.Type.ime());
 
-            v.setPadding(bars.left, bars.top, bars.right, kb ? ime.bottom : 0);
+            // Bottom padding is always 0: the system nav bar is handled by
+            // CSS env(safe-area-inset-bottom) and the keyboard resize is
+            // handled by Chrome's interactive-widget=resizes-content (set in
+            // the viewport meta tag). Previously ime.bottom was added here
+            // when the keyboard was visible, but that DOUBLE-shrinks the
+            // content area (Java padding + Chrome viewport resize) and
+            // pushes everything off-screen → white screen on input focus.
+            v.setPadding(bars.left, bars.top, bars.right, 0);
 
             // Tell CSS exactly how tall the nav bar is
             float density = getResources().getDisplayMetrics().density;
