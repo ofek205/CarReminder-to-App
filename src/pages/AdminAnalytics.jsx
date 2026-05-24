@@ -368,14 +368,29 @@ function TypesChart({ data, onPointClick }) {
       }
     : undefined;
 
+  // RTL layout vertical bar: in Hebrew the category labels sit at the
+  // RIGHT side of the chart, the bars grow to the LEFT. Recharts doesn't
+  // have a built-in RTL mode, so we expose the y-axis on the right via
+  // `orientation="right"` and widen it to ~120px so the longest Hebrew
+  // labels ("רכב מסחרי", "אוטובוס") have room — previously the 80px
+  // width truncated everything to 1-3 characters.
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <ComposedChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 0, bottom: 0 }} onClick={handleClick}>
+      <ComposedChart data={data} layout="vertical" margin={{ top: 5, right: 0, left: 8, bottom: 0 }} onClick={handleClick}>
         <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
         <XAxis type="number" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
-        <YAxis type="category" dataKey="vehicle_type" tick={{ fontSize: 11, fill: "#64748B" }} axisLine={false} tickLine={false} width={80} />
+        <YAxis
+          type="category"
+          dataKey="vehicle_type"
+          orientation="right"
+          tick={{ fontSize: 11, fill: "#64748B", textAnchor: "start" }}
+          axisLine={false}
+          tickLine={false}
+          width={120}
+          interval={0}
+        />
         <Tooltip contentStyle={{ fontSize: 12, direction: "rtl" }} />
-        <Bar dataKey="count" radius={[0, 4, 4, 0]} cursor={onPointClick ? 'pointer' : undefined}>
+        <Bar dataKey="count" radius={[4, 0, 0, 4]} cursor={onPointClick ? 'pointer' : undefined}>
           {data.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
         </Bar>
       </ComposedChart>
