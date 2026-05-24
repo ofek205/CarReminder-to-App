@@ -69,11 +69,11 @@ BEGIN
   -- 2. Error rate (24h)
   BEGIN
     SELECT COUNT(*) INTO v_err_count
-    FROM public.app_errors
-    WHERE created_at >= v_now - interval '24 hours'
-      AND type NOT IN ('boot_stage')
-      AND message NOT LIKE 'Lock was stolen%'
-      AND message NOT LIKE 'Lock broken%';
+    FROM public.app_errors ae
+    WHERE ae.created_at >= v_now - interval '24 hours'
+      AND ae.type NOT IN ('boot_stage')
+      AND ae.message NOT LIKE 'Lock was stolen%'
+      AND ae.message NOT LIKE 'Lock broken%';
   EXCEPTION WHEN undefined_table THEN
     v_err_count := 0;
   END;
