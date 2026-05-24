@@ -362,6 +362,211 @@ BEGIN
       v_total := 0;
     END;
 
+  -- ═══════════════════════════════════════════════════════════════════
+  -- kpi_power_users — leaderboard of users with ≥3 vehicles AND ≥10 docs
+  -- ═══════════════════════════════════════════════════════════════════
+  ELSIF v_type = 'kpi_power_users' THEN
+    v_title   := 'Power Users — 3+ רכבים, 10+ מסמכים';
+    v_columns := jsonb_build_array(
+      jsonb_build_object('key','email',          'label','אימייל'),
+      jsonb_build_object('key','full_name',      'label','שם'),
+      jsonb_build_object('key','vehicles',       'label','רכבים'),
+      jsonb_build_object('key','documents',      'label','מסמכים'),
+      jsonb_build_object('key','signup_at',      'label','נרשם'),
+      jsonb_build_object('key','last_sign_in_at','label','התחבר לאחרונה')
+    );
+    SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.documents DESC, r.vehicles DESC), '[]'::jsonb), COUNT(*)
+    INTO v_rows, v_total
+    FROM (
+      SELECT
+        u.email,
+        COALESCE(u.raw_user_meta_data->>'full_name','')  AS full_name,
+        COUNT(DISTINCT v.id) AS vehicles,
+        COUNT(DISTINCT d.id) AS documents,
+        u.created_at         AS signup_at,
+        u.last_sign_in_at
+      FROM auth.users u
+      JOIN public.account_members am ON am.user_id = u.id AND am.status = 'פעיל'
+      LEFT JOIN public.vehicles  v ON v.account_id = am.account_id
+      LEFT JOIN public.documents d ON d.account_id = am.account_id
+      GROUP BY u.id, u.email, u.raw_user_meta_data, u.created_at, u.last_sign_in_at
+      HAVING COUNT(DISTINCT v.id) >= 3 AND COUNT(DISTINCT d.id) >= 10
+    ) r;
+
+  -- ═══════════════════════════════════════════════════════════════════
+  -- kpi_churn_risk — leaderboard: signed up >30d, ≤1 vehicle, idle 14d+
+  -- ═══════════════════════════════════════════════════════════════════
+  ELSIF v_type = 'kpi_churn_risk' THEN
+    v_title   := 'בסכנת נטישה — נרשם, לא מתקדם, לא חוזר';
+    v_columns := jsonb_build_array(
+      jsonb_build_object('key','email',          'label','אימייל'),
+      jsonb_build_object('key','full_name',      'label','שם'),
+      jsonb_build_object('key','vehicles',       'label','רכבים'),
+      jsonb_build_object('key','days_idle',      'label','ימים ללא כניסה'),
+      jsonb_build_object('key','signup_at',      'label','נרשם'),
+      jsonb_build_object('key','last_sign_in_at','label','התחבר לאחרונה')
+    );
+    SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.days_idle DESC NULLS FIRST), '[]'::jsonb), COUNT(*)
+    INTO v_rows, v_total
+    FROM (
+      SELECT
+        u.email,
+        COALESCE(u.raw_user_meta_data->>'full_name','') AS full_name,
+        COALESCE(vc.vehicles, 0)                        AS vehicles,
+        CASE WHEN u.last_sign_in_at IS NULL THEN NULL
+             ELSE EXTRACT(day FROM now() - u.last_sign_in_at)::int
+        END                                             AS days_idle,
+        u.created_at                                    AS signup_at,
+        u.last_sign_in_at
+      FROM auth.users u
+      LEFT JOIN (
+        SELECT am.user_id, COUNT(DISTINCT v.id) AS vehicles
+        FROM public.account_members am
+        LEFT JOIN public.vehicles v ON v.account_id = am.account_id
+        WHERE am.status = 'פעיל'
+        GROUP BY am.user_id
+      ) vc ON vc.user_id = u.id
+      WHERE u.created_at < now() - interval '30 days'
+        AND COALESCE(vc.vehicles, 0) <= 1
+        AND (u.last_sign_in_at IS NULL OR u.last_sign_in_at < now() - interval '14 days')
+    ) r;
+
+  -- ═══════════════════════════════════════════════════════════════════
+  -- kpi_north_star — users who got a reminder in 30d, did they return?
+  -- Row marker: returned=true/false based on the 48h window.
+  -- ═══════════════════════════════════════════════════════════════════
+  ELSIF v_type = 'kpi_north_star' THEN
+    v_title   := 'תזכורות 30 ימים — מי חזר תוך 48 שעות?';
+    v_columns := jsonb_build_array(
+      jsonb_build_object('key','email',          'label','אימייל'),
+      jsonb_build_object('key','full_name',      'label','שם'),
+      jsonb_build_object('key','returned',       'label','חזר?'),
+      jsonb_build_object('key','sent_at',        'label','תזכורת אחרונה'),
+      jsonb_build_object('key','last_sign_in_at','label','התחבר לאחרונה')
+    );
+    BEGIN
+      SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.sent_at DESC), '[]'::jsonb), COUNT(*)
+      INTO v_rows, v_total
+      FROM (
+        WITH last_reminder AS (
+          SELECT DISTINCT ON (user_id) user_id, sent_at
+          FROM public.email_send_log
+          WHERE notification_key LIKE 'reminder_%'
+            AND sent_at >= now() - interval '30 days'
+            AND user_id IS NOT NULL
+          ORDER BY user_id, sent_at DESC
+        )
+        SELECT
+          u.email,
+          COALESCE(u.raw_user_meta_data->>'full_name','')  AS full_name,
+          CASE WHEN u.last_sign_in_at IS NOT NULL
+                AND u.last_sign_in_at >= lr.sent_at
+                AND u.last_sign_in_at <  lr.sent_at + interval '48 hours'
+               THEN 'כן' ELSE 'לא' END                     AS returned,
+          lr.sent_at,
+          u.last_sign_in_at
+        FROM last_reminder lr
+        JOIN auth.users u ON u.id = lr.user_id
+      ) r;
+    EXCEPTION WHEN undefined_table THEN
+      v_rows  := '[]'::jsonb;
+      v_total := 0;
+    END;
+
+  -- ═══════════════════════════════════════════════════════════════════
+  -- kpi_activation_rate — last 30d signups, with completion status
+  -- ═══════════════════════════════════════════════════════════════════
+  ELSIF v_type = 'kpi_activation_rate' THEN
+    v_title   := 'הרשמות 30 ימים — סטטוס אקטיבציה';
+    v_columns := jsonb_build_array(
+      jsonb_build_object('key','email',          'label','אימייל'),
+      jsonb_build_object('key','full_name',      'label','שם'),
+      jsonb_build_object('key','has_vehicle',    'label','רכב?'),
+      jsonb_build_object('key','has_reminder',   'label','תזכורת?'),
+      jsonb_build_object('key','has_doc',        'label','מסמך?'),
+      jsonb_build_object('key','signup_at',      'label','נרשם'),
+      jsonb_build_object('key','last_sign_in_at','label','התחבר לאחרונה')
+    );
+    SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.signup_at DESC), '[]'::jsonb), COUNT(*)
+    INTO v_rows, v_total
+    FROM (
+      SELECT
+        u.email,
+        COALESCE(u.raw_user_meta_data->>'full_name','') AS full_name,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM public.account_members am
+          JOIN public.vehicles v ON v.account_id = am.account_id
+          WHERE am.user_id = u.id AND v.created_at >= u.created_at
+        ) THEN 'כן' ELSE 'לא' END AS has_vehicle,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM public.account_members am
+          JOIN public.vehicles v ON v.account_id = am.account_id
+          WHERE am.user_id = u.id AND v.first_reminder_armed_at IS NOT NULL
+        ) THEN 'כן' ELSE 'לא' END AS has_reminder,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM public.account_members am
+          JOIN public.documents d ON d.account_id = am.account_id
+          WHERE am.user_id = u.id AND d.created_at >= u.created_at
+        ) THEN 'כן' ELSE 'לא' END AS has_doc,
+        u.created_at                                    AS signup_at,
+        u.last_sign_in_at
+      FROM auth.users u
+      WHERE u.created_at >= now() - interval '30 days'
+    ) r;
+
+  -- ═══════════════════════════════════════════════════════════════════
+  -- funnel_stage — drill-down on a specific stage of the activation funnel
+  -- segment: { type: 'funnel_stage', stage: 'signup'|'email_verified'|... }
+  -- Shows users who REACHED this stage (cumulative).
+  -- ═══════════════════════════════════════════════════════════════════
+  ELSIF v_type = 'funnel_stage' THEN
+    DECLARE v_stage text := p_segment->>'stage';
+    BEGIN
+      v_title := 'משפך אקטיבציה — שלב: ' ||
+        CASE v_stage
+          WHEN 'signup'         THEN 'הרשמה'
+          WHEN 'email_verified' THEN 'אימות אימייל'
+          WHEN 'first_vehicle'  THEN 'רכב ראשון'
+          WHEN 'first_reminder' THEN 'תזכורת ראשונה'
+          WHEN 'first_document' THEN 'מסמך ראשון'
+          ELSE v_stage
+        END;
+      v_columns := v_cols_user;
+      SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.signup_at DESC), '[]'::jsonb), COUNT(*)
+      INTO v_rows, v_total
+      FROM (
+        SELECT
+          u.email,
+          COALESCE(u.raw_user_meta_data->>'full_name','') AS full_name,
+          COALESCE(p.phone, u.phone::text)                AS phone,
+          u.created_at                                    AS signup_at,
+          u.last_sign_in_at
+        FROM auth.users u
+        LEFT JOIN public.user_profiles p ON p.user_id = u.id
+        WHERE u.created_at >= now() - interval '30 days'
+          AND CASE v_stage
+                WHEN 'signup'         THEN TRUE
+                WHEN 'email_verified' THEN u.email_confirmed_at IS NOT NULL
+                WHEN 'first_vehicle'  THEN EXISTS (
+                  SELECT 1 FROM public.account_members am
+                  JOIN public.vehicles v ON v.account_id = am.account_id
+                  WHERE am.user_id = u.id AND v.created_at >= u.created_at
+                )
+                WHEN 'first_reminder' THEN EXISTS (
+                  SELECT 1 FROM public.account_members am
+                  JOIN public.vehicles v ON v.account_id = am.account_id
+                  WHERE am.user_id = u.id AND v.first_reminder_armed_at IS NOT NULL
+                )
+                WHEN 'first_document' THEN EXISTS (
+                  SELECT 1 FROM public.account_members am
+                  JOIN public.documents d ON d.account_id = am.account_id
+                  WHERE am.user_id = u.id AND d.created_at >= u.created_at
+                )
+                ELSE FALSE
+              END
+      ) r;
+    END;
+
   ELSE
     RAISE EXCEPTION 'unknown drilldown type: %', v_type;
   END IF;

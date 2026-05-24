@@ -16,6 +16,7 @@ import {
 import {
   AlertCircle, RefreshCw, Users, Car, FileText,
   Mail, Bug, TrendingUp, Cake, Download, Loader2,
+  Target, Zap, Star, Flame,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -82,6 +83,11 @@ export default function AdminAnalytics() {
     signups_daily = [], wau_weekly = [], vehicles_weekly = [],
     vehicle_types = [], documents_weekly = [], errors_daily = [],
     email_stats = {}, cohorts = [], age_distribution = [],
+    activation_funnel = [],
+    kpi_north_star_pct = 0,
+    kpi_activation_rate_pct = 0,
+    kpi_power_users = 0,
+    kpi_churn_risk = 0,
   } = data || {};
 
   const totalSignups = signups_daily.reduce((s, r) => s + (r.count || 0), 0);
@@ -100,6 +106,22 @@ export default function AdminAnalytics() {
         </Button>
       </div>
 
+      {/* Row 1: CarReminder-specific KPIs (the ones that actually drive product decisions).
+          Reminder-to-Return is the North Star — keep it first.
+          Activation rate measures onboarding success.
+          Power users + Churn risk are the two action lists the admin works from. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+        <KpiCard label="חזרו אחרי תזכורת (48ש)" value={`${kpi_north_star_pct}%`} icon={Target} color={BI.purple}
+          onClick={() => setDrillSegment({ type: 'kpi_north_star' })} />
+        <KpiCard label="אקטיבציה מלאה (30י)"    value={`${kpi_activation_rate_pct}%`} icon={Zap}  color={BI.amber}
+          onClick={() => setDrillSegment({ type: 'kpi_activation_rate' })} />
+        <KpiCard label="Power users"             value={kpi_power_users} icon={Star} color={BI.green}
+          onClick={() => setDrillSegment({ type: 'kpi_power_users' })} />
+        <KpiCard label="בסכנת נטישה"             value={kpi_churn_risk}  icon={Flame} color={BI.red}
+          onClick={() => setDrillSegment({ type: 'kpi_churn_risk' })} />
+      </div>
+
+      {/* Row 2: Standard KPIs (growth + health) — the existing four. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <KpiCard label="הרשמות (30 ימים)" value={totalSignups} icon={Users}      color={BI.blue}  onClick={() => setDrillSegment({ type: 'kpi_total_users' })} />
         <KpiCard label="פעילים השבוע"     value={latestWau}    icon={TrendingUp} color={BI.green} onClick={() => setDrillSegment({ type: 'kpi_active_week' })} />
@@ -141,6 +163,11 @@ export default function AdminAnalytics() {
         <ChartCard title="התפלגות גילאים" icon={Cake} color={BI.purple}>
           <AgeChart data={age_distribution}
             onPointClick={(row) => setDrillSegment({ type: 'age_bucket', bucket: row.bucket })} />
+        </ChartCard>
+
+        <ChartCard title="משפך אקטיבציה (30 ימים)" icon={Target} color={BI.amber}>
+          <FunnelChart data={activation_funnel}
+            onPointClick={(row) => setDrillSegment({ type: 'funnel_stage', stage: row.stage })} />
         </ChartCard>
       </div>
 
@@ -206,6 +233,73 @@ function MiniChart({ data, dataKey, xKey, color, type = "bar", label, onPointCli
         }
       </ComposedChart>
     </ResponsiveContainer>
+  );
+}
+
+function FunnelChart({ data, onPointClick }) {
+  if (!data.length) return <p className="text-xs text-gray-400 text-center py-10">אין נתונים</p>;
+
+  // Funnel as horizontal bars sorted top→bottom, signup at top.
+  // Each row shows: label · count · % of top · drop-off arrow.
+  // The Hebrew stage labels live here (single source of truth).
+  const STAGE_LABEL = {
+    signup:         'הרשמה',
+    email_verified: 'אימות אימייל',
+    first_vehicle:  'רכב ראשון',
+    first_reminder: 'תזכורת ראשונה',
+    first_document: 'מסמך ראשון',
+  };
+  const top = data[0]?.count || 1;
+
+  return (
+    <div className="space-y-1.5 py-2 text-xs">
+      {data.map((row, i) => {
+        const pct      = Math.round((row.count / top) * 100);
+        const prev     = i > 0 ? data[i - 1].count : null;
+        const dropPct  = prev != null && prev > 0
+          ? Math.round(((prev - row.count) / prev) * 100)
+          : null;
+        const dropBad  = dropPct != null && dropPct >= 30;
+        return (
+          <button
+            key={row.stage}
+            type="button"
+            onClick={onPointClick ? () => onPointClick(row) : undefined}
+            className={`w-full text-right ${onPointClick ? 'cursor-pointer hover:bg-gray-50' : 'cursor-default'} rounded-lg p-1.5 transition`}
+          >
+            <div className="flex items-center justify-between gap-2 mb-0.5">
+              <span className="text-gray-700 font-medium">{STAGE_LABEL[row.stage] || row.stage}</span>
+              <span className="flex items-center gap-2">
+                {dropPct != null && dropPct > 0 && (
+                  <span
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{
+                      background: dropBad ? BI.red + '15' : BI.slate + '15',
+                      color: dropBad ? BI.red : BI.slate,
+                    }}
+                    title={`drop-off: ${dropPct}%`}
+                    dir="ltr"
+                  >
+                    −{dropPct}%
+                  </span>
+                )}
+                <span className="text-gray-900 font-bold tabular-nums" dir="ltr">{row.count}</span>
+                <span className="text-gray-400 text-[10px] tabular-nums" dir="ltr">({pct}%)</span>
+              </span>
+            </div>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: '#F1F5F9' }}>
+              <div
+                className="h-full transition-all"
+                style={{
+                  width: `${pct}%`,
+                  background: `linear-gradient(90deg, ${BI.amber} 0%, ${BI.purple} 100%)`,
+                }}
+              />
+            </div>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
