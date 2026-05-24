@@ -7,10 +7,8 @@ import android.view.View;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsAnimationCompat;
 import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
-import java.util.List;
 
 /**
  * Edge-to-edge layout, single source of truth for insets.
@@ -69,20 +67,29 @@ public class MainActivity extends BridgeActivity {
         // Per-event listener: fires on attach + every steady-state inset
         // change (rotation, gesture-bar reveal, etc.). We do NOT consume
         // (return original insets) so Capacitor plugins still work.
+        //
+        // IMPORTANT: We inject only the SYSTEM BARS bottom (gesture nav)
+        // — NOT max(systemBars, ime). Reason: Chrome WebView on Android
+        // resizes the layout viewport when the IME opens (default
+        // interactive-widget behaviour). With the layout viewport
+        // already shrunk to fit above the keyboard, anything anchored
+        // at `bottom: 0` (BottomNav) lands at the keyboard top. If we
+        // were to ALSO add ime.bottom as bottom padding on BottomNav,
+        // its buttons would be pushed up by the keyboard height — twice
+        // the keyboard height of total displacement — producing exactly
+        // the giant white gap reported in v5.0.5 testing.
+        //
+        // The body.keyboard-visible class is still toggled so CSS can
+        // hide chrome that competes with the keyboard if needed (e.g.,
+        // home-indicator padding on iOS via the existing scoped rule).
         ViewCompat.setOnApplyWindowInsetsListener(target, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            Insets ime  = insets.getInsets(WindowInsetsCompat.Type.ime());
             boolean imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
 
-            int topDp    = Math.round(bars.top / density);
-            // ime.bottom already includes the gesture-bar region on AOSP/
-            // Samsung/OnePlus (modern). On legacy MIUI 13 ime.bottom may
-            // exclude it — max() picks the right value either way for the
-            // common case, accepting a small (~24dp) under-pad on those
-            // legacy devices.
-            int bottomDp = Math.round(Math.max(bars.bottom, ime.bottom) / density);
-            int leftDp   = Math.round(bars.left / density);
-            int rightDp  = Math.round(bars.right / density);
+            int topDp    = Math.round(bars.top    / density);
+            int bottomDp = Math.round(bars.bottom / density);
+            int leftDp   = Math.round(bars.left   / density);
+            int rightDp  = Math.round(bars.right  / density);
 
             pushInsetsToCss(topDp, bottomDp, leftDp, rightDp, imeVisible);
 
@@ -91,33 +98,6 @@ public class MainActivity extends BridgeActivity {
             // see these too.
             return insets;
         });
-
-        // Per-frame listener for smooth IME animations. Without this the
-        // BottomNav snaps at animation end instead of riding the keyboard
-        // up/down. DISPATCH_MODE_CONTINUE_ON_SUBTREE lets the regular
-        // listener also fire (we want both: per-frame during animation,
-        // final value via onApplyWindowInsetsListener at end).
-        WindowInsetsAnimationCompat.Callback animCallback =
-            new WindowInsetsAnimationCompat.Callback(
-                WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE
-            ) {
-                @Override
-                public WindowInsetsCompat onProgress(
-                    WindowInsetsCompat insets,
-                    List<WindowInsetsAnimationCompat> runningAnimations
-                ) {
-                    Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-                    Insets ime  = insets.getInsets(WindowInsetsCompat.Type.ime());
-                    int bottomDp = Math.round(Math.max(bars.bottom, ime.bottom) / density);
-                    int topDp    = Math.round(bars.top / density);
-                    int leftDp   = Math.round(bars.left / density);
-                    int rightDp  = Math.round(bars.right / density);
-                    boolean imeVisible = ime.bottom > 0;
-                    pushInsetsToCss(topDp, bottomDp, leftDp, rightDp, imeVisible);
-                    return insets;
-                }
-            };
-        ViewCompat.setWindowInsetsAnimationCallback(target, animCallback);
 
         // Force first dispatch in case the view is already attached.
         target.requestApplyInsets();
