@@ -171,7 +171,7 @@ export default function TasksSection({ vehicle }) {
         queryClient.invalidateQueries({ queryKey: ['tasks-v2', vehicle.id] });
         const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
         notifyVehicleChange(vehicle.id, 'task_added', `נוספה משימה: ${dbTask.title}`);
-      } catch (err) { toast.error('שגיאה: ' + (err?.message || 'נסה שוב')); return; }
+      } catch (err) { toast.error('לא הצלחנו לשמור את המשימה. נסה שוב'); return; }
     }
     setDialogOpen(false);
   };

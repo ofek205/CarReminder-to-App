@@ -176,7 +176,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
       onClose();
     },
     onError: (err) => {
-      toast.error('שמירה נכשלה: ' + (err?.message || 'שגיאה לא ידועה'));
+      toast.error('לא הצלחנו לשמור את התיקון. נסה שוב');
     },
   });
 
