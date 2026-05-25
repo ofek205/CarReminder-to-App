@@ -178,7 +178,7 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
       {isRead ? (
         onMarkUnread && (
           <button onClick={(e) => { e.stopPropagation(); onMarkUnread(notif.id); }}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all"
+            className="flex items-center gap-1 px-2.5 py-3 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all min-h-[44px]"
             style={{ color: '#6B7280' }}>
             <div className="w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: '#D1D5DB' }} />
             סמן כלא נקרא
@@ -187,7 +187,7 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
       ) : (
         onMarkRead && (
           <button onClick={(e) => { e.stopPropagation(); onMarkRead(notif.id); }}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all"
+            className="flex items-center gap-1 px-2.5 py-3 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all min-h-[44px]"
             style={{ color: C.primary }}>
             <CheckCircle className="w-3.5 h-3.5" />
             נקרא
@@ -804,7 +804,7 @@ function AuthNotifications() {
             </button>
             <button
               onClick={() => markAppNotifRead(an.id, !isRead)}
-              className="w-8 h-8 rounded-xl flex items-center justify-center transition-all shrink-0"
+              className="w-11 h-11 rounded-xl flex items-center justify-center transition-all shrink-0"
               style={{ background: isRead ? '#F3F4F6' : cfg.iconColor + '18' }}
               title={isRead ? 'סמן כלא נקרא' : 'סמן כנקרא'}>
               {isRead

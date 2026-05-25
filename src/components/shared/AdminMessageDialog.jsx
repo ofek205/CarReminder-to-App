@@ -15,7 +15,7 @@ export default function AdminMessageDialog({ title, body, timestamp, formatTime,
           <div className="flex items-center gap-2 px-4 py-3" style={{ background: '#DBEAFE', borderBottom: '1px solid #BFDBFE' }}>
             <Mail className="w-4 h-4" style={{ color: '#1D4ED8' }} />
             <span className="text-[13px] font-bold flex-1" style={{ color: '#1E40AF' }}>הודעה מ-Car Reminder</span>
-            <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-blue-200/50 transition">
+            <button onClick={onClose} className="w-11 h-11 rounded-lg flex items-center justify-center hover:bg-blue-200/50 transition">
               <X className="w-4 h-4" style={{ color: '#1D4ED8' }} />
             </button>
           </div>
