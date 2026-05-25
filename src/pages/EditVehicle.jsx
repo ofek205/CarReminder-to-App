@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
 import useFileUpload from '@/hooks/useFileUpload';
@@ -178,11 +179,14 @@ export default function EditVehicle() {
         return;
       }
 
-      const { data: vRows, error: vErr } = await supabase
-        .from('my_vehicles_v')
-        .select('*')
-        .eq('id', vehicleId)
-        .limit(1);
+      const { data: vRows, error: vErr } = await withTimeout(
+        supabase
+          .from('my_vehicles_v')
+          .select('*')
+          .eq('id', vehicleId)
+          .limit(1),
+        'my_vehicles_v'
+      );
       if (vErr) throw vErr;
       const found = vRows?.[0] || null;
       if (found) {
