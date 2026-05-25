@@ -425,14 +425,18 @@ BEGIN
   SELECT jsonb_build_object(
     'sharing', jsonb_build_object(
       'multi_total',    multi_total,
+      'multi_returned', multi_returned,
       'multi_pct',      CASE WHEN multi_total = 0  THEN 0 ELSE ROUND(100.0 * multi_returned  / multi_total,  1) END,
       'single_total',   single_total,
+      'single_returned', single_returned,
       'single_pct',     CASE WHEN single_total = 0 THEN 0 ELSE ROUND(100.0 * single_returned / single_total, 1) END
     ),
     'docs', jsonb_build_object(
       'rich_total',     docrich_total,
+      'rich_returned',  docrich_returned,
       'rich_pct',       CASE WHEN docrich_total = 0 THEN 0 ELSE ROUND(100.0 * docrich_returned / docrich_total, 1) END,
       'poor_total',     docpoor_total,
+      'poor_returned',  docpoor_returned,
       'poor_pct',       CASE WHEN docpoor_total = 0 THEN 0 ELSE ROUND(100.0 * docpoor_returned / docpoor_total, 1) END
     ),
     'cohort_size',     multi_total + single_total

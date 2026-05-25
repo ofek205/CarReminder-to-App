@@ -209,36 +209,48 @@ export default function AdminAnalytics() {
       {/* Row 3: Retention Insights (Phase 3) — head-to-head comparisons.
           Reuses KpiCard primitive (no new component). The pair-wise
           color: GREEN for the higher of each pair, SLATE for the lower —
-          a quick visual cue answering "האם זה עוזר לשימור?". */}
-      <div className="mb-2 flex items-center gap-2">
-        <span className="text-[11px] text-gray-500 font-medium">תובנות שימור (D30)</span>
-        <span className="text-[10px] text-gray-400">— מתוך {retention_insights?.cohort_size || 0} משתמשים שנרשמו 30-90 ימים אחורה</span>
+          a quick visual cue answering "האם זה עוזר לשימור?".
+          Hint prop shows "(returned/total)" so the % is interpretable
+          on a 13-user cohort (without context "100% (2/2)" reads very
+          differently from "100% (200/200)"). */}
+      <div className="mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-gray-500 font-medium">תובנות שימור D30</span>
+          <span className="text-[10px] text-gray-400">— מתוך {retention_insights?.cohort_size || 0} משתמשים שנרשמו 30-90 ימים אחורה</span>
+        </div>
+        <div className="text-[10px] text-gray-400 mt-0.5">
+          האחוז = כמה מתוך הקטגוריה חזרו לאפליקציה אחרי יום 30 מההרשמה. ירוק = המנצח בכל זוג.
+        </div>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <KpiCard
-          label="עם 2+ חברים"
+          label="חזרו D30 — עם 2+ חברים"
           value={`${retention_insights?.sharing?.multi_pct ?? 0}%`}
+          hint={`${retention_insights?.sharing?.multi_returned ?? 0}/${retention_insights?.sharing?.multi_total ?? 0}`}
           icon={Users}
           color={(retention_insights?.sharing?.multi_pct ?? 0) >= (retention_insights?.sharing?.single_pct ?? 0) ? BI.green : BI.slate}
           onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'multi' })}
         />
         <KpiCard
-          label="חבר יחיד"
+          label="חזרו D30 — חבר יחיד"
           value={`${retention_insights?.sharing?.single_pct ?? 0}%`}
+          hint={`${retention_insights?.sharing?.single_returned ?? 0}/${retention_insights?.sharing?.single_total ?? 0}`}
           icon={Users}
           color={(retention_insights?.sharing?.single_pct ?? 0) > (retention_insights?.sharing?.multi_pct ?? 0) ? BI.green : BI.slate}
           onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'single' })}
         />
         <KpiCard
-          label="3+ מסמכים"
+          label="חזרו D30 — 3+ מסמכים"
           value={`${retention_insights?.docs?.rich_pct ?? 0}%`}
+          hint={`${retention_insights?.docs?.rich_returned ?? 0}/${retention_insights?.docs?.rich_total ?? 0}`}
           icon={FileText}
           color={(retention_insights?.docs?.rich_pct ?? 0) >= (retention_insights?.docs?.poor_pct ?? 0) ? BI.green : BI.slate}
           onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'docrich' })}
         />
         <KpiCard
-          label="0 מסמכים"
+          label="חזרו D30 — 0 מסמכים"
           value={`${retention_insights?.docs?.poor_pct ?? 0}%`}
+          hint={`${retention_insights?.docs?.poor_returned ?? 0}/${retention_insights?.docs?.poor_total ?? 0}`}
           icon={FileText}
           color={(retention_insights?.docs?.poor_pct ?? 0) > (retention_insights?.docs?.rich_pct ?? 0) ? BI.green : BI.slate}
           onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'docpoor' })}
@@ -429,7 +441,7 @@ function FilterBar({ filters, updateFilter, resetFilters, availableVehicleTypes,
   );
 }
 
-function KpiCard({ label, value, icon: Icon, color, onClick }) {
+function KpiCard({ label, value, icon: Icon, color, onClick, hint }) {
   return (
     <Card
       className={`p-3 text-center transition ${onClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.02]' : ''}`}
@@ -440,6 +452,9 @@ function KpiCard({ label, value, icon: Icon, color, onClick }) {
     >
       <Icon className="w-5 h-5 mx-auto mb-1" style={{ color }} />
       <p className="text-2xl font-bold" style={{ color }} dir="ltr">{value}</p>
+      {hint && (
+        <p className="text-[10px] text-gray-400 tabular-nums" dir="ltr">{hint}</p>
+      )}
       <p className="text-[11px] text-gray-500 mt-0.5">{label}</p>
     </Card>
   );
