@@ -174,6 +174,16 @@ export default function useUpdateAvailable() {
 
       if (cancelled) return;
 
+      // Step 4b — report version to server for admin analytics.
+      // Fire-and-forget: failures are silently swallowed so a network
+      // blip never affects the user's session or the banner flow.
+      try {
+        supabase.rpc('report_app_version', {
+          p_platform: platform,
+          p_version: currentVersion,
+        }).then(() => {}).catch(() => {});
+      } catch {}
+
       // Step 5 — version compare. The banner only shows when the
       // installed version is strictly OLDER than the latest. Equal
       // (steady state) and somehow-higher (misconfiguration) both
