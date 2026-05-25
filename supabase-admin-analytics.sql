@@ -36,6 +36,7 @@ DECLARE
   v_kpi_activation_rate numeric;
   v_kpi_power_users integer;
   v_kpi_churn_risk integer;
+  v_retention_insights jsonb;
 
   -- ─────────────────────────────────────────────────────────────────
   -- FILTER VARS — derived from p_filters jsonb (Phase 2).
@@ -367,7 +368,79 @@ BEGIN
     HAVING COUNT(DISTINCT v.id) >= 3 AND COUNT(DISTINCT d.id) >= 10
   ) t;
 
-  -- 14. Churn risk — registered >30d, ≤1 vehicle, no login in 14d.
+  -- 14a. Retention Insights — Phase 3.
+  -- Two head-to-head D30 retention comparisons answering the two
+  -- biggest product strategy questions:
+  --   • Does account sharing drive retention? (multi vs single member)
+  --   • Does uploading docs drive retention? (3+ docs vs 0 docs)
+  -- Both segments use the same eligible cohort: users who signed up
+  -- ≥30 and ≤90 days ago (so they had a full chance to return on D30
+  -- and the cohort isn't biased toward ancient users).
+  WITH eligible AS (
+    SELECT u.id, u.created_at, u.last_sign_in_at
+    FROM auth.users u
+    WHERE u.created_at <= now() - interval '30 days'
+      AND u.created_at >  now() - interval '90 days'
+  ),
+  enriched AS (
+    SELECT
+      e.id,
+      e.created_at,
+      e.last_sign_in_at,
+      -- Multi-member: any account this user belongs to has 2+ active members.
+      EXISTS (
+        SELECT 1
+        FROM public.account_members am1
+        WHERE am1.user_id = e.id
+          AND (
+            SELECT COUNT(*)
+            FROM public.account_members am2
+            WHERE am2.account_id = am1.account_id
+              AND am2.status = 'פעיל'
+          ) >= 2
+      ) AS is_multi_member,
+      -- Doc count: documents across all accounts the user belongs to.
+      (
+        SELECT COUNT(DISTINCT d.id)
+        FROM public.account_members am
+        JOIN public.documents d ON d.account_id = am.account_id
+        WHERE am.user_id = e.id
+      ) AS doc_count
+    FROM eligible e
+  ),
+  stats AS (
+    SELECT
+      -- Sharing comparison
+      COUNT(*) FILTER (WHERE is_multi_member)                                   AS multi_total,
+      COUNT(*) FILTER (WHERE is_multi_member AND last_sign_in_at > created_at + interval '30 days') AS multi_returned,
+      COUNT(*) FILTER (WHERE NOT is_multi_member)                               AS single_total,
+      COUNT(*) FILTER (WHERE NOT is_multi_member AND last_sign_in_at > created_at + interval '30 days') AS single_returned,
+      -- Docs comparison
+      COUNT(*) FILTER (WHERE doc_count >= 3)                                    AS docrich_total,
+      COUNT(*) FILTER (WHERE doc_count >= 3 AND last_sign_in_at > created_at + interval '30 days')      AS docrich_returned,
+      COUNT(*) FILTER (WHERE doc_count = 0)                                     AS docpoor_total,
+      COUNT(*) FILTER (WHERE doc_count = 0 AND last_sign_in_at > created_at + interval '30 days')       AS docpoor_returned
+    FROM enriched
+  )
+  SELECT jsonb_build_object(
+    'sharing', jsonb_build_object(
+      'multi_total',    multi_total,
+      'multi_pct',      CASE WHEN multi_total = 0  THEN 0 ELSE ROUND(100.0 * multi_returned  / multi_total,  1) END,
+      'single_total',   single_total,
+      'single_pct',     CASE WHEN single_total = 0 THEN 0 ELSE ROUND(100.0 * single_returned / single_total, 1) END
+    ),
+    'docs', jsonb_build_object(
+      'rich_total',     docrich_total,
+      'rich_pct',       CASE WHEN docrich_total = 0 THEN 0 ELSE ROUND(100.0 * docrich_returned / docrich_total, 1) END,
+      'poor_total',     docpoor_total,
+      'poor_pct',       CASE WHEN docpoor_total = 0 THEN 0 ELSE ROUND(100.0 * docpoor_returned / docpoor_total, 1) END
+    ),
+    'cohort_size',     multi_total + single_total
+  )
+  INTO v_retention_insights
+  FROM stats;
+
+  -- 14b. Churn risk — registered >30d, ≤1 vehicle, no login in 14d.
   -- These are the candidates for a "we miss you" re-engagement campaign.
   SELECT COUNT(*)
   INTO v_kpi_churn_risk
@@ -399,6 +472,7 @@ BEGIN
     'kpi_activation_rate_pct', COALESCE(v_kpi_activation_rate, 0),
     'kpi_power_users',       COALESCE(v_kpi_power_users, 0),
     'kpi_churn_risk',        COALESCE(v_kpi_churn_risk, 0),
+    'retention_insights',    COALESCE(v_retention_insights, '{}'::jsonb),
     'filters_applied',       jsonb_build_object(
       'date_range',    v_date_range,
       'days_back',     v_days_back,

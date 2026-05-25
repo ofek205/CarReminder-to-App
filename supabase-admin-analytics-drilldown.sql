@@ -635,6 +635,70 @@ BEGIN
       ) r;
     END;
 
+  -- ═══════════════════════════════════════════════════════════════════
+  -- retention_segment — Phase 3 head-to-head segments.
+  -- segment: {type:'retention_segment', bucket:'multi'|'single'|'docrich'|'docpoor'}
+  -- Cohort = signed up 30-90 days ago. Returns the bucket's users with
+  -- a "returned_d30" flag column.
+  -- ═══════════════════════════════════════════════════════════════════
+  ELSIF v_type = 'retention_segment' THEN
+    DECLARE v_bucket text := p_segment->>'bucket';
+    BEGIN
+      v_title := 'שימור D30 — ' || CASE v_bucket
+        WHEN 'multi'   THEN 'חשבונות עם 2+ חברים'
+        WHEN 'single'  THEN 'חשבון יחיד (חבר אחד)'
+        WHEN 'docrich' THEN '3+ מסמכים'
+        WHEN 'docpoor' THEN '0 מסמכים'
+        ELSE v_bucket
+      END;
+      v_columns := jsonb_build_array(
+        jsonb_build_object('key','email',          'label','אימייל'),
+        jsonb_build_object('key','full_name',      'label','שם'),
+        jsonb_build_object('key','returned_d30',   'label','חזר D30?'),
+        jsonb_build_object('key','doc_count',      'label','מסמכים'),
+        jsonb_build_object('key','signup_at',      'label','נרשם'),
+        jsonb_build_object('key','last_sign_in_at','label','התחבר לאחרונה')
+      );
+      SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.signup_at DESC), '[]'::jsonb), COUNT(*)
+      INTO v_rows, v_total
+      FROM (
+        WITH eligible AS (
+          SELECT u.id, u.email, u.raw_user_meta_data, u.created_at, u.last_sign_in_at
+          FROM auth.users u
+          WHERE u.created_at <= now() - interval '30 days'
+            AND u.created_at >  now() - interval '90 days'
+        ),
+        enriched AS (
+          SELECT
+            e.*,
+            EXISTS (
+              SELECT 1 FROM public.account_members am1
+              WHERE am1.user_id = e.id
+                AND (SELECT COUNT(*) FROM public.account_members am2
+                     WHERE am2.account_id = am1.account_id AND am2.status = 'פעיל') >= 2
+            ) AS is_multi_member,
+            (SELECT COUNT(DISTINCT d.id)
+               FROM public.account_members am
+               JOIN public.documents d ON d.account_id = am.account_id
+              WHERE am.user_id = e.id) AS doc_count
+          FROM eligible e
+        )
+        SELECT
+          email,
+          COALESCE(raw_user_meta_data->>'full_name','') AS full_name,
+          CASE WHEN last_sign_in_at > created_at + interval '30 days' THEN 'כן' ELSE 'לא' END AS returned_d30,
+          doc_count,
+          created_at        AS signup_at,
+          last_sign_in_at
+        FROM enriched
+        WHERE
+          (v_bucket = 'multi'   AND is_multi_member)
+          OR (v_bucket = 'single'  AND NOT is_multi_member)
+          OR (v_bucket = 'docrich' AND doc_count >= 3)
+          OR (v_bucket = 'docpoor' AND doc_count = 0)
+      ) r;
+    END;
+
   ELSE
     RAISE EXCEPTION 'unknown drilldown type: %', v_type;
   END IF;

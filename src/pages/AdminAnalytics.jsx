@@ -162,6 +162,7 @@ export default function AdminAnalytics() {
     kpi_activation_rate_pct = 0,
     kpi_power_users = 0,
     kpi_churn_risk = 0,
+    retention_insights = {},
   } = data || {};
 
   const totalSignups = signups_daily.reduce((s, r) => s + (r.count || 0), 0);
@@ -198,11 +199,50 @@ export default function AdminAnalytics() {
       </div>
 
       {/* Row 2: Standard KPIs (growth + health) — the existing four. */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <KpiCard label="הרשמות (30 ימים)" value={totalSignups} icon={Users}      color={BI.blue}  onClick={() => setDrillSegment({ type: 'kpi_total_users' })} />
         <KpiCard label="פעילים השבוע"     value={latestWau}    icon={TrendingUp} color={BI.green} onClick={() => setDrillSegment({ type: 'kpi_active_week' })} />
         <KpiCard label='סה"כ רכבים'        value={totalVehicles} icon={Car}      color={BI.teal}  onClick={() => setDrillSegment({ type: 'kpi_total_vehicles' })} />
         <KpiCard label="שגיאות (14 ימים)"  value={totalErrors}  icon={Bug}        color={totalErrors > 50 ? BI.red : BI.slate} onClick={() => setDrillSegment({ type: 'kpi_errors_14d' })} />
+      </div>
+
+      {/* Row 3: Retention Insights (Phase 3) — head-to-head comparisons.
+          Reuses KpiCard primitive (no new component). The pair-wise
+          color: GREEN for the higher of each pair, SLATE for the lower —
+          a quick visual cue answering "האם זה עוזר לשימור?". */}
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-[11px] text-gray-500 font-medium">תובנות שימור (D30)</span>
+        <span className="text-[10px] text-gray-400">— מתוך {retention_insights?.cohort_size || 0} משתמשים שנרשמו 30-90 ימים אחורה</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <KpiCard
+          label="עם 2+ חברים"
+          value={`${retention_insights?.sharing?.multi_pct ?? 0}%`}
+          icon={Users}
+          color={(retention_insights?.sharing?.multi_pct ?? 0) >= (retention_insights?.sharing?.single_pct ?? 0) ? BI.green : BI.slate}
+          onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'multi' })}
+        />
+        <KpiCard
+          label="חבר יחיד"
+          value={`${retention_insights?.sharing?.single_pct ?? 0}%`}
+          icon={Users}
+          color={(retention_insights?.sharing?.single_pct ?? 0) > (retention_insights?.sharing?.multi_pct ?? 0) ? BI.green : BI.slate}
+          onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'single' })}
+        />
+        <KpiCard
+          label="3+ מסמכים"
+          value={`${retention_insights?.docs?.rich_pct ?? 0}%`}
+          icon={FileText}
+          color={(retention_insights?.docs?.rich_pct ?? 0) >= (retention_insights?.docs?.poor_pct ?? 0) ? BI.green : BI.slate}
+          onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'docrich' })}
+        />
+        <KpiCard
+          label="0 מסמכים"
+          value={`${retention_insights?.docs?.poor_pct ?? 0}%`}
+          icon={FileText}
+          color={(retention_insights?.docs?.poor_pct ?? 0) > (retention_insights?.docs?.rich_pct ?? 0) ? BI.green : BI.slate}
+          onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'docpoor' })}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
