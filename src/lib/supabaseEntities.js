@@ -6,6 +6,7 @@
  *         const created = await db.accounts.create({ name: '...' });
  */
 import { supabase } from './supabase';
+import { withTimeout } from './supabaseQuery';
 
 //  Security helpers 
 const VALID_KEY = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -102,7 +103,7 @@ function makeEntity(table) {
       }
       if (order) query = query.order(order.column, { ascending: order.ascending ?? true });
       if (limit) query = query.limit(limit);
-      const { data, error } = await query;
+      const { data, error } = await withTimeout(query, `${table}.filter`);
       if (error) throw error;
       return data || [];
     },
@@ -137,7 +138,7 @@ function makeEntity(table) {
       let query = supabase.from(table).select(select);
       if (order) query = query.order(order.column, { ascending: order.ascending ?? true });
       if (limit) query = query.limit(limit);
-      const { data, error } = await query;
+      const { data, error } = await withTimeout(query, `${table}.list`);
       if (error) throw error;
       return data || [];
     },

@@ -920,13 +920,13 @@ export default function NotificationBell() {
                           )}
                         </div>
                       </button>
-                      <div className="flex items-center gap-0.5 shrink-0">
+                      <div className="flex items-center shrink-0">
                         <button
                           onClick={async (e) => {
                             e.stopPropagation();
                             await markItemReadState(n, !isRead);
                           }}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-all"
+                          className="w-11 h-11 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-all"
                           title={isRead ? 'סמן כלא נקרא' : 'סמן כנקרא'}>
                           <div className="w-2.5 h-2.5 rounded-full border-2 transition-all"
                             style={{
@@ -936,9 +936,9 @@ export default function NotificationBell() {
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 transition-all"
+                          className="w-11 h-11 rounded-lg flex items-center justify-center hover:bg-red-50 transition-all"
                           title="הסר התראה">
-                          <X className="w-3 h-3" style={{ color: '#D1D5DB' }} />
+                          <X className="w-3.5 h-3.5" style={{ color: '#D1D5DB' }} />
                         </button>
                       </div>
                     </div>

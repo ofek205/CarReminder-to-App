@@ -39,7 +39,9 @@ const SRC = path.join(ROOT, 'src');
 const SUPABASE_CALL_PATTERNS = [
   /\bsupabase\.from\s*\(/,
   /\bsupabase\.rpc\s*\(/,
-  /\bdb\.[A-Za-z_][A-Za-z0-9_]*\.(filter|create|update|delete|get|list)\s*\(/,
+  // db.* entity layer calls are no longer flagged because
+  // supabaseEntities.js wraps filter() and list() with withTimeout
+  // internally. See commit that added this comment for context.
 ];
 const TIMEOUT_PATTERNS = [
   /\bwithTimeout\s*\(/,
