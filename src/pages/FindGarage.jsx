@@ -236,8 +236,14 @@ export default function FindGarage() {
   const [radiusPanelOpen, setRadiusPanelOpen] = useState(false);
   const [nameQuery, setNameQuery] = useState('');
   const [hasVessel, setHasVessel] = useState(false);
+  // Overpass API error — shown as a user-facing banner when both servers
+  // fail. Cleared on next successful fetch.
+  const [overpassError, setOverpassError] = useState(null);
   const mapRef = useRef(null);
-  const retryRef = useRef(false);
+  // AbortController for in-flight Overpass requests. When location/radius
+  // changes, the old request is cancelled so stale responses don't
+  // overwrite fresh ones and the user doesn't wait 50s for a dead request.
+  const abortRef = useRef(null);
 
   // Authorized-garage matcher. Loaded once on mount from the
   // data.gov.il registry (cached 7 days in localStorage). When
@@ -384,6 +390,9 @@ export default function FindGarage() {
     const r = searchRadius;
     const key = cacheKey(lat, lng, r, hasVessel);
 
+    // Clear previous error as soon as a new fetch starts
+    setOverpassError(null);
+
     // Show cached results immediately if we have them (stale-while-revalidate)
     const cached = readCache(key);
     if (cached) {
@@ -461,6 +470,14 @@ export default function FindGarage() {
 
       const hdrs = { 'Content-Type': 'application/x-www-form-urlencoded' };
 
+      // Cancel any in-flight request from a previous fetchGarages call.
+      // This prevents stale responses from overwriting fresh ones when
+      // the user drags the map or changes the radius quickly.
+      if (abortRef.current) abortRef.current.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const { signal } = controller;
+
       // Fetch with multi-server fallback. Overpass returns HTTP 200 with
       // `{remark: "runtime error: Query timed out ..."}` and an empty
       // `elements` array when a query exceeds the timeout — we treat
@@ -469,7 +486,7 @@ export default function FindGarage() {
       const fetchFromServers = async (q) => {
         for (const server of OVERPASS_SERVERS) {
           try {
-            const res = await fetch(server, { method: 'POST', body: `data=${encodeURIComponent(q)}`, headers: hdrs });
+            const res = await fetch(server, { method: 'POST', body: `data=${encodeURIComponent(q)}`, headers: hdrs, signal });
             if (!res.ok) continue;
             const ct = res.headers.get('content-type') || '';
             if (!ct.includes('json')) continue;
@@ -478,7 +495,11 @@ export default function FindGarage() {
               continue; // Server-side timeout/runtime error — try next server
             }
             return json;
-          } catch { /* try next server */ }
+          } catch (e) {
+            // AbortError means the user changed location/radius — stop trying
+            if (e?.name === 'AbortError') return null;
+            /* try next server */
+          }
         }
         return null;
       };
@@ -489,16 +510,19 @@ export default function FindGarage() {
         marineQuery ? fetchFromServers(marineQuery) : Promise.resolve(null),
       ]);
 
+      // If the request was aborted (user changed location/radius), bail
+      // silently — a fresh fetchGarages is already in flight.
+      if (signal.aborted) return;
+
       if (!carData) {
         console.warn('Overpass API temporarily unavailable');
-        // Retry once after 3 seconds
-        if (!retryRef.current) {
-          retryRef.current = true;
-          setTimeout(() => { retryRef.current = false; fetchGarages(); }, 3000);
-        }
+        setOverpassError('שרת החיפוש לא הגיב. נסה שוב בעוד כמה שניות.');
         setFetching(false);
         return;
       }
+
+      // Clear any previous error on success
+      setOverpassError(null);
 
       // Skip entries that look closed/abandoned. OSM uses lifecycle
       // prefixes (`disused:shop=car_repair`) on the *key* side; if any
@@ -563,16 +587,28 @@ export default function FindGarage() {
       setGarages(results);
       writeCache(key, results);
     } catch (err) {
+      // Aborted requests are expected — don't show an error
+      if (err?.name === 'AbortError' || signal.aborted) return;
       console.error('Overpass fetch error:', err);
+      setOverpassError('שגיאה בחיפוש מוסכים. נסה שוב.');
       if (!cached) setGarages([]); // only wipe if we had nothing to show
     }
-    finally { setFetching(false); }
+    finally {
+      // Only clear fetching if this request wasn't superseded by a newer one
+      if (!signal.aborted) setFetching(false);
+    }
   }, [userLocation, searchRadius, hasVessel]);
 
-  // Debounce fetch to avoid multiple rapid calls
+  // Debounce fetch to avoid multiple rapid calls. Clear any previous
+  // error when deps change — the new fetch will either succeed or set
+  // its own error. Also abort in-flight requests on unmount.
   useEffect(() => {
+    setOverpassError(null);
     const timer = setTimeout(() => fetchGarages(), 300);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, [fetchGarages]);
 
   // City search
@@ -795,6 +831,24 @@ export default function FindGarage() {
             </button>
           </div>
           {fetching && <Loader2 className="w-4 h-4 animate-spin text-white/70 mt-1" />}
+          {/* Overpass API error banner — shown when both servers failed.
+              The banner includes a retry button so the user can re-trigger
+              instead of silently seeing "no results". */}
+          {overpassError && !fetching && (
+            <div className="mt-2 rounded-lg px-3 py-2 flex items-start gap-2"
+              style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)' }}>
+              <MapPinOff className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#FCA5A5' }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-white">{overpassError}</p>
+              </div>
+              <button
+                onClick={() => { setOverpassError(null); fetchGarages(); }}
+                className="shrink-0 px-2.5 py-1 rounded-md text-[10px] font-bold transition-all active:scale-[0.95]"
+                style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+                נסה שוב
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1178,7 +1232,7 @@ export default function FindGarage() {
       <div className="px-3 mt-3">
         <div className="flex items-center justify-between">
           <p className="text-[13px] font-bold" style={{ color: C.text }}>
-            {fetching ? 'מחפש...' : displayGarages.length > 0 ? `נמצאו ${displayGarages.length} תוצאות` : 'לא נמצאו תוצאות'}
+            {fetching ? 'מחפש...' : displayGarages.length > 0 ? `נמצאו ${displayGarages.length} תוצאות` : overpassError ? 'שגיאה בחיפוש' : 'לא נמצאו תוצאות'}
           </p>
           <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
             style={{ background: C.light, color: C.primary }}>
@@ -1230,12 +1284,26 @@ export default function FindGarage() {
           {!fetching && displayGarages.length === 0 && (
             <div className="text-center py-10 px-4 rounded-2xl border" style={{ background: C.light, borderColor: C.border }}>
               <div className="w-14 h-14 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: '#fff' }}>
-                <Search className="w-7 h-7" style={{ color: C.muted }} />
+                {overpassError
+                  ? <MapPinOff className="w-7 h-7" style={{ color: '#EF4444' }} />
+                  : <Search className="w-7 h-7" style={{ color: C.muted }} />}
               </div>
-              <p className="font-bold text-sm" style={{ color: C.text }}>לא נמצאו תוצאות באזור</p>
-              <p className="text-xs mt-1.5 leading-relaxed" style={{ color: C.muted }}>
-                נסה להגדיל את רדיוס החיפוש, לשנות סינון, או לחפש עיר אחרת
+              <p className="font-bold text-sm" style={{ color: C.text }}>
+                {overpassError ? 'לא הצלחנו לחפש באזור' : 'לא נמצאו תוצאות באזור'}
               </p>
+              <p className="text-xs mt-1.5 leading-relaxed" style={{ color: C.muted }}>
+                {overpassError
+                  ? 'שרת החיפוש לא זמין כרגע. נסה שוב בעוד רגע.'
+                  : 'נסה להגדיל את רדיוס החיפוש, לשנות סינון, או לחפש עיר אחרת'}
+              </p>
+              {overpassError && (
+                <button
+                  onClick={() => { setOverpassError(null); fetchGarages(); }}
+                  className="mt-3 px-4 py-2 rounded-xl text-[12px] font-bold transition-all active:scale-[0.95]"
+                  style={{ background: C.primary, color: '#fff' }}>
+                  נסה שוב
+                </button>
+              )}
             </div>
           )}
 
