@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2, Search, Camera } from "lucide-react";
 import useFileUpload from '@/hooks/useFileUpload';
@@ -467,11 +468,14 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   const { data: vehicles = [], isLoading } = useQuery({
     queryKey: ['vehicle', vehicleId, user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('my_vehicles_v')
-        .select('*')
-        .eq('id', vehicleId)
-        .limit(1);
+      const { data, error } = await withTimeout(
+        supabase
+          .from('my_vehicles_v')
+          .select('*')
+          .eq('id', vehicleId)
+          .limit(1),
+        'my_vehicles_v'
+      );
       if (error) throw error;
       return data || [];
     },

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { MEMBER_STATUS, INVITE_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
@@ -186,8 +187,11 @@ function AuthAccountSettings({ embedded = false }) {
   const { data: myVehicles = [] } = useQuery({
     queryKey: ['my-vehicles', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from('my_vehicles_v').select('*');
-      if (error) return [];
+      const { data, error } = await withTimeout(
+        supabase.from('my_vehicles_v').select('*'),
+        'my_vehicles_v'
+      );
+      if (error) throw error;
       return data || [];
     },
     enabled: !!user?.id,

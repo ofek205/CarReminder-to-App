@@ -9,6 +9,7 @@ import {
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Cell } from 'recharts';
 
 /**
  * AdminVersionTab — version update management panel.
@@ -52,18 +53,23 @@ export default function AdminVersionTab() {
   const [versions, setVersions] = useState({ android: '', ios: '' });
   const [sending, setSending] = useState({ android: false, ios: false });
   const [clearing, setClearing] = useState({ android: false, ios: false });
+  const [distribution, setDistribution] = useState([]);
 
-  // ── Fetch current config ──────────────────────────────────────────
+  // ── Fetch current config + version distribution ───────────────────
   const fetchConfig = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_app_versions');
-      if (error) throw error;
-      setConfigData(data);
+      const [configRes, distRes] = await Promise.all([
+        supabase.rpc('get_app_versions'),
+        supabase.rpc('get_version_distribution'),
+      ]);
+      if (configRes.error) throw configRes.error;
+      setConfigData(configRes.data);
+      setDistribution(Array.isArray(distRes.data) ? distRes.data : []);
 
       // Pre-fill inputs with current values.
-      const iosVal = data?.ios_latest_version?.value;
-      const androidVal = data?.android_latest_version?.value;
+      const iosVal = configRes.data?.ios_latest_version?.value;
+      const androidVal = configRes.data?.android_latest_version?.value;
       setVersions({
         ios: typeof iosVal === 'string' ? iosVal : '',
         android: typeof androidVal === 'string' ? androidVal : '',
@@ -301,6 +307,114 @@ export default function AdminVersionTab() {
             </div>
           );
         })}
+      </div>
+
+      {/* ── Version distribution chart ─────────────────────────────── */}
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-50">
+          <h3 className="text-sm font-bold text-gray-800">התפלגות גרסאות</h3>
+          <p className="text-[10px] text-gray-400 mt-0.5">
+            כמה משתמשים נמצאים על כל גרסה (מתעדכן בכל כניסה לאפליקציה)
+          </p>
+        </div>
+
+        {distribution.length === 0 ? (
+          <div className="px-5 py-10 text-center">
+            <p className="text-xs text-gray-400">אין נתוני גרסאות עדיין</p>
+            <p className="text-[10px] text-gray-300 mt-1">הנתונים יתחילו להיאסף כשמשתמשים יפתחו את האפליקציה</p>
+          </div>
+        ) : (
+          <>
+            {/* Chart */}
+            <div className="px-5 py-4" dir="ltr">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={distribution.map(d => ({
+                    name: `${d.app_version} (${d.platform === 'ios' ? 'iOS' : 'Android'})`,
+                    users: Number(d.user_count),
+                    platform: d.platform,
+                  }))}
+                  margin={{ top: 8, right: 8, left: 0, bottom: 4 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 10, fill: '#6B7280' }}
+                    tickLine={false}
+                    axisLine={{ stroke: '#E5E7EB' }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={30}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: '1px solid #E5E7EB',
+                      fontSize: 11,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                    }}
+                    formatter={(value) => [`${value} משתמשים`, 'כמות']}
+                  />
+                  <Bar dataKey="users" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                    {distribution.map((d, i) => (
+                      <Cell
+                        key={i}
+                        fill={d.platform === 'ios' ? '#3B82F6' : '#10B981'}
+                        fillOpacity={0.85}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Table */}
+            <div className="px-5 pb-4">
+              <table className="w-full text-xs" dir="rtl">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-right py-2 font-bold text-gray-500">פלטפורמה</th>
+                    <th className="text-right py-2 font-bold text-gray-500">גרסה</th>
+                    <th className="text-right py-2 font-bold text-gray-500">משתמשים</th>
+                    <th className="text-right py-2 font-bold text-gray-500">נראה לאחרונה</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {distribution.map((d, i) => (
+                    <tr key={i} className="border-b border-gray-50 last:border-0">
+                      <td className="py-2">
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                          style={{
+                            background: d.platform === 'ios' ? '#DBEAFE' : '#D1FAE5',
+                            color: d.platform === 'ios' ? '#1D4ED8' : '#065F46',
+                          }}
+                        >
+                          {d.platform === 'ios' ? 'iOS' : 'Android'}
+                        </span>
+                      </td>
+                      <td className="py-2 font-mono tabular-nums font-bold text-gray-800" dir="ltr">
+                        {d.app_version}
+                      </td>
+                      <td className="py-2 font-bold tabular-nums text-gray-700" dir="ltr">
+                        {d.user_count}
+                      </td>
+                      <td className="py-2 text-gray-400 text-[10px]">
+                        {d.latest_seen
+                          ? format(new Date(d.latest_seen), "dd/MM HH:mm", { locale: he })
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Info box */}

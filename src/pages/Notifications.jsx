@@ -3,7 +3,8 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { MEMBER_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User, Check, X, Loader2 } from "lucide-react";
+import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User, Check, X, Loader2, RefreshCw } from "lucide-react";
+import { withTimeout } from '@/lib/supabaseQuery';
 import AdminMessageDialog from "../components/shared/AdminMessageDialog";
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -176,7 +177,7 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
       {/* Read/unread toggle */}
       {isRead ? (
         onMarkUnread && (
-          <button onClick={() => onMarkUnread(notif.id)}
+          <button onClick={(e) => { e.stopPropagation(); onMarkUnread(notif.id); }}
             className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all"
             style={{ color: '#6B7280' }}>
             <div className="w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: '#D1D5DB' }} />
@@ -185,7 +186,7 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
         )
       ) : (
         onMarkRead && (
-          <button onClick={() => onMarkRead(notif.id)}
+          <button onClick={(e) => { e.stopPropagation(); onMarkRead(notif.id); }}
             className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all"
             style={{ color: C.primary }}>
             <CheckCircle className="w-3.5 h-3.5" />
@@ -397,7 +398,7 @@ function AuthNotifications() {
   // return an empty payload while activeWorkspaceId is still resolving.
   // Once the workspace resolves, the queryKey changes and the data
   // refetches with the correct scope.
-  const { data: accountData } = useQuery({
+  const { data: accountData, isError: accountError, refetch: refetchAccount } = useQuery({
     queryKey: ['auth-notif-account', user?.id, activeWorkspaceId],
     queryFn: async () => {
       const members = await db.account_members.filter({ user_id: user.id, status: MEMBER_STATUS.ACTIVE });
@@ -412,20 +413,26 @@ function AuthNotifications() {
       const isBusinessDriver = targetMember?.account_type === 'business' && targetMember?.role === 'driver';
 
       if (isBusinessDriver) {
-        const { data: assignments, error: assignmentError } = await supabase
-          .from('driver_assignments')
-          .select('vehicle_id')
-          .eq('account_id', accountId)
-          .eq('driver_user_id', user.id)
-          .eq('status', 'active');
+        const { data: assignments, error: assignmentError } = await withTimeout(
+          supabase
+            .from('driver_assignments')
+            .select('vehicle_id')
+            .eq('account_id', accountId)
+            .eq('driver_user_id', user.id)
+            .eq('status', 'active'),
+          'driver_assignments'
+        );
         if (assignmentError) throw assignmentError;
         const vehicleIds = (assignments || []).map(a => a.vehicle_id).filter(Boolean);
         if (vehicleIds.length === 0) return { accountId, vehicles: [] };
-        const { data, error } = await supabase
-          .from('vehicles')
-          .select('*')
-          .eq('account_id', accountId)
-          .in('id', vehicleIds);
+        const { data, error } = await withTimeout(
+          supabase
+            .from('vehicles')
+            .select('*')
+            .eq('account_id', accountId)
+            .in('id', vehicleIds),
+          'vehicles'
+        );
         if (error) throw error;
         return { accountId, vehicles: data || [] };
       }
@@ -486,19 +493,24 @@ function AuthNotifications() {
   // Generic app notifications (share offered/accepted + future event types).
   // Fetched from app_notifications — always show unread, plus the most
   // recent 20 read items so users can still see history.
-  const { data: appNotifs = [] } = useQuery({
+  const { data: appNotifs = [], isError: appNotifsError, refetch: refetchAppNotifs } = useQuery({
     queryKey: ['app-notifs', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('app_notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(30);
-      if (error) return [];
+      const { data, error } = await withTimeout(
+        supabase
+          .from('app_notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(30),
+        'app_notifications'
+      );
+      if (error) throw error;
       return data || [];
     },
     enabled: !!user?.id,
+    retry: 1,
+    retryDelay: 500,
   });
 
   const markAppNotifRead = async (id, nextRead = true) => {
@@ -615,6 +627,22 @@ function AuthNotifications() {
   };
 
   if (!user?.id || isLoading) {
+    // If the account query errored, show retry instead of infinite skeleton
+    if (accountError) {
+      return (
+        <div dir="rtl" className="px-4 pt-8 text-center">
+          <AlertTriangle className="w-10 h-10 mx-auto mb-3" style={{ color: '#D97706' }} />
+          <p className="text-sm font-bold mb-1" style={{ color: '#92400E' }}>שגיאה בטעינת התראות</p>
+          <p className="text-xs mb-4" style={{ color: '#B45309' }}>לא הצלחנו לטעון את הנתונים</p>
+          <button onClick={() => refetchAccount()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all active:scale-95"
+            style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}>
+            <RefreshCw className="w-4 h-4" />
+            נסה שוב
+          </button>
+        </div>
+      );
+    }
     return (
       <div dir="rtl" className="px-4 pt-4">
         <ListSkeleton count={4} variant="notification" />
@@ -677,6 +705,21 @@ function AuthNotifications() {
             className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all active:scale-90"
             style={{ background: '#C7D2FE' }}>
             <span className="text-xs font-bold" style={{ color: '#4338CA' }}>✕</span>
+          </button>
+        </div>
+      )}
+
+      {/* Inline retry for app notifications fetch failure */}
+      {appNotifsError && (
+        <div className="rounded-2xl p-3.5 mb-2.5 flex items-center gap-3"
+          style={{ background: '#FEF3C7', border: '1.5px solid #FDE68A' }} dir="rtl">
+          <AlertTriangle className="w-5 h-5 shrink-0" style={{ color: '#D97706' }} />
+          <p className="text-xs font-bold flex-1" style={{ color: '#92400E' }}>שגיאה בטעינת הודעות מערכת</p>
+          <button onClick={() => refetchAppNotifs()}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold shrink-0 transition-all active:scale-95"
+            style={{ background: '#FDE68A', color: '#92400E' }}>
+            <RefreshCw className="w-3.5 h-3.5" />
+            נסה שוב
           </button>
         </div>
       )}

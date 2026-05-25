@@ -63,7 +63,7 @@ DECLARE
   v_cols_vehicle     constant jsonb := jsonb_build_array(
     jsonb_build_object('key','license_plate',  'label','לוחית רישוי'),
     jsonb_build_object('key','vehicle_type',   'label','סוג'),
-    jsonb_build_object('key','make',           'label','יצרן'),
+    jsonb_build_object('key','manufacturer',   'label','יצרן'),
     jsonb_build_object('key','model',          'label','דגם'),
     jsonb_build_object('key','year',           'label','שנה'),
     jsonb_build_object('key','owner_email',    'label','בעלים'),
@@ -154,7 +154,7 @@ BEGIN
         INTO v_rows, v_total
         FROM (
           SELECT
-            v.license_plate, v.vehicle_type, v.make, v.model, v.year,
+            v.license_plate, v.vehicle_type, v.manufacturer, v.model, v.year,
             owner.email AS owner_email, v.created_at
           FROM public.vehicles v
           LEFT JOIN public.account_members am ON am.account_id = v.account_id
@@ -178,7 +178,7 @@ BEGIN
         INTO v_rows, v_total
         FROM (
           SELECT
-            v.license_plate, v.vehicle_type, v.make, v.model, v.year,
+            v.license_plate, v.vehicle_type, v.manufacturer, v.model, v.year,
             owner.email AS owner_email, v.created_at
           FROM public.vehicles v
           LEFT JOIN public.account_members am ON am.account_id = v.account_id
@@ -203,7 +203,7 @@ BEGIN
         SELECT
           v.license_plate,
           v.vehicle_type,
-          v.make,
+          v.manufacturer,
           v.model,
           v.year,
           owner.email AS owner_email,
@@ -277,7 +277,7 @@ BEGIN
         SELECT
           v.license_plate,
           v.vehicle_type,
-          v.make,
+          v.manufacturer,
           v.model,
           v.year,
           owner.email AS owner_email,
@@ -393,7 +393,7 @@ BEGIN
       SELECT
         v.license_plate,
         v.vehicle_type,
-        v.make,
+        v.manufacturer,
         v.model,
         v.year,
         owner.email AS owner_email,

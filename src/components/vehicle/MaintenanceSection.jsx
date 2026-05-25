@@ -133,7 +133,7 @@ export default function MaintenanceSection({ vehicle }) {
       setReceiptUrl(file_url);
       setReceiptStoragePath(storage_path);
     } catch (err) {
-      toast.error('שגיאה בהעלאת הקבלה: ' + (err?.message || 'נסה שוב'));
+      toast.error('לא הצלחנו להעלות את הקבלה. נסה שוב');
       setReceiptUrl(null);
       setReceiptStoragePath(null);
     } finally {
@@ -357,7 +357,7 @@ export default function MaintenanceSection({ vehicle }) {
       setEditingId(null);
       setDialogOpen(false);
     } catch (err) {
-      toast.error('שגיאה בשמירה: ' + (err?.message || 'נסה שוב'));
+      toast.error('לא הצלחנו לשמור. נסה שוב');
       reportUserError('save_maintenance', err, { vehicleId: vehicle?.id });
     } finally {
       setSaving(false);

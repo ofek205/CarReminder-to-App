@@ -172,7 +172,7 @@ function NoteDialog({ open, onClose, note, onSave, onDelete, categories, T }) {
   }, [open, note]);
 
   const handleSave = async () => {
-    if (!title.trim()) { toast.error('הכנס כותרת לפתק'); return; }
+    if (!title.trim()) { toast.error('צריך לכתוב כותרת לפתק'); return; }
     setSaving(true);
     try {
       await onSave({

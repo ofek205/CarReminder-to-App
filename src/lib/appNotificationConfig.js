@@ -239,7 +239,10 @@ export const APP_NOTIF_CONFIG = {
 };
 
 export function configForType(type) {
-  return APP_NOTIF_CONFIG[type] || APP_NOTIF_CONFIG._default;
+  return APP_NOTIF_CONFIG[type] ?? APP_NOTIF_CONFIG._default ?? {
+    icon: Bell, bg: '#F9FAFB', iconColor: '#6B7280', iconBg: '#6B7280',
+    buildHref: () => null,
+  };
 }
 
 export function requiresActionForType(type) {
