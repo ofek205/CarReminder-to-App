@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { MEMBER_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User, Check, X, Loader2, RefreshCw } from "lucide-react";
+import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User, Check, X, Loader2, RefreshCw, BellOff } from "lucide-react";
 import { withTimeout } from '@/lib/supabaseQuery';
 import AdminMessageDialog from "../components/shared/AdminMessageDialog";
 import { Link, useNavigate } from 'react-router-dom';
@@ -16,6 +16,8 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { calcAllReminders, daysUntil } from "../components/shared/ReminderEngine";
 import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '../components/ui/drawer';
+import useReminderSnooze, { SNOOZE_OPTIONS } from '../hooks/useReminderSnooze';
 
 const TYPE_CONFIG = {
   'טסט':        { icon: Calendar,  bg: '#FFF8E1', color: '#D97706', border: '#FDE68A' },
@@ -81,7 +83,7 @@ function tierForNotif(notif) {
 }
 
 //  Notification Card
-function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
+function NotifCard({ notif, onMarkRead, onMarkUnread, isRead, onSnooze, snoozedUntilDate, onUnsnooze }) {
   const navigate = useNavigate();
   const tc = TYPE_CONFIG[notif.notification_type] || { icon: Bell, bg: '#F5F5F5', color: '#757575', border: '#E0E0E0' };
   const Icon = tc.icon;
@@ -92,22 +94,23 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
   const tier = tierForNotif(notif);
   const t = NOTIF_TIER[tier];
   const isUrgent = tier === 'urgent';
+  const isSnoozed = !!snoozedUntilDate;
+  const snoozeDateStr = snoozedUntilDate
+    ? `${snoozedUntilDate.getDate()}/${snoozedUntilDate.getMonth() + 1}`
+    : '';
 
   return (
     <div
       className={`rounded-2xl mb-2.5 transition-all ${editUrl ? 'cursor-pointer active:scale-[0.99]' : ''}`}
       style={{
-        // Pure white surface (matches NotificationBell popover body),
-        // with the tier color carried by the RTL leading-edge stripe
-        // instead of by the whole row's bg. Read items dim to a soft
-        // grey so the eye still parses them at a glance without
-        // distracting from unread urgency.
-        background: isRead ? '#FAFAFA' : '#FFFFFF',
-        border: `1px solid ${isRead ? '#E5E7EB' : '#E5EBE6'}`,
-        borderRight: `${isUrgent ? 4 : 3}px solid ${t.fg}`,
-        boxShadow: isRead ? 'none' : '0 2px 10px rgba(28,46,32,0.06)',
-        opacity: isRead ? 0.7 : 1,
-        padding: isUrgent ? '14px 16px' : '12px 16px',
+        background: isSnoozed ? '#FAFAFA' : (isRead ? '#FAFAFA' : '#FFFFFF'),
+        border: `1px solid ${isSnoozed || isRead ? '#E5E7EB' : '#E5EBE6'}`,
+        borderRight: isSnoozed
+          ? '3px solid #9CA3AF'
+          : `${isUrgent ? 4 : 3}px solid ${t.fg}`,
+        boxShadow: isSnoozed ? 'none' : (isRead ? 'none' : '0 2px 10px rgba(28,46,32,0.06)'),
+        opacity: isSnoozed ? 0.45 : (isRead ? 0.7 : 1),
+        padding: isUrgent && !isSnoozed ? '14px 16px' : '12px 16px',
       }}
       dir="rtl">
       <div className="flex items-center gap-3"
@@ -174,30 +177,50 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
         </div>
       </div>
 
-      {/* Read/unread toggle */}
-      {isRead ? (
-        onMarkUnread && (
-          <button onClick={(e) => { e.stopPropagation(); onMarkUnread(notif.id); }}
-            className="flex items-center gap-1 px-2.5 py-3 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all min-h-[44px]"
-            style={{ color: '#6B7280' }}>
-            <div className="w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: '#D1D5DB' }} />
-            סמן כלא נקרא
-          </button>
-        )
+      {/* Snoozed → amber un-snooze pill; Active → read/unread toggle + snooze icon */}
+      {isSnoozed ? (
+        <button onClick={(e) => { e.stopPropagation(); onUnsnooze?.(notif); }}
+          className="flex items-center gap-1 px-2.5 py-2 rounded-full text-[10px] font-bold shrink-0 transition-all active:scale-95 min-h-[44px]"
+          style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
+          title="בטל השתקה">
+          <BellOff className="w-3 h-3" />
+          מושתק עד {snoozeDateStr}
+        </button>
       ) : (
-        onMarkRead && (
-          <button onClick={(e) => { e.stopPropagation(); onMarkRead(notif.id); }}
-            className="flex items-center gap-1 px-2.5 py-3 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all min-h-[44px]"
-            style={{ color: C.primary }}>
-            <CheckCircle className="w-3.5 h-3.5" />
-            נקרא
-          </button>
-        )
+        <>
+          {isRead ? (
+            onMarkUnread && (
+              <button onClick={(e) => { e.stopPropagation(); onMarkUnread(notif.id); }}
+                className="flex items-center gap-1 px-2.5 py-3 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all min-h-[44px]"
+                style={{ color: '#6B7280' }}>
+                <div className="w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: '#D1D5DB' }} />
+                סמן כלא נקרא
+              </button>
+            )
+          ) : (
+            onMarkRead && (
+              <button onClick={(e) => { e.stopPropagation(); onMarkRead(notif.id); }}
+                className="flex items-center gap-1 px-2.5 py-3 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all min-h-[44px]"
+                style={{ color: C.primary }}>
+                <CheckCircle className="w-3.5 h-3.5" />
+                נקרא
+              </button>
+            )
+          )}
+          {onSnooze && (
+            <button onClick={(e) => { e.stopPropagation(); onSnooze(notif); }}
+              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 hover:bg-gray-100 transition-all"
+              style={{ color: C.muted }}
+              title="השתק התראה">
+              <BellOff className="w-4 h-4" />
+            </button>
+          )}
+        </>
       )}
       </div>
 
-      {/* Action buttons for test/insurance notifications */}
-      {(isTestNotif || isInsNotif) && notif.vehicleId && (
+      {/* Action buttons for test/insurance notifications — hidden when snoozed */}
+      {!isSnoozed && (isTestNotif || isInsNotif) && notif.vehicleId && (
         <div className="flex gap-2 mt-3 pt-3 border-t" style={{ borderColor: isOverdue ? '#FECACA' : '#F3F4F6' }}
           onClick={(e) => e.stopPropagation()}>
           {isTestNotif && (
@@ -220,6 +243,43 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
         </div>
       )}
     </div>
+  );
+}
+
+//  Snooze Bottom Sheet
+function SnoozeDrawer({ open, onOpenChange, notif, onSelect }) {
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent dir="rtl" className="rounded-t-2xl">
+        <DrawerHeader className="text-right pb-1">
+          <DrawerTitle className="flex items-center gap-2 text-base font-bold" style={{ color: C.text }}>
+            <BellOff className="w-4 h-4" style={{ color: C.muted }} />
+            השתק התראה
+          </DrawerTitle>
+          {notif && (
+            <DrawerDescription className="text-right text-xs" style={{ color: C.muted }}>
+              {notif.message}
+            </DrawerDescription>
+          )}
+        </DrawerHeader>
+        <div className="px-4 pb-6 pt-1 space-y-1.5">
+          {SNOOZE_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              onClick={() => onSelect(opt)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all active:scale-[0.98]"
+              style={{ color: C.text }}
+            >
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: C.light }}>
+                <BellOff className="w-4 h-4" style={{ color: C.primary }} />
+              </div>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </DrawerContent>
+    </Drawer>
   );
 }
 
@@ -522,6 +582,38 @@ function AuthNotifications() {
   const [inviteActing, setInviteActing] = useState(null);
   const [adminMsg, setAdminMsg] = useState(null);
 
+  // ── Snooze ────────────────────────────────────────────────────
+  const {
+    isSnoozed, snoozedUntil: getSnoozedUntil,
+    snooze, unsnooze, parseReminderId,
+    loading: snoozeLoading,
+  } = useReminderSnooze(user?.id);
+  const [snoozeTarget, setSnoozeTarget] = useState(null);
+
+  const handleSnoozeSelect = async (option) => {
+    if (!snoozeTarget) return;
+    const parsed = parseReminderId(snoozeTarget.id);
+    if (!parsed) { toast.error('לא ניתן להשתיק התראה זו'); setSnoozeTarget(null); return; }
+    try {
+      await snooze(parsed.vehicleId, parsed.reminderType, option.days, option.days === null ? snoozeTarget.due_date : null);
+      toast.success(`ההתראה הושתקה — ${option.label}`);
+    } catch {
+      toast.error('שגיאה בהשתקת ההתראה');
+    }
+    setSnoozeTarget(null);
+  };
+
+  const handleUnsnooze = async (notif) => {
+    const parsed = parseReminderId(notif.id);
+    if (!parsed) return;
+    try {
+      await unsnooze(parsed.vehicleId, parsed.reminderType);
+      toast.success('ההתראה הופעלה מחדש');
+    } catch {
+      toast.error('שגיאה בביטול ההשתקה');
+    }
+  };
+
   const handleInviteAction = async (notif, action) => {
     const memberId = notif.data?.member_id;
     if (!memberId) return;
@@ -655,8 +747,11 @@ function AuthNotifications() {
     if (!a.is_overdue && b.is_overdue) return 1;
     return (a.days_left ?? 999) - (b.days_left ?? 999);
   });
-  const unread = sorted.filter(n => !readIds.has(n.id));
-  const read = sorted.filter(n => readIds.has(n.id));
+  // Split active vs snoozed — snoozed cards are demoted to bottom section
+  const activeNotifs = sorted.filter(n => !isSnoozed(n.id));
+  const snoozedNotifs = sorted.filter(n => isSnoozed(n.id));
+  const unread = activeNotifs.filter(n => !readIds.has(n.id));
+  const read = activeNotifs.filter(n => readIds.has(n.id));
   const appUnreadCount = appNotifs.filter(n => !n.is_read).length;
   const totalUnread = unread.length + appUnreadCount;
   const hasAnyNotifications = appNotifs.length > 0 || sorted.length > 0 || profileIncomplete || licenseAlert;
@@ -842,18 +937,47 @@ function AuthNotifications() {
             <p className="text-xs font-bold mb-2 px-1" style={{ color: C.muted }}>חדשות</p>
           )}
           {unread.map(n => (
-            <NotifCard key={n.id} notif={n} onMarkRead={markAsRead} />
+            <NotifCard key={n.id} notif={n} onMarkRead={markAsRead} onSnooze={setSnoozeTarget} />
           ))}
           {read.length > 0 && (
             <>
               <p className="text-xs font-bold mt-4 mb-2 px-1" style={{ color: C.muted }}>נקראו</p>
               {read.map(n => (
-                <NotifCard key={n.id} notif={n} isRead onMarkUnread={markAsUnread} />
+                <NotifCard key={n.id} notif={n} isRead onMarkUnread={markAsUnread} onSnooze={setSnoozeTarget} />
+              ))}
+            </>
+          )}
+          {/* ── Snoozed section ── */}
+          {snoozedNotifs.length > 0 && (
+            <>
+              <div className="flex items-center gap-3 mt-5 mb-3 px-1">
+                <div className="flex-1 h-px" style={{ background: C.border }} />
+                <span className="flex items-center gap-1 text-xs font-bold whitespace-nowrap" style={{ color: C.muted }}>
+                  <BellOff className="w-3 h-3" />
+                  מושתקים
+                </span>
+                <div className="flex-1 h-px" style={{ background: C.border }} />
+              </div>
+              {snoozedNotifs.map(n => (
+                <NotifCard
+                  key={n.id}
+                  notif={n}
+                  snoozedUntilDate={getSnoozedUntil(n.id)}
+                  onUnsnooze={handleUnsnooze}
+                />
               ))}
             </>
           )}
         </>
       ) : null}
+
+      {/* Snooze bottom sheet */}
+      <SnoozeDrawer
+        open={!!snoozeTarget}
+        onOpenChange={(open) => { if (!open) setSnoozeTarget(null); }}
+        notif={snoozeTarget}
+        onSelect={handleSnoozeSelect}
+      />
 
       {adminMsg && (
         <AdminMessageDialog
