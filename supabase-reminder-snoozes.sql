@@ -32,9 +32,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS reminder_snoozes_uq
 CREATE INDEX IF NOT EXISTS reminder_snoozes_user_idx
   ON public.reminder_snoozes (user_id);
 
+-- Note: partial index with `WHERE snoozed_until > now()` is not allowed
+-- because now() is not IMMUTABLE. A plain index works fine — the query
+-- planner filters expired rows at query time.
 CREATE INDEX IF NOT EXISTS reminder_snoozes_until_idx
-  ON public.reminder_snoozes (snoozed_until)
-  WHERE snoozed_until > now();
+  ON public.reminder_snoozes (snoozed_until);
 
 ALTER TABLE public.reminder_snoozes ENABLE ROW LEVEL SECURITY;
 
