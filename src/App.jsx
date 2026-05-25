@@ -10,6 +10,7 @@ import { PinGate } from '@/components/shared/PinLock';
 import AppUpdateGate from '@/components/shared/AppUpdateGate';
 import BootDebug from './pages/BootDebug';
 import RootGate from './components/shared/RootGate';
+import PageErrorBoundary from '@/components/shared/PageErrorBoundary';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -257,7 +258,9 @@ function App() {
                   path={`/${path}`}
                   element={
                     <LayoutWrapper currentPageName={path}>
-                      <Page />
+                      <PageErrorBoundary routeName={path}>
+                        <Page />
+                      </PageErrorBoundary>
                     </LayoutWrapper>
                   }
                 />
