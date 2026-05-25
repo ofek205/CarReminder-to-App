@@ -46,6 +46,7 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { reportEdgeError } from '../_shared/reportEdgeError.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -313,6 +314,17 @@ serve(async (req) => {
     } catch (e: unknown) {
       summary.failed++;
       summary.errors.push({ token: row.token.slice(0, 12) + '…', reason: (e as Error)?.message || 'exception' });
+      // Persist to app_errors. Per-token failures are common (stale
+      // FCM tokens, transient APNs) — log only when severity > info to
+      // avoid flooding the table.
+      await reportEdgeError({
+        fn: 'dispatch-push',
+        action: 'send_to_token',
+        error: e,
+        severity: 'warning',
+        userId: row.user_id ?? null,
+        extra: { platform: row.platform, token_prefix: row.token?.slice(0, 12) },
+      });
     }
   }
 

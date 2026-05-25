@@ -28,6 +28,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { logSecurityEvent } from '../_shared/securityLog.ts';
+import { reportEdgeError } from '../_shared/reportEdgeError.ts';
 import { buildCorsHeaders } from '../_shared/cors.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
@@ -307,6 +308,20 @@ async function processTrigger(
     } catch (e) {
       stats.errors++;
       stats.errorDetails.push((e as Error).message);
+      // Persist to app_errors so the admin can investigate beyond
+      // the 24h Function Logs retention. Fire-and-forget — failures
+      // here must not break the rest of the batch.
+      await reportEdgeError({
+        fn: 'dispatch-reminder-emails',
+        action: `send_${notificationKey}`,
+        error: e,
+        severity: 'error',
+        userId: c.user_id,
+        extra: {
+          reference_date: c.reference_date,
+          stats: { matched: stats.matched, sent: stats.sent, errors: stats.errors },
+        },
+      });
     }
   }
 

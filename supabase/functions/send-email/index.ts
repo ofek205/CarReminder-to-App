@@ -18,6 +18,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { logSecurityEvent } from '../_shared/securityLog.ts';
+import { reportEdgeError } from '../_shared/reportEdgeError.ts';
 import { buildCorsHeaders } from '../_shared/cors.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
@@ -276,6 +277,14 @@ serve(async (req) => {
 
     return json({ ok: true, id: data.id }, 200, req);
   } catch (e) {
+    // Persist to app_errors so the admin can see "send-email failed
+    // 3 times yesterday" beyond the 24h Function Logs window.
+    await reportEdgeError({
+      fn: 'send-email',
+      action: 'send',
+      error: e,
+      severity: 'error',
+    });
     return json({ error: (e as Error).message || 'Unknown error' }, 500, req);
   }
 });
