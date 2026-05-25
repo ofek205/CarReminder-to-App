@@ -303,9 +303,37 @@ serve(async (req) => {
 
       if (result.ok) {
         summary.sent++;
+        // Persist successful push to push_send_log (observability).
+        // Fire-and-forget — if the log insert fails we still count the
+        // send as successful because FCM/APNs already accepted it.
+        try {
+          await supabase.from('push_send_log').insert({
+            user_id:      row.user_id ?? null,
+            platform:     row.platform,
+            token_prefix: row.token.slice(0, 12),
+            title:        title || null,
+            body:         text  || null,
+            status:       'sent',
+            notif_id:     data?.notif_id ?? null,
+          });
+        } catch { /* best-effort */ }
       } else {
         summary.failed++;
-        summary.errors.push({ token: row.token.slice(0, 12) + '…', reason: String(result.reason || result.status || 'unknown') });
+        const reason = String(result.reason || result.status || 'unknown');
+        summary.errors.push({ token: row.token.slice(0, 12) + '…', reason });
+        // Persist failed/stale push to push_send_log.
+        try {
+          await supabase.from('push_send_log').insert({
+            user_id:      row.user_id ?? null,
+            platform:     row.platform,
+            token_prefix: row.token.slice(0, 12),
+            title:        title || null,
+            body:         text  || null,
+            status:       result.stale ? 'stale' : 'failed',
+            error:        reason.slice(0, 500),
+            notif_id:     data?.notif_id ?? null,
+          });
+        } catch { /* best-effort */ }
         if (result.stale) {
           const { data: pruned } = await supabase.rpc('prune_stale_device_token', { p_token: row.token });
           if (pruned) summary.pruned += pruned as number;
