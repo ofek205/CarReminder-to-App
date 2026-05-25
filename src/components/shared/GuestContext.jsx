@@ -73,7 +73,6 @@ async function dispatchOAuthWelcomeEmail(user) {
     });
   } catch (err) {
     if (import.meta.env?.DEV) {
-      // eslint-disable-next-line no-console
       console.warn('[welcome-email] OAuth dispatch failed:', err?.message);
     }
   }

@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
@@ -176,7 +176,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
       onClose();
     },
     onError: (err) => {
-      toast.error('לא הצלחנו לשמור את התיקון. נסה שוב');
+      toastError('לא הצלחנו לשמור את התיקון. נסה שוב', { action: 'add_repair_mutation', err });
     },
   });
 
@@ -204,7 +204,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
     const file = e.target.files[0];
     if (!file) return;
     const validation = validateUploadFile(file, 'doc', 10);
-    if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
+    if (!validation.ok) { toastError(validation.error, { action: 'add_repair_attach_validate' }); e.target.value = ''; return; }
     setUploading(true);
     try {
       const { file_url, storage_path } = await uploadVehicleFile({
@@ -214,7 +214,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
       });
       setAttachments(prev => [...prev, { file_url, storage_path, file_type: 'אחר' }]);
     } catch (err) {
-      toast.error('שגיאה בהעלאת הקובץ');
+      toastError('שגיאה בהעלאת הקובץ', { action: 'add_repair_attach_upload', err });
     } finally {
       setUploading(false);
     }

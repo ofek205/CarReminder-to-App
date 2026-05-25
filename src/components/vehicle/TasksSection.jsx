@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -146,7 +146,7 @@ export default function TasksSection({ vehicle }) {
   };
 
   const handleSave = async () => {
-    if (!form.title.trim()) { toast.error('יש להזין כותרת'); return; }
+    if (!form.title.trim()) { toastError('יש להזין כותרת', { action: 'task_title_required' }); return; }
     // cork_notes table only has: vehicle_id, title, content, color, due_date, is_done, rotation
     // category and priority are kept in-memory / guest mode only (not DB columns yet)
     const dbTask = {
@@ -171,7 +171,7 @@ export default function TasksSection({ vehicle }) {
         queryClient.invalidateQueries({ queryKey: ['tasks-v2', vehicle.id] });
         const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
         notifyVehicleChange(vehicle.id, 'task_added', `נוספה משימה: ${dbTask.title}`);
-      } catch (err) { toast.error('לא הצלחנו לשמור את המשימה. נסה שוב'); return; }
+      } catch (err) { toastError('לא הצלחנו לשמור את המשימה. נסה שוב', { action: 'task_save', err }); return; }
     }
     setDialogOpen(false);
   };

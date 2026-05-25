@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Gauge, Clock, RefreshCw, Check, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { usesKm, usesHours } from '../shared/DateStatusUtils';
 import { useAuth } from '../shared/GuestContext';
 import { getTheme } from '@/lib/designTokens';
@@ -32,9 +32,9 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
 
   const save = async () => {
     const num = Number(value);
-    if (!value || isNaN(num) || num < 0) { toast.error('יש להזין מספר תקין'); return; }
+    if (!value || isNaN(num) || num < 0) { toastError('יש להזין מספר תקין', { action: 'mileage_invalid_number' }); return; }
     if (currentValue && num < currentValue) {
-      toast.error(`הערך החדש (${num.toLocaleString()}) נמוך מהערך הנוכחי (${currentValue.toLocaleString()})`);
+      toastError(`הערך החדש (${num.toLocaleString()}) נמוך מהערך הנוכחי (${currentValue.toLocaleString()})`, { action: 'mileage_decrease' });
       return;
     }
     setSaving(true);
@@ -61,7 +61,7 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
       setValue('');
       onUpdated?.({ ...coreUpdate, ...dateUpdate });
     } catch (err) {
-      toast.error('שגיאה בשמירה. נסה שוב.');
+      toastError('שגיאה בשמירה. נסה שוב.', { action: 'mileage_save', err });
     } finally {
       setSaving(false);
     }

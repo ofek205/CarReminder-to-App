@@ -23,6 +23,7 @@ import {
   Crown, Shield, Eye, User as UserIcon, Calendar, Mail, IdCard, ChevronDown, Phone, ChevronLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -487,7 +488,7 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
   const submit = async (e) => {
     e.preventDefault();
     const cleanEmail = email.trim();
-    if (!cleanEmail) { toast.error('יש להזין אימייל'); return; }
+    if (!cleanEmail) { toastError('יש להזין אימייל', { action: 'driver_invite_email_required' }); return; }
 
     setSubmitting(true);
     try {
@@ -516,12 +517,12 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
       onAdded?.(added);
     } catch (err) {
       const msg = err?.message || '';
-      if      (msg.includes('forbidden_not_manager')) toast.error('אין לך הרשאת מנהל');
-      else if (msg.includes('email_required'))        toast.error('יש להזין אימייל');
-      else if (msg.includes('user_not_registered'))   toast.error('אין משתמש רשום עם האימייל הזה. שלח לו קישור להרשמה לאפליקציה ונסה שוב.');
-      else if (msg.includes('already_member'))        toast.error('המשתמש כבר חבר בחשבון הזה');
-      else if (msg.includes('invalid_role'))          toast.error('תפקיד לא תקין');
-      else                                             toast.error('הוספת החבר נכשלה. נסה שוב.');
+      if      (msg.includes('forbidden_not_manager')) toastError('אין לך הרשאת מנהל', { action: 'driver_invite_forbidden', err });
+      else if (msg.includes('email_required'))        toastError('יש להזין אימייל', { action: 'driver_invite_email_required', err });
+      else if (msg.includes('user_not_registered'))   toastError('אין משתמש רשום עם האימייל הזה. שלח לו קישור להרשמה לאפליקציה ונסה שוב.', { action: 'driver_invite_not_registered', err });
+      else if (msg.includes('already_member'))        toastError('המשתמש כבר חבר בחשבון הזה', { action: 'driver_invite_already_member', err });
+      else if (msg.includes('invalid_role'))          toastError('תפקיד לא תקין', { action: 'driver_invite_invalid_role', err });
+      else                                             toastError('הוספת החבר נכשלה. נסה שוב.', { action: 'driver_invite', err });
        
       console.error('add_workspace_member_by_email failed:', err);
     } finally {

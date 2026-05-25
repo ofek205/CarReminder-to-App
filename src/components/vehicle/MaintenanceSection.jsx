@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -117,7 +117,7 @@ export default function MaintenanceSection({ vehicle }) {
     const file = e.target.files?.[0];
     if (!file) return;
     const v = validateUploadFile(file, 'photo', 10);
-    if (!v.ok) { toast.error(v.error); return; }
+    if (!v.ok) { toastError(v.error, { action: 'maint_receipt_validate' }); return; }
     const compressed = await compressImage(file, { maxWidth: 1400, maxHeight: 1400, quality: 0.78 });
     const reader = new FileReader();
     reader.onload = ev => {
@@ -133,7 +133,7 @@ export default function MaintenanceSection({ vehicle }) {
       setReceiptUrl(file_url);
       setReceiptStoragePath(storage_path);
     } catch (err) {
-      toast.error('לא הצלחנו להעלות את הקבלה. נסה שוב');
+      toastError('לא הצלחנו להעלות את הקבלה. נסה שוב', { action: 'maint_receipt_upload', err });
       setReceiptUrl(null);
       setReceiptStoragePath(null);
     } finally {
@@ -251,7 +251,7 @@ export default function MaintenanceSection({ vehicle }) {
   };
 
   const handleSave = async () => {
-    if (!form.title.trim()) { toast.error('יש להזין כותרת'); return; }
+    if (!form.title.trim()) { toastError('יש להזין כותרת', { action: 'maint_title_required' }); return; }
     setSaving(true);
     try {
       const { supabase } = await import('@/lib/supabase');
@@ -357,7 +357,7 @@ export default function MaintenanceSection({ vehicle }) {
       setEditingId(null);
       setDialogOpen(false);
     } catch (err) {
-      toast.error('לא הצלחנו לשמור. נסה שוב');
+      toastError('לא הצלחנו לשמור. נסה שוב', { action: 'maint_save', err });
       reportUserError('save_maintenance', err, { vehicleId: vehicle?.id });
     } finally {
       setSaving(false);
@@ -371,7 +371,7 @@ export default function MaintenanceSection({ vehicle }) {
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
     } catch (err) {
       console.error('Delete maintenance error:', err);
-      toast.error('שגיאה במחיקת טיפול');
+      toastError('שגיאה במחיקת טיפול', { action: 'maint_delete', err });
       reportUserError('delete_maintenance', err, { vehicleId: vehicle?.id });
     }
   };

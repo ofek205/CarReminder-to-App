@@ -48,6 +48,7 @@ import VehicleScanWizard from "../components/vehicle/VehicleScanWizard";
 import { isAiScanEnabled } from '@/lib/aiScanGate';
 import VesselScanWizard from "../components/vehicle/VesselScanWizard";
 import { toast } from "sonner";
+import { toastError } from "@/lib/userErrorReport";
 import { useAuth } from "../components/shared/GuestContext";
 import { C as defaultC, getTheme } from '@/lib/designTokens';
 import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
@@ -410,7 +411,7 @@ export default function AddVehicle() {
     const file = e.target.files[0];
     if (!file) return;
     const validation = validateUploadFile(file, 'photo', 10);
-    if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
+    if (!validation.ok) { toastError(validation.error, { action: 'add_vehicle_photo_validate' }); e.target.value = ''; return; }
 
     // Sprint A.B-2: split the photo flow.
     //   • Guests have no Supabase auth and persist everything to localStorage,
@@ -435,7 +436,7 @@ export default function AddVehicle() {
         toast.success('התמונה נטענה');
       } catch (err) {
         console.error('Photo load error:', err);
-        toast.error('שגיאה בטעינת התמונה');
+        toastError('שגיאה בטעינת התמונה', { action: 'add_vehicle_photo_load', err });
       }
     } else {
       try {
@@ -452,7 +453,7 @@ export default function AddVehicle() {
         toast.success('התמונה נטענה');
       } catch (err) {
         console.error('Photo upload error:', err);
-        toast.error(err?.message || 'שגיאה בהעלאת התמונה');
+        toastError(err?.message || 'שגיאה בהעלאת התמונה', { action: 'add_vehicle_photo_upload', err });
       }
     }
     e.target.value = '';
@@ -827,7 +828,7 @@ export default function AddVehicle() {
       if (duplicate) {
         setDuplicateVehicle(duplicate);
         const dupName = duplicate.nickname || duplicate.license_plate || 'רכב קיים';
-        toast.error(`מספר הרישוי כבר קיים ב"${dupName}". לא ניתן להזין פעמיים.`);
+        toastError(`מספר הרישוי כבר קיים ב"${dupName}". לא ניתן להזין פעמיים.`, { action: 'add_vehicle_duplicate_plate' });
         return;
       }
     }
@@ -931,14 +932,14 @@ export default function AddVehicle() {
         setShowGuestSignup(true);
       } else {
         hapticFeedback('heavy');
-        toast.error('שגיאה בשמירה הזמנית');
+        toastError('שגיאה בשמירה הזמנית', { action: 'add_vehicle_draft_save' });
       }
       return;
     }
 
     try {
       if (!accountId) {
-        toast.error('שגיאה: חשבון לא נמצא. נסה להתנתק ולהתחבר מחדש.');
+        toastError('שגיאה: חשבון לא נמצא. נסה להתנתק ולהתחבר מחדש.', { action: 'add_vehicle_no_account' });
         return;
       }
 
