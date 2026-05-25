@@ -4,6 +4,7 @@ import { db } from '@/lib/supabaseEntities';
 import useIsAdmin from '@/hooks/useIsAdmin';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import AdminPopupsTab from '../components/admin/AdminPopupsTab';
+import AdminVersionTab from '../components/admin/AdminVersionTab';
 import {
   Users, Shield, TrendingUp, AlertTriangle, Activity, ArrowDown, ChevronDown, ChevronUp,
   RefreshCw, BarChart2, Trash2, Download, Copy, AlertCircle,
@@ -996,6 +997,7 @@ export default function AdminDashboard() {
             { key: 'popups', label: '🔔 פופ-אפים' },
             { key: 'messages', label: '📬 הודעות' },
             { key: 'bugs', label: '🐛 באגים' },
+            { key: 'versions', label: '📱 גרסאות' },
           ].map(t => (
             <button key={t.key} onClick={() => setAdminTab(t.key)}
               className={`px-4 py-2 rounded-lg text-xs font-bold shrink-0 transition-all ${
@@ -1016,6 +1018,7 @@ export default function AdminDashboard() {
         {adminTab === 'popups' && <AdminPopupsTab />}
         {adminTab === 'messages' && <AdminMessagesTab />}
         {adminTab === 'bugs' && <AdminBugsTab />}
+        {adminTab === 'versions' && <AdminVersionTab />}
 
 {adminTab === 'stats' && <>
 

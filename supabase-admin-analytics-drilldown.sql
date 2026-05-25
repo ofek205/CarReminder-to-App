@@ -122,6 +122,74 @@ BEGIN
     END;
 
   -- ═══════════════════════════════════════════════════════════════════
+  -- vehicle_family — vehicles in a Tier-1 marketing family (e.g.
+  -- "דו-גלגלי" contains אופנוע כביש + קטנוע + אנדורו + מוטוקרוס).
+  -- The family→subtype map is duplicated client-side in AdminAnalytics
+  -- (FAMILY_MAP); keep them in sync if you add a new family or subtype.
+  -- ═══════════════════════════════════════════════════════════════════
+  ELSIF v_type = 'vehicle_family' THEN
+    DECLARE
+      v_family text := p_segment->>'family';
+      v_subtypes text[] := CASE v_family
+        WHEN 'רכבים פרטיים'   THEN ARRAY['רכב','רכב פרטי','רכב אספנות']
+        WHEN 'דו-גלגלי'        THEN ARRAY['אופנוע','אופנוע כביש','קטנוע','אנדורו','מוטוקרוס']
+        WHEN 'מסחרי / מקצועי' THEN ARRAY['משאית','אוטובוס','רכב תפעולי','נגרר','קרוואן','מחרשה','טרקטור','רכב מסחרי','גרור','נתמך']
+        WHEN 'כלי שייט'        THEN ARRAY['מפרשית','סירה מנועית','אופנוע ים','סירת גומי']
+        WHEN 'כלי טיס'         THEN ARRAY['מטוס פרטי','רחפן']
+        WHEN 'כלי צמ"ה'        THEN ARRAY[
+          'מחפר','מחפר זחלי','מחפר אופני','מיני מחפר','מחפרון',
+          'דחפור','דחפור זחלי','שופל','מעמיס אופני','מעמיס זחלי',
+          'מלגזה','מלגזת שטח','טלהנדלר','גלגלת','גלגלת אספלט','גלגלת רטט',
+          'משאבת בטון','מערבל בטון','עגלת מערבל','עגורן','עגורן צריח',
+          'מנוף','מנוף שטח','מקדח','מקדח שטח','רכב צמ"ה'
+        ]
+        ELSE NULL
+      END;
+    BEGIN
+      v_title   := 'רכבים: משפחת ' || v_family;
+      v_columns := v_cols_vehicle;
+      IF v_subtypes IS NULL THEN
+        -- "אחר" / unknown family: show vehicles whose type is NOT in any mapped family.
+        SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC), '[]'::jsonb), COUNT(*)
+        INTO v_rows, v_total
+        FROM (
+          SELECT
+            v.license_plate, v.vehicle_type, v.make, v.model, v.year,
+            owner.email AS owner_email, v.created_at
+          FROM public.vehicles v
+          LEFT JOIN public.account_members am ON am.account_id = v.account_id
+                AND am.role IN ('בעלים','owner')
+          LEFT JOIN auth.users owner ON owner.id = am.user_id
+          WHERE COALESCE(v.vehicle_type, '') NOT IN (
+            'רכב','רכב פרטי','רכב אספנות',
+            'אופנוע','אופנוע כביש','קטנוע','אנדורו','מוטוקרוס',
+            'משאית','אוטובוס','רכב תפעולי','נגרר','קרוואן','מחרשה','טרקטור','רכב מסחרי','גרור','נתמך',
+            'מפרשית','סירה מנועית','אופנוע ים','סירת גומי',
+            'מטוס פרטי','רחפן',
+            'מחפר','מחפר זחלי','מחפר אופני','מיני מחפר','מחפרון',
+            'דחפור','דחפור זחלי','שופל','מעמיס אופני','מעמיס זחלי',
+            'מלגזה','מלגזת שטח','טלהנדלר','גלגלת','גלגלת אספלט','גלגלת רטט',
+            'משאבת בטון','מערבל בטון','עגלת מערבל','עגורן','עגורן צריח',
+            'מנוף','מנוף שטח','מקדח','מקדח שטח','רכב צמ"ה'
+          )
+        ) r;
+      ELSE
+        SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC), '[]'::jsonb), COUNT(*)
+        INTO v_rows, v_total
+        FROM (
+          SELECT
+            v.license_plate, v.vehicle_type, v.make, v.model, v.year,
+            owner.email AS owner_email, v.created_at
+          FROM public.vehicles v
+          LEFT JOIN public.account_members am ON am.account_id = v.account_id
+                AND am.role IN ('בעלים','owner')
+          LEFT JOIN auth.users owner ON owner.id = am.user_id
+          WHERE v.vehicle_type = ANY(v_subtypes)
+        ) r;
+      END IF;
+    END;
+
+  -- ═══════════════════════════════════════════════════════════════════
   -- vehicle_type — vehicles of a specific type + their owner
   -- ═══════════════════════════════════════════════════════════════════
   ELSIF v_type = 'vehicle_type' THEN
@@ -564,6 +632,70 @@ BEGIN
                 )
                 ELSE FALSE
               END
+      ) r;
+    END;
+
+  -- ═══════════════════════════════════════════════════════════════════
+  -- retention_segment — Phase 3 head-to-head segments.
+  -- segment: {type:'retention_segment', bucket:'multi'|'single'|'docrich'|'docpoor'}
+  -- Cohort = signed up 30-90 days ago. Returns the bucket's users with
+  -- a "returned_d30" flag column.
+  -- ═══════════════════════════════════════════════════════════════════
+  ELSIF v_type = 'retention_segment' THEN
+    DECLARE v_bucket text := p_segment->>'bucket';
+    BEGIN
+      v_title := 'שימור D30 — ' || CASE v_bucket
+        WHEN 'multi'   THEN 'חשבונות עם 2+ חברים'
+        WHEN 'single'  THEN 'חשבון יחיד (חבר אחד)'
+        WHEN 'docrich' THEN '3+ מסמכים'
+        WHEN 'docpoor' THEN '0 מסמכים'
+        ELSE v_bucket
+      END;
+      v_columns := jsonb_build_array(
+        jsonb_build_object('key','email',          'label','אימייל'),
+        jsonb_build_object('key','full_name',      'label','שם'),
+        jsonb_build_object('key','returned_d30',   'label','חזר D30?'),
+        jsonb_build_object('key','doc_count',      'label','מסמכים'),
+        jsonb_build_object('key','signup_at',      'label','נרשם'),
+        jsonb_build_object('key','last_sign_in_at','label','התחבר לאחרונה')
+      );
+      SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.signup_at DESC), '[]'::jsonb), COUNT(*)
+      INTO v_rows, v_total
+      FROM (
+        WITH eligible AS (
+          SELECT u.id, u.email, u.raw_user_meta_data, u.created_at, u.last_sign_in_at
+          FROM auth.users u
+          WHERE u.created_at <= now() - interval '30 days'
+            AND u.created_at >  now() - interval '90 days'
+        ),
+        enriched AS (
+          SELECT
+            e.*,
+            EXISTS (
+              SELECT 1 FROM public.account_members am1
+              WHERE am1.user_id = e.id
+                AND (SELECT COUNT(*) FROM public.account_members am2
+                     WHERE am2.account_id = am1.account_id AND am2.status = 'פעיל') >= 2
+            ) AS is_multi_member,
+            (SELECT COUNT(DISTINCT d.id)
+               FROM public.account_members am
+               JOIN public.documents d ON d.account_id = am.account_id
+              WHERE am.user_id = e.id) AS doc_count
+          FROM eligible e
+        )
+        SELECT
+          email,
+          COALESCE(raw_user_meta_data->>'full_name','') AS full_name,
+          CASE WHEN last_sign_in_at > created_at + interval '30 days' THEN 'כן' ELSE 'לא' END AS returned_d30,
+          doc_count,
+          created_at        AS signup_at,
+          last_sign_in_at
+        FROM enriched
+        WHERE
+          (v_bucket = 'multi'   AND is_multi_member)
+          OR (v_bucket = 'single'  AND NOT is_multi_member)
+          OR (v_bucket = 'docrich' AND doc_count >= 3)
+          OR (v_bucket = 'docpoor' AND doc_count = 0)
       ) r;
     END;
 

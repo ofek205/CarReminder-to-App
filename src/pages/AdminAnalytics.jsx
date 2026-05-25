@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { withTimeout } from "@/lib/supabaseQuery";
@@ -30,6 +31,42 @@ function fmtDate(d) {
   try { return format(parseISO(d), "dd/MM"); } catch { return d; }
 }
 
+// Vehicle family taxonomy — groups the flat DB vehicle_type values into
+// Tier-1 marketing segments (private cars / two-wheelers / commercial /
+// boats / aviation / heavy machinery / other). The SAME map is duplicated
+// in supabase-admin-analytics-drilldown.sql for the vehicle_family
+// drill-down branch — keep both in sync if you add a new subtype.
+const VEHICLE_FAMILY_MAP = {
+  'רכבים פרטיים':   ['רכב','רכב פרטי','רכב אספנות'],
+  'דו-גלגלי':        ['אופנוע','אופנוע כביש','קטנוע','אנדורו','מוטוקרוס'],
+  'מסחרי / מקצועי': ['משאית','אוטובוס','רכב תפעולי','נגרר','קרוואן','מחרשה','טרקטור','רכב מסחרי','גרור','נתמך'],
+  'כלי שייט':        ['מפרשית','סירה מנועית','אופנוע ים','סירת גומי'],
+  'כלי טיס':         ['מטוס פרטי','רחפן'],
+  'כלי צמ"ה':        ['מחפר','מחפר זחלי','מחפר אופני','מיני מחפר','מחפרון','דחפור','דחפור זחלי','שופל','מעמיס אופני','מעמיס זחלי','מלגזה','מלגזת שטח','טלהנדלר','גלגלת','גלגלת אספלט','גלגלת רטט','משאבת בטון','מערבל בטון','עגלת מערבל','עגורן','עגורן צריח','מנוף','מנוף שטח','מקדח','מקדח שטח','רכב צמ"ה'],
+};
+
+// Reverse lookup: subtype → family. Used to aggregate the raw
+// vehicle_types data (subtype-keyed) into family buckets on the client
+// when the chart toggle is set to "משפחה".
+const VEHICLE_SUBTYPE_TO_FAMILY = Object.entries(VEHICLE_FAMILY_MAP).reduce(
+  (acc, [family, subtypes]) => {
+    for (const st of subtypes) acc[st] = family;
+    return acc;
+  },
+  {},
+);
+
+function aggregateByFamily(rawData) {
+  const buckets = new Map();
+  for (const row of rawData) {
+    const family = VEHICLE_SUBTYPE_TO_FAMILY[row.vehicle_type] || 'אחר';
+    buckets.set(family, (buckets.get(family) || 0) + (row.count || 0));
+  }
+  return [...buckets.entries()]
+    .map(([family, count]) => ({ vehicle_type: family, count, _isFamily: true }))
+    .sort((a, b) => b.count - a.count);
+}
+
 export default function AdminAnalytics() {
   const isAdmin = useIsAdmin();
   // The current drill-down segment (null when sheet is closed). The
@@ -38,11 +75,48 @@ export default function AdminAnalytics() {
   // queries and renders when it's non-null.
   const [drillSegment, setDrillSegment] = useState(null);
 
+  // ─── Filter Bar state (URL-persisted) ──────────────────────────────
+  // All filters live in the URL so the page is shareable and the back
+  // button works. Defaults mirror the SQL defaults (30d, all, all).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => ({
+    date_range:    searchParams.get('range')    || '30d',
+    account_type:  searchParams.get('account')  || 'all',
+    vehicle_types: searchParams.get('vtypes')
+      ? searchParams.get('vtypes').split(',').filter(Boolean)
+      : [],
+  }), [searchParams]);
+
+  const updateFilter = (key, value) => {
+    const next = new URLSearchParams(searchParams);
+    const paramKey = key === 'date_range' ? 'range'
+                   : key === 'account_type' ? 'account'
+                   : key === 'vehicle_types' ? 'vtypes'
+                   : key;
+    const isDefault = (key === 'date_range' && value === '30d')
+                   || (key === 'account_type' && value === 'all')
+                   || (key === 'vehicle_types' && Array.isArray(value) && value.length === 0);
+    if (isDefault) {
+      next.delete(paramKey);
+    } else {
+      next.set(paramKey, Array.isArray(value) ? value.join(',') : value);
+    }
+    setSearchParams(next, { replace: false });
+  };
+
+  const resetFilters = () => setSearchParams(new URLSearchParams(), { replace: false });
+
+  const filtersForRpc = useMemo(() => ({
+    date_range: filters.date_range,
+    account_type: filters.account_type,
+    vehicle_types: filters.vehicle_types,
+  }), [filters]);
+
   const { data, isLoading, isError, error: queryError, refetch, isFetching } = useQuery({
-    queryKey: ["admin-analytics"],
+    queryKey: ["admin-analytics", filtersForRpc],
     queryFn: async () => {
       const { data: result, error } = await withTimeout(
-        supabase.rpc("admin_analytics_summary"),
+        supabase.rpc("admin_analytics_summary", { p_filters: filtersForRpc }),
         "admin_analytics_summary"
       );
       if (error) throw error;
@@ -88,6 +162,7 @@ export default function AdminAnalytics() {
     kpi_activation_rate_pct = 0,
     kpi_power_users = 0,
     kpi_churn_risk = 0,
+    retention_insights = {},
   } = data || {};
 
   const totalSignups = signups_daily.reduce((s, r) => s + (r.count || 0), 0);
@@ -99,12 +174,14 @@ export default function AdminAnalytics() {
     <div className="p-4 sm:p-6 max-w-5xl mx-auto" dir="rtl" style={{ fontVariantNumeric: "tabular-nums" }}>
       <PageHeader title="אנליטיקה" subtitle="נתוני שימוש, צמיחה ומעורבות." />
 
-      <div className="flex justify-end mb-4">
-        <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching} className="gap-1">
-          <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
-          רענן
-        </Button>
-      </div>
+      <FilterBar
+        filters={filters}
+        updateFilter={updateFilter}
+        resetFilters={resetFilters}
+        availableVehicleTypes={vehicle_types}
+        onRefresh={() => refetch()}
+        isFetching={isFetching}
+      />
 
       {/* Row 1: CarReminder-specific KPIs (the ones that actually drive product decisions).
           Reminder-to-Return is the North Star — keep it first.
@@ -122,11 +199,62 @@ export default function AdminAnalytics() {
       </div>
 
       {/* Row 2: Standard KPIs (growth + health) — the existing four. */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <KpiCard label="הרשמות (30 ימים)" value={totalSignups} icon={Users}      color={BI.blue}  onClick={() => setDrillSegment({ type: 'kpi_total_users' })} />
         <KpiCard label="פעילים השבוע"     value={latestWau}    icon={TrendingUp} color={BI.green} onClick={() => setDrillSegment({ type: 'kpi_active_week' })} />
         <KpiCard label='סה"כ רכבים'        value={totalVehicles} icon={Car}      color={BI.teal}  onClick={() => setDrillSegment({ type: 'kpi_total_vehicles' })} />
         <KpiCard label="שגיאות (14 ימים)"  value={totalErrors}  icon={Bug}        color={totalErrors > 50 ? BI.red : BI.slate} onClick={() => setDrillSegment({ type: 'kpi_errors_14d' })} />
+      </div>
+
+      {/* Row 3: Retention Insights (Phase 3) — head-to-head comparisons.
+          Reuses KpiCard primitive (no new component). The pair-wise
+          color: GREEN for the higher of each pair, SLATE for the lower —
+          a quick visual cue answering "האם זה עוזר לשימור?".
+          Hint prop shows "(returned/total)" so the % is interpretable
+          on a 13-user cohort (without context "100% (2/2)" reads very
+          differently from "100% (200/200)"). */}
+      <div className="mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-gray-500 font-medium">תובנות שימור D30</span>
+          <span className="text-[10px] text-gray-400">— מתוך {retention_insights?.cohort_size || 0} משתמשים שנרשמו 30-90 ימים אחורה</span>
+        </div>
+        <div className="text-[10px] text-gray-400 mt-0.5">
+          האחוז = כמה מתוך הקטגוריה חזרו לאפליקציה אחרי יום 30 מההרשמה. ירוק = המנצח בכל זוג.
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <KpiCard
+          label="חזרו D30 — עם 2+ חברים"
+          value={`${retention_insights?.sharing?.multi_pct ?? 0}%`}
+          hint={`${retention_insights?.sharing?.multi_returned ?? 0}/${retention_insights?.sharing?.multi_total ?? 0}`}
+          icon={Users}
+          color={(retention_insights?.sharing?.multi_pct ?? 0) >= (retention_insights?.sharing?.single_pct ?? 0) ? BI.green : BI.slate}
+          onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'multi' })}
+        />
+        <KpiCard
+          label="חזרו D30 — חבר יחיד"
+          value={`${retention_insights?.sharing?.single_pct ?? 0}%`}
+          hint={`${retention_insights?.sharing?.single_returned ?? 0}/${retention_insights?.sharing?.single_total ?? 0}`}
+          icon={Users}
+          color={(retention_insights?.sharing?.single_pct ?? 0) > (retention_insights?.sharing?.multi_pct ?? 0) ? BI.green : BI.slate}
+          onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'single' })}
+        />
+        <KpiCard
+          label="חזרו D30 — 3+ מסמכים"
+          value={`${retention_insights?.docs?.rich_pct ?? 0}%`}
+          hint={`${retention_insights?.docs?.rich_returned ?? 0}/${retention_insights?.docs?.rich_total ?? 0}`}
+          icon={FileText}
+          color={(retention_insights?.docs?.rich_pct ?? 0) >= (retention_insights?.docs?.poor_pct ?? 0) ? BI.green : BI.slate}
+          onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'docrich' })}
+        />
+        <KpiCard
+          label="חזרו D30 — 0 מסמכים"
+          value={`${retention_insights?.docs?.poor_pct ?? 0}%`}
+          hint={`${retention_insights?.docs?.poor_returned ?? 0}/${retention_insights?.docs?.poor_total ?? 0}`}
+          icon={FileText}
+          color={(retention_insights?.docs?.poor_pct ?? 0) > (retention_insights?.docs?.rich_pct ?? 0) ? BI.green : BI.slate}
+          onClick={() => setDrillSegment({ type: 'retention_segment', bucket: 'docpoor' })}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -146,8 +274,9 @@ export default function AdminAnalytics() {
         </ChartCard>
 
         <ChartCard title="התפלגות סוגי רכב" icon={Car} color={BI.purple}>
-          <TypesChart data={vehicle_types}
-            onPointClick={(row) => setDrillSegment({ type: 'vehicle_type', vehicle_type: row.vehicle_type })} />
+          <TypesChartWithToggle data={vehicle_types}
+            onFamilyClick={(family) => setDrillSegment({ type: 'vehicle_family', family })}
+            onSubtypeClick={(row)   => setDrillSegment({ type: 'vehicle_type', vehicle_type: row.vehicle_type })} />
         </ChartCard>
 
         <ChartCard title="מסמכים שהועלו לשבוע" icon={FileText} color={BI.amber}>
@@ -179,7 +308,195 @@ export default function AdminAnalytics() {
   );
 }
 
-function KpiCard({ label, value, icon: Icon, color, onClick }) {
+// ──────────────────────────────────────────────────────────────────
+// FilterBar — sticky top filter strip (Power-BI-style global filter).
+// All filters live in URL params so the view is shareable; default
+// values are not serialised (clean URL).
+//
+// Three filters wired to the RPC:
+//   • range      → date_range  (7d / 30d / 90d / 12w / all)
+//   • account    → account_type (all / personal / business)
+//   • vtypes     → vehicle_types (multi, comma-separated)
+//
+// The bar mirrors how Tableau/Looker present global filters: chips
+// for the active selections + reset link. No "Apply" button — every
+// change triggers a React Query refetch instantly (~100ms for 184 users).
+// ──────────────────────────────────────────────────────────────────
+function FilterBar({ filters, updateFilter, resetFilters, availableVehicleTypes, onRefresh, isFetching }) {
+  const dateOptions = [
+    { value: '7d',  label: '7 ימים'  },
+    { value: '30d', label: '30 ימים' },
+    { value: '90d', label: '90 ימים' },
+    { value: '12w', label: '12 שבועות' },
+    { value: 'all', label: 'הכל'    },
+  ];
+  const accountOptions = [
+    { value: 'all',      label: 'הכל'    },
+    { value: 'personal', label: 'פרטי'   },
+    { value: 'business', label: 'עסקי'   },
+  ];
+
+  const hasActiveFilters =
+    filters.date_range !== '30d'
+    || filters.account_type !== 'all'
+    || (filters.vehicle_types && filters.vehicle_types.length > 0);
+
+  // ── Vehicle FAMILIES (Tier-1) for the filter chips ──
+  // The chart has its own family/subtype toggle (v5.2.1). Here, the
+  // filter bar shows ONLY families — keeps the chip count manageable
+  // (~6 vs 30+) and matches the way Ofek thinks about audience segments.
+  // Clicking a family chip writes the FULL subtype list into the
+  // vehicle_types filter so the existing SQL (which accepts a flat
+  // subtype list) keeps working unchanged.
+  const availableSubtypes = new Set(
+    (availableVehicleTypes || []).map((v) => v.vehicle_type)
+  );
+  const availableFamilies = useMemo(() => {
+    const families = new Set();
+    for (const st of availableSubtypes) {
+      families.add(VEHICLE_SUBTYPE_TO_FAMILY[st] || 'אחר');
+    }
+    // Stable order: main families first, then "אחר" if present.
+    const order = Object.keys(VEHICLE_FAMILY_MAP).concat('אחר');
+    return order.filter((f) => families.has(f));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableVehicleTypes]);
+
+  // Returns the subtype list for a given family (all members of the
+  // family that are actually present in the data, so toggling never
+  // adds dead subtypes to the URL).
+  const subtypesForFamily = (family) => {
+    if (family === 'אחר') {
+      const mapped = new Set(Object.values(VEHICLE_FAMILY_MAP).flat());
+      return [...availableSubtypes].filter((st) => !mapped.has(st));
+    }
+    const familyList = VEHICLE_FAMILY_MAP[family] || [];
+    return familyList.filter((st) => availableSubtypes.has(st));
+  };
+
+  // Family chip is fully active when ALL its present subtypes are in
+  // the filter. Treats the family chip as a binary toggle for the UX
+  // simplicity ("on/off") even though the underlying state is a list.
+  const isFamilyActive = (family) => {
+    const subs = subtypesForFamily(family);
+    if (subs.length === 0) return false;
+    const current = new Set(filters.vehicle_types || []);
+    return subs.every((st) => current.has(st));
+  };
+
+  const toggleFamily = (family) => {
+    const subs = subtypesForFamily(family);
+    const current = new Set(filters.vehicle_types || []);
+    const allOn = subs.every((st) => current.has(st));
+    if (allOn) {
+      for (const st of subs) current.delete(st);
+    } else {
+      for (const st of subs) current.add(st);
+    }
+    updateFilter('vehicle_types', [...current]);
+  };
+
+  return (
+    <Card className="p-3 mb-4 sticky top-2 z-20 bg-white/95 backdrop-blur shadow-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Date range — segmented pill */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-gray-500 font-medium">תקופה</span>
+          <div className="inline-flex rounded-lg bg-gray-100 p-0.5">
+            {dateOptions.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => updateFilter('date_range', o.value)}
+                className={`px-2.5 py-1 text-xs rounded-md transition ${
+                  filters.date_range === o.value
+                    ? 'bg-white shadow-sm font-bold text-gray-900'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Account type — segmented pill */}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] text-gray-500 font-medium">סוג חשבון</span>
+          <div className="inline-flex rounded-lg bg-gray-100 p-0.5">
+            {accountOptions.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => updateFilter('account_type', o.value)}
+                className={`px-2.5 py-1 text-xs rounded-md transition ${
+                  filters.account_type === o.value
+                    ? 'bg-white shadow-sm font-bold text-gray-900'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Vehicle families — Tier-1 chips (multi-select). Each chip
+            represents a family of subtypes (e.g. "דו-גלגלי" = אופנוע
+            כביש + קטנוע + אנדורו + מוטוקרוס). Clicking toggles ALL
+            subtypes of that family in/out of the underlying flat
+            vehicle_types filter — so the SQL stays unchanged and the
+            URL is shareable. For drilling into a specific subtype,
+            use the family/subtype toggle inside the chart card. */}
+        {availableFamilies.length > 0 && (
+          <div className="flex flex-col gap-1 min-w-0">
+            <span className="text-[10px] text-gray-500 font-medium">משפחות רכב</span>
+            <div className="flex flex-wrap gap-1 max-w-md">
+              {availableFamilies.map((family) => {
+                const isOn = isFamilyActive(family);
+                const subCount = subtypesForFamily(family).length;
+                return (
+                  <button
+                    key={family}
+                    type="button"
+                    onClick={() => toggleFamily(family)}
+                    title={`${subCount} תתי-סוגים`}
+                    className={`px-2 py-0.5 text-[11px] rounded-full transition border ${
+                      isOn
+                        ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    {family}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Spacer + Reset + Refresh */}
+        <div className="ms-auto flex items-center gap-2">
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2"
+            >
+              איפוס
+            </button>
+          )}
+          <Button size="sm" variant="outline" onClick={onRefresh} disabled={isFetching} className="gap-1">
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            רענן
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function KpiCard({ label, value, icon: Icon, color, onClick, hint }) {
   return (
     <Card
       className={`p-3 text-center transition ${onClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.02]' : ''}`}
@@ -190,6 +507,9 @@ function KpiCard({ label, value, icon: Icon, color, onClick }) {
     >
       <Icon className="w-5 h-5 mx-auto mb-1" style={{ color }} />
       <p className="text-2xl font-bold" style={{ color }} dir="ltr">{value}</p>
+      {hint && (
+        <p className="text-[10px] text-gray-400 tabular-nums" dir="ltr">{hint}</p>
+      )}
       <p className="text-[11px] text-gray-500 mt-0.5">{label}</p>
     </Card>
   );
@@ -355,6 +675,51 @@ function AgeChart({ data, onPointClick }) {
         />
       </PieChart>
     </ResponsiveContainer>
+  );
+}
+
+// Wrapper that lets the admin flip between Tier-1 family view ("משפחה")
+// and the flat subtype view ("תת-סוג"). Family is default = better for
+// audience segmentation; subtype is one click away for deep-dives.
+// State lives here so the toggle survives parent re-renders (filter
+// changes refresh `data` but the mode persists).
+function TypesChartWithToggle({ data, onFamilyClick, onSubtypeClick }) {
+  const [mode, setMode] = useState('family');
+  const familyData = useMemo(() => aggregateByFamily(data || []), [data]);
+  const isFamily = mode === 'family';
+  return (
+    <div>
+      <div className="flex justify-end mb-2 -mt-1">
+        <div className="inline-flex rounded-lg bg-gray-100 p-0.5">
+          <button
+            type="button"
+            onClick={() => setMode('family')}
+            className={`px-2.5 py-0.5 text-[11px] rounded-md transition ${
+              isFamily ? 'bg-white shadow-sm font-bold text-gray-900'
+                       : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            משפחה
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('subtype')}
+            className={`px-2.5 py-0.5 text-[11px] rounded-md transition ${
+              !isFamily ? 'bg-white shadow-sm font-bold text-gray-900'
+                        : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            תת-סוג
+          </button>
+        </div>
+      </div>
+      <TypesChart
+        data={isFamily ? familyData : data}
+        onPointClick={isFamily
+          ? (row) => onFamilyClick(row.vehicle_type)
+          : onSubtypeClick}
+      />
+    </div>
   );
 }
 
