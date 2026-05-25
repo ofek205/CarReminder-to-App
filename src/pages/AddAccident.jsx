@@ -18,6 +18,7 @@ import { getCurrentPosition } from '@/lib/capacitor';
 import { Link } from 'react-router-dom';
 import { lookupVehicleByPlate } from '../services/vehicleLookup';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { useAuth } from '../components/shared/GuestContext';
 import { DEMO_ACCIDENTS, DEMO_VEHICLE } from '../components/shared/demoVehicleData';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -171,7 +172,7 @@ export default function AddAccident() {
       }));
       toast.success('מיקום נוסף');
     } catch (e) {
-      toast.error(e?.message?.includes('denied') ? 'נדרשת הרשאת מיקום' : 'לא הצלחנו לזהות מיקום');
+      toastError(e?.message?.includes('denied') ? 'נדרשת הרשאת מיקום' : 'לא הצלחנו לזהות מיקום', { action: 'accident_location', err: e });
     } finally {
       setFetchingLoc(false);
     }
@@ -279,7 +280,7 @@ export default function AddAccident() {
   const handlePhotoCapture = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { toast.error('קובץ גדול מדי (מקס 10MB)'); return; }
+    if (file.size > 10 * 1024 * 1024) { toastError('קובץ גדול מדי (מקס 10MB)', { action: 'accident_photo_too_large' }); return; }
     try {
       const small = await compressImage(file);
       const reader = new FileReader();
@@ -288,7 +289,7 @@ export default function AddAccident() {
       };
       reader.readAsDataURL(small);
     } catch {
-      toast.error('שגיאה בטעינת התמונה');
+      toastError('שגיאה בטעינת התמונה', { action: 'accident_photo_load' });
     }
   };
 
@@ -302,7 +303,7 @@ export default function AddAccident() {
   const handleInsurancePhoto = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { toast.error('קובץ גדול מדי (מקס 10MB)'); return; }
+    if (file.size > 10 * 1024 * 1024) { toastError('קובץ גדול מדי (מקס 10MB)', { action: 'accident_photo_too_large' }); return; }
     try {
       const small = await compressImage(file);
       const reader = new FileReader();
@@ -311,7 +312,7 @@ export default function AddAccident() {
       };
       reader.readAsDataURL(small);
     } catch {
-      toast.error('שגיאה בטעינת התמונה');
+      toastError('שגיאה בטעינת התמונה', { action: 'accident_photo_load' });
     }
   };
 
@@ -371,7 +372,7 @@ export default function AddAccident() {
         ? 'השמירה נמשכת זמן רב מהצפוי. בדוק את החיבור ונסה שוב — התמונות עלולות להיות גדולות.'
         : 'אירעה שגיאה בשמירת הדיווח';
       setSystemError(msg);
-      toast.error(msg);
+      toastError(msg, { action: 'accident_save' });
     } finally {
       setSaving(false);
     }

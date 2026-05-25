@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Loader2, Copy, Check, Eye, Edit, Share2, Clock, UserPlus, Mail, Shield, Users } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { getRecentShareEmails, rememberShareEmail } from '@/lib/recentShareEmails';
@@ -144,7 +145,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
   const submit = async () => {
     const cleanEmail = email.trim();
     if (!cleanEmail || !cleanEmail.includes('@')) {
-      toast.error('המייל לא תקין, נסה/י שוב');
+      toastError('המייל לא תקין, נסה/י שוב', { action: 'share_vehicle_invalid_email' });
       return;
     }
 
@@ -158,7 +159,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
         if (error) {
           const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
           const msg = ACCOUNT_ERROR_COPY[code] || `שגיאה בהזמנה: ${error.message}`;
-          toast.error(msg);
+          toastError(msg, { action: 'share_account_invite', err: error });
           if (import.meta.env.DEV) console.warn('invite_account_member_by_email error:', error);
           setSubmitting(false);
           return;
@@ -175,7 +176,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
         }
       } else {
         if (!vehicle?.id) {
-          toast.error('רכב לא נמצא');
+          toastError('רכב לא נמצא', { action: 'share_vehicle_not_found' });
           setSubmitting(false);
           return;
         }
@@ -187,7 +188,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
         if (error) {
           const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
           const msg = VEHICLE_ERROR_COPY[code] || `שגיאה בשיתוף: ${error.message}`;
-          toast.error(msg);
+          toastError(msg, { action: 'share_vehicle_send', err: error });
           if (import.meta.env.DEV) console.warn('share_vehicle_with_email error:', error);
           setSubmitting(false);
           return;
@@ -198,7 +199,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
         sendShareEmail(cleanEmail, data?.invite_token).catch(() => {});
       }
     } catch (e) {
-      toast.error(`שגיאה בשיתוף: ${e?.message || 'נסה שוב'}`);
+      toastError(`שגיאה בשיתוף: ${e?.message || 'נסה שוב'}`, { action: 'share_vehicle_exception', err: e });
       reportUserError('share_vehicle', e);
       if (import.meta.env.DEV) console.warn('share dialog exception:', e);
     } finally {
@@ -224,7 +225,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
       setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION_MS);
       toast.success('הקישור הועתק');
     } catch {
-      toast.error('לא ניתן להעתיק. סמן ידנית');
+      toastError('לא ניתן להעתיק. סמן ידנית', { action: 'share_vehicle_copy_link' });
     }
   };
 

@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow, isToday } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -214,7 +214,7 @@ export default function ChecklistHub() {
       navigate(`${createPageUrl('ChecklistEditor')}?vehicleId=${vehicleId}&templateId=${created.id}`);
     } catch (e) {
       if (import.meta.env.DEV) console.warn('[create custom]', e?.message);
-      toast.error('יצירת הצ\'ק ליסט נכשלה');
+      toastError('יצירת הצ\'ק ליסט נכשלה', { action: 'checklist_create', err: e });
     } finally {
       setCreating(false);
     }

@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { db } from '@/lib/supabaseEntities';
@@ -172,7 +172,7 @@ function NoteDialog({ open, onClose, note, onSave, onDelete, categories, T }) {
   }, [open, note]);
 
   const handleSave = async () => {
-    if (!title.trim()) { toast.error('צריך לכתוב כותרת לפתק'); return; }
+    if (!title.trim()) { toastError('צריך לכתוב כותרת לפתק', { action: 'cork_note_title_required' }); return; }
     setSaving(true);
     try {
       await onSave({
@@ -417,7 +417,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
         notifyVehicleChange(vehicle.id, noteData.id ? 'note_updated' : 'note_added',
           noteData.id ? `עודכן פתק: ${noteData.title || 'פתק'}` : `נוסף פתק: ${noteData.title || 'פתק חדש'}`);
       } catch (e) {
-        toast.error('שגיאה בשמירת הפתק');
+        toastError('שגיאה בשמירת הפתק', { action: 'cork_note_save', err: e });
         reportUserError('save_cork_note', e, { vehicleId: vehicle?.id });
         console.error(e);
       }
@@ -434,7 +434,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
         const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
         notifyVehicleChange(vehicle.id, 'note_deleted', 'נמחק פתק מלוח הפתקים');
       } catch (e) {
-        toast.error('שגיאה במחיקה');
+        toastError('שגיאה במחיקה', { action: 'cork_note_delete', err: e });
         reportUserError('delete_cork_note', e, { vehicleId: vehicle?.id });
       }
     }

@@ -28,6 +28,7 @@ import { trackUserAction } from "../components/shared/ReviewManager";
 import VehicleScanWizard from "../components/vehicle/VehicleScanWizard";
 import ConfirmDeleteDialog from "../components/shared/ConfirmDeleteDialog";
 import { toast } from "sonner";
+import { toastError } from "@/lib/userErrorReport";
 import { useAuth } from "../components/shared/GuestContext";
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -169,7 +170,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
   // Surface upload errors as toasts so the user understands why the
   // upload card isn't switching to the green "uploaded" state.
   useEffect(() => {
-    if (uploadError) toast.error(uploadError);
+    if (uploadError) toastError(uploadError, { action: 'doc_upload_error' });
   }, [uploadError]);
 
   // Read a File into a base64 data: URL. ONLY used to feed the AI vision
@@ -197,7 +198,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
     const currentCount = (form.file_url ? 1 : 0) + (form.extra_file_urls?.length || 0);
     const slotsLeft = MAX_FILES_PER_DOCUMENT - currentCount;
     if (slotsLeft <= 0) {
-      toast.error(`ניתן לצרף עד ${MAX_FILES_PER_DOCUMENT} קבצים למסמך`);
+      toastError(`ניתן לצרף עד ${MAX_FILES_PER_DOCUMENT} קבצים למסמך`, { action: 'doc_attach_limit' });
       e.target.value = '';
       return;
     }
@@ -215,7 +216,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
         const { validateUploadFile } = await import('@/lib/securityUtils');
         for (const file of toProcess) {
           const v = validateUploadFile(file, 'doc', 5);
-          if (!v.ok) { toast.error(v.error); continue; }
+          if (!v.ok) { toastError(v.error, { action: 'doc_file_validate' }); continue; }
           const base64 = await readAsBase64(file);
           // Use functional update so multiple awaits in this loop
           // see each other's writes.
@@ -236,7 +237,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
         }
       } catch (err) {
         console.error('Guest file read error:', err);
-        toast.error('שגיאה בקריאת הקובץ');
+        toastError('שגיאה בקריאת הקובץ', { action: 'doc_file_read', err });
       }
       e.target.value = '';
       return;
@@ -280,7 +281,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
     // guest path where file_url IS still base64.
     const aiSource = fileDataUrl || form.file_url;
     if (!aiSource || !aiSource.startsWith('data:')) {
-      toast.error('הקובץ עדיין נטען. נסה שוב בעוד שנייה.');
+      toastError('הקובץ עדיין נטען. נסה שוב בעוד שנייה.', { action: 'doc_ai_not_ready' });
       return;
     }
     setAiScanning(true);
@@ -292,7 +293,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
       const mimeMatch = aiSource.match(/^data:([^;]+);base64,/);
       const mediaType = mimeMatch?.[1] || 'image/jpeg';
       const imageData = aiSource.split(',')[1];
-      if (!imageData) { toast.error('לא ניתן לקרוא את הקובץ'); setAiScanning(false); return; }
+      if (!imageData) { toastError('לא ניתן לקרוא את הקובץ', { action: 'doc_ai_read_file' }); setAiScanning(false); return; }
       const isPdf = mediaType === 'application/pdf';
       const sourcePart = isPdf
         ? { type: 'document', source: { type: 'base64', media_type: mediaType, data: imageData } }
@@ -330,7 +331,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
           expiry_date: validDate(raw.expiry_date),
         });
       } else {
-        toast.error('לא הצלחתי לקרוא את המסמך - מלא ידנית');
+        toastError('לא הצלחתי לקרוא את המסמך - מלא ידנית', { action: 'doc_ai_no_data' });
       }
     } catch (err) {
       console.error('Document AI scan error:', err?.code, err?.message);
@@ -352,7 +353,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
         case 'AI_UNAVAILABLE':       msg = 'שירות AI לא זמין כרגע'; break;
         default:                     msg = 'שגיאה בסריקת המסמך';
       }
-      toast.error(msg);
+      toastError(msg, { action: 'doc_ai_scan' });
     } finally {
       setAiScanning(false);
     }
@@ -1296,7 +1297,7 @@ function AuthDocuments({ vehicleIdParam }) {
       console.error('Document save error:', err);
       hapticFeedback('heavy');
       const msg = err?.message || 'שגיאה לא ידועה';
-      toast.error('שגיאה בשמירת המסמך: ' + msg);
+      toastError('שגיאה בשמירת המסמך: ' + msg, { action: 'doc_save', err });
       reportUserError('save_document', err);
     } finally {
       setSaving(false);
@@ -1325,7 +1326,7 @@ function AuthDocuments({ vehicleIdParam }) {
     try {
       const url = await resolveDocUrl(doc);
       if (!url) {
-        toast.error('הקובץ לא זמין');
+        toastError('הקובץ לא זמין', { action: 'doc_open_unavailable' });
         return;
       }
       // openFileUrlSafely is now async — on Capacitor native it goes
@@ -1334,7 +1335,7 @@ function AuthDocuments({ vehicleIdParam }) {
       // from WKWebView. Plain `window.open()` returns null silently on
       // iOS and surfaced as the "כתובת לא מאובטחת" toast.
       const opened = await openFileUrlSafely(url);
-      if (!opened) toast.error('לא ניתן לפתוח את הקובץ');
+      if (!opened) toastError('לא ניתן לפתוח את הקובץ', { action: 'doc_open_failed' });
     } finally {
       setOpeningDocId(null);
     }
@@ -1354,7 +1355,7 @@ function AuthDocuments({ vehicleIdParam }) {
   const handleDownloadDocument = async (doc) => {
     const url = await resolveDocUrl(doc);
     if (!url) {
-      toast.error('הקובץ לא זמין להורדה');
+      toastError('הקובץ לא זמין להורדה', { action: 'doc_download_unavailable' });
       return;
     }
     try {
@@ -1385,7 +1386,7 @@ function AuthDocuments({ vehicleIdParam }) {
       toast.success('הפריט נמחק בהצלחה');
     } catch (err) {
       console.error('Document delete error:', err);
-      toast.error('שגיאה במחיקת המסמך');
+      toastError('שגיאה במחיקת המסמך', { action: 'doc_delete', err });
       reportUserError('delete_document', err);
     }
   };

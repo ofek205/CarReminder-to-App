@@ -23,6 +23,7 @@ import {
   ArrowRight, Plus, Trash2, Pencil, Check, X, FolderPlus, Download, Anchor, GripVertical,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -140,7 +141,7 @@ export default function ChecklistEditor() {
       }
       qc.invalidateQueries({ queryKey: ['vessel_checklists', vehicleId] });
     } catch (e) {
-      toast.error('שמירה נכשלה');
+      toastError('שמירה נכשלה', { action: 'checklist_edit_save', err: e });
     } finally {
       setSaving(false);
     }
@@ -155,7 +156,7 @@ export default function ChecklistEditor() {
       setRow({ ...row, name: n });
       qc.invalidateQueries({ queryKey: ['vessel_checklists', vehicleId] });
     } catch (e) {
-      toast.error('שינוי השם נכשל');
+      toastError('שינוי השם נכשל', { action: 'checklist_rename', err: e });
     }
   };
 

@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- supabase-admin-alerts-v2-error-triggers.sql
 --
--- Extends check_admin_alerts() with 2 new trigger conditions that
+-- Extends check_admin_alerts() with 3 new trigger conditions that
 -- leverage the v2 app_errors schema (route, action, visible, severity):
 --
 --   5. user_visible_error_spike — ≥5 visible=true errors in last 15 min.
@@ -13,7 +13,13 @@
 --      Catches performance degradation before queries cross the 8s
 --      timeout and become user-visible failures.
 --
--- Both triggers dedup against existing unacknowledged alerts in a 4-hour
+--   7. user_bug_report — fires on EVERY new user_report row.
+--      Bug reports are rare and high-signal (a user took the time to
+--      type out a complaint). Each one deserves its own alert; we do
+--      not coalesce. Deduped by app_errors.id so re-running the check
+--      never alerts twice on the same report.
+--
+-- All triggers dedup against existing unacknowledged alerts in a 4-hour
 -- window (same pattern as the original 4 triggers).
 --
 -- Idempotent — CREATE OR REPLACE FUNCTION. Re-runnable.
@@ -39,6 +45,7 @@ DECLARE
   v_visible_top    text;
   v_slow_count     integer;
   v_slow_top       text;
+  v_report         record;
 BEGIN
   -- ── Trigger 1: error_storm — same message ≥5 times in 5 min ──────────────
   FOR v_err IN
@@ -228,6 +235,50 @@ BEGIN
       );
     END IF;
   END IF;
+
+  -- ── Trigger 7 (NEW): user_bug_report — every new user_report row ─────────
+  -- A user who took the time to type a bug description is a high-signal
+  -- event. We surface EACH ONE as its own alert (no aggregation) so the
+  -- admin sees the message text directly. Dedup is per-report (by id)
+  -- via the context jsonb — re-running the check never alerts twice on
+  -- the same report.
+  FOR v_report IN
+    SELECT
+      e.id,
+      e.message,
+      e.user_id,
+      e.route,
+      e.created_at,
+      e.extra
+    FROM public.app_errors e
+    WHERE e.created_at >= v_window_start
+      AND e.type = 'user_report'
+  LOOP
+    IF EXISTS (
+      SELECT 1 FROM public.admin_alerts
+      WHERE kind = 'user_bug_report'
+        AND context->>'report_id' = v_report.id::text
+    ) THEN CONTINUE; END IF;
+
+    INSERT INTO public.admin_alerts (
+      kind, severity, title, message, context, first_seen_at, last_seen_at
+    ) VALUES (
+      'user_bug_report', 'medium',
+      'דיווח חדש ממשתמש',
+      format('"%s"%s',
+             substring(COALESCE(v_report.message, '') from 1 for 200),
+             CASE WHEN v_report.route IS NOT NULL
+                  THEN format(' (מתוך %s)', v_report.route)
+                  ELSE '' END),
+      jsonb_build_object(
+        'report_id',     v_report.id,
+        'user_id',       v_report.user_id,
+        'route',         v_report.route,
+        'context_note',  v_report.extra->>'context_note'
+      ),
+      v_report.created_at, v_report.created_at
+    );
+  END LOOP;
 
 END;
 $$;

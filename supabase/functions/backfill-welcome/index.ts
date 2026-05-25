@@ -29,6 +29,30 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// Inline best-effort error reporter — see notes in send-daily-digest.
+async function reportEdgeError(action: string, error: unknown, extra?: Record<string, unknown>) {
+  const FN = 'backfill-welcome';
+  const err = error as { message?: string; stack?: string } | null;
+  const message = (err?.message || String(error) || 'unknown').slice(0, 500);
+  const stack = (err?.stack || '').slice(0, 2000) || null;
+  try {
+    console.error(JSON.stringify({ _: 'edge_error', fn: FN, action, message, ts: new Date().toISOString() }));
+  } catch {}
+  try {
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await sb.from('app_errors').insert({
+      type: 'edge', message, stack,
+      url: `edge:/${FN}`, route: `edge:/${FN}`,
+      action, severity: 'error', visible: false,
+      app_version: 'edge', user_agent: 'edge-function',
+      extra: { fn: FN, ...(extra || {}) },
+      created_at: new Date().toISOString(),
+    });
+  } catch {}
+}
+
 function buildWelcomeHtml(firstName: string): string {
   const name = firstName || 'אורח/ת';
   return `
@@ -100,6 +124,7 @@ serve(async (req) => {
     );
 
     if (queryErr) {
+      await reportEdgeError('list_users_rpc', queryErr);
       return json({ error: `RPC error: ${queryErr.message}` }, 500);
     }
 
@@ -167,6 +192,7 @@ serve(async (req) => {
       } catch (err: any) {
         failed++;
         results.push({ email: u.email, status: 'failed', error: err?.message || 'Unknown error' });
+        await reportEdgeError('send_welcome_email', err, { recipient: u.email });
       }
 
       await new Promise(r => setTimeout(r, 500));
@@ -174,6 +200,7 @@ serve(async (req) => {
 
     return json({ ok: true, total: users.length, sent, failed, results });
   } catch (err: any) {
+    await reportEdgeError('backfill_main', err);
     return json({ error: err?.message || 'Unknown error' }, 500);
   }
 });

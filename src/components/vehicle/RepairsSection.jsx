@@ -22,6 +22,7 @@ import FileOrCameraUpload from "@/components/ui/file-or-camera-upload";
 import { formatDateHe } from "../shared/DateStatusUtils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { toastError } from "@/lib/userErrorReport";
 import ConfirmDeleteDialog from "../shared/ConfirmDeleteDialog";
 
 export default function RepairsSection({ vehicle }) {
@@ -95,7 +96,7 @@ export default function RepairsSection({ vehicle }) {
     const files = Array.from(e.target.files);
     for (const file of files) {
       const validation = validateUploadFile(file, 'doc', 10);
-      if (!validation.ok) { toast.error(validation.error); continue; }
+      if (!validation.ok) { toastError(validation.error, { action: 'repair_file_validate' }); continue; }
       // If the upload is an image, compress client-side before sending
       // to cut both upload time and storage egress.
       const payload = file.type?.startsWith('image/') ? await compressImage(file) : file;
@@ -113,11 +114,11 @@ export default function RepairsSection({ vehicle }) {
 
   const handleSaveRepair = async () => {
     if (!repairForm.title?.trim()) {
-      toast.error('יש להזין כותרת');
+      toastError('יש להזין כותרת', { action: 'repair_title_required' });
       return;
     }
     if (!repairForm.occurred_at) {
-      toast.error('יש להזין תאריך אירוע');
+      toastError('יש להזין תאריך אירוע', { action: 'repair_date_required' });
       return;
     }
 
@@ -159,7 +160,7 @@ export default function RepairsSection({ vehicle }) {
     });
     if (error) {
       setSaving(false);
-      toast.error('שמירה נכשלה: ' + error.message);
+      toastError('שמירה נכשלה: ' + error.message, { action: 'repair_save', err: error });
       return;
     }
 

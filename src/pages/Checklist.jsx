@@ -28,6 +28,7 @@ import { db } from '@/lib/supabaseEntities';
 import { PHASE_LABELS } from '@/lib/checklistTemplates';
 import { ArrowRight, Check, X, Minus, AlertCircle, CheckCircle2, Pin, AlertTriangle, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { Progress } from '@/components/ui/progress';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
@@ -333,7 +334,7 @@ export default function Checklist() {
       } catch (e) {
         corkFailed = true;
         console.warn('[checklist] cork note failed:', e);
-        toast.error('פתק הלוח לא נוצר: ' + (e?.message || 'שגיאה'));
+        toastError('פתק הלוח לא נוצר: ' + (e?.message || 'שגיאה'), { action: 'checklist_cork_note', err: e });
       }
     }
 
@@ -355,7 +356,7 @@ export default function Checklist() {
       } catch (e) {
         issueFailed = true;
         console.warn('[checklist] vessel_issue failed:', e);
-        toast.error('רשומת התקלה לא נוצרה: ' + (e?.message || 'שגיאה'));
+        toastError('רשומת התקלה לא נוצרה: ' + (e?.message || 'שגיאה'), { action: 'checklist_vessel_issue', err: e });
       }
     }
 
@@ -418,7 +419,7 @@ export default function Checklist() {
       toast.success('הבדיקה נשמרה');
       navigate(`${createPageUrl('ChecklistHub')}?vehicleId=${vehicleId}`);
     } catch (e) {
-      toast.error('שמירה נכשלה');
+      toastError('שמירה נכשלה', { action: 'checklist_save', err: e });
       setFinishing(false);
     }
   };

@@ -8,6 +8,7 @@ import { Loader2, Save, Mail, Bell, Smartphone, MessageCircle, Send } from "luci
 import { sendTestNotification } from "@/lib/notificationService";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import { toast } from "sonner";
+import { toastError } from "@/lib/userErrorReport";
 import { useAuth } from "../components/shared/GuestContext";
 import { isNative } from "@/lib/capacitor";
 import { requestNotificationPermission, checkNotificationPermission } from "@/lib/notificationChannels";
@@ -244,7 +245,7 @@ function AuthReminderSettings({ embedded = false }) {
       }
       toast.success('ההגדרות נשמרו');
     } catch (e) {
-      toast.error('שגיאה בשמירה: ' + (e?.message?.slice(0, 80) || ''));
+      toastError('שגיאה בשמירה: ' + (e?.message?.slice(0, 80) || ''), { action: 'reminder_settings_save', err: e });
       console.error('reminder_settings save error', e);
     } finally {
       setSaving(false);
@@ -274,7 +275,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
     const granted = await requestNotificationPermission();
     setDevicePermission(granted);
     if (granted) toast.success('התראות הופעלו');
-    else toast.error('ההרשאה נדחתה - ניתן להפעיל בהגדרות המכשיר');
+    else toastError('ההרשאה נדחתה - ניתן להפעיל בהגדרות המכשיר', { action: 'reminder_settings_perm_denied' });
   };
 
   const toggleType = (key) => {
@@ -573,12 +574,12 @@ function TestNotificationButton() {
       if (res.ok) {
         toast.success('נשלחה התראת בדיקה. תגיע בעוד כ-5 שניות');
       } else if (res.reason === 'permission_denied') {
-        toast.error('אין הרשאת התראות. אפשר בהגדרות המכשיר');
+        toastError('אין הרשאת התראות. אפשר בהגדרות המכשיר', { action: 'reminder_settings_test_perm' });
       } else {
-        toast.error('שליחה נכשלה');
+        toastError('שליחה נכשלה', { action: 'reminder_settings_test_send' });
       }
-    } catch {
-      toast.error('שליחה נכשלה');
+    } catch (err) {
+      toastError('שליחה נכשלה', { action: 'reminder_settings_test_send_ex', err });
     } finally {
       setSending(false);
     }

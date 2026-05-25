@@ -21,6 +21,7 @@ import {
   CheckCircle2, AlertTriangle, X, Copy, FileWarning, Briefcase,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -238,7 +239,7 @@ export default function BulkAddVehicles() {
   // ---------- handlers ----------------------------------------------
 
   const startReview = async () => {
-    if (plates.length === 0) { toast.error('הוסף לפחות מספר רישוי אחד'); return; }
+    if (plates.length === 0) { toastError('הוסף לפחות מספר רישוי אחד', { action: 'bulk_add_no_plates' }); return; }
     setStep('review');
     setProgress({ done: 0, total: plates.length });
 
@@ -258,7 +259,7 @@ export default function BulkAddVehicles() {
 
   const submitImport = async () => {
     const toImport = rows.filter(r => r.included && r.status === 'found');
-    if (toImport.length === 0) { toast.error('אין רכבים להוסיף'); return; }
+    if (toImport.length === 0) { toastError('אין רכבים להוסיף', { action: 'bulk_add_nothing_to_import' }); return; }
 
     setSubmitting(true);
     try {
@@ -306,9 +307,9 @@ export default function BulkAddVehicles() {
       toast.success(`${data.added_count} רכבים נוספו לצי`);
     } catch (err) {
       const msg = err?.message || '';
-      if      (msg.includes('forbidden_not_manager')) toast.error('אין לך הרשאת מנהל');
-      else if (msg.includes('invalid_input'))         toast.error('קלט לא תקין');
-      else                                             toast.error('הייבוא נכשל. נסה שוב.');
+      if      (msg.includes('forbidden_not_manager')) toastError('אין לך הרשאת מנהל', { action: 'bulk_add_forbidden', err });
+      else if (msg.includes('invalid_input'))         toastError('קלט לא תקין', { action: 'bulk_add_invalid_input', err });
+      else                                             toastError('הייבוא נכשל. נסה שוב.', { action: 'bulk_add_import', err });
        
       console.error('bulk_add_vehicles failed:', err);
     } finally {
@@ -433,11 +434,11 @@ function InputStep({ onPlatesParsed, onContinue, plates }) {
     try {
       const parsed = await parseXlsxFile(file);
       onPlatesParsed(parsed);
-      if (parsed.length === 0) toast.error('לא נמצאו מספרי רישוי תקינים בקובץ');
+      if (parsed.length === 0) toastError('לא נמצאו מספרי רישוי תקינים בקובץ', { action: 'bulk_add_no_plates_in_file' });
     } catch (err) {
        
       console.error('xlsx parse failed:', err);
-      toast.error('הקריאה מהקובץ נכשלה. ודא שזה קובץ אקסל תקין.');
+      toastError('הקריאה מהקובץ נכשלה. ודא שזה קובץ אקסל תקין.', { action: 'bulk_add_xlsx_parse', err });
     } finally {
       setParsing(false);
     }
@@ -814,8 +815,8 @@ function CopyPlatesButton({ plates }) {
       await navigator.clipboard.writeText(plates.join('\n'));
       setCopied(true);
       setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION_MS);
-    } catch {
-      toast.error('הההעתקה נכשלה');
+    } catch (err) {
+      toastError('הההעתקה נכשלה', { action: 'bulk_add_copy', err });
     }
   };
   if (plates.length === 0) return null;

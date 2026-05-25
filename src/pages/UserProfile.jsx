@@ -20,6 +20,7 @@ import LoadingSpinner from "../components/shared/LoadingSpinner";
 import DriverLicenseScanDialog from "../components/profile/DriverLicenseScanDialog";
 import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { toast } from "sonner";
+import { toastError } from "@/lib/userErrorReport";
 import { useAuth } from "../components/shared/GuestContext";
 import useFormValidation from '@/hooks/useFormValidation';
 import FieldError from '../components/shared/FieldError';
@@ -314,7 +315,7 @@ function AuthUserProfile({ embedded = false }) {
     })) return;
 
     if (form.birth_date && !isOldEnough(form.birth_date)) {
-      toast.error(`תאריך הלידה חייב להיות לפני גיל ${MIN_AGE_YEARS} לפחות`);
+      toastError(`תאריך הלידה חייב להיות לפני גיל ${MIN_AGE_YEARS} לפחות`, { action: 'user_profile_age_invalid' });
       return;
     }
 

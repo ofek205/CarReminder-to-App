@@ -11,6 +11,7 @@ import AppUpdateGate from '@/components/shared/AppUpdateGate';
 import BootDebug from './pages/BootDebug';
 import RootGate from './components/shared/RootGate';
 import PageErrorBoundary from '@/components/shared/PageErrorBoundary';
+import ReportBugDialog from '@/components/shared/ReportBugDialog';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -280,6 +281,10 @@ function App() {
           mounted but received no toasts (every caller uses sonner's toast())
           so it was pure dead code + 3 unused npm deps. */}
       <SonnerToaster position="top-center" dir="rtl" richColors theme="light" />
+      {/* ReportBugDialog mounts OUTSIDE every route boundary so it stays
+          renderable when a route is in error state. Opened from anywhere
+          via the cr:open-report-bug window event (see openReportBugDialog). */}
+      <ReportBugDialog />
     </div>
   )
 }

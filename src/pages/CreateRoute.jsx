@@ -29,6 +29,7 @@ import {
   Crown, Shield, Pencil, AlertTriangle, Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -262,8 +263,8 @@ export default function CreateRoute() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const cleanTitle = title.trim();
-    if (!cleanTitle)  { toast.error('יש להזין שם למשימה'); return; }
-    if (!vehicleId)   { toast.error('יש לבחור רכב למשימה'); return; }
+    if (!cleanTitle)  { toastError('יש להזין שם למשימה', { action: 'create_route_title_required' }); return; }
+    if (!vehicleId)   { toastError('יש לבחור רכב למשימה', { action: 'create_route_vehicle_required' }); return; }
 
     // Build the cleaned stop list. Drop stops that are entirely empty
     // (a multi-stop form with one blank trailing card shouldn't fail
@@ -271,7 +272,7 @@ export default function CreateRoute() {
     const indexed = stops.map((s, i) => ({ ...s, _i: i }));
     const populated = indexed.filter(s => s.title.trim() || stopAddressText(s));
     if (populated.length === 0) {
-      toast.error('יש להזין יעד למשימה');
+      toastError('יש להזין יעד למשימה', { action: 'create_route_destination_required' });
       return;
     }
 
@@ -354,11 +355,11 @@ export default function CreateRoute() {
       navigate(createPageUrl('RouteDetail') + '?id=' + newRouteId);
     } catch (err) {
       const code = err?.message || '';
-      if      (code.includes('forbidden_not_manager'))    toast.error('אין לך הרשאת מנהל בחשבון הזה');
-      else if (code.includes('vehicle_not_in_workspace')) toast.error('הרכב שנבחר לא שייך לחשבון העסקי');
-      else if (code.includes('driver_not_workspace_member')) toast.error('הנהג שנבחר אינו חבר פעיל בחשבון');
-      else if (code.includes('title_required'))           toast.error('יש להזין שם למשימה');
-      else                                                 toast.error('יצירת המשימה נכשלה. נסה שוב.');
+      if      (code.includes('forbidden_not_manager'))    toastError('אין לך הרשאת מנהל בחשבון הזה', { action: 'create_route_forbidden', err });
+      else if (code.includes('vehicle_not_in_workspace')) toastError('הרכב שנבחר לא שייך לחשבון העסקי', { action: 'create_route_wrong_workspace', err });
+      else if (code.includes('driver_not_workspace_member')) toastError('הנהג שנבחר אינו חבר פעיל בחשבון', { action: 'create_route_driver_not_member', err });
+      else if (code.includes('title_required'))           toastError('יש להזין שם למשימה', { action: 'create_route_title_required', err });
+      else                                                 toastError('יצירת המשימה נכשלה. נסה שוב.', { action: 'create_route_save', err });
        
       console.error('CreateRoute failed:', err);
     } finally {

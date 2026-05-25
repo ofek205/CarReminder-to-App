@@ -2162,13 +2162,22 @@ function AdminBugsTab() {
   const [filterDays, setFilterDays] = useState(7);     // 1 / 7 / 30 / null=all
   const [filterType, setFilterType] = useState('all'); // 'all' | 'Error' | 'Promise' | 'React'
   const [filterResolved, setFilterResolved] = useState('unresolved'); // 'all' | 'resolved' | 'unresolved'
+  // Visibility filter — Phase 2 observability. Lets the admin focus on
+  // the most actionable bucket: errors the user actually saw, or bug
+  // reports the user wrote themselves. 'silent' = the user never noticed
+  // (still worth fixing but lower urgency).
+  const [filterVisibility, setFilterVisibility] = useState('all'); // 'all' | 'visible' | 'user_report' | 'silent'
+  const [expandedId, setExpandedId] = useState(null);
 
   const loadBugs = useCallback(async () => {
     setSource('loading');
     try {
       let query = supabase
         .from('app_errors')
-        .select('id, type, message, stack, url, user_agent, user_id, extra, resolved, created_at, timestamp')
+        // The v2 schema adds: route, action, severity, visible, breadcrumbs,
+        // app_version, session_id — we fetch them so the expanded view can
+        // show the user's path to the error without a second round-trip.
+        .select('id, type, message, stack, url, route, action, severity, visible, breadcrumbs, app_version, session_id, user_agent, user_id, extra, resolved, created_at, timestamp')
         .order('created_at', { ascending: false })
         .limit(500);
       if (filterDays) {
@@ -2178,6 +2187,9 @@ function AdminBugsTab() {
       if (filterType !== 'all') query = query.eq('type', filterType);
       if (filterResolved === 'resolved')   query = query.eq('resolved', true);
       if (filterResolved === 'unresolved') query = query.eq('resolved', false);
+      if (filterVisibility === 'visible')     query = query.eq('visible', true);
+      if (filterVisibility === 'user_report') query = query.eq('type', 'user_report');
+      if (filterVisibility === 'silent')      query = query.or('visible.is.null,visible.eq.false');
       const { data, error } = await query;
       if (error) throw error;
       setBugs(data || []);
@@ -2197,7 +2209,7 @@ function AdminBugsTab() {
         setErrorMsg(localErr?.message || 'no_data');
       }
     }
-  }, [filterDays, filterType, filterResolved]);
+  }, [filterDays, filterType, filterResolved, filterVisibility]);
 
   useEffect(() => { loadBugs(); }, [loadBugs]);
 
@@ -2309,6 +2321,14 @@ function AdminBugsTab() {
             <option value="resolved">טופלו</option>
             <option value="all">הכל</option>
           </select>
+          <select value={filterVisibility}
+            onChange={(e) => setFilterVisibility(e.target.value)}
+            className="border border-gray-200 rounded-lg px-2 py-1 bg-white">
+            <option value="all">הכל</option>
+            <option value="visible">שגיאות שמשתמשים ראו</option>
+            <option value="user_report">דיווחי משתמשים</option>
+            <option value="silent">שגיאות שקטות</option>
+          </select>
         </div>
 
         {bugs.length === 0 ? (
@@ -2318,37 +2338,148 @@ function AdminBugsTab() {
           </div>
         ) : (
           <div className="space-y-2">
-            {bugs.map((b, i) => (
-              <div key={b.id || i} className="border border-red-100 bg-red-50/30 rounded-xl p-3">
-                <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
-                  <span className="font-bold text-sm text-red-800">{b.type || 'Error'}</span>
-                  <div className="flex items-center gap-2">
-                    {b.resolved && (
+            {bugs.map((b, i) => {
+              const isExpanded = expandedId === (b.id || `idx-${i}`);
+              const isUserReport = b.type === 'user_report';
+              const isVisible    = b.visible === true;
+              // Severity colours map to a calibrated palette so the eye
+              // catches critical reds first, warnings stay amber, info
+              // never screams. Default to error red if unset.
+              const sev = b.severity || 'error';
+              const sevPalette = {
+                critical: { bg: '#FEE2E2', text: '#991B1B', label: 'קריטי' },
+                error:    { bg: '#FEE2E2', text: '#7F1D1D', label: 'שגיאה' },
+                warning:  { bg: '#FEF3C7', text: '#92400E', label: 'אזהרה' },
+                info:     { bg: '#DBEAFE', text: '#1E3A8A', label: 'מידע' },
+              }[sev] || { bg: '#FEE2E2', text: '#7F1D1D', label: sev };
+              // Card frame colour — user_report uses a calm indigo (it's
+              // user feedback, not a crash). Visible-to-user errors use
+              // amber (real frustration, but not a crash). Silent errors
+              // stay red (they crashed, even if invisibly).
+              const frame = isUserReport
+                ? { border: '#C7D2FE', bg: '#EEF2FF' }
+                : isVisible
+                  ? { border: '#FDE68A', bg: '#FFFBEB' }
+                  : { border: '#FECACA', bg: '#FEF2F2' };
+              return (
+                <div key={b.id || i}
+                  className="rounded-xl p-3 transition-colors"
+                  style={{ border: `1px solid ${frame.border}`, background: frame.bg }}>
+                  <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-sm" style={{ color: '#1F2937' }}>
+                        {isUserReport ? 'דיווח משתמש' : (b.type || 'Error')}
+                      </span>
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                        style={{ background: '#E8F2EA', color: '#1C3620' }}>טופל</span>
-                    )}
-                    <span className="text-[10px] text-gray-500">
-                      {b.created_at
-                        ? format(new Date(b.created_at), 'dd/MM HH:mm')
-                        : b.timestamp
-                          ? format(new Date(b.timestamp), 'dd/MM HH:mm')
-                          : ''}
-                    </span>
+                        style={{ background: sevPalette.bg, color: sevPalette.text }}>
+                        {sevPalette.label}
+                      </span>
+                      {isVisible && !isUserReport && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                          style={{ background: '#FFEDD5', color: '#9A3412' }}>
+                          המשתמש ראה
+                        </span>
+                      )}
+                      {b.action && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" dir="ltr"
+                          style={{ background: '#F3F4F6', color: '#374151' }}>
+                          {b.action}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {b.resolved && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                          style={{ background: '#E8F2EA', color: '#1C3620' }}>טופל</span>
+                      )}
+                      <span className="text-[10px] text-gray-500">
+                        {b.created_at
+                          ? format(new Date(b.created_at), 'dd/MM HH:mm')
+                          : b.timestamp
+                            ? format(new Date(b.timestamp), 'dd/MM HH:mm')
+                            : ''}
+                      </span>
+                    </div>
                   </div>
+                  <p className="text-xs text-gray-700 break-words">{b.message || JSON.stringify(b).slice(0, 150)}</p>
+                  {(b.route || b.url) && (
+                    <p className="text-[10px] text-gray-500 mt-1" dir="ltr">{b.route || b.url}</p>
+                  )}
+                  {b.user_id && (
+                    <p className="text-[10px] text-gray-400 mt-0.5">user: <span dir="ltr">{b.user_id.slice(0, 8)}…</span></p>
+                  )}
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(isExpanded ? null : (b.id || `idx-${i}`))}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">
+                      {isExpanded ? '▲ הסתר פירוט' : '▼ פירורי לחם וסטאק'}
+                    </button>
+                    {source === 'remote' && !b.resolved && b.id && (
+                      <button onClick={() => markResolved(b)}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded border border-green-700 text-green-800 hover:bg-green-50">
+                        סמן כטופל
+                      </button>
+                    )}
+                  </div>
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t space-y-2"
+                      style={{ borderColor: frame.border }}>
+                      {Array.isArray(b.breadcrumbs) && b.breadcrumbs.length > 0 ? (
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-600 mb-1">
+                            פירורי לחם של מסע המשתמש ({b.breadcrumbs.length})
+                          </p>
+                          <ol className="space-y-0.5">
+                            {b.breadcrumbs.slice(-15).map((c, ci) => (
+                              <li key={ci} className="flex items-center gap-2 text-[10px]">
+                                <span className="font-mono px-1.5 py-0.5 rounded shrink-0" dir="ltr"
+                                  style={{ background: '#E5E7EB', color: '#374151' }}>
+                                  {c.kind}
+                                </span>
+                                <span className="text-gray-700 break-words">{c.label}</span>
+                                {c.ts && (
+                                  <span className="text-gray-400 shrink-0 mr-auto" dir="ltr">
+                                    {format(new Date(c.ts), 'HH:mm:ss')}
+                                  </span>
+                                )}
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-gray-400">אין פירורי לחם לאירוע הזה</p>
+                      )}
+                      {b.stack && (
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-600 mb-1">סטאק</p>
+                          <pre className="text-[10px] text-gray-600 bg-white border rounded p-2 overflow-x-auto whitespace-pre-wrap break-all" dir="ltr"
+                            style={{ borderColor: '#E5E7EB', maxHeight: 160 }}>
+                            {String(b.stack).slice(0, 1200)}
+                          </pre>
+                        </div>
+                      )}
+                      {b.extra && Object.keys(b.extra).length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-600 mb-1">הקשר נוסף</p>
+                          <pre className="text-[10px] text-gray-600 bg-white border rounded p-2 overflow-x-auto" dir="ltr"
+                            style={{ borderColor: '#E5E7EB' }}>
+                            {JSON.stringify(b.extra, null, 2).slice(0, 600)}
+                          </pre>
+                        </div>
+                      )}
+                      {(b.app_version || b.session_id) && (
+                        <p className="text-[10px] text-gray-400" dir="ltr">
+                          {b.app_version && <>v{b.app_version}</>}
+                          {b.app_version && b.session_id && <> · </>}
+                          {b.session_id && <>session {String(b.session_id).slice(0, 8)}…</>}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs text-gray-700 break-words">{b.message || JSON.stringify(b).slice(0, 150)}</p>
-                {b.url && <p className="text-[10px] text-gray-400 mt-1">{b.url}</p>}
-                {b.user_id && (
-                  <p className="text-[10px] text-gray-400 mt-0.5">user: <span dir="ltr">{b.user_id.slice(0, 8)}…</span></p>
-                )}
-                {source === 'remote' && !b.resolved && b.id && (
-                  <button onClick={() => markResolved(b)}
-                    className="mt-2 text-[10px] font-bold px-2 py-0.5 rounded border border-green-700 text-green-800 hover:bg-green-50">
-                    סמן כטופל
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { DateInput } from '@/components/ui/date-input';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { Loader2, Upload, Camera, Trash2, Check, IdCard, ExternalLink, Plus } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 import {
@@ -144,8 +145,8 @@ export default function ExternalDriverFormDialog({
     e.target.value = '';
 
     const v = validateUploadFile(file, 'photo', 10);
-    if (!v.ok) { toast.error(v.error); return; }
-    if (!accountId) { toast.error('עדיין נטען. נסה שוב בעוד רגע'); return; }
+    if (!v.ok) { toastError(v.error, { action: 'driver_photo_validate' }); return; }
+    if (!accountId) { toastError('עדיין נטען. נסה שוב בעוד רגע', { action: 'driver_account_loading' }); return; }
 
     setUploading(true);
     try {
@@ -161,7 +162,7 @@ export default function ExternalDriverFormDialog({
       toast.success('תמונת הרישיון נטענה');
     } catch (err) {
       console.error('license photo upload error:', err);
-      toast.error(err?.message || 'שגיאה בהעלאת התמונה');
+      toastError(err?.message || 'שגיאה בהעלאת התמונה', { action: 'driver_photo_upload', err });
     } finally {
       setUploading(false);
     }
@@ -208,17 +209,17 @@ export default function ExternalDriverFormDialog({
     e?.preventDefault?.();
 
     const cleanName = fullName.trim();
-    if (!cleanName) { toast.error('יש להזין שם מלא'); setFE('full_name', 'יש להזין שם מלא'); return; }
+    if (!cleanName) { toastError('יש להזין שם מלא', { action: 'driver_name_required' }); setFE('full_name', 'יש להזין שם מלא'); return; }
     const cleanPhone = phone.trim();
-    if (!cleanPhone) { toast.error('יש להזין טלפון'); setFE('phone', 'יש להזין טלפון'); return; }
+    if (!cleanPhone) { toastError('יש להזין טלפון', { action: 'driver_phone_required' }); setFE('phone', 'יש להזין טלפון'); return; }
     if (!isPlausiblePhone(cleanPhone)) {
-      toast.error('מספר הטלפון לא נראה תקין');
+      toastError('מספר הטלפון לא נראה תקין', { action: 'driver_phone_invalid' });
       setFE('phone', 'מספר הטלפון לא נראה תקין');
       return;
     }
     const cleanEmail = email.trim();
     if (cleanEmail && !isValidEmail(cleanEmail)) {
-      toast.error('האימייל לא נראה תקין');
+      toastError('האימייל לא נראה תקין', { action: 'driver_email_invalid' });
       setFE('email', 'אימייל לא תקין');
       return;
     }
@@ -275,10 +276,10 @@ export default function ExternalDriverFormDialog({
     } catch (err) {
       console.error('external driver save error:', err);
       const msg = err?.message || '';
-      if      (msg.includes('forbidden_not_manager')) toast.error('אין לך הרשאת מנהל');
-      else if (msg.includes('full_name_required'))    toast.error('יש להזין שם מלא');
-      else if (msg.includes('phone_required'))        toast.error('יש להזין טלפון');
-      else                                             toast.error('שגיאה בשמירה. נסה שוב.');
+      if      (msg.includes('forbidden_not_manager')) toastError('אין לך הרשאת מנהל', { action: 'driver_save_forbidden', err });
+      else if (msg.includes('full_name_required'))    toastError('יש להזין שם מלא', { action: 'driver_save_name_required', err });
+      else if (msg.includes('phone_required'))        toastError('יש להזין טלפון', { action: 'driver_save_phone_required', err });
+      else                                             toastError('שגיאה בשמירה. נסה שוב.', { action: 'driver_save', err });
     } finally {
       setSubmitting(false);
     }

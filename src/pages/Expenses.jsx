@@ -35,6 +35,7 @@ import {
   ScanLine, Sparkles, FileText, AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -247,7 +248,7 @@ export default function Expenses() {
                     toast.success('ההוצאה נמחקה');
                     await queryClient.invalidateQueries({ queryKey: ['expenses'] });
                   } catch (delErr) {
-                    toast.error('המחיקה נכשלה. נסה שוב.');
+                    toastError('המחיקה נכשלה. נסה שוב.', { action: 'expense_inline_delete', err: delErr });
                     reportUserError('delete_expense', delErr);
                   }
                 }}
@@ -523,10 +524,10 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
   // -- submit --------------------------------------------------------
   const submit = async (e) => {
     e.preventDefault();
-    if (!isEdit && !vehicleId) { toast.error('יש לבחור רכב'); return; }
+    if (!isEdit && !vehicleId) { toastError('יש לבחור רכב', { action: 'expense_vehicle_required' }); return; }
     const amt = Number(amount);
-    if (Number.isNaN(amt) || amt < 0) { toast.error('הסכום לא תקין'); return; }
-    if (!date) { toast.error('יש לבחור תאריך'); return; }
+    if (Number.isNaN(amt) || amt < 0) { toastError('הסכום לא תקין', { action: 'expense_amount_invalid' }); return; }
+    if (!date) { toastError('יש לבחור תאריך', { action: 'expense_date_required' }); return; }
 
     setSubmitting(true);
     try {
@@ -568,11 +569,11 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
       onSaved?.();
     } catch (err) {
       const msg = err?.message || '';
-      if      (msg.includes('forbidden_not_manager'))    toast.error('אין לך הרשאת מנהל בחשבון הזה');
-      else if (msg.includes('vehicle_not_in_workspace')) toast.error('הרכב שנבחר לא שייך לחשבון הזה');
-      else if (msg.includes('invalid_amount'))           toast.error('הסכום לא תקין');
-      else if (msg.includes('invalid_category'))         toast.error('קטגוריה לא תקינה');
-      else                                                toast.error('השמירה נכשלה. נסה שוב.');
+      if      (msg.includes('forbidden_not_manager'))    toastError('אין לך הרשאת מנהל בחשבון הזה', { action: 'expense_save_forbidden', err });
+      else if (msg.includes('vehicle_not_in_workspace')) toastError('הרכב שנבחר לא שייך לחשבון הזה', { action: 'expense_save_wrong_workspace', err });
+      else if (msg.includes('invalid_amount'))           toastError('הסכום לא תקין', { action: 'expense_save_amount_invalid', err });
+      else if (msg.includes('invalid_category'))         toastError('קטגוריה לא תקינה', { action: 'expense_save_category_invalid', err });
+      else                                                toastError('השמירה נכשלה. נסה שוב.', { action: 'expense_save', err });
 
       console.error('expense save failed:', err);
       reportUserError('save_expense', err);

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { Ban, RotateCcw, Loader2 } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 import { formatDistanceToNow } from 'date-fns';
@@ -50,7 +51,7 @@ export default function BlockedUsersList() {
       const { error } = await supabase.from('blocked_users').delete().eq('id', blockId);
       if (error) {
         console.warn('Unblock failed:', error.message);
-        toast.error('שגיאה בהסרת החסימה');
+        toastError('שגיאה בהסרת החסימה', { action: 'unblock_user', err: error });
         return;
       }
       await queryClient.invalidateQueries({ queryKey: ['blocked_users'] });
@@ -58,7 +59,7 @@ export default function BlockedUsersList() {
       toast.success('החסימה הוסרה');
     } catch (e) {
       console.warn('Unblock network error:', e?.message);
-      toast.error('שגיאה ברשת');
+      toastError('שגיאה ברשת', { action: 'unblock_user_network', err: e });
     } finally {
       setUnblockingId(null);
     }

@@ -11,6 +11,7 @@ import SharedIndicator from "@/components/sharing/SharedIndicator";
 import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
 import SharingHelpButton from "@/components/sharing/SharingHelpButton";
 import { toast } from "sonner";
+import { toastError } from "@/lib/userErrorReport";
 import { getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -631,13 +632,13 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!vehicle?.account_id) {
-      toast.error('הרכב עדיין נטען, נסה שוב בעוד רגע');
+      toastError('הרכב עדיין נטען, נסה שוב בעוד רגע', { action: 'vehicle_detail_loading' });
       e.target.value = '';
       return;
     }
     const validation = validateUploadFile(file, 'photo', 10);
     if (!validation.ok) {
-      toast.error(validation.error);
+      toastError(validation.error, { action: 'vehicle_detail_photo_validate' });
       e.target.value = '';
       return;
     }
@@ -658,7 +659,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
       toast.success('התמונה נוספה');
     } catch (err) {
       console.error('Hero photo upload error:', err);
-      toast.error(err?.message || 'שגיאה בהעלאת התמונה');
+      toastError(err?.message || 'שגיאה בהעלאת התמונה', { action: 'vehicle_detail_hero_upload', err });
     } finally {
       setUploadingHeroPhoto(false);
       if (e.target) e.target.value = '';
@@ -696,7 +697,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         if (error) throw error;
         toast.success('הוסרת מהשיתוף');
       } else {
-        toast.error('אין הרשאה למחוק');
+        toastError('אין הרשאה למחוק', { action: 'vehicle_detail_delete_forbidden' });
         setDeleting(false);
         return;
       }
@@ -706,7 +707,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
       queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
       navigate(createPageUrl('Dashboard'));
     } catch (e) {
-      toast.error(`שגיאה במחיקה: ${e?.message || 'נסה שוב'}`);
+      toastError(`שגיאה במחיקה: ${e?.message || 'נסה שוב'}`, { action: 'vehicle_detail_delete', err: e });
       setDeleting(false);
     }
   };

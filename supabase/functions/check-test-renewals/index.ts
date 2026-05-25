@@ -82,6 +82,31 @@ function json(body: unknown, status = 200, req?: Request) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+// Inline best-effort error reporter — see notes in send-daily-digest.
+async function reportEdgeError(action: string, error: unknown, extra?: Record<string, unknown>) {
+  const FN = 'check-test-renewals';
+  const err = error as { message?: string; stack?: string } | null;
+  const message = (err?.message || String(error) || 'unknown').slice(0, 500);
+  const stack = (err?.stack || '').slice(0, 2000) || null;
+  try {
+    console.error(JSON.stringify({ _: 'edge_error', fn: FN, action, message, ts: new Date().toISOString() }));
+  } catch {}
+  try {
+    if (!SUPABASE_URL || !SERVICE_ROLE) return;
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await sb.from('app_errors').insert({
+      type: 'edge', message, stack,
+      url: `edge:/${FN}`, route: `edge:/${FN}`,
+      action, severity: 'error', visible: false,
+      app_version: 'edge', user_agent: 'edge-function',
+      extra: { fn: FN, ...(extra || {}) },
+      created_at: new Date().toISOString(),
+    });
+  } catch {}
+}
+
 async function authorizeCaller(req: Request, supabaseAdmin: any): Promise<{ ok: boolean; reason?: string }> {
   const headerSecret = req.headers.get('x-dispatch-secret');
   if (DISPATCH_SECRET && headerSecret && headerSecret === DISPATCH_SECRET) {
@@ -193,6 +218,7 @@ serve(async (req: Request) => {
     .limit(MAX_VEHICLES_PER_RUN);
 
   if (vehErr) {
+    await reportEdgeError('list_vehicles', vehErr);
     return json({ error: 'query failed', detail: vehErr.message }, 500, req);
   }
 
@@ -233,6 +259,7 @@ serve(async (req: Request) => {
 
     if (rpcErr) {
       stats.errors++;
+      await reportEdgeError('record_test_renewal_rpc', rpcErr, { vehicle_id: v.id });
       continue;
     }
     // RPC returns a single-row table. If `was_new` is true we count it,

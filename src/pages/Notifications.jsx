@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { MEMBER_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User, Check, X, Loader2, RefreshCw } from "lucide-react";
+import { Bell, CheckCircle, Calendar, Shield, Wrench, FileText, AlertTriangle, Clock, User, Check, X, Loader2, RefreshCw, BellOff } from "lucide-react";
 import { withTimeout } from '@/lib/supabaseQuery';
 import AdminMessageDialog from "../components/shared/AdminMessageDialog";
 import { Link, useNavigate } from 'react-router-dom';
@@ -15,22 +15,25 @@ import { useAuth } from "../components/shared/GuestContext";
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { calcAllReminders, daysUntil } from "../components/shared/ReminderEngine";
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '../components/ui/drawer';
+import useReminderSnooze, { SNOOZE_OPTIONS } from '../hooks/useReminderSnooze';
 
 const TYPE_CONFIG = {
-  'טסט':        { icon: Calendar,  bg: '#FFF8E1', color: '#D97706', border: '#FDE68A' },
-  'כושר שייט':  { icon: Calendar,  bg: '#E0F7FA', color: '#0C7B93', border: '#B2EBF2' },
-  'ביטוח':      { icon: Shield,    bg: '#FFF8E1', color: '#D97706', border: '#FDE68A' },
-  'ביטוח ימי':  { icon: Shield,    bg: '#E0F7FA', color: '#0C7B93', border: '#B2EBF2' },
-  'טיפול':      { icon: Wrench,    bg: '#FFF8E1', color: '#D97706', border: '#FDE68A' },
-  'צמיגים':     { icon: Wrench,    bg: '#FFF8E1', color: '#D97706', border: '#FDE68A' },
-  'בלמים':      { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
-  'עדכון':      { icon: Clock,     bg: '#F0FDF4', color: '#16A34A', border: '#BBF7D0' },
-  'מספנה':      { icon: Wrench,    bg: '#E0F7FA', color: '#0C7B93', border: '#B2EBF2' },
-  'פירוטכניקה': { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
-  'מטף כיבוי':  { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
-  'אסדת הצלה':  { icon: AlertTriangle, bg: '#FFF7ED', color: '#EA580C', border: '#FFEDD5' },
-  'תסקיר':       { icon: FileText,  bg: '#FEF3C7', color: '#92400E', border: '#FDE68A' },
+  'טסט':        { icon: Calendar,      bg: C.yellowSoft, color: C.warn,     border: C.warnBorder },
+  'כושר שייט':  { icon: Calendar,      bg: '#E0F7FA',    color: '#0C7B93',  border: '#B2EBF2' }, // marine — theme-specific
+  'ביטוח':      { icon: Shield,        bg: C.yellowSoft, color: C.warn,     border: C.warnBorder },
+  'ביטוח ימי':  { icon: Shield,        bg: '#E0F7FA',    color: '#0C7B93',  border: '#B2EBF2' }, // marine
+  'טיפול':      { icon: Wrench,        bg: C.yellowSoft, color: C.warn,     border: C.warnBorder },
+  'צמיגים':     { icon: Wrench,        bg: C.yellowSoft, color: C.warn,     border: C.warnBorder },
+  'בלמים':      { icon: AlertTriangle, bg: C.orangeBg,   color: C.orange,   border: '#FFEDD5' },
+  'עדכון':      { icon: Clock,         bg: '#F0FDF4',    color: '#16A34A',  border: '#BBF7D0' },
+  'מספנה':      { icon: Wrench,        bg: '#E0F7FA',    color: '#0C7B93',  border: '#B2EBF2' }, // marine
+  'פירוטכניקה': { icon: AlertTriangle, bg: C.orangeBg,   color: C.orange,   border: '#FFEDD5' },
+  'מטף כיבוי':  { icon: AlertTriangle, bg: C.orangeBg,   color: C.orange,   border: '#FFEDD5' },
+  'אסדת הצלה':  { icon: AlertTriangle, bg: C.orangeBg,   color: C.orange,   border: '#FFEDD5' },
+  'תסקיר':       { icon: FileText,     bg: C.warnBg,     color: C.warnDark, border: C.warnBorder },
 };
 
 //  Map ReminderEngine output → NotifCard shape
@@ -69,8 +72,8 @@ const GOV_VESSEL_URL = 'https://www.gov.il/he/service/seaworthiness-certificate'
 // icon chips replace the rainbow of per-type colors the page used
 // to render; the eye now scans by urgency first, type second.
 const NOTIF_TIER = {
-  urgent:    { fg: '#DC2626', bg: 'rgba(220,38,38,0.10)' },
-  warn:      { fg: '#F59E0B', bg: 'rgba(245,158,11,0.10)' },
+  urgent:    { fg: C.error,   bg: 'rgba(220,38,38,0.10)' },
+  warn:      { fg: C.warnIcon, bg: 'rgba(245,158,11,0.10)' },
   info:      { fg: '#16A34A', bg: 'rgba(22,163,74,0.10)' },
 };
 
@@ -81,7 +84,7 @@ function tierForNotif(notif) {
 }
 
 //  Notification Card
-function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
+function NotifCard({ notif, onMarkRead, onMarkUnread, isRead, onSnooze, snoozedUntilDate, onUnsnooze }) {
   const navigate = useNavigate();
   const tc = TYPE_CONFIG[notif.notification_type] || { icon: Bell, bg: '#F5F5F5', color: '#757575', border: '#E0E0E0' };
   const Icon = tc.icon;
@@ -92,22 +95,23 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
   const tier = tierForNotif(notif);
   const t = NOTIF_TIER[tier];
   const isUrgent = tier === 'urgent';
+  const isSnoozed = !!snoozedUntilDate;
+  const snoozeDateStr = snoozedUntilDate
+    ? `${snoozedUntilDate.getDate()}/${snoozedUntilDate.getMonth() + 1}`
+    : '';
 
   return (
     <div
       className={`rounded-2xl mb-2.5 transition-all ${editUrl ? 'cursor-pointer active:scale-[0.99]' : ''}`}
       style={{
-        // Pure white surface (matches NotificationBell popover body),
-        // with the tier color carried by the RTL leading-edge stripe
-        // instead of by the whole row's bg. Read items dim to a soft
-        // grey so the eye still parses them at a glance without
-        // distracting from unread urgency.
-        background: isRead ? '#FAFAFA' : '#FFFFFF',
-        border: `1px solid ${isRead ? '#E5E7EB' : '#E5EBE6'}`,
-        borderRight: `${isUrgent ? 4 : 3}px solid ${t.fg}`,
-        boxShadow: isRead ? 'none' : '0 2px 10px rgba(28,46,32,0.06)',
-        opacity: isRead ? 0.7 : 1,
-        padding: isUrgent ? '14px 16px' : '12px 16px',
+        background: isSnoozed ? C.grayBg : (isRead ? C.grayBg : C.bg),
+        border: `1px solid ${isSnoozed || isRead ? C.gray200 : '#E5EBE6'}`,
+        borderRight: isSnoozed
+          ? `3px solid ${C.gray400}`
+          : `${isUrgent ? 4 : 3}px solid ${t.fg}`,
+        boxShadow: isSnoozed ? 'none' : (isRead ? 'none' : '0 2px 10px rgba(28,46,32,0.06)'),
+        opacity: isSnoozed ? 0.45 : (isRead ? 0.7 : 1),
+        padding: isUrgent && !isSnoozed ? '14px 16px' : '12px 16px',
       }}
       dir="rtl">
       <div className="flex items-center gap-3"
@@ -138,7 +142,7 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
       {/* Content */}
       <div className="flex-1 min-w-0">
         <p className={`text-sm ${isRead ? 'font-medium' : 'font-bold'}`}
-          style={{ color: isOverdue ? '#991B1B' : isRead ? '#6B7280' : C.text }}>
+          style={{ color: isOverdue ? C.errorDark : isRead ? C.gray500 : C.text }}>
           {/* Strip the trailing "פג תוקף!" from the label. the chip below
               already communicates that, and duplicating it turns the card into
               visual noise ("טסט פג תוקף!" + chip "פג תוקף"). Keep bang for
@@ -147,7 +151,7 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
         </p>
         <div className="flex items-center gap-2 mt-1">
           {(notif.due_date || notif.name) && (
-            <span className="text-xs font-medium" style={{ color: isOverdue ? '#DC2626' : C.muted }}>
+            <span className="text-xs font-medium" style={{ color: isOverdue ? C.error : C.muted }}>
               {notif.due_date ? formatDateHe(notif.due_date) : (notif.name || '')}
             </span>
           )}
@@ -174,31 +178,51 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
         </div>
       </div>
 
-      {/* Read/unread toggle */}
-      {isRead ? (
-        onMarkUnread && (
-          <button onClick={(e) => { e.stopPropagation(); onMarkUnread(notif.id); }}
-            className="flex items-center gap-1 px-2.5 py-3 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all min-h-[44px]"
-            style={{ color: '#6B7280' }}>
-            <div className="w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: '#D1D5DB' }} />
-            סמן כלא נקרא
-          </button>
-        )
+      {/* Snoozed → amber un-snooze pill; Active → read/unread toggle + snooze icon */}
+      {isSnoozed ? (
+        <button onClick={(e) => { e.stopPropagation(); onUnsnooze?.(notif); }}
+          className="flex items-center gap-1 px-2.5 py-2 rounded-full text-[10px] font-bold shrink-0 transition-all active:scale-95 min-h-[44px]"
+          style={{ background: C.warnBg, color: C.warnDark, border: `1px solid ${C.warnBorder}` }}
+          title="בטל השתקה">
+          <BellOff className="w-3 h-3" />
+          מושתק עד {snoozeDateStr}
+        </button>
       ) : (
-        onMarkRead && (
-          <button onClick={(e) => { e.stopPropagation(); onMarkRead(notif.id); }}
-            className="flex items-center gap-1 px-2.5 py-3 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all min-h-[44px]"
-            style={{ color: C.primary }}>
-            <CheckCircle className="w-3.5 h-3.5" />
-            נקרא
-          </button>
-        )
+        <>
+          {isRead ? (
+            onMarkUnread && (
+              <button onClick={(e) => { e.stopPropagation(); onMarkUnread(notif.id); }}
+                className="flex items-center gap-1 px-2.5 py-3 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all min-h-[44px]"
+                style={{ color: C.gray500 }}>
+                <div className="w-2.5 h-2.5 rounded-full border-2" style={{ borderColor: C.gray300 }} />
+                סמן כלא נקרא
+              </button>
+            )
+          ) : (
+            onMarkRead && (
+              <button onClick={(e) => { e.stopPropagation(); onMarkRead(notif.id); }}
+                className="flex items-center gap-1 px-2.5 py-3 rounded-lg text-[10px] font-bold shrink-0 hover:bg-gray-100 transition-all min-h-[44px]"
+                style={{ color: C.primary }}>
+                <CheckCircle className="w-3.5 h-3.5" />
+                נקרא
+              </button>
+            )
+          )}
+          {onSnooze && (
+            <button onClick={(e) => { e.stopPropagation(); onSnooze(notif); }}
+              className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 hover:bg-gray-100 transition-all"
+              style={{ color: C.muted }}
+              title="השתק התראה">
+              <BellOff className="w-4 h-4" />
+            </button>
+          )}
+        </>
       )}
       </div>
 
-      {/* Action buttons for test/insurance notifications */}
-      {(isTestNotif || isInsNotif) && notif.vehicleId && (
-        <div className="flex gap-2 mt-3 pt-3 border-t" style={{ borderColor: isOverdue ? '#FECACA' : '#F3F4F6' }}
+      {/* Action buttons for test/insurance notifications — hidden when snoozed */}
+      {!isSnoozed && (isTestNotif || isInsNotif) && notif.vehicleId && (
+        <div className="flex gap-2 mt-3 pt-3 border-t" style={{ borderColor: isOverdue ? C.errorBorder : C.gray100 }}
           onClick={(e) => e.stopPropagation()}>
           {isTestNotif && (
             <a href={notif.notification_type === 'כושר שייט' ? GOV_VESSEL_URL : GOV_LICENSE_URL}
@@ -214,12 +238,49 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
             navigate(`${createPageUrl('EditVehicle')}?id=${notif.vehicleId}&field=${isTestNotif ? 'test_due_date' : 'insurance_due_date'}`);
           }}
             className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-[11px] font-bold transition-all active:scale-95"
-            style={{ background: '#E8F5E9', color: '#2E7D32' }}>
+            style={{ background: C.successBg, color: '#2E7D32' }}>
             ✓ ביצעתי + העלה מסמך
           </button>
         </div>
       )}
     </div>
+  );
+}
+
+//  Snooze Bottom Sheet
+function SnoozeDrawer({ open, onOpenChange, notif, onSelect }) {
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent dir="rtl" className="rounded-t-2xl">
+        <DrawerHeader className="text-right pb-1">
+          <DrawerTitle className="flex items-center gap-2 text-base font-bold" style={{ color: C.text }}>
+            <BellOff className="w-4 h-4" style={{ color: C.muted }} />
+            השתק התראה
+          </DrawerTitle>
+          {notif && (
+            <DrawerDescription className="text-right text-xs" style={{ color: C.muted }}>
+              {notif.message}
+            </DrawerDescription>
+          )}
+        </DrawerHeader>
+        <div className="px-4 pb-6 pt-1 space-y-1.5">
+          {SNOOZE_OPTIONS.map(opt => (
+            <button
+              key={opt.key}
+              onClick={() => onSelect(opt)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold transition-all active:scale-[0.98]"
+              style={{ color: C.text }}
+            >
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: C.light }}>
+                <BellOff className="w-4 h-4" style={{ color: C.primary }} />
+              </div>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </DrawerContent>
+    </Drawer>
   );
 }
 
@@ -232,15 +293,15 @@ function NotifCard({ notif, onMarkRead, onMarkUnread, isRead }) {
 function NotifEmptyState() {
   return (
     <div className="text-center py-8" dir="rtl">
-      <div className="rounded-3xl p-10 max-w-md mx-auto" style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}>
+      <div className="rounded-3xl p-10 max-w-md mx-auto" style={{ background: C.bg, border: `1px solid ${C.gray200}` }}>
         <svg width="80" height="80" viewBox="0 0 64 64" fill="none" className="mx-auto block mb-5">
           <rect x="8" y="16" width="48" height="32" rx="6" stroke="#B5AC9A" strokeWidth="2" />
           <path d="M8 22l24 16 24-16" stroke="#B5AC9A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           <circle cx="48" cy="48" r="9" fill="#FFFFFF" stroke="#16A34A" strokeWidth="2" />
           <path d="M44 48l3 3 5-6" stroke="#16A34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <h3 className="font-bold text-lg mb-2" style={{ color: '#1C2E20' }}>אין התראות פעילות</h3>
-        <p className="text-sm max-w-xs mx-auto leading-relaxed" style={{ color: '#8B9C8E' }}>
+        <h3 className="font-bold text-lg mb-2" style={{ color: C.text }}>אין התראות פעילות</h3>
+        <p className="text-sm max-w-xs mx-auto leading-relaxed" style={{ color: C.muted }}>
           ההתראות שלך יופיעו כאן כשמועד הטסט, הביטוח או הטיפול מתקרב
         </p>
       </div>
@@ -251,8 +312,8 @@ function NotifEmptyState() {
 //  Status Summary 
 function NotifSummary({ overdue, upcoming }) {
   const items = [
-    { label: 'פג תוקף', count: overdue, color: '#DC2626', bg: '#FEF2F2', icon: AlertTriangle },
-    { label: 'בקרוב',   count: upcoming, color: '#D97706', bg: '#FEF3C7', icon: Clock },
+    { label: 'פג תוקף', count: overdue, color: C.error, bg: C.errorBg, icon: AlertTriangle },
+    { label: 'בקרוב',   count: upcoming, color: C.warn,  bg: C.warnBg,  icon: Clock },
   ];
   return (
     <div className="grid grid-cols-2 gap-2.5 mb-5" dir="rtl">
@@ -337,13 +398,13 @@ function GuestNotifications() {
 
       {/* Guest banner */}
       <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
-        style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#FDE68A' }}>
-          <AlertTriangle className="w-4 h-4" style={{ color: '#92400E' }} />
+        style={{ background: `linear-gradient(135deg, ${C.warnBg}, ${C.yellowSoft})`, border: `1.5px solid ${C.warnBorder}` }}>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: C.warnBorder }}>
+          <AlertTriangle className="w-4 h-4" style={{ color: C.warnDark }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold" style={{ color: '#92400E' }}>התראות זמניות</p>
-          <p className="text-xs" style={{ color: '#B45309' }}>
+          <p className="text-sm font-bold" style={{ color: C.warnDark }}>התראות זמניות</p>
+          <p className="text-xs" style={{ color: C.warnMid }}>
             <button onClick={() => window.location.href = '/Auth'} className="underline font-bold">הירשם</button>
             {' '}כדי לקבל התראות אמיתיות למכשיר
           </p>
@@ -522,6 +583,38 @@ function AuthNotifications() {
   const [inviteActing, setInviteActing] = useState(null);
   const [adminMsg, setAdminMsg] = useState(null);
 
+  // ── Snooze ────────────────────────────────────────────────────
+  const {
+    isSnoozed, snoozedUntil: getSnoozedUntil,
+    snooze, unsnooze, parseReminderId,
+    loading: snoozeLoading,
+  } = useReminderSnooze(user?.id);
+  const [snoozeTarget, setSnoozeTarget] = useState(null);
+
+  const handleSnoozeSelect = async (option) => {
+    if (!snoozeTarget) return;
+    const parsed = parseReminderId(snoozeTarget.id);
+    if (!parsed) { toastError('לא ניתן להשתיק התראה זו', { action: 'notif_snooze_invalid' }); setSnoozeTarget(null); return; }
+    try {
+      await snooze(parsed.vehicleId, parsed.reminderType, option.days, option.days === null ? snoozeTarget.due_date : null);
+      toast.success(`ההתראה הושתקה — ${option.label}`);
+    } catch (err) {
+      toastError('שגיאה בהשתקת ההתראה', { action: 'notif_snooze', err });
+    }
+    setSnoozeTarget(null);
+  };
+
+  const handleUnsnooze = async (notif) => {
+    const parsed = parseReminderId(notif.id);
+    if (!parsed) return;
+    try {
+      await unsnooze(parsed.vehicleId, parsed.reminderType);
+      toast.success('ההתראה הופעלה מחדש');
+    } catch (err) {
+      toastError('שגיאה בביטול ההשתקה', { action: 'notif_unsnooze', err });
+    }
+  };
+
   const handleInviteAction = async (notif, action) => {
     const memberId = notif.data?.member_id;
     if (!memberId) return;
@@ -537,7 +630,7 @@ function AuthNotifications() {
       const msg = (e?.message || '').includes('invite_not_pending')
         ? 'ההזמנה כבר טופלה'
         : `שגיאה: ${e?.message || 'נסה שוב'}`;
-      toast.error(msg);
+      toastError(msg, { action: 'notif_action', err: e });
     } finally {
       setInviteActing(null);
     }
@@ -631,12 +724,12 @@ function AuthNotifications() {
     if (accountError) {
       return (
         <div dir="rtl" className="px-4 pt-8 text-center">
-          <AlertTriangle className="w-10 h-10 mx-auto mb-3" style={{ color: '#D97706' }} />
-          <p className="text-sm font-bold mb-1" style={{ color: '#92400E' }}>שגיאה בטעינת התראות</p>
-          <p className="text-xs mb-4" style={{ color: '#B45309' }}>לא הצלחנו לטעון את הנתונים</p>
+          <AlertTriangle className="w-10 h-10 mx-auto mb-3" style={{ color: C.warn }} />
+          <p className="text-sm font-bold mb-1" style={{ color: C.warnDark }}>שגיאה בטעינת התראות</p>
+          <p className="text-xs mb-4" style={{ color: C.warnMid }}>לא הצלחנו לטעון את הנתונים</p>
           <button onClick={() => refetchAccount()}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-all active:scale-95"
-            style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}>
+            style={{ background: C.warnBg, color: C.warnDark, border: `1px solid ${C.warnBorder}` }}>
             <RefreshCw className="w-4 h-4" />
             נסה שוב
           </button>
@@ -655,8 +748,11 @@ function AuthNotifications() {
     if (!a.is_overdue && b.is_overdue) return 1;
     return (a.days_left ?? 999) - (b.days_left ?? 999);
   });
-  const unread = sorted.filter(n => !readIds.has(n.id));
-  const read = sorted.filter(n => readIds.has(n.id));
+  // Split active vs snoozed — snoozed cards are demoted to bottom section
+  const activeNotifs = sorted.filter(n => !isSnoozed(n.id));
+  const snoozedNotifs = sorted.filter(n => isSnoozed(n.id));
+  const unread = activeNotifs.filter(n => !readIds.has(n.id));
+  const read = activeNotifs.filter(n => readIds.has(n.id));
   const appUnreadCount = appNotifs.filter(n => !n.is_read).length;
   const totalUnread = unread.length + appUnreadCount;
   const hasAnyNotifications = appNotifs.length > 0 || sorted.length > 0 || profileIncomplete || licenseAlert;
@@ -712,12 +808,12 @@ function AuthNotifications() {
       {/* Inline retry for app notifications fetch failure */}
       {appNotifsError && (
         <div className="rounded-2xl p-3.5 mb-2.5 flex items-center gap-3"
-          style={{ background: '#FEF3C7', border: '1.5px solid #FDE68A' }} dir="rtl">
-          <AlertTriangle className="w-5 h-5 shrink-0" style={{ color: '#D97706' }} />
-          <p className="text-xs font-bold flex-1" style={{ color: '#92400E' }}>שגיאה בטעינת הודעות מערכת</p>
+          style={{ background: C.warnBg, border: `1.5px solid ${C.warnBorder}` }} dir="rtl">
+          <AlertTriangle className="w-5 h-5 shrink-0" style={{ color: C.warn }} />
+          <p className="text-xs font-bold flex-1" style={{ color: C.warnDark }}>שגיאה בטעינת הודעות מערכת</p>
           <button onClick={() => refetchAppNotifs()}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold shrink-0 transition-all active:scale-95"
-            style={{ background: '#FDE68A', color: '#92400E' }}>
+            style={{ background: C.warnBorder, color: C.warnDark }}>
             <RefreshCw className="w-3.5 h-3.5" />
             נסה שוב
           </button>
@@ -738,17 +834,17 @@ function AuthNotifications() {
           <div key={`app-${an.id}`}
             className="rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all"
             style={{
-              background: isRead ? '#FAFAFA' : cfg.bg,
-              border: `1.5px solid ${isRead ? '#E5E7EB' : cfg.iconColor + '40'}`,
+              background: isRead ? C.grayBg : cfg.bg,
+              border: `1.5px solid ${isRead ? C.gray200 : cfg.iconColor + '40'}`,
               opacity: isRead ? 0.7 : 1,
             }}
             dir="rtl">
             <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
               style={{
-                background: isRead ? '#E5E7EB' : cfg.iconBg,
+                background: isRead ? C.gray200 : cfg.iconBg,
                 boxShadow: isRead ? 'none' : `0 3px 10px ${cfg.iconColor}30`,
               }}>
-              <Icon className="w-5 h-5" style={{ color: isRead ? '#6B7280' : '#fff' }} />
+              <Icon className="w-5 h-5" style={{ color: isRead ? C.gray500 : '#fff' }} />
             </div>
             <button type="button"
               onClick={async () => {
@@ -763,17 +859,17 @@ function AuthNotifications() {
               }}
               className="flex-1 min-w-0 text-right">
               <p className={`text-sm ${isRead ? 'font-medium' : 'font-bold'}`}
-                style={{ color: isRead ? '#6B7280' : cfg.iconColor }}>
+                style={{ color: isRead ? C.gray500 : cfg.iconColor }}>
                 {an.type === 'admin_message' ? decodeNotifBody(an.title) : an.title}
               </p>
               {an.body && (
-                <p className="text-xs mt-0.5" style={{ color: isRead ? '#9CA3AF' : cfg.iconColor + 'CC' }}>{decodeNotifBody(an.body)}</p>
+                <p className="text-xs mt-0.5" style={{ color: isRead ? C.gray400 : cfg.iconColor + 'CC' }}>{decodeNotifBody(an.body)}</p>
               )}
               <span
                 className="inline-flex mt-2 rounded-full px-2 py-0.5 text-[10px] font-bold"
                 style={{
-                  background: actionRequired ? '#FEF3C7' : '#F3F4F6',
-                  color: actionRequired ? '#92400E' : '#6B7280',
+                  background: actionRequired ? C.warnBg : C.gray100,
+                  color: actionRequired ? C.warnDark : C.gray500,
                 }}>
                 {actionRequired ? 'דורש פעולה' : 'לידיעה'}
               </span>
@@ -793,7 +889,7 @@ function AuthNotifications() {
                     onClick={() => handleInviteAction(an, 'decline')}
                     disabled={!!inviteActing}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95"
-                    style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                    style={{ background: C.errorBg, color: C.error, border: `1px solid ${C.errorBorder}` }}>
                     {inviteActing === `${an.id}-decline`
                       ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       : <X className="w-3.5 h-3.5" />}
@@ -805,10 +901,10 @@ function AuthNotifications() {
             <button
               onClick={() => markAppNotifRead(an.id, !isRead)}
               className="w-11 h-11 rounded-xl flex items-center justify-center transition-all shrink-0"
-              style={{ background: isRead ? '#F3F4F6' : cfg.iconColor + '18' }}
+              style={{ background: isRead ? C.gray100 : cfg.iconColor + '18' }}
               title={isRead ? 'סמן כלא נקרא' : 'סמן כנקרא'}>
               {isRead
-                ? <Bell className="w-3.5 h-3.5" style={{ color: '#9CA3AF' }} />
+                ? <Bell className="w-3.5 h-3.5" style={{ color: C.gray400 }} />
                 : <X className="w-3.5 h-3.5" style={{ color: cfg.iconColor }} />}
             </button>
           </div>
@@ -819,17 +915,17 @@ function AuthNotifications() {
       {licenseAlert && (
         <Link to={createPageUrl('UserProfile')}
           className="rounded-2xl p-4 mb-2.5 flex items-center gap-3 transition-all active:scale-[0.99]"
-          style={{ background: licenseDays < 0 ? '#FEF2F2' : '#FFF8E1', border: `1.5px solid ${licenseDays < 0 ? '#FECACA' : '#FDE68A'}` }}
+          style={{ background: licenseDays < 0 ? C.errorBg : C.yellowSoft, border: `1.5px solid ${licenseDays < 0 ? C.errorBorder : C.warnBorder}` }}
           dir="rtl">
           <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-            style={{ background: licenseDays < 0 ? '#DC2626' : '#D97706', boxShadow: `0 3px 10px ${licenseDays < 0 ? 'rgba(220,38,38,0.3)' : 'rgba(217,119,6,0.3)'}` }}>
+            style={{ background: licenseDays < 0 ? C.error : C.warn, boxShadow: `0 3px 10px ${licenseDays < 0 ? 'rgba(220,38,38,0.3)' : 'rgba(217,119,6,0.3)'}` }}>
             <FileText className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold" style={{ color: licenseDays < 0 ? '#991B1B' : '#92400E' }}>
+            <p className="text-sm font-bold" style={{ color: licenseDays < 0 ? C.errorDark : C.warnDark }}>
               {licenseDays < 0 ? 'רישיון נהיגה פג תוקף!' : `רישיון נהיגה פג בעוד ${licenseDays} ימים`}
             </p>
-            <p className="text-xs mt-0.5" style={{ color: licenseDays < 0 ? '#DC2626' : '#B45309' }}>לחץ לעדכון באזור האישי</p>
+            <p className="text-xs mt-0.5" style={{ color: licenseDays < 0 ? C.error : C.warnMid }}>לחץ לעדכון באזור האישי</p>
           </div>
         </Link>
       )}
@@ -842,18 +938,47 @@ function AuthNotifications() {
             <p className="text-xs font-bold mb-2 px-1" style={{ color: C.muted }}>חדשות</p>
           )}
           {unread.map(n => (
-            <NotifCard key={n.id} notif={n} onMarkRead={markAsRead} />
+            <NotifCard key={n.id} notif={n} onMarkRead={markAsRead} onSnooze={setSnoozeTarget} />
           ))}
           {read.length > 0 && (
             <>
               <p className="text-xs font-bold mt-4 mb-2 px-1" style={{ color: C.muted }}>נקראו</p>
               {read.map(n => (
-                <NotifCard key={n.id} notif={n} isRead onMarkUnread={markAsUnread} />
+                <NotifCard key={n.id} notif={n} isRead onMarkUnread={markAsUnread} onSnooze={setSnoozeTarget} />
+              ))}
+            </>
+          )}
+          {/* ── Snoozed section ── */}
+          {snoozedNotifs.length > 0 && (
+            <>
+              <div className="flex items-center gap-3 mt-5 mb-3 px-1">
+                <div className="flex-1 h-px" style={{ background: C.border }} />
+                <span className="flex items-center gap-1 text-xs font-bold whitespace-nowrap" style={{ color: C.muted }}>
+                  <BellOff className="w-3 h-3" />
+                  מושתקים
+                </span>
+                <div className="flex-1 h-px" style={{ background: C.border }} />
+              </div>
+              {snoozedNotifs.map(n => (
+                <NotifCard
+                  key={n.id}
+                  notif={n}
+                  snoozedUntilDate={getSnoozedUntil(n.id)}
+                  onUnsnooze={handleUnsnooze}
+                />
               ))}
             </>
           )}
         </>
       ) : null}
+
+      {/* Snooze bottom sheet */}
+      <SnoozeDrawer
+        open={!!snoozeTarget}
+        onOpenChange={(open) => { if (!open) setSnoozeTarget(null); }}
+        notif={snoozeTarget}
+        onSelect={handleSnoozeSelect}
+      />
 
       {adminMsg && (
         <AdminMessageDialog

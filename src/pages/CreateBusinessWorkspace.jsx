@@ -23,6 +23,7 @@ import {
   Briefcase, Loader2, ArrowRight, Clock, AlertTriangle, ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -140,15 +141,15 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
     e.preventDefault();
     const cleanName = name.trim();
     if (!cleanName) {
-      toast.error('יש להזין שם לחשבון העסקי');
+      toastError('יש להזין שם לחשבון העסקי', { action: 'create_workspace_name_required' });
       return;
     }
     if (cleanName.length > MAX_NAME) {
-      toast.error(`השם ארוך מדי. מקסימום ${MAX_NAME} תווים.`);
+      toastError(`השם ארוך מדי. מקסימום ${MAX_NAME} תווים.`, { action: 'create_workspace_name_too_long' });
       return;
     }
     if (isRequest && !reason.trim()) {
-      toast.error('יש להזין סיבה לבקשה. האדמין צריך הקשר כדי לאשר');
+      toastError('יש להזין סיבה לבקשה. האדמין צריך הקשר כדי לאשר', { action: 'create_workspace_reason_required' });
       return;
     }
 
@@ -178,13 +179,13 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
       }
     } catch (err) {
       const code = err?.message || err?.code || '';
-      if      (code.includes('name_required'))               toast.error('שם החשבון העסקי חובה');
-      else if (code.includes('name_too_long'))               toast.error(`שם ארוך מדי (עד ${MAX_NAME} תווים)`);
-      else if (code.includes('not_authenticated'))           toast.error('פג תוקף ההתחברות. התחבר מחדש ונסה שוב.');
-      else if (code.includes('business_workspace_limit_reached')) toast.error('כבר יש לך חשבון עסקי. רענן את הדף ותקבל את טופס הבקשה.');
-      else if (code.includes('no_existing_business_workspace'))   toast.error('עוד אין לך חשבון עסקי. השתמש בטופס הרגיל.');
-      else if (code.includes('pending_request_exists'))           toast.error('כבר יש לך בקשה ממתינה. אי אפשר להגיש שתיים בו זמנית.');
-      else                                                         toast.error('הפעולה נכשלה. נסה שוב, או פנה לתמיכה.');
+      if      (code.includes('name_required'))               toastError('שם החשבון העסקי חובה', { action: 'create_workspace_name_required_srv', err });
+      else if (code.includes('name_too_long'))               toastError(`שם ארוך מדי (עד ${MAX_NAME} תווים)`, { action: 'create_workspace_name_too_long_srv', err });
+      else if (code.includes('not_authenticated'))           toastError('פג תוקף ההתחברות. התחבר מחדש ונסה שוב.', { action: 'create_workspace_auth_expired', err });
+      else if (code.includes('business_workspace_limit_reached')) toastError('כבר יש לך חשבון עסקי. רענן את הדף ותקבל את טופס הבקשה.', { action: 'create_workspace_limit_reached', err });
+      else if (code.includes('no_existing_business_workspace'))   toastError('עוד אין לך חשבון עסקי. השתמש בטופס הרגיל.', { action: 'create_workspace_no_existing', err });
+      else if (code.includes('pending_request_exists'))           toastError('כבר יש לך בקשה ממתינה. אי אפשר להגיש שתיים בו זמנית.', { action: 'create_workspace_pending', err });
+      else                                                         toastError('הפעולה נכשלה. נסה שוב, או פנה לתמיכה.', { action: 'create_workspace_save', err });
        
       console.error('CreateBusinessWorkspace failed:', err);
     } finally {

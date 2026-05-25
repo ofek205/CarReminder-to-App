@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateInput } from '@/components/ui/date-input';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { Loader2, Upload, Trash2, Camera, Receipt } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 import {
@@ -250,9 +251,9 @@ export default function ExpenseFormDialog({
     e.target.value = '';
 
     const v = validateUploadFile(file, 'doc', 5);
-    if (!v.ok) { toast.error(v.error); return; }
+    if (!v.ok) { toastError(v.error, { action: 'expense_file_validate' }); return; }
 
-    if (!userId) { toast.error('צריך התחברות מחדש'); return; }
+    if (!userId) { toastError('צריך התחברות מחדש', { action: 'expense_auth_required' }); return; }
     setUploading(true);
     try {
       const { file_url, storage_path } = await uploadScanFile({ file, userId });
@@ -271,7 +272,7 @@ export default function ExpenseFormDialog({
       }
     } catch (err) {
       console.error('upload error:', err);
-      toast.error('שגיאה בהעלאת הקובץ');
+      toastError('שגיאה בהעלאת הקובץ', { action: 'expense_file_upload', err });
     } finally {
       setUploading(false);
     }
@@ -310,23 +311,23 @@ export default function ExpenseFormDialog({
       ? (initial?.vehicle_id || null)
       : (vehicleId || vehicleSelection || null);
     if (!isEdit && !targetVehicleId) {
-      toast.error('יש לבחור רכב');
+      toastError('יש לבחור רכב', { action: 'expense_vehicle_required' });
       setFE('vehicle', 'יש לבחור רכב');
       return;
     }
     if (!category) {
-      toast.error('יש לבחור קטגוריה');
+      toastError('יש לבחור קטגוריה', { action: 'expense_category_required' });
       setFE('category', 'יש לבחור קטגוריה');
       return;
     }
     const amt = Number(amount);
     if (!amount || !Number.isFinite(amt) || amt <= 0) {
-      toast.error('הסכום חייב להיות גדול מ-0');
+      toastError('הסכום חייב להיות גדול מ-0', { action: 'expense_amount_invalid' });
       setFE('amount', 'הזן סכום גדול מ-0');
       return;
     }
     if (!date) {
-      toast.error('יש לבחור תאריך');
+      toastError('יש לבחור תאריך', { action: 'expense_date_required' });
       setFE('date', 'יש לבחור תאריך');
       return;
     }
@@ -370,7 +371,7 @@ export default function ExpenseFormDialog({
       // Surface a user-friendly message; technical details land in the
       // console for debugging.
       console.error('submit error:', err);
-      toast.error('שגיאה בשמירה. נסה שוב בעוד רגע.');
+      toastError('שגיאה בשמירה. נסה שוב בעוד רגע.', { action: 'expense_save', err });
     } finally {
       setSubmitting(false);
     }
@@ -398,7 +399,7 @@ export default function ExpenseFormDialog({
       onClose?.();
     } catch (err) {
       console.error('delete error:', err);
-      toast.error('שגיאה במחיקה');
+      toastError('שגיאה במחיקה', { action: 'expense_delete', err });
     } finally {
       setSubmitting(false);
     }
