@@ -341,10 +341,59 @@ function FilterBar({ filters, updateFilter, resetFilters, availableVehicleTypes,
     || filters.account_type !== 'all'
     || (filters.vehicle_types && filters.vehicle_types.length > 0);
 
-  const toggleVehicleType = (vt) => {
-    const set = new Set(filters.vehicle_types || []);
-    if (set.has(vt)) set.delete(vt); else set.add(vt);
-    updateFilter('vehicle_types', [...set]);
+  // ── Vehicle FAMILIES (Tier-1) for the filter chips ──
+  // The chart has its own family/subtype toggle (v5.2.1). Here, the
+  // filter bar shows ONLY families — keeps the chip count manageable
+  // (~6 vs 30+) and matches the way Ofek thinks about audience segments.
+  // Clicking a family chip writes the FULL subtype list into the
+  // vehicle_types filter so the existing SQL (which accepts a flat
+  // subtype list) keeps working unchanged.
+  const availableSubtypes = new Set(
+    (availableVehicleTypes || []).map((v) => v.vehicle_type)
+  );
+  const availableFamilies = useMemo(() => {
+    const families = new Set();
+    for (const st of availableSubtypes) {
+      families.add(VEHICLE_SUBTYPE_TO_FAMILY[st] || 'אחר');
+    }
+    // Stable order: main families first, then "אחר" if present.
+    const order = Object.keys(VEHICLE_FAMILY_MAP).concat('אחר');
+    return order.filter((f) => families.has(f));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableVehicleTypes]);
+
+  // Returns the subtype list for a given family (all members of the
+  // family that are actually present in the data, so toggling never
+  // adds dead subtypes to the URL).
+  const subtypesForFamily = (family) => {
+    if (family === 'אחר') {
+      const mapped = new Set(Object.values(VEHICLE_FAMILY_MAP).flat());
+      return [...availableSubtypes].filter((st) => !mapped.has(st));
+    }
+    const familyList = VEHICLE_FAMILY_MAP[family] || [];
+    return familyList.filter((st) => availableSubtypes.has(st));
+  };
+
+  // Family chip is fully active when ALL its present subtypes are in
+  // the filter. Treats the family chip as a binary toggle for the UX
+  // simplicity ("on/off") even though the underlying state is a list.
+  const isFamilyActive = (family) => {
+    const subs = subtypesForFamily(family);
+    if (subs.length === 0) return false;
+    const current = new Set(filters.vehicle_types || []);
+    return subs.every((st) => current.has(st));
+  };
+
+  const toggleFamily = (family) => {
+    const subs = subtypesForFamily(family);
+    const current = new Set(filters.vehicle_types || []);
+    const allOn = subs.every((st) => current.has(st));
+    if (allOn) {
+      for (const st of subs) current.delete(st);
+    } else {
+      for (const st of subs) current.add(st);
+    }
+    updateFilter('vehicle_types', [...current]);
   };
 
   return (
@@ -392,27 +441,33 @@ function FilterBar({ filters, updateFilter, resetFilters, availableVehicleTypes,
           </div>
         </div>
 
-        {/* Vehicle types — chip multi-select. Populated from the
-            vehicle_types chart data so the user sees options that
-            actually exist in their data. */}
-        {availableVehicleTypes && availableVehicleTypes.length > 0 && (
+        {/* Vehicle families — Tier-1 chips (multi-select). Each chip
+            represents a family of subtypes (e.g. "דו-גלגלי" = אופנוע
+            כביש + קטנוע + אנדורו + מוטוקרוס). Clicking toggles ALL
+            subtypes of that family in/out of the underlying flat
+            vehicle_types filter — so the SQL stays unchanged and the
+            URL is shareable. For drilling into a specific subtype,
+            use the family/subtype toggle inside the chart card. */}
+        {availableFamilies.length > 0 && (
           <div className="flex flex-col gap-1 min-w-0">
-            <span className="text-[10px] text-gray-500 font-medium">סוגי רכב</span>
+            <span className="text-[10px] text-gray-500 font-medium">משפחות רכב</span>
             <div className="flex flex-wrap gap-1 max-w-md">
-              {availableVehicleTypes.slice(0, 8).map((vt) => {
-                const isOn = (filters.vehicle_types || []).includes(vt.vehicle_type);
+              {availableFamilies.map((family) => {
+                const isOn = isFamilyActive(family);
+                const subCount = subtypesForFamily(family).length;
                 return (
                   <button
-                    key={vt.vehicle_type}
+                    key={family}
                     type="button"
-                    onClick={() => toggleVehicleType(vt.vehicle_type)}
+                    onClick={() => toggleFamily(family)}
+                    title={`${subCount} תתי-סוגים`}
                     className={`px-2 py-0.5 text-[11px] rounded-full transition border ${
                       isOn
                         ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
                         : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                     }`}
                   >
-                    {vt.vehicle_type}
+                    {family}
                   </button>
                 );
               })}
