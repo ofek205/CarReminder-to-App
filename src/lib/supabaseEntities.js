@@ -182,4 +182,5 @@ export const db = {
   accident_details:   makeEntity('accident_details'),
   vessel_checklists:     makeEntity('vessel_checklists'),
   vessel_checklist_runs: makeEntity('vessel_checklist_runs'),
+  reminder_snoozes:      makeEntity('reminder_snoozes'),
 };
