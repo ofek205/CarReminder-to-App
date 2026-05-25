@@ -130,6 +130,31 @@ function json(body: unknown, status = 200, req?: Request) {
   });
 }
 
+// Inline best-effort error reporter — see notes in send-daily-digest.
+async function reportEdgeError(action: string, error: unknown, extra?: Record<string, unknown>) {
+  const FN = 'ai-proxy';
+  const err = error as { message?: string; stack?: string } | null;
+  const message = (err?.message || String(error) || 'unknown').slice(0, 500);
+  const stack = (err?.stack || '').slice(0, 2000) || null;
+  try {
+    console.error(JSON.stringify({ _: 'edge_error', fn: FN, action, message, ts: new Date().toISOString() }));
+  } catch {}
+  try {
+    if (!SUPABASE_URL || !SERVICE_ROLE) return;
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await sb.from('app_errors').insert({
+      type: 'edge', message, stack,
+      url: `edge:/${FN}`, route: `edge:/${FN}`,
+      action, severity: 'error', visible: false,
+      app_version: 'edge', user_agent: 'edge-function',
+      extra: { fn: FN, ...(extra || {}) },
+      created_at: new Date().toISOString(),
+    });
+  } catch {}
+}
+
 async function callGemini(body: any) {
   if (!GEMINI_KEY) {
     console.warn('[ai-proxy] gemini: no key configured');
@@ -459,6 +484,7 @@ serve(async (req) => {
     // See audit finding H-5 (2026-05-12).
     if (rlErr) {
       logSecurityEvent('ai-proxy', 'rate_limit_error', { kind: 'extract_document', user_id: user.id, error: rlErr.message });
+      await reportEdgeError('rate_limit_check_failed', rlErr, { kind: 'extract_document' });
       return json({ status: 'error', details: 'rate limit system unavailable' }, 503, req);
     }
     if (allowed === false) {
@@ -478,6 +504,7 @@ serve(async (req) => {
     // Fail-closed on RPC error — see comment above. Audit finding H-5.
     if (rlErr) {
       logSecurityEvent('ai-proxy', 'rate_limit_error', { kind: 'ai_proxy', user_id: user.id, error: rlErr.message });
+      await reportEdgeError('rate_limit_check_failed', rlErr, { kind: 'ai_proxy' });
       return json({ error: 'rate limit system unavailable' }, 503, req);
     }
     if (allowed === false) {
@@ -548,5 +575,10 @@ serve(async (req) => {
   const gemini = await tryGemini(); if (gemini) return json(gemini, 200, req);
   const claude = await tryClaude(); if (claude) return json(claude, 200, req);
 
+  await reportEdgeError('all_providers_unavailable', new Error('No AI provider available'), {
+    has_images: hasImages,
+    preferred,
+    user_id: user.id,
+  });
   return json({ error: 'No AI provider available' }, 503, req);
 });

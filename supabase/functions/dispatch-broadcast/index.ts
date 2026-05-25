@@ -80,6 +80,31 @@ function json(body: unknown, status = 200, req?: Request) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+// Inline best-effort error reporter — see notes in send-daily-digest.
+async function reportEdgeError(action: string, error: unknown, extra?: Record<string, unknown>) {
+  const FN = 'dispatch-broadcast';
+  const err = error as { message?: string; stack?: string } | null;
+  const message = (err?.message || String(error) || 'unknown').slice(0, 500);
+  const stack = (err?.stack || '').slice(0, 2000) || null;
+  try {
+    console.error(JSON.stringify({ _: 'edge_error', fn: FN, action, message, ts: new Date().toISOString() }));
+  } catch {}
+  try {
+    if (!SUPABASE_URL || !SERVICE_ROLE) return;
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await sb.from('app_errors').insert({
+      type: 'edge', message, stack,
+      url: `edge:/${FN}`, route: `edge:/${FN}`,
+      action, severity: 'error', visible: false,
+      app_version: 'edge', user_agent: 'edge-function',
+      extra: { fn: FN, ...(extra || {}) },
+      created_at: new Date().toISOString(),
+    });
+  } catch {}
+}
+
 // ── Template rendering helpers ─────────────────────────────────────────────
 // Copied from dispatch-reminder-emails so the two functions are self-
 // contained. If you change the shell, update both.
@@ -210,14 +235,20 @@ serve(async (req) => {
   // 2. Template.
   const { data: tplRows, error: tplErr } = await supabase
     .rpc('get_email_template', { p_key: body.notificationKey });
-  if (tplErr || !tplRows?.length) return json({ error: `Template missing: ${tplErr?.message || body.notificationKey}` }, 400, req);
+  if (tplErr || !tplRows?.length) {
+    if (tplErr) await reportEdgeError('get_template', tplErr, { key: body.notificationKey });
+    return json({ error: `Template missing: ${tplErr?.message || body.notificationKey}` }, 400, req);
+  }
   const template = tplRows[0];
   if (template.enabled === false) return json({ ok: false, disabled: true }, 200, req);
 
   // 3. Recipients.
   const { data: recipients, error: recErr } = await supabase
     .rpc('email_broadcast_recipients', { p_notification_key: body.notificationKey });
-  if (recErr) return json({ error: `Recipients query: ${recErr.message}` }, 500, req);
+  if (recErr) {
+    await reportEdgeError('list_recipients', recErr, { key: body.notificationKey });
+    return json({ error: `Recipients query: ${recErr.message}` }, 500, req);
+  }
 
   const stats = { matched: recipients?.length || 0, sent: 0, skipped: 0, errors: 0, errorDetails: [] as string[] };
   const refDate = new Date().toISOString().slice(0, 10);   // today, for idempotency
@@ -281,6 +312,7 @@ serve(async (req) => {
     } catch (e) {
       stats.errors++;
       stats.errorDetails.push((e as Error).message);
+      await reportEdgeError('send_to_recipient', e, { recipient: r.recipient_email, key: body.notificationKey });
     }
   }
 

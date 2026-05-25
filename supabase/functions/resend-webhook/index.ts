@@ -53,6 +53,31 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// Inline best-effort error reporter — see notes in send-daily-digest.
+async function reportEdgeError(action: string, error: unknown, extra?: Record<string, unknown>) {
+  const FN = 'resend-webhook';
+  const err = error as { message?: string; stack?: string } | null;
+  const message = (err?.message || String(error) || 'unknown').slice(0, 500);
+  const stack = (err?.stack || '').slice(0, 2000) || null;
+  try {
+    console.error(JSON.stringify({ _: 'edge_error', fn: FN, action, message, ts: new Date().toISOString() }));
+  } catch {}
+  try {
+    if (!SUPABASE_URL || !SERVICE_ROLE) return;
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await sb.from('app_errors').insert({
+      type: 'edge', message, stack,
+      url: `edge:/${FN}`, route: `edge:/${FN}`,
+      action, severity: 'error', visible: false,
+      app_version: 'edge', user_agent: 'edge-function',
+      extra: { fn: FN, ...(extra || {}) },
+      created_at: new Date().toISOString(),
+    });
+  } catch {}
+}
+
 // Resend uses Svix for webhook signing. The signature is:
 //   base64(hmac_sha256(secret, svix_id + "." + svix_timestamp + "." + body))
 // Verified against the `svix-signature` header (space-separated list of
@@ -89,43 +114,51 @@ async function verifySvix(body: string, headers: Headers): Promise<boolean> {
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST')    return json({ error: 'Method not allowed' }, 405);
-  if (!SUPABASE_URL || !SERVICE_ROLE) {
-    return json({ error: 'Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY secrets' }, 500);
+  try {
+    if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+    if (req.method !== 'POST')    return json({ error: 'Method not allowed' }, 405);
+    if (!SUPABASE_URL || !SERVICE_ROLE) {
+      return json({ error: 'Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY secrets' }, 500);
+    }
+
+    const rawBody = await req.text();
+
+    // Signature gate.
+    const signed = await verifySvix(rawBody, req.headers);
+    if (!signed) return json({ error: 'Invalid signature' }, 401);
+
+    let payload: any;
+    try { payload = JSON.parse(rawBody); } catch { return json({ error: 'Invalid JSON' }, 400); }
+
+    const eventType = payload?.type || 'other';
+    const data      = payload?.data || {};
+    const messageId = data?.email_id || data?.id || null;
+    const recipient = Array.isArray(data?.to) ? data.to[0] : data?.to || null;
+    const occurredAt = payload?.created_at || new Date().toISOString();
+
+    if (!messageId) {
+      // Still log it as 'other' so we can inspect later.
+    }
+
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: eventId, error } = await supabase.rpc('ingest_resend_event', {
+      p_event_type:  eventType,
+      p_message_id:  messageId,
+      p_recipient:   recipient,
+      p_occurred_at: occurredAt,
+      p_raw:         payload,
+    });
+
+    if (error) {
+      await reportEdgeError('ingest_resend_event', error, { event_type: eventType, message_id: messageId });
+      return json({ error: error.message }, 500);
+    }
+    return json({ ok: true, event_id: eventId });
+  } catch (err: unknown) {
+    await reportEdgeError('webhook_main', err);
+    return json({ error: 'internal error' }, 500);
   }
-
-  const rawBody = await req.text();
-
-  // Signature gate.
-  const signed = await verifySvix(rawBody, req.headers);
-  if (!signed) return json({ error: 'Invalid signature' }, 401);
-
-  let payload: any;
-  try { payload = JSON.parse(rawBody); } catch { return json({ error: 'Invalid JSON' }, 400); }
-
-  const eventType = payload?.type || 'other';
-  const data      = payload?.data || {};
-  const messageId = data?.email_id || data?.id || null;
-  const recipient = Array.isArray(data?.to) ? data.to[0] : data?.to || null;
-  const occurredAt = payload?.created_at || new Date().toISOString();
-
-  if (!messageId) {
-    // Still log it as 'other' so we can inspect later.
-  }
-
-  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const { data: eventId, error } = await supabase.rpc('ingest_resend_event', {
-    p_event_type:  eventType,
-    p_message_id:  messageId,
-    p_recipient:   recipient,
-    p_occurred_at: occurredAt,
-    p_raw:         payload,
-  });
-
-  if (error) return json({ error: error.message }, 500);
-  return json({ ok: true, event_id: eventId });
 });

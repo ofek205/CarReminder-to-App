@@ -175,6 +175,31 @@ function json(body: unknown, status = 200, req?: Request) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+// Inline best-effort error reporter — see notes in send-daily-digest.
+async function reportEdgeError(action: string, error: unknown, extra?: Record<string, unknown>) {
+  const FN = 'gov-sync-vehicles';
+  const err = error as { message?: string; stack?: string } | null;
+  const message = (err?.message || String(error) || 'unknown').slice(0, 500);
+  const stack = (err?.stack || '').slice(0, 2000) || null;
+  try {
+    console.error(JSON.stringify({ _: 'edge_error', fn: FN, action, message, ts: new Date().toISOString() }));
+  } catch {}
+  try {
+    if (!SUPABASE_URL || !SERVICE_ROLE) return;
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await sb.from('app_errors').insert({
+      type: 'edge', message, stack,
+      url: `edge:/${FN}`, route: `edge:/${FN}`,
+      action, severity: 'error', visible: false,
+      app_version: 'edge', user_agent: 'edge-function',
+      extra: { fn: FN, ...(extra || {}) },
+      created_at: new Date().toISOString(),
+    });
+  } catch {}
+}
+
 async function authorizeCaller(
   req: Request,
   supabaseAdmin: any,
@@ -318,6 +343,7 @@ serve(async (req: Request) => {
     .limit(MAX_VEHICLES_PER_RUN);
 
   if (vehErr) {
+    await reportEdgeError('list_vehicles', vehErr);
     return json({ error: 'query failed', detail: vehErr.message }, 500, req);
   }
 
@@ -398,6 +424,7 @@ serve(async (req: Request) => {
       // Don't stamp last_gov_sync_at on RPC failure — next run should
       // retry this vehicle. Surface the error in logs for debugging.
       console.error('record_gov_sync_update failed', v.id, rpcErr.message);
+      await reportEdgeError('record_gov_sync_update_rpc', rpcErr, { vehicle_id: v.id });
       continue;
     }
 

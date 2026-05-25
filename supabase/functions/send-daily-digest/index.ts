@@ -29,6 +29,34 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// Inline best-effort error reporter. Writes a structured stderr line
+// (always works) and attempts an app_errors insert (silent fail-safe).
+// Inlined rather than imported from _shared/ so this file remains
+// deployable through the Supabase Dashboard editor without manual
+// auxiliary file uploads.
+async function reportEdgeError(action: string, error: unknown, extra?: Record<string, unknown>) {
+  const FN = 'send-daily-digest';
+  const err = error as { message?: string; stack?: string } | null;
+  const message = (err?.message || String(error) || 'unknown').slice(0, 500);
+  const stack = (err?.stack || '').slice(0, 2000) || null;
+  try {
+    console.error(JSON.stringify({ _: 'edge_error', fn: FN, action, message, ts: new Date().toISOString() }));
+  } catch { /* never throw from logging */ }
+  try {
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    await sb.from('app_errors').insert({
+      type: 'edge', message, stack,
+      url: `edge:/${FN}`, route: `edge:/${FN}`,
+      action, severity: 'error', visible: false,
+      app_version: 'edge', user_agent: 'edge-function',
+      extra: { fn: FN, ...(extra || {}) },
+      created_at: new Date().toISOString(),
+    });
+  } catch { /* best-effort */ }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { status: 200 });
   if (req.method !== 'POST')   return json({ error: 'Method not allowed' }, 405);
@@ -64,6 +92,7 @@ serve(async (req) => {
     const result = await tg.json();
     return json({ ok: true, telegram_message_id: result?.result?.message_id });
   } catch (err: any) {
+    await reportEdgeError('digest_main', err);
     return json({ error: err.message }, 500);
   }
 });
