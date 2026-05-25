@@ -96,6 +96,15 @@ begin
     );
   end if;
 
+  -- ── Dedup: remove previous unread app_update for this platform ────
+  -- Prevents duplicate notifications when admin broadcasts the same or
+  -- a newer version before users read the old one. Read notifications
+  -- are kept for history.
+  delete from public.app_notifications
+  where type = 'app_update'
+    and is_read = false
+    and data->>'platform' = p_platform;
+
   -- ── Bulk-insert app_update notifications ──────────────────────────
   -- One notification per user on the target platform. Title and body
   -- are in Hebrew (consistent with all other notification types).
@@ -153,7 +162,7 @@ begin
   -- Add device token counts per platform for the stats badges.
   v_result := v_result || jsonb_build_object(
     'device_counts', (
-      select jsonb_object_agg(platform, cnt)
+      select coalesce(jsonb_object_agg(platform, cnt), '{}'::jsonb)
       from (
         select platform, count(distinct user_id) as cnt
         from public.device_tokens
