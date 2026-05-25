@@ -18,6 +18,7 @@ import { normalizePlate, isVintageVehicle, isOffroad, usesHours, isCme } from ".
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { toast } from "sonner";
+import { toastError } from "@/lib/userErrorReport";
 import { useAuth } from "../components/shared/GuestContext";
 import { C, getTheme, isVesselType } from '@/lib/designTokens';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -213,7 +214,7 @@ export default function EditVehicle() {
       setLoading(false);
       } catch (err) {
         console.error('EditVehicle load error:', err);
-        toast.error('שגיאה בטעינת פרטי הרכב');
+        toastError('שגיאה בטעינת פרטי הרכב', { action: 'vehicle_load', err });
         setLoading(false);
       }
     }
@@ -256,7 +257,7 @@ export default function EditVehicle() {
     const file = e.target.files[0];
     if (!file) return;
     const validation = validateUploadFile(file, 'photo', 10);
-    if (!validation.ok) { toast.error(validation.error); e.target.value = ''; return; }
+    if (!validation.ok) { toastError(validation.error, { action: 'vehicle_photo_validate' }); e.target.value = ''; return; }
 
     // Sprint A.B-2: split the photo flow.
     //   • Guests have no Supabase auth and persist everything to localStorage,
@@ -281,7 +282,7 @@ export default function EditVehicle() {
         toast.success('התמונה נטענה');
       } catch (err) {
         console.error('Photo load error:', err);
-        toast.error('שגיאה בטעינת התמונה');
+        toastError('שגיאה בטעינת התמונה', { action: 'vehicle_photo_load', err });
       }
     } else {
       try {
@@ -298,7 +299,7 @@ export default function EditVehicle() {
         toast.success('התמונה נטענה');
       } catch (err) {
         console.error('Photo upload error:', err);
-        toast.error(err?.message || 'שגיאה בהעלאת התמונה');
+        toastError(err?.message || 'שגיאה בהעלאת התמונה', { action: 'vehicle_photo_upload', err });
       }
     }
     e.target.value = '';
@@ -323,7 +324,7 @@ export default function EditVehicle() {
         );
         if (duplicate) {
           const dupName = duplicate.nickname || duplicate.license_plate || 'רכב אחר';
-          toast.error(`מספר הרישוי כבר קיים ב"${dupName}". אי אפשר להזין פעמיים`);
+          toastError(`מספר הרישוי כבר קיים ב"${dupName}". אי אפשר להזין פעמיים`, { action: 'vehicle_duplicate_plate' });
           setSaving(false);
           return;
         }
@@ -361,7 +362,7 @@ export default function EditVehicle() {
     if (form.year) {
       const yearNum = Number(form.year);
       if (isNaN(yearNum) || yearNum < 1900 || yearNum > new Date().getFullYear() + 2) {
-        toast.error('שנת ייצור לא תקינה');
+        toastError('שנת ייצור לא תקינה', { action: 'vehicle_year_invalid' });
         setSaving(false);
         return;
       }
@@ -487,11 +488,11 @@ export default function EditVehicle() {
         console.error('Vehicle update error (retry):', retryErr);
         const msg = retryErr?.message || retryErr?.error_description || '';
         if (msg.includes('too large') || msg.includes('payload')) {
-          toast.error('התמונה גדולה מדי. נסה תמונה קטנה יותר.');
+          toastError('התמונה גדולה מדי. נסה תמונה קטנה יותר.', { action: 'vehicle_save_too_large' });
         } else if (msg.includes('permission') || msg.includes('policy')) {
-          toast.error('אין לך הרשאה לעדכן רכב זה');
+          toastError('אין לך הרשאה לעדכן רכב זה', { action: 'vehicle_save_forbidden' });
         } else {
-          toast.error(`שגיאה בעדכון: ${msg.slice(0, 80) || 'נסה שוב בעוד רגע'}`);
+          toastError(`שגיאה בעדכון: ${msg.slice(0, 80) || 'נסה שוב בעוד רגע'}`, { action: 'vehicle_save', err: retryErr });
         }
         reportUserError('update_vehicle', retryErr, { vehicleId });
         setSaving(false);

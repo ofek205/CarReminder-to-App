@@ -1,8 +1,9 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Home, MessageSquareWarning } from 'lucide-react';
 import { reportError } from '@/lib/crashReporter';
+import { openReportBugDialog } from '@/components/shared/ReportBugDialog';
 
 /**
  * PageErrorBoundary — per-route React Error Boundary.
@@ -62,6 +63,18 @@ class PageErrorBoundary extends React.Component {
     try { window.location.href = '/'; } catch {}
   };
 
+  handleReport = () => {
+    // Open the global ReportBugDialog with the crash message prefilled
+    // as context. The dialog itself lives outside this boundary so the
+    // broken page can't take it down.
+    const route = this.props.routeName || 'unknown';
+    const msg = this.state.error?.message ? String(this.state.error.message).slice(0, 200) : '';
+    openReportBugDialog({
+      contextNote: `הדיווח נשלח מהמסך "${route}" אחרי שקרתה תקלת תצוגה.`,
+      prefilledMessage: msg ? `קרתה תקלה: ${msg}\n\nמה ניסיתי לעשות: ` : '',
+    });
+  };
+
   render() {
     if (!this.state.hasError) {
       // Pass key to force a fresh mount cycle when "נסה שוב" is clicked.
@@ -86,7 +99,7 @@ class PageErrorBoundary extends React.Component {
               {String(this.state.error.message).slice(0, 200)}
             </p>
           )}
-          <div className="flex gap-2 justify-center">
+          <div className="flex gap-2 justify-center mb-2">
             <Button onClick={this.handleRetry} className="gap-1.5">
               <RefreshCw className="w-3.5 h-3.5" />
               נסה שוב
@@ -96,6 +109,14 @@ class PageErrorBoundary extends React.Component {
               לדשבורד
             </Button>
           </div>
+          <button
+            onClick={this.handleReport}
+            className="text-xs font-medium inline-flex items-center gap-1 mt-1 text-gray-500 hover:text-gray-700 underline-offset-2 hover:underline"
+            type="button"
+          >
+            <MessageSquareWarning className="w-3 h-3" />
+            דווח לנו על התקלה
+          </button>
         </Card>
       </div>
     );

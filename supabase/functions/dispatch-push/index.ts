@@ -46,7 +46,6 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { reportEdgeError } from '../_shared/reportEdgeError.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -341,18 +340,33 @@ serve(async (req) => {
       }
     } catch (e: unknown) {
       summary.failed++;
-      summary.errors.push({ token: row.token.slice(0, 12) + '…', reason: (e as Error)?.message || 'exception' });
-      // Persist to app_errors. Per-token failures are common (stale
-      // FCM tokens, transient APNs) — log only when severity > info to
-      // avoid flooding the table.
-      await reportEdgeError({
-        fn: 'dispatch-push',
-        action: 'send_to_token',
-        error: e,
-        severity: 'warning',
-        userId: row.user_id ?? null,
-        extra: { platform: row.platform, token_prefix: row.token?.slice(0, 12) },
-      });
+      const reason = (e as Error)?.message || 'exception';
+      summary.errors.push({ token: row.token.slice(0, 12) + '…', reason });
+      // Per-token exception — already captured in summary.errors. We
+      // also write to push_send_log for persistent observability and
+      // echo to stderr so it surfaces in Function Logs.
+      try {
+        console.error(JSON.stringify({
+          _: 'edge_error', fn: 'dispatch-push', action: 'send_to_token',
+          severity: 'warning', message: reason,
+          user_id: row.user_id ?? null,
+          platform: row.platform,
+          token_prefix: row.token?.slice(0, 12),
+          ts: new Date().toISOString(),
+        }));
+      } catch { /* never throw from logging */ }
+      try {
+        await supabase.from('push_send_log').insert({
+          user_id:      row.user_id ?? null,
+          platform:     row.platform,
+          token_prefix: row.token.slice(0, 12),
+          title:        title || null,
+          body:         text  || null,
+          status:       'failed',
+          error:        reason.slice(0, 500),
+          notif_id:     data?.notif_id ?? null,
+        });
+      } catch { /* best-effort */ }
     }
   }
 

@@ -32,6 +32,7 @@ import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import ConfirmDeleteDialog from "@/components/shared/ConfirmDeleteDialog";
 import { Plus, Wrench, Settings, Trash2, Loader2, Check, Search } from "lucide-react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/userErrorReport";
 import { useAuth } from "@/components/shared/GuestContext";
 import useAccountRole from '@/hooks/useAccountRole';
 import { MAINTENANCE_CATEGORIES, getCatalogForVehicleType } from "@/components/shared/MaintenanceCatalog";
@@ -492,7 +493,7 @@ function MaintenanceRow({ item, isLast, userId, lastDoneDate, onEdit, onQueryInv
       await upsertPref({ ...item, pref_id: item.pref_id, user_id: userId, enabled: value });
       onQueryInvalidate();
     } catch (e) {
-      toast.error(`שמירה נכשלה: ${e.message}`);
+      toastError(`שמירה נכשלה: ${e.message}`, { action: 'maint_pref_toggle', err: e });
     } finally {
       setPending(false);
     }
@@ -559,7 +560,7 @@ function RepairRow({ repair, isLast, userId, onQueryInvalidate }) {
       onQueryInvalidate();
       toast.success('נמחק');
     } catch (e) {
-      toast.error(`מחיקה נכשלה: ${e.message}`);
+      toastError(`מחיקה נכשלה: ${e.message}`, { action: 'repair_type_delete', err: e });
     }
   };
   return (
@@ -650,7 +651,7 @@ function MaintenanceEditorSheet({ item, open, onClose, userId }) {
       toast.success('נשמר');
       onClose();
     } catch (e) {
-      toast.error(`שמירה נכשלה: ${e.message}`);
+      toastError(`שמירה נכשלה: ${e.message}`, { action: 'maint_pref_save', err: e });
     } finally {
       setSaving(false);
     }
@@ -664,7 +665,7 @@ function MaintenanceEditorSheet({ item, open, onClose, userId }) {
       toast.success('נמחק');
       onClose();
     } catch (e) {
-      toast.error(`מחיקה נכשלה: ${e.message}`);
+      toastError(`מחיקה נכשלה: ${e.message}`, { action: 'maint_pref_delete', err: e });
     }
   };
 
@@ -779,8 +780,8 @@ function CreateMaintenanceDialog({ open, onClose, userId, vehicleTypes }) {
   }, [open]);
 
   const handleSave = async () => {
-    if (!form.custom_name.trim()) { toast.error('יש להזין שם'); return; }
-    if (!form.interval_months || Number(form.interval_months) <= 0) { toast.error('יש להזין מרווח חודשים'); return; }
+    if (!form.custom_name.trim()) { toastError('יש להזין שם', { action: 'maint_template_name_required' }); return; }
+    if (!form.interval_months || Number(form.interval_months) <= 0) { toastError('יש להזין מרווח חודשים', { action: 'maint_template_interval_required' }); return; }
     setSaving(true);
     try {
       await db.maintenance_reminder_prefs.create({
@@ -799,9 +800,9 @@ function CreateMaintenanceDialog({ open, onClose, userId, vehicleTypes }) {
       onClose();
     } catch (e) {
       if (String(e.message || '').includes('duplicate')) {
-        toast.error('כבר יש לך טיפול בשם הזה');
+        toastError('כבר יש לך טיפול בשם הזה', { action: 'maint_template_duplicate' });
       } else {
-        toast.error(`שמירה נכשלה: ${e.message}`);
+        toastError(`שמירה נכשלה: ${e.message}`, { action: 'maint_template_save', err: e });
       }
     } finally {
       setSaving(false);
@@ -878,7 +879,7 @@ function CreateRepairDialog({ open, onClose, userId }) {
   useEffect(() => { if (open) { setName(''); setDescription(''); } }, [open]);
 
   const handleSave = async () => {
-    if (!name.trim()) { toast.error('יש להזין שם'); return; }
+    if (!name.trim()) { toastError('יש להזין שם', { action: 'repair_type_name_required' }); return; }
     setSaving(true);
     try {
       await db.repair_types.create({
@@ -892,8 +893,8 @@ function CreateRepairDialog({ open, onClose, userId }) {
       toast.success('נוסף');
       onClose();
     } catch (e) {
-      if (String(e.message || '').includes('duplicate')) toast.error('כבר יש לך תיקון בשם הזה');
-      else toast.error(`שמירה נכשלה: ${e.message}`);
+      if (String(e.message || '').includes('duplicate')) toastError('כבר יש לך תיקון בשם הזה', { action: 'repair_type_duplicate' });
+      else toastError(`שמירה נכשלה: ${e.message}`, { action: 'repair_type_save', err: e });
     } finally {
       setSaving(false);
     }

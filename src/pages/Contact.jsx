@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { MessageSquare, Send, Loader2, CheckCircle2, User, Mail, FileText, Clock, HelpCircle, Shield, ExternalLink } from 'lucide-react';
+import { MessageSquare, Send, Loader2, CheckCircle2, User, Mail, FileText, Clock, HelpCircle, Shield, ExternalLink, Bug } from 'lucide-react';
+import { openReportBugDialog } from '@/components/shared/ReportBugDialog';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -154,6 +155,27 @@ export default function Contact() {
             <p className="text-sm font-bold" style={{ color: C.text }}>24-48 שעות בימי עסקים</p>
           </div>
         </div>
+
+        {/* Quick bug report — opens a short dialog that auto-attaches the
+            current route + recent breadcrumbs so the user doesn't need
+            to explain "where" they were. The full form below is still
+            available for general inquiries that need a written reply. */}
+        <button
+          type="button"
+          onClick={() => openReportBugDialog({ contextNote: 'דיווח מהדף "צור קשר"' })}
+          className="w-full rounded-2xl p-4 border flex items-center gap-3 transition-all active:scale-[0.99]"
+          style={{ borderColor: `${C.primary}25`, background: '#fff' }}
+        >
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: `${C.primary}12` }}>
+            <Bug className="w-5 h-5" style={{ color: C.primary }} />
+          </div>
+          <div className="flex-1 text-right">
+            <p className="text-xs font-medium mb-0.5" style={{ color: C.muted }}>נתקלת בתקלה?</p>
+            <p className="text-sm font-bold" style={{ color: C.text }}>דווח לנו במהירות</p>
+          </div>
+          <ExternalLink className="w-4 h-4 flex-shrink-0" style={{ color: C.muted }} />
+        </button>
 
         {/* FAQ */}
         <div className="rounded-2xl p-4 border" style={{ borderColor: `${C.primary}25`, background: '#fff' }}>
