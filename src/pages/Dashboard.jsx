@@ -1167,7 +1167,7 @@ export default function Dashboard() {
     // changing accounts re-evaluates it and re-writes under the new
     // key. cachedVehicles is read once at mount; intentionally NOT
     // a dep to avoid infinite re-write on every snapshot.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [vehicles, VEHICLES_CACHE_KEY]);
 
   // Schedule device notifications for authenticated users.

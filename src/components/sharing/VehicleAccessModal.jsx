@@ -20,6 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@/components/ui/button';
 import { Loader2, Users, Eye, Edit, Clock, UserMinus, LogOut, RefreshCw, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
 import ShareVehicleDialog from './ShareVehicleDialog';
 
@@ -113,7 +114,7 @@ export default function VehicleAccessModal({
       queryClient.invalidateQueries({ queryKey: ['vehicle-share-info', vehicle.id] });
       queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
     } catch (e) {
-      toast.error(`שגיאה בביטול: ${e?.message || 'נסה שוב'}`);
+      toastError(`שגיאה בביטול: ${e?.message || 'נסה שוב'}`, { action: 'vehicle_access_revoke', err: e });
     } finally {
       setWorking(false);
     }
@@ -142,7 +143,7 @@ export default function VehicleAccessModal({
         : msg.includes('share_not_active') ? 'אפשר לשנות הרשאה רק על שיתוף פעיל'
         : msg.includes('share_not_found')  ? 'השיתוף כבר לא קיים'
         : `שגיאה בעדכון: ${msg || 'נסה שוב'}`;
-      toast.error(friendly);
+      toastError(friendly, { action: 'vehicle_access_update' });
     } finally {
       setWorking(false);
     }
@@ -159,7 +160,7 @@ export default function VehicleAccessModal({
       queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
       queryClient.invalidateQueries({ queryKey: ['vehicle-share-info', vehicle.id] });
     } catch (e) {
-      toast.error(`שגיאה בעזיבה: ${e?.message || 'נסה שוב'}`);
+      toastError(`שגיאה בעזיבה: ${e?.message || 'נסה שוב'}`, { action: 'vehicle_access_leave', err: e });
     } finally {
       setWorking(false);
     }

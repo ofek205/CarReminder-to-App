@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Delete } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { tryUnlock, clearPin, isPinEnabled, isStillUnlocked, setPin, lockNow } from '@/lib/pinLock';
 import { hapticFeedback } from '@/lib/capacitor';
 import { supabase } from '@/lib/supabase';
@@ -116,7 +117,7 @@ export default function PinLock({ mode = 'unlock', onSuccess, onForgot, onCancel
           hapticFeedback('heavy');
           setShake(true);
           setTimeout(() => setShake(false), 500);
-          toast.error('הקודים לא תואמים, נסה שוב');
+          toastError('הקודים לא תואמים, נסה שוב', { action: 'pin_mismatch' });
           setEntered('');
           setFirstPin('');
           setStep('first');
@@ -138,7 +139,7 @@ export default function PinLock({ mode = 'unlock', onSuccess, onForgot, onCancel
     setEntered('');
 
     if (res.reason === 'too_many_failures') {
-      toast.error('יותר מדי ניסיונות כושלים. יש להתחבר מחדש');
+      toastError('יותר מדי ניסיונות כושלים. יש להתחבר מחדש', { action: 'pin_too_many_failures' });
       try { await supabase.auth.signOut(); } catch {}
       onCancel?.();
       return;
@@ -146,11 +147,11 @@ export default function PinLock({ mode = 'unlock', onSuccess, onForgot, onCancel
     if (res.reason === 'locked_out') {
       const sec = Math.ceil((res.lockoutMsRemaining || 30000) / 1000);
       setLockoutSec(sec);
-      toast.error(`יותר מדי ניסיונות. המתן ${sec} שניות`);
+      toastError(`יותר מדי ניסיונות. המתן ${sec} שניות`, { action: 'pin_lockout' });
       return;
     }
     if (res.attemptsRemaining !== undefined) {
-      toast.error(`קוד שגוי. ${res.attemptsRemaining} ניסיונות נותרו`);
+      toastError(`קוד שגוי. ${res.attemptsRemaining} ניסיונות נותרו`, { action: 'pin_wrong' });
     }
   };
 

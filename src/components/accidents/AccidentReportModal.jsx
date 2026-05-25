@@ -7,7 +7,7 @@ import { shareContent } from '@/lib/capacitor';
 // export handlers below. Pulling it up-front would force every Accidents
 // list / report-modal mount to download those bytes, even for users who
 // never tap "Export".
-import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 
 /**
  * AccidentReportModal — shared dialog used by both:
@@ -57,10 +57,10 @@ export default function AccidentReportModal({
         : 'no-date';
       const { exportElementToPdf } = await import('@/lib/pdfExport');
       const ok = await exportElementToPdf(previewRef.current, `accident-${dateLabel}`);
-      if (!ok) toast.error('שגיאה ביצירת קובץ ה-PDF');
+      if (!ok) toastError('שגיאה ביצירת קובץ ה-PDF', { action: 'accident_pdf_export' });
     } catch (e) {
       console.error(e);
-      toast.error('שגיאה ביצירת קובץ ה-PDF');
+      toastError('שגיאה ביצירת קובץ ה-PDF', { action: 'accident_pdf_export', err: e });
     } finally {
       setDownloading(false);
     }
@@ -83,10 +83,10 @@ export default function AccidentReportModal({
         : 'no-date';
       const { exportElementToWord } = await import('@/lib/pdfExport');
       const ok = await exportElementToWord(previewRef.current, `accident-${dateLabel}`);
-      if (!ok) toast.error('שגיאה ביצירת קובץ ה-Word');
+      if (!ok) toastError('שגיאה ביצירת קובץ ה-Word', { action: 'accident_word_export' });
     } catch (e) {
       console.error(e);
-      toast.error('שגיאה ביצירת קובץ ה-Word');
+      toastError('שגיאה ביצירת קובץ ה-Word', { action: 'accident_word_export', err: e });
     } finally {
       setDownloading(false);
     }
@@ -123,7 +123,7 @@ export default function AccidentReportModal({
       title: 'דיווח תאונה',
       text,
     });
-    if (!ok) toast.error('השיתוף בוטל');
+    if (!ok) toastError('השיתוף בוטל', { action: 'accident_share_cancel' });
   };
 
   // Click on the dim backdrop (but not on the dialog itself) closes too.

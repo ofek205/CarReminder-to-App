@@ -21,6 +21,7 @@
  */
 import React, { useState } from 'react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { Loader2, X } from 'lucide-react';
 import VehiclePicker from '@/components/shared/VehiclePicker';
 import { DateInput } from '@/components/ui/date-input';
@@ -55,9 +56,9 @@ export default function AssignDriverDialog({
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!vehicleId)                          { toast.error('יש לבחור רכב'); return; }
-    if (kind === 'temporary' && !validTo)    { toast.error('בחר תאריך סיום'); return; }
-    if (kind === 'future'    && !validFrom)  { toast.error('בחר תאריך התחלה'); return; }
+    if (!vehicleId)                          { toastError('יש לבחור רכב', { action: 'assign_driver_vehicle_required' }); return; }
+    if (kind === 'temporary' && !validTo)    { toastError('בחר תאריך סיום', { action: 'assign_driver_end_date_required' }); return; }
+    if (kind === 'future'    && !validFrom)  { toastError('בחר תאריך התחלה', { action: 'assign_driver_start_date_required' }); return; }
 
     const valid_from_iso = kind === 'future'
       ? new Date(validFrom).toISOString()
@@ -91,12 +92,12 @@ export default function AssignDriverDialog({
     } catch (err) {
       console.error('assign failed:', err);
       const msg = err?.message || '';
-      if      (msg.includes('forbidden_not_manager'))         toast.error('אין לך הרשאת מנהל');
-      else if (msg.includes('vehicle_not_in_workspace'))      toast.error('הרכב לא שייך לחשבון');
-      else if (msg.includes('driver_not_workspace_member'))   toast.error('הנהג אינו חבר פעיל בחשבון');
+      if      (msg.includes('forbidden_not_manager'))         toastError('אין לך הרשאת מנהל', { action: 'assign_driver_forbidden', err });
+      else if (msg.includes('vehicle_not_in_workspace'))      toastError('הרכב לא שייך לחשבון', { action: 'assign_driver_wrong_workspace', err });
+      else if (msg.includes('driver_not_workspace_member'))   toastError('הנהג אינו חבר פעיל בחשבון', { action: 'assign_driver_not_member', err });
       else if (msg.includes('external_driver_not_in_workspace_or_inactive'))
-        toast.error('הנהג לא פעיל בחשבון');
-      else                                                     toast.error('השיבוץ נכשל. נסה שוב.');
+        toastError('הנהג לא פעיל בחשבון', { action: 'assign_driver_external_inactive', err });
+      else                                                     toastError('השיבוץ נכשל. נסה שוב.', { action: 'assign_driver_save', err });
     } finally {
       setSubmitting(false);
     }

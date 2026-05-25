@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 import { Phone, Calendar, ArrowLeft, User, Loader2 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
-import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 
 const MIN_AGE_YEARS = 12;
 
@@ -64,7 +64,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
 
   const handleSave = async () => {
     if (birthDate && !isOldEnough(birthDate)) {
-      toast.error(`תאריך הלידה חייב להיות לפני גיל ${MIN_AGE_YEARS} לפחות`);
+      toastError(`תאריך הלידה חייב להיות לפני גיל ${MIN_AGE_YEARS} לפחות`, { action: 'complete_profile_age_invalid' });
       return;
     }
     setSaving(true);

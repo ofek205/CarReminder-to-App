@@ -23,6 +23,7 @@ import { MEMBER_STATUS } from '@/lib/enums';
 import { Bell, User, FileText, MessageSquare, AlertTriangle, Wrench, Gauge, X, Clock, Check, Loader2 } from 'lucide-react';
 import AdminMessageDialog from '@/components/shared/AdminMessageDialog';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { formatDistanceToNow } from 'date-fns';
 import { he as heLocale } from 'date-fns/locale';
 import { configForType as appConfigForType, requiresActionForType, decodeNotifBody } from '@/lib/appNotificationConfig';
@@ -569,7 +570,7 @@ export default function NotificationBell() {
       const msg = (e?.message || '').includes('invite_not_pending')
         ? 'ההזמנה כבר טופלה'
         : `שגיאה: ${e?.message || 'נסה שוב'}`;
-      toast.error(msg);
+      toastError(msg, { action: 'notif_bell_action', err: e });
     } finally {
       setInviteActing(null);
     }

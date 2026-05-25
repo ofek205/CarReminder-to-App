@@ -359,7 +359,7 @@ function FilterBar({ filters, updateFilter, resetFilters, availableVehicleTypes,
     // Stable order: main families first, then "אחר" if present.
     const order = Object.keys(VEHICLE_FAMILY_MAP).concat('אחר');
     return order.filter((f) => families.has(f));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [availableVehicleTypes]);
 
   // Returns the subtype list for a given family (all members of the

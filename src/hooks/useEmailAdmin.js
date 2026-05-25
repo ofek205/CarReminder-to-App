@@ -79,7 +79,7 @@ export function useToggleNotification() {
         // and the admin can see the row is enabled. Surface the
         // mismatch so we know to investigate, but let the optimistic
         // flow continue.
-        // eslint-disable-next-line no-console
+         
         console.warn('[useToggleNotification] trigger flag sync failed:', trigErr.message);
       }
     },

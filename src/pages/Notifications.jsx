@@ -15,6 +15,7 @@ import { useAuth } from "../components/shared/GuestContext";
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { calcAllReminders, daysUntil } from "../components/shared/ReminderEngine";
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '../components/ui/drawer';
 import useReminderSnooze, { SNOOZE_OPTIONS } from '../hooks/useReminderSnooze';
@@ -593,12 +594,12 @@ function AuthNotifications() {
   const handleSnoozeSelect = async (option) => {
     if (!snoozeTarget) return;
     const parsed = parseReminderId(snoozeTarget.id);
-    if (!parsed) { toast.error('לא ניתן להשתיק התראה זו'); setSnoozeTarget(null); return; }
+    if (!parsed) { toastError('לא ניתן להשתיק התראה זו', { action: 'notif_snooze_invalid' }); setSnoozeTarget(null); return; }
     try {
       await snooze(parsed.vehicleId, parsed.reminderType, option.days, option.days === null ? snoozeTarget.due_date : null);
       toast.success(`ההתראה הושתקה — ${option.label}`);
-    } catch {
-      toast.error('שגיאה בהשתקת ההתראה');
+    } catch (err) {
+      toastError('שגיאה בהשתקת ההתראה', { action: 'notif_snooze', err });
     }
     setSnoozeTarget(null);
   };
@@ -609,8 +610,8 @@ function AuthNotifications() {
     try {
       await unsnooze(parsed.vehicleId, parsed.reminderType);
       toast.success('ההתראה הופעלה מחדש');
-    } catch {
-      toast.error('שגיאה בביטול ההשתקה');
+    } catch (err) {
+      toastError('שגיאה בביטול ההשתקה', { action: 'notif_unsnooze', err });
     }
   };
 
@@ -629,7 +630,7 @@ function AuthNotifications() {
       const msg = (e?.message || '').includes('invite_not_pending')
         ? 'ההזמנה כבר טופלה'
         : `שגיאה: ${e?.message || 'נסה שוב'}`;
-      toast.error(msg);
+      toastError(msg, { action: 'notif_action', err: e });
     } finally {
       setInviteActing(null);
     }

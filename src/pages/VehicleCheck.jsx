@@ -7,6 +7,7 @@ import {
   Search, ShieldCheck, Sparkles, UserPlus, Wrench, XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -136,7 +137,7 @@ export default function VehicleCheck() {
   useEffect(() => {
     if (status !== 'loading') return undefined;
     const recoveryTimer = setTimeout(() => {
-      // eslint-disable-next-line no-console
+       
       console.warn('[VehicleCheck] auto-recovering from stuck loading state after 20s');
       setStatus('error');
       setError('הבדיקה ארכה יותר מדי. נסה שוב בבקשה.');
@@ -236,7 +237,7 @@ export default function VehicleCheck() {
       return;
     }
     if (accountLoading || !accountId) {
-      toast.error('לא נמצא חשבון פעיל לשמירת הרכב');
+      toastError('לא נמצא חשבון פעיל לשמירת הרכב', { action: 'vehicle_check_no_account' });
       return;
     }
 
@@ -253,9 +254,9 @@ export default function VehicleCheck() {
       toast.success('הרכב נוסף לרכבים שלך');
     } catch (err) {
       if (err?.code === 'duplicate_vehicle') {
-        toast.error('הרכב הזה כבר קיים ברשימת הרכבים שלך');
+        toastError('הרכב הזה כבר קיים ברשימת הרכבים שלך', { action: 'vehicle_check_duplicate', err });
       } else {
-        toast.error('שמירת הרכב נכשלה. נסה שוב.');
+        toastError('שמירת הרכב נכשלה. נסה שוב.', { action: 'vehicle_check_save', err });
       }
     } finally {
       setSaving(false);
@@ -582,10 +583,10 @@ function ReportModal({ mode, result, onClose, onPreview }) {
       }
       const { exportElementToPdf } = await import('@/lib/pdfExport');
       const ok = await exportElementToPdf(previewRef.current, `vehicle-check-${Date.now()}`);
-      if (!ok) toast.error('שגיאה ביצירת קובץ ה-PDF');
+      if (!ok) toastError('שגיאה ביצירת קובץ ה-PDF', { action: 'vehicle_check_pdf_export' });
     } catch (e) {
       console.error(e);
-      toast.error('שגיאה ביצירת קובץ ה-PDF');
+      toastError('שגיאה ביצירת קובץ ה-PDF', { action: 'vehicle_check_pdf_export', err: e });
     } finally {
       setDownloading(false);
     }
