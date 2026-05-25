@@ -57,6 +57,9 @@ function parseReminderId(id) {
   return null;
 }
 
+// Export for use outside of the hook (e.g. notification scheduler).
+export { parseReminderId };
+
 // ── Snooze duration options ─────────────────────────────────────
 
 export const SNOOZE_OPTIONS = [

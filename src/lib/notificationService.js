@@ -204,9 +204,11 @@ function buildPayload(reminder) {
  * @param {Array} vehicles   - Vehicle objects
  * @param {Object} settings  - Reminder settings (falls back to defaults)
  * @param {Array} documents  - Document objects (optional)
+ * @param {Object} [opts]    - Extra options
+ * @param {Set<string>} [opts.snoozedKeys] - Set of "vehicleId:reminderType" keys to skip
  * @returns {{ scheduled: number, permissionDenied?: boolean }}
  */
-export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER_SETTINGS, documents = []) {
+export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER_SETTINGS, documents = [], { snoozedKeys } = {}) {
   if (!isNative) return { scheduled: 0 };
 
   const hasPermission = await checkNotificationPermission();
@@ -225,6 +227,14 @@ export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER
   for (const reminder of reminders) {
     if (reminder.daysLeft === null || reminder.daysLeft === undefined) continue;
     if (isTypeMuted(reminder.type, settings)) continue;
+
+    // Skip snoozed reminders — user explicitly asked to silence this
+    // (vehicleId, reminderType) pair for a while. The snoozeMap is
+    // fetched by useNotificationScheduler before calling us.
+    if (snoozedKeys && reminder.vehicleId && reminder.type) {
+      const snoozeKey = `${reminder.vehicleId}:${reminder.type}`;
+      if (snoozedKeys.has(snoozeKey)) continue;
+    }
 
     // Passive-reminder cool-down: any reminder with daysLeft above the
     // passive threshold (mileage nudge / winter-prep / sailing-season /

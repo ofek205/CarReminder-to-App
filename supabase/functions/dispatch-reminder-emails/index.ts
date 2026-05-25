@@ -197,6 +197,19 @@ function renderTemplate(template: any, rawVars: Record<string, unknown>) {
 
 // ── Core dispatch ──────────────────────────────────────────────────────────
 
+// Map email trigger notification_key → reminder_snoozes.reminder_type.
+// Example: "test_due_14d" → "test", "insurance_overdue_3d" → "insurance".
+function notifKeyToReminderType(key: string): string | null {
+  if (key.startsWith('test_')) return 'test';
+  if (key.startsWith('insurance_')) return 'insurance';
+  if (key.startsWith('inspection_')) return 'inspection';
+  if (key.startsWith('document_')) return 'document';
+  if (key.startsWith('maintenance_')) return 'maintenance';
+  if (key.startsWith('safety_')) return 'safety';
+  if (key.startsWith('mileage_')) return 'mileage';
+  return null;
+}
+
 async function processTrigger(
   supabase: any,
   notificationKey: string,
@@ -227,6 +240,31 @@ async function processTrigger(
 
   stats.matched = candidates?.length || 0;
 
+  // ── Snooze filter ──────────────────────────────────────────────
+  // Batch-fetch active snoozes for this reminder_type. A snoozed
+  // (user, vehicle, type) pair should not receive email either —
+  // the user explicitly asked to be silenced across ALL channels.
+  const reminderType = notifKeyToReminderType(notificationKey);
+  const snoozedSet = new Set<string>();  // "userId:vehicleId"
+  if (reminderType && candidates?.length) {
+    try {
+      const userIds = [...new Set((candidates as any[]).map(c => c.user_id).filter(Boolean))];
+      // Fetch all active snoozes for this reminder_type across the batch.
+      // Using service-role client, so RLS is bypassed intentionally.
+      const { data: snoozeRows } = await supabase
+        .from('reminder_snoozes')
+        .select('user_id,vehicle_id')
+        .eq('reminder_type', reminderType)
+        .gt('snoozed_until', new Date().toISOString())
+        .in('user_id', userIds);
+      for (const r of snoozeRows || []) {
+        snoozedSet.add(`${r.user_id}:${r.vehicle_id}`);
+      }
+    } catch {
+      // Table missing or query error — proceed without snooze filtering
+    }
+  }
+
   // Defense-in-depth email format check. The RPC `email_dispatch_candidates`
   // is the canonical source of recipient addresses, but a misconfigured
   // RPC or corrupted user_profile row could return malformed values. A
@@ -240,6 +278,11 @@ async function processTrigger(
       if (!c.recipient_email || !EMAIL_RX.test(c.recipient_email)) {
         stats.skipped++;
         stats.errorDetails.push(`skipped invalid recipient for user ${c.user_id}`);
+        continue;
+      }
+      // Skip if this (user, vehicle) is snoozed for this reminder type.
+      if (c.vehicle_id && snoozedSet.has(`${c.user_id}:${c.vehicle_id}`)) {
+        stats.skipped++;
         continue;
       }
       const vars = {

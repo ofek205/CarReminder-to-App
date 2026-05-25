@@ -64,8 +64,28 @@ export default function useNotificationScheduler(vehicles = [], accountId = null
           }
         }
 
+        // Load active snoozes so snoozed reminders don't fire push.
+        // Uses the same "vehicleId:reminderType" key format as
+        // useReminderSnooze, but we don't call the hook — this is a
+        // plain async function, not a React component.
+        const snoozedKeys = new Set();
+        try {
+          const snoozeRows = await db.reminder_snoozes.filter(
+            { user_id: user.id },
+            { select: 'vehicle_id,reminder_type,snoozed_until' }
+          );
+          const now = new Date();
+          for (const r of snoozeRows) {
+            if (new Date(r.snoozed_until) > now) {
+              snoozedKeys.add(`${r.vehicle_id}:${r.reminder_type}`);
+            }
+          }
+        } catch {
+          // Table missing or RLS issue — proceed without snooze filtering
+        }
+
         if (cancelled) return;
-        await scheduleAllReminders(vehicles, settings, documents);
+        await scheduleAllReminders(vehicles, settings, documents, { snoozedKeys });
       } catch (e) {
         if (import.meta.env.DEV) console.warn('[useNotificationScheduler] Error:', e);
       }
