@@ -25,6 +25,7 @@ import {
   Truck, MapPin, Clock, Flag,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
@@ -289,9 +290,9 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
       onChange?.();
     } catch (err) {
       const msg = err?.message || '';
-      if (msg.includes('forbidden')) toast.error('אין לך הרשאה לעדכן את התחנה הזו');
-      else if (msg.includes('invalid_status')) toast.error('סטטוס לא תקף');
-      else                            toast.error('עדכון התחנה נכשל. נסה שוב.');
+      if (msg.includes('forbidden')) toastError('אין לך הרשאה לעדכן את התחנה הזו', { action: 'route_stop_forbidden', err });
+      else if (msg.includes('invalid_status')) toastError('סטטוס לא תקף', { action: 'route_stop_invalid_status', err });
+      else                            toastError('עדכון התחנה נכשל. נסה שוב.', { action: 'route_stop_update', err });
        
       console.error('update_stop_status failed:', err);
     } finally {
@@ -315,8 +316,8 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
       onChange?.();
     } catch (err) {
       const msg = err?.message || '';
-      if (msg.includes('forbidden')) toast.error('אין לך הרשאה להוסיף הערה');
-      else                            toast.error('שמירת ההערה נכשלה. נסה שוב.');
+      if (msg.includes('forbidden')) toastError('אין לך הרשאה להוסיף הערה', { action: 'route_note_forbidden', err });
+      else                            toastError('שמירת ההערה נכשלה. נסה שוב.', { action: 'route_note_save', err });
     } finally {
       setBusy(false);
     }
@@ -343,8 +344,8 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
       onChange?.();
     } catch (err) {
       const msg = err?.message || '';
-      if (msg.includes('forbidden')) toast.error('אין לך הרשאה לדווח על תקלה');
-      else                            toast.error('דיווח התקלה נכשל. נסה שוב.');
+      if (msg.includes('forbidden')) toastError('אין לך הרשאה לדווח על תקלה', { action: 'route_issue_forbidden', err });
+      else                            toastError('דיווח התקלה נכשל. נסה שוב.', { action: 'route_issue_save', err });
     } finally {
       setBusy(false);
     }

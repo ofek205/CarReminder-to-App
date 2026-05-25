@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Loader2, Copy, Check, Eye, Shield, Share2, Clock, UserPlus, Mail, Users, Car } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { getRecentShareEmails, rememberShareEmail } from '@/lib/recentShareEmails';
@@ -101,11 +102,11 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
   const submit = async () => {
     const cleanEmail = email.trim();
     if (!cleanEmail || !cleanEmail.includes('@')) {
-      toast.error('המייל לא תקין, נסה/י שוב');
+      toastError('המייל לא תקין, נסה/י שוב', { action: 'invite_member_invalid_email' });
       return;
     }
     if (!shareAll && selectedVehicleIds.length === 0) {
-      toast.error('בחר/י לפחות רכב אחד');
+      toastError('בחר/י לפחות רכב אחד', { action: 'invite_member_no_vehicles' });
       return;
     }
     setSubmitting(true);
@@ -118,7 +119,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
       if (error) {
         const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
         const msg = ERROR_COPY[code] || `שגיאה בהזמנה: ${error.message}`;
-        toast.error(msg);
+        toastError(msg, { action: 'invite_member_rpc', err: error });
         if (import.meta.env.DEV) console.warn('invite_account_member_by_email error:', error);
         setSubmitting(false);
         return;
@@ -135,7 +136,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
         }
       }
     } catch (e) {
-      toast.error(`שגיאה בהזמנה: ${e?.message || 'נסה שוב'}`);
+      toastError(`שגיאה בהזמנה: ${e?.message || 'נסה שוב'}`, { action: 'invite_member_exception', err: e });
       if (import.meta.env.DEV) console.warn('invite dialog exception:', e);
     } finally {
       setSubmitting(false);
@@ -155,7 +156,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
       setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION_MS);
       toast.success('הקישור הועתק');
     } catch {
-      toast.error('לא ניתן להעתיק. סמן ידנית');
+      toastError('לא ניתן להעתיק. סמן ידנית', { action: 'invite_member_copy_link' });
     }
   };
 
