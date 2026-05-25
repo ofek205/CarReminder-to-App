@@ -20,6 +20,7 @@ import {
   CheckCircle, Clock, AlertCircle, ChevronLeft, Crown, Phone, Mail, Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -362,9 +363,9 @@ function UpdateMileageDialog({ vehicle, onClose, onDone }) {
   const submit = async (e) => {
     e.preventDefault();
     const n = Number(km);
-    if (Number.isNaN(n) || n < 0) { toast.error('הזן מספר תקין'); return; }
+    if (Number.isNaN(n) || n < 0) { toastError('הזן מספר תקין', { action: 'update_km_validate' }); return; }
     if (vehicle.current_km != null && n < Number(vehicle.current_km)) {
-      toast.error(`הקילומטראז' לא יכול לרדת. הקיים: ${fmtKm(vehicle.current_km)}`);
+      toastError(`הקילומטראז' לא יכול לרדת. הקיים: ${fmtKm(vehicle.current_km)}`, { action: 'update_km_decrease' });
       return;
     }
 
@@ -379,11 +380,11 @@ function UpdateMileageDialog({ vehicle, onClose, onDone }) {
       onDone?.();
     } catch (err) {
       const msg = err?.message || '';
-      if      (msg.includes('forbidden'))         toast.error('אין לך הרשאה לעדכן את הרכב הזה');
-      else if (msg.includes('km_cannot_decrease')) toast.error('הקילומטראז\' לא יכול לרדת');
-      else if (msg.includes('invalid_km'))         toast.error('מספר לא תקין');
-      else                                          toast.error('העדכון נכשל. נסה שוב.');
-       
+      if      (msg.includes('forbidden'))         toastError('אין לך הרשאה לעדכן את הרכב הזה', { action: 'update_km', err });
+      else if (msg.includes('km_cannot_decrease')) toastError('הקילומטראז\' לא יכול לרדת', { action: 'update_km_decrease', err });
+      else if (msg.includes('invalid_km'))         toastError('מספר לא תקין', { action: 'update_km_invalid', err });
+      else                                          toastError('העדכון נכשל. נסה שוב.', { action: 'update_km', err });
+
       console.error('driver_update_mileage failed:', err);
     } finally {
       setSubmitting(false);
@@ -435,8 +436,8 @@ function VehicleEventDialog({ vehicle, kind, onClose, onDone }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!title.trim()) { toast.error('יש להזין כותרת'); return; }
-    if (cost && Number.isNaN(Number(cost))) { toast.error('עלות לא תקינה'); return; }
+    if (!title.trim()) { toastError('יש להזין כותרת', { action: 'log_event_validate' }); return; }
+    if (cost && Number.isNaN(Number(cost))) { toastError('עלות לא תקינה', { action: 'log_event_cost_invalid' }); return; }
 
     setSubmitting(true);
     try {
@@ -454,10 +455,10 @@ function VehicleEventDialog({ vehicle, kind, onClose, onDone }) {
       onDone?.();
     } catch (err) {
       const msg = err?.message || '';
-      if      (msg.includes('forbidden'))      toast.error('אין לך הרשאה לרכב הזה');
-      else if (msg.includes('title_required')) toast.error('יש להזין כותרת');
-      else                                      toast.error('הפעולה נכשלה. נסה שוב.');
-       
+      if      (msg.includes('forbidden'))      toastError('אין לך הרשאה לרכב הזה', { action: 'log_event', err });
+      else if (msg.includes('title_required')) toastError('יש להזין כותרת', { action: 'log_event_validate', err });
+      else                                      toastError('הפעולה נכשלה. נסה שוב.', { action: 'log_event', err });
+
       console.error('driver_log_vehicle_event failed:', err);
     } finally {
       setSubmitting(false);
