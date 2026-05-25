@@ -1,28 +1,21 @@
+/**
+ * GuestContext — Auth session facade.
+ *
+ * Manages: Supabase auth state (loading/authenticated/guest), user object,
+ * session bootstrap (iOS WKWebView timeouts, retry), account provisioning,
+ * OAuth welcome email, PIN lock binding, push notification init.
+ *
+ * Guest data CRUD (vehicles, documents, accidents, vessel issues, cork
+ * notes, reminder settings, demo state) lives in GuestDataContext.jsx.
+ * This provider wraps <GuestDataProvider> and useAuth() merges both
+ * contexts for full backward compatibility — zero consumer changes.
+ */
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { db } from '@/lib/supabaseEntities';
-import { toast } from 'sonner';
-import { isVessel } from './DateStatusUtils';
-import { MEMBER_STATUS } from '@/lib/enums';
+import { GuestDataProvider, GuestDataCtx, DEFAULT_REMINDER_SETTINGS } from '@/contexts/GuestDataContext';
 
-const GuestContext = createContext(null);
-const STORAGE_KEY          = 'fleet_guest_vehicles';
-const DEMO_DISMISSED_KEY   = 'fleet_guest_demo_dismissed';
-const DOCS_KEY             = 'fleet_guest_documents';
-const SETTINGS_KEY         = 'fleet_guest_reminder_settings';
-const ACCIDENTS_KEY        = 'fleet_guest_accidents';
-const VESSEL_ISSUES_KEY    = 'fleet_guest_vessel_issues';
-const CORK_NOTES_KEY       = 'fleet_guest_cork_notes';
+const AuthCtx = createContext(null);
 const FORCE_GUEST_ONCE_KEY = 'cr_force_guest_once';
-
-const DEFAULT_REMINDER_SETTINGS = {
-  remind_test_days_before:       14,
-  remind_insurance_days_before:  14,
-  remind_document_days_before:   14,
-  remind_maintenance_days_before: 7,
-  overdue_repeat_every_days:      3,
-  daily_job_hour:                 8,
-};
 
 //  Welcome email dispatch — OAuth signup paths
 // Email+password signups dispatch their welcome from AuthPage (which has
@@ -86,173 +79,28 @@ async function dispatchOAuthWelcomeEmail(user) {
   }
 }
 
-export function GuestProvider({ children }) {
-  const [authState, setAuthState] = useState('loading'); // 'loading' | 'authenticated' | 'guest'
+// Normalize Supabase user to a consistent shape used across the app
+function normalizeUser(supabaseUser) {
+  return {
+    ...supabaseUser,
+    full_name: supabaseUser.user_metadata?.full_name || supabaseUser.email,
+    role: supabaseUser.user_metadata?.role || null,
+  };
+}
+
+/**
+ * Inner auth provider. MUST be rendered inside <GuestDataProvider>
+ * so it can access migrateGuestDataIfNeeded via context.
+ */
+function AuthInner({ children }) {
+  // Access guest data context via ref so the mount-time useEffect
+  // closure always sees the latest context value.
+  const guestData = useContext(GuestDataCtx);
+  const guestDataRef = useRef(guestData);
+  guestDataRef.current = guestData;
+
+  const [authState, setAuthState] = useState('loading');
   const [user, setUser] = useState(null);
-
-  // Deep sanitize all strings in data loaded from localStorage to prevent stored XSS
-  const sanitizeValue = (v) => {
-    if (typeof v === 'string') {
-      return v.replace(/&#x([0-9a-f]+);?/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
-              .replace(/&#(\d+);?/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
-              .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
-              .replace(/[\uFF1C\uFE64]/g, '<').replace(/[\uFF1E\uFE65]/g, '>')
-              .replace(/<[^>]*>/g, '')
-              .replace(/on\w+\s*=/gi, '')
-              .replace(/j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '');
-    }
-    if (Array.isArray(v)) return v.map(sanitizeValue);
-    if (v && typeof v === 'object') {
-      const clean = {};
-      for (const [key, val] of Object.entries(v)) {
-        if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
-        clean[key] = sanitizeValue(val);
-      }
-      return clean;
-    }
-    return v;
-  };
-
-  const sanitizeLocalData = (arr) => {
-    if (!Array.isArray(arr)) return [];
-    return arr.map(sanitizeValue);
-  };
-
-  const safeLoadArray = (key) => {
-    try {
-      const data = JSON.parse(localStorage.getItem(key) || '[]');
-      return sanitizeLocalData(data);
-    } catch { return []; }
-  };
-
-  /**
-   * localStorage.setItem wrapped to handle QuotaExceededError (~5MB cap).
-   * Without this, guest writes would silently fail once the user accumulates
-   * enough vehicles/documents, and the app would act like the save succeeded
-   * while the new row lives only in React state until reload.
-   */
-  const safeSetItem = (key, value) => {
-    try {
-      localStorage.setItem(key, value);
-      return true;
-    } catch (err) {
-      if (err?.name === 'QuotaExceededError' || (err?.code && /quota/i.test(err.code))) {
-        toast.error('נגמר האחסון המקומי. הירשם כדי לשמור את הרכבים בחשבון ולא לאבד אותם.');
-      } else {
-        toast.error('שמירה מקומית נכשלה');
-      }
-      return false;
-    }
-  };
-
-  const [guestVehicles, setGuestVehicles] = useState(() => safeLoadArray(STORAGE_KEY));
-  const [guestDocuments, setGuestDocuments] = useState(() => safeLoadArray(DOCS_KEY));
-
-  const [guestReminderSettings, setGuestReminderSettings] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || DEFAULT_REMINDER_SETTINGS; } catch { return DEFAULT_REMINDER_SETTINGS; }
-  });
-
-  const [guestAccidents, setGuestAccidents] = useState(() => safeLoadArray(ACCIDENTS_KEY));
-  const [guestVesselIssues, setGuestVesselIssues] = useState(() => safeLoadArray(VESSEL_ISSUES_KEY));
-  const [guestCorkNotes, setGuestCorkNotes] = useState(() => safeLoadArray(CORK_NOTES_KEY));
-
-  const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
-
-  const [isDemoDismissed, setIsDemoDismissed] = useState(() => {
-    try { return localStorage.getItem(DEMO_DISMISSED_KEY) === 'true'; } catch { return false; }
-  });
-
-  const migrationRunRef = useRef(false);
-
-  // Migrate guest vehicles to authenticated account after signup/login
-  const migrateGuestDataIfNeeded = async (authenticatedUser) => {
-    if (migrationRunRef.current) return; // prevent double-run
-    try {
-      const storedVehicles = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      // Only migrate real guest vehicles (not demo_xxx)
-      const toMigrate = storedVehicles.filter(v => v.id?.startsWith('guest_'));
-      if (toMigrate.length === 0) return;
-
-      migrationRunRef.current = true;
-
-      // Get account_id for the authenticated user.
-      // New user might not have account_members yet (trigger race), so we
-      // retry — but cap the attempts so a misconfigured DB doesn't loop
-      // forever and pin the CPU.
-      let members = await db.account_members.filter({ user_id: authenticatedUser.id, status: MEMBER_STATUS.ACTIVE });
-      let attempts = 0;
-      while (members.length === 0 && attempts < 3) {
-        await new Promise(r => setTimeout(r, 2000 + attempts * 1000));
-        members = await db.account_members.filter({ user_id: authenticatedUser.id, status: MEMBER_STATUS.ACTIVE });
-        attempts++;
-      }
-      if (members.length === 0) {
-        console.warn('Guest migration: no account_members after 3 retries, aborting');
-        migrationRunRef.current = false;
-        return;
-      }
-      const accountId = members[0].account_id;
-
-      // DB columns whitelist
-      const DB_COLUMNS = ['vehicle_type','manufacturer','model','year',
-        'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
-        'current_km','current_engine_hours','vehicle_photo','fuel_type','is_vintage',
-        'last_tire_change_date','km_since_tire_change',
-        'flag_country','marina','marina_abroad','engine_manufacturer',
-        'pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
-        'life_raft_expiry_date','last_shipyard_date','hours_since_shipyard',
-        'front_tire','rear_tire','engine_model','color','last_test_date','first_registration_date','ownership',
-        'model_code','trim_level','vin','pollution_group','vehicle_class','safety_rating',
-        'horsepower','engine_cc','drivetrain','total_weight','doors','seats','airbags',
-        'transmission','body_type','country_of_origin','co2','green_index','tow_capacity',
-        'offroad_equipment','offroad_usage_type','last_offroad_service_date',
-        'ownership_hand','ownership_history',
-        'is_personal_import','personal_import_type'];
-
-      let migrated = 0;
-      for (const guestVehicle of toMigrate) {
-        const cleanData = { account_id: accountId };
-        DB_COLUMNS.forEach(k => {
-          if (guestVehicle[k] !== undefined && guestVehicle[k] !== null && guestVehicle[k] !== '') {
-            cleanData[k] = guestVehicle[k];
-          }
-        });
-        // Type conversions
-        if (cleanData.year) cleanData.year = Number(cleanData.year);
-        if (cleanData.current_km) {
-          cleanData.current_km = Number(cleanData.current_km);
-          cleanData.km_baseline = cleanData.current_km;
-        }
-        if (cleanData.current_engine_hours) {
-          cleanData.current_engine_hours = Number(cleanData.current_engine_hours);
-          cleanData.engine_hours_baseline = cleanData.current_engine_hours;
-        }
-
-        try {
-          await db.vehicles.create(cleanData);
-          migrated++;
-        } catch (err) {
-          console.warn('Guest vehicle migration failed for one vehicle:', err?.message);
-        }
-      }
-
-      if (migrated > 0) {
-        // Clear guest data after successful migration
-        localStorage.removeItem(STORAGE_KEY);
-        setGuestVehicles([]);
-        toast.success(
-          migrated === 1
-            ? 'הרכב שהוספת הועבר בהצלחה לחשבון שלך!'
-            : `${migrated} כלי רכב הועברו בהצלחה לחשבון שלך!`
-        );
-      }
-    } catch (err) {
-      console.error('Guest data migration error:', err);
-      // Don't block the user. they can still use the app
-    } finally {
-      migrationRunRef.current = false;
-    }
-  };
 
   useEffect(() => {
     // ensure_user_account is idempotent: returns the existing account
@@ -441,7 +289,7 @@ export function GuestProvider({ children }) {
         setAuthState('authenticated');
         try { window.__crAuthResolvedAt = Date.now(); } catch {}
         // Migrate guest data after login/signup (non-blocking).
-        migrateGuestDataIfNeeded(newUser);
+        guestDataRef.current?.migrateGuestDataIfNeeded(newUser);
       } else {
         setUser(null);
         // Mirror the cr_has_session removal here so a SIGNED_OUT or
@@ -476,220 +324,7 @@ export function GuestProvider({ children }) {
     };
   }, []);
 
-  useEffect(() => {
-    const handleStorage = (e) => {
-      // All storage events pass through sanitizeLocalData to prevent stored XSS
-      if (e.key === STORAGE_KEY) {
-        try { setGuestVehicles(sanitizeLocalData(JSON.parse(e.newValue || '[]'))); } catch {}
-      }
-      if (e.key === DOCS_KEY) {
-        try { setGuestDocuments(sanitizeLocalData(JSON.parse(e.newValue || '[]'))); } catch {}
-      }
-      if (e.key === ACCIDENTS_KEY) {
-        try { setGuestAccidents(sanitizeLocalData(JSON.parse(e.newValue || '[]'))); } catch {}
-      }
-      if (e.key === VESSEL_ISSUES_KEY) {
-        try { setGuestVesselIssues(sanitizeLocalData(JSON.parse(e.newValue || '[]'))); } catch {}
-      }
-      if (e.key === CORK_NOTES_KEY) {
-        try { setGuestCorkNotes(sanitizeLocalData(JSON.parse(e.newValue || '[]'))); } catch {}
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
-
-  //  Vehicles 
-
-  const addGuestVehicle = (vehicleData) => {
-    if (guestVehicles.length >= 20) return null;
-    const cleanData = Object.fromEntries(
-      Object.entries(vehicleData).filter(([k]) => !k.startsWith('_'))
-    );
-    const vehicle = { ...cleanData, id: `guest_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
-    setGuestVehicles(prev => {
-      // Remove matching demo: vessel demo for vessel, car demo for car
-      const addingVessel = isVessel(vehicleData.vehicle_type, vehicleData.nickname);
-      const filtered = prev.filter(v => {
-        if (!v._isDemo && !v.id?.startsWith('demo_')) return true; // keep real vehicles
-        const demoIsVessel = isVessel(v.vehicle_type, v.nickname);
-        return addingVessel ? !demoIsVessel : demoIsVessel; // remove only the matching demo
-      });
-      const updated = [...filtered, vehicle];
-      safeSetItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    return vehicle;
-  };
-
-  const updateGuestVehicle = (id, changes) => {
-    setGuestVehicles(prev => {
-      const updated = prev.map(v => v.id === id ? { ...v, ...changes } : v);
-      safeSetItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  const removeGuestVehicle = (id) => {
-    setGuestVehicles(prev => {
-      const updated = prev.filter(v => v.id !== id);
-      safeSetItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  const clearGuestData = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(DOCS_KEY);
-    localStorage.removeItem(SETTINGS_KEY);
-    localStorage.removeItem(ACCIDENTS_KEY);
-    localStorage.removeItem(VESSEL_ISSUES_KEY);
-    localStorage.removeItem(CORK_NOTES_KEY);
-    setGuestVehicles([]);
-    setGuestDocuments([]);
-    setGuestAccidents([]);
-    setGuestVesselIssues([]);
-    setGuestCorkNotes([]);
-    setGuestReminderSettings(DEFAULT_REMINDER_SETTINGS);
-  };
-
-  const getStoredGuestVehicles = () => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
-  };
-
-  const getStoredGuestDocuments = () => {
-    try { return JSON.parse(localStorage.getItem(DOCS_KEY) || '[]'); } catch { return []; }
-  };
-
-  const getStoredGuestReminderSettings = () => {
-    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || DEFAULT_REMINDER_SETTINGS; } catch { return DEFAULT_REMINDER_SETTINGS; }
-  };
-
-  //  Documents 
-
-  const addGuestDocument = (docData) => {
-    const cleanData = Object.fromEntries(
-      Object.entries(docData).filter(([k]) => !k.startsWith('_'))
-    );
-    const doc = { ...cleanData, id: `guest_doc_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
-    setGuestDocuments(prev => {
-      const updated = [...prev, doc];
-      safeSetItem(DOCS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    return doc;
-  };
-
-  const removeGuestDocument = (id) => {
-    setGuestDocuments(prev => {
-      const updated = prev.filter(d => d.id !== id);
-      safeSetItem(DOCS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  //  Accidents 
-
-  const addGuestAccident = (data) => {
-    const cleanData = Object.fromEntries(
-      Object.entries(data).filter(([k]) => !k.startsWith('_'))
-    );
-    const accident = { ...cleanData, id: `guest_accident_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
-    setGuestAccidents(prev => {
-      const updated = [...prev, accident];
-      safeSetItem(ACCIDENTS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    return accident;
-  };
-
-  const updateGuestAccident = (id, changes) => {
-    setGuestAccidents(prev => {
-      const updated = prev.map(a => a.id === id ? { ...a, ...changes } : a);
-      safeSetItem(ACCIDENTS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  const removeGuestAccident = (id) => {
-    setGuestAccidents(prev => {
-      const updated = prev.filter(a => a.id !== id);
-      safeSetItem(ACCIDENTS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  //  Vessel Issues 
-
-  const addGuestVesselIssue = (data) => {
-    const cleanData = Object.fromEntries(
-      Object.entries(data).filter(([k]) => !k.startsWith('_'))
-    );
-    const issue = { ...cleanData, id: `guest_issue_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
-    setGuestVesselIssues(prev => {
-      const updated = [...prev, issue];
-      safeSetItem(VESSEL_ISSUES_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    return issue;
-  };
-
-  const updateGuestVesselIssue = (id, changes) => {
-    setGuestVesselIssues(prev => {
-      const updated = prev.map(i => i.id === id ? { ...i, ...changes } : i);
-      safeSetItem(VESSEL_ISSUES_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  const removeGuestVesselIssue = (id) => {
-    setGuestVesselIssues(prev => {
-      const updated = prev.filter(i => i.id !== id);
-      safeSetItem(VESSEL_ISSUES_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  //  Cork notes 
-
-  const addGuestCorkNote = (noteData) => {
-    const note = { ...noteData, id: `guest_note_${crypto.randomUUID()}`, created_date: new Date().toISOString() };
-    setGuestCorkNotes(prev => {
-      const updated = [...prev, note].slice(0, 100);
-      safeSetItem(CORK_NOTES_KEY, JSON.stringify(updated));
-      return updated;
-    });
-    return note;
-  };
-
-  const updateGuestCorkNote = (id, changes) => {
-    setGuestCorkNotes(prev => {
-      const updated = prev.map(n => n.id === id ? { ...n, ...changes } : n);
-      safeSetItem(CORK_NOTES_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  const removeGuestCorkNote = (id) => {
-    setGuestCorkNotes(prev => {
-      const updated = prev.filter(n => n.id !== id);
-      safeSetItem(CORK_NOTES_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  //  Reminder settings 
-
-  const updateGuestReminderSettings = (changes) => {
-    setGuestReminderSettings(prev => {
-      const updated = { ...prev, ...changes };
-      safeSetItem(SETTINGS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  //  User 
-
+  //  User refresh
   const refreshUser = async () => {
     const { data: { user: u } } = await supabase.auth.getUser();
     if (u) {
@@ -699,79 +334,42 @@ export function GuestProvider({ children }) {
     }
   };
 
-  //  Demo 
-
-  const dismissDemo = () => {
-    safeSetItem(DEMO_DISMISSED_KEY, 'true');
-    setIsDemoDismissed(true);
-  };
-
-  const resetDemo = () => {
-    localStorage.removeItem(DEMO_DISMISSED_KEY);
-    setIsDemoDismissed(false);
-  };
-
   return (
-    <GuestContext.Provider value={{
+    <AuthCtx.Provider value={{
       authState,
       isLoading: authState === 'loading',
       isAuthenticated: authState === 'authenticated',
       isGuest: authState === 'guest',
       user,
-      // Vehicles
-      guestVehicles,
-      addGuestVehicle,
-      updateGuestVehicle,
-      removeGuestVehicle,
-      clearGuestData,
-      getStoredGuestVehicles,
-      // Documents
-      guestDocuments,
-      addGuestDocument,
-      removeGuestDocument,
-      getStoredGuestDocuments,
-      // Accidents
-      guestAccidents,
-      addGuestAccident,
-      updateGuestAccident,
-      removeGuestAccident,
-      // Vessel Issues
-      guestVesselIssues,
-      addGuestVesselIssue,
-      updateGuestVesselIssue,
-      removeGuestVesselIssue,
-      // Cork Notes
-      guestCorkNotes,
-      addGuestCorkNote,
-      updateGuestCorkNote,
-      removeGuestCorkNote,
-      // Reminder settings
-      guestReminderSettings,
-      updateGuestReminderSettings,
-      getStoredGuestReminderSettings,
-      // Sign-up prompt
-      showSignUpPrompt,
-      setShowSignUpPrompt,
-      // User refresh
       refreshUser,
-      // Demo vehicle management
-      isDemoDismissed,
-      dismissDemo,
-      resetDemo,
     }}>
       {children}
-    </GuestContext.Provider>
+    </AuthCtx.Provider>
   );
 }
 
-// Safe default. returned when useAuth() is called outside <GuestProvider>
-// Prevents "Cannot destructure property 'user' of 'useAuth(...)' as it is null" crashes
+/**
+ * Public provider — wraps GuestDataProvider + AuthInner.
+ * Drop-in replacement for the old monolithic GuestProvider.
+ */
+export function GuestProvider({ children }) {
+  return (
+    <GuestDataProvider>
+      <AuthInner>{children}</AuthInner>
+    </GuestDataProvider>
+  );
+}
+
+// Safe default returned when useAuth() is called outside <GuestProvider>.
+// Prevents "Cannot destructure property 'user' of 'useAuth(...)' as it is null" crashes.
 const SAFE_DEFAULT_AUTH = {
+  // Auth
   authState: 'loading',
   isLoading: true,
   isAuthenticated: false,
   isGuest: false,
   user: null,
+  refreshUser: async () => null,
   // Vehicles
   guestVehicles: [],
   addGuestVehicle: () => null,
@@ -806,24 +404,21 @@ const SAFE_DEFAULT_AUTH = {
   // Sign-up prompt
   showSignUpPrompt: false,
   setShowSignUpPrompt: () => {},
-  // User refresh
-  refreshUser: async () => null,
   // Demo vehicle management
   isDemoDismissed: false,
   dismissDemo: () => {},
   resetDemo: () => {},
+  // Migration (used internally, but included for completeness)
+  migrateGuestDataIfNeeded: async () => {},
 };
 
+/**
+ * Primary hook — backward-compatible with the old monolithic context.
+ * Merges auth state from AuthCtx + guest data from GuestDataCtx.
+ */
 export function useAuth() {
-  const ctx = useContext(GuestContext);
-  return ctx || SAFE_DEFAULT_AUTH;
-}
-
-// Normalize Supabase user to a consistent shape used across the app
-function normalizeUser(supabaseUser) {
-  return {
-    ...supabaseUser,
-    full_name: supabaseUser.user_metadata?.full_name || supabaseUser.email,
-    role: supabaseUser.user_metadata?.role || null,
-  };
+  const auth = useContext(AuthCtx);
+  const guestData = useContext(GuestDataCtx);
+  if (!auth) return SAFE_DEFAULT_AUTH;
+  return { ...(guestData || {}), ...auth };
 }
