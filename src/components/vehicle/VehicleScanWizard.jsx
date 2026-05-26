@@ -161,6 +161,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
         // mapping below routes the user to the preview step's manual
         // entry path, which is the same fallback as a bad-image scan.
         feature: 'scan_extraction',
+        surface: 'vehicle_scan',
         model: 'claude-sonnet-4-20250514',
         max_tokens: 500,
         messages: [{

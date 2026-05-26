@@ -206,6 +206,7 @@ export default function ExpenseFormDialog({
         file_url: url,
         json_schema: schema,
         instructions: 'חלץ פרטי חשבונית כספית. החזר רק ערכים שמופיעים בבירור במסמך. אם שדה לא ברור: השאר ריק.',
+        surface: 'expense_personal_scan',
       });
       if (result?.status !== 'success' || !result.output) {
         setScanError('לא הצלחנו לקרוא את כל הפרטים, אפשר להשלים ידנית.');

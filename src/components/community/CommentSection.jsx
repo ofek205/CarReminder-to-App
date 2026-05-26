@@ -116,6 +116,8 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
             const json = await aiRequest({
               // Admin-configurable provider (community_expert feature).
               feature: 'community_expert',
+              // Surface tag for the analytics dashboard.
+              surface: 'community_reply',
               model: 'claude-sonnet-4-20250514',
               max_tokens: 400,
               system: systemPrompt,

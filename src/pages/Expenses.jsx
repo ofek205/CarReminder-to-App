@@ -455,6 +455,7 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
         file_url: url,
         json_schema: schema,
         instructions: 'חלץ פרטי חשבונית כספית. החזר רק את הערכים שמופיעים בבירור במסמך. אם שדה לא ברור — השאר ריק.',
+        surface: 'expense_business_scan',
       });
       if (result?.status !== 'success' || !result.output) {
         throw new Error(result?.details || 'extraction_failed');

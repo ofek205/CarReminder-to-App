@@ -12,7 +12,7 @@
  */
 import { supabase } from './supabase';
 
-export async function extractDataFromUploadedFile({ file_url, json_schema, instructions }) {
+export async function extractDataFromUploadedFile({ file_url, json_schema, instructions, surface }) {
   if (!file_url) return { status: 'error', details: 'Missing file_url' };
   if (!json_schema) return { status: 'error', details: 'Missing json_schema' };
 
@@ -22,6 +22,9 @@ export async function extractDataFromUploadedFile({ file_url, json_schema, instr
       file_url,
       json_schema,
       instructions,
+      // Surface tag — see ALLOWED_SURFACES in ai-proxy/index.ts. Optional;
+      // the server validates and drops unknown values to NULL.
+      surface,
     },
   });
 

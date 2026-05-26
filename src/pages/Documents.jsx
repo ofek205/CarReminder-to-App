@@ -307,6 +307,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
         // block below already shows the right Hebrew copy, and the
         // form's manual fields stay fully functional.
         feature: 'scan_extraction',
+        surface: 'document_scan',
         model: 'claude-sonnet-4-20250514',
         max_tokens: 300,
         messages: [{
