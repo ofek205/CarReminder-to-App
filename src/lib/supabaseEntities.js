@@ -117,12 +117,22 @@ const LIGHT_COLUMNS = {
   //   WHERE table_name='vehicles' AND column_name='<new>';
   // before adding it here.
   vehicles: [
-    'id', 'account_id', 'created_at', 'updated_at',
+    // 2026-05-26 (round 2): removed `updated_at` and `status` — neither
+    // exists on the base public.vehicles table, so PostgREST was
+    // failing every light-mode query with a 400 "column does not
+    // exist" and the calling pages were showing their empty state
+    // (MyExpenses, AccountSettings, Reports, etc.).
+    //
+    // Audit before editing: run
+    //   SELECT column_name FROM information_schema.columns
+    //   WHERE table_name='vehicles' AND column_name='<candidate>';
+    // and only add if the row exists.
+    'id', 'account_id', 'created_at',
     'license_plate', 'nickname', 'manufacturer', 'model', 'year', 'vehicle_type',
     'test_due_date', 'insurance_due_date',
     'current_km', 'km_update_date',
     'current_engine_hours', 'engine_hours_update_date',
-    'status', 'fuel_type',
+    'fuel_type',
   ].join(','),
 };
 
