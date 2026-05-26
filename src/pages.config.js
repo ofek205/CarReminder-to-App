@@ -59,6 +59,7 @@ const Checklist = React.lazy(() => import('./pages/Checklist'));
 const ChecklistEditor = React.lazy(() => import('./pages/ChecklistEditor'));
 const ChecklistHistory = React.lazy(() => import('./pages/ChecklistHistory'));
 const AdminAiSettings = React.lazy(() => import('./pages/AdminAiSettings'));
+const AdminAiUsage    = React.lazy(() => import('./pages/AdminAiUsage'));
 const CreateBusinessWorkspace = React.lazy(() => import('./pages/CreateBusinessWorkspace'));
 const Routes_           = React.lazy(() => import('./pages/Routes'));
 const CreateRoute       = React.lazy(() => import('./pages/CreateRoute'));
@@ -129,6 +130,7 @@ export const PAGES = {
     "ChecklistEditor": ChecklistEditor,
     "ChecklistHistory": ChecklistHistory,
     "AdminAiSettings": AdminAiSettings,
+    "AdminAiUsage":    AdminAiUsage,
     "CreateBusinessWorkspace": CreateBusinessWorkspace,
     "Routes":       Routes_,
     "CreateRoute":  CreateRoute,

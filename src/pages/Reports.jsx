@@ -131,7 +131,7 @@ export default function Reports() {
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ['reports-vehicles', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
+    queryFn: () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled: !!accountId && canRead && isBusiness,
     staleTime: 5 * 60 * 1000,
   });

@@ -143,7 +143,7 @@ export default function BusinessDashboard() {
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ['biz-dash-vehicles', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
+    queryFn: () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled, staleTime: 60 * 1000,
   });
 

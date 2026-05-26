@@ -498,7 +498,7 @@ function AuthNotifications() {
         return { accountId, vehicles: data || [] };
       }
 
-      const vehicles = await db.vehicles.filter({ account_id: accountId });
+      const vehicles = await db.vehicles.filter({ account_id: accountId }, { light: true });
       return { accountId, vehicles };
     },
     enabled: !!user?.id && !!activeWorkspaceId,

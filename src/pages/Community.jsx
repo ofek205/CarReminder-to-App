@@ -56,7 +56,7 @@ export default function Community() {
     if (!isAuthenticated || !accountId) return;
     (async () => {
       try {
-        const vehicles = await db.vehicles.filter({ account_id: accountId });
+        const vehicles = await db.vehicles.filter({ account_id: accountId }, { light: true });
         setUserVehicles(vehicles);
         setHasVessel(vehicles.some(v => isVessel(v.vehicle_type, v.nickname)));
       } catch {}

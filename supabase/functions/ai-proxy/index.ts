@@ -42,16 +42,121 @@ const GEMINI_KEY       = Deno.env.get('GEMINI_API_KEY');
 const GROQ_KEY         = Deno.env.get('GROQ_API_KEY');
 const ANTHROPIC_KEY    = Deno.env.get('ANTHROPIC_API_KEY');
 
-// Switched from gemini-2.0-flash to gemini-1.5-flash after the
-// project's 2.0-flash daily quota started getting exhausted under
-// real user load. Both are flash-tier (low-latency), 1.5-flash has
-// a separate free-tier bucket (15 RPM, 1M TPM, 1500 RPD) and no
-// billing requirement. To upgrade back to 2.0/2.5 later, swap the
-// model name here and either enable billing on the Google Cloud
-// project or accept tighter daily limits.
-const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+// Model history (most recent first):
+//   • 2026-05-26 — upgraded to gemini-2.5-flash. Newest free-tier flash
+//     model with multimodal (text + image + PDF) support, 1M-token
+//     context, 15 RPM / 1M TPM / 1500 RPD on the free tier. Chosen
+//     because 2.0-flash is scheduled to shut down on 2026-06-01 and
+//     pro models went paid-only in April 2026.
+//   • Earlier — gemini-1.5-flash. We had downgraded to 1.5 from 2.0
+//     because the project's 2.0-flash daily quota started getting
+//     exhausted under real user load. 2.5-flash sits in its own free
+//     bucket so the previous quota issue does not apply.
+// If 2.5-flash itself runs out of free capacity in the future, options
+// are: enable billing on the Google Cloud project, drop to
+// gemini-2.5-flash-lite, or route via the abstraction layer in
+// _shared/ai-providers to a different provider.
+const GEMINI_URL    = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 const GROQ_URL      = 'https://api.groq.com/openai/v1/chat/completions';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+
+// Model name constants. Kept here (not inside call*) so logAiUsage can
+// reference the same string the request used — avoids drift between
+// what we sent and what we record.
+const GEMINI_MODEL  = 'gemini-2.5-flash';
+const GROQ_MODEL    = 'llama-3.3-70b-versatile';
+// Claude reads the model from the request body; nothing pinned here.
+
+// ──────────────────────────────────────────────────────────────────────
+// Usage tracking — best-effort write to public.ai_usage_logs after
+// every successful provider call. Disabled by flipping
+// app_config.ai_usage_tracking_enabled to false (the row is seeded as
+// true in supabase-feature-flags-attachments.sql).
+//
+// Cached for 60 seconds in module scope. A bounce of the Edge worker
+// re-reads on first call; in steady state, only one row of the
+// app_config table is hit per minute regardless of traffic.
+// ──────────────────────────────────────────────────────────────────────
+const USAGE_FLAG_TTL_MS = 60 * 1000;
+let usageFlagCache: boolean | null = null;
+let usageFlagCachedAt = 0;
+let usageFlagInFlight: Promise<boolean> | null = null;
+
+async function isUsageTrackingEnabled(sb: ReturnType<typeof createClient>): Promise<boolean> {
+  const now = Date.now();
+  if (usageFlagCache !== null && now - usageFlagCachedAt < USAGE_FLAG_TTL_MS) {
+    return usageFlagCache;
+  }
+  if (usageFlagInFlight) return usageFlagInFlight;
+
+  usageFlagInFlight = (async () => {
+    try {
+      const { data, error } = await sb
+        .from('app_config')
+        .select('value')
+        .eq('key', 'ai_usage_tracking_enabled')
+        .maybeSingle();
+      if (error) throw error;
+      const raw = data?.value;
+      // Default to ENABLED if the row is missing — we want data flowing
+      // by default. To pause, explicitly set the row to false.
+      if (raw === false || raw === 'false') {
+        usageFlagCache = false;
+      } else {
+        usageFlagCache = true;
+      }
+    } catch (err) {
+      console.warn('[ai-proxy] usage flag fetch failed:', (err as Error)?.message);
+      usageFlagCache = true;  // default ON when unsure
+    } finally {
+      usageFlagCachedAt = Date.now();
+      usageFlagInFlight = null;
+    }
+    return usageFlagCache!;
+  })();
+
+  return usageFlagInFlight;
+}
+
+interface UsageLogInput {
+  user_id:           string;
+  provider:          'groq' | 'gemini' | 'claude' | 'grok';
+  model:             string;
+  feature:           string | null;
+  prompt_tokens:     number | null;
+  completion_tokens: number | null;
+  total_tokens:      number | null;
+  had_attachment:    boolean;
+}
+
+async function logAiUsage(
+  sb: ReturnType<typeof createClient>,
+  opts: UsageLogInput,
+): Promise<void> {
+  try {
+    if (!(await isUsageTrackingEnabled(sb))) return;
+    const { error } = await sb.from('ai_usage_logs').insert({
+      user_id:           opts.user_id,
+      provider:          opts.provider,
+      model:             opts.model,
+      feature:           opts.feature,
+      prompt_tokens:     opts.prompt_tokens,
+      completion_tokens: opts.completion_tokens,
+      total_tokens:      opts.total_tokens,
+      had_attachment:    opts.had_attachment,
+    });
+    if (error) {
+      // Best-effort — never block the response on a log write. Log to
+      // edge console so we notice if the writer is broken (e.g., RLS
+      // policy got renamed, table dropped). Not routed through
+      // reportEdgeError to avoid an infinite loop if app_errors itself
+      // is the failing path.
+      console.warn('[ai-proxy] usage log insert failed:', error.message);
+    }
+  } catch (err) {
+    console.warn('[ai-proxy] usage log unexpected error:', (err as Error)?.message);
+  }
+}
 
 // Strip common markdown formatting from chat completions before
 // returning to the client. The /AiAssistant chat surface (ברוך /
@@ -204,7 +309,21 @@ async function callGemini(body: any) {
     console.warn('[ai-proxy] gemini: empty completion (safety block?)');
     return null;
   }
-  return { content: [{ type: 'text', text: stripMarkdown(text) }], provider: 'gemini' };
+  // Gemini exposes counters under usageMetadata with different names:
+  //   promptTokenCount    → prompt_tokens
+  //   candidatesTokenCount → completion_tokens
+  //   totalTokenCount     → total_tokens
+  const um = j?.usageMetadata || {};
+  return {
+    content:  [{ type: 'text', text: stripMarkdown(text) }],
+    provider: 'gemini',
+    model:    GEMINI_MODEL,
+    usage: {
+      prompt_tokens:     um.promptTokenCount     ?? null,
+      completion_tokens: um.candidatesTokenCount ?? null,
+      total_tokens:      um.totalTokenCount      ?? null,
+    },
+  };
 }
 
 async function callGroq(body: any) {
@@ -240,7 +359,17 @@ async function callGroq(body: any) {
     console.warn('[ai-proxy] groq: empty completion');
     return null;
   }
-  return { content: [{ type: 'text', text: stripMarkdown(text) }], provider: 'groq' };
+  // Groq follows the OpenAI usage shape: { prompt_tokens, completion_tokens, total_tokens }.
+  return {
+    content:  [{ type: 'text', text: stripMarkdown(text) }],
+    provider: 'groq',
+    model:    j?.model || GROQ_MODEL,
+    usage: {
+      prompt_tokens:     j?.usage?.prompt_tokens     ?? null,
+      completion_tokens: j?.usage?.completion_tokens ?? null,
+      total_tokens:      j?.usage?.total_tokens      ?? null,
+    },
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -314,7 +443,12 @@ function extractJsonFromText(text: string): any {
   try { return JSON.parse(raw); } catch { return null; }
 }
 
-async function extractDocument(body: any, req: Request): Promise<Response> {
+async function extractDocument(
+  body: any,
+  req: Request,
+  sb: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<Response> {
   if (!GEMINI_KEY) return json({ status: 'error', details: 'No AI provider configured' }, 503, req);
 
   const { file_url, file_base64, file_mime, json_schema, instructions } = body;
@@ -378,6 +512,20 @@ async function extractDocument(body: any, req: Request): Promise<Response> {
     return json({ status: 'error', details: 'Could not parse AI response as JSON', raw: text.slice(0, 500) }, 200, req);
   }
 
+  // Best-effort usage log. Extraction always uses Gemini today, always
+  // has an attached document, always under the scan_extraction feature.
+  const um = j?.usageMetadata || {};
+  await logAiUsage(sb, {
+    user_id:           userId,
+    provider:          'gemini',
+    model:             GEMINI_MODEL,
+    feature:           'scan_extraction',
+    prompt_tokens:     um.promptTokenCount     ?? null,
+    completion_tokens: um.candidatesTokenCount ?? null,
+    total_tokens:      um.totalTokenCount      ?? null,
+    had_attachment:    true,
+  });
+
   return json({ status: 'success', output: parsed, provider: 'gemini' }, 200, req);
 }
 
@@ -405,7 +553,21 @@ async function callClaude(body: any) {
         : block
     );
   }
-  return { ...j, provider: 'claude' };
+  // Anthropic exposes usage as { input_tokens, output_tokens } — no
+  // separate total, so we add it ourselves. Model comes back in j.model.
+  const inT  = j?.usage?.input_tokens  ?? null;
+  const outT = j?.usage?.output_tokens ?? null;
+  const totalT = (inT != null && outT != null) ? (inT + outT) : null;
+  return {
+    ...j,
+    provider: 'claude',
+    model:    j?.model || 'claude',
+    usage: {
+      prompt_tokens:     inT,
+      completion_tokens: outT,
+      total_tokens:      totalT,
+    },
+  };
 }
 
 serve(async (req) => {
@@ -492,7 +654,7 @@ serve(async (req) => {
       return json({ status: 'error', details: 'Rate limit exceeded' }, 429, req);
     }
 
-    return extractDocument(body, req);
+    return extractDocument(body, req, supabase, user.id);
   }
 
   // Default mode: Claude-format chat. Use the smaller rate limit.
@@ -549,8 +711,26 @@ serve(async (req) => {
   const tryGroq   = async () => (await callGroq(body).catch((e)   => { console.warn('[ai-proxy] groq failed:',   e?.message); return null; }));
   const tryClaude = async () => (await callClaude(body).catch((e) => { console.warn('[ai-proxy] claude failed:', e?.message); return null; }));
 
+  // Wrap the response with a usage-log write. Centralised so each
+  // success path doesn't repeat the boilerplate. The log call is
+  // awaited so the row lands before the worker context dies — adds
+  // ~50 ms but guarantees the analytics surface stays consistent.
+  const respondAndLog = async (r: any) => {
+    await logAiUsage(supabase, {
+      user_id:           user.id,
+      provider:          r?.provider,
+      model:             r?.model || 'unknown',
+      feature:           typeof body?.feature === 'string' ? body.feature : null,
+      prompt_tokens:     r?.usage?.prompt_tokens     ?? null,
+      completion_tokens: r?.usage?.completion_tokens ?? null,
+      total_tokens:      r?.usage?.total_tokens      ?? null,
+      had_attachment:    hasImages,
+    });
+    return json(r, 200, req);
+  };
+
   if (preferred === 'gemini') {
-    const r = await tryGemini(); if (r) return json(r, 200, req);
+    const r = await tryGemini(); if (r) return respondAndLog(r);
     return json({ error: 'Gemini provider unavailable', provider: 'gemini' }, 503, req);
   }
   if (preferred === 'groq') {
@@ -559,21 +739,27 @@ serve(async (req) => {
       // so the admin sees a real error and can pick another provider.
       return json({ error: 'Groq does not support image input', provider: 'groq' }, 503, req);
     }
-    const r = await tryGroq(); if (r) return json(r, 200, req);
+    const r = await tryGroq(); if (r) return respondAndLog(r);
     return json({ error: 'Groq provider unavailable', provider: 'groq' }, 503, req);
   }
   if (preferred === 'claude') {
-    const r = await tryClaude(); if (r) return json(r, 200, req);
+    const r = await tryClaude(); if (r) return respondAndLog(r);
     return json({ error: 'Claude provider unavailable', provider: 'claude' }, 503, req);
   }
 
-  // preferred === 'auto' (or unknown). Legacy ladder: text → Groq (fastest);
-  // vision → Gemini first. Each leg falls back on failure.
+  // preferred === 'auto' (or unknown). New ladder (2026-05-26 — see
+  // PM analysis): Gemini first for everything because it's the only
+  // provider whose Hebrew is officially supported and the speed gap
+  // vs Groq (~0.8s on a 600-token reply) is not user-perceptible.
+  // Groq remains as a TEXT-ONLY fallback when Gemini is down or out
+  // of its free-tier 1500 RPD quota. Claude is the last resort
+  // (currently unavailable in this deployment — no ANTHROPIC_API_KEY).
+  // Old ladder was Groq→Gemini for text and Gemini→Claude for vision.
+  const gemini = await tryGemini(); if (gemini) return respondAndLog(gemini);
   if (!hasImages) {
-    const groq = await tryGroq(); if (groq) return json(groq, 200, req);
+    const groq = await tryGroq(); if (groq) return respondAndLog(groq);
   }
-  const gemini = await tryGemini(); if (gemini) return json(gemini, 200, req);
-  const claude = await tryClaude(); if (claude) return json(claude, 200, req);
+  const claude = await tryClaude(); if (claude) return respondAndLog(claude);
 
   await reportEdgeError('all_providers_unavailable', new Error('No AI provider available'), {
     has_images: hasImages,

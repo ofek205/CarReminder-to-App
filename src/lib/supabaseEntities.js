@@ -83,6 +83,49 @@ function sanitizeRow(row) {
   return clean;
 }
 
+// Per-table "light" column lists — used when filter() is called with
+// `{ light: true }`. The light list deliberately OMITS heavy base64
+// columns (vehicle_photo, license_photo, etc.) that bloat the response
+// and cause slow_query alerts on mobile / slow networks. v5.4.1 saw 17
+// `vehicles.filter` queries cross the 3s threshold inside 15 minutes
+// — every one of them on a caller that didn't actually need the photo
+// payload, just the basic vehicle metadata.
+//
+// Callers that DO need photos (AddVehicle, EditVehicle, VehicleDetail
+// for the hero photo) keep using the default `select: '*'` — same as
+// before, no behavior change.
+//
+// Keep this list ⊇ what each caller reads. If a new column is added
+// to vehicles and a `light: true` caller needs it, add it here.
+const LIGHT_COLUMNS = {
+  // Keep this list strict: every column MUST exist on the base
+  // public.vehicles table. PostgREST throws "column does not exist"
+  // hard-error on the first unknown name, blowing up every list page
+  // until reverted (2026-05-26 incident: included a non-existent
+  // owner_id, BusinessDashboard/Dashboard went dark for ~30 min).
+  //
+  // Columns NOT included here (intentionally):
+  //   • vehicle_photo / license_photo — the whole point of light-mode
+  //     is skipping these.
+  //   • is_shared_with_me / share_count — these come from the
+  //     my_vehicles_v VIEW, not the base table. Callers that need them
+  //     must either query the view directly or drop `light: true`.
+  //   • Any column not verified to exist via SQL audit.
+  //
+  // To extend: confirm the column exists by running
+  //   SELECT column_name FROM information_schema.columns
+  //   WHERE table_name='vehicles' AND column_name='<new>';
+  // before adding it here.
+  vehicles: [
+    'id', 'account_id', 'created_at', 'updated_at',
+    'license_plate', 'nickname', 'manufacturer', 'model', 'year', 'vehicle_type',
+    'test_due_date', 'insurance_due_date',
+    'current_km', 'km_update_date',
+    'current_engine_hours', 'engine_hours_update_date',
+    'status', 'fuel_type',
+  ].join(','),
+};
+
 function makeEntity(table) {
   return {
     /**
@@ -92,12 +135,21 @@ function makeEntity(table) {
      *   select . column list string, e.g. 'id,name,status'. Defaults '*'.
      *             Use this on list pages to skip heavy base64 columns
      *             (vehicle_photo, receipt_photo, image_url, file_url).
+     *   light  . shortcut for `select = LIGHT_COLUMNS[table]`. The
+     *             light list omits known-heavy columns (vehicle_photo,
+     *             license_photo, etc.) so list pages don't drag the
+     *             whole payload across the wire. Ignored if `select` is
+     *             set explicitly. Currently defined for 'vehicles'.
      *   limit  . integer, caps rows returned.
      *   order  . { column, ascending? } for server-side ordering.
      */
-    async filter(conditions = {}, { select = '*', limit, order } = {}) {
+    async filter(conditions = {}, { select, light, limit, order } = {}) {
       validateFilterKeys(conditions);
-      let query = supabase.from(table).select(select);
+      const effectiveSelect =
+        select ??
+        (light && LIGHT_COLUMNS[table]) ??
+        '*';
+      let query = supabase.from(table).select(effectiveSelect);
       for (const [key, value] of Object.entries(conditions)) {
         query = query.eq(key, value);
       }

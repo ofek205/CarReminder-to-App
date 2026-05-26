@@ -161,6 +161,7 @@ const navItems = [
   { name: 'AdminAnalytics',   label: 'אנליטיקה',      icon: BarChart3,     guestAllowed: false, adminOnly: true },
   { name: 'EmailCenter',        label: 'מיילים',        icon: Mail,        guestAllowed: false, adminOnly: true },
   { name: 'AdminAiSettings',    label: 'הגדרות AI',     icon: Sparkles,    guestAllowed: false, adminOnly: true },
+  { name: 'AdminAiUsage',       label: 'שימוש ב-AI',    icon: BarChart3,   guestAllowed: false, adminOnly: true },
   { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase, guestAllowed: false, adminOnly: true },
 ];
 

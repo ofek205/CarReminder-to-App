@@ -16,16 +16,25 @@ import useIsAdmin from '@/hooks/useIsAdmin';
 import { toast } from 'sonner';
 import { Sparkles, Check, Loader2, ArrowRight } from 'lucide-react';
 
+// Labels match the actual feature key usage in the codebase:
+//   yossi_chat       → src/pages/AiAssistant.jsx (the main expert chat)
+//   community_expert → src/components/community/CommentSection.jsx (forum replies)
+//   scan_extraction  → AddVehicle / Documents / VehicleScanWizard / VehicleInfoSection
+// Earlier versions of this file had the first two labels swapped — the
+// keys were correct but the human-readable titles described the wrong
+// surface, leading admins to flip the wrong toggle. The stored values
+// in ai_provider_settings reference the keys (not the labels) so the
+// fix is text-only; no migration needed.
 const FEATURES = [
   {
-    key: 'community_expert',
+    key: 'yossi_chat',
     title: 'התייעצות עם מומחה AI',
-    description: 'תשובות של המומחים בקהילה (ברוך / יוסי) ובצ׳אט עם מומחה.',
+    description: 'הצ׳אט הראשי עם המומחה (ברוך / יוסי) במסך הייעוץ.',
   },
   {
-    key: 'yossi_chat',
-    title: 'צ׳אט קהילה + תגובות AI',
-    description: 'תגובות המומחה לשרשורים בקהילה.',
+    key: 'community_expert',
+    title: 'תגובות AI בקהילה',
+    description: 'תגובות המומחה לפוסטים ושרשורים בקהילה.',
   },
   {
     key: 'scan_extraction',
@@ -42,7 +51,7 @@ const FEATURES = [
 const PROVIDERS = [
   { key: 'gemini', label: 'Gemini',  hint: 'Google — מהיר, תומך טקסט + תמונה (מומלץ כברירת מחדל)' },
   { key: 'groq',   label: 'Groq',    hint: 'Meta Llama — טקסט בלבד, הכי מהיר' },
-  { key: 'auto',   label: 'אוטומטי', hint: 'המערכת תבחר לפי זמינות וסוג הבקשה (טקסט→Groq, תמונה→Gemini)' },
+  { key: 'auto',   label: 'אוטומטי', hint: 'Gemini כברירת מחדל; אם הוא נופל או נגמרה המכסה — נפילה ל-Groq לטקסט' },
 ];
 
 export default function AdminAiSettings() {

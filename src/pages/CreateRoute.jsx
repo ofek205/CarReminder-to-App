@@ -121,7 +121,7 @@ export default function CreateRoute() {
   // Vehicles available in the workspace.
   const { data: vehicles = [] } = useQuery({
     queryKey: ['routes-vehicle-picker', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
+    queryFn: () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled: !!accountId && canManageRoutes,
     staleTime: 5 * 60 * 1000,
   });
