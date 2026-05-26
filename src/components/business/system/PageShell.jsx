@@ -18,6 +18,7 @@
  */
 import React from 'react';
 import MobileBackButton from '@/components/shared/MobileBackButton';
+import { C } from '@/lib/designTokens';
 
 export default function PageShell({
   title,
@@ -35,7 +36,7 @@ export default function PageShell({
         // shares the atmosphere on first paint.
         background: `
           radial-gradient(ellipse at 70% -10%, rgba(16,185,129,0.08) 0%, transparent 50%),
-          linear-gradient(180deg, #F0F7F4 0%, #FFFFFF 60%)
+          linear-gradient(180deg, ${C.bgSubtle} 0%, #FFFFFF 60%)
         `,
         minHeight: '100vh',
       }}
@@ -47,7 +48,7 @@ export default function PageShell({
           {live && (
             <div
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide mb-2"
-              style={{ background: '#10B981', color: '#FFFFFF' }}
+              style={{ background: C.successBright, color: '#FFFFFF' }}
             >
               <span className="relative flex h-1.5 w-1.5">
                 <span
@@ -62,7 +63,7 @@ export default function PageShell({
           <h1
             className="font-black leading-none tracking-tight truncate"
             style={{
-              color: '#0B2912',
+              color: C.primaryDark,
               fontWeight: 900,
               fontSize: 'clamp(1.5rem, 3.5vw, 2.25rem)',
               letterSpacing: '-0.025em',
@@ -71,7 +72,7 @@ export default function PageShell({
             {title}
           </h1>
           {subtitle && (
-            <p className="text-sm mt-1.5" style={{ color: '#4B5D52' }}>
+            <p className="text-sm mt-1.5" style={{ color: C.textAlt }}>
               {subtitle}
             </p>
           )}

@@ -13,6 +13,7 @@ import {
   SEGMENTS, USER_TYPES, HAS_VEHICLE_OPTIONS, FREQUENCIES,
   CTA_ACTIONS, ICON_OPTIONS,
 } from '@/lib/popups/constants';
+import { C } from '@/lib/designTokens';
 
 /**
  * AdminPopupEditor — split-pane editor.
@@ -172,7 +173,7 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
               <button onClick={() => handleSave('active')} disabled={publishing || !canPublish}
                 title={canPublish ? '' : 'השלם שדות חובה כדי לפרסם'}
                 className="h-9 px-4 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
-                style={{ background: canPublish ? '#2D5233' : '#9CA3AF' }}>
+                style={{ background: canPublish ? C.primary : C.gray400 }}>
                 {publishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Rocket className="w-3.5 h-3.5" />} פרסם
               </button>
             </>

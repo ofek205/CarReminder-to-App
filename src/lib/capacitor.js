@@ -12,6 +12,7 @@ import { Capacitor } from '@capacitor/core';
 // for the first chunk after cold launch — the same class of bug that
 // previously trapped users on a green splash forever. Bundle cost: ~3 KB.
 import { SplashScreen } from '@capacitor/splash-screen';
+import { C } from '@/lib/designTokens';
 
 //  Platform Detection 
 export const isNative = Capacitor.isNativePlatform();
@@ -27,7 +28,7 @@ export async function initStatusBar() {
     await StatusBar.setStyle({ style: Style.Light });
     await StatusBar.setOverlaysWebView({ overlay: false });
     if (isAndroid) {
-      await StatusBar.setBackgroundColor({ color: '#2D5233' });
+      await StatusBar.setBackgroundColor({ color: C.primary });
     }
   } catch (e) {
     console.warn('StatusBar plugin not available:', e);

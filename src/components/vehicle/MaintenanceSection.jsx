@@ -402,7 +402,7 @@ export default function MaintenanceSection({ vehicle }) {
                   )}
                   {repairCount > 0 && (
                     <span className="text-xs font-bold px-1.5 py-0.5 rounded-full"
-                      style={{ background: '#DC2626', color: '#fff' }}>
+                      style={{ background: C.error, color: '#fff' }}>
                       תיקונים · {repairCount}
                     </span>
                   )}
@@ -418,7 +418,7 @@ export default function MaintenanceSection({ vehicle }) {
             </button>
             <button onClick={() => openDialog('תיקון')}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-[0.95]"
-              style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+              style={{ background: C.errorBg, color: C.error, border: `1px solid ${C.errorBorder}` }}>
               תיקון <Plus className="w-3 h-3" />
             </button>
           </div>
@@ -459,7 +459,7 @@ export default function MaintenanceSection({ vehicle }) {
               </button>
               <button onClick={() => openDialog('תיקון')}
                 className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-[0.95]"
-                style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                style={{ background: C.errorBg, color: C.error, border: `1px solid ${C.errorBorder}` }}>
                 הוסף תיקון <Plus className="w-4 h-4" />
               </button>
             </div>
@@ -469,16 +469,16 @@ export default function MaintenanceSection({ vehicle }) {
             {logs.slice(0, 10).map(log => (
               <div key={log.id} className="flex items-start gap-3 px-4 py-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                  style={{ background: log.type === 'תיקון' ? '#FEF2F2' : T.light }}>
+                  style={{ background: log.type === 'תיקון' ? C.errorBg : T.light }}>
                   {log.type === 'תיקון'
-                    ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#DC2626' }} />
+                    ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: C.error }} />
                     : <Wrench className="w-3.5 h-3.5" style={{ color: T.primary }} />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-bold truncate" style={{ color: T.text }}>{log.title}</p>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
-                      style={{ background: log.type === 'תיקון' ? '#FEF2F2' : T.light, color: log.type === 'תיקון' ? '#DC2626' : T.primary }}>
+                      style={{ background: log.type === 'תיקון' ? C.errorBg : T.light, color: log.type === 'תיקון' ? C.error : T.primary }}>
                       {log.type}
                     </span>
                   </div>
@@ -493,11 +493,11 @@ export default function MaintenanceSection({ vehicle }) {
                 <div className="flex items-center gap-1 shrink-0 mt-0.5">
                   <button onClick={(e) => { e.preventDefault(); openEditDialog(log); }}
                     className="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 transition-all">
-                    <Edit className="w-3 h-3" style={{ color: '#6B7280' }} />
+                    <Edit className="w-3 h-3" style={{ color: C.gray500 }} />
                   </button>
                   <button onClick={(e) => { e.preventDefault(); handleDelete(log.id); }}
                     className="w-6 h-6 rounded flex items-center justify-center hover:bg-red-50 transition-all">
-                    <Trash2 className="w-3 h-3" style={{ color: '#DC2626' }} />
+                    <Trash2 className="w-3 h-3" style={{ color: C.error }} />
                   </button>
                 </div>
               </div>
@@ -525,22 +525,22 @@ export default function MaintenanceSection({ vehicle }) {
                       {/* Vessel: engine vs hull */}
                       <button type="button" onClick={() => { setServiceSize('engine'); setForm(f => ({ ...f, title: '' })); }}
                         className="rounded-xl p-3 text-center transition-all border-2"
-                        style={{ background: serviceSize === 'engine' ? T.light : '#fff', borderColor: serviceSize === 'engine' ? T.primary : '#E5E7EB' }}>
+                        style={{ background: serviceSize === 'engine' ? T.light : '#fff', borderColor: serviceSize === 'engine' ? T.primary : C.gray200 }}>
                         <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
-                          style={{ background: serviceSize === 'engine' ? T.primary : '#E5E7EB' }}>
-                          <Settings className="w-4 h-4" style={{ color: serviceSize === 'engine' ? '#fff' : '#9CA3AF' }} />
+                          style={{ background: serviceSize === 'engine' ? T.primary : C.gray200 }}>
+                          <Settings className="w-4 h-4" style={{ color: serviceSize === 'engine' ? '#fff' : C.gray400 }} />
                         </div>
-                        <p className="text-sm font-bold" style={{ color: serviceSize === 'engine' ? T.primary : '#6B7280' }}>מנוע</p>
+                        <p className="text-sm font-bold" style={{ color: serviceSize === 'engine' ? T.primary : C.gray500 }}>מנוע</p>
                         <p className="text-[10px]" style={{ color: T.muted }}>שמן, פילטרים, אנודות</p>
                       </button>
                       <button type="button" onClick={() => { setServiceSize('hull'); setForm(f => ({ ...f, title: '' })); }}
                         className="rounded-xl p-3 text-center transition-all border-2"
-                        style={{ background: serviceSize === 'hull' ? '#E0F7FA' : '#fff', borderColor: serviceSize === 'hull' ? '#0097A7' : '#E5E7EB' }}>
+                        style={{ background: serviceSize === 'hull' ? '#E0F7FA' : '#fff', borderColor: serviceSize === 'hull' ? '#0097A7' : C.gray200 }}>
                         <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
-                          style={{ background: serviceSize === 'hull' ? '#0097A7' : '#E5E7EB' }}>
-                          <Anchor className="w-4 h-4" style={{ color: serviceSize === 'hull' ? '#fff' : '#9CA3AF' }} />
+                          style={{ background: serviceSize === 'hull' ? '#0097A7' : C.gray200 }}>
+                          <Anchor className="w-4 h-4" style={{ color: serviceSize === 'hull' ? '#fff' : C.gray400 }} />
                         </div>
-                        <p className="text-sm font-bold" style={{ color: serviceSize === 'hull' ? '#0097A7' : '#6B7280' }}>גוף / שלד</p>
+                        <p className="text-sm font-bold" style={{ color: serviceSize === 'hull' ? '#0097A7' : C.gray500 }}>גוף / שלד</p>
                         <p className="text-[10px]" style={{ color: T.muted }}>ניקוי תחתית, מפרשים, צבע</p>
                       </button>
                     </>
@@ -549,22 +549,22 @@ export default function MaintenanceSection({ vehicle }) {
                       {/* Cars: small vs big */}
                       <button type="button" onClick={() => { setServiceSize('small'); setForm(f => ({ ...f, title: '' })); }}
                         className="rounded-xl p-3 text-center transition-all border-2"
-                        style={{ background: serviceSize === 'small' ? T.light : '#fff', borderColor: serviceSize === 'small' ? T.primary : '#E5E7EB' }}>
+                        style={{ background: serviceSize === 'small' ? T.light : '#fff', borderColor: serviceSize === 'small' ? T.primary : C.gray200 }}>
                         <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
-                          style={{ background: serviceSize === 'small' ? T.primary : '#E5E7EB' }}>
-                          <Wrench className="w-4 h-4" style={{ color: serviceSize === 'small' ? '#fff' : '#9CA3AF' }} />
+                          style={{ background: serviceSize === 'small' ? T.primary : C.gray200 }}>
+                          <Wrench className="w-4 h-4" style={{ color: serviceSize === 'small' ? '#fff' : C.gray400 }} />
                         </div>
-                        <p className="text-sm font-bold" style={{ color: serviceSize === 'small' ? T.primary : '#6B7280' }}>טיפול קטן</p>
+                        <p className="text-sm font-bold" style={{ color: serviceSize === 'small' ? T.primary : C.gray500 }}>טיפול קטן</p>
                         <p className="text-[10px]" style={{ color: T.muted }}>שמן, פילטרים, מזגן</p>
                       </button>
                       <button type="button" onClick={() => { setServiceSize('big'); setForm(f => ({ ...f, title: '' })); }}
                         className="rounded-xl p-3 text-center transition-all border-2"
-                        style={{ background: serviceSize === 'big' ? '#FFF7ED' : '#fff', borderColor: serviceSize === 'big' ? '#F59E0B' : '#E5E7EB' }}>
+                        style={{ background: serviceSize === 'big' ? C.orangeBg : '#fff', borderColor: serviceSize === 'big' ? C.warnIcon : C.gray200 }}>
                         <div className="w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center"
-                          style={{ background: serviceSize === 'big' ? '#F59E0B' : '#E5E7EB' }}>
-                          <Settings className="w-4 h-4" style={{ color: serviceSize === 'big' ? '#fff' : '#9CA3AF' }} />
+                          style={{ background: serviceSize === 'big' ? C.warnIcon : C.gray200 }}>
+                          <Settings className="w-4 h-4" style={{ color: serviceSize === 'big' ? '#fff' : C.gray400 }} />
                         </div>
-                        <p className="text-sm font-bold" style={{ color: serviceSize === 'big' ? '#D97706' : '#6B7280' }}>טיפול גדול</p>
+                        <p className="text-sm font-bold" style={{ color: serviceSize === 'big' ? C.warn : C.gray500 }}>טיפול גדול</p>
                         <p className="text-[10px]" style={{ color: T.muted }}>פלאגים, תזמון, בלמים</p>
                       </button>
                     </>
@@ -591,8 +591,8 @@ export default function MaintenanceSection({ vehicle }) {
                       className="px-2.5 py-1 rounded-full text-xs font-medium border transition-all active:scale-[0.95]"
                       style={{
                         background: form.title?.includes(item) ? T.light : '#fff',
-                        borderColor: form.title?.includes(item) ? T.primary : '#E5E7EB',
-                        color: form.title?.includes(item) ? T.primary : '#6B7280',
+                        borderColor: form.title?.includes(item) ? T.primary : C.gray200,
+                        color: form.title?.includes(item) ? T.primary : C.gray500,
                       }}>
                       {item}
                     </button>
@@ -804,7 +804,7 @@ export default function MaintenanceSection({ vehicle }) {
             })()}
 
             <Button onClick={handleSave} disabled={saving || receiptUploading} className="w-full h-11 rounded-2xl font-bold"
-              style={{ background: dialogType === 'תיקון' ? '#DC2626' : T.primary, color: '#fff' }}>
+              style={{ background: dialogType === 'תיקון' ? C.error : T.primary, color: '#fff' }}>
               {receiptUploading ? 'מעלה קבלה...' : saving ? 'שומר...' : dialogType === 'תיקון' ? 'שמור תיקון' : 'שמור טיפול'}
             </Button>
           </div>

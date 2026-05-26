@@ -1,4 +1,5 @@
 import React from 'react';
+import { C } from '@/lib/designTokens';
 
 // Shimmer animation via CSS class (added to index.css)
 const shimmer = 'animate-pulse';
@@ -11,7 +12,7 @@ function Bone({ className = '', style = {} }) {
 export function VehicleCardSkeleton() {
   return (
     <div className="rounded-2xl p-4 flex items-center gap-4" dir="rtl"
-      style={{ background: '#fff', border: '1.5px solid #E5E7EB' }}>
+      style={{ background: '#fff', border: `1.5px solid ${C.gray200}` }}>
       <Bone className="w-14 h-14 rounded-2xl shrink-0" />
       <div className="flex-1 space-y-2.5">
         <Bone className="h-4 w-32 rounded-md" />
@@ -29,7 +30,7 @@ export function VehicleCardSkeleton() {
 export function PostCardSkeleton() {
   return (
     <div className="rounded-2xl p-4 space-y-3" dir="rtl"
-      style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
+      style={{ background: '#fff', border: `1px solid ${C.gray200}` }}>
       <div className="flex items-center gap-3">
         <Bone className="w-10 h-10 rounded-full shrink-0" />
         <div className="space-y-1.5 flex-1">
@@ -54,7 +55,7 @@ export function PostCardSkeleton() {
 export function DocumentCardSkeleton() {
   return (
     <div className="rounded-2xl p-4 flex items-center gap-3" dir="rtl"
-      style={{ background: '#fff', border: '1.5px solid #E5E7EB' }}>
+      style={{ background: '#fff', border: `1.5px solid ${C.gray200}` }}>
       <Bone className="w-12 h-12 rounded-xl shrink-0" />
       <div className="flex-1 space-y-2">
         <Bone className="h-3.5 w-36 rounded-md" />
@@ -69,7 +70,7 @@ export function DocumentCardSkeleton() {
 export function NotificationSkeleton() {
   return (
     <div className="rounded-2xl p-4 flex items-center gap-3" dir="rtl"
-      style={{ background: '#fff', border: '1.5px solid #E5E7EB' }}>
+      style={{ background: '#fff', border: `1.5px solid ${C.gray200}` }}>
       <Bone className="w-11 h-11 rounded-xl shrink-0" />
       <div className="flex-1 space-y-2">
         <Bone className="h-3.5 w-44 rounded-md" />

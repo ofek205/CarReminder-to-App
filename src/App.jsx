@@ -12,6 +12,7 @@ import BootDebug from './pages/BootDebug';
 import RootGate from './components/shared/RootGate';
 import PageErrorBoundary from '@/components/shared/PageErrorBoundary';
 import ReportBugDialog from '@/components/shared/ReportBugDialog';
+import { C } from '@/lib/designTokens';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -67,16 +68,16 @@ const SuspenseFallback = () => {
   return (
     <div dir="rtl" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', fontFamily: 'system-ui' }}>
       <div style={{ textAlign: 'center', maxWidth: 280 }}>
-        <div style={{ width: 40, height: 40, border: '3px solid #D8E5D9', borderTopColor: '#2D5233', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-        <p style={{ color: '#6B7280', fontSize: 14, marginBottom: 6 }}>טוען...</p>
+        <div style={{ width: 40, height: 40, border: `3px solid ${C.border}`, borderTopColor: C.primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+        <p style={{ color: C.gray500, fontSize: 14, marginBottom: 6 }}>טוען...</p>
         {phase !== 'loading' && (
           <>
-            <p style={{ color: '#9CA3AF', fontSize: 12, marginBottom: 14 }}>
+            <p style={{ color: C.gray400, fontSize: 12, marginBottom: 14 }}>
               {phase === 'slow' ? 'הטעינה לוקחת יותר מהרגיל' : 'הטעינה נתקעה. נסה לרענן.'}
             </p>
             <button
               onClick={() => window.location.reload()}
-              style={{ padding: '8px 22px', borderRadius: 10, background: '#2D5233', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: 13 }}
+              style={{ padding: '8px 22px', borderRadius: 10, background: C.primary, color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: 13 }}
             >
               רענן
             </button>
@@ -166,9 +167,9 @@ class AppErrorBoundary extends React.Component {
       if (this.state.isStaleChunk) {
         return (
           <div dir="rtl" style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: 44, height: 44, border: '3px solid #D8E5D9', borderTopColor: '#2D5233', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 20 }} />
-            <p style={{ fontSize: 16, fontWeight: 700, color: '#1F2937', marginBottom: 6 }}>מעדכן לגרסה חדשה...</p>
-            <p style={{ fontSize: 13, color: '#6B7280' }}>שנייה אחת</p>
+            <div style={{ width: 44, height: 44, border: `3px solid ${C.border}`, borderTopColor: C.primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: 20 }} />
+            <p style={{ fontSize: 16, fontWeight: 700, color: C.gray800, marginBottom: 6 }}>מעדכן לגרסה חדשה...</p>
+            <p style={{ fontSize: 13, color: C.gray500 }}>שנייה אחת</p>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         );
@@ -178,12 +179,12 @@ class AppErrorBoundary extends React.Component {
           <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>משהו השתבש 😕</h2>
           <p style={{ color: '#666', marginBottom: 8 }}>נסה לרענן את הדף</p>
           {this.state.errorMsg && (
-            <p style={{ color: '#DC2626', fontSize: 11, marginBottom: 16, direction: 'ltr', maxWidth: 300, margin: '0 auto 16px', wordBreak: 'break-all' }}>
+            <p style={{ color: C.error, fontSize: 11, marginBottom: 16, direction: 'ltr', maxWidth: 300, margin: '0 auto 16px', wordBreak: 'break-all' }}>
               {this.state.errorMsg}
             </p>
           )}
           <button onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
-            style={{ padding: '10px 28px', borderRadius: 12, background: '#2D5233', color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+            style={{ padding: '10px 28px', borderRadius: 12, background: C.primary, color: '#fff', fontWeight: 700, border: 'none', cursor: 'pointer' }}>
             רענן
           </button>
         </div>

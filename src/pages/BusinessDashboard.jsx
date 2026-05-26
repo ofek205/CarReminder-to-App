@@ -31,6 +31,7 @@ import {
   ActionTile,
   useTickEverySecond,
 } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -369,7 +370,7 @@ export default function BusinessDashboard() {
         // theme color.
         background: `
           radial-gradient(ellipse at 70% -10%, rgba(16,185,129,0.08) 0%, transparent 50%),
-          linear-gradient(180deg, #F0F7F4 0%, #FFFFFF 60%)
+          linear-gradient(180deg, ${C.bgSubtle} 0%, #FFFFFF 60%)
         `,
         minHeight: '100vh',
       }}
@@ -382,7 +383,7 @@ export default function BusinessDashboard() {
           {/* Live indicator chip */}
           <div
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide"
-            style={{ background: '#10B981', color: '#FFFFFF' }}
+            style={{ background: C.successBright, color: '#FFFFFF' }}
           >
             <span className="relative flex h-1.5 w-1.5">
               <span
@@ -405,7 +406,7 @@ export default function BusinessDashboard() {
         <h1
           className="font-black leading-none tracking-tight truncate"
           style={{
-            color: '#0B2912',
+            color: C.primaryDark,
             fontWeight: 900,
             fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
             letterSpacing: '-0.025em',
@@ -414,7 +415,7 @@ export default function BusinessDashboard() {
           {workspaceName}
         </h1>
 
-        <p className="text-sm mt-2" style={{ color: '#4B5D52' }}>
+        <p className="text-sm mt-2" style={{ color: C.textAlt }}>
           {greeting}{userFirstName ? `, ${userFirstName}` : ''} 👋
         </p>
       </header>
@@ -426,10 +427,10 @@ export default function BusinessDashboard() {
           className="block rounded-3xl p-5 sm:p-6 transition-all hover:scale-[1.005] active:scale-[0.998] relative overflow-hidden group"
           style={{
             background: fleetHealthy
-              ? 'linear-gradient(135deg, #065F46 0%, #10B981 60%, #34D399 100%)'
+              ? `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 60%, ${C.successMid} 100%)`
               : overdueCount > 0
-                ? 'linear-gradient(135deg, #7F1D1D 0%, #DC2626 60%, #F87171 100%)'
-                : 'linear-gradient(135deg, #92400E 0%, #F59E0B 60%, #FBBF24 100%)',
+                ? `linear-gradient(135deg, #7F1D1D 0%, ${C.error} 60%, #F87171 100%)`
+                : `linear-gradient(135deg, ${C.warnDark} 0%, ${C.warnIcon} 60%, #FBBF24 100%)`,
             boxShadow: fleetHealthy
               ? '0 20px 50px -12px rgba(16,185,129,0.4), 0 8px 16px -4px rgba(16,185,129,0.2)'
               : overdueCount > 0
@@ -514,13 +515,13 @@ export default function BusinessDashboard() {
       {vehicles.length > 0 && (
         <section className="mb-5">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-bold" style={{ color: '#0B2912' }}>
+            <h2 className="text-sm font-bold" style={{ color: C.primaryDark }}>
               הצי במבט אחד
             </h2>
             <Link
               to={createPageUrl('Fleet')}
               className="text-[11px] font-bold flex items-center gap-0.5 px-2 py-1 rounded-full transition-colors"
-              style={{ color: '#10B981', background: 'rgba(16,185,129,0.08)' }}
+              style={{ color: C.successBright, background: 'rgba(16,185,129,0.08)' }}
             >
               לכל הצי
               <ArrowLeft className="h-3 w-3" />
@@ -530,7 +531,7 @@ export default function BusinessDashboard() {
             className="rounded-2xl p-3 border overflow-x-auto"
             style={{
               background: '#FFFFFF',
-              borderColor: '#E5EDE8',
+              borderColor: C.bgSage,
               boxShadow: '0 4px 16px rgba(15,40,28,0.04)',
             }}
           >
@@ -590,13 +591,13 @@ export default function BusinessDashboard() {
         <section
           className="mb-5 rounded-2xl p-4 border"
           style={{
-            background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+            background: `linear-gradient(135deg, ${C.warnSubtle} 0%, ${C.warnBg} 100%)`,
             borderColor: '#FCD34D',
             boxShadow: '0 4px 12px rgba(245,158,11,0.12)',
           }}
         >
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: '#F59E0B' }}>
+            <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: C.warnIcon }}>
               <AlertTriangle className="w-4 h-4 text-white" />
             </div>
             <h2 className="font-bold text-base" style={{ color: '#78350F' }}>
@@ -604,7 +605,7 @@ export default function BusinessDashboard() {
             </h2>
             <span
               className="ml-auto inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black"
-              style={{ background: '#F59E0B', color: '#FFFFFF' }}
+              style={{ background: C.warnIcon, color: '#FFFFFF' }}
             >
               {attentionItems.length}
             </span>
@@ -621,7 +622,7 @@ export default function BusinessDashboard() {
                     {item.text}
                   </p>
                   {item.sub && (
-                    <p className="text-[12px] mt-0.5 leading-relaxed" style={{ color: '#92400E' }}>
+                    <p className="text-[12px] mt-0.5 leading-relaxed" style={{ color: C.warnDark }}>
                       {item.sub}
                     </p>
                   )}
@@ -630,7 +631,7 @@ export default function BusinessDashboard() {
                   <Link
                     to={item.to}
                     className="shrink-0 text-[11px] font-bold flex items-center gap-0.5 mt-0.5 px-2 py-1 rounded-full transition-colors hover:bg-amber-200/40"
-                    style={{ color: '#92400E' }}
+                    style={{ color: C.warnDark }}
                   >
                     לפרטים
                     <ArrowLeft className="h-3 w-3" />
@@ -644,7 +645,7 @@ export default function BusinessDashboard() {
 
       {/* ── E. Quick Actions — vibrant grid ─────────────────────── */}
       <section className="mb-6">
-        <h2 className="text-sm font-bold mb-2.5" style={{ color: '#0B2912' }}>פעולות מהירות</h2>
+        <h2 className="text-sm font-bold mb-2.5" style={{ color: C.primaryDark }}>פעולות מהירות</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <ActionTile to={createPageUrl('CreateRoute')} icon={Plus}    label="צור משימה" primary />
           <ActionTile to={createPageUrl('AddVehicle')}  icon={Truck}   label="הוסף רכב" />
@@ -658,30 +659,30 @@ export default function BusinessDashboard() {
         className="rounded-2xl p-4 sm:p-5 border"
         style={{
           background: '#FFFFFF',
-          borderColor: '#E5EDE8',
+          borderColor: C.bgSage,
           boxShadow: '0 4px 16px rgba(15,40,28,0.04)',
         }}
       >
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold" style={{ color: '#0B2912' }}>פעילות אחרונה</h2>
+          <h2 className="text-sm font-bold" style={{ color: C.primaryDark }}>פעילות אחרונה</h2>
           <Link
             to={createPageUrl('ActivityLog')}
             className="text-[11px] font-bold flex items-center gap-0.5 px-2 py-1 rounded-full transition-colors"
-            style={{ color: '#10B981', background: 'rgba(16,185,129,0.08)' }}
+            style={{ color: C.successBright, background: 'rgba(16,185,129,0.08)' }}
           >
             לכל הפעילות
             <ArrowLeft className="h-3 w-3" />
           </Link>
         </div>
         {recentLogs.length === 0 ? (
-          <p className="text-sm py-6 text-center" style={{ color: '#6B7C72' }}>
+          <p className="text-sm py-6 text-center" style={{ color: C.mutedAlt }}>
             עוד לא נרשמה פעילות. כל פעולה בחשבון תופיע כאן אוטומטית.
           </p>
         ) : (
           <ol className="relative space-y-3 pr-5">
             <span
               className="absolute right-[7px] top-2 bottom-2 w-px"
-              style={{ background: '#E5EDE8' }}
+              style={{ background: C.bgSage }}
               aria-hidden
             />
             {recentLogs.map(log => {
@@ -694,17 +695,17 @@ export default function BusinessDashboard() {
                     aria-hidden
                   />
                   <div className="flex-1 min-w-0 mr-2">
-                    <p className="text-sm" style={{ color: '#0B2912' }}>
+                    <p className="text-sm" style={{ color: C.primaryDark }}>
                       <span className="font-bold">{actorName}</span>
-                      <span style={{ color: '#6B7C72' }}>{` · `}</span>
+                      <span style={{ color: C.mutedAlt }}>{` · `}</span>
                       {ACTION_LABEL[log.action] || log.action}
                     </p>
                     {log.note && (
-                      <p className="text-[12px] truncate" style={{ color: '#4B5D52' }}>
+                      <p className="text-[12px] truncate" style={{ color: C.textAlt }}>
                         {log.note}
                       </p>
                     )}
-                    <p className="text-[11px] mt-0.5" style={{ color: '#6B7C72' }}>
+                    <p className="text-[11px] mt-0.5" style={{ color: C.mutedAlt }}>
                       {fmtTimeShort(log.created_at)}
                     </p>
                   </div>
@@ -737,15 +738,15 @@ export default function BusinessDashboard() {
 function FleetChip({ vehicle, status, days }) {
   const TONES = {
     healthy: {
-      bg: '#ECFDF5', border: '#A7F3D0', dot: '#10B981',
-      text: '#065F46', sub: '#047857',
+      bg: C.successSubtle, border: C.successLighter, dot: C.successBright,
+      text: C.successDark, sub: '#047857',
     },
     soon: {
-      bg: '#FFFBEB', border: '#FCD34D', dot: '#F59E0B',
-      text: '#78350F', sub: '#92400E',
+      bg: C.warnSubtle, border: '#FCD34D', dot: C.warnIcon,
+      text: '#78350F', sub: C.warnDark,
     },
     overdue: {
-      bg: '#FEF2F2', border: '#FCA5A5', dot: '#EF4444',
+      bg: C.errorBg, border: '#FCA5A5', dot: '#EF4444',
       text: '#7F1D1D', sub: '#B91C1C',
     },
   };

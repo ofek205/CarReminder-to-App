@@ -57,6 +57,7 @@ import {
   KpiTile,
   AnimatedCount,
 } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 // Each category gets a tone from the system palette so the expense
 // list reads as a colored mosaic, not a uniform gray list.
@@ -76,10 +77,10 @@ const CATEGORY_TONE  = {
 // Lightweight color hex for the category chip on each row. Matches the
 // Living Dashboard palette so chips and KpiTiles share visual identity.
 const CATEGORY_COLOR = {
-  fuel:      { bg: '#FEF3C7', text: '#78350F', accent: '#F59E0B' },
-  repair:    { bg: '#FEE2E2', text: '#7F1D1D', accent: '#EF4444' },
-  insurance: { bg: '#DBEAFE', text: '#1E3A8A', accent: '#3B82F6' },
-  other:     { bg: '#D1FAE5', text: '#065F46', accent: '#10B981' },
+  fuel:      { bg: C.warnBg, text: '#78350F', accent: C.warnIcon },
+  repair:    { bg: C.errorLight, text: '#7F1D1D', accent: '#EF4444' },
+  insurance: { bg: C.infoBg, text: '#1E3A8A', accent: C.info },
+  other:     { bg: C.successLight, text: C.successDark, accent: C.successBright },
 };
 
 const fmtMoney = (n, c = 'ILS') =>
@@ -179,7 +180,7 @@ export default function Expenses() {
           onClick={() => setEditing({})}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
           style={{
-            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
             color: '#FFFFFF',
             boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
           }}
@@ -215,21 +216,21 @@ export default function Expenses() {
       {/* List of expenses */}
       {isLoading ? (
         <Card className="text-center py-8">
-          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען הוצאות...</p>
+          <p className="text-xs" style={{ color: C.mutedAlt }}>טוען הוצאות...</p>
         </Card>
       ) : expenses.length === 0 ? (
         <Card className="text-center py-12">
-          <Receipt className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
-          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+          <Receipt className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
+          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>
             עוד אין הוצאות בחשבון
           </p>
-          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+          <p className="text-xs leading-relaxed" style={{ color: C.mutedAlt }}>
             הוסף הוצאה ראשונה: דלק, ביטוח או כל עלות אחרת. הסכומים יופיעו אוטומטית בדוחות.
           </p>
         </Card>
       ) : (
         <>
-          <h2 className="text-sm font-bold mb-2.5" style={{ color: '#0B2912' }}>
+          <h2 className="text-sm font-bold mb-2.5" style={{ color: C.primaryDark }}>
             כל ההוצאות
           </h2>
           <ul className="space-y-2">
@@ -266,15 +267,15 @@ export default function Expenses() {
           className="w-full mt-3 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-60"
           style={{
             background: '#FFFFFF',
-            color: '#10B981',
-            border: '1.5px solid #D1FAE5',
+            color: C.successBright,
+            border: `1.5px solid ${C.successLight}`,
           }}
         >
           {isFetchingNextPage ? 'טוען...' : 'טען עוד הוצאות'}
         </button>
       )}
       {expenses.length > 0 && !hasNextPage && expenses.length >= PAGE_SIZE && (
-        <p className="text-center text-[10px] mt-3" style={{ color: '#6B7C72' }}>סוף הרשימה</p>
+        <p className="text-center text-[10px] mt-3" style={{ color: C.mutedAlt }}>סוף הרשימה</p>
       )}
 
       {editing && (
@@ -311,7 +312,7 @@ function ExpenseRow({ expense, vehicle, onEdit, onDelete }) {
             <div className="flex items-baseline gap-2 mb-1.5 flex-wrap">
               <span
                 className="text-base font-black tabular-nums"
-                style={{ color: '#0B2912' }}
+                style={{ color: C.primaryDark }}
                 dir="ltr"
               >
                 {fmtMoney(expense.amount, expense.currency)}
@@ -322,14 +323,14 @@ function ExpenseRow({ expense, vehicle, onEdit, onDelete }) {
               >
                 {CATEGORY_LABELS[cat] || cat}
               </span>
-              <span className="text-[11px]" style={{ color: '#6B7C72' }}>{fmtDate(expense.expense_date)}</span>
+              <span className="text-[11px]" style={{ color: C.mutedAlt }}>{fmtDate(expense.expense_date)}</span>
               {expense.receipt_url && (
                 <a
                   href={expense.receipt_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold transition-colors hover:brightness-95"
-                  style={{ background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0' }}
+                  style={{ background: C.successSubtle, color: '#047857', border: `1px solid ${C.successLighter}` }}
                   onClick={(ev) => ev.stopPropagation()}
                 >
                   <FileText className="h-2.5 w-2.5" /> חשבונית
@@ -340,7 +341,7 @@ function ExpenseRow({ expense, vehicle, onEdit, onDelete }) {
               <VehicleLabel vehicle={vehicle} size="sm" showSubtitle={false} />
             )}
             {expense.note && (
-              <p className="text-[11px] mt-1.5" style={{ color: '#4B5D52' }}>
+              <p className="text-[11px] mt-1.5" style={{ color: C.textAlt }}>
                 {expense.note}
               </p>
             )}
@@ -352,7 +353,7 @@ function ExpenseRow({ expense, vehicle, onEdit, onDelete }) {
               className="p-1.5 rounded-lg transition-colors hover:bg-emerald-50"
               aria-label="ערוך"
             >
-              <Pencil className="h-3.5 w-3.5" style={{ color: '#10B981' }} />
+              <Pencil className="h-3.5 w-3.5" style={{ color: C.successBright }} />
             </button>
             <button
               type="button"

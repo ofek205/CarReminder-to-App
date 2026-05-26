@@ -11,6 +11,7 @@
  */
 
 import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, Mail, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus, Download } from 'lucide-react';
+import { C } from '@/lib/designTokens';
 
 const ACTION_REQUIRED_TYPES = new Set([
   'share_offered',
@@ -32,7 +33,7 @@ const hrefForVehicleDetail = (data) => data?.vehicle_id
 export const APP_NOTIF_CONFIG = {
   share_offered: {
     icon: Share2,
-    bg: '#ECFDF5',
+    bg: C.successSubtle,
     iconColor: '#059669',
     iconBg: '#059669',
     buildHref: (data) => data?.invite_token
@@ -48,38 +49,38 @@ export const APP_NOTIF_CONFIG = {
   },
   share_declined: {
     icon: X,
-    bg: '#FEF2F2',
-    iconColor: '#DC2626',
-    iconBg: '#DC2626',
+    bg: C.errorBg,
+    iconColor: C.error,
+    iconBg: C.error,
     buildHref: hrefForVehicleDetail,
   },
   share_revoked: {
     icon: UserMinus,
-    bg: '#FFF7ED',
-    iconColor: '#EA580C',
-    iconBg: '#EA580C',
+    bg: C.orangeBg,
+    iconColor: C.orange,
+    iconBg: C.orange,
     buildHref: hrefForVehicleDetail,
   },
   share_left: {
     icon: LogOut,
-    bg: '#FFF7ED',
-    iconColor: '#EA580C',
-    iconBg: '#EA580C',
+    bg: C.orangeBg,
+    iconColor: C.orange,
+    iconBg: C.orange,
     buildHref: hrefForVehicleDetail,
   },
   share_deleted: {
     icon: Trash2,
-    bg: '#FEF2F2',
-    iconColor: '#DC2626',
-    iconBg: '#DC2626',
+    bg: C.errorBg,
+    iconColor: C.error,
+    iconBg: C.error,
     // Vehicle is gone. Don't navigate — clicking just dismisses.
     buildHref: () => null,
   },
   share_expired: {
     icon: Clock,
-    bg: '#FFF8E1',
-    iconColor: '#D97706',
-    iconBg: '#D97706',
+    bg: C.yellowSoft,
+    iconColor: C.warn,
+    iconBg: C.warn,
     // Re-invite happens from the vehicle's own access modal in the
     // owner case, or from the AccountSettings page in the recipient
     // case. Default to the vehicle if we have its id.
@@ -108,9 +109,9 @@ export const APP_NOTIF_CONFIG = {
     // driver-facing home page so a driver lands somewhere useful,
     // and a viewer/manager can navigate from there.
     icon: Briefcase,
-    bg: '#E8F2EA',
-    iconColor: '#2D5233',
-    iconBg: '#2D5233',
+    bg: C.light,
+    iconColor: C.primary,
+    iconBg: C.primary,
     buildHref: () => '/MyVehicles',
   },
   task_assigned: {
@@ -119,9 +120,9 @@ export const APP_NOTIF_CONFIG = {
     // start working immediately. Falls back to the task list if the
     // route id is missing for any reason.
     icon: ClipboardList,
-    bg: '#E8F2EA',
-    iconColor: '#2D5233',
-    iconBg: '#2D5233',
+    bg: C.light,
+    iconColor: C.primary,
+    iconBg: C.primary,
     buildHref: (data) => data?.route_id
       ? `/RouteDetail?id=${encodeURIComponent(data.route_id)}`
       : '/Routes',
@@ -131,9 +132,9 @@ export const APP_NOTIF_CONFIG = {
     // MyVehicles where the new card now appears so the next tap lands
     // them on something useful.
     icon: Truck,
-    bg: '#E8F2EA',
-    iconColor: '#2D5233',
-    iconBg: '#2D5233',
+    bg: C.light,
+    iconColor: C.primary,
+    iconBg: C.primary,
     buildHref: () => '/MyVehicles',
   },
   workspace_member_left: {
@@ -141,9 +142,9 @@ export const APP_NOTIF_CONFIG = {
     // flow). Routes the manager to the Drivers page so they can see
     // the updated directory and reassign vehicles if needed.
     icon: LogOut,
-    bg: '#FFF7ED',
-    iconColor: '#EA580C',
-    iconBg: '#EA580C',
+    bg: C.orangeBg,
+    iconColor: C.orange,
+    iconBg: C.orange,
     buildHref: () => '/Drivers',
   },
   test_renewed: {
@@ -191,16 +192,16 @@ export const APP_NOTIF_CONFIG = {
   },
   admin_message: {
     icon: Mail,
-    bg: '#DBEAFE',
+    bg: C.infoBg,
     iconColor: '#1D4ED8',
     iconBg: '#1D4ED8',
     buildHref: () => null,
   },
   app_update: {
     icon: Download,
-    bg: '#FEF3C7',
-    iconColor: '#D97706',
-    iconBg: '#D97706',
+    bg: C.warnBg,
+    iconColor: C.warn,
+    iconBg: C.warn,
     buildHref: () => {
       const p = window?.Capacitor?.getPlatform?.();
       if (p === 'ios') return 'https://apps.apple.com/app/carreminder/id6764073107';
@@ -210,7 +211,7 @@ export const APP_NOTIF_CONFIG = {
   },
   account_invite_offered: {
     icon: UserPlus,
-    bg: '#ECFDF5',
+    bg: C.successSubtle,
     iconColor: '#059669',
     iconBg: '#059669',
     buildHref: () => '/AccountSettings',
@@ -224,23 +225,23 @@ export const APP_NOTIF_CONFIG = {
   },
   account_invite_declined: {
     icon: X,
-    bg: '#FEF2F2',
-    iconColor: '#DC2626',
-    iconBg: '#DC2626',
+    bg: C.errorBg,
+    iconColor: C.error,
+    iconBg: C.error,
     buildHref: () => '/AccountSettings',
   },
   _default: {
     icon: Bell,
-    bg: '#F9FAFB',
-    iconColor: '#6B7280',
-    iconBg: '#6B7280',
+    bg: C.gray50,
+    iconColor: C.gray500,
+    iconBg: C.gray500,
     buildHref: () => null,
   },
 };
 
 export function configForType(type) {
   return APP_NOTIF_CONFIG[type] ?? APP_NOTIF_CONFIG._default ?? {
-    icon: Bell, bg: '#F9FAFB', iconColor: '#6B7280', iconBg: '#6B7280',
+    icon: Bell, bg: C.gray50, iconColor: C.gray500, iconBg: C.gray500,
     buildHref: () => null,
   };
 }

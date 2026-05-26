@@ -1,6 +1,7 @@
 import React from 'react';
 import { Send, CheckCircle2, Eye, MousePointerClick, AlertCircle, XCircle } from 'lucide-react';
 import { useEmailStats } from '@/hooks/useEmailAdmin';
+import { C } from '@/lib/designTokens';
 
 /**
  * StatsStrip. 30-day rollup of delivery health across all notifications.
@@ -27,19 +28,19 @@ export default function StatsStrip() {
 
   return (
     <div dir="rtl" className="rounded-2xl p-4 mb-6"
-      style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB' }}>
+      style={{ background: '#FFFFFF', border: `1.5px solid ${C.gray200}` }}>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-sm" style={{ color: '#1C2E20' }}>סטטיסטיקה של 30 הימים האחרונים</h3>
+        <h3 className="font-bold text-sm" style={{ color: C.text }}>סטטיסטיקה של 30 הימים האחרונים</h3>
         <span className="text-[10px] text-gray-400">{total} מיילים נשלחו</span>
       </div>
 
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-        <Stat icon={Send}              label="נשלחו"    value={total}         fg="#2563EB" bg="#DBEAFE" />
-        <Stat icon={CheckCircle2}      label="נמסרו"    value={delivered}     fg="#047857" bg="#D1FAE5" />
+        <Stat icon={Send}              label="נשלחו"    value={total}         fg="#2563EB" bg={C.infoBg} />
+        <Stat icon={CheckCircle2}      label="נמסרו"    value={delivered}     fg="#047857" bg={C.successLight} />
         <Stat icon={Eye}               label="נפתחו"    value={s.opened}      rate={openRate}  fg="#0891B2" bg="#CFFAFE" />
         <Stat icon={MousePointerClick} label="קליקים"   value={s.clicked}     rate={clickRate} fg="#7C3AED" bg="#EDE9FE" />
-        <Stat icon={AlertCircle}       label="הוחזרו"   value={s.bounced}     fg="#DC2626" bg="#FEE2E2" warn={Number(s.bounced) > 0} />
-        <Stat icon={XCircle}           label="נכשלו"    value={s.failed}      fg="#991B1B" bg="#FEE2E2" warn={Number(s.failed) > 0} />
+        <Stat icon={AlertCircle}       label="הוחזרו"   value={s.bounced}     fg={C.error} bg={C.errorLight} warn={Number(s.bounced) > 0} />
+        <Stat icon={XCircle}           label="נכשלו"    value={s.failed}      fg={C.errorDark} bg={C.errorLight} warn={Number(s.failed) > 0} />
       </div>
 
       {noEvents && (

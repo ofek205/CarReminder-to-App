@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Car, Wrench, Star, AlertTriangle, Sparkles, ScanLine, MapPin, Bell, Database } from "lucide-react";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";
+import { C } from '@/lib/designTokens';
 
 /**
  * WelcomePopup. post-login greeting modal.
@@ -48,7 +49,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
         {/*  Hero  */}
         <div className="relative overflow-hidden"
           style={{
-            background: 'linear-gradient(165deg, #1C3620 0%, #2D5233 45%, #4A8C5C 100%)',
+            background: `linear-gradient(165deg, #1C3620 0%, ${C.primary} 45%, #4A8C5C 100%)`,
             padding: '28px 24px 24px',
           }}>
           {/* Decorative blooms */}
@@ -102,7 +103,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
               title="מומחה AI אישי"
               body="מומחי ה-AI שלנו - ברוך לרכבים ויוסי לכלי שייט - מכירים את הפרטים שלך ועונים מדויק על תקלות, עלויות וטיפולים."
               bg="#FAFCF9"
-              accent="#2D5233"
+              accent={C.primary}
               tileShadow="0 8px 16px -4px rgba(45,82,51,0.35)"
             />
             <div className="h-2.5" />
@@ -112,13 +113,13 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
               title="ניהול תאונות"
               body="נזקים, פרטי נהג שני, צילומים וחברת ביטוח. הכול במקום אחד."
               bg="#FFFCF5"
-              accent="#D97706"
+              accent={C.warn}
               tileShadow="0 8px 16px -4px rgba(217,119,6,0.35)"
             />
 
             {/* Feedback inline note */}
             <div className="flex items-center justify-center gap-1.5 mt-4">
-              <Star className="h-3.5 w-3.5" style={{ color: '#FFBF00', fill: '#FFBF00' }} />
+              <Star className="h-3.5 w-3.5" style={{ color: C.yellow, fill: C.yellow }} />
               <p className="text-[11px] font-medium text-gray-500">
                 האפליקציה מתפתחת. נשמח לשמוע רעיונות.
               </p>
@@ -137,7 +138,7 @@ export default function WelcomePopup({ open, onClose, isReturningUser = false, u
               מכאן תנהל את כל הרכבים והסירות שלך במקום אחד.
             </p>
             <div className="rounded-2xl p-4 space-y-3 relative overflow-hidden"
-              style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #E8F2EA 100%)', border: '1.5px solid #BBF7D0' }}>
+              style={{ background: `linear-gradient(135deg, #F0FDF4 0%, ${C.light} 100%)`, border: '1.5px solid #BBF7D0' }}>
               <div className="absolute -bottom-8 -left-8 w-24 h-24 rounded-full pointer-events-none"
                 style={{ background: 'rgba(45,82,51,0.04)' }} />
               <MiniRow icon={Sparkles}  title="מומחה AI אישי"
@@ -188,7 +189,7 @@ function MiniRow({ icon: Icon, title, body }) {
   return (
     <div className="flex items-start gap-3 relative z-10">
       <div className="flex items-center justify-center shrink-0"
-        style={{ width: 32, height: 32, borderRadius: 10, background: '#2D5233' }}>
+        style={{ width: 32, height: 32, borderRadius: 10, background: C.primary }}>
         <Icon className="w-4 h-4 text-white" strokeWidth={2.3} />
       </div>
       <div className="flex-1 min-w-0">
@@ -208,7 +209,7 @@ function PremiumCta({ onClick, label }) {
       style={{
         height: 52,
         borderRadius: 16,
-        background: 'linear-gradient(135deg, #2D5233 0%, #4A8C5C 100%)',
+        background: `linear-gradient(135deg, ${C.primary} 0%, #4A8C5C 100%)`,
         boxShadow: '0 12px 24px -6px rgba(45,82,51,0.4), 0 4px 8px rgba(45,82,51,0.15)',
         fontSize: 16,
         marginTop: 20,

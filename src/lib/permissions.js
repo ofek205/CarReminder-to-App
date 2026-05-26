@@ -8,6 +8,7 @@
  *
  * Usage:
  *   import { canEdit, canDelete, canManage, isViewOnly } from '@/lib/permissions';
+import { C } from '@/lib/designTokens';
  *   if (canEdit(role)) { ... }
  */
 
@@ -53,7 +54,7 @@ export function isViewOnly(role) {
  *  vehicle-level sharing surfaces.
  */
 export const ROLE_INFO = {
-  'בעלים': { label: 'בעלים',     description: 'שליטה מלאה: ניהול, עריכה ומחיקה',  color: '#D97706', bg: '#FEF3C7', icon: 'Crown' },
-  'מנהל':  { label: 'שותף עורך', description: 'מוסיף ועורך הכל, חוץ ממחיקת רכבים', color: '#2563EB', bg: '#DBEAFE', icon: 'Shield' },
-  'שותף':  { label: 'שותף צופה', description: 'צפייה בלבד, ללא עריכה או מחיקה',    color: '#6B7280', bg: '#F3F4F6', icon: 'User' },
+  'בעלים': { label: 'בעלים',     description: 'שליטה מלאה: ניהול, עריכה ומחיקה',  color: C.warn, bg: C.warnBg, icon: 'Crown' },
+  'מנהל':  { label: 'שותף עורך', description: 'מוסיף ועורך הכל, חוץ ממחיקת רכבים', color: '#2563EB', bg: C.infoBg, icon: 'Shield' },
+  'שותף':  { label: 'שותף צופה', description: 'צפייה בלבד, ללא עריכה או מחיקה',    color: C.gray500, bg: C.gray100, icon: 'User' },
 };

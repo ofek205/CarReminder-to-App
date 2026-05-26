@@ -36,15 +36,15 @@ const ROLES = [
     description: 'מוסיף ועורך הכל, חוץ ממחיקת רכבים וניהול חברים',
     icon: Shield,
     color: '#2563EB',
-    bg: '#DBEAFE',
+    bg: C.infoBg,
   },
   {
     value: 'שותף',
     label: 'שותף צופה',
     description: 'צפייה בלבד, ללא עריכה או מחיקה',
     icon: Eye,
-    color: '#6B7280',
-    bg: '#F3F4F6',
+    color: C.gray500,
+    bg: C.gray100,
   },
 ];
 
@@ -219,16 +219,16 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
                       onClick={() => setRole(opt.value)}
                       className="w-full rounded-2xl p-4 text-right transition-all border-2 flex items-start gap-3"
                       style={{
-                        borderColor: active ? opt.color : '#E5E7EB',
-                        background: active ? opt.bg : '#FAFAFA',
+                        borderColor: active ? opt.color : C.gray200,
+                        background: active ? opt.bg : C.grayBg,
                       }}>
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-                        style={{ background: active ? `${opt.color}20` : '#F3F4F6' }}>
+                        style={{ background: active ? `${opt.color}20` : C.gray100 }}>
                         <Icon className="w-5 h-5" style={{ color: opt.color }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm" style={{ color: active ? opt.color : '#374151' }}>{opt.label}</p>
-                        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: '#6B7280' }}>{opt.description}</p>
+                        <p className="font-bold text-sm" style={{ color: active ? opt.color : C.gray700 }}>{opt.label}</p>
+                        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: C.gray500 }}>{opt.description}</p>
                       </div>
                       {active && (
                         <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-1"
@@ -250,16 +250,16 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
                   <button type="button" onClick={() => { setShareAll(true); setSelectedVehicleIds([]); }}
                     className="w-full rounded-2xl p-3 text-right transition-all border-2 flex items-center gap-3"
                     style={{
-                      borderColor: shareAll ? C.primary : '#E5E7EB',
-                      background: shareAll ? C.light : '#FAFAFA',
+                      borderColor: shareAll ? C.primary : C.gray200,
+                      background: shareAll ? C.light : C.grayBg,
                     }}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                      style={{ background: shareAll ? C.primary : '#F3F4F6' }}>
-                      <Users className="w-4 h-4" style={{ color: shareAll ? 'white' : '#9CA3AF' }} />
+                      style={{ background: shareAll ? C.primary : C.gray100 }}>
+                      <Users className="w-4 h-4" style={{ color: shareAll ? 'white' : C.gray400 }} />
                     </div>
                     <div className="flex-1">
-                      <p className="font-bold text-sm" style={{ color: shareAll ? C.primary : '#6B7280' }}>כל הרכבים</p>
-                      <p className="text-xs" style={{ color: '#9CA3AF' }}>גישה לכל הרכבים בחשבון</p>
+                      <p className="font-bold text-sm" style={{ color: shareAll ? C.primary : C.gray500 }}>כל הרכבים</p>
+                      <p className="text-xs" style={{ color: C.gray400 }}>גישה לכל הרכבים בחשבון</p>
                     </div>
                     {shareAll && <Check className="w-5 h-5" style={{ color: C.primary }} />}
                   </button>
@@ -267,16 +267,16 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
                   <button type="button" onClick={() => setShareAll(false)}
                     className="w-full rounded-2xl p-3 text-right transition-all border-2 flex items-center gap-3"
                     style={{
-                      borderColor: !shareAll ? C.primary : '#E5E7EB',
-                      background: !shareAll ? C.light : '#FAFAFA',
+                      borderColor: !shareAll ? C.primary : C.gray200,
+                      background: !shareAll ? C.light : C.grayBg,
                     }}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                      style={{ background: !shareAll ? C.primary : '#F3F4F6' }}>
-                      <Car className="w-4 h-4" style={{ color: !shareAll ? 'white' : '#9CA3AF' }} />
+                      style={{ background: !shareAll ? C.primary : C.gray100 }}>
+                      <Car className="w-4 h-4" style={{ color: !shareAll ? 'white' : C.gray400 }} />
                     </div>
                     <div className="flex-1">
-                      <p className="font-bold text-sm" style={{ color: !shareAll ? C.primary : '#6B7280' }}>רכבים ספציפיים</p>
-                      <p className="text-xs" style={{ color: '#9CA3AF' }}>בחר אילו רכבים לשתף</p>
+                      <p className="font-bold text-sm" style={{ color: !shareAll ? C.primary : C.gray500 }}>רכבים ספציפיים</p>
+                      <p className="text-xs" style={{ color: C.gray400 }}>בחר אילו רכבים לשתף</p>
                     </div>
                     {!shareAll && <Check className="w-5 h-5" style={{ color: C.primary }} />}
                   </button>
@@ -284,7 +284,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
 
                 {!shareAll && (
                   <div className="mt-2 space-y-1.5 rounded-2xl p-2"
-                    style={{ background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
+                    style={{ background: C.gray50, border: `1px solid ${C.gray200}` }}>
                     {vehicles.map(v => {
                       const vName = v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || 'רכב';
                       const selected = selectedVehicleIds.includes(v.id);
@@ -292,8 +292,8 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
                         <button key={v.id} type="button" onClick={() => toggleVehicle(v.id)}
                           className="w-full rounded-xl p-2.5 flex items-center gap-3 transition-all"
                           style={{
-                            background: selected ? '#E8F5E9' : 'white',
-                            border: `1.5px solid ${selected ? '#4CAF50' : '#E5E7EB'}`,
+                            background: selected ? C.successBg : 'white',
+                            border: `1.5px solid ${selected ? '#4CAF50' : C.gray200}`,
                           }}>
                           <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-gray-100">
                             {hasVehiclePhoto(v) ? (
@@ -310,7 +310,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
                           </div>
                           <div className="w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0"
                             style={{
-                              borderColor: selected ? '#4CAF50' : '#D1D5DB',
+                              borderColor: selected ? '#4CAF50' : C.gray300,
                               background: selected ? '#4CAF50' : 'white',
                             }}>
                             {selected && <Check className="w-3 h-3 text-white" />}
@@ -340,7 +340,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
                   dir="ltr"
                   autoFocus
                   className="w-full h-11 pr-9 pl-3 rounded-xl border text-sm font-medium outline-none transition-all focus:ring-2"
-                  style={{ background: '#fff', borderColor: '#E5E7EB', color: '#1F2937', '--tw-ring-color': C.primary }}
+                  style={{ background: '#fff', borderColor: C.gray200, color: C.gray800, '--tw-ring-color': C.primary }}
                 />
               </div>
               <p className="text-[11px] text-gray-400 mt-1.5">
@@ -361,9 +361,9 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
                         onClick={() => setEmail(r.email)}
                         className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all active:scale-95"
                         style={{
-                          background: email === r.email ? C.light : '#F9FAFB',
-                          color: email === r.email ? C.primary : '#374151',
-                          border: `1px solid ${email === r.email ? C.primary + '60' : '#E5E7EB'}`,
+                          background: email === r.email ? C.light : C.gray50,
+                          color: email === r.email ? C.primary : C.gray700,
+                          border: `1px solid ${email === r.email ? C.primary + '60' : C.gray200}`,
                         }}>
                         {r.email}
                       </button>
@@ -389,7 +389,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
         ) : (
           <div className="space-y-4 pt-2">
             {result.recipient_existing_user ? (
-              <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: '#E8F5E9', border: '1.5px solid #A5D6A7' }}>
+              <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.successBg, border: '1.5px solid #A5D6A7' }}>
                 <Check className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#2E7D32' }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold" style={{ color: '#1B5E20' }}>
@@ -403,14 +403,14 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: '#FFF8E1', border: '1.5px solid #FDE68A' }}>
-                <UserPlus className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#B45309' }} />
+              <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.yellowSoft, border: `1.5px solid ${C.warnBorder}` }}>
+                <UserPlus className="w-5 h-5 shrink-0 mt-0.5" style={{ color: C.warnMid }} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold" style={{ color: '#92400E' }}>המייל הזה לא רשום אצלנו עדיין</p>
-                  <p className="text-xs mt-1 leading-relaxed" style={{ color: '#B45309' }}>
+                  <p className="text-sm font-bold" style={{ color: C.warnDark }}>המייל הזה לא רשום אצלנו עדיין</p>
+                  <p className="text-xs mt-1 leading-relaxed" style={{ color: C.warnMid }}>
                     שלחנו מייל עם קישור הצטרפות. <strong>הוא יצטרך להירשם תחילה</strong> (עם אותה כתובת מייל). אחרי ההרשמה ההזמנה תחכה לו.
                   </p>
-                  <p className="text-[11px] mt-1.5" style={{ color: '#B45309' }}>
+                  <p className="text-[11px] mt-1.5" style={{ color: C.warnMid }}>
                     אפשר גם לשתף את הקישור ב־WhatsApp או להעתיק כדי לזרז.
                   </p>
                 </div>
@@ -425,9 +425,9 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
                     <div className="flex-1 min-w-0 rounded-xl border px-3 py-2 text-[10px] font-mono break-all leading-relaxed"
                       dir="ltr"
                       style={{
-                        background: '#F9FAFB',
-                        borderColor: '#E5E7EB',
-                        color: '#374151',
+                        background: C.gray50,
+                        borderColor: C.gray200,
+                        color: C.gray700,
                         maxHeight: '64px',
                         overflowY: 'auto',
                       }}>

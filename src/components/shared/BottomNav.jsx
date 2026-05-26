@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Home, MapPin, FileText, AlertTriangle, Sparkles, Route as RouteIcon, LayoutDashboard } from 'lucide-react';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import { C } from '@/lib/designTokens';
 
 // Tab order in RTL: rightmost first → leftmost last
 // AI Assistant is intentionally LAST so it sits on the visual LEFT
@@ -87,7 +88,7 @@ export default function BottomNav({ sheetOpen = false }) {
     <div className="fixed bottom-0 left-0 right-0 lg:hidden"
       style={{
         background: '#FFFFFF',
-        borderTop: '1px solid #E5E7EB',
+        borderTop: `1px solid ${C.gray200}`,
         boxShadow: '0 -2px 12px rgba(0,0,0,0.06)',
         // z-index flips based on which modal is likely open:
         //   • Default (z-40): sits BELOW the shadcn Dialog (z-50) so modal
@@ -129,9 +130,9 @@ export default function BottomNav({ sheetOpen = false }) {
         {tabs.map(tab => {
           const active = activePath === tab.path;
           // AI button: special amber accent when active
-          const activeBg = tab.isAi ? '#D97706' : '#2D5233';
-          const activeIconColor = tab.isAi ? '#FFFBEB' : '#FFBF00';
-          const activeTextColor = tab.isAi ? '#92400E' : '#2D5233';
+          const activeBg = tab.isAi ? C.warn : C.primary;
+          const activeIconColor = tab.isAi ? C.warnSubtle : C.yellow;
+          const activeTextColor = tab.isAi ? C.warnDark : C.primary;
           return (
             <Link key={tab.path} to={createPageUrl(tab.path)}
               data-tour={tab.isAi ? 'ai-tab' : undefined}
@@ -144,11 +145,11 @@ export default function BottomNav({ sheetOpen = false }) {
                   unchanged on phones. */}
               <div className="w-11 h-11 rounded-xl flex items-center justify-center transition-all relative"
                 style={{
-                  background: active ? activeBg : (tab.isAi ? '#FFFBEB' : 'transparent'),
-                  border: tab.isAi && !active ? '1.5px solid #FEF3C7' : 'none',
+                  background: active ? activeBg : (tab.isAi ? C.warnSubtle : 'transparent'),
+                  border: tab.isAi && !active ? `1.5px solid ${C.warnBg}` : 'none',
                 }}>
                 <tab.icon className="w-5 h-5" strokeWidth={active ? 2.5 : 1.8}
-                  style={{ color: active ? activeIconColor : (tab.isAi ? '#D97706' : '#9CA3AF') }} />
+                  style={{ color: active ? activeIconColor : (tab.isAi ? C.warn : C.gray400) }} />
                 {/* The always-on green dot used to imply "online" status for
                     the AI service, which misled users when the service was
                     actually down. The amber border + color already make the
@@ -159,7 +160,7 @@ export default function BottomNav({ sheetOpen = false }) {
                   single truncated line rather than overflowing into the
                   neighbouring tab or disappearing behind the icon. */}
               <span className="text-[10px] font-bold line-clamp-1 truncate text-center max-w-full"
-                style={{ color: active ? activeTextColor : (tab.isAi ? '#D97706' : '#9CA3AF') }}>
+                style={{ color: active ? activeTextColor : (tab.isAi ? C.warn : C.gray400) }}>
                 {tab.label}
               </span>
             </Link>

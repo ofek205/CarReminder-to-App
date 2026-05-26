@@ -721,7 +721,7 @@ function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, b
     <div
       className="rounded-3xl overflow-hidden"
       style={{
-        background: 'linear-gradient(135deg, #2D5233 0%, #4B7A53 100%)',
+        background: `linear-gradient(135deg, ${C.primary} 0%, #4B7A53 100%)`,
         boxShadow: '0 8px 24px rgba(45,82,51,0.18)',
         color: '#fff',
       }}
@@ -789,7 +789,7 @@ function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, b
               // a brighter accent for visibility on the dark green
               // background. Falls back to gold when the theme is too
               // close to the card color (low contrast guard).
-              const barGradient = `linear-gradient(90deg, ${T.primary} 0%, ${T.yellow || '#FDE68A'} 100%)`;
+              const barGradient = `linear-gradient(90deg, ${T.primary} 0%, ${T.yellow || C.warnBorder} 100%)`;
 
               return (
                 <button
@@ -834,7 +834,7 @@ function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, b
                         {isLeader && (
                           <span
                             className="text-[9px] font-black px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5 shrink-0"
-                            style={{ background: 'rgba(253,230,138,0.22)', color: '#FDE68A' }}
+                            style={{ background: 'rgba(253,230,138,0.22)', color: C.warnBorder }}
                             title="ההוצאה הגבוהה ביותר"
                           >
                             <Trophy className="w-2.5 h-2.5" />
@@ -890,7 +890,7 @@ function SummaryCard({ period, total, count, monthlyAvg, loading, isAggregate, b
 
 function EmptyCard({ icon, title, text, actionLabel, onAction }) {
   return (
-    <div className="text-center py-10 px-4 rounded-3xl" style={{ background: '#F9FAFB', border: `1px dashed ${C.border}` }}>
+    <div className="text-center py-10 px-4 rounded-3xl" style={{ background: C.gray50, border: `1px dashed ${C.border}` }}>
       <div className="flex justify-center mb-3">{icon}</div>
       <p className="text-sm font-bold" style={{ color: C.text }}>{title}</p>
       <p className="text-xs mt-1" style={{ color: C.muted }}>{text}</p>

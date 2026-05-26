@@ -33,6 +33,7 @@ import { PageShell, Card } from '@/components/business/system';
 import UserProfilePage from './UserProfile';
 import AccountSettings from './AccountSettings';
 import ReminderSettingsPage from './ReminderSettingsPage';
+import { C } from '@/lib/designTokens';
 
 const TABS = [
   { key: 'profile', label: 'פרופיל',   icon: User,  subtitle: 'פרטים אישיים ורישיון נהיגה' },
@@ -84,9 +85,9 @@ export default function Settings() {
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl whitespace-nowrap transition-all hover:scale-[1.01] active:scale-[0.98]"
                 style={{
                   background: isActive
-                    ? 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)'
+                    ? `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`
                     : 'transparent',
-                  color: isActive ? '#FFFFFF' : '#4B5D52',
+                  color: isActive ? '#FFFFFF' : C.textAlt,
                   boxShadow: isActive
                     ? '0 4px 12px rgba(16,185,129,0.25)'
                     : 'none',
@@ -121,7 +122,7 @@ export default function Settings() {
           right after a Play Store rollout when half the install base
           is on the new version and half isn't. Sourced from
           package.json via the __APP_VERSION__ Vite define. */}
-      <p className="text-center text-[11px] mt-6 mb-2" style={{ color: '#9CA3AF' }}>
+      <p className="text-center text-[11px] mt-6 mb-2" style={{ color: C.gray400 }}>
         CarReminder &middot; גרסה {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—'}
       </p>
     </PageShell>

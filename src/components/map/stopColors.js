@@ -14,12 +14,12 @@
 //   issue       → red    (treated like failed for display)
 
 export const STOP_STATUS_COLORS = {
-  pending:     '#9CA3AF', // gray-400
-  in_progress: '#3B82F6', // blue-500
-  completed:   '#10B981', // emerald-500
+  pending:     C.gray400, // gray-400
+  in_progress: C.info, // blue-500
+  completed:   C.successBright, // emerald-500
   failed:      '#EF4444', // red-500
-  overdue:     '#F59E0B', // amber-500
-  skipped:     '#9CA3AF', // gray-400 (legacy)
+  overdue:     C.warnIcon, // amber-500
+  skipped:     C.gray400, // gray-400 (legacy)
   issue:       '#EF4444', // red-500 (legacy)
 };
 

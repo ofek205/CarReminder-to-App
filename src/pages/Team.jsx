@@ -25,6 +25,7 @@ import {
   KpiTile,
   AnimatedCount,
 } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 // Role meta keeps the original avatar chip (cls) so the tiny role icon
 // retains its identity, plus an `accent` keyed to the Living Dashboard
@@ -140,21 +141,21 @@ export default function Team() {
 
       {isLoading ? (
         <Card className="text-center py-8">
-          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען...</p>
+          <p className="text-xs" style={{ color: C.mutedAlt }}>טוען...</p>
         </Card>
       ) : teamError ? (
         <Card className="text-center py-12">
           <Users className="h-10 w-10 mx-auto mb-3" style={{ color: '#FCA5A5' }} />
-          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>לא הצלחנו לטעון את הצוות</p>
-          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>לא הצלחנו לטעון את הצוות</p>
+          <p className="text-xs leading-relaxed" style={{ color: C.mutedAlt }}>
             בדוק את החיבור לאינטרנט ונסה שוב. אם הבעיה נמשכת, צור קשר עם מנהל הצי.
           </p>
         </Card>
       ) : team.length === 0 ? (
         <Card className="text-center py-12">
-          <Users className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
-          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>אין חברים בצוות</p>
-          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+          <Users className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
+          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>אין חברים בצוות</p>
+          <p className="text-xs leading-relaxed" style={{ color: C.mutedAlt }}>
             כשמנהל יוסיף חברים לחשבון, הם יופיעו כאן עם פרטי קשר.
           </p>
         </Card>
@@ -168,16 +169,16 @@ export default function Team() {
             <h2
               className="flex items-center gap-2 mb-2.5 text-sm font-bold pr-2.5 border-r-2"
               style={{
-                color: '#0B2912',
+                color: C.primaryDark,
                 borderRightColor: section.key === 'leadership' ? '#A855F7'
-                  : section.key === 'drivers' ? '#F59E0B'
-                  : '#3B82F6',
+                  : section.key === 'drivers' ? C.warnIcon
+                  : C.info,
               }}
             >
               {section.title}
               <span
                 className="text-[11px] font-bold rounded-full px-2 py-0.5 tabular-nums"
-                style={{ background: '#F0F7F4', color: '#4B5D52' }}
+                style={{ background: C.bgSubtle, color: C.textAlt }}
                 dir="ltr"
               >
                 {section.members.length}
@@ -208,7 +209,7 @@ function MemberCard({ member, isSelf }) {
         // Subtle enough that it doesn't shout; firm enough that scanning
         // a long roster you find yourself instantly.
         style={isSelf ? {
-          boxShadow: '0 0 0 2px #10B981, 0 4px 16px rgba(16,185,129,0.18)',
+          boxShadow: `0 0 0 2px ${C.successBright}, 0 4px 16px rgba(16,185,129,0.18)`,
           background: 'linear-gradient(180deg, #F0FDF6 0%, #FFFFFF 60%)',
         } : undefined}
       >
@@ -218,12 +219,12 @@ function MemberCard({ member, isSelf }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>
+              <p className="text-sm font-bold truncate" style={{ color: C.primaryDark }}>
                 {member.display_name}
                 {isSelf && (
                   <span
                     className="text-[10px] font-bold mr-2 px-1.5 py-0.5 rounded-md"
-                    style={{ background: '#D1FAE5', color: '#065F46' }}
+                    style={{ background: C.successLight, color: C.successDark }}
                   >
                     אתה
                   </span>
@@ -244,9 +245,9 @@ function MemberCard({ member, isSelf }) {
                   href={`tel:${member.phone}`}
                   className="inline-flex items-center gap-1.5 text-[12px] py-1 rounded-md transition-colors hover:bg-emerald-50/60"
                   dir="ltr"
-                  style={{ color: '#0B2912' }}
+                  style={{ color: C.primaryDark }}
                 >
-                  <Phone className="h-3.5 w-3.5 shrink-0" style={{ color: '#10B981' }} />
+                  <Phone className="h-3.5 w-3.5 shrink-0" style={{ color: C.successBright }} />
                   <span className="tabular-nums">{member.phone}</span>
                 </a>
               )}
@@ -255,9 +256,9 @@ function MemberCard({ member, isSelf }) {
                   href={`mailto:${member.email}`}
                   className="inline-flex items-center gap-1.5 text-[12px] py-1 rounded-md transition-colors hover:bg-emerald-50/60 truncate"
                   dir="ltr"
-                  style={{ color: '#4B5D52' }}
+                  style={{ color: C.textAlt }}
                 >
-                  <Mail className="h-3.5 w-3.5 shrink-0" style={{ color: '#10B981' }} />
+                  <Mail className="h-3.5 w-3.5 shrink-0" style={{ color: C.successBright }} />
                   <span className="truncate">{member.email}</span>
                 </a>
               )}

@@ -15,6 +15,7 @@ import {
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import { C } from '@/lib/designTokens';
 
 // Leaflet's default-icon URL detection breaks under Vite. The same shim
 // existed inline in FindGarage.jsx; centralised here so every consumer
@@ -37,7 +38,7 @@ const userIcon = new L.DivIcon({
   html: `<div style="position:relative;width:18px;height:18px;">
     <div style="position:absolute;inset:0;border-radius:50%;background:rgba(59,130,246,0.35);animation:cr-user-pulse 2400ms cubic-bezier(0.4,0,0.6,1) infinite;"></div>
     <div style="position:absolute;inset:0;border-radius:50%;background:rgba(59,130,246,0.35);animation:cr-user-pulse 2400ms cubic-bezier(0.4,0,0.6,1) infinite;animation-delay:1200ms;"></div>
-    <div style="position:absolute;inset:0;width:18px;height:18px;border-radius:50%;background:#3B82F6;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);"></div>
+    <div style="position:absolute;inset:0;width:18px;height:18px;border-radius:50%;background:${C.info};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);"></div>
   </div><style>@keyframes cr-user-pulse{0%{transform:scale(1);opacity:0.6}100%{transform:scale(2.6);opacity:0}}@keyframes pulse-ring{0%{transform:scale(1);opacity:1}100%{transform:scale(2.2);opacity:0}}</style>`,
   iconSize: [18, 18],
   iconAnchor: [9, 9],
@@ -53,7 +54,7 @@ const userIcon = new L.DivIcon({
 //     anchored at center, optional numbered label inside.
 // `highlight: true` paints an extra pulsing outer ring + grows the
 // icon — used by route maps to flag the stop the driver should hit next.
-function buildMarkerIcon({ color = '#2D5233', number, iconSvg, highlight = false, size = 38, shape = 'circle' }) {
+function buildMarkerIcon({ color = C.primary, number, iconSvg, highlight = false, size = 38, shape = 'circle' }) {
   const finalSize = highlight ? size + 8 : size;
   const halfShadow = `${color}60`;
   let inner = '';
@@ -183,7 +184,7 @@ export default function MapCore({
   mapMaxHeight = '500px',
   emptyStateMessage = 'אין מיקום להצגה',
   showCircle = false,
-  circleColor = '#2D5233',
+  circleColor = C.primary,
   circleRadius = 5000,
   scrollWheelZoom = true,
   tooltipClassName = '',
@@ -206,7 +207,7 @@ export default function MapCore({
   const iconsByKey = useMemo(() => {
     const cache = new Map();
     for (const m of markers) {
-      const key = `${m.color || '#2D5233'}|${m.number ?? ''}|${m.iconSvg || ''}|${m.highlight ? '1' : '0'}|${m.shape || 'circle'}`;
+      const key = `${m.color || C.primary}|${m.number ?? ''}|${m.iconSvg || ''}|${m.highlight ? '1' : '0'}|${m.shape || 'circle'}`;
       if (!cache.has(key)) {
         cache.set(
           key,
@@ -249,8 +250,8 @@ export default function MapCore({
           height: mapHeight,
           minHeight: mapMinHeight,
           maxHeight: mapMaxHeight,
-          background: '#F9FAFB',
-          border: '1.5px solid #E5E7EB',
+          background: C.gray50,
+          border: `1.5px solid ${C.gray200}`,
         }}
         dir="rtl"
       >
@@ -273,7 +274,7 @@ export default function MapCore({
         // Leaflet was clipping inside the rounded mask which made the
         // map look like it occupied "only half the screen" even though
         // the wrapper was fixed inset-0.
-        ...(fullscreen ? {} : { borderColor: '#E5E7EB' }),
+        ...(fullscreen ? {} : { borderColor: C.gray200 }),
       }}
     >
       <MapContainer
@@ -337,7 +338,7 @@ export default function MapCore({
               key={r.id}
               positions={r.points.map((p) => [p.lat, p.lng])}
               pathOptions={{
-                color: r.color || '#2D5233',
+                color: r.color || C.primary,
                 weight: 4,
                 opacity: 0.85,
                 dashArray: r.dashed ? '6 4' : undefined,
@@ -349,7 +350,7 @@ export default function MapCore({
         {/* Markers */}
         {markers.map((m) => {
           if (!Number.isFinite(m.lat) || !Number.isFinite(m.lng)) return null;
-          const key = `${m.color || '#2D5233'}|${m.number ?? ''}|${m.iconSvg || ''}|${m.highlight ? '1' : '0'}|${m.shape || 'circle'}`;
+          const key = `${m.color || C.primary}|${m.number ?? ''}|${m.iconSvg || ''}|${m.highlight ? '1' : '0'}|${m.shape || 'circle'}`;
           const icon = iconsByKey.get(key);
           return (
             <Marker

@@ -32,8 +32,8 @@ function fmtMoney(n, currency = 'ILS') {
 }
 
 const SOURCE_TONE = {
-  neutral: { bg: '#F3F4F6', color: '#374151' },
-  info:    { bg: '#EFF6FF', color: '#1D4ED8' },
+  neutral: { bg: C.gray100, color: C.gray700 },
+  info:    { bg: C.infoSubtle, color: '#1D4ED8' },
 };
 
 export default function ExpenseRow({ row, onClick, vehicleInfo, onVehicleClick }) {
@@ -123,9 +123,9 @@ export default function ExpenseRow({ row, onClick, vehicleInfo, onVehicleClick }
               onClick={handleVehicleChipClick}
               className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 transition-colors min-w-0 hover:brightness-95 active:scale-95"
               style={{
-                background: vehicleTheme?.light || '#F3F4F6',
-                color:      vehicleTheme?.text  || '#374151',
-                border:     `1px solid ${vehicleTheme?.primary || '#E5E7EB'}30`,
+                background: vehicleTheme?.light || C.gray100,
+                color:      vehicleTheme?.text  || C.gray700,
+                border:     `1px solid ${vehicleTheme?.primary || C.gray200}30`,
               }}
               aria-label={`עבור לרכב ${vehicleInfo.name}`}
               title={`עבור לרכב ${vehicleInfo.name}`}

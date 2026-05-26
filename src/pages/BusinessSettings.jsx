@@ -26,6 +26,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { Input } from '@/components/ui/input';
 // Living Dashboard system - shared with all B2B pages.
 import { PageShell, Card } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 const MAX_NAME = 120;
 
@@ -146,7 +147,7 @@ export default function BusinessSettings() {
           <div
             className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-black"
             style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
               boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
             }}
@@ -154,7 +155,7 @@ export default function BusinessSettings() {
             {workspaceInitials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-base font-black truncate" style={{ color: '#0B2912' }}>
+            <p className="text-base font-black truncate" style={{ color: C.primaryDark }}>
               {name || 'חשבון עסקי'}
             </p>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -162,14 +163,14 @@ export default function BusinessSettings() {
                 <span
                   className="text-[11px] font-bold px-2 py-0.5 rounded-md tabular-nums"
                   dir="ltr"
-                  style={{ background: '#F0F7F4', color: '#4B5D52' }}
+                  style={{ background: C.bgSubtle, color: C.textAlt }}
                 >
                   ח.פ. {businessId}
                 </span>
               )}
               <span
                 className="text-[11px] font-bold px-2 py-0.5 rounded-md inline-flex items-center gap-1"
-                style={{ background: '#D1FAE5', color: '#065F46' }}
+                style={{ background: C.successLight, color: C.successDark }}
               >
                 <Briefcase className="h-3 w-3" />
                 חשבון עסקי
@@ -189,7 +190,7 @@ export default function BusinessSettings() {
               onChange={(e) => { setName(e.target.value); markDirty(); }}
               maxLength={MAX_NAME}
               className="h-11 rounded-xl"
-              style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+              style={{ background: '#FFFFFF', borderColor: C.successLight }}
               required
             />
           </Field>
@@ -200,7 +201,7 @@ export default function BusinessSettings() {
               onChange={(e) => { setBusinessId(e.target.value); markDirty(); }}
               placeholder="לא חובה"
               className="h-11 rounded-xl"
-              style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+              style={{ background: '#FFFFFF', borderColor: C.successLight }}
             />
           </Field>
           <Field label="אימייל ליצירת קשר">
@@ -210,7 +211,7 @@ export default function BusinessSettings() {
               onChange={(e) => { setContactEmail(e.target.value); markDirty(); }}
               placeholder="לא חובה"
               className="h-11 rounded-xl"
-              style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+              style={{ background: '#FFFFFF', borderColor: C.successLight }}
               dir="ltr"
             />
           </Field>
@@ -246,7 +247,7 @@ export default function BusinessSettings() {
         <div
           className="sticky bottom-0 -mx-1 px-1 pt-3 pb-2 mt-2 z-10"
           style={{
-            background: 'linear-gradient(180deg, rgba(240,247,244,0) 0%, #F0F7F4 60%)',
+            background: `linear-gradient(180deg, rgba(240,247,244,0) 0%, ${C.bgSubtle} 60%)`,
           }}
         >
           <button
@@ -255,10 +256,10 @@ export default function BusinessSettings() {
             className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
             style={{
               background: dirty && !submitting
-                ? 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)'
+                ? `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`
                 : '#FFFFFF',
-              color: dirty && !submitting ? '#FFFFFF' : '#10B981',
-              border: dirty && !submitting ? 'none' : '1.5px solid #D1FAE5',
+              color: dirty && !submitting ? '#FFFFFF' : C.successBright,
+              border: dirty && !submitting ? 'none' : `1.5px solid ${C.successLight}`,
               boxShadow: dirty && !submitting
                 ? '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)'
                 : 'none',
@@ -279,9 +280,9 @@ export default function BusinessSettings() {
 function Section({ title, subtitle, accent, children }) {
   return (
     <Card accent={accent}>
-      <h2 className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>{title}</h2>
+      <h2 className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>{title}</h2>
       {subtitle && (
-        <p className="text-[11px] mb-3 leading-relaxed" style={{ color: '#6B7C72' }}>{subtitle}</p>
+        <p className="text-[11px] mb-3 leading-relaxed" style={{ color: C.mutedAlt }}>{subtitle}</p>
       )}
       <div className="space-y-3">{children}</div>
     </Card>
@@ -291,8 +292,8 @@ function Section({ title, subtitle, accent, children }) {
 function Field({ label, required, children }) {
   return (
     <div>
-      <label className="block text-xs font-bold mb-1.5" style={{ color: '#0B2912' }}>
-        {label} {required && <span style={{ color: '#DC2626' }}>*</span>}
+      <label className="block text-xs font-bold mb-1.5" style={{ color: C.primaryDark }}>
+        {label} {required && <span style={{ color: C.error }}>*</span>}
       </label>
       {children}
     </div>
@@ -303,20 +304,20 @@ function Toggle({ icon, label, description, checked, onChange }) {
   return (
     <label
       className="flex items-start gap-3 cursor-pointer py-2.5 first:pt-0"
-      style={{ borderTop: '1px solid #F0F7F4' }}
+      style={{ borderTop: `1px solid ${C.bgSubtle}` }}
     >
       <div
         className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
         style={checked
-          ? { background: 'linear-gradient(135deg, #065F46 0%, #10B981 100%)', color: '#FFFFFF' }
-          : { background: '#F0F7F4', color: '#7A6E58' }}
+          ? { background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 100%)`, color: '#FFFFFF' }
+          : { background: C.bgSubtle, color: '#7A6E58' }}
       >
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold" style={{ color: '#0B2912' }}>{label}</p>
+        <p className="text-sm font-bold" style={{ color: C.primaryDark }}>{label}</p>
         {description && (
-          <p className="text-[11px] leading-relaxed mt-0.5" style={{ color: '#6B7C72' }}>{description}</p>
+          <p className="text-[11px] leading-relaxed mt-0.5" style={{ color: C.mutedAlt }}>{description}</p>
         )}
       </div>
       <button
@@ -327,8 +328,8 @@ function Toggle({ icon, label, description, checked, onChange }) {
         className="shrink-0 relative inline-flex w-11 h-6 rounded-full transition-all"
         style={{
           background: checked
-            ? 'linear-gradient(135deg, #065F46 0%, #10B981 100%)'
-            : '#D1D5DB',
+            ? `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 100%)`
+            : C.gray300,
           boxShadow: checked ? '0 2px 8px rgba(16,185,129,0.32)' : 'none',
         }}
       >

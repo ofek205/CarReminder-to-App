@@ -76,7 +76,7 @@ export default function ReportDialog({ open, onClose, postId, postAuthorName }) 
         <div className="px-5 pt-5 pb-4" style={{ background: `${C.primary}08`, borderBottom: `1px solid ${C.primary}15` }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold" style={{ color: C.text }}>
-              <Flag className="w-4 h-4" style={{ color: '#DC2626' }} />
+              <Flag className="w-4 h-4" style={{ color: C.error }} />
               דיווח על תוכן
             </DialogTitle>
             <p className="text-xs mt-1" style={{ color: C.muted }}>
@@ -93,7 +93,7 @@ export default function ReportDialog({ open, onClose, postId, postAuthorName }) 
               <label key={r.value}
                 className="flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all"
                 style={{
-                  borderColor: reason === r.value ? C.primary : '#E5E7EB',
+                  borderColor: reason === r.value ? C.primary : C.gray200,
                   background: reason === r.value ? `${C.primary}08` : '#fff',
                 }}>
                 <input type="radio" name="report-reason" value={r.value}
@@ -134,7 +134,7 @@ export default function ReportDialog({ open, onClose, postId, postAuthorName }) 
             onClick={handleClose}
             disabled={submitting}
             className="flex-1 h-11 rounded-xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-50"
-            style={{ background: '#F3F4F6', color: C.text }}>
+            style={{ background: C.gray100, color: C.text }}>
             ביטול
           </button>
           <button
@@ -142,7 +142,7 @@ export default function ReportDialog({ open, onClose, postId, postAuthorName }) 
             onClick={handleSubmit}
             disabled={submitting || !reason}
             className="flex-1 h-11 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50"
-            style={{ background: '#DC2626' }}>
+            style={{ background: C.error }}>
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Flag className="w-4 h-4" />}
             {submitting ? 'שולח...' : 'שלח דיווח'}
           </button>

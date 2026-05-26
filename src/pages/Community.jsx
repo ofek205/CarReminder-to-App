@@ -242,7 +242,7 @@ export default function Community() {
   ];
 
   return (
-    <div dir="rtl" className="-mx-4 -mt-4" style={{ background: '#F3F4F6', minHeight: '100dvh' }}>
+    <div dir="rtl" className="-mx-4 -mt-4" style={{ background: C.gray100, minHeight: '100dvh' }}>
 
       {/*  Hero Header  */}
       <div className="sticky top-0 z-30 relative" style={{ background: T.grad || C.grad }}>
@@ -321,14 +321,14 @@ export default function Community() {
 
       {/*  Search result count  */}
       {debouncedSearch && !searching && (
-        <div className="px-4 py-2 flex items-center justify-between" style={{ background: '#fff', borderBottom: '1px solid #E5E7EB' }}>
-          <p className="text-xs font-bold" style={{ color: filteredPosts.length > 0 ? T.primary : '#9CA3AF' }}>
+        <div className="px-4 py-2 flex items-center justify-between" style={{ background: '#fff', borderBottom: `1px solid ${C.gray200}` }}>
+          <p className="text-xs font-bold" style={{ color: filteredPosts.length > 0 ? T.primary : C.gray400 }}>
             {filteredPosts.length > 0
               ? `נמצאו ${filteredPosts.length} תוצאות עבור "${debouncedSearch}"`
               : `לא נמצאו תוצאות עבור "${debouncedSearch}"`
             }
           </p>
-          <button onClick={() => setSearch('')} className="text-[10px] font-bold underline" style={{ color: '#9CA3AF' }}>
+          <button onClick={() => setSearch('')} className="text-[10px] font-bold underline" style={{ color: C.gray400 }}>
             נקה חיפוש
           </button>
         </div>
@@ -341,11 +341,11 @@ export default function Community() {
             /* No search results. suggest posting */
             <div className="text-center py-16 px-6 card-animate">
               <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-                style={{ background: T.light || '#F3F4F6' }}>
+                style={{ background: T.light || C.gray100 }}>
                 <Search className="w-8 h-8" style={{ color: T.primary, opacity: 0.3 }} />
               </div>
-              <h3 className="text-base font-bold mb-2" style={{ color: '#1F2937' }}>לא מצאנו תוצאות</h3>
-              <p className="text-sm mb-5 leading-relaxed max-w-[250px] mx-auto" style={{ color: '#9CA3AF' }}>
+              <h3 className="text-base font-bold mb-2" style={{ color: C.gray800 }}>לא מצאנו תוצאות</h3>
+              <p className="text-sm mb-5 leading-relaxed max-w-[250px] mx-auto" style={{ color: C.gray400 }}>
                 נראה שעוד לא שאלו על זה. אולי תהיה הראשון?
               </p>
               <button onClick={handleFab}
@@ -358,17 +358,17 @@ export default function Community() {
             /* Empty feed. no posts at all */
             <div className="text-center py-20 px-6 card-animate">
               <div className="relative w-24 h-24 mx-auto mb-5">
-                <div className="absolute inset-0 rounded-full" style={{ background: T.light || '#F3F4F6' }} />
+                <div className="absolute inset-0 rounded-full" style={{ background: T.light || C.gray100 }} />
                 <div className="absolute inset-0 rounded-full flex items-center justify-center">
                   <MessageSquare className="w-11 h-11" style={{ color: T.primary, opacity: 0.25 }} />
                 </div>
                 <div className="absolute -top-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center"
-                  style={{ background: '#FFBF00', boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }}>
+                  style={{ background: C.yellow, boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }}>
                   <PenLine className="w-4 h-4 text-white" />
                 </div>
               </div>
-              <h3 className="text-lg font-bold mb-2" style={{ color: '#1F2937' }}>הקהילה מחכה לך</h3>
-              <p className="text-sm mb-6 leading-relaxed max-w-[250px] mx-auto" style={{ color: '#9CA3AF' }}>
+              <h3 className="text-lg font-bold mb-2" style={{ color: C.gray800 }}>הקהילה מחכה לך</h3>
+              <p className="text-sm mb-6 leading-relaxed max-w-[250px] mx-auto" style={{ color: C.gray400 }}>
                 שאל כל שאלה על הרכב או הסירה. הקהילה, ברוך ויוסי עונים.
               </p>
               <button onClick={handleFab}

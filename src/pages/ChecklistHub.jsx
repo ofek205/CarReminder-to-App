@@ -37,6 +37,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import { C } from '@/lib/designTokens';
 
 // Mini tour shown on the first visit to /ChecklistHub for a vessel.
 // Vessel palette to match the rest of the marine UI. Three short steps.
@@ -68,9 +69,9 @@ const THEME = {
   tintDk:    '#B2EBF2',
   grad:      'linear-gradient(135deg, #065A6E 0%, #0C7B93 100%)',
   done:      '#059669',
-  doneTint:  '#D1FAE5',
-  warn:      '#D97706',
-  warnTint:  '#FEF3C7',
+  doneTint:  C.successLight,
+  warn:      C.warn,
+  warnTint:  C.warnBg,
 };
 
 function fmtAgo(ts) {

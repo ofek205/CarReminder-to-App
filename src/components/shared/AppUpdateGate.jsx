@@ -20,6 +20,7 @@
  */
 import React from 'react';
 import useAppUpdateGate from '@/hooks/useAppUpdateGate';
+import { C } from '@/lib/designTokens';
 
 // Where to send users to update. Override these once the app is in a
 // public production track on the stores.
@@ -47,7 +48,7 @@ export default function AppUpdateGate({ children }) {
       style={{
         background: `
           radial-gradient(ellipse at 70% -10%, rgba(16,185,129,0.10) 0%, transparent 50%),
-          linear-gradient(180deg, #F0F7F4 0%, #FFFFFF 60%)
+          linear-gradient(180deg, ${C.bgSubtle} 0%, #FFFFFF 60%)
         `,
       }}
     >
@@ -57,7 +58,7 @@ export default function AppUpdateGate({ children }) {
           <div
             className="w-16 h-16 rounded-2xl flex items-center justify-center"
             style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               boxShadow: '0 12px 28px -8px rgba(16,185,129,0.4)',
             }}
           >
@@ -70,14 +71,14 @@ export default function AppUpdateGate({ children }) {
 
         <h1
           className="text-2xl font-black text-center mb-2"
-          style={{ color: '#0B2912', letterSpacing: '-0.02em' }}
+          style={{ color: C.primaryDark, letterSpacing: '-0.02em' }}
         >
           נדרש עדכון לאפליקציה
         </h1>
-        <p className="text-sm text-center leading-relaxed mb-1" style={{ color: '#4B5D52' }}>
+        <p className="text-sm text-center leading-relaxed mb-1" style={{ color: C.textAlt }}>
           הגרסה המותקנת אצלך ישנה מדי כדי להמשיך לעבוד.
         </p>
-        <p className="text-sm text-center leading-relaxed mb-6" style={{ color: '#4B5D52' }}>
+        <p className="text-sm text-center leading-relaxed mb-6" style={{ color: C.textAlt }}>
           כדי להמשיך, נא לעדכן לגרסה חדשה.
         </p>
 
@@ -86,7 +87,7 @@ export default function AppUpdateGate({ children }) {
           className="rounded-2xl p-3 mb-6 text-center"
           style={{
             background: '#FFFFFF',
-            border: '1px solid #E5EDE8',
+            border: `1px solid ${C.bgSage}`,
             boxShadow: '0 4px 12px rgba(15,40,28,0.04)',
           }}
         >
@@ -99,7 +100,7 @@ export default function AppUpdateGate({ children }) {
                 {currentVersion || '—'}
               </p>
             </div>
-            <div className="h-8 w-px" style={{ background: '#E5EDE8' }} />
+            <div className="h-8 w-px" style={{ background: C.bgSage }} />
             <div>
               <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: '#7A6E58' }}>
                 הנדרשת
@@ -115,7 +116,7 @@ export default function AppUpdateGate({ children }) {
         <div
           className="rounded-xl p-3 mb-4 text-[12px] leading-relaxed"
           style={{
-            background: '#FFFBEB',
+            background: C.warnSubtle,
             border: '1px solid #FCD34D',
             color: '#78350F',
           }}
@@ -132,7 +133,7 @@ export default function AppUpdateGate({ children }) {
           rel="noopener noreferrer"
           className="block py-3.5 rounded-2xl font-bold text-center transition-all hover:scale-[1.01] active:scale-[0.99]"
           style={{
-            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
             color: '#FFFFFF',
             boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
           }}
@@ -148,8 +149,8 @@ export default function AppUpdateGate({ children }) {
           className="block mt-3 py-3 rounded-2xl text-center text-sm font-bold transition-colors"
           style={{
             background: '#FFFFFF',
-            color: '#10B981',
-            border: '1.5px solid #D1FAE5',
+            color: C.successBright,
+            border: `1.5px solid ${C.successLight}`,
           }}
         >
           צור קשר לקבלת התקנה ידנית

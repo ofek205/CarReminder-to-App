@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Shield, UserPlus, CloudUpload, Lock, Sparkles } from "lucide-react";
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";
+import { C } from '@/lib/designTokens';
 
 /**
  * SignUpPromptDialog. softer CTA popup that gently encourages registration
@@ -36,7 +37,7 @@ export default function SignUpPromptDialog({ open, onClose, reason }) {
         {/*  Hero  */}
         <div className="relative overflow-hidden"
           style={{
-            background: 'linear-gradient(165deg, #1C3620 0%, #2D5233 45%, #4A8C5C 100%)',
+            background: `linear-gradient(165deg, #1C3620 0%, ${C.primary} 45%, #4A8C5C 100%)`,
             padding: '28px 24px 24px',
           }}>
           <div className="absolute pointer-events-none rounded-full"
@@ -78,13 +79,13 @@ export default function SignUpPromptDialog({ open, onClose, reason }) {
           <div className="grid grid-cols-2 gap-2 mt-4">
             <div className="rounded-xl px-3 py-2.5 flex items-center gap-2"
               style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-              <Lock className="w-3.5 h-3.5" style={{ color: '#2D5233' }} />
+              <Lock className="w-3.5 h-3.5" style={{ color: C.primary }} />
               <span className="text-[11px] font-bold" style={{ color: '#1C3620' }}>מאובטח</span>
             </div>
             <div className="rounded-xl px-3 py-2.5 flex items-center gap-2"
-              style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
-              <Sparkles className="w-3.5 h-3.5" style={{ color: '#D97706' }} />
-              <span className="text-[11px] font-bold" style={{ color: '#92400E' }}>חינם לגמרי</span>
+              style={{ background: C.warnSubtle, border: `1px solid ${C.warnBorder}` }}>
+              <Sparkles className="w-3.5 h-3.5" style={{ color: C.warn }} />
+              <span className="text-[11px] font-bold" style={{ color: C.warnDark }}>חינם לגמרי</span>
             </div>
           </div>
 
@@ -93,7 +94,7 @@ export default function SignUpPromptDialog({ open, onClose, reason }) {
             className="w-full text-white font-bold transition-all active:translate-y-px mt-5 flex items-center justify-center gap-2"
             style={{
               height: 52, borderRadius: 16,
-              background: 'linear-gradient(135deg, #2D5233 0%, #4A8C5C 100%)',
+              background: `linear-gradient(135deg, ${C.primary} 0%, #4A8C5C 100%)`,
               boxShadow: '0 12px 24px -6px rgba(45,82,51,0.4), 0 4px 8px rgba(45,82,51,0.15)',
               fontSize: 16,
             }}>
@@ -102,7 +103,7 @@ export default function SignUpPromptDialog({ open, onClose, reason }) {
           </button>
           <button onClick={handleDismiss}
             className="w-full font-bold transition-all hover:bg-gray-50 mt-2"
-            style={{ height: 44, borderRadius: 12, color: '#9CA3AF', fontSize: 13 }}>
+            style={{ height: 44, borderRadius: 12, color: C.gray400, fontSize: 13 }}>
             המשך כאורח
           </button>
 

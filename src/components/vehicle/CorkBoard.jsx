@@ -18,10 +18,10 @@ import { reportUserError } from '@/lib/crashReporter';
 
 //  Note Colors 
 const COLORS = {
-  yellow: { bg: '#FFF9C4', border: '#F9E547', pin: '#DC2626' },
+  yellow: { bg: '#FFF9C4', border: '#F9E547', pin: C.error },
   pink:   { bg: '#FCE4EC', border: '#F48FB1', pin: '#E91E63' },
   blue:   { bg: '#E3F2FD', border: '#90CAF9', pin: '#1976D2' },
-  green:  { bg: '#E8F5E9', border: '#A5D6A7', pin: '#388E3C' },
+  green:  { bg: C.successBg, border: '#A5D6A7', pin: '#388E3C' },
   orange: { bg: '#FFF3E0', border: '#FFB74D', pin: '#E65100' },
 };
 
@@ -34,10 +34,10 @@ const CATEGORIES = {
 };
 
 const PRIORITY_CONFIG = {
-  urgent: { color: '#DC2626', bg: '#FEF2F2', label: 'דחוף', dot: '#DC2626' },
-  high:   { color: '#D97706', bg: '#FFF8E1', label: 'גבוה', dot: '#D97706' },
-  medium: { color: '#2563EB', bg: '#EFF6FF', label: 'בינוני', dot: '#2563EB' },
-  low:    { color: '#6B7280', bg: '#F3F4F6', label: 'נמוך', dot: '#6B7280' },
+  urgent: { color: C.error, bg: C.errorBg, label: 'דחוף', dot: C.error },
+  high:   { color: C.warn, bg: C.yellowSoft, label: 'גבוה', dot: C.warn },
+  medium: { color: '#2563EB', bg: C.infoSubtle, label: 'בינוני', dot: '#2563EB' },
+  low:    { color: C.gray500, bg: C.gray100, label: 'נמוך', dot: C.gray500 },
 };
 
 function getVehicleCategories(vehicleType, nickname) {
@@ -48,7 +48,7 @@ function getVehicleCategories(vehicleType, nickname) {
 }
 
 //  Pin SVG 
-function PinSvg({ color = '#DC2626' }) {
+function PinSvg({ color = C.error }) {
   return (
     <svg width="14" height="18" viewBox="0 0 14 18" fill="none" className="mx-auto drop-shadow-sm">
       <circle cx="7" cy="5" r="4.5" fill={color} stroke="#00000030" strokeWidth="0.5"/>
@@ -136,7 +136,7 @@ function StickyNote({ note, T, readOnly, onEdit, constraintsRef, tidyMode = fals
         {/* Due date */}
         {note.due_date && (
           <p className="text-[9px] font-bold mt-1.5 flex items-center gap-0.5" dir="rtl"
-            style={{ color: isOverdue ? '#DC2626' : '#78909C' }}>
+            style={{ color: isOverdue ? C.error : '#78909C' }}>
             <Calendar className="w-2.5 h-2.5" />
             {(() => { try { return format(parseISO(note.due_date), 'dd/MM/yy'); } catch { return ''; } })()}
             {isOverdue && ' \u26a0\ufe0f'}
@@ -228,8 +228,8 @@ function NoteDialog({ open, onClose, note, onSave, onDelete, categories, T }) {
                     className="px-2.5 py-1 rounded-full text-xs font-medium border transition-all active:scale-[0.95]"
                     style={{
                       background: category === cat ? T.light : '#fff',
-                      borderColor: category === cat ? T.primary : '#E5E7EB',
-                      color: category === cat ? T.primary : '#6B7280',
+                      borderColor: category === cat ? T.primary : C.gray200,
+                      color: category === cat ? T.primary : C.gray500,
                     }}>
                     {cat}
                   </button>
@@ -249,7 +249,7 @@ function NoteDialog({ open, onClose, note, onSave, onDelete, categories, T }) {
                     className="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-center transition-all border"
                     style={{
                       background: priority === key ? cfg.bg : '#fff',
-                      borderColor: priority === key ? cfg.color : '#E5E7EB',
+                      borderColor: priority === key ? cfg.color : C.gray200,
                       color: cfg.color,
                     }}>
                     {cfg.label}
@@ -294,12 +294,12 @@ function NoteDialog({ open, onClose, note, onSave, onDelete, categories, T }) {
           {isEdit && (
             <button type="button" onClick={() => setIsDone(!isDone)}
               className="flex items-center gap-2.5 w-full p-3 rounded-xl transition-all"
-              style={{ background: isDone ? '#E8F5E9' : '#F9FAFB', border: `1.5px solid ${isDone ? '#4CAF50' : '#E5E7EB'}` }}>
+              style={{ background: isDone ? C.successBg : C.gray50, border: `1.5px solid ${isDone ? '#4CAF50' : C.gray200}` }}>
               <div className="w-5 h-5 rounded-md border-2 flex items-center justify-center"
-                style={{ borderColor: isDone ? '#4CAF50' : '#D1D5DB', background: isDone ? '#4CAF50' : 'white' }}>
+                style={{ borderColor: isDone ? '#4CAF50' : C.gray300, background: isDone ? '#4CAF50' : 'white' }}>
                 {isDone && <Check className="w-3 h-3 text-white" />}
               </div>
-              <span className="text-sm font-bold" style={{ color: isDone ? '#2E7D32' : '#6B7280' }}>
+              <span className="text-sm font-bold" style={{ color: isDone ? '#2E7D32' : C.gray500 }}>
                 {isDone ? 'בוצע! \u2713' : 'סמן כבוצע'}
               </span>
             </button>
@@ -599,7 +599,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
           </button>
           {showDone && (
             <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-3" dir="rtl"
-              style={{ background: '#F9FAFB', borderTop: `1px solid ${T.border}20` }}>
+              style={{ background: C.gray50, borderTop: `1px solid ${T.border}20` }}>
               {doneNotes.map(note => (
                 <StickyNote
                   key={note.id}

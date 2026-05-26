@@ -69,7 +69,7 @@ const STATUS_META = {
   active_30d: { label: "פעיל בחודש",   color: C.primary, bg: C.light    },
   inactive:   { label: "לא פעיל",      color: C.warn,    bg: C.warnBg   },
   dormant:    { label: "דורם",         color: C.error,   bg: C.errorBg  },
-  never:      { label: "לא חיבר",      color: C.muted,   bg: "#F3F4F6"  },
+  never:      { label: "לא חיבר",      color: C.muted,   bg: C.gray100  },
 };
 
 const STATUS_OPTIONS = [
@@ -479,7 +479,7 @@ function SubPill({ label, value, tone }) {
   const tones = {
     green: { bg: C.successBg, color: C.success },
     amber: { bg: C.warnBg,    color: C.warn    },
-    gray:  { bg: "#F3F4F6",   color: C.muted   },
+    gray:  { bg: C.gray100,   color: C.muted   },
   };
   const t = tones[tone] || tones.gray;
   return (

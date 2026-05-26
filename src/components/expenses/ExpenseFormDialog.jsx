@@ -509,7 +509,7 @@ export default function ExpenseFormDialog({
                   className="w-9 h-9 rounded-lg flex items-center justify-center"
                   aria-label="הסר חשבונית"
                 >
-                  <Trash2 className="w-4 h-4" style={{ color: '#DC2626' }} />
+                  <Trash2 className="w-4 h-4" style={{ color: C.error }} />
                 </button>
               </div>
             ) : (
@@ -673,7 +673,7 @@ export default function ExpenseFormDialog({
                 onClick={handleDelete}
                 disabled={submitting}
                 className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: '#FEE2E2', color: '#DC2626' }}
+                style={{ background: C.errorLight, color: C.error }}
                 aria-label="מחק"
               >
                 <Trash2 className="w-4 h-4" />

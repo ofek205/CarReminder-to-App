@@ -79,11 +79,11 @@ export default function BlockedUsersList() {
 
   if (isError) {
     return (
-      <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #FECACA' }}>
-        <p className="text-sm font-semibold mb-3" style={{ color: '#DC2626' }}>שגיאה בטעינת רשימת החסומים</p>
+      <div className="rounded-2xl p-5" style={{ background: '#fff', border: `1px solid ${C.errorBorder}` }}>
+        <p className="text-sm font-semibold mb-3" style={{ color: C.error }}>שגיאה בטעינת רשימת החסומים</p>
         <button onClick={() => refetch()}
           className="text-xs font-bold px-3 py-1.5 rounded-lg"
-          style={{ background: '#DC2626', color: '#fff' }}>
+          style={{ background: C.error, color: '#fff' }}>
           נסה שוב
         </button>
       </div>
@@ -122,7 +122,7 @@ export default function BlockedUsersList() {
             return (
               <li key={b.id} className="px-4 py-3 flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
-                  style={{ background: '#F3F4F6', color: '#6B7280' }}>
+                  style={{ background: C.gray100, color: C.gray500 }}>
                   {(b.blocked_name || '?').trim().charAt(0)}
                 </div>
                 <div className="flex-1 min-w-0">

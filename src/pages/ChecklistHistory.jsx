@@ -22,6 +22,7 @@ import { ArrowRight, History as HistoryIcon, ChevronDown, ChevronLeft, Check, X,
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import { C } from '@/lib/designTokens';
 
 const THEME = {
   primary: '#0C7B93',
@@ -164,9 +165,9 @@ function RunRow({ run, templateName }) {
           <p className="text-[11px] text-slate-500 mt-0.5">{fmtDateHe(run.completed_at)}</p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <StatPill count={s.done} bg="#D1FAE5" fg="#047857" Icon={Check} />
-          {s.issue > 0 && <StatPill count={s.issue} bg="#FEE2E2" fg="#B91C1C" Icon={X} />}
-          {s.skip > 0  && <StatPill count={s.skip}  bg="#F3F4F6" fg="#4B5563" Icon={Minus} />}
+          <StatPill count={s.done} bg={C.successLight} fg="#047857" Icon={Check} />
+          {s.issue > 0 && <StatPill count={s.issue} bg={C.errorLight} fg="#B91C1C" Icon={X} />}
+          {s.skip > 0  && <StatPill count={s.skip}  bg={C.gray100} fg="#4B5563" Icon={Minus} />}
         </div>
         {open
           ? <ChevronDown className="w-4 h-4 text-slate-400" />
@@ -201,7 +202,7 @@ function HistoryItem({ item }) {
   const st = item.status || 'pending';
   const icon = st === 'done' ? Check : st === 'issue' ? X : st === 'skip' ? Minus : null;
   const Icon = icon;
-  const bg = st === 'done' ? '#D1FAE5' : st === 'issue' ? '#FEE2E2' : st === 'skip' ? '#F3F4F6' : '#FFFFFF';
+  const bg = st === 'done' ? C.successLight : st === 'issue' ? C.errorLight : st === 'skip' ? C.gray100 : '#FFFFFF';
   const fg = st === 'done' ? '#047857' : st === 'issue' ? '#B91C1C' : st === 'skip' ? '#4B5563' : '#94A3B8';
 
   return (

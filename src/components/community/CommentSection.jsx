@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { getAiExpertForDomain } from '@/lib/aiExpert';
+import { C } from '@/lib/designTokens';
 
 function timeAgo(date) {
   try { return formatDistanceToNow(new Date(date), { addSuffix: false, locale: he }); }
@@ -15,11 +16,11 @@ function timeAgo(date) {
 }
 
 const AVATAR_GRADIENTS = [
-  'linear-gradient(135deg, #2D5233, #4A8C5C)',
+  `linear-gradient(135deg, ${C.primary}, #4A8C5C)`,
   'linear-gradient(135deg, #0C7B93, #14B8C8)',
   'linear-gradient(135deg, #7C3AED, #A78BFA)',
-  'linear-gradient(135deg, #D97706, #FBBF24)',
-  'linear-gradient(135deg, #DC2626, #F87171)',
+  `linear-gradient(135deg, ${C.warn}, #FBBF24)`,
+  `linear-gradient(135deg, ${C.error}, #F87171)`,
   'linear-gradient(135deg, #0369A1, #38BDF8)',
 ];
 
@@ -160,9 +161,9 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
   };
 
   return (
-    <div className="mx-3 mb-3 rounded-xl overflow-hidden" style={{ background: '#F9FAFB', border: '1px solid #F3F4F6' }}>
+    <div className="mx-3 mb-3 rounded-xl overflow-hidden" style={{ background: C.gray50, border: `1px solid ${C.gray100}` }}>
       {isLoading ? (
-        <div className="py-6 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto" style={{ color: '#9CA3AF' }} /></div>
+        <div className="py-6 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto" style={{ color: C.gray400 }} /></div>
       ) : comments.length === 0 ? (
         <p className="text-xs text-center py-5" style={{ color: '#B0B8C1' }}>אין תגובות עדיין</p>
       ) : (
@@ -186,17 +187,17 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
                  * by mistake, which made the AI reply look like the asker
                  * was replying to themselves. Deriving on render keeps
                  * legacy rows correct too. */
-                <div className="rounded-xl p-3" style={{ background: '#FFFBEB', borderRight: '3px solid #FBBF24' }}>
+                <div className="rounded-xl p-3" style={{ background: C.warnSubtle, borderRight: '3px solid #FBBF24' }}>
                   <div className="flex items-center gap-2 mb-1.5">
                     <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: '#FEF3C7' }}>
-                      <Wrench className="w-3 h-3" style={{ color: '#D97706' }} />
+                      style={{ background: C.warnBg }}>
+                      <Wrench className="w-3 h-3" style={{ color: C.warn }} />
                     </div>
-                    <span className="text-[12px] font-bold" style={{ color: '#92400E' }}>
+                    <span className="text-[12px] font-bold" style={{ color: C.warnDark }}>
                       {getAiExpertForDomain(postDomain).communityName}
                     </span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold"
-                      style={{ background: '#FDE68A', color: '#92400E' }}>AI</span>
+                      style={{ background: C.warnBorder, color: C.warnDark }}>AI</span>
                     <span className="text-[10px] mr-auto" style={{ color: '#D1B896' }}>{timeAgo(c.created_at)}</span>
                   </div>
                   <p className="text-[13px] leading-relaxed" style={{ color: '#78350F' }}>{c.body}</p>
@@ -206,7 +207,7 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
                 <div className="flex gap-2.5">
                   {c.is_anonymous ? (
                     <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[9px] font-bold"
-                      style={{ background: '#E5E7EB', color: '#6B7280' }}>
+                      style={{ background: C.gray200, color: C.gray500 }}>
                       {c.anonymous_number ? `#${c.anonymous_number}` : '?'}
                     </div>
                   ) : (
@@ -217,7 +218,7 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[12px] font-bold" style={{ color: c.is_anonymous ? '#6B7280' : '#374151' }}>
+                      <span className="text-[12px] font-bold" style={{ color: c.is_anonymous ? C.gray500 : C.gray700 }}>
                         {c.is_anonymous ? `אנונימי${c.anonymous_number ? ` #${c.anonymous_number}` : ''}` : c.author_name}
                       </span>
                       <span className="text-[10px] mr-auto" style={{ color: '#C4C4C4' }}>{timeAgo(c.created_at)}</span>
@@ -230,7 +231,7 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
                               toast.success('הדיווח נשלח. תודה!');
                             } catch {}
                           }}>
-                          <Flag className="w-2.5 h-2.5" style={{ color: '#D1D5DB' }} />
+                          <Flag className="w-2.5 h-2.5" style={{ color: C.gray300 }} />
                         </button>
                       )}
                     </div>
@@ -246,9 +247,9 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
 
       {/* AI thinking indicator */}
       {aiThinking && (
-        <div className="px-3 py-2 flex items-center gap-2" style={{ background: '#FFFBEB', borderTop: '1px solid #FEF3C7' }}>
-          <Wrench className="w-3.5 h-3.5 animate-pulse" style={{ color: '#D97706' }} />
-          <span className="text-[11px] font-medium" style={{ color: '#92400E' }}>{getAiExpertForDomain(postDomain).firstName} חושב על תשובה...</span>
+        <div className="px-3 py-2 flex items-center gap-2" style={{ background: C.warnSubtle, borderTop: `1px solid ${C.warnBg}` }}>
+          <Wrench className="w-3.5 h-3.5 animate-pulse" style={{ color: C.warn }} />
+          <span className="text-[11px] font-medium" style={{ color: C.warnDark }}>{getAiExpertForDomain(postDomain).firstName} חושב על תשובה...</span>
         </div>
       )}
 
@@ -259,8 +260,8 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
             <button onClick={() => setAnonymous(a => !a)}
               className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all"
               style={{
-                background: anonymous ? T.primary : '#F3F4F6',
-                color: anonymous ? '#fff' : '#9CA3AF',
+                background: anonymous ? T.primary : C.gray100,
+                color: anonymous ? '#fff' : C.gray400,
               }}
               title={anonymous ? 'תגובה אנונימית פעילה' : 'כתוב אנונימית'}>
               <UserX className="w-3.5 h-3.5" />
@@ -269,7 +270,7 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
               placeholder={anonymous ? 'תגובה אנונימית...' : 'כתוב תגובה...'}
               className="text-[13px] flex-1 h-9 rounded-full px-4"
-              style={{ background: '#F3F4F6', border: '1px solid #E5E7EB' }} />
+              style={{ background: C.gray100, border: `1px solid ${C.gray200}` }} />
             <button onClick={handleSend} disabled={!text.trim() || sending}
               className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
               style={{ background: T.primary, color: '#fff' }}>
@@ -277,7 +278,7 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
             </button>
           </div>
           {anonymous && (
-            <div className="px-3 pb-2 text-[10px]" style={{ color: '#92400E' }}>
+            <div className="px-3 pb-2 text-[10px]" style={{ color: C.warnDark }}>
               ✓ תגובה זו תפורסם כ"אנונימי #מספר" - השם שלך לא יוצג
             </div>
           )}

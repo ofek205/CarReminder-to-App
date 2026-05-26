@@ -1,5 +1,6 @@
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
+import { C } from '@/lib/designTokens';
 
 export default function PullToRefreshIndicator({ pulling, progress }) {
   if (!pulling) return null;
@@ -13,7 +14,7 @@ export default function PullToRefreshIndicator({ pulling, progress }) {
       }}>
       <div className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center"
         style={{ transform: `rotate(${progress * 360}deg)` }}>
-        <RefreshCw className="w-5 h-5" style={{ color: '#2D5233' }} />
+        <RefreshCw className="w-5 h-5" style={{ color: C.primary }} />
       </div>
     </div>
   );

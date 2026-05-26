@@ -77,10 +77,10 @@ function RatingBar({ stars, count, total }) {
     <div className="flex items-center gap-2 text-xs">
       <span className="w-3 text-gray-600 font-medium text-left" dir="ltr">{stars}</span>
       <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
-      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: '#F3F4F6' }}>
+      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: C.gray100 }}>
         <div className="h-full rounded-full transition-all" style={{
           width: `${pct}%`,
-          background: 'linear-gradient(90deg, #FBBF24, #F59E0B)',
+          background: `linear-gradient(90deg, #FBBF24, ${C.warnIcon})`,
         }} />
       </div>
       <span className="w-5 text-gray-500 text-left" dir="ltr">{count}</span>
@@ -100,7 +100,7 @@ function ReviewsHero({ reviews }) {
   if (total === 0) {
     return (
       <div className="rounded-2xl p-6 mb-5 text-center"
-        style={{ background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)', border: '1.5px solid #BBF7D0' }}>
+        style={{ background: `linear-gradient(135deg, #F0FDF4, ${C.successSubtle})`, border: '1.5px solid #BBF7D0' }}>
         <div className="text-5xl mb-2">💬</div>
         <p className="font-bold text-lg" style={{ color: C.greenDark }}>היה הראשון/ה לשתף</p>
         <p className="text-sm text-gray-600 mt-1">עדיין אין חוות דעת. הדעה שלך תעזור לאחרים</p>
@@ -110,11 +110,11 @@ function ReviewsHero({ reviews }) {
 
   return (
     <div className="rounded-2xl p-5 mb-5"
-      style={{ background: 'linear-gradient(135deg, #FFFBEB, #FEF3C7)', border: '1.5px solid #FDE68A' }}>
+      style={{ background: `linear-gradient(135deg, ${C.warnSubtle}, ${C.warnBg})`, border: `1.5px solid ${C.warnBorder}` }}>
       <div className="flex items-center gap-5">
         {/* Big average number */}
         <div className="text-center shrink-0">
-          <div className="text-5xl font-bold leading-none" style={{ color: '#B45309' }}>
+          <div className="text-5xl font-bold leading-none" style={{ color: C.warnMid }}>
             {avg.toFixed(1)}
           </div>
           <div className="mt-2 flex justify-center">
@@ -144,7 +144,7 @@ function ReviewCard({ review }) {
         <div className="flex-1 min-w-0">
           {/* Header row: name + stars + verified */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-sm truncate" style={{ color: '#1C2E20' }}>
+            <span className="font-bold text-sm truncate" style={{ color: C.text }}>
               {review.author_name || 'משתמש'}
             </span>
             <StarDisplay rating={review.rating} size={14} />
@@ -160,7 +160,7 @@ function ReviewCard({ review }) {
 
           {/* Title */}
           {review.title && (
-            <h3 className="font-bold text-base mt-1.5" style={{ color: '#1C2E20' }}>
+            <h3 className="font-bold text-base mt-1.5" style={{ color: C.text }}>
               {review.title}
             </h3>
           )}
@@ -270,10 +270,10 @@ export default function AdminReviews() {
       {/* CTA: guest / authenticated / not signed in */}
       {isGuest ? (
         <div className="flex items-center justify-between gap-3 rounded-xl px-4 py-3 mb-5 flex-wrap"
-          style={{ background: '#EFF6FF', border: '1.5px solid #BFDBFE' }}>
+          style={{ background: C.infoSubtle, border: '1.5px solid #BFDBFE' }}>
           <div className="min-w-0">
-            <p className="text-sm font-bold" style={{ color: '#1E40AF' }}>רוצה לשתף את הדעה שלך?</p>
-            <p className="text-xs mt-0.5" style={{ color: '#3B82F6' }}>הצטרף בחינם ושתף את החוויה</p>
+            <p className="text-sm font-bold" style={{ color: C.infoDark }}>רוצה לשתף את הדעה שלך?</p>
+            <p className="text-xs mt-0.5" style={{ color: C.info }}>הצטרף בחינם ושתף את החוויה</p>
           </div>
           <Button size="sm" className="gap-1.5 shrink-0"
             style={{ background: '#2563EB', color: '#fff' }}
@@ -326,7 +326,7 @@ export default function AdminReviews() {
 
       {/* List */}
       {filtered.length === 0 ? (
-        <div className="text-center py-12 rounded-2xl" style={{ background: '#FAFAFA', border: '1.5px dashed #E5E7EB' }}>
+        <div className="text-center py-12 rounded-2xl" style={{ background: C.grayBg, border: `1.5px dashed ${C.gray200}` }}>
           <div className="text-4xl mb-2">{hasActiveFilter ? '🔍' : '💬'}</div>
           <p className="text-sm font-bold text-gray-700">
             {hasActiveFilter ? 'אין חוות דעת בסינון הזה' : 'אין חוות דעת להצגה'}

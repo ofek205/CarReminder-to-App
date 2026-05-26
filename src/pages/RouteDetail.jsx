@@ -40,26 +40,27 @@ import {
   KpiTile,
   AnimatedCount,
 } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 // Status meta — pill colors AND a Card accent keyed to the Living
 // Dashboard palette so each row's stripe matches its pill at a glance.
 // Hebrew gender note: route is masculine ("מסלול"), stop is feminine
 // ("תחנה") — same status code maps to different forms.
 const ROUTE_STATUS_PILL = {
-  pending:     { label: 'מתוזמן', accent: 'amber',   chipBg: '#FEF3C7', chipFg: '#92400E' },
-  in_progress: { label: 'בביצוע', accent: 'blue',    chipBg: '#DBEAFE', chipFg: '#1E40AF' },
-  completed:   { label: 'הושלם',  accent: 'emerald', chipBg: '#D1FAE5', chipFg: '#065F46' },
-  cancelled:   { label: 'בוטל',   accent: 'red',     chipBg: '#FEE2E2', chipFg: '#991B1B' },
+  pending:     { label: 'מתוזמן', accent: 'amber',   chipBg: C.warnBg, chipFg: C.warnDark },
+  in_progress: { label: 'בביצוע', accent: 'blue',    chipBg: C.infoBg, chipFg: C.infoDark },
+  completed:   { label: 'הושלם',  accent: 'emerald', chipBg: C.successLight, chipFg: C.successDark },
+  cancelled:   { label: 'בוטל',   accent: 'red',     chipBg: C.errorLight, chipFg: C.errorDark },
 };
 const STOP_STATUS_PILL = {
-  pending:     { label: 'מתוזמנת',     accent: 'amber',   chipBg: '#FEF3C7', chipFg: '#92400E' },
-  in_progress: { label: 'בביצוע',      accent: 'blue',    chipBg: '#DBEAFE', chipFg: '#1E40AF' },
-  completed:   { label: 'הושלמה',      accent: 'emerald', chipBg: '#D1FAE5', chipFg: '#065F46' },
-  failed:      { label: 'נכשלה',       accent: 'red',     chipBg: '#FEE2E2', chipFg: '#991B1B' },
-  overdue:     { label: 'באיחור',      accent: 'amber',   chipBg: '#FEF3C7', chipFg: '#92400E' },
+  pending:     { label: 'מתוזמנת',     accent: 'amber',   chipBg: C.warnBg, chipFg: C.warnDark },
+  in_progress: { label: 'בביצוע',      accent: 'blue',    chipBg: C.infoBg, chipFg: C.infoDark },
+  completed:   { label: 'הושלמה',      accent: 'emerald', chipBg: C.successLight, chipFg: C.successDark },
+  failed:      { label: 'נכשלה',       accent: 'red',     chipBg: C.errorLight, chipFg: C.errorDark },
+  overdue:     { label: 'באיחור',      accent: 'amber',   chipBg: C.warnBg, chipFg: C.warnDark },
   // Legacy values still rendered for old rows:
-  skipped:     { label: 'דולגה',       accent: 'amber',   chipBg: '#FFFBEB', chipFg: '#92400E' },
-  issue:       { label: 'תקלה מדווחת', accent: 'red',     chipBg: '#FEE2E2', chipFg: '#991B1B' },
+  skipped:     { label: 'דולגה',       accent: 'amber',   chipBg: C.warnSubtle, chipFg: C.warnDark },
+  issue:       { label: 'תקלה מדווחת', accent: 'red',     chipBg: C.errorLight, chipFg: C.errorDark },
 };
 
 const routePill = (status) => ROUTE_STATUS_PILL[status] || ROUTE_STATUS_PILL.pending;
@@ -178,35 +179,35 @@ export default function RouteDetail() {
     >
       {/* Hero card — meta of the route + progress bar */}
       <Card accent={status.accent} className="mb-4">
-        <div className="flex items-center gap-3 flex-wrap text-[11px]" style={{ color: '#4B5D52' }}>
+        <div className="flex items-center gap-3 flex-wrap text-[11px]" style={{ color: C.textAlt }}>
           <span className="inline-flex items-center gap-1">
-            <Truck className="h-3.5 w-3.5" style={{ color: '#10B981' }} />
+            <Truck className="h-3.5 w-3.5" style={{ color: C.successBright }} />
             רכב משויך
           </span>
           {route.assigned_driver_user_id && (
             <span className="inline-flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5" style={{ color: '#10B981' }} />
-              נהג: <span className="font-bold" style={{ color: '#0B2912' }}>{assignedDriverName}</span>
+              <Clock className="h-3.5 w-3.5" style={{ color: C.successBright }} />
+              נהג: <span className="font-bold" style={{ color: C.primaryDark }}>{assignedDriverName}</span>
             </span>
           )}
         </div>
         {route.notes && (
-          <p className="text-xs mt-2 leading-relaxed" style={{ color: '#0B2912' }}>{route.notes}</p>
+          <p className="text-xs mt-2 leading-relaxed" style={{ color: C.primaryDark }}>{route.notes}</p>
         )}
         {totalCount > 0 && (
-          <div className="mt-4 pt-3" style={{ borderTop: '1px solid #F0F7F4' }}>
+          <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.bgSubtle}` }}>
             <div className="flex items-center justify-between text-[11px] mb-1.5">
-              <span className="font-bold" style={{ color: '#0B2912' }}>התקדמות המשימה</span>
-              <span className="tabular-nums" style={{ color: '#4B5D52' }} dir="ltr">
+              <span className="font-bold" style={{ color: C.primaryDark }}>התקדמות המשימה</span>
+              <span className="tabular-nums" style={{ color: C.textAlt }} dir="ltr">
                 {completedCount} / {totalCount} · {progressPct}%
               </span>
             </div>
-            <div className="h-2 rounded-full overflow-hidden" style={{ background: '#F0F7F4' }}>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: C.bgSubtle }}>
               <div
                 className="h-full transition-all duration-500"
                 style={{
                   width: progressPct + '%',
-                  background: 'linear-gradient(90deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                  background: `linear-gradient(90deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                 }}
               />
             </div>
@@ -238,10 +239,10 @@ export default function RouteDetail() {
         </section>
       )}
 
-      <h2 className="text-sm font-bold mb-2.5 flex items-center gap-2" style={{ color: '#0B2912' }}>
+      <h2 className="text-sm font-bold mb-2.5 flex items-center gap-2" style={{ color: C.primaryDark }}>
         <span
           className="inline-block w-1 h-4 rounded-full"
-          style={{ background: 'linear-gradient(180deg, #065F46 0%, #34D399 100%)' }}
+          style={{ background: `linear-gradient(180deg, ${C.successDark} 0%, ${C.successMid} 100%)` }}
         />
         תחנות במשימה
       </h2>
@@ -249,7 +250,7 @@ export default function RouteDetail() {
       <div className="space-y-2">
         {stops.length === 0 ? (
           <Card className="text-center py-8">
-            <p className="text-xs" style={{ color: '#A7B3AB' }}>לא הוגדרו תחנות למשימה זו.</p>
+            <p className="text-xs" style={{ color: C.borderAlt }}>לא הוגדרו תחנות למשימה זו.</p>
           </Card>
         ) : (
           stops.map((stop, idx) => (
@@ -372,7 +373,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
       // Next-stop emphasis: emerald glow ring + slight base lift, so
       // the row reads as the active focal point in the timeline.
       style={isNext && !terminal ? {
-        boxShadow: '0 0 0 2px #10B981, 0 8px 20px rgba(16,185,129,0.18)',
+        boxShadow: `0 0 0 2px ${C.successBright}, 0 8px 20px rgba(16,185,129,0.18)`,
         background: 'linear-gradient(180deg, #F0FDF6 0%, #FFFFFF 60%)',
       } : undefined}
     >
@@ -389,11 +390,11 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
             >
               {stop.sequence}
             </span>
-            <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{stop.title}</p>
+            <p className="text-sm font-bold truncate" style={{ color: C.primaryDark }}>{stop.title}</p>
             {isNext && !terminal && (
               <span
                 className="text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1"
-                style={{ background: '#D1FAE5', color: '#065F46' }}
+                style={{ background: C.successLight, color: C.successDark }}
               >
                 <Flag className="h-2.5 w-2.5" />
                 תחנה הבאה
@@ -401,12 +402,12 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
             )}
           </div>
           {stop.address_text && (
-            <p className="text-[11px] flex items-center gap-1 mb-1.5 flex-wrap" style={{ color: '#6B7C72' }}>
-              <MapPin className="h-3 w-3 shrink-0" style={{ color: '#10B981' }} /> {stop.address_text}
+            <p className="text-[11px] flex items-center gap-1 mb-1.5 flex-wrap" style={{ color: C.mutedAlt }}>
+              <MapPin className="h-3 w-3 shrink-0" style={{ color: C.successBright }} /> {stop.address_text}
               {!Number.isFinite(stop.latitude) && (
                 <span
                   className="text-[10px] mr-1 flex items-center gap-1 px-1.5 py-0.5 rounded-md"
-                  style={{ background: '#FFFBEB', color: '#92400E' }}
+                  style={{ background: C.warnSubtle, color: C.warnDark }}
                 >
                   <AlertTriangle className="h-2.5 w-2.5" />
                   כתובת לא אומתה במפה
@@ -414,9 +415,9 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
               )}
             </p>
           )}
-          {stop.notes && <p className="text-[11px]" style={{ color: '#4B5D52' }}>{stop.notes}</p>}
+          {stop.notes && <p className="text-[11px]" style={{ color: C.textAlt }}>{stop.notes}</p>}
           {stop.planned_time && (
-            <p className="text-[11px] flex items-center gap-1 mt-0.5 tabular-nums" style={{ color: '#6B7C72' }} dir="ltr">
+            <p className="text-[11px] flex items-center gap-1 mt-0.5 tabular-nums" style={{ color: C.mutedAlt }} dir="ltr">
               <Clock className="h-3 w-3" />
               {new Date(stop.planned_time).toLocaleString('he-IL')}
             </p>
@@ -424,7 +425,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
           {stop.completion_note && (
             <p
               className="text-[11px] rounded-md px-2 py-1 mt-1.5 leading-relaxed"
-              style={{ background: '#F0F7F4', color: '#0B2912' }}
+              style={{ background: C.bgSubtle, color: C.primaryDark }}
             >
               📝 {stop.completion_note}
             </p>
@@ -439,7 +440,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
       </div>
 
       {(showCompleteIssue || destination) && (
-        <div className="mt-3 pt-3 flex flex-wrap gap-2" style={{ borderTop: '1px solid #F0F7F4' }}>
+        <div className="mt-3 pt-3 flex flex-wrap gap-2" style={{ borderTop: `1px solid ${C.bgSubtle}` }}>
           {destination && (
             <NavigateButton destination={destination} variant="compact" label="נווט" />
           )}
@@ -448,7 +449,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
               type="button" disabled={busy}
               onClick={() => callStopRpc('in_progress', null, 'סומן: הגעתי לתחנה')}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
-              style={{ background: '#DBEAFE', color: '#1E40AF' }}
+              style={{ background: C.infoBg, color: C.infoDark }}
             >
               <Flag className="h-3.5 w-3.5" /> הגעתי
             </button>
@@ -460,7 +461,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
                 onClick={() => callStopRpc('completed', null, 'התחנה סומנה כהושלמה')}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
                 style={{
-                  background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                  background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                   color: '#FFFFFF',
                   boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
                 }}
@@ -471,7 +472,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
                 type="button" disabled={busy}
                 onClick={() => setIssueOpen(o => !o)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
-                style={{ background: '#FEE2E2', color: '#991B1B' }}
+                style={{ background: C.errorLight, color: C.errorDark }}
               >
                 <AlertTriangle className="h-3.5 w-3.5" /> דווח על תקלה
               </button>
@@ -479,7 +480,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
                 type="button" disabled={busy}
                 onClick={() => setNoteOpen(o => !o)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60"
-                style={{ background: '#FFFFFF', color: '#10B981', border: '1.5px solid #D1FAE5' }}
+                style={{ background: '#FFFFFF', color: C.successBright, border: `1.5px solid ${C.successLight}` }}
               >
                 <MessageSquarePlus className="h-3.5 w-3.5" /> כתוב הערה
               </button>
@@ -499,7 +500,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
             <button type="button" onClick={submitNote} disabled={busy || !noteText.trim()}
               className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]"
               style={{
-                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                 color: '#FFFFFF',
                 boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
               }}>
@@ -507,7 +508,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
             </button>
             <button type="button" onClick={() => { setNoteOpen(false); setNoteText(''); }}
               className="px-3 py-2 rounded-xl text-xs"
-              style={{ background: '#F0F7F4', color: '#4B5D52' }}>
+              style={{ background: C.bgSubtle, color: C.textAlt }}>
               ביטול
             </button>
           </div>
@@ -524,12 +525,12 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
           <div className="flex gap-2">
             <button type="button" onClick={submitIssue} disabled={busy || !issueText.trim()}
               className="px-3 py-2 rounded-xl text-xs font-bold disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]"
-              style={{ background: '#DC2626', color: '#FFFFFF', boxShadow: '0 4px 12px rgba(220,38,38,0.25)' }}>
+              style={{ background: C.error, color: '#FFFFFF', boxShadow: '0 4px 12px rgba(220,38,38,0.25)' }}>
               דווח על תקלה
             </button>
             <button type="button" onClick={() => { setIssueOpen(false); setIssueText(''); }}
               className="px-3 py-2 rounded-xl text-xs"
-              style={{ background: '#F0F7F4', color: '#4B5D52' }}>
+              style={{ background: C.bgSubtle, color: C.textAlt }}>
               ביטול
             </button>
           </div>

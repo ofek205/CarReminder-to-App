@@ -108,9 +108,14 @@ function countViolations(content) {
   let count = 0;
   for (const line of content.split('\n')) {
     if (/^\s*(import|\/\/)/.test(line)) continue;
-    const matches = line.match(hexRx) || [];
-    for (const m of matches) {
-      if (LOOKUP[m.toUpperCase()]) count++;
+    if (/<(path|rect|circle|line|polygon|ellipse|svg)\s/.test(line)) continue;
+    let m;
+    while ((m = hexRx.exec(line)) !== null) {
+      if (!LOOKUP[m[0].toUpperCase()]) continue;
+      // Skip Tailwind arbitrary values: -[#hex] / [#hex]
+      const before = line.slice(Math.max(0, m.index - 2), m.index);
+      if (/\[$/.test(before) || /[-=]\[$/.test(before)) continue;
+      count++;
     }
   }
   return count;
@@ -133,22 +138,35 @@ function migrateFile(content) {
     // Skip SVG paths — tokenizing SVG inline colors adds complexity
     if (/<(path|rect|circle|line|polygon|ellipse|svg)\s/.test(line)) continue;
 
-    // Replace each hex that has a token
-    lines[i] = line.replace(/#[0-9a-fA-F]{3,8}\b/g, (match) => {
+    // Replace each hex that has a token, tracking offsets to skip Tailwind brackets
+    lines[i] = line.replace(/#[0-9a-fA-F]{3,8}\b/g, (match, offset) => {
       const token = LOOKUP[match.toUpperCase()];
       if (!token) return match;
+      // Skip Tailwind arbitrary values: -[#hex] / [#hex] patterns
+      const before = line.slice(Math.max(0, offset - 2), offset);
+      if (/\[$/.test(before) || /[-=]\[$/.test(before)) return match;
       replacements.push({ line: i + 1, from: match, to: token });
       return '${' + token + '}';
     });
 
     // Fix the common patterns:
-    // 1. color: '${C.xxx}' → color: C.xxx
+    // 1a. style={{ color: '${C.xxx}' }} → style={{ color: C.xxx }}
+    //     When the ENTIRE single-quoted string is just the token reference.
     lines[i] = lines[i].replace(/'(\$\{(C\.[a-zA-Z0-9]+)\})'/g, '$2');
-    // 2. background: '${C.xxx}' → background: C.xxx
-    // (same pattern, already handled above)
-    // 3. Inside template literals: `...${C.xxx}...` — already correct
-    // 4. "#{C.xxx}" when inside a className — revert (className strings shouldn't have JS refs)
-    //    This is rare but handle: text-[${C.xxx}] doesn't work in Tailwind
+    // 2. JSX prop: ="#{C.xxx}" → ={C.xxx}  (must run before 1b to catch = prefix)
+    lines[i] = lines[i].replace(/="(\$\{(C\.[a-zA-Z0-9]+)\})"/g, '={$2}');
+    // 1b. Same for double-quoted: "#{C.xxx}" → C.xxx  (object literals, NOT JSX props — those were handled above)
+    lines[i] = lines[i].replace(/"(\$\{(C\.[a-zA-Z0-9]+)\})"/g, '$2');
+    // 3. Single-quoted strings that still contain ${C.xxx} (mixed content like
+    //    '1px solid ${C.border}') — convert to backtick template literals.
+    //    Regex: a single-quoted string whose content includes at least one ${C.
+    //    We work per-line only so [^'] cannot span across lines.
+    lines[i] = lines[i].replace(/'([^']*\$\{C\.[^']*?)'/g, '`$1`');
+    // NOTE: We intentionally do NOT convert double-quoted strings with ${C.xxx}
+    // to backticks. Double-quoted strings containing ${C.xxx} are usually HTML
+    // attributes inside template literals (e.g. style="color:${C.xxx}" inside
+    // `<div>...</div>`), where ${} already interpolates via the outer template.
+    // Converting "..." to `...` would break the template literal nesting.
   }
 
   return {
@@ -160,17 +178,23 @@ function migrateFile(content) {
 
 /**
  * Check if file imports C from designTokens. If not, add the import.
+ * Handles multi-line imports: scans for the last import STATEMENT that
+ * completes on a single line (has `from '...'` on the same line).
+ * For multi-line imports (`import {\n  ...\n} from '...'`), we find
+ * the closing `} from` line and consider that the end of the import.
  */
 function ensureImport(content) {
   if (/from\s+['"]@\/lib\/designTokens['"]/.test(content)) return content;
-  // Add after last import
   const lines = content.split('\n');
-  let lastImport = -1;
+  // Find the last line that closes an import statement (contains `from '...'` or `from "..."`)
+  let lastImportEnd = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (/^import\s/.test(lines[i])) lastImport = i;
+    if (/\bfrom\s+['"]/.test(lines[i]) && /^(import\s|.*}\s*from\s)/.test(lines[i].trim())) {
+      lastImportEnd = i;
+    }
   }
-  if (lastImport >= 0) {
-    lines.splice(lastImport + 1, 0, "import { C } from '@/lib/designTokens';");
+  if (lastImportEnd >= 0) {
+    lines.splice(lastImportEnd + 1, 0, "import { C } from '@/lib/designTokens';");
   }
   return lines.join('\n');
 }
@@ -200,9 +224,15 @@ if (reportMode) {
   process.exit(0);
 }
 
-const fileArgs = args.filter(a => !a.startsWith('--'));
+const allMode = args.includes('--all');
+let fileArgs = args.filter(a => !a.startsWith('--'));
+if (allMode) {
+  const srcDir = path.join(process.cwd(), 'src');
+  fileArgs = walkDir(srcDir);
+}
 if (fileArgs.length === 0) {
   console.log('Usage: node scripts/migrate-design-tokens.cjs <file...> [--dry-run]');
+  console.log('       node scripts/migrate-design-tokens.cjs --all [--dry-run]');
   console.log('       node scripts/migrate-design-tokens.cjs --report');
   process.exit(1);
 }
@@ -211,6 +241,18 @@ for (const fileArg of fileArgs) {
   const filePath = path.resolve(fileArg);
   if (!fs.existsSync(filePath)) { console.warn(`SKIP: ${fileArg} not found`); continue; }
   const content = fs.readFileSync(filePath, 'utf8');
+
+  // Skip files that define their own local `const C = {` — migrating
+  // them would shadow the import or create circular references.
+  if (/^const\s+C\s*=\s*\{/m.test(content) && !/from\s+['"]@\/lib\/designTokens['"]/.test(content)) {
+    console.log(`⊘ ${fileArg} — skipped (defines own const C)`);
+    continue;
+  }
+  // Also skip the token definition files themselves
+  if (filePath.includes('designTokens') || filePath.includes('design/tokens') || filePath.includes('design\\tokens')) {
+    console.log(`⊘ ${fileArg} — skipped (token definition file)`);
+    continue;
+  }
   const { migrated, replacements } = migrateFile(content);
 
   if (replacements.length === 0) {
