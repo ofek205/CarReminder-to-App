@@ -15,7 +15,8 @@
  *   5. Documents / DocUploadDialog                  — generic doc
  *   6. AddVehicle (vessels) / VesselScanWizard      — vessel license
  *
- * To DISABLE the feature in production:
+ * To DISABLE the feature in production (regular users only — admins
+ * still bypass):
  *   UPDATE public.app_config
  *      SET value = 'false'::jsonb, updated_at = NOW()
  *    WHERE key = 'scan_extraction_enabled';
@@ -25,20 +26,26 @@
  *      SET value = 'true'::jsonb, updated_at = NOW()
  *    WHERE key = 'scan_extraction_enabled';
  *
- * Default behaviour when the row is missing OR the fetch fails: TREAT
- * AS ENABLED. Defense-in-depth — a Supabase outage or a typo in the
- * row name must not silently kill every scan flow in the app.
+ * Default behaviour when the row is missing OR the fetch fails:
+ * "treat as enabled" for non-admins. This preserves the legacy
+ * semantics the scan feature has shipped with for months. Delivered
+ * by passing { defaultOnError: true } to the unified featureFlags
+ * helper — new flags hide on error, this shipped flag stays open.
+ *
+ * Admin bypass: as of 2026-05-26, admins ALWAYS pass this gate even
+ * when the flag is false in app_config. This lets QA test scan flows
+ * without flipping the public toggle. The admin probe is shared with
+ * featureFlags and cached for 60 s, so role changes propagate within
+ * that window.
  */
 
-import { supabase } from './supabase';
+import {
+  isFeatureEnabled,
+  invalidateFeatureFlagCache,
+} from './featureFlags';
 
 const FLAG_KEY              = 'scan_extraction_enabled';
-const CACHE_TTL_MS          = 60 * 1000;     // refetch at most once per minute
 const SESSION_SHOWN_KEY     = 'ai-scan-gate-shown';   // sessionStorage flag
-
-let cachedValue   = null;   // boolean | null
-let cachedAt      = 0;
-let inFlight      = null;   // de-dupe concurrent calls
 
 // Listeners notified when a gated scan attempt happens. UI mounts a
 // single <AiScanUnavailableDialog/> at Layout level that subscribes
@@ -89,60 +96,26 @@ export function markAiScanGateShown() {
 }
 
 /**
- * Returns true when AI scan extraction is enabled (default), false
- * when an admin has flipped the feature off via app_config.
+ * Returns true when AI scan extraction is allowed for the current
+ * user. Admins always pass; regular users get the value of the
+ * scan_extraction_enabled row in public.app_config, defaulting to
+ * "enabled" on error to preserve the legacy ship behaviour.
  *
- * Cached for CACHE_TTL_MS so a rapid sequence of scan clicks does
- * not hammer Postgres — the toggle is sticky and a 60-second lag on
- * re-enable is fine. Re-enable visibility can be forced via
- * invalidateAiScanGateCache().
+ * Caching + de-duplication are handled by the underlying featureFlags
+ * helper (60-second TTL per key, in-flight de-dupe). Use
+ * invalidateAiScanGateCache() to force an immediate re-read.
  *
- * NEVER throws. Network / row-missing / parse errors all fall
- * through to the "enabled" default. The cost of treating a real
- * outage as "enabled" is one more error toast — the cost of treating
- * it as "disabled" is silently breaking every scan flow.
+ * NEVER throws.
  */
 export async function isAiScanEnabled() {
-  const now = Date.now();
-  if (cachedValue !== null && now - cachedAt < CACHE_TTL_MS) {
-    return cachedValue;
-  }
-  if (inFlight) return inFlight;
-
-  inFlight = (async () => {
-    try {
-      const { data, error } = await supabase
-        .from('app_config')
-        .select('value')
-        .eq('key', FLAG_KEY)
-        .maybeSingle();
-      if (error) throw error;
-      // app_config.value is jsonb — Postgres returns true/false directly,
-      // but a previous version stored the literal string 'false' which we
-      // need to tolerate too. Anything not explicitly === false → enabled.
-      const raw = data?.value;
-      const disabled = raw === false || raw === 'false';
-      cachedValue = !disabled;
-    } catch (err) {
-       
-      if (import.meta.env?.DEV) console.warn('[aiScanGate] flag fetch failed:', err?.message);
-      cachedValue = false;  // safe default — scan is OFF until explicitly enabled
-    } finally {
-      cachedAt = Date.now();
-      inFlight = null;
-    }
-    return cachedValue;
-  })();
-
-  return inFlight;
+  return isFeatureEnabled(FLAG_KEY, { defaultOnError: true });
 }
 
 /**
- * Force a refresh of the cached flag on next call. Use after an
- * admin re-enables the feature when you want immediate effect for
- * the current user without waiting up to CACHE_TTL_MS.
+ * Force a refresh of the cached flag on next call. ALSO causes any
+ * useFeatureFlag(FLAG_KEY) hooks mounted in the current tab to
+ * re-read immediately (via featureFlags' pub-sub).
  */
 export function invalidateAiScanGateCache() {
-  cachedValue = null;
-  cachedAt = 0;
+  invalidateFeatureFlagCache(FLAG_KEY);
 }

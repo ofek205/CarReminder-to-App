@@ -4,6 +4,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { Phone, Calendar, ArrowLeft, User, Loader2 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
 import { toastError } from '@/lib/userErrorReport';
+import { C } from '@/lib/designTokens';
 
 const MIN_AGE_YEARS = 12;
 

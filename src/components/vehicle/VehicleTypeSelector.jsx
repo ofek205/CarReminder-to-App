@@ -4,7 +4,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronsUpDown, Check, Car, Truck, Ship, Star, Bike, Mountain, Wrench, Plane } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getTheme } from '@/lib/designTokens';
+import { C, getTheme } from '@/lib/designTokens';
 
 //  Sub-categories for "כלי שייט" 
 export const BOAT_SUBCATEGORIES = [

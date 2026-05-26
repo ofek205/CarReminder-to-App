@@ -7,7 +7,7 @@ import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
-import { getVehicleVisual } from '@/lib/designTokens';
+import { C, getVehicleVisual } from '@/lib/designTokens';
 import { uploadToBucket } from '@/lib/supabaseStorage';
 import VehicleIcon from '../shared/VehicleIcon';
 import VehicleImage, { hasVehiclePhoto } from '../shared/VehicleImage';

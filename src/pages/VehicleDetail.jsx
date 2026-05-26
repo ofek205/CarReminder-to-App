@@ -12,7 +12,7 @@ import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
 import SharingHelpButton from "@/components/sharing/SharingHelpButton";
 import { toast } from "sonner";
 import { toastError } from "@/lib/userErrorReport";
-import { getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
+import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";

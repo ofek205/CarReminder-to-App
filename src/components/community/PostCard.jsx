@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { MessageCircle, Car, Ship, Bike, Truck, Trash2, Bookmark, BookmarkCheck, ThumbsUp, Share2, Flag, Ban, MoreHorizontal, Wrench, Pencil, X as XIcon, Check as CheckIcon } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { getVehicleCategory } from '@/lib/designTokens';
+import { C, getVehicleCategory } from '@/lib/designTokens';
 import { getAiExpertForDomain } from '@/lib/aiExpert';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';

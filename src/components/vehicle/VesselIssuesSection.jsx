@@ -12,7 +12,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { daysUntil } from '@/components/shared/ReminderEngine';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { getTheme } from '@/lib/designTokens';
+import { C, getTheme } from '@/lib/designTokens';
 
 const M = getTheme('כלי שייט'); // marine theme tokens
 

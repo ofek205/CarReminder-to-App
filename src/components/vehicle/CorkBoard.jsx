@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { db } from '@/lib/supabaseEntities';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
-import { getTheme, isVesselType } from '@/lib/designTokens';
+import { C, getTheme, isVesselType } from '@/lib/designTokens';
 import { isVessel as isVesselCheck, isOffroad } from '../shared/DateStatusUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
