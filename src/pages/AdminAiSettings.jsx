@@ -51,7 +51,7 @@ const FEATURES = [
 const PROVIDERS = [
   { key: 'gemini', label: 'Gemini',  hint: 'Google — מהיר, תומך טקסט + תמונה (מומלץ כברירת מחדל)' },
   { key: 'groq',   label: 'Groq',    hint: 'Meta Llama — טקסט בלבד, הכי מהיר' },
-  { key: 'auto',   label: 'אוטומטי', hint: 'המערכת תבחר לפי זמינות וסוג הבקשה (טקסט→Groq, תמונה→Gemini)' },
+  { key: 'auto',   label: 'אוטומטי', hint: 'Gemini כברירת מחדל; אם הוא נופל או נגמרה המכסה — נפילה ל-Groq לטקסט' },
 ];
 
 export default function AdminAiSettings() {

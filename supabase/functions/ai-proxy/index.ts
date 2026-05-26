@@ -747,12 +747,18 @@ serve(async (req) => {
     return json({ error: 'Claude provider unavailable', provider: 'claude' }, 503, req);
   }
 
-  // preferred === 'auto' (or unknown). Legacy ladder: text → Groq (fastest);
-  // vision → Gemini first. Each leg falls back on failure.
+  // preferred === 'auto' (or unknown). New ladder (2026-05-26 — see
+  // PM analysis): Gemini first for everything because it's the only
+  // provider whose Hebrew is officially supported and the speed gap
+  // vs Groq (~0.8s on a 600-token reply) is not user-perceptible.
+  // Groq remains as a TEXT-ONLY fallback when Gemini is down or out
+  // of its free-tier 1500 RPD quota. Claude is the last resort
+  // (currently unavailable in this deployment — no ANTHROPIC_API_KEY).
+  // Old ladder was Groq→Gemini for text and Gemini→Claude for vision.
+  const gemini = await tryGemini(); if (gemini) return respondAndLog(gemini);
   if (!hasImages) {
     const groq = await tryGroq(); if (groq) return respondAndLog(groq);
   }
-  const gemini = await tryGemini(); if (gemini) return respondAndLog(gemini);
   const claude = await tryClaude(); if (claude) return respondAndLog(claude);
 
   await reportEdgeError('all_providers_unavailable', new Error('No AI provider available'), {

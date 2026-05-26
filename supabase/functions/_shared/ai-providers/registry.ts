@@ -53,14 +53,18 @@ export function availabilityMap(): Record<ProviderName, boolean> {
   return out as Record<ProviderName, boolean>;
 }
 
-// Used by the dispatcher to walk the legacy 'auto' ladder. Returns
-// providers in priority order, skipping any that are unavailable or
-// (when needsVision is true) can't see images.
+// Used by the dispatcher to walk the 'auto' ladder. Returns providers
+// in priority order, skipping any that are unavailable or (when
+// needsVision is true) can't see images.
+//
+// Order policy (2026-05-26): Gemini first for everything (Hebrew
+// support, multimodal). Groq is a text-only fallback when Gemini is
+// down or quota-exhausted. Grok and Claude follow for redundancy.
 export function autoLadder(needsVision: boolean): AIProvider[] {
   const reg = getRegistry();
   const order: ProviderName[] = needsVision
     ? ['gemini', 'grok', 'claude']
-    : ['groq', 'gemini', 'grok', 'claude'];
+    : ['gemini', 'groq', 'grok', 'claude'];
 
   const out: AIProvider[] = [];
   for (const name of order) {
