@@ -1,3 +1,5 @@
+import { C } from '@/lib/designTokens';
+
 /**
  * emailTemplates. single source of truth for all branded emails sent from
  * CarReminder. Any HTML that reaches a user's inbox should be built via

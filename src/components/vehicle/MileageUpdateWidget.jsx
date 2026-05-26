@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { toastError } from '@/lib/userErrorReport';
 import { usesKm, usesHours } from '../shared/DateStatusUtils';
 import { useAuth } from '../shared/GuestContext';
-import { getTheme } from '@/lib/designTokens';
+import { C, getTheme } from '@/lib/designTokens';
 import { db } from '@/lib/supabaseEntities';
 
 export default function MileageUpdateWidget({ vehicle, onUpdated }) {

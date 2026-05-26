@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '../shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
+import { C, getTheme } from '@/lib/designTokens';
 import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
 import { isAiScanEnabled } from '@/lib/aiScanGate';
@@ -481,7 +482,6 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
     </Dialog>
   );
 }
-import { getTheme } from '@/lib/designTokens';
 import { format, parseISO } from 'date-fns';
 import { toast } from "sonner";
 

@@ -2,7 +2,7 @@ import { toastError } from '@/lib/userErrorReport';
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
-import { getTheme } from '@/lib/designTokens';
+import { C, getTheme } from '@/lib/designTokens';
 import { isVessel, isOffroad } from '../shared/DateStatusUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';

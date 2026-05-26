@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
 import { Wrench, Plus, Trash2, AlertTriangle, Settings, Camera, Image, X, Sparkles, Loader2, Edit } from 'lucide-react';
-import { getTheme } from '@/lib/designTokens';
+import { C, getTheme } from '@/lib/designTokens';
 import { isVessel as checkVessel } from '../shared/DateStatusUtils';
 import { BLUR_CLOSE_DELAY_MS } from '@/lib/timingConstants';
 import { Anchor } from 'lucide-react';

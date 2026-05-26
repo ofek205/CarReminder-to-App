@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Calendar, Bell } from 'lucide-react';
-import { getTheme } from '@/lib/designTokens';
+import { C, getTheme } from '@/lib/designTokens';
 
 const M = getTheme('כלי שייט');
 

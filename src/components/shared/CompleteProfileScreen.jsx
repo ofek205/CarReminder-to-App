@@ -4,6 +4,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { Phone, Calendar, ArrowLeft, User, Loader2 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
 import { toastError } from '@/lib/userErrorReport';
+import { C } from '@/lib/designTokens';
 
 const MIN_AGE_YEARS = 12;
 
@@ -124,7 +125,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
 
         {/* Form card */}
         <div className="rounded-2xl p-5 space-y-4"
-          style={{ background: '#fff', border: `1.5px solid ${C.border}`, boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
+          style={{ background: C.bg, border: `1.5px solid ${C.border}`, boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
 
           {/* Phone */}
           <div>
@@ -167,7 +168,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
           {/* Save button */}
           <button onClick={handleSave} disabled={saving}
             className="w-full py-3.5 rounded-2xl font-bold text-base transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60"
-            style={{ background: C.primary, color: '#fff', boxShadow: '0 4px 16px rgba(45,82,51,0.3)' }}>
+            style={{ background: C.primary, color: C.bg, boxShadow: '0 4px 16px rgba(45,82,51,0.3)' }}>
             {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : (
               <>
                 המשך <ArrowLeft className="w-4 h-4" />
