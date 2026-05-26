@@ -23,6 +23,8 @@ import {
 import { uploadScanFile, deleteFile, refreshSignedUrl } from '@/lib/supabaseStorage';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
 import { validateUploadFile } from '@/lib/securityUtils';
+import ScanConfirmDialog from '@/components/shared/ScanConfirmDialog';
+import ScanReviewSheet   from '@/components/shared/ScanReviewSheet';
 
 /**
  * ExpenseFormDialog — add OR edit a MANUAL expense.
@@ -84,6 +86,19 @@ export default function ExpenseFormDialog({
   const [fieldError, setFieldError] = useState({ field: null, message: '' });
   const setFE = (field, message) => setFieldError({ field, message });
   const clearFE = (field) => setFieldError(prev => prev.field === field ? { field: null, message: '' } : prev);
+
+  // Scan dialog state machine. After file upload we pause here to ask
+  // "scan with AI?" instead of running the model unattended, then show
+  // a review sheet so the user can fix anything the model misread.
+  //   step:      'idle' | 'confirm' | 'scanning' | 'review'
+  //   file:      the File object the dialog displays a thumbnail of
+  //   extracted: the AI output, shown in the review sheet
+  // The existing _runAiScanInternal stays in place for the "rescan
+  // after confirmOverwrite" path so the explicit-rescan UX is unchanged.
+  const [scanStep,           setScanStep]           = useState('idle');
+  const [pendingScanFile,    setPendingScanFile]    = useState(null);
+  const [pendingScanUrl,     setPendingScanUrl]     = useState('');
+  const [extractedScanData,  setExtractedScanData]  = useState({});
 
   // io state
   const [submitting, setSubmitting] = useState(false);
@@ -245,6 +260,112 @@ export default function ExpenseFormDialog({
     return _runAiScanInternal(urlOverride);
   };
 
+  // ── New scan flow (confirm → extract → review → apply) ──────────────
+  // _runAiScanInternal applies values directly. For the new gated flow
+  // we need the raw extraction result so the review sheet can show it
+  // first. Same schema, same surface tag — just no setState calls on
+  // the way out.
+  const _extractWithoutApplying = async (url) => {
+    if (!url) return null;
+    const enumCodes = MANUAL_EXPENSE_CATEGORIES.map(c => c.code);
+    const schema = {
+      type: 'object',
+      properties: {
+        amount: { type: 'number', description: 'הסכום הסופי לתשלום בשקלים. אם המסמך באנגלית: שדה total.' },
+        date:   { type: 'string', description: 'תאריך החשבונית בפורמט YYYY-MM-DD. אם DD/MM/YYYY: המר.' },
+        vendor: { type: 'string', description: 'שם בית העסק / המוסך / תחנת הדלק / סוכנות הביטוח.' },
+        title:  { type: 'string', description: 'תיאור קצר של ההוצאה (1-4 מילים). אם לא ברור: השאר ריק.' },
+        category: { type: 'string', enum: enumCodes,
+                    description: 'אחת מהקטגוריות. fuel=דלק, inspection=טסט, license_fee=אגרת רישוי, insurance_mtpl=ביטוח חובה, insurance_comp=ביטוח מקיף, insurance_3p=ביטוח צד ג׳, parking=חניה, wash=שטיפה, tires=צמיגים, toll=כביש אגרה, towing=גרירה, accessories=אביזרים, general=כללי, other=אחר.' },
+      },
+    };
+    const result = await extractDataFromUploadedFile({
+      file_url: url,
+      json_schema: schema,
+      instructions: 'חלץ פרטי חשבונית כספית. החזר רק ערכים שמופיעים בבירור במסמך. אם שדה לא ברור: השאר ריק.',
+      surface: 'expense_personal_scan',
+    });
+    if (result?.status !== 'success' || !result.output) return null;
+    return result.output;
+  };
+
+  // Field schema for the review sheet — controls labels + types + dir.
+  // Keep keys in sync with what _extractWithoutApplying returns.
+  const SCAN_REVIEW_SCHEMA = [
+    { key: 'amount',   label: 'סכום',     type: 'number',                          placeholder: 'לא זוהה' },
+    { key: 'date',     label: 'תאריך',    type: 'date',                            placeholder: 'לא זוהה' },
+    { key: 'vendor',   label: 'בית עסק',  type: 'text',                            placeholder: 'לא זוהה' },
+    { key: 'title',    label: 'תיאור',    type: 'text',                            placeholder: 'לא זוהה' },
+    { key: 'category', label: 'קטגוריה',  type: 'text',  dir: 'ltr',               placeholder: 'לא זוהה' },
+  ];
+
+  // Apply confirmed values from the review sheet to the form fields.
+  // Validates the same way _runAiScanInternal does — bad values are
+  // dropped, valid ones land in state.
+  const applyConfirmedScanValues = (values) => {
+    const enumCodes = MANUAL_EXPENSE_CATEGORIES.map(c => c.code);
+    if (values.amount && Number(values.amount) > 0)              setAmount(String(values.amount));
+    if (values.date && /^\d{4}-\d{2}-\d{2}$/.test(values.date))  setDate(values.date);
+    if (values.category && enumCodes.includes(values.category))  setCategory(values.category);
+    if (values.vendor) setVendor(String(values.vendor).slice(0, 80));
+    if (values.title)  setTitle(String(values.title).slice(0, 80));
+    toast.success('הפרטים הוטמעו בטופס');
+  };
+
+  // Dialog callback: user tapped "Yes, scan" in ScanConfirmDialog.
+  const handleScanConfirm = async () => {
+    setScanStep('scanning');
+    setScanning(true);
+    setScanError('');
+    try {
+      const out = await _extractWithoutApplying(pendingScanUrl);
+      if (!out) {
+        setScanError('לא הצלחנו לקרוא את הפרטים, אפשר להשלים ידנית.');
+        setScanStep('idle');
+        return;
+      }
+      setExtractedScanData(out);
+      setScanStep('review');
+    } catch (err) {
+      console.error('receipt scan failed:', err);
+      setScanError('לא הצלחנו לקרוא את הפרטים, אפשר להשלים ידנית.');
+      setScanStep('idle');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // Dialog callback: user tapped "No, enter manually" — keep the file
+  // attached but don't run the model. Saves token quota for
+  // documentation-only uploads.
+  const handleScanSkip = () => {
+    setScanStep('idle');
+    setPendingScanFile(null);
+    setPendingScanUrl('');
+  };
+
+  // Review sheet callback: user confirmed the extracted values.
+  const handleReviewConfirm = (values) => {
+    applyConfirmedScanValues(values);
+    setScanStep('idle');
+    setPendingScanFile(null);
+    setPendingScanUrl('');
+    setExtractedScanData({});
+  };
+
+  // Review sheet callback: user wants to start the form fresh — ignore
+  // everything the AI saw. The file stays attached as the receipt.
+  const handleReviewSkip = () => {
+    setScanStep('idle');
+    setPendingScanFile(null);
+    setPendingScanUrl('');
+    setExtractedScanData({});
+  };
+
+  // Review sheet callback: back button — return to the confirm dialog
+  // so the user can pick "manual" instead.
+  const handleReviewBack = () => setScanStep('confirm');
+
   // ── File upload + optional AI scan ─────────────────────────────────
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -267,10 +388,14 @@ export default function ExpenseFormDialog({
       setReceiptPath(storage_path);
       setDidChangeReceipt(true);
 
-      // Auto-run AI scan in scan-first flow
-      if (scanFirst) {
-        await runAiScan(file_url);
-      }
+      // Instead of auto-running the model, pause for an explicit
+      // confirmation. The dialog shows the file thumbnail and offers
+      // "Yes, scan" / "No, enter manually". Reduces wasted tokens for
+      // documentation-only uploads and lets the user opt out before
+      // the model runs.
+      setPendingScanFile(file);
+      setPendingScanUrl(file_url);
+      setScanStep('confirm');
     } catch (err) {
       console.error('upload error:', err);
       toastError('שגיאה בהעלאת הקובץ', { action: 'expense_file_upload', err });
@@ -746,6 +871,29 @@ export default function ExpenseFormDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* New gated scan flow:
+              1. Confirm — "scan with AI?" pause between upload and model
+              2. Review  — show extracted fields with edit before they
+                            enter the main form */}
+      <ScanConfirmDialog
+        open={scanStep === 'confirm'}
+        file={pendingScanFile}
+        title="לסרוק את החשבונית עם AI?"
+        description="ה-AI יחלץ סכום, תאריך, ספק וקטגוריה. תוכל לערוך לפני אישור."
+        onConfirm={handleScanConfirm}
+        onSkip={handleScanSkip}
+        onCancel={handleScanSkip}
+      />
+      <ScanReviewSheet
+        open={scanStep === 'review'}
+        file={pendingScanFile}
+        extracted={extractedScanData}
+        schema={SCAN_REVIEW_SCHEMA}
+        onConfirm={handleReviewConfirm}
+        onSkip={handleReviewSkip}
+        onBack={handleReviewBack}
+      />
     </Dialog>
   );
 }
