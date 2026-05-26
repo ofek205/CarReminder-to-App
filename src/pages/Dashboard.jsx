@@ -104,8 +104,8 @@ function UrgentBanner({ reminders, onView }) {
   // gradient. Keeps the urgency without competing visually with the
   // green Quick-Check card directly below it.
   const palette = isCritical
-    ? { bg: 'linear-gradient(135deg, #B91C1C 0%, #DC2626 100%)', shadow: 'rgba(185,28,28,0.32)' }
-    : { bg: 'linear-gradient(135deg, #B45309 0%, #D97706 100%)', shadow: 'rgba(180,83,9,0.32)' };
+    ? { bg: `linear-gradient(135deg, #B91C1C 0%, ${C.error} 100%)`, shadow: 'rgba(185,28,28,0.32)' }
+    : { bg: `linear-gradient(135deg, ${C.warnMid} 0%, ${C.warn} 100%)`, shadow: 'rgba(180,83,9,0.32)' };
 
   let subtitle;
   if (overdueCount > 0 && upcomingCount > 0) subtitle = `${overdueCount} תזכורות באיחור · ${upcomingCount} קרובות`;
@@ -298,8 +298,8 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
             <div className="absolute top-4 left-4 z-10">
               <span className="text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-md flex items-center gap-1"
                 style={isDemo
-                  ? { background: '#FFBF00', color: '#92400E', boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }
-                  : { background: 'rgba(255,255,255,0.9)', color: '#2D5233', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }
+                  ? { background: C.yellow, color: C.warnDark, boxShadow: '0 2px 8px rgba(255,191,0,0.4)' }
+                  : { background: 'rgba(255,255,255,0.9)', color: C.primary, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }
                 }>
                 {isDemo ? 'לדוגמה' : 'שמור זמנית'}
               </span>
@@ -326,7 +326,7 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
                     setShareDialogOpen(true);
                   }}
                   className="h-8 px-2.5 rounded-xl flex items-center gap-1.5 transition-all active:scale-95 backdrop-blur-md"
-                  style={{ background: '#F59E0B', color: '#fff', boxShadow: '0 4px 12px rgba(245,158,11,0.45)' }}
+                  style={{ background: C.warnIcon, color: '#fff', boxShadow: '0 4px 12px rgba(245,158,11,0.45)' }}
                   aria-label="שתף את כלי התחבורה"
                   title="שיתוף">
                   <Share2 className="w-3.5 h-3.5" />
@@ -409,8 +409,8 @@ function VehicleCard({ vehicle, isDemo, isGuestVehicle }) {
 function InfoTile({ icon: Icon, label, value, status }) {
   const isOk = status === 'ok';
   const isWarn = status === 'warn';
-  const bg = isOk ? C.greenDark : isWarn ? '#92400E' : '#991B1B';
-  const lightBg = isOk ? '#E8F5E9' : isWarn ? '#FEF3C7' : '#FEF2F2';
+  const bg = isOk ? C.greenDark : isWarn ? C.warnDark : C.errorDark;
+  const lightBg = isOk ? C.successBg : isWarn ? C.warnBg : C.errorBg;
   const color = isOk ? '#fff' : '#fff';
 
   return (
@@ -433,8 +433,8 @@ function InfoTile({ icon: Icon, label, value, status }) {
 function ReminderRow({ reminder, vehicles }) {
   const days = daysUntil(reminder.date);
   const urgency = days !== null && days < 0 ? 'danger' : days !== null && days <= 14 ? 'warn' : 'ok';
-  const urgencyColor = { ok: '#3A7D44', warn: '#D97706', danger: '#DC2626' }[urgency];
-  const urgencyBg    = { ok: '#E8F5E9', warn: '#FEF3C7', danger: '#FEF2F2' }[urgency];
+  const urgencyColor = { ok: C.success, warn: C.warn, danger: C.error }[urgency];
+  const urgencyBg    = { ok: C.successBg, warn: C.warnBg, danger: C.errorBg }[urgency];
   const icons = { insurance: Shield, test: Calendar, maintenance: Wrench };
   const Icon = icons[reminder.type] || Bell;
 
@@ -515,9 +515,9 @@ function StatusSummary({ vehicles }) {
   }, [vehicles]);
 
   const items = [
-    { key: 'ok',      label: 'תקין',   count: buckets.ok.length,      icon: CheckCircle,   color: '#3A7D44', bg: '#E8F5E9' },
-    { key: 'soon',    label: 'בקרוב',  count: buckets.soon.length,    icon: Clock,         color: '#D97706', bg: '#FEF3C7' },
-    { key: 'overdue', label: 'באיחור', count: buckets.overdue.length, icon: AlertTriangle, color: '#DC2626', bg: '#FEF2F2' },
+    { key: 'ok',      label: 'תקין',   count: buckets.ok.length,      icon: CheckCircle,   color: C.success, bg: C.successBg },
+    { key: 'soon',    label: 'בקרוב',  count: buckets.soon.length,    icon: Clock,         color: C.warn, bg: C.warnBg },
+    { key: 'overdue', label: 'באיחור', count: buckets.overdue.length, icon: AlertTriangle, color: C.error, bg: C.errorBg },
   ];
 
   return (
@@ -561,9 +561,9 @@ function StatusSummary({ vehicles }) {
 // Each row is a link to the vehicle's detail page.
 function StatusDrilldownDialog({ open, status, rows, onClose }) {
   const STATUS_META = {
-    ok:      { title: 'רכבים תקינים',  color: '#3A7D44', bg: '#E8F5E9', icon: CheckCircle },
-    soon:    { title: 'עומד לפוג',     color: '#D97706', bg: '#FEF3C7', icon: Clock },
-    overdue: { title: 'פג תוקף',       color: '#DC2626', bg: '#FEF2F2', icon: AlertTriangle },
+    ok:      { title: 'רכבים תקינים',  color: C.success, bg: C.successBg, icon: CheckCircle },
+    soon:    { title: 'עומד לפוג',     color: C.warn, bg: C.warnBg, icon: Clock },
+    overdue: { title: 'פג תוקף',       color: C.error, bg: C.errorBg, icon: AlertTriangle },
   };
   const meta = STATUS_META[status] || STATUS_META.ok;
   const Icon = meta.icon;
@@ -724,7 +724,7 @@ function VehicleRow({ vehicle }) {
       <div className="rounded-2xl p-3 mb-3 flex gap-3 items-center transition-all active:scale-[0.99]"
         style={{
           background: T.card,
-          border: `1px solid ${isOverdue ? '#FECACA' : isSoon ? '#FDE68A' : T.border}`,
+          border: `1px solid ${isOverdue ? C.errorBorder : isSoon ? C.warnBorder : T.border}`,
           boxShadow: `0 2px 12px ${T.primary}10`,
         }}
         dir="rtl">
@@ -788,9 +788,9 @@ function VehicleRow({ vehicle }) {
               }}
               className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full hover:bg-orange-100 transition-colors"
               title={`חסר: ${missingFields.join(', ')}. לחץ להשלמה`}
-              style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
-              <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} aria-hidden="true" />
-              <span className="text-[10px] font-bold" style={{ color: '#EA580C' }}>
+              style={{ background: C.orangeBg, border: '1px solid #FFEDD5' }}>
+              <AlertCircle className="w-3 h-3 shrink-0" style={{ color: C.orange }} aria-hidden="true" />
+              <span className="text-[10px] font-bold" style={{ color: C.orange }}>
                 {missingFields.length <= 2
                   ? `חסר: ${missingFields.join(', ')}`
                   : `חסרים ${missingFields.length} פרטים: ${missingFields.slice(0, 2).join(', ')}…`}
@@ -1185,18 +1185,18 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="px-4 pt-4 pb-24" dir="rtl">
-        <div className="h-7 w-44 rounded-lg mb-4 animate-pulse" style={{ background: '#E5E7EB' }} />
+        <div className="h-7 w-44 rounded-lg mb-4 animate-pulse" style={{ background: C.gray200 }} />
         {[0, 1, 2].map(i => (
           <div key={i}
             className="mb-3 rounded-2xl overflow-hidden animate-pulse"
-            style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}
+            style={{ background: '#FFFFFF', border: `1px solid ${C.gray200}` }}
             aria-hidden="true"
           >
             <div className="flex items-center gap-3 p-4">
-              <div className="w-14 h-14 rounded-xl shrink-0" style={{ background: '#E5E7EB' }} />
+              <div className="w-14 h-14 rounded-xl shrink-0" style={{ background: C.gray200 }} />
               <div className="flex-1 min-w-0 space-y-2">
-                <div className="h-4 w-32 rounded" style={{ background: '#E5E7EB' }} />
-                <div className="h-3 w-24 rounded" style={{ background: '#F3F4F6' }} />
+                <div className="h-4 w-32 rounded" style={{ background: C.gray200 }} />
+                <div className="h-3 w-24 rounded" style={{ background: C.gray100 }} />
               </div>
             </div>
           </div>
@@ -1303,15 +1303,15 @@ export default function Dashboard() {
           {/* Demo banner - prominent */}
           {isShowingDemo && (
             <div className="rounded-2xl p-4 mb-4 relative overflow-hidden"
-              style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
+              style={{ background: `linear-gradient(135deg, ${C.warnBg}, ${C.yellowSoft})`, border: `1.5px solid ${C.warnBorder}` }}>
               <div className="flex items-center gap-3" dir="rtl">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: '#FFBF00' }}>
-                  <Car className="w-5 h-5" style={{ color: '#92400E' }} />
+                  style={{ background: C.yellow }}>
+                  <Car className="w-5 h-5" style={{ color: C.warnDark }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold" style={{ color: '#92400E' }}>אלו רכבים לדוגמה בלבד</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#B45309' }}>כך ייראה המסך שלך - הוסף את כלי התחבורה האמיתי שלך</p>
+                  <p className="text-sm font-bold" style={{ color: C.warnDark }}>אלו רכבים לדוגמה בלבד</p>
+                  <p className="text-xs mt-0.5" style={{ color: C.warnMid }}>כך ייראה המסך שלך - הוסף את כלי התחבורה האמיתי שלך</p>
                 </div>
               </div>
             </div>
@@ -1399,7 +1399,7 @@ export default function Dashboard() {
       <div className="px-4 pt-4 pb-24" dir="rtl">
         {/* Greeting line placeholder — same spacing as the real
             header inside Dashboard's success render. */}
-        <div className="h-7 w-44 rounded-lg mb-4 animate-pulse" style={{ background: '#E5E7EB' }} />
+        <div className="h-7 w-44 rounded-lg mb-4 animate-pulse" style={{ background: C.gray200 }} />
         {/* Vehicle card placeholders — three cards, sized to match
             VehicleCard's outer dimensions so the layout doesn't jump
             when the real data arrives. animate-pulse from Tailwind
@@ -1407,14 +1407,14 @@ export default function Dashboard() {
         {[0, 1, 2].map(i => (
           <div key={i}
             className="mb-3 rounded-2xl overflow-hidden animate-pulse"
-            style={{ background: '#FFFFFF', border: '1px solid #E5E7EB' }}
+            style={{ background: '#FFFFFF', border: `1px solid ${C.gray200}` }}
             aria-hidden="true"
           >
             <div className="flex items-center gap-3 p-4">
-              <div className="w-14 h-14 rounded-xl shrink-0" style={{ background: '#E5E7EB' }} />
+              <div className="w-14 h-14 rounded-xl shrink-0" style={{ background: C.gray200 }} />
               <div className="flex-1 min-w-0 space-y-2">
-                <div className="h-4 w-32 rounded" style={{ background: '#E5E7EB' }} />
-                <div className="h-3 w-24 rounded" style={{ background: '#F3F4F6' }} />
+                <div className="h-4 w-32 rounded" style={{ background: C.gray200 }} />
+                <div className="h-3 w-24 rounded" style={{ background: C.gray100 }} />
               </div>
             </div>
           </div>

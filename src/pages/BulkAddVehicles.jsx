@@ -32,6 +32,7 @@ import { createPageUrl } from '@/utils';
 import { PageShell, Card } from '@/components/business/system';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { C } from '@/lib/designTokens';
 
 const LOOKUP_CONCURRENCY = 5;
 
@@ -391,13 +392,13 @@ function Stepper({ current }) {
         //   future  → mint outline (pending)
         const style = isCurrent
           ? {
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
               boxShadow: '0 4px 12px rgba(16,185,129,0.32)',
             }
           : isPast
-            ? { background: '#D1FAE5', color: '#065F46' }
-            : { background: '#FFFFFF', color: '#A7B3AB', border: '1px dashed #D1FAE5' };
+            ? { background: C.successLight, color: C.successDark }
+            : { background: '#FFFFFF', color: C.borderAlt, border: `1px dashed ${C.successLight}` };
         return (
           <li
             key={s.key}
@@ -521,7 +522,7 @@ function InputStep({ onPlatesParsed, onContinue, plates }) {
           disabled={plates.length === 0}
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
           style={{
-            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
             color: '#FFFFFF',
             boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
           }}
@@ -663,7 +664,7 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
           disabled={submitting || isLookingUp || includedCount === 0}
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
           style={{
-            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
             color: '#FFFFFF',
             boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
           }}
@@ -682,19 +683,19 @@ function ProgressCard({ done, total }) {
   return (
     <Card accent="emerald">
       <div className="flex items-center justify-between mb-2 text-xs">
-        <span className="font-bold" style={{ color: '#0B2912' }}>בודק את המספרים מול משרד התחבורה</span>
-        <span className="tabular-nums" style={{ color: '#4B5D52' }} dir="ltr">{done} מתוך {total}</span>
+        <span className="font-bold" style={{ color: C.primaryDark }}>בודק את המספרים מול משרד התחבורה</span>
+        <span className="tabular-nums" style={{ color: C.textAlt }} dir="ltr">{done} מתוך {total}</span>
       </div>
-      <div className="h-2 rounded-full overflow-hidden" style={{ background: '#F0F7F4' }}>
+      <div className="h-2 rounded-full overflow-hidden" style={{ background: C.bgSubtle }}>
         <div
           className="h-full transition-all duration-500"
           style={{
             width: `${pct}%`,
-            background: 'linear-gradient(90deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            background: `linear-gradient(90deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
           }}
         />
       </div>
-      <p className="text-[10px] mt-2" style={{ color: '#A7B3AB' }}>חיפוש מקבילי, עד 5 בו זמנית. לוקח כדקה ל-100 רכבים.</p>
+      <p className="text-[10px] mt-2" style={{ color: C.borderAlt }}>חיפוש מקבילי, עד 5 בו זמנית. לוקח כדקה ל-100 רכבים.</p>
     </Card>
   );
 }
@@ -923,7 +924,7 @@ function ResultStep({ result, onDone, onRestart }) {
           type="button"
           onClick={onRestart}
           className="flex-1 py-3 rounded-xl text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
-          style={{ background: '#FFFFFF', color: '#10B981', border: '1.5px solid #D1FAE5' }}
+          style={{ background: '#FFFFFF', color: C.successBright, border: `1.5px solid ${C.successLight}` }}
         >
           ייבא עוד
         </button>
@@ -932,7 +933,7 @@ function ResultStep({ result, onDone, onRestart }) {
           onClick={onDone}
           className="flex-1 py-3 rounded-xl text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
           style={{
-            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
             color: '#FFFFFF',
             boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
           }}

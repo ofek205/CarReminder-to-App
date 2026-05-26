@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { BookOpen, ChevronLeft, ChevronDown, ChevronUp, Plus, Wrench, Droplet, Zap, Cog, Filter as FilterIcon, Eye } from 'lucide-react';
 import { findManufacturerSchedule, splitScheduleByCurrentKm } from '@/data/manufacturerSchedules';
+import { C } from '@/lib/designTokens';
 
 /**
  * ManufacturerScheduleCard
@@ -59,25 +60,25 @@ export default function ManufacturerScheduleCard({ vehicle, theme, onAddReminder
       >
         <div
           className="shrink-0 rounded-xl p-2 flex items-center justify-center"
-          style={{ background: T?.primary || '#2D5233', color: '#fff' }}
+          style={{ background: T?.primary || C.primary, color: '#fff' }}
           aria-hidden="true"
         >
           <BookOpen className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold" style={{ color: T?.text || '#1C2E20' }}>
+            <span className="text-sm font-bold" style={{ color: T?.text || C.text }}>
               טיפולים לפי ספר הרכב
             </span>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: T?.primary || '#2D5233', color: '#fff' }}>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: T?.primary || C.primary, color: '#fff' }}>
               חדש
             </span>
           </div>
-          <div className="text-xs mt-0.5" style={{ color: T?.muted || '#6B7280' }}>
+          <div className="text-xs mt-0.5" style={{ color: T?.muted || C.gray500 }}>
             לוח טיפולים מומלץ של היצרן — {lookup.hebrewMakeName} {lookup.matched.model}
           </div>
         </div>
-        <ChevronLeft className="w-5 h-5 shrink-0" style={{ color: T?.muted || '#6B7280' }} aria-hidden="true" />
+        <ChevronLeft className="w-5 h-5 shrink-0" style={{ color: T?.muted || C.gray500 }} aria-hidden="true" />
       </button>
 
       {/* Schedule dialog. We use Dialog (not Sheet) because the existing
@@ -90,7 +91,7 @@ export default function ManufacturerScheduleCard({ vehicle, theme, onAddReminder
             <DialogTitle className="text-right">
               ספר טיפולים — {lookup.hebrewMakeName} {lookup.matched.model}
             </DialogTitle>
-            <div className="text-xs text-right" style={{ color: T?.muted || '#6B7280' }}>
+            <div className="text-xs text-right" style={{ color: T?.muted || C.gray500 }}>
               שנתון {lookup.matched.yearFrom}-{lookup.matched.yearTo}
               {hasKm && (
                 <> · ק"מ נוכחי <b>{Number(vehicle.current_km).toLocaleString('he-IL')}</b></>
@@ -130,7 +131,7 @@ export default function ManufacturerScheduleCard({ vehicle, theme, onAddReminder
                 type="button"
                 onClick={() => setShowPast(v => !v)}
                 className="w-full text-right text-xs flex items-center justify-between py-2 px-1"
-                style={{ color: T?.muted || '#6B7280' }}
+                style={{ color: T?.muted || C.gray500 }}
               >
                 <span>כבר עברתי ({split.past.length})</span>
                 {showPast ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -194,16 +195,16 @@ function MilestoneRow({ item, isNext, T, hasKm, currentKm, source, onAddReminder
     <div
       className="rounded-xl p-3 flex flex-col gap-2"
       style={{
-        background: isNext ? (T?.light || '#F0FDF4') : '#FAFAFA',
-        border: `1px solid ${isNext ? (T?.primary || '#2D5233') : '#E5E7EB'}`,
+        background: isNext ? (T?.light || '#F0FDF4') : C.grayBg,
+        border: `1px solid ${isNext ? (T?.primary || C.primary) : C.gray200}`,
       }}
     >
       <div className="flex items-start gap-3">
         <div
           className="shrink-0 rounded-lg p-2 flex items-center justify-center"
           style={{
-            background: isNext ? (T?.primary || '#2D5233') : '#E5E7EB',
-            color: isNext ? '#fff' : '#6B7280',
+            background: isNext ? (T?.primary || C.primary) : C.gray200,
+            color: isNext ? '#fff' : C.gray500,
           }}
           aria-hidden="true"
         >
@@ -212,25 +213,25 @@ function MilestoneRow({ item, isNext, T, hasKm, currentKm, source, onAddReminder
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-bold" style={{ color: T?.text || '#1C2E20' }}>
+            <span className="text-sm font-bold" style={{ color: T?.text || C.text }}>
               {kmFmt} ק"מ
             </span>
             {item.months && (
-              <span className="text-xs" style={{ color: T?.muted || '#6B7280' }}>או {item.months} חודשים</span>
+              <span className="text-xs" style={{ color: T?.muted || C.gray500 }}>או {item.months} חודשים</span>
             )}
             {remainingText && (
-              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: T?.primary || '#2D5233', color: '#fff' }}>
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: T?.primary || C.primary, color: '#fff' }}>
                 {remainingText}
               </span>
             )}
           </div>
-          <div className="text-sm mt-0.5 font-medium" style={{ color: T?.text || '#1C2E20' }}>
+          <div className="text-sm mt-0.5 font-medium" style={{ color: T?.text || C.text }}>
             {item.title}
           </div>
           {item.note && (
-            <div className="text-xs mt-0.5" style={{ color: T?.muted || '#6B7280' }}>{item.note}</div>
+            <div className="text-xs mt-0.5" style={{ color: T?.muted || C.gray500 }}>{item.note}</div>
           )}
-          <div className="text-[10px] mt-1" style={{ color: T?.muted ? `${T.muted}99` : '#9CA3AF' }}>מקור: {source}</div>
+          <div className="text-[10px] mt-1" style={{ color: T?.muted ? `${T.muted}99` : C.gray400 }}>מקור: {source}</div>
         </div>
       </div>
 

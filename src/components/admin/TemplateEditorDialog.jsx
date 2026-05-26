@@ -11,6 +11,7 @@ import { validateTemplate, extractPlaceholders } from '@/lib/emailValidate';
 import { renderFromTemplateObject } from '@/lib/emailRender';
 import { toast } from 'sonner';
 import VersionHistoryDialog from './VersionHistoryDialog';
+import { C } from '@/lib/designTokens';
 
 /**
  * Sanitize admin-authored email HTML before it's dropped into the preview
@@ -185,13 +186,13 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
             {existingTemplate?.id && (
               hasUnpublishedChanges ? (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
-                  style={{ background: '#FEF3C7', color: '#92400E' }}>
+                  style={{ background: C.warnBg, color: C.warnDark }}>
                   <CircleDot className="w-2.5 h-2.5" />
                   טיוטה לא מפורסמת
                 </span>
               ) : (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: '#D1FAE5', color: '#047857' }}>
+                  style={{ background: C.successLight, color: '#047857' }}>
                   מפורסם
                 </span>
               )
@@ -214,10 +215,10 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
                 {/* Validation banner */}
                 {!validation.ok && (
                   <div className="rounded-xl p-3 flex gap-2"
-                    style={{ background: '#FEF2F2', border: '1.5px solid #FCA5A5' }}>
-                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#DC2626' }} />
+                    style={{ background: C.errorBg, border: '1.5px solid #FCA5A5' }}>
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.error }} />
                     <div className="flex-1">
-                      <p className="text-xs font-bold mb-1" style={{ color: '#991B1B' }}>
+                      <p className="text-xs font-bold mb-1" style={{ color: C.errorDark }}>
                         {validation.errors.length} שגיאות משתנים
                       </p>
                       <ul className="text-xs space-y-0.5" style={{ color: '#7F1D1D' }}>
@@ -335,7 +336,7 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
                           width: previewMode === 'mobile' ? 375 : '100%',
                           maxWidth: 640,
                           height: 720,
-                          border: '1px solid #E5E7EB',
+                          border: `1px solid ${C.gray200}`,
                           borderRadius: 12,
                           background: 'white',
                           boxShadow: '0 4px 16px rgba(0,0,0,0.05)',
@@ -387,7 +388,7 @@ export default function TemplateEditorDialog({ notification, open, onClose }) {
             onClick={handlePublish}
             disabled={publish.isPending || save.isPending || !validation.ok}
             className="rounded-xl gap-2"
-            style={{ background: '#2D5233', color: 'white' }}>
+            style={{ background: C.primary, color: 'white' }}>
             {publish.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
             פרסם
           </Button>

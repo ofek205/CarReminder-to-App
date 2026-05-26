@@ -6,6 +6,7 @@ import { isNative, isIOS, isAndroid, initStatusBar, initKeyboard, initBackButton
 import { reportError } from '@/lib/crashReporter';
 import { initBootLog, recordBootStage, markBootSucceeded, flushPreviousFailedBoot } from '@/lib/bootDiagnostics';
 import { validateEnv } from '@/lib/envValidator';
+import { C } from '@/lib/designTokens';
 
 // Boot log is the FIRST thing we initialize — even before plugin init,
 // so a crash inside any subsequent line still leaves a trail behind for
@@ -274,22 +275,22 @@ if (__envErrMsg) {
              min-height:100vh;background:#FAFFFE;font-family:system-ui;padding:24px;">
           <div style="text-align:center;max-width:340px;width:100%;">
             <div style="font-size:48px;margin-bottom:8px;">⚙️</div>
-            <div style="font-size:22px;font-weight:800;color:#1F2937;margin-bottom:8px;">
+            <div style="font-size:22px;font-weight:800;color:${C.gray800};margin-bottom:8px;">
               האפליקציה לא הצליחה לעלות
             </div>
-            <div style="font-size:13px;color:#6B7280;margin-bottom:14px;line-height:1.6;">${detail}</div>
+            <div style="font-size:13px;color:${C.gray500};margin-bottom:14px;line-height:1.6;">${detail}</div>
             <pre id="cr-env-diag" style="font-size:10px;text-align:left;direction:ltr;
-                 background:#F3F4F6;padding:10px;border-radius:8px;overflow:auto;max-height:240px;
-                 color:#374151;margin:0 0 12px;white-space:pre-wrap;word-break:break-all;">${__escDiag}</pre>
+                 background:${C.gray100};padding:10px;border-radius:8px;overflow:auto;max-height:240px;
+                 color:${C.gray700};margin:0 0 12px;white-space:pre-wrap;word-break:break-all;">${__escDiag}</pre>
             <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
               <button onclick="window.location.reload()"
-                style="padding:10px 22px;border-radius:12px;background:#2D5233;color:#fff;
+                style="padding:10px 22px;border-radius:12px;background:${C.primary};color:#fff;
                        font-weight:700;border:none;cursor:pointer;font-size:14px;">
                 נסה שוב
               </button>
               <button id="cr-env-copy"
-                style="padding:10px 22px;border-radius:12px;background:#fff;color:#2D5233;
-                       font-weight:700;border:1px solid #D8E5D9;cursor:pointer;font-size:14px;">
+                style="padding:10px 22px;border-radius:12px;background:#fff;color:${C.primary};
+                       font-weight:700;border:1px solid ${C.border};cursor:pointer;font-size:14px;">
                 העתק אבחון
               </button>
             </div>
@@ -389,17 +390,17 @@ try {
           display:flex;align-items:center;justify-content:center;
           padding:24px;font-family:system-ui;">
           <div style="text-align:center;max-width:340px">
-            <div style="font-size:22px;font-weight:800;color:#1F2937;margin-bottom:8px">הפתיחה לוקחת יותר מהרגיל</div>
-            <div style="font-size:14px;color:#6B7280;margin-bottom:18px;line-height:1.5">
+            <div style="font-size:22px;font-weight:800;color:${C.gray800};margin-bottom:8px">הפתיחה לוקחת יותר מהרגיל</div>
+            <div style="font-size:14px;color:${C.gray500};margin-bottom:18px;line-height:1.5">
               אפשר לנסות טעינה נקייה ולהיכנס כאורח. לא נאבד נתונים בחשבון.
             </div>
-            <button id="cr-force-guest-btn" style="padding:10px 20px;border-radius:12px;background:#2D5233;color:#fff;font-weight:700;border:none;cursor:pointer;font-size:14px;margin-left:8px">
+            <button id="cr-force-guest-btn" style="padding:10px 20px;border-radius:12px;background:${C.primary};color:#fff;font-weight:700;border:none;cursor:pointer;font-size:14px;margin-left:8px">
               המשך כאורח
             </button>
-            <button id="cr-retry-btn" style="padding:10px 20px;border-radius:12px;background:#fff;color:#2D5233;font-weight:700;border:1px solid #D8E5D9;cursor:pointer;font-size:14px;margin-left:8px">
+            <button id="cr-retry-btn" style="padding:10px 20px;border-radius:12px;background:#fff;color:${C.primary};font-weight:700;border:1px solid ${C.border};cursor:pointer;font-size:14px;margin-left:8px">
               נסה שוב
             </button>
-            <a href="/boot-debug" style="display:inline-block;margin-top:14px;font-size:12px;color:#9CA3AF;text-decoration:underline">
+            <a href="/boot-debug" style="display:inline-block;margin-top:14px;font-size:12px;color:${C.gray400};text-decoration:underline">
               הצג יומן אבחון
             </a>
           </div>
@@ -428,14 +429,14 @@ try {
         <div dir="rtl" style="display:flex;align-items:center;justify-content:center;
              min-height:100vh;background:#FAFFFE;font-family:system-ui;padding:24px;">
           <div style="text-align:center;max-width:320px;">
-            <div style="font-size:22px;font-weight:800;color:#1F2937;margin-bottom:8px;">
+            <div style="font-size:22px;font-weight:800;color:${C.gray800};margin-bottom:8px;">
               משהו השתבש 😕
             </div>
-            <div style="font-size:14px;color:#6B7280;margin-bottom:20px;">
+            <div style="font-size:14px;color:${C.gray500};margin-bottom:20px;">
               נסה לסגור את האפליקציה ולפתוח אותה מחדש
             </div>
             <button onclick="window.location.reload()"
-              style="padding:10px 28px;border-radius:12px;background:#2D5233;color:#fff;
+              style="padding:10px 28px;border-radius:12px;background:${C.primary};color:#fff;
                      font-weight:700;border:none;cursor:pointer;font-size:14px;">
               נסה שוב
             </button>

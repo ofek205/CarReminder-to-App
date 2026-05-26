@@ -20,10 +20,10 @@ const CATEGORIES = [
 ];
 
 const PRIORITIES = [
-  { value: 'low',    label: 'נמוכה',  color: '#6B7280' },
+  { value: 'low',    label: 'נמוכה',  color: C.gray500 },
   { value: 'medium', label: 'בינונית', color: '#2563EB' },
-  { value: 'high',   label: 'גבוהה',  color: '#D97706' },
-  { value: 'urgent', label: 'דחופה',  color: '#DC2626' },
+  { value: 'high',   label: 'גבוהה',  color: C.warn },
+  { value: 'urgent', label: 'דחופה',  color: C.error },
 ];
 
 const STATUSES = [

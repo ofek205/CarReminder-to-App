@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Upload, Pencil, ScanLine, AlertTriangle, Check, Camera } from "lucide-react";
 import { normalizePlate } from "../shared/DateStatusUtils";
 import { isNative, takePhoto } from '@/lib/capacitor';
+import { C } from '@/lib/designTokens';
 
 function parseIsraeliDate(dateStr) {
   if (!dateStr) return '';
@@ -512,7 +513,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
 
             <div className="flex gap-2 pt-2">
               <Button onClick={handleExtract} disabled={!fileUrl || extracting || uploading}
-                className="flex-1 font-bold" style={{ background: '#FFBF00', color: '#2D5233' }}>
+                className="flex-1 font-bold" style={{ background: C.yellow, color: C.primary }}>
                 {extracting ? <><Loader2 className="h-4 w-4 animate-spin ml-2" />מחלץ פרטים...</> : 'חלץ פרטים'}
               </Button>
               <Button variant="outline" onClick={handleClose} className="border-[#D8E5D9] text-[#7A8A7C]">ביטול</Button>
@@ -582,7 +583,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
 
             {!duplicateVehicle && (
               <div className="flex flex-col gap-2 pt-2 border-t">
-                <Button onClick={handleConfirmPreview} className="w-full font-bold" style={{ background: '#FFBF00', color: '#2D5233' }}>
+                <Button onClick={handleConfirmPreview} className="w-full font-bold" style={{ background: C.yellow, color: C.primary }}>
                   <Check className="h-4 w-4 ml-2" />
                   {mode === 'new' ? 'אשר והמשך להשלמה' : 'אשר והמשך להשוואה'}
                 </Button>

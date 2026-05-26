@@ -17,26 +17,27 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Sparkline from './Sparkline';
+import { C } from '@/lib/designTokens';
 
 const TONES = {
   emerald: {
-    surface: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
-    border:  '#A7F3D0',
+    surface: `linear-gradient(135deg, ${C.successSubtle} 0%, ${C.successLight} 100%)`,
+    border:  C.successLighter,
     label:   '#047857',
-    value:   '#065F46',
+    value:   C.successDark,
     shadow:  '0 4px 12px rgba(16,185,129,0.12)',
     hover:   '0 8px 20px rgba(16,185,129,0.20)',
   },
   amber: {
-    surface: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+    surface: `linear-gradient(135deg, ${C.warnSubtle} 0%, ${C.warnBg} 100%)`,
     border:  '#FCD34D',
-    label:   '#B45309',
+    label:   C.warnMid,
     value:   '#78350F',
     shadow:  '0 4px 12px rgba(245,158,11,0.12)',
     hover:   '0 8px 20px rgba(245,158,11,0.20)',
   },
   blue: {
-    surface: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+    surface: `linear-gradient(135deg, ${C.infoSubtle} 0%, ${C.infoBg} 100%)`,
     border:  '#93C5FD',
     label:   '#1D4ED8',
     value:   '#1E3A8A',
@@ -44,7 +45,7 @@ const TONES = {
     hover:   '0 8px 20px rgba(59,130,246,0.20)',
   },
   red: {
-    surface: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)',
+    surface: `linear-gradient(135deg, ${C.errorBg} 0%, ${C.errorLight} 100%)`,
     border:  '#FCA5A5',
     label:   '#B91C1C',
     value:   '#7F1D1D',

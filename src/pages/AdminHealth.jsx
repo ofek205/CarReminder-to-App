@@ -308,9 +308,9 @@ function errorRenderer(rows) {
 
 function cronRenderer(rows) {
   const statusColors = {
-    succeeded: { bg: "#D1FAE5", fg: "#047857" },
-    failed:    { bg: "#FEE2E2", fg: "#991B1B" },
-    starting:  { bg: "#FEF3C7", fg: "#92400E" },
+    succeeded: { bg: C.successLight, fg: "#047857" },
+    failed:    { bg: C.errorLight, fg: C.errorDark },
+    starting:  { bg: C.warnBg, fg: C.warnDark },
   };
   return (
     <div className="space-y-1.5 text-xs">
@@ -380,9 +380,9 @@ function storageRenderer(rows) {
 
 function alertsRenderer(rows) {
   const sevColors = {
-    critical: { bg: "#FEE2E2", fg: "#991B1B" },
-    warning:  { bg: "#FEF3C7", fg: "#92400E" },
-    info:     { bg: "#DBEAFE", fg: "#1E40AF" },
+    critical: { bg: C.errorLight, fg: C.errorDark },
+    warning:  { bg: C.warnBg, fg: C.warnDark },
+    info:     { bg: C.infoBg, fg: C.infoDark },
   };
   return (
     <div className="space-y-1.5 text-xs">

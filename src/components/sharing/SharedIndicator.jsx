@@ -15,6 +15,7 @@
 
 import React from 'react';
 import { Users, ArrowRightLeft } from 'lucide-react';
+import { C } from '@/lib/designTokens';
 
 export default function SharedIndicator({
   // Number of accepted shares on this vehicle (relevant for owner view)
@@ -38,7 +39,7 @@ export default function SharedIndicator({
   // Color tokens — soft teal for owner shares, warm amber for recipient
   // so the two cases are visually distinct at a glance.
   const palette = isSharedWithMe
-    ? { bg: '#FEF3C7', color: '#92400E', border: '#FDE68A' }
+    ? { bg: C.warnBg, color: C.warnDark, border: C.warnBorder }
     : { bg: '#E0F2FE', color: '#075985', border: '#BAE6FD' };
 
   const iconSize = size === 'md' ? 14 : 12;

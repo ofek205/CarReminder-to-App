@@ -19,6 +19,7 @@
 import React, { useState } from 'react';
 import { Info, X, Users, Car, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { C } from '@/lib/designTokens';
 
 export default function SharingHelpButton({ size = 'md', className = '' }) {
   const [open, setOpen] = useState(false);
@@ -32,7 +33,7 @@ export default function SharingHelpButton({ size = 'md', className = '' }) {
         type="button"
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); }}
         className={`${btnSize} rounded-full inline-flex items-center justify-center shrink-0 transition-all active:scale-95 ${className}`}
-        style={{ background: '#FEF3C7', color: '#B45309', border: '1.5px solid #FDE68A' }}
+        style={{ background: C.warnBg, color: C.warnMid, border: `1.5px solid ${C.warnBorder}` }}
         aria-label="הסבר על שיתוף"
         title="איך זה עובד?">
         <Info style={{ width: iconSize, height: iconSize }} />
@@ -42,7 +43,7 @@ export default function SharingHelpButton({ size = 'md', className = '' }) {
         <DialogContent className="max-w-md mx-4 max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Info className="w-5 h-5" style={{ color: '#B45309' }} />
+              <Info className="w-5 h-5" style={{ color: C.warnMid }} />
               שיתוף רכב
             </DialogTitle>
           </DialogHeader>
@@ -92,7 +93,7 @@ export default function SharingHelpButton({ size = 'md', className = '' }) {
             {/* Constraints — three lines max. Removed the editor-permission
                 line because the role picker itself spells that out at
                 share time. */}
-            <div className="rounded-2xl p-3 space-y-1.5" style={{ background: '#FAFAFA', border: '1px solid #E5E7EB' }}>
+            <div className="rounded-2xl p-3 space-y-1.5" style={{ background: C.grayBg, border: `1px solid ${C.gray200}` }}>
               <div className="flex items-center gap-2 text-xs text-gray-600">
                 <Users className="w-3.5 h-3.5 shrink-0 text-gray-400" />
                 <span>עד 3 משתמשים לכל רכב</span>
@@ -111,7 +112,7 @@ export default function SharingHelpButton({ size = 'md', className = '' }) {
               type="button"
               onClick={() => setOpen(false)}
               className="w-full h-11 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-              style={{ background: '#2D5233', color: '#fff', boxShadow: '0 4px 14px rgba(45,82,51,0.3)' }}>
+              style={{ background: C.primary, color: '#fff', boxShadow: '0 4px 14px rgba(45,82,51,0.3)' }}>
               הבנתי
             </button>
           </div>

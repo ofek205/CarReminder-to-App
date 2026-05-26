@@ -148,7 +148,7 @@ function QuickMileageInput({ vehicle, T, isKm, onClose }) {
         </button>
         <button onClick={e => { e.preventDefault(); e.stopPropagation(); onClose(); }}
           className="h-9 w-9 rounded-xl flex items-center justify-center transition-all"
-          style={{ background: '#F3F4F6', color: '#6B7280' }}>
+          style={{ background: C.gray100, color: C.gray500 }}>
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -204,7 +204,7 @@ function VehicleCardEnhanced({ vehicle }) {
   const worstSt = [testStatus.status, insStatus.status].includes('danger') ? 'danger'
     : [testStatus.status, insStatus.status].includes('warn') ? 'warn' : 'ok';
 
-  const borderColor = worstSt === 'danger' ? '#FECACA' : worstSt === 'warn' ? '#FDE68A' : T.border;
+  const borderColor = worstSt === 'danger' ? C.errorBorder : worstSt === 'warn' ? C.warnBorder : T.border;
 
   // Title + subtitle. show each piece of info exactly once. If the title
   // (nickname or manufacturer+model) already contains a word from the
@@ -254,7 +254,7 @@ function VehicleCardEnhanced({ vehicle }) {
                   <h3 className="font-bold text-base truncate" style={{ color: C.text }}>{name}</h3>
                   {vehicle._isDemo && (
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0"
-                      style={{ background: '#FFBF00', color: '#92400E' }}>
+                      style={{ background: C.yellow, color: C.warnDark }}>
                       לדוגמה
                     </span>
                   )}
@@ -273,7 +273,7 @@ function VehicleCardEnhanced({ vehicle }) {
                       type="button"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setAccessModalOpen(true); }}
                       className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0 transition-all active:scale-95"
-                      style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
+                      style={{ background: C.warnBg, color: C.warnDark, border: `1px solid ${C.warnBorder}` }}
                       aria-label="פרטי השיתוף">
                       <Users className="w-3 h-3" />
                       שותפ/ה איתי
@@ -353,9 +353,9 @@ function VehicleCardEnhanced({ vehicle }) {
                 title={`חסר: ${missingFields.join(', ')}. לחץ להשלמה`}
                 aria-label={`השלם פרטים חסרים: ${missingFields.join(', ')}`}
                 className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full transition-all active:scale-[0.98]"
-                style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
-                <AlertCircle className="w-3 h-3 shrink-0" style={{ color: '#EA580C' }} aria-hidden="true" />
-                <span className="text-[10px] font-bold" style={{ color: '#EA580C' }}>
+                style={{ background: C.orangeBg, border: '1px solid #FFEDD5' }}>
+                <AlertCircle className="w-3 h-3 shrink-0" style={{ color: C.orange }} aria-hidden="true" />
+                <span className="text-[10px] font-bold" style={{ color: C.orange }}>
                   {missingFields.length <= 2
                     ? `חסר: ${missingFields.join(', ')}`
                     : `חסרים ${missingFields.length} פרטים: ${missingFields.slice(0, 2).join(', ')}…`}

@@ -45,6 +45,7 @@ import { geocodeAddress } from '@/lib/geocode';
 // Imported as SystemCard because the local <Section> helper provides
 // the per-section surface in this form.
 import { PageShell, Card as SystemCard } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 // ---------- helpers ---------------------------------------------------
 
@@ -386,7 +387,7 @@ export default function CreateRoute() {
           <div
             className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center"
             style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
               boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
             }}
@@ -395,10 +396,10 @@ export default function CreateRoute() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-bold inline-flex items-center gap-1 px-2 py-0.5 rounded-md"
-               style={{ background: '#D1FAE5', color: '#065F46' }}>
+               style={{ background: C.successLight, color: C.successDark }}>
               משימה חדשה
             </p>
-            <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: '#4B5D52' }}>
+            <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: C.textAlt }}>
               ההיסטוריה תישמר ביומן הפעילות. הנהג יקבל התראה בכניסה הבאה לאפליקציה.
             </p>
           </div>
@@ -410,7 +411,7 @@ export default function CreateRoute() {
         <Section
           title="פרטי המשימה"
           accent="emerald"
-          icon={<ClipboardList className="h-4 w-4" style={{ color: '#10B981' }} />}
+          icon={<ClipboardList className="h-4 w-4" style={{ color: C.successBright }} />}
         >
           <Field label="שם המשימה" required>
             <Input
@@ -446,7 +447,7 @@ export default function CreateRoute() {
         <Section
           title="רכב למשימה"
           accent="blue"
-          icon={<Truck className="h-4 w-4" style={{ color: '#3B82F6' }} />}
+          icon={<Truck className="h-4 w-4" style={{ color: C.info }} />}
         >
           <Field label="בחר רכב" required>
             <VehiclePicker
@@ -461,16 +462,16 @@ export default function CreateRoute() {
           {permanentDriver && (
             <div
               className="rounded-xl px-3 py-2.5 flex items-center gap-2"
-              style={{ background: '#D1FAE5', border: '1px solid #A7F3D0' }}
+              style={{ background: C.successLight, border: `1px solid ${C.successLighter}` }}
             >
-              <UserIcon className="h-4 w-4 shrink-0" style={{ color: '#065F46' }} />
+              <UserIcon className="h-4 w-4 shrink-0" style={{ color: C.successDark }} />
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-bold" style={{ color: '#065F46' }}>נהג קבוע לרכב הזה</p>
-                <p className="text-xs truncate" style={{ color: '#0B2912' }}>{permanentDriver.display_name}</p>
+                <p className="text-[11px] font-bold" style={{ color: C.successDark }}>נהג קבוע לרכב הזה</p>
+                <p className="text-xs truncate" style={{ color: C.primaryDark }}>{permanentDriver.display_name}</p>
               </div>
               <span
                 className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
-                style={{ background: 'rgba(255,255,255,0.7)', color: '#065F46' }}
+                style={{ background: 'rgba(255,255,255,0.7)', color: C.successDark }}
               >
                 שויך אוטומטית
               </span>
@@ -482,7 +483,7 @@ export default function CreateRoute() {
         <Section
           title="שיוך נהג"
           accent="amber"
-          icon={<UserIcon className="h-4 w-4" style={{ color: '#F59E0B' }} />}
+          icon={<UserIcon className="h-4 w-4" style={{ color: C.warnIcon }} />}
         >
           <DriverPicker
             members={team}
@@ -539,8 +540,8 @@ export default function CreateRoute() {
               className="w-full py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01] active:scale-[0.99]"
               style={{
                 background: '#FFFFFF',
-                color: '#10B981',
-                border: '1.5px dashed #A7F3D0',
+                color: C.successBright,
+                border: `1.5px dashed ${C.successLighter}`,
               }}
             >
               <Plus className="h-4 w-4" />
@@ -553,35 +554,35 @@ export default function CreateRoute() {
         <SystemCard className="mb-0" padding="p-3">
           <p
             className="text-[11px] font-bold mb-2 flex items-center gap-2"
-            style={{ color: '#0B2912' }}
+            style={{ color: C.primaryDark }}
           >
             <span
               className="inline-block w-1 h-3.5 rounded-full"
-              style={{ background: 'linear-gradient(180deg, #065F46 0%, #34D399 100%)' }}
+              style={{ background: `linear-gradient(180deg, ${C.successDark} 0%, ${C.successMid} 100%)` }}
             />
             סיכום משימה
           </p>
           <div className="space-y-1.5">
             <SummaryRow
-              icon={<UserIcon className="h-3.5 w-3.5" style={{ color: '#10B981' }} />}
+              icon={<UserIcon className="h-3.5 w-3.5" style={{ color: C.successBright }} />}
               label="נהג"
               value={selectedDriver?.display_name || 'ללא שיוך'}
               missing={!selectedDriver}
             />
             <SummaryRow
-              icon={<Truck className="h-3.5 w-3.5" style={{ color: '#10B981' }} />}
+              icon={<Truck className="h-3.5 w-3.5" style={{ color: C.successBright }} />}
               label="רכב"
               value={selectedVehicle ? (selectedVehicle.nickname || selectedVehicle.license_plate) : '—'}
               missing={!selectedVehicle}
             />
             <SummaryRow
-              icon={<MapPin className="h-3.5 w-3.5" style={{ color: '#10B981' }} />}
+              icon={<MapPin className="h-3.5 w-3.5" style={{ color: C.successBright }} />}
               label="תחנות"
               value={String(populatedStopsCount || 0)}
               missing={populatedStopsCount === 0}
             />
             <SummaryRow
-              icon={<Calendar className="h-3.5 w-3.5" style={{ color: '#10B981' }} />}
+              icon={<Calendar className="h-3.5 w-3.5" style={{ color: C.successBright }} />}
               label="תאריך"
               value={scheduledFor ? formatHebrewDate(scheduledFor) : 'לא נקבע'}
               missing={!scheduledFor}
@@ -596,7 +597,7 @@ export default function CreateRoute() {
         <div
           className="sticky bottom-0 -mx-1 px-1 pt-3 pb-2 mt-2 z-10"
           style={{
-            background: 'linear-gradient(180deg, rgba(240,247,244,0) 0%, #F0F7F4 60%)',
+            background: `linear-gradient(180deg, rgba(240,247,244,0) 0%, ${C.bgSubtle} 60%)`,
           }}
         >
           <button
@@ -604,7 +605,7 @@ export default function CreateRoute() {
             disabled={submitting}
             className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-60"
             style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
               boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
             }}
@@ -625,7 +626,7 @@ function Section({ title, icon, accent, headerExtra, children }) {
   return (
     <SystemCard accent={accent} className="space-y-3">
       <div className="flex items-baseline justify-between gap-2 -mt-0.5">
-        <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: '#0B2912' }}>
+        <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: C.primaryDark }}>
           {icon}
           {title}
         </h2>

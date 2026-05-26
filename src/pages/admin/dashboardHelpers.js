@@ -15,6 +15,7 @@ import {
   format, subDays, startOfDay, parseISO, isValid,
 } from 'date-fns';
 import { he } from 'date-fns/locale';
+import { C } from '@/lib/designTokens';
 
 // Anchor for "today" used by date-range helpers. Module-evaluated once,
 // matches the previous TODAY constant in AdminDashboard.jsx.
@@ -24,9 +25,9 @@ const TODAY = new Date();
 // branding. Used by retentionColor() and by any caller that wants
 // consistent chart colors across the admin views.
 export const ADMIN_PALETTE = {
-  blue:   '#3B82F6',
-  green:  '#10B981',
-  amber:  '#F59E0B',
+  blue:   C.info,
+  green:  C.successBright,
+  amber:  C.warnIcon,
   red:    '#EF4444',
   purple: '#8B5CF6',
   teal:   '#0891B2',

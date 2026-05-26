@@ -41,6 +41,7 @@ import { listExternalDrivers, categoryShortLabel } from '@/services/drivers';
 import ExternalDriverFormDialog from '@/components/drivers/ExternalDriverFormDialog';
 import AssignDriverDialog from '@/components/drivers/AssignDriverDialog';
 import { createPageUrl } from '@/utils';
+import { C } from '@/lib/designTokens';
 
 // Visual treatment per role. Order also defines display priority.
 const ROLE_META = {
@@ -240,7 +241,7 @@ export default function Drivers() {
               type="button"
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
               style={{
-                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                 color: '#FFFFFF',
                 boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
               }}
@@ -331,15 +332,15 @@ export default function Drivers() {
 
       {isLoading ? (
         <Card className="text-center py-8">
-          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען נהגים...</p>
+          <p className="text-xs" style={{ color: C.mutedAlt }}>טוען נהגים...</p>
         </Card>
       ) : entries.length === 0 ? (
         <Card className="text-center py-12">
-          <UserPlus className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
-          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+          <UserPlus className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
+          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>
             עוד אין נהגים בחשבון
           </p>
-          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+          <p className="text-xs leading-relaxed" style={{ color: C.mutedAlt }}>
             הוסף נהג עם חשבון רשום, או רשום נהג ללא חשבון לעקיבה ושיבוץ.
           </p>
         </Card>
@@ -448,20 +449,20 @@ export default function Drivers() {
 // state uses the emerald gradient; inactive uses a soft tint of the
 // requested tone (or a neutral white/gray fallback).
 const FILTER_CHIP_INACTIVE_BY_TONE = {
-  blue:    { background: '#EFF6FF', color: '#1E40AF', borderColor: '#BFDBFE' },
-  amber:   { background: '#FFFBEB', color: '#92400E', borderColor: '#FCD34D' },
-  emerald: { background: '#ECFDF5', color: '#065F46', borderColor: '#A7F3D0' },
+  blue:    { background: C.infoSubtle, color: C.infoDark, borderColor: '#BFDBFE' },
+  amber:   { background: C.warnSubtle, color: C.warnDark, borderColor: '#FCD34D' },
+  emerald: { background: C.successSubtle, color: C.successDark, borderColor: C.successLighter },
 };
 
 function FilterChip({ active, onClick, children, tone }) {
   const inactive = FILTER_CHIP_INACTIVE_BY_TONE[tone] || {
-    background: '#FFFFFF', color: '#4B5D52', borderColor: '#E5EDE8',
+    background: '#FFFFFF', color: C.textAlt, borderColor: C.bgSage,
   };
   const style = active
     ? {
-        background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+        background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
         color: '#FFFFFF',
-        borderColor: '#065F46',
+        borderColor: C.successDark,
         boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
       }
     : inactive;
@@ -626,34 +627,34 @@ function MemberRow({ member, assignments, vehicleLabel, onAssign, onOpen }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-              <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{member.display_name}</p>
+              <p className="text-sm font-bold truncate" style={{ color: C.primaryDark }}>{member.display_name}</p>
               <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.cls}`}>
                 {meta.label}
               </span>
               <span
                 className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                style={{ background: '#EFF6FF', color: '#1E40AF' }}
+                style={{ background: C.infoSubtle, color: C.infoDark }}
               >
                 עם חשבון
               </span>
             </div>
-            <p className="text-[11px] truncate" style={{ color: '#6B7C72' }}>{member.email}</p>
+            <p className="text-[11px] truncate" style={{ color: C.mutedAlt }}>{member.email}</p>
             {member.joined_at && (
-              <p className="text-[10px] flex items-center gap-1 mt-0.5" style={{ color: '#A7B3AB' }}>
+              <p className="text-[10px] flex items-center gap-1 mt-0.5" style={{ color: C.borderAlt }}>
                 <Calendar className="h-3 w-3" />
                 תאריך הצטרפות: {fmtDate(member.joined_at)}
               </p>
             )}
 
             {assignments.length > 0 && (
-              <div className="mt-2 pt-2" style={{ borderTop: '1px solid #E5EDE8' }}>
-                <p className="text-[10px] font-bold mb-1" style={{ color: '#6B7C72' }}>רכבים מוקצים</p>
+              <div className="mt-2 pt-2" style={{ borderTop: `1px solid ${C.bgSage}` }}>
+                <p className="text-[10px] font-bold mb-1" style={{ color: C.mutedAlt }}>רכבים מוקצים</p>
                 <div className="flex flex-wrap gap-1">
                   {assignments.map(a => (
                     <span
                       key={a.id}
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px]"
-                      style={{ background: '#F0F7F4', color: '#0B2912' }}
+                      style={{ background: C.bgSubtle, color: C.primaryDark }}
                     >
                       <Truck className="h-3 w-3" />
                       {vehicleLabel(a.vehicle_id)}
@@ -669,7 +670,7 @@ function MemberRow({ member, assignments, vehicleLabel, onAssign, onOpen }) {
               onClick={onAssign}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:scale-[1.03] active:scale-[0.97]"
               style={{
-                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                 color: '#FFFFFF',
                 boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
               }}
@@ -678,7 +679,7 @@ function MemberRow({ member, assignments, vehicleLabel, onAssign, onOpen }) {
               שייך רכב
             </button>
           </div>
-          <ChevronLeft className="h-4 w-4 shrink-0 mt-2" style={{ color: '#A7B3AB' }} />
+          <ChevronLeft className="h-4 w-4 shrink-0 mt-2" style={{ color: C.borderAlt }} />
         </div>
       </Card>
     </li>
@@ -710,23 +711,23 @@ function ExternalDriverRow({ driver, assignments, vehicleLabel, onAssign, onOpen
         <div className="flex items-start gap-3">
           <div
             className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
-            style={{ background: '#FFFBEB', color: '#92400E' }}
+            style={{ background: C.warnSubtle, color: C.warnDark }}
           >
             <IdCard className="h-4 w-4" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-              <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{driver.full_name}</p>
+              <p className="text-sm font-bold truncate" style={{ color: C.primaryDark }}>{driver.full_name}</p>
               <span
                 className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                style={{ background: '#FFFBEB', color: '#92400E' }}
+                style={{ background: C.warnSubtle, color: C.warnDark }}
               >
                 ללא חשבון
               </span>
               {expired && (
                 <span
                   className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                  style={{ background: '#FEE2E2', color: '#991B1B' }}
+                  style={{ background: C.errorLight, color: C.errorDark }}
                 >
                   רישיון פג
                 </span>
@@ -734,14 +735,14 @@ function ExternalDriverRow({ driver, assignments, vehicleLabel, onAssign, onOpen
               {!expired && expiringSoon && (
                 <span
                   className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                  style={{ background: '#FEF3C7', color: '#92400E' }}
+                  style={{ background: C.warnBg, color: C.warnDark }}
                 >
                   רישיון פוגג
                 </span>
               )}
             </div>
-            <p className="text-[11px] flex items-center gap-1 truncate" dir="ltr" style={{ color: '#6B7C72' }}>
-              <Phone className="h-3 w-3 shrink-0" style={{ color: '#A7B3AB' }} />
+            <p className="text-[11px] flex items-center gap-1 truncate" dir="ltr" style={{ color: C.mutedAlt }}>
+              <Phone className="h-3 w-3 shrink-0" style={{ color: C.borderAlt }} />
               <span className="truncate">{driver.phone}</span>
             </p>
             {Array.isArray(driver.license_categories) && driver.license_categories.length > 0 && (
@@ -750,33 +751,33 @@ function ExternalDriverRow({ driver, assignments, vehicleLabel, onAssign, onOpen
                   <span
                     key={c}
                     className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px]"
-                    style={{ background: '#F0F7F4', color: '#0B2912' }}
+                    style={{ background: C.bgSubtle, color: C.primaryDark }}
                   >
                     {categoryShortLabel(c)}
                   </span>
                 ))}
                 {driver.license_categories.length > 6 && (
-                  <span className="text-[10px]" style={{ color: '#A7B3AB' }}>
+                  <span className="text-[10px]" style={{ color: C.borderAlt }}>
                     +{driver.license_categories.length - 6}
                   </span>
                 )}
               </div>
             )}
             {expDate && (
-              <p className="text-[10px] mt-0.5" style={{ color: '#A7B3AB' }}>
+              <p className="text-[10px] mt-0.5" style={{ color: C.borderAlt }}>
                 רישיון תקף עד: {fmtDate(expDate)}
               </p>
             )}
 
             {assignments.length > 0 && (
-              <div className="mt-2 pt-2" style={{ borderTop: '1px solid #E5EDE8' }}>
-                <p className="text-[10px] font-bold mb-1" style={{ color: '#6B7C72' }}>רכבים מוקצים</p>
+              <div className="mt-2 pt-2" style={{ borderTop: `1px solid ${C.bgSage}` }}>
+                <p className="text-[10px] font-bold mb-1" style={{ color: C.mutedAlt }}>רכבים מוקצים</p>
                 <div className="flex flex-wrap gap-1">
                   {assignments.map(a => (
                     <span
                       key={a.id}
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px]"
-                      style={{ background: '#F0F7F4', color: '#0B2912' }}
+                      style={{ background: C.bgSubtle, color: C.primaryDark }}
                     >
                       <Truck className="h-3 w-3" />
                       {vehicleLabel(a.vehicle_id)}
@@ -792,7 +793,7 @@ function ExternalDriverRow({ driver, assignments, vehicleLabel, onAssign, onOpen
               onClick={onAssign}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:scale-[1.03] active:scale-[0.97]"
               style={{
-                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                 color: '#FFFFFF',
                 boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
               }}
@@ -801,7 +802,7 @@ function ExternalDriverRow({ driver, assignments, vehicleLabel, onAssign, onOpen
               שייך רכב
             </button>
           </div>
-          <ChevronLeft className="h-4 w-4 shrink-0 mt-2" style={{ color: '#A7B3AB' }} />
+          <ChevronLeft className="h-4 w-4 shrink-0 mt-2" style={{ color: C.borderAlt }} />
         </div>
       </Card>
     </li>

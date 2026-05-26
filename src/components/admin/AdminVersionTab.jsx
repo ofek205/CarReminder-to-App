@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Cell } from 'recharts';
+import { C } from '@/lib/designTokens';
 
 /**
  * AdminVersionTab — version update management panel.
@@ -33,7 +34,7 @@ const PLATFORMS = [
     icon: Smartphone,
     configLatest: 'android_latest_version',
     configMin: 'android_min_version',
-    color: '#10B981',
+    color: C.successBright,
     storeName: 'Google Play',
   },
   {
@@ -42,7 +43,7 @@ const PLATFORMS = [
     icon: Apple,
     configLatest: 'ios_latest_version',
     configMin: 'ios_min_version',
-    color: '#3B82F6',
+    color: C.info,
     storeName: 'App Store',
   },
 ];
@@ -336,16 +337,16 @@ export default function AdminVersionTab() {
                   }))}
                   margin={{ top: 8, right: 8, left: 0, bottom: 4 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={C.gray100} />
                   <XAxis
                     dataKey="name"
-                    tick={{ fontSize: 10, fill: '#6B7280' }}
+                    tick={{ fontSize: 10, fill: C.gray500 }}
                     tickLine={false}
-                    axisLine={{ stroke: '#E5E7EB' }}
+                    axisLine={{ stroke: C.gray200 }}
                   />
                   <YAxis
                     allowDecimals={false}
-                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                    tick={{ fontSize: 10, fill: C.gray400 }}
                     tickLine={false}
                     axisLine={false}
                     width={30}
@@ -353,7 +354,7 @@ export default function AdminVersionTab() {
                   <Tooltip
                     contentStyle={{
                       borderRadius: 12,
-                      border: '1px solid #E5E7EB',
+                      border: `1px solid ${C.gray200}`,
                       fontSize: 11,
                       boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                     }}
@@ -363,7 +364,7 @@ export default function AdminVersionTab() {
                     {distribution.map((d, i) => (
                       <Cell
                         key={i}
-                        fill={d.platform === 'ios' ? '#3B82F6' : '#10B981'}
+                        fill={d.platform === 'ios' ? C.info : C.successBright}
                         fillOpacity={0.85}
                       />
                     ))}
@@ -390,8 +391,8 @@ export default function AdminVersionTab() {
                         <span
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
                           style={{
-                            background: d.platform === 'ios' ? '#DBEAFE' : '#D1FAE5',
-                            color: d.platform === 'ios' ? '#1D4ED8' : '#065F46',
+                            background: d.platform === 'ios' ? C.infoBg : C.successLight,
+                            color: d.platform === 'ios' ? '#1D4ED8' : C.successDark,
                           }}
                         >
                           {d.platform === 'ios' ? 'iOS' : 'Android'}

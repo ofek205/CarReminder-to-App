@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, History, RotateCcw, ChevronLeft } from 'lucide-react';
 import { useTemplateVersions, useRevertToVersion } from '@/hooks/useEmailAdmin';
 import { toast } from 'sonner';
+import { C } from '@/lib/designTokens';
 
 /**
  * VersionHistoryDialog. list of auto-snapshots for a template. Admin
@@ -56,7 +57,7 @@ export default function VersionHistoryDialog({ template, open, onClose }) {
                   className={`w-full text-right p-3 mb-2 rounded-xl border transition ${
                     selected?.id === v.id ? 'border-green-600 bg-green-50' : 'border-gray-200 bg-white hover:bg-gray-50'
                   }`}>
-                  <div className="text-xs font-bold" style={{ color: '#1C2E20' }}>
+                  <div className="text-xs font-bold" style={{ color: C.text }}>
                     {new Date(v.created_at).toLocaleDateString('he-IL', { dateStyle: 'medium' })}
                   </div>
                   <div className="text-[11px] text-gray-500">
@@ -97,7 +98,7 @@ export default function VersionHistoryDialog({ template, open, onClose }) {
             onClick={() => selected && handleRevert(selected)}
             disabled={!selected || revert.isPending}
             className="rounded-xl gap-2"
-            style={{ background: '#2D5233', color: 'white' }}>
+            style={{ background: C.primary, color: 'white' }}>
             {revert.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
             שחזור לגרסה זו
           </Button>

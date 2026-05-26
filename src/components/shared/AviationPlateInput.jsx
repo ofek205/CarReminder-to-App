@@ -1,4 +1,5 @@
 import React from 'react';
+import { C } from '@/lib/designTokens';
 
 // AviationPlateInput — free-form identifier for Israeli civil aircraft.
 //
@@ -38,7 +39,7 @@ export default function AviationPlateInput({ value, onChange, onEnter, disabled,
     <div className="space-y-1.5">
       <div
         className="relative border-2 rounded-2xl overflow-hidden shadow-sm h-14 bg-white cursor-text"
-        style={{ borderColor: '#2D5233' }}
+        style={{ borderColor: C.primary }}
         dir="ltr"
         onClick={focusInput}
       >

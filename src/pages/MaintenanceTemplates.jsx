@@ -517,11 +517,11 @@ function MaintenanceRow({ item, isLast, userId, lastDoneDate, onEdit, onQueryInv
           <span className="text-sm font-bold truncate" style={{ color: C.text }}>{item.name}</span>
           {item.service_size === 'small' && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
-              style={{ background: '#DBEAFE', color: '#1E40AF' }}>טיפול קטן</span>
+              style={{ background: C.infoBg, color: C.infoDark }}>טיפול קטן</span>
           )}
           {item.service_size === 'big' && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
-              style={{ background: '#FEF3C7', color: '#92400E' }}>טיפול גדול</span>
+              style={{ background: C.warnBg, color: C.warnDark }}>טיפול גדול</span>
           )}
           {item.is_custom && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
@@ -678,7 +678,7 @@ function MaintenanceEditorSheet({ item, open, onClose, userId }) {
             {item.name}
             {item.is_custom && (
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                style={{ background: '#FEF3C7', color: '#92400E' }}>אישי</span>
+                style={{ background: C.warnBg, color: C.warnDark }}>אישי</span>
             )}
           </SheetTitle>
           {item.vehicle_type && !item.is_custom && (
@@ -964,16 +964,16 @@ function LastDoneLine({ lastDoneDate, intervalMonths, enabled }) {
   else                     timeAgo = `לפני ${Math.round(daysSince / 365)} שנים`;
 
   // Compute next-due only if an interval is configured.
-  let colour = '#6B7280';
+  let colour = C.gray500;
   let urgency = null;
   if (intervalMonths && enabled) {
     const daysInterval = intervalMonths * 30;
     const daysLeft = daysInterval - daysSince;
     if (daysLeft < 0) {
-      colour = '#DC2626';
+      colour = C.error;
       urgency = `באיחור ${-daysLeft} ימים`;
     } else if (daysLeft <= 30) {
-      colour = '#D97706';
+      colour = C.warn;
       urgency = `עוד ${daysLeft} ימים`;
     }
   }

@@ -32,8 +32,8 @@ import { getAuthorizedGarageMatcher } from '@/lib/authorizedGarages';
 const TYPE_CONFIG = {
   garage: {
     label: 'מוסך',
-    color: '#2D5233',
-    bg: '#E8F5E9',
+    color: C.primary,
+    bg: C.successBg,
     border: '#A5D6A7',
     // wrench SVG
     svg: `<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>`,
@@ -760,7 +760,7 @@ export default function FindGarage() {
           {locationDenied && (
             <div className="mb-2 rounded-lg px-3 py-2 flex items-start gap-2"
               style={{ background: 'rgba(255,191,0,0.15)', border: '1px solid rgba(255,191,0,0.3)' }}>
-              <MapPinOff className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#FFBF00' }} />
+              <MapPinOff className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.yellow }} />
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] font-bold text-white">הרשאת מיקום חסרה</p>
                 <p className="text-[10px] leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>
@@ -893,8 +893,8 @@ export default function FindGarage() {
           <div
             className="rounded-xl p-2.5"
             style={{
-              background: '#ECFDF5',
-              border: '1px solid #A7F3D0',
+              background: C.successSubtle,
+              border: `1px solid ${C.successLighter}`,
             }}
           >
             {/* Header — shield icon + scope label + freshness caption.
@@ -902,14 +902,14 @@ export default function FindGarage() {
                 registry filter". */}
             <div className="flex items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-1.5 min-w-0">
-                <ShieldCheck className="w-3.5 h-3.5 shrink-0" style={{ color: '#065F46' }} />
-                <span className="text-[11px] font-bold truncate" style={{ color: '#065F46' }}>
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" style={{ color: C.successDark }} />
+                <span className="text-[11px] font-bold truncate" style={{ color: C.successDark }}>
                   רישוי במשרד התחבורה
                 </span>
               </div>
               <span
                 className="text-[9px] font-medium shrink-0 px-1.5 py-0.5 rounded-full"
-                style={{ background: 'rgba(6,95,70,0.08)', color: '#065F46' }}
+                style={{ background: 'rgba(6,95,70,0.08)', color: C.successDark }}
               >
                 מתעדכן יומית
               </span>
@@ -922,21 +922,21 @@ export default function FindGarage() {
                   key: 'all', label: 'הכל',
                   count: authCounts.all,
                   activeBg: '#0F2A1C', activeFg: '#FFFFFF',
-                  idleBg: '#FFFFFF',   idleFg: '#4B5D52',  idleBorder: '#A7F3D0',
+                  idleBg: '#FFFFFF',   idleFg: C.textAlt,  idleBorder: C.successLighter,
                 },
                 {
                   key: 'authorized', label: 'מורשה',
                   count: authCounts.authorized,
                   // Emerald gradient — same family as the rest of the app.
-                  activeBg: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                  activeBg: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                   activeFg: '#FFFFFF',
-                  idleBg: '#FFFFFF', idleFg: '#065F46', idleBorder: '#A7F3D0',
+                  idleBg: '#FFFFFF', idleFg: C.successDark, idleBorder: C.successLighter,
                 },
                 {
                   key: 'unauthorized', label: 'לא ברישום',
                   count: authCounts.unauthorized,
-                  activeBg: '#991B1B', activeFg: '#FFFFFF',
-                  idleBg: '#FFFFFF',  idleFg: '#991B1B', idleBorder: '#FECACA',
+                  activeBg: C.errorDark, activeFg: '#FFFFFF',
+                  idleBg: '#FFFFFF',  idleFg: C.errorDark, idleBorder: C.errorBorder,
                 },
               ].map(p => {
                 const active = authFilter === p.key;
@@ -1106,13 +1106,13 @@ export default function FindGarage() {
               }}
             >
               <MapPin className="w-3.5 h-3.5" style={{ color: C.primary }} />
-              <span className="text-[13px] font-bold" style={{ color: '#1C2E20', fontVariantNumeric: 'tabular-nums' }}>
+              <span className="text-[13px] font-bold" style={{ color: C.text, fontVariantNumeric: 'tabular-nums' }}>
                 {(searchRadius / 1000).toFixed(0)} ק&quot;מ
               </span>
               <ChevronUp
                 className="w-3.5 h-3.5 transition-transform"
                 style={{
-                  color: '#9CA3AF',
+                  color: C.gray400,
                   transform: radiusPanelOpen ? 'rotate(0deg)' : 'rotate(180deg)',
                 }}
               />
@@ -1146,14 +1146,14 @@ export default function FindGarage() {
                   onChange={e => setSearchRadius(Number(e.target.value))}
                   className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
                   style={{
-                    background: `linear-gradient(to left, ${C.primary} ${((searchRadius - RADIUS_MIN) / (RADIUS_MAX - RADIUS_MIN)) * 100}%, #E5E7EB ${((searchRadius - RADIUS_MIN) / (RADIUS_MAX - RADIUS_MIN)) * 100}%)`,
+                    background: `linear-gradient(to left, ${C.primary} ${((searchRadius - RADIUS_MIN) / (RADIUS_MAX - RADIUS_MIN)) * 100}%, ${C.gray200} ${((searchRadius - RADIUS_MIN) / (RADIUS_MAX - RADIUS_MIN)) * 100}%)`,
                     accentColor: C.primary,
                   }}
                   aria-label="גרור לשינוי רדיוס חיפוש"
                 />
                 <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-[10px]" style={{ color: '#9CA3AF', fontVariantNumeric: 'tabular-nums' }}>{RADIUS_MIN / 1000} ק&quot;מ</span>
-                  <span className="text-[10px]" style={{ color: '#9CA3AF', fontVariantNumeric: 'tabular-nums' }}>{RADIUS_MAX / 1000} ק&quot;מ</span>
+                  <span className="text-[10px]" style={{ color: C.gray400, fontVariantNumeric: 'tabular-nums' }}>{RADIUS_MIN / 1000} ק&quot;מ</span>
+                  <span className="text-[10px]" style={{ color: C.gray400, fontVariantNumeric: 'tabular-nums' }}>{RADIUS_MAX / 1000} ק&quot;מ</span>
                 </div>
               </div>
             )}
@@ -1207,7 +1207,7 @@ export default function FindGarage() {
                 : 'bottom-3 right-3 w-10 h-10 rounded-full'
             }`}
             style={{
-              background: mapFullscreen ? '#DC2626' : '#fff',
+              background: mapFullscreen ? C.error : '#fff',
               border: mapFullscreen ? '2px solid rgba(255,255,255,0.95)' : `1.5px solid ${C.border}`,
               boxShadow: mapFullscreen
                 ? '0 8px 24px rgba(220,38,38,0.5)'
@@ -1265,13 +1265,13 @@ export default function FindGarage() {
           {/* Initial fetch skeleton. Overpass API can take 5-10s */}
           {fetching && displayGarages.length === 0 && (
             <div className="space-y-2.5" aria-live="polite" aria-busy="true">
-              <div className="text-center py-4 px-4 rounded-2xl" style={{ background: '#FFF8E1', border: '1.5px solid #FDE68A' }}>
-                <Loader2 className="w-5 h-5 animate-spin mx-auto mb-1.5" style={{ color: '#D97706' }} />
-                <p className="text-xs font-bold" style={{ color: '#92400E' }}>מחפש מוסכים באזור...</p>
-                <p className="text-[10px] mt-1" style={{ color: '#B45309' }}>החיפוש הראשוני עשוי לקחת מספר שניות</p>
+              <div className="text-center py-4 px-4 rounded-2xl" style={{ background: C.yellowSoft, border: `1.5px solid ${C.warnBorder}` }}>
+                <Loader2 className="w-5 h-5 animate-spin mx-auto mb-1.5" style={{ color: C.warn }} />
+                <p className="text-xs font-bold" style={{ color: C.warnDark }}>מחפש מוסכים באזור...</p>
+                <p className="text-[10px] mt-1" style={{ color: C.warnMid }}>החיפוש הראשוני עשוי לקחת מספר שניות</p>
               </div>
               {[0,1,2,3].map(i => (
-                <div key={i} className="rounded-2xl p-3 flex items-center gap-3 animate-pulse" style={{ background: '#fff', border: '1px solid #E5E7EB' }}>
+                <div key={i} className="rounded-2xl p-3 flex items-center gap-3 animate-pulse" style={{ background: '#fff', border: `1px solid ${C.gray200}` }}>
                   <div className="w-10 h-10 rounded-xl bg-gray-200" />
                   <div className="flex-1 space-y-2">
                     <div className="h-3 rounded bg-gray-200" style={{ width: '60%' }} />
@@ -1349,7 +1349,7 @@ export default function FindGarage() {
                           {g.authStatus === 'authorized' && (
                             <span
                               className="text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-flex items-center gap-1"
-                              style={{ background: '#D1FAE5', color: '#065F46' }}
+                              style={{ background: C.successLight, color: C.successDark }}
                               title="מופיע ברישום משרד התחבורה"
                             >
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

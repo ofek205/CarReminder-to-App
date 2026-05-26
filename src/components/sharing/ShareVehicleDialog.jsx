@@ -45,8 +45,8 @@ const VEHICLE_ROLES = [
     label: 'עורך',
     description: 'מוסיף ועורך הכל, חוץ ממחיקת הרכב',
     icon: Edit,
-    color: '#2D5233',
-    bg: '#E8F5E9',
+    color: C.primary,
+    bg: C.successBg,
   },
   {
     value: 'viewer',
@@ -65,15 +65,15 @@ const ACCOUNT_ROLES = [
     description: 'מוסיף ועורך הכל, חוץ ממחיקת רכבים וניהול חברים',
     icon: Shield,
     color: '#2563EB',
-    bg: '#DBEAFE',
+    bg: C.infoBg,
   },
   {
     value: 'שותף',
     label: 'שותף צופה',
     description: 'צפייה בלבד, ללא עריכה או מחיקה',
     icon: Eye,
-    color: '#6B7280',
-    bg: '#F3F4F6',
+    color: C.gray500,
+    bg: C.gray100,
   },
 ];
 
@@ -260,13 +260,13 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
         {!shareResult ? (
           <div className="space-y-5 pt-2">
             {/* Mode toggle */}
-            <div className="flex rounded-2xl p-1" style={{ background: '#F3F4F6' }}>
+            <div className="flex rounded-2xl p-1" style={{ background: C.gray100 }}>
               <button type="button"
                 onClick={() => switchMode('vehicle')}
                 className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all"
                 style={{
                   background: !isAccountMode ? 'white' : 'transparent',
-                  color: !isAccountMode ? C.primary : '#6B7280',
+                  color: !isAccountMode ? C.primary : C.gray500,
                   boxShadow: !isAccountMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                 }}>
                 <Share2 className="w-4 h-4" />
@@ -277,7 +277,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                 className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all"
                 style={{
                   background: isAccountMode ? 'white' : 'transparent',
-                  color: isAccountMode ? C.primary : '#6B7280',
+                  color: isAccountMode ? C.primary : C.gray500,
                   boxShadow: isAccountMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                 }}>
                 <Users className="w-4 h-4" />
@@ -299,16 +299,16 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                       onClick={() => setRole(opt.value)}
                       className="w-full rounded-2xl p-4 text-right transition-all border-2 flex items-start gap-3"
                       style={{
-                        borderColor: active ? opt.color : '#E5E7EB',
-                        background: active ? opt.bg : '#FAFAFA',
+                        borderColor: active ? opt.color : C.gray200,
+                        background: active ? opt.bg : C.grayBg,
                       }}>
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
-                        style={{ background: active ? `${opt.color}20` : '#F3F4F6' }}>
+                        style={{ background: active ? `${opt.color}20` : C.gray100 }}>
                         <Icon className="w-5 h-5" style={{ color: opt.color }} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm" style={{ color: active ? opt.color : '#374151' }}>{opt.label}</p>
-                        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: '#6B7280' }}>{opt.description}</p>
+                        <p className="font-bold text-sm" style={{ color: active ? opt.color : C.gray700 }}>{opt.label}</p>
+                        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: C.gray500 }}>{opt.description}</p>
                       </div>
                       {active && (
                         <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-1"
@@ -336,7 +336,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                   dir="ltr"
                   autoFocus
                   className="w-full h-11 pr-9 pl-3 rounded-xl border text-sm font-medium outline-none transition-all focus:ring-2"
-                  style={{ background: '#fff', borderColor: '#E5E7EB', color: '#1F2937', '--tw-ring-color': C.primary }}
+                  style={{ background: '#fff', borderColor: C.gray200, color: C.gray800, '--tw-ring-color': C.primary }}
                 />
               </div>
               <p className="text-[11px] text-gray-400 mt-1.5">
@@ -361,9 +361,9 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                         onClick={() => setEmail(r.email)}
                         className="text-[11px] font-medium px-2.5 py-1 rounded-full transition-all active:scale-95"
                         style={{
-                          background: email === r.email ? C.light : '#F9FAFB',
-                          color: email === r.email ? C.primary : '#374151',
-                          border: `1px solid ${email === r.email ? C.primary + '60' : '#E5E7EB'}`,
+                          background: email === r.email ? C.light : C.gray50,
+                          color: email === r.email ? C.primary : C.gray700,
+                          border: `1px solid ${email === r.email ? C.primary + '60' : C.gray200}`,
                         }}>
                         {r.email}
                       </button>
@@ -402,7 +402,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
               // No manual share buttons needed; just confirm and close.
               // Showing the recipient's name closes the loop ("did it
               // really go to that person?").
-              <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: '#E8F5E9', border: '1.5px solid #A5D6A7' }}>
+              <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.successBg, border: '1.5px solid #A5D6A7' }}>
                 <Check className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#2E7D32' }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold" style={{ color: '#1B5E20' }}>
@@ -418,14 +418,14 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: '#FFF8E1', border: '1.5px solid #FDE68A' }}>
-                <UserPlus className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#B45309' }} />
+              <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.yellowSoft, border: `1.5px solid ${C.warnBorder}` }}>
+                <UserPlus className="w-5 h-5 shrink-0 mt-0.5" style={{ color: C.warnMid }} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold" style={{ color: '#92400E' }}>המייל הזה לא רשום אצלנו עדיין</p>
-                  <p className="text-xs mt-1 leading-relaxed" style={{ color: '#B45309' }}>
+                  <p className="text-sm font-bold" style={{ color: C.warnDark }}>המייל הזה לא רשום אצלנו עדיין</p>
+                  <p className="text-xs mt-1 leading-relaxed" style={{ color: C.warnMid }}>
                     שלחנו מייל עם קישור הצטרפות. <strong>הוא יצטרך להירשם תחילה</strong> (עם אותה כתובת מייל). אחרי ההרשמה ההזמנה תחכה לו ויוכל לאשר אותה.
                   </p>
-                  <p className="text-[11px] mt-1.5" style={{ color: '#B45309' }}>
+                  <p className="text-[11px] mt-1.5" style={{ color: C.warnMid }}>
                     אפשר גם לשתף את הקישור ב־WhatsApp או להעתיק כדי לזרז.
                   </p>
                 </div>
@@ -445,9 +445,9 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                     <div className="flex-1 min-w-0 rounded-xl border px-3 py-2 text-[10px] font-mono break-all leading-relaxed"
                       dir="ltr"
                       style={{
-                        background: '#F9FAFB',
-                        borderColor: '#E5E7EB',
-                        color: '#374151',
+                        background: C.gray50,
+                        borderColor: C.gray200,
+                        color: C.gray700,
                         maxHeight: '64px',
                         overflowY: 'auto',
                       }}>
@@ -498,11 +498,11 @@ async function sendShareEmail(toEmail, inviteToken) {
       subject: 'הזמנה לשיתוף רכב ב-CarReminder',
       html: `
         <div dir="rtl" style="font-family: Arial, sans-serif; padding: 16px;">
-          <h2 style="color: #2D5233;">הוזמנת לשיתוף רכב</h2>
+          <h2 style="color: ${C.primary};">הוזמנת לשיתוף רכב</h2>
           <p>מישהו שיתף איתך רכב ב-CarReminder.</p>
           <p>לחץ על הקישור כדי לאשר את השיתוף ולהוסיף את הרכב לרשימה שלך:</p>
-          <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background: #2D5233; color: white; text-decoration: none; border-radius: 12px; font-weight: bold;">פתח אישור שיתוף</a></p>
-          <p style="color: #6B7280; font-size: 13px;">הקישור תקף ל-7 ימים.</p>
+          <p><a href="${link}" style="display: inline-block; padding: 12px 24px; background: ${C.primary}; color: white; text-decoration: none; border-radius: 12px; font-weight: bold;">פתח אישור שיתוף</a></p>
+          <p style="color: ${C.gray500}; font-size: 13px;">הקישור תקף ל-7 ימים.</p>
         </div>
       `,
     });

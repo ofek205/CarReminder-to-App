@@ -35,16 +35,17 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { isToday } from 'date-fns';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import { C } from '@/lib/designTokens';
 
 const THEME = {
   primary:   '#0C7B93',
   grad:      'linear-gradient(135deg, #065A6E 0%, #0C7B93 100%)',
   done:      '#059669',
-  doneTint:  '#D1FAE5',
-  issue:     '#DC2626',
-  issueTint: '#FEE2E2',
-  skip:      '#6B7280',
-  skipTint:  '#F3F4F6',
+  doneTint:  C.successLight,
+  issue:     C.error,
+  issueTint: C.errorLight,
+  skip:      C.gray500,
+  skipTint:  C.gray100,
 };
 
 const SAVE_DEBOUNCE_MS = 1500;
@@ -540,14 +541,14 @@ function ItemRow({ item, onDone, onIssue, onSkip }) {
 
   const rowBg =
     status === 'done'  ? '#F0FDF4' :
-    status === 'issue' ? '#FEF2F2' :
-    status === 'skip'  ? '#F9FAFB' :
+    status === 'issue' ? C.errorBg :
+    status === 'skip'  ? C.gray50 :
     '#FFFFFF';
   const rowBorder =
     status === 'done'  ? '#BBF7D0' :
-    status === 'issue' ? '#FECACA' :
-    status === 'skip'  ? '#E5E7EB' :
-    '#E5E7EB';
+    status === 'issue' ? C.errorBorder :
+    status === 'skip'  ? C.gray200 :
+    C.gray200;
 
   return (
     <div className="rounded-xl p-3 border transition-all"
@@ -597,8 +598,8 @@ function ActionChip({ active, activeColor, activeBg, icon: Icon, label, onClick 
       className="flex-1 h-9 rounded-lg flex items-center justify-center gap-1 text-xs font-bold transition-all active:scale-95"
       style={{
         background: active ? activeBg : 'white',
-        color: active ? activeColor : '#6B7280',
-        border: `1.5px solid ${active ? activeColor : '#E5E7EB'}`,
+        color: active ? activeColor : C.gray500,
+        border: `1.5px solid ${active ? activeColor : C.gray200}`,
       }}>
       <Icon className="w-3.5 h-3.5" strokeWidth={2.5} />
       {label}

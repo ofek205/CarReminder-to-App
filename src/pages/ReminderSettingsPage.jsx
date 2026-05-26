@@ -100,11 +100,11 @@ function GuestReminderSettings({ embedded = false }) {
   return (
     <div className="px-4 pb-20" dir="rtl">
       <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
-        style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
+        style={{ background: `linear-gradient(135deg, ${C.warnBg}, ${C.yellowSoft})`, border: `1.5px solid ${C.warnBorder}` }}>
         <span className="text-lg">🔒</span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold" style={{ color: '#92400E' }}>הגדרות זמניות</p>
-          <p className="text-xs" style={{ color: '#B45309' }}>
+          <p className="text-sm font-bold" style={{ color: C.warnDark }}>הגדרות זמניות</p>
+          <p className="text-xs" style={{ color: C.warnMid }}>
             נשמרות במכשיר בלבד.{' '}
             <button onClick={() => window.location.href = '/Auth'} className="underline font-bold">הירשם לשמירה קבועה</button>
           </p>
@@ -116,24 +116,24 @@ function GuestReminderSettings({ embedded = false }) {
       {showGuestSignup && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
-            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: '#FFF8E1' }}>
+            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: C.yellowSoft }}>
               <span className="text-2xl">🔒</span>
             </div>
             <h2 className="text-lg font-bold text-gray-900">הירשם כדי לשמור</h2>
-            <p className="text-sm" style={{ color: '#6B7280' }}>
+            <p className="text-sm" style={{ color: C.gray500 }}>
               הרשמה בחינם - ותוכל לשמור הגדרות, לקבל תזכורות אמיתיות ולגשת מכל מכשיר
             </p>
             <button
               onClick={() => { window.location.href = '/Auth'; }}
               className="w-full h-12 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-              style={{ background: '#FFBF00', color: '#2D5233' }}
+              style={{ background: C.yellow, color: C.primary }}
             >
               הירשם בחינם
             </button>
             <button
               onClick={() => setShowGuestSignup(false)}
               className="w-full text-xs py-1 font-medium"
-              style={{ color: '#D1D5DB' }}
+              style={{ color: C.gray300 }}
             >
               חזרה
             </button>
@@ -306,23 +306,23 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
       {isNative && (
         <div className="rounded-2xl p-4 mb-5 flex items-center justify-between"
           style={{
-            background: devicePermission ? '#F0FDF4' : '#FEF3C7',
-            border: `1.5px solid ${devicePermission ? '#BBF7D0' : '#FDE68A'}`,
+            background: devicePermission ? '#F0FDF4' : C.warnBg,
+            border: `1.5px solid ${devicePermission ? '#BBF7D0' : C.warnBorder}`,
           }}>
           <div className="flex items-center gap-3">
-            <Smartphone className="w-5 h-5" style={{ color: devicePermission ? '#16A34A' : '#D97706' }} />
+            <Smartphone className="w-5 h-5" style={{ color: devicePermission ? '#16A34A' : C.warn }} />
             <div>
-              <p className="font-bold text-sm" style={{ color: devicePermission ? '#166534' : '#92400E' }}>
+              <p className="font-bold text-sm" style={{ color: devicePermission ? '#166534' : C.warnDark }}>
                 {devicePermission ? 'התראות במכשיר פעילות' : 'התראות במכשיר כבויות'}
               </p>
-              <p className="text-xs" style={{ color: devicePermission ? '#16A34A' : '#D97706' }}>
+              <p className="text-xs" style={{ color: devicePermission ? '#16A34A' : C.warn }}>
                 {devicePermission ? 'תקבל התראות push למכשיר' : 'לחץ להפעיל'}
               </p>
             </div>
           </div>
           {!devicePermission && (
             <Button onClick={handleRequestPermission} size="sm"
-              className="rounded-xl font-bold" style={{ background: '#D97706', color: 'white' }}>
+              className="rounded-xl font-bold" style={{ background: C.warn, color: 'white' }}>
               הפעל
             </Button>
           )}
@@ -345,22 +345,22 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
               <div key={cat.key}
                 className="rounded-2xl p-3.5 transition-all"
                 style={{
-                  background: active ? '#F0FDF4' : '#FAFAFA',
-                  border: `1.5px solid ${active ? '#BBF7D0' : '#E5E7EB'}`,
+                  background: active ? '#F0FDF4' : C.grayBg,
+                  border: `1.5px solid ${active ? '#BBF7D0' : C.gray200}`,
                 }}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     <span className="text-lg leading-none mt-0.5">{cat.emoji}</span>
                     <div className="min-w-0">
-                      <p className="font-bold text-sm" style={{ color: active ? '#166534' : '#6B7280' }}>{cat.label}</p>
-                      <p className="text-[11px] mt-0.5" style={{ color: '#9CA3AF' }}>{cat.description}</p>
+                      <p className="font-bold text-sm" style={{ color: active ? '#166534' : C.gray500 }}>{cat.label}</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: C.gray400 }}>{cat.description}</p>
                     </div>
                   </div>
                   <Switch checked={active} onCheckedChange={() => toggleType(cat.key)} />
                 </div>
                 {active && (
                   <div className="mt-3 pt-3 border-t flex items-center justify-between gap-3"
-                    style={{ borderColor: '#D1FAE5' }}>
+                    style={{ borderColor: C.successLight }}>
                     <span className="text-[11px] font-bold" style={{ color: '#166534' }}>
                       להזכיר מראש:
                     </span>
@@ -373,7 +373,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
                         onChange={e => setForm(f => ({ ...f, [cat.timing]: e.target.value }))}
                         dir="ltr"
                         className="w-14 h-9 text-center font-bold text-sm rounded-lg outline-none focus:ring-2 focus:ring-[#3A7D44]/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        style={{ background: '#fff', color: '#2D5233', border: '1.5px solid #BBF7D0' }}
+                        style={{ background: '#fff', color: C.primary, border: '1.5px solid #BBF7D0' }}
                       />
                       <span className="text-[11px] font-bold" style={{ color: '#166534' }}>ימים לפני</span>
                     </div>
@@ -387,7 +387,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
 
       {/*  Overdue repeat  */}
       <div className="mb-5 rounded-2xl p-3.5 flex items-center justify-between gap-3"
-        style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA' }}>
+        style={{ background: C.orangeBg, border: '1.5px solid #FED7AA' }}>
         <div className="flex items-center gap-3 min-w-0">
           <span className="text-lg">🔁</span>
           <div>
@@ -413,7 +413,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
       {/*  Notification time + quiet hours  */}
       <div className="mb-5">
         <h2 className="font-bold text-base text-gray-900 mb-3">תזמון</h2>
-        <div className="rounded-2xl overflow-hidden" style={{ border: '1.5px solid #E5E7EB' }}>
+        <div className="rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${C.gray200}` }}>
           {/* Daily push hour */}
           <div className="flex items-center justify-between px-4 py-3.5">
             <div className="flex items-center gap-2.5">
@@ -439,7 +439,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
           </div>
 
           {/* Quiet hours. suppress pushes during sleep */}
-          <div className="border-t" style={{ borderColor: '#F3F4F6' }}>
+          <div className="border-t" style={{ borderColor: C.gray100 }}>
             <div className="flex items-center justify-between gap-3 px-4 py-3.5">
               <div className="flex items-center gap-2.5 min-w-0">
                 <span className="text-base">🌙</span>
@@ -488,7 +488,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
       {!isGuest && (
         <Link to="/Notifications"
           className="mb-5 rounded-2xl p-3.5 flex items-center justify-between transition-all hover:bg-gray-50"
-          style={{ border: '1.5px solid #E5E7EB', background: '#fff' }}>
+          style={{ border: `1.5px solid ${C.gray200}`, background: '#fff' }}>
           <div className="flex items-center gap-3">
             <span className="text-lg">📬</span>
             <div>
@@ -510,9 +510,9 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
                 persists the user's preference so we can honour it the
                 moment the dispatcher goes live. */}
             <div className="rounded-2xl p-3.5 flex items-center justify-between"
-              style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB' }}>
+              style={{ background: '#FFFFFF', border: `1.5px solid ${C.gray200}` }}>
               <div className="flex items-center gap-3">
-                <Mail className="w-5 h-5" style={{ color: form.email_enabled ? C.primary : '#9CA3AF' }} />
+                <Mail className="w-5 h-5" style={{ color: form.email_enabled ? C.primary : C.gray400 }} />
                 <div>
                   <p className="font-bold text-sm text-gray-900">התראות באימייל</p>
                   <p className="text-xs text-gray-500">
@@ -529,7 +529,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
             </div>
             {/* WhatsApp - coming soon */}
             <div className="rounded-2xl p-3.5 flex items-center justify-between"
-              style={{ background: '#F9FAFB', border: '1.5px solid #E5E7EB', opacity: 0.6 }}>
+              style={{ background: C.gray50, border: `1.5px solid ${C.gray200}`, opacity: 0.6 }}>
               <div className="flex items-center gap-3">
                 <MessageCircle className="w-5 h-5 text-gray-400" />
                 <div>
@@ -587,7 +587,7 @@ function TestNotificationButton() {
   return (
     <button onClick={handleTest} disabled={sending}
       className="w-full mb-3 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60"
-      style={{ background: '#fff', color: '#2D5233', border: '1.5px solid #E5E7EB' }}>
+      style={{ background: '#fff', color: C.primary, border: `1.5px solid ${C.gray200}` }}>
       {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
       שלח התראת בדיקה
     </button>

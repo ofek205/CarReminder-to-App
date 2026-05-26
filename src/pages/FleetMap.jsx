@@ -43,6 +43,7 @@ import { colorFromKey } from '@/lib/colorPalette';
 import NavigateButton from '@/components/map/NavigateButton';
 // Living Dashboard system - shared with all B2B pages.
 import { PageShell, Card } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 // Map a route status to a Living Dashboard accent for the side-list
 // task card stripe. Keeps the map's per-route colored polylines as the
@@ -361,12 +362,12 @@ export default function FleetMap() {
           className="md:hidden flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98] border"
           style={activeFilters > 0
             ? {
-                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                 color: '#FFFFFF',
-                borderColor: '#065F46',
+                borderColor: C.successDark,
                 boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
               }
-            : { background: '#FFFFFF', color: '#10B981', borderColor: '#D1FAE5' }}
+            : { background: '#FFFFFF', color: C.successBright, borderColor: C.successLight }}
         >
           <Filter className="h-3.5 w-3.5" />
           מסננים
@@ -403,7 +404,7 @@ export default function FleetMap() {
       <div className="mb-3 flex items-center gap-1.5 flex-wrap">
         <span
           className="px-2 py-1 rounded-md text-[11px] font-bold inline-flex items-center gap-1 tabular-nums"
-          style={{ background: '#D1FAE5', color: '#065F46' }}
+          style={{ background: C.successLight, color: C.successDark }}
           dir="ltr"
         >
           <MapIcon className="h-3 w-3" />
@@ -411,7 +412,7 @@ export default function FleetMap() {
         </span>
         <span
           className="px-2 py-1 rounded-md text-[11px] font-bold inline-flex items-center gap-1 tabular-nums"
-          style={{ background: '#DBEAFE', color: '#1E40AF' }}
+          style={{ background: C.infoBg, color: C.infoDark }}
           dir="ltr"
         >
           <MapPin className="h-3 w-3" />
@@ -420,7 +421,7 @@ export default function FleetMap() {
         {missingCoords > 0 && (
           <span
             className="px-2 py-1 rounded-md text-[11px] font-bold inline-flex items-center gap-1 tabular-nums"
-            style={{ background: '#FEF3C7', color: '#92400E' }}
+            style={{ background: C.warnBg, color: C.warnDark }}
             dir="ltr"
           >
             <AlertTriangle className="h-3 w-3" />
@@ -429,7 +430,7 @@ export default function FleetMap() {
         )}
         <span
           className="px-2 py-1 rounded-md text-[11px] font-bold"
-          style={{ background: '#F0F7F4', color: '#4B5D52' }}
+          style={{ background: C.bgSubtle, color: C.textAlt }}
         >
           צביעה לפי {colorByRoute ? 'משימה' : 'נהג'}
         </span>
@@ -438,11 +439,11 @@ export default function FleetMap() {
       {/* Layout: map on top, list below on mobile; map + list side-by-side on desktop */}
       <div className="md:grid md:grid-cols-[1fr_360px] md:gap-3">
         {/* Map */}
-        <div className="rounded-2xl overflow-hidden border" style={{ borderColor: '#E5EDE8' }}>
+        <div className="rounded-2xl overflow-hidden border" style={{ borderColor: C.bgSage }}>
           <Suspense fallback={
             <div
               className="h-[40vh] min-h-[280px] flex items-center justify-center text-xs"
-              style={{ background: '#F0F7F4', color: '#6B7C72' }}
+              style={{ background: C.bgSubtle, color: C.mutedAlt }}
             >
               טוען מפה...
             </div>
@@ -477,21 +478,21 @@ export default function FleetMap() {
         <div className="mt-3 md:mt-0">
           <h2
             className="text-sm font-bold mb-2.5 flex items-center gap-2"
-            style={{ color: '#0B2912' }}
+            style={{ color: C.primaryDark }}
           >
             <span
               className="inline-block w-1 h-4 rounded-full"
-              style={{ background: 'linear-gradient(180deg, #065F46 0%, #34D399 100%)' }}
+              style={{ background: `linear-gradient(180deg, ${C.successDark} 0%, ${C.successMid} 100%)` }}
             />
             משימות מסוננות
           </h2>
           {isLoading ? (
             <Card className="text-center py-8">
-              <p className="text-xs" style={{ color: '#6B7C72' }}>טוען...</p>
+              <p className="text-xs" style={{ color: C.mutedAlt }}>טוען...</p>
             </Card>
           ) : filteredRoutes.length === 0 ? (
             <Card className="text-center py-8">
-              <p className="text-xs" style={{ color: '#A7B3AB' }}>לא נמצאו משימות לפי המסננים.</p>
+              <p className="text-xs" style={{ color: C.borderAlt }}>לא נמצאו משימות לפי המסננים.</p>
             </Card>
           ) : (
             <div className="space-y-2 md:max-h-[55vh] md:overflow-y-auto md:pr-1">
@@ -535,25 +536,25 @@ function FilterBar({
   // Pill style helpers — reused across the date / status / stop-type
   // chip rows so all three have identical visual rhythm.
   const activePillStyle = {
-    background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+    background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
     color: '#FFFFFF',
-    borderColor: '#065F46',
+    borderColor: C.successDark,
     boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
   };
   const inactivePillStyle = {
     background: '#FFFFFF',
-    color: '#4B5D52',
-    borderColor: '#E5EDE8',
+    color: C.textAlt,
+    borderColor: C.bgSage,
   };
-  const labelStyle = { color: '#0B2912' };
-  const inputStyle = { background: '#FFFFFF', borderColor: '#D1FAE5', color: '#0B2912' };
+  const labelStyle = { color: C.primaryDark };
+  const inputStyle = { background: '#FFFFFF', borderColor: C.successLight, color: C.primaryDark };
 
   return (
     <Card accent="emerald" className="space-y-3">
       {/* Date range */}
       <div>
         <p className="text-[11px] font-bold mb-1.5" style={labelStyle}>
-          <Calendar className="inline h-3 w-3 ms-0 me-1" style={{ color: '#10B981' }} />
+          <Calendar className="inline h-3 w-3 ms-0 me-1" style={{ color: C.successBright }} />
           טווח תאריכים
         </p>
         <div className="flex gap-1.5 flex-wrap">
@@ -586,7 +587,7 @@ function FilterBar({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div>
           <p className="text-[11px] font-bold mb-1" style={labelStyle}>
-            <UserIcon className="inline h-3 w-3 ms-0 me-1" style={{ color: '#10B981' }} />
+            <UserIcon className="inline h-3 w-3 ms-0 me-1" style={{ color: C.successBright }} />
             נהג
           </p>
           <select
@@ -604,7 +605,7 @@ function FilterBar({
         </div>
         <div>
           <p className="text-[11px] font-bold mb-1" style={labelStyle}>
-            <Truck className="inline h-3 w-3 ms-0 me-1" style={{ color: '#10B981' }} />
+            <Truck className="inline h-3 w-3 ms-0 me-1" style={{ color: C.successBright }} />
             רכב
           </p>
           <select
@@ -665,8 +666,8 @@ function FilterBar({
           <label
             className="flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold cursor-pointer"
             style={overdueOnly
-              ? { background: '#FFFBEB', color: '#92400E', borderColor: '#FCD34D' }
-              : { background: '#FFFFFF', color: '#4B5D52', borderColor: '#E5EDE8' }}
+              ? { background: C.warnSubtle, color: C.warnDark, borderColor: '#FCD34D' }
+              : { background: '#FFFFFF', color: C.textAlt, borderColor: C.bgSage }}
           >
             <input
               type="checkbox"
@@ -679,8 +680,8 @@ function FilterBar({
           <label
             className="flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold cursor-pointer"
             style={unassignedOnly
-              ? { background: '#EFF6FF', color: '#1E40AF', borderColor: '#BFDBFE' }
-              : { background: '#FFFFFF', color: '#4B5D52', borderColor: '#E5EDE8' }}
+              ? { background: C.infoSubtle, color: C.infoDark, borderColor: '#BFDBFE' }
+              : { background: '#FFFFFF', color: C.textAlt, borderColor: C.bgSage }}
           >
             <input
               type="checkbox"
@@ -775,8 +776,8 @@ function FleetTaskCard({ route, stops, driverName, vehicleName, color }) {
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{route.title}</p>
-          <div className="flex items-center gap-2 text-[10px] flex-wrap mt-1" style={{ color: '#6B7C72' }}>
+          <p className="text-sm font-bold truncate" style={{ color: C.primaryDark }}>{route.title}</p>
+          <div className="flex items-center gap-2 text-[10px] flex-wrap mt-1" style={{ color: C.mutedAlt }}>
             <span className="flex items-center gap-1"><UserIcon className="h-2.5 w-2.5" /> {driverName}</span>
             <span className="flex items-center gap-1"><Truck className="h-2.5 w-2.5" /> {vehicleName}</span>
             {route.scheduled_for && (
@@ -791,14 +792,14 @@ function FleetTaskCard({ route, stops, driverName, vehicleName, color }) {
       {total > 0 && (
         <div className="mb-2">
           <div className="flex items-center justify-between text-[10px] mb-1">
-            <span className="font-bold" style={{ color: '#0B2912' }}>
+            <span className="font-bold" style={{ color: C.primaryDark }}>
               {allDone ? 'הושלמה' : 'התקדמות'}
             </span>
-            <span className="tabular-nums" style={{ color: '#4B5D52' }} dir="ltr">
+            <span className="tabular-nums" style={{ color: C.textAlt }} dir="ltr">
               {completed}/{total} תחנות
             </span>
           </div>
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F0F7F4' }}>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: C.bgSubtle }}>
             <div
               className="h-full transition-all duration-300"
               style={{ width: `${pct}%`, background: color }}
@@ -811,8 +812,8 @@ function FleetTaskCard({ route, stops, driverName, vehicleName, color }) {
         className="flex items-center justify-center gap-1 px-2 py-2 rounded-lg text-[11px] font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
         style={{
           background: '#FFFFFF',
-          color: '#10B981',
-          border: '1.5px solid #D1FAE5',
+          color: C.successBright,
+          border: `1.5px solid ${C.successLight}`,
         }}
       >
         פתח משימה

@@ -7,6 +7,7 @@ import {
   hasShownAiScanGateThisSession,
   markAiScanGateShown,
 } from '@/lib/aiScanGate';
+import { C } from '@/lib/designTokens';
 
 /**
  * AiScanUnavailableDialog
@@ -60,7 +61,7 @@ export default function AiScanUnavailableDialog() {
             "error / something broke". */}
         <div className="relative overflow-hidden"
           style={{
-            background: 'linear-gradient(165deg, #92400E 0%, #D97706 50%, #F59E0B 100%)',
+            background: `linear-gradient(165deg, ${C.warnDark} 0%, ${C.warn} 50%, ${C.warnIcon} 100%)`,
             padding: '28px 24px 24px',
           }}>
           <div className="absolute pointer-events-none rounded-full"
@@ -102,9 +103,9 @@ export default function AiScanUnavailableDialog() {
 
           {/* Reassurance chip — mirrors the MileageReminderPopup tone. */}
           <div className="flex items-center gap-2 justify-center mt-4 rounded-xl px-3 py-2"
-            style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
-            <Wrench className="h-3.5 w-3.5" style={{ color: '#D97706' }} />
-            <span className="text-[11px] font-bold" style={{ color: '#92400E' }}>
+            style={{ background: C.warnSubtle, border: `1px solid ${C.warnBorder}` }}>
+            <Wrench className="h-3.5 w-3.5" style={{ color: C.warn }} />
+            <span className="text-[11px] font-bold" style={{ color: C.warnDark }}>
               השירות יחזור בקרוב
             </span>
           </div>
@@ -113,7 +114,7 @@ export default function AiScanUnavailableDialog() {
             className="w-full text-white font-bold transition-all active:translate-y-px mt-5"
             style={{
               height: 52, borderRadius: 16,
-              background: 'linear-gradient(135deg, #2D5233 0%, #4A8C5C 100%)',
+              background: `linear-gradient(135deg, ${C.primary} 0%, #4A8C5C 100%)`,
               boxShadow: '0 12px 24px -6px rgba(45,82,51,0.4), 0 4px 8px rgba(45,82,51,0.15)',
               fontSize: 16,
             }}>
@@ -125,7 +126,7 @@ export default function AiScanUnavailableDialog() {
               to the scan later. */}
           <button onClick={handleClose}
             className="w-full font-bold transition-all hover:bg-gray-50 mt-2"
-            style={{ height: 44, borderRadius: 12, color: '#9CA3AF', fontSize: 13 }}>
+            style={{ height: 44, borderRadius: 12, color: C.gray400, fontSize: 13 }}>
             סגור
           </button>
         </div>

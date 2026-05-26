@@ -32,6 +32,7 @@ import { useAuth } from "../components/shared/GuestContext";
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import useAccountRole from '@/hooks/useAccountRole';
 import { canEdit } from '@/lib/permissions';
+import { C } from '@/lib/designTokens';
 
 //  Document category definitions 
 const DOC_CATEGORIES = [
@@ -842,18 +843,18 @@ function VehicleGroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, o
         return (
           <div key={key}
             className="rounded-2xl p-3.5"
-            style={{ background: '#FAFAFA', border: '1px solid #E5E7EB' }}>
+            style={{ background: C.grayBg, border: `1px solid ${C.gray200}` }}>
             <button type="button"
               className="w-full flex items-center justify-between gap-2 mb-2"
               onClick={() => setCollapsed(c => ({ ...c, [key]: !c[key] }))}>
               <div className="flex items-center gap-2 min-w-0">
                 {vehicle ? <Car className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                 <div className="text-right min-w-0">
-                  <p className="text-sm font-bold truncate" style={{ color: '#1C2E20' }}>{name}</p>
-                  {sub && <p className="text-[10px]" dir="ltr" style={{ color: '#9CA3AF' }}>{sub}</p>}
+                  <p className="text-sm font-bold truncate" style={{ color: C.text }}>{name}</p>
+                  {sub && <p className="text-[10px]" dir="ltr" style={{ color: C.gray400 }}>{sub}</p>}
                 </div>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full ml-1"
-                  style={{ background: '#E8F2EA', color: '#2D5233' }}>
+                  style={{ background: C.light, color: C.primary }}>
                   {vDocs.length}
                 </span>
               </div>
@@ -954,7 +955,7 @@ function GroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingI
                     <>
                       <button type="button" onClick={() => setShowOlder(!showOlder)}
                         className="flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-lg transition-all"
-                        style={{ color: '#9CA3AF' }}>
+                        style={{ color: C.gray400 }}>
                         {showOlder ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                         הצג ישנים ({older.length})
                       </button>
@@ -1027,7 +1028,7 @@ function GuestDocuments({ vehicleIdParam }) {
         title="מסמכים"
         backPage={vehicleIdParam ? `VehicleDetail?id=${vehicleIdParam}` : undefined}
         actions={
-          <Button onClick={() => setShowAdd(true)} className="gap-2 text-xs sm:text-sm rounded-2xl font-bold" style={{ background: '#FFBF00', color: '#2D5233' }}>
+          <Button onClick={() => setShowAdd(true)} className="gap-2 text-xs sm:text-sm rounded-2xl font-bold" style={{ background: C.yellow, color: C.primary }}>
             <Plus className="h-4 w-4" />
             הוסף מסמך
           </Button>
@@ -1036,17 +1037,17 @@ function GuestDocuments({ vehicleIdParam }) {
 
       {/* Guest banner - single combined banner */}
       <div className="mb-4 rounded-2xl p-3.5 flex items-center gap-3"
-        style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#FDE68A' }}>
+        style={{ background: `linear-gradient(135deg, ${C.warnBg}, ${C.yellowSoft})`, border: `1.5px solid ${C.warnBorder}` }} dir="rtl">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: C.warnBorder }}>
           {docs.some(d => d._isDemo)
-            ? <Eye className="w-4 h-4" style={{ color: '#92400E' }} />
-            : <Lock className="w-4 h-4" style={{ color: '#92400E' }} />}
+            ? <Eye className="w-4 h-4" style={{ color: C.warnDark }} />
+            : <Lock className="w-4 h-4" style={{ color: C.warnDark }} />}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold" style={{ color: '#92400E' }}>
+          <p className="text-sm font-bold" style={{ color: C.warnDark }}>
             {docs.some(d => d._isDemo) ? 'מסמכים לדוגמה' : 'מסמכים זמניים'}
           </p>
-          <p className="text-xs" style={{ color: '#B45309' }}>
+          <p className="text-xs" style={{ color: C.warnMid }}>
             נשמרים במכשיר בלבד.{' '}
             <button onClick={() => window.location.href = '/Auth'} className="underline font-bold">
               הירשם כדי לשמור לצמיתות
@@ -1094,24 +1095,24 @@ function GuestDocuments({ vehicleIdParam }) {
       {showGuestSignup && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
           <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
-            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: '#FFF8E1' }}>
-              <Lock className="w-6 h-6" style={{ color: '#92400E' }} />
+            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: C.yellowSoft }}>
+              <Lock className="w-6 h-6" style={{ color: C.warnDark }} />
             </div>
             <h2 className="text-lg font-bold text-gray-900">הירשם כדי לשמור</h2>
-            <p className="text-sm" style={{ color: '#6B7280' }}>
+            <p className="text-sm" style={{ color: C.gray500 }}>
               הרשמה בחינם תוך שניות - ותוכל לשמור מסמכים, לקבל תזכורות ולגשת מכל מכשיר
             </p>
             <Button
               onClick={() => { window.location.href = '/Auth'; }}
               className="w-full h-12 text-white rounded-2xl font-bold text-sm"
-              style={{ background: '#FFBF00', color: '#2D5233' }}
+              style={{ background: C.yellow, color: C.primary }}
             >
               הירשם בחינם
             </Button>
             <button
               onClick={() => setShowGuestSignup(false)}
               className="w-full text-xs py-1 font-medium"
-              style={{ color: '#D1D5DB' }}
+              style={{ color: C.gray300 }}
             >
               חזרה
             </button>
@@ -1407,7 +1408,7 @@ function AuthDocuments({ vehicleIdParam }) {
         title="מסמכים"
         backPage={vehicleIdParam ? `VehicleDetail?id=${vehicleIdParam}` : undefined}
         actions={canEdit(role) && (
-          <Button onClick={() => setShowAdd(true)} className="gap-2 text-xs sm:text-sm rounded-2xl font-bold" style={{ background: '#FFBF00', color: '#2D5233' }}>
+          <Button onClick={() => setShowAdd(true)} className="gap-2 text-xs sm:text-sm rounded-2xl font-bold" style={{ background: C.yellow, color: C.primary }}>
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">{aiScanOn ? 'סרוק / העלה מסמך' : 'העלה מסמך'}</span>
             <span className="sm:hidden">העלה</span>

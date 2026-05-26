@@ -20,9 +20,10 @@ import {
   Target, Zap, Star, Flame,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { C } from '@/lib/designTokens';
 
 const BI = {
-  blue: "#3B82F6", green: "#10B981", amber: "#F59E0B",
+  blue: C.info, green: C.successBright, amber: C.warnIcon,
   red: "#EF4444", purple: "#8B5CF6", teal: "#0891B2", slate: "#64748B",
 };
 const PALETTE = [BI.purple, BI.blue, BI.teal, BI.green, BI.amber, BI.red, BI.slate];
@@ -630,9 +631,9 @@ function AgeChart({ data, onPointClick }) {
   // the buckets use the BI palette in age-order so the visual reads
   // young→old left-to-right in the legend.
   const COLORS = {
-    "18-24": "#3B82F6",
-    "25-34": "#10B981",
-    "35-44": "#F59E0B",
+    "18-24": C.info,
+    "25-34": C.successBright,
+    "35-44": C.warnIcon,
     "45-54": "#8B5CF6",
     "55-64": "#0891B2",
     "65+":   "#EF4444",

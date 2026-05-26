@@ -45,6 +45,7 @@ import VehiclePicker from '@/components/shared/VehiclePicker';
 import { DateInput } from '@/components/ui/date-input';
 // Living Dashboard system - shared with all B2B pages.
 import { PageShell, Card } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 // ---------- formatters ------------------------------------------------
 
@@ -88,7 +89,7 @@ const monthEndISO = (iso) => {
 // dashboard at every layer (chart, splits, table). Adding it back would
 // dwarf maintenance costs and make the data useless for fleet planning.
 const CATEGORY_META = {
-  repair:    { label: 'תיקונים', icon: Wrench, color: '#EA580C', bg: 'bg-orange-50',  text: 'text-orange-700' },
+  repair:    { label: 'תיקונים', icon: Wrench, color: C.orange, bg: 'bg-orange-50',  text: 'text-orange-700' },
   insurance: { label: 'ביטוח',   icon: Shield, color: '#7C3AED', bg: 'bg-purple-50',  text: 'text-purple-700' },
   other:     { label: 'אחר',     icon: Package, color: '#64748B', bg: 'bg-slate-50',   text: 'text-slate-700' },
 };
@@ -536,7 +537,7 @@ export default function Reports() {
           disabled={exporting || filteredLines.length === 0}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
           style={{
-            background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+            background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
             color: '#FFFFFF',
             boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
           }}
@@ -550,7 +551,7 @@ export default function Reports() {
       <Card className="mb-4 space-y-2.5">
         <div className="flex items-center gap-2">
           <Filter className="h-3.5 w-3.5" style={{ color: '#7A6E58' }} />
-          <span className="text-[11px] font-bold" style={{ color: '#4B5D52' }}>תקופה:</span>
+          <span className="text-[11px] font-bold" style={{ color: C.textAlt }}>תקופה:</span>
           <div className="flex flex-wrap gap-1.5 flex-1">
             {PRESETS.map(p => {
               const active = !customActive && presetId === p.id;
@@ -562,15 +563,15 @@ export default function Reports() {
                   className="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all hover:scale-[1.03] active:scale-[0.97] border"
                   style={active
                     ? {
-                        background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                        background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                         color: '#FFFFFF',
-                        borderColor: '#065F46',
+                        borderColor: C.successDark,
                         boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
                       }
                     : {
                         background: '#FFFFFF',
-                        color: '#4B5D52',
-                        borderColor: '#E5EDE8',
+                        color: C.textAlt,
+                        borderColor: C.bgSage,
                       }}
                 >
                   {p.label}
@@ -582,7 +583,7 @@ export default function Reports() {
         {/* On mobile + small tablets the date pickers and the rich
             VehiclePicker are too cramped side-by-side at 33% each.
             Stack until md so each control gets full row width. */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1" style={{ borderTop: '1px solid #F0F7F4' }}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1" style={{ borderTop: `1px solid ${C.bgSubtle}` }}>
           <DateField label="מתאריך" value={customFrom} onChange={setCustomFrom} />
           <DateField label="עד תאריך" value={customTo}   onChange={setCustomTo} />
           {/* Rich VehiclePicker — searchable, themed, shows icon +
@@ -598,7 +599,7 @@ export default function Reports() {
           />
         </div>
         {customActive && (
-          <p className="text-[10px]" style={{ color: '#A7B3AB' }}>תאריך מותאם פעיל — מתעלם מהקיצורים.</p>
+          <p className="text-[10px]" style={{ color: C.borderAlt }}>תאריך מותאם פעיל — מתעלם מהקיצורים.</p>
         )}
       </Card>
 
@@ -649,11 +650,11 @@ export default function Reports() {
       {/* Trend chart */}
       <Card accent="emerald" className="mb-4">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: '#0B2912' }}>
-            <BarChart3 className="h-4 w-4" style={{ color: '#10B981' }} />
+          <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: C.primaryDark }}>
+            <BarChart3 className="h-4 w-4" style={{ color: C.successBright }} />
             מגמת הוצאות חודשית
           </h2>
-          <span className="text-[10px]" style={{ color: '#A7B3AB' }}>ללא דלק</span>
+          <span className="text-[10px]" style={{ color: C.borderAlt }}>ללא דלק</span>
         </div>
         {loading ? (
           <p className="text-center text-xs text-gray-400 py-12">טוען נתונים...</p>
@@ -666,18 +667,18 @@ export default function Reports() {
                 data={chartData}
                 margin={{ top: 8, right: 8, bottom: 0, left: -10 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={C.gray100} vertical={false} />
                 <XAxis
                   dataKey="month"
-                  tick={{ fontSize: 10, fill: '#6B7280' }}
-                  axisLine={{ stroke: '#E5E7EB' }}
+                  tick={{ fontSize: 10, fill: C.gray500 }}
+                  axisLine={{ stroke: C.gray200 }}
                   tickLine={false}
                   reversed={true /* RTL: Mar→Apr→May reads right-to-left */}
                 />
                 <YAxis
-                  tick={{ fontSize: 10, fill: '#6B7280' }}
+                  tick={{ fontSize: 10, fill: C.gray500 }}
                   tickFormatter={fmtMoneyShort}
-                  axisLine={{ stroke: '#E5E7EB' }}
+                  axisLine={{ stroke: C.gray200 }}
                   tickLine={false}
                   orientation="right"
                 />
@@ -706,8 +707,8 @@ export default function Reports() {
       {/* Splits — top vehicles + category breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
         <Card accent="amber">
-          <h2 className="text-sm font-bold mb-2 flex items-center gap-1.5" style={{ color: '#0B2912' }}>
-            <Truck className="h-4 w-4" style={{ color: '#F59E0B' }} />
+          <h2 className="text-sm font-bold mb-2 flex items-center gap-1.5" style={{ color: C.primaryDark }}>
+            <Truck className="h-4 w-4" style={{ color: C.warnIcon }} />
             רכבים יקרים בתקופה
           </h2>
           {topVehicles.length === 0 ? (
@@ -733,12 +734,12 @@ export default function Reports() {
                         {fmtMoney(v.total)}
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F0F7F4' }}>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: C.bgSubtle }}>
                       <div
                         className="h-full"
                         style={{
                           width: pct + '%',
-                          background: 'linear-gradient(90deg, #065F46 0%, #10B981 100%)',
+                          background: `linear-gradient(90deg, ${C.successDark} 0%, ${C.successBright} 100%)`,
                         }}
                       />
                     </div>
@@ -750,7 +751,7 @@ export default function Reports() {
         </Card>
 
         <Card accent="purple">
-          <h2 className="text-sm font-bold mb-2 flex items-center gap-1.5" style={{ color: '#0B2912' }}>
+          <h2 className="text-sm font-bold mb-2 flex items-center gap-1.5" style={{ color: C.primaryDark }}>
             <Package className="h-4 w-4" style={{ color: '#A855F7' }} />
             פילוח לפי קטגוריה
           </h2>
@@ -772,7 +773,7 @@ export default function Reports() {
                         <span className="text-gray-400 font-normal ml-1">{c.pct.toFixed(0)}%</span>
                       </span>
                     </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F0F7F4' }}>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: C.bgSubtle }}>
                       <div
                         className="h-full transition-all"
                         style={{ width: c.pct + '%', background: c.color }}
@@ -789,11 +790,11 @@ export default function Reports() {
       {/* Line-item detail table */}
       <Card accent="blue">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: '#0B2912' }}>
-            <Receipt className="h-4 w-4" style={{ color: '#3B82F6' }} />
+          <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: C.primaryDark }}>
+            <Receipt className="h-4 w-4" style={{ color: C.info }} />
             פירוט שורות
           </h2>
-          <span className="text-[10px]" style={{ color: '#A7B3AB' }}>{filteredLines.length} שורות</span>
+          <span className="text-[10px]" style={{ color: C.borderAlt }}>{filteredLines.length} שורות</span>
         </div>
         {loading ? (
           <p className="text-center text-xs text-gray-400 py-6">טוען שורות...</p>
@@ -846,7 +847,7 @@ export default function Reports() {
               </tbody>
             </table>
             {sortedLines.length > 200 && (
-              <p className="text-[10px] px-3 py-2 text-center" style={{ color: '#A7B3AB' }}>
+              <p className="text-[10px] px-3 py-2 text-center" style={{ color: C.borderAlt }}>
                 מוצגות 200 שורות ראשונות (מתוך {sortedLines.length}). הייצוא לאקסל כולל את כולן.
               </p>
             )}
@@ -866,10 +867,10 @@ export default function Reports() {
 // the Living Dashboard family — same vivid surface gradient, same
 // borderless tone palette as KpiTile.
 const KPI_TONES = {
-  green:  { bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#A7F3D0', icon: '#065F46', text: '#0B2912' },
-  blue:   { bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#BFDBFE', icon: '#1E40AF', text: '#0B2912' },
-  orange: { bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: '#FCD34D', icon: '#92400E', text: '#0B2912' },
-  red:    { bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#FECACA', icon: '#991B1B', text: '#0B2912' },
+  green:  { bg: `linear-gradient(135deg, ${C.successSubtle} 0%, ${C.successLight} 100%)`, border: C.successLighter, icon: C.successDark, text: C.primaryDark },
+  blue:   { bg: `linear-gradient(135deg, ${C.infoSubtle} 0%, ${C.infoBg} 100%)`, border: '#BFDBFE', icon: C.infoDark, text: C.primaryDark },
+  orange: { bg: `linear-gradient(135deg, ${C.warnSubtle} 0%, ${C.warnBg} 100%)`, border: '#FCD34D', icon: C.warnDark, text: C.primaryDark },
+  red:    { bg: `linear-gradient(135deg, ${C.errorBg} 0%, ${C.errorLight} 100%)`, border: C.errorBorder, icon: C.errorDark, text: C.primaryDark },
 };
 
 function KpiCard({ icon, label, value, sub, tone, delta, onClick, highlighted }) {
@@ -882,9 +883,9 @@ function KpiCard({ icon, label, value, sub, tone, delta, onClick, highlighted })
     <span
       className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold"
       style={
-        delta.sign === 'down' ? { background: '#D1FAE5', color: '#065F46' }
-          : delta.sign === 'up' ? { background: '#FEE2E2', color: '#991B1B' }
-          : { background: '#F0F7F4', color: '#4B5D52' }
+        delta.sign === 'down' ? { background: C.successLight, color: C.successDark }
+          : delta.sign === 'up' ? { background: C.errorLight, color: C.errorDark }
+          : { background: C.bgSubtle, color: C.textAlt }
       }
     >
       {delta.sign === 'down' ? '▼' : delta.sign === 'up' ? '▲' : '•'} {delta.label}
@@ -922,7 +923,7 @@ function KpiCard({ icon, label, value, sub, tone, delta, onClick, highlighted })
       >
         {value}
       </p>
-      {sub && <p className="text-[10px] mt-0.5 truncate" style={{ color: '#4B5D52' }} title={sub}>{sub}</p>}
+      {sub && <p className="text-[10px] mt-0.5 truncate" style={{ color: C.textAlt }} title={sub}>{sub}</p>}
       {deltaChip && <div className="mt-1.5">{deltaChip}</div>}
     </Wrap>
   );

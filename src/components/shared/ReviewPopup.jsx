@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { hapticFeedback } from "@/lib/capacitor";
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";
+import { C } from '@/lib/designTokens';
 
 const TITLE_MAX = 60;
 const BODY_MIN  = 10;
@@ -143,7 +144,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
            listen") converts better than a dry "rate us". */}
         <div className="relative overflow-hidden rounded-t-3xl"
           style={{
-            background: 'linear-gradient(165deg, #1C3620 0%, #2D5233 45%, #4A8C5C 100%)',
+            background: `linear-gradient(165deg, #1C3620 0%, ${C.primary} 45%, #4A8C5C 100%)`,
             padding: '28px 24px 22px',
           }}>
           <div className="absolute pointer-events-none rounded-full"
@@ -187,7 +188,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
             <Label className="text-[13px] font-bold text-gray-700 block">דירוג</Label>
             <StarRating value={rating} onChange={setRating} />
             <p className="text-xs font-bold h-4 transition-colors"
-              style={{ color: rating > 0 ? '#B45309' : 'transparent' }}>
+              style={{ color: rating > 0 ? C.warnMid : 'transparent' }}>
               {rating > 0 ? RATING_LABELS[rating] : '\u00A0'}
             </p>
           </div>
@@ -221,7 +222,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
                   maxLength={BODY_MAX}
                   className="text-right resize-none rounded-xl" />
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-[10px]" style={{ color: bodyTrimmed.length < BODY_MIN ? '#DC2626' : '#9CA3AF' }}>
+                  <p className="text-[10px]" style={{ color: bodyTrimmed.length < BODY_MIN ? C.error : C.gray400 }}>
                     {bodyTrimmed.length < BODY_MIN ? `מינימום ${BODY_MIN} תווים` : ' '}
                   </p>
                   <p className="text-[10px] text-gray-400" dir="ltr">{body.length}/{BODY_MAX}</p>
@@ -240,7 +241,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
 
               {error && (
                 <div className="rounded-xl px-3 py-2 text-xs font-bold"
-                  style={{ background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA' }}>
+                  style={{ background: C.errorBg, color: C.errorDark, border: `1px solid ${C.errorBorder}` }}>
                   {error}
                 </div>
               )}
@@ -258,8 +259,8 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
               className="flex-1 gap-1.5 rounded-xl h-11 text-[14px] font-bold transition-all active:translate-y-px"
               style={{
                 background: canSubmit
-                  ? 'linear-gradient(135deg, #2D5233 0%, #4A8C5C 100%)'
-                  : '#D1D5DB',
+                  ? `linear-gradient(135deg, ${C.primary} 0%, #4A8C5C 100%)`
+                  : C.gray300,
                 color: '#fff',
                 boxShadow: canSubmit ? '0 8px 20px -6px rgba(45,82,51,0.4)' : 'none',
               }}>

@@ -35,6 +35,7 @@ import {
   KpiTile,
   AnimatedCount,
 } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 // Status palette aligned with the system's color → meaning convention:
 //   pending = gray (waiting), in_progress = blue (active),
@@ -259,7 +260,7 @@ export default function Routes() {
             to={createPageUrl('CreateRoute')}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
             style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
               boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
             }}
@@ -295,21 +296,21 @@ export default function Routes() {
       {/* List of routes */}
       {isLoading ? (
         <Card className="text-center py-8">
-          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען משימות...</p>
+          <p className="text-xs" style={{ color: C.mutedAlt }}>טוען משימות...</p>
         </Card>
       ) : routes.length === 0 ? (
         <Card className="text-center py-12">
-          <Truck className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
-          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+          <Truck className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
+          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>
             עוד אין משימות בחשבון
           </p>
-          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+          <p className="text-xs leading-relaxed" style={{ color: C.mutedAlt }}>
             צור משימה ראשונה ושייך לה רכב, נהג ותחנות.
           </p>
         </Card>
       ) : (
         <>
-          <h2 className="text-sm font-bold mb-2.5" style={{ color: '#0B2912' }}>
+          <h2 className="text-sm font-bold mb-2.5" style={{ color: C.primaryDark }}>
             כל המשימות ({routes.length})
           </h2>
           <div className="space-y-2">
@@ -331,15 +332,15 @@ export default function Routes() {
               className="w-full mt-3 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-60"
               style={{
                 background: '#FFFFFF',
-                color: '#10B981',
-                border: '1.5px solid #D1FAE5',
+                color: C.successBright,
+                border: `1.5px solid ${C.successLight}`,
               }}
             >
               {isFetchingNextPage ? 'טוען...' : 'טען עוד משימות'}
             </button>
           )}
           {!hasNextPage && routes.length >= PAGE_SIZE && (
-            <p className="text-center text-[10px] mt-3" style={{ color: '#6B7C72' }}>סוף הרשימה</p>
+            <p className="text-center text-[10px] mt-3" style={{ color: C.mutedAlt }}>סוף הרשימה</p>
           )}
         </>
       )}
@@ -365,8 +366,8 @@ function ManagerRouteCard({ route, stats, vehicleLabel }) {
       <Card accent={accent} padding="p-3.5">
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{route.title}</p>
-            <div className="flex items-center gap-3 text-[11px] mt-1.5 flex-wrap" style={{ color: '#4B5D52' }}>
+            <p className="text-sm font-bold truncate" style={{ color: C.primaryDark }}>{route.title}</p>
+            <div className="flex items-center gap-3 text-[11px] mt-1.5 flex-wrap" style={{ color: C.textAlt }}>
               {route.scheduled_for && (
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
@@ -380,7 +381,7 @@ function ManagerRouteCard({ route, stats, vehicleLabel }) {
                 </span>
               )}
               {stats && (
-                <span style={{ color: '#6B7C72' }}>
+                <span style={{ color: C.mutedAlt }}>
                   {stats.completed}/{stats.total} תחנות
                 </span>
               )}
@@ -391,7 +392,7 @@ function ManagerRouteCard({ route, stats, vehicleLabel }) {
           >
             {status.label}
           </span>
-          <ChevronLeft className="h-4 w-4 shrink-0 mt-0.5" style={{ color: '#A7F3D0' }} />
+          <ChevronLeft className="h-4 w-4 shrink-0 mt-0.5" style={{ color: C.successLighter }} />
         </div>
       </Card>
     </Link>
@@ -424,7 +425,7 @@ function DriverView({ routes, isLoading, stopsByRoute, vehicleLabel }) {
     return (
       <PageShell title="המשימות שלי" subtitle="טוען...">
         <Card className="text-center py-8">
-          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען את המשימות שלך...</p>
+          <p className="text-xs" style={{ color: C.mutedAlt }}>טוען את המשימות שלך...</p>
         </Card>
       </PageShell>
     );
@@ -436,11 +437,11 @@ function DriverView({ routes, isLoading, stopsByRoute, vehicleLabel }) {
     return (
       <PageShell title="המשימות שלי" subtitle="משימות שהוקצו לך לביצוע">
         <Card className="text-center py-12">
-          <Truck className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
-          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+          <Truck className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
+          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>
             אין לך משימות פעילות
           </p>
-          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+          <p className="text-xs leading-relaxed" style={{ color: C.mutedAlt }}>
             כשהמנהל ישייך לך משימה, היא תופיע כאן ותוכל להתחיל בביצוע.
           </p>
         </Card>
@@ -497,7 +498,7 @@ function DriverView({ routes, isLoading, stopsByRoute, vehicleLabel }) {
 
       {grouped.future.length > 0 && (
         <section className="mb-5">
-          <h2 className="text-xs uppercase tracking-[0.15em] font-bold mb-2.5 flex items-center gap-2" style={{ color: '#6B7C72' }}>
+          <h2 className="text-xs uppercase tracking-[0.15em] font-bold mb-2.5 flex items-center gap-2" style={{ color: C.mutedAlt }}>
             <Clock className="h-3.5 w-3.5" />
             מתוזמן בהמשך
           </h2>
@@ -590,7 +591,7 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
       <div
         className="rounded-2xl p-4 relative overflow-hidden group"
         style={{
-          background: 'linear-gradient(135deg, #1E3A8A 0%, #3B82F6 70%, #60A5FA 100%)',
+          background: `linear-gradient(135deg, #1E3A8A 0%, ${C.info} 70%, #60A5FA 100%)`,
           boxShadow: '0 12px 28px -8px rgba(59,130,246,0.4), 0 4px 10px -2px rgba(59,130,246,0.2)',
         }}
       >
@@ -675,16 +676,16 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
   // Non-active variants — standard system Card with tone accent.
   const accent = isCompleted ? 'emerald' : isToday ? 'emerald' : null;
   const ctaStyle = isToday
-    ? { background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)', color: '#FFFFFF' }
-    : { background: '#F0FDF4', color: '#047857', border: '1.5px solid #D1FAE5' };
+    ? { background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`, color: '#FFFFFF' }
+    : { background: '#F0FDF4', color: '#047857', border: `1.5px solid ${C.successLight}` };
 
   return (
     <Card accent={accent} padding="p-3.5" className={isCompleted ? 'opacity-90' : ''}>
       <Link to={detailHref} className="block">
         <div className="flex items-start gap-3 mb-2">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{route.title}</p>
-            <div className="flex items-center gap-3 text-[11px] mt-1 flex-wrap" style={{ color: '#4B5D52' }}>
+            <p className="text-sm font-bold truncate" style={{ color: C.primaryDark }}>{route.title}</p>
+            <div className="flex items-center gap-3 text-[11px] mt-1 flex-wrap" style={{ color: C.textAlt }}>
               {vehicle && (
                 <span className="flex items-center gap-1">
                   <Truck className="h-3 w-3" />
@@ -704,10 +705,10 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
         {total > 0 && (
           <div className="mt-2">
             <div className="flex items-center justify-between text-[11px] mb-1">
-              <span className="font-bold" style={{ color: '#0B2912' }}>
+              <span className="font-bold" style={{ color: C.primaryDark }}>
                 {isCompleted ? 'הושלמו' : 'התקדמות'}
               </span>
-              <span style={{ color: '#6B7C72' }} className="tabular-nums">
+              <span style={{ color: C.mutedAlt }} className="tabular-nums">
                 {completed} מתוך {total} תחנות
               </span>
             </div>
@@ -717,8 +718,8 @@ function DriverRouteCard({ route, stats, vehicle, variant }) {
                 style={{
                   width: `${pct}%`,
                   background: isCompleted
-                    ? 'linear-gradient(90deg, #047857 0%, #10B981 100%)'
-                    : 'linear-gradient(90deg, #047857 0%, #34D399 100%)',
+                    ? `linear-gradient(90deg, #047857 0%, ${C.successBright} 100%)`
+                    : `linear-gradient(90deg, #047857 0%, ${C.successMid} 100%)`,
                 }}
               />
             </div>

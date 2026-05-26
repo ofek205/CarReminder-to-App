@@ -31,6 +31,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 // Living Dashboard system - shared with all B2B pages.
 import { PageShell, Card } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 const PAGE_SIZE = 30;
 const selectTriggerCls = "h-10 rounded-xl text-xs font-bold";
@@ -197,15 +198,15 @@ export default function ActivityLog() {
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98] border"
           style={hasFilters
             ? {
-                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                 color: '#FFFFFF',
-                borderColor: '#065F46',
+                borderColor: C.successDark,
                 boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
               }
             : {
                 background: '#FFFFFF',
-                color: '#10B981',
-                borderColor: '#D1FAE5',
+                color: C.successBright,
+                borderColor: C.successLight,
               }}
         >
           <Filter className="h-3.5 w-3.5" />
@@ -273,7 +274,7 @@ export default function ActivityLog() {
               type="button"
               onClick={clearFilters}
               className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-gray-100"
-              style={{ color: '#4B5D52' }}
+              style={{ color: C.textAlt }}
             >
               <X className="h-3 w-3" /> נקה סינון
             </button>
@@ -283,15 +284,15 @@ export default function ActivityLog() {
 
       {isLoading ? (
         <Card className="text-center py-8">
-          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען יומן...</p>
+          <p className="text-xs" style={{ color: C.mutedAlt }}>טוען יומן...</p>
         </Card>
       ) : allLogs.length === 0 ? (
         <Card className="text-center py-12">
-          <Calendar className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
-          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+          <Calendar className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
+          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>
             {hasFilters ? 'לא נמצאה פעילות בסינון הזה' : 'עוד לא נרשמה פעילות'}
           </p>
-          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+          <p className="text-xs leading-relaxed" style={{ color: C.mutedAlt }}>
             {hasFilters
               ? 'נסה להסיר חלק מהמסננים, או לבחור טווח תאריכים אחר.'
               : 'כל פעולה בחשבון תיכתב ליומן אוטומטית. יצירת משימה, עדכון תחנה, הוספת הוצאה.'}
@@ -310,15 +311,15 @@ export default function ActivityLog() {
               className="w-full mt-4 py-3 rounded-xl text-xs font-bold transition-all disabled:opacity-60 hover:scale-[1.01] active:scale-[0.99]"
               style={{
                 background: '#FFFFFF',
-                color: '#10B981',
-                border: '1.5px solid #D1FAE5',
+                color: C.successBright,
+                border: `1.5px solid ${C.successLight}`,
               }}
             >
               {isFetchingNextPage ? 'טוען...' : 'טען עוד'}
             </button>
           )}
           {!hasNextPage && allLogs.length >= PAGE_SIZE && (
-            <p className="text-center text-[10px] mt-4" style={{ color: '#A7B3AB' }}>סוף היומן</p>
+            <p className="text-center text-[10px] mt-4" style={{ color: C.borderAlt }}>סוף היומן</p>
           )}
         </>
       )}
@@ -337,20 +338,20 @@ function LogRow({ log }) {
             <Icon className="h-4 w-4" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold" style={{ color: '#0B2912' }}>{meta.label}</p>
-            <p className="text-[11px] truncate" style={{ color: '#6B7C72' }}>
+            <p className="text-sm font-bold" style={{ color: C.primaryDark }}>{meta.label}</p>
+            <p className="text-[11px] truncate" style={{ color: C.mutedAlt }}>
               {log.actor_label} · {fmtTime(log.created_at)}
             </p>
             {log.note && (
               <p
                 className="text-[11px] rounded-md px-2 py-1 mt-1.5 leading-relaxed"
-                style={{ background: '#F0F7F4', color: '#0B2912' }}
+                style={{ background: C.bgSubtle, color: C.primaryDark }}
               >
                 {log.note}
               </p>
             )}
             {log.attachment_ref && (
-              <p className="text-[10px] mt-1 truncate" style={{ color: '#1E40AF' }}>
+              <p className="text-[10px] mt-1 truncate" style={{ color: C.infoDark }}>
                 📎 {log.attachment_ref}
               </p>
             )}

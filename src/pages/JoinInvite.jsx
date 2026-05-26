@@ -202,7 +202,7 @@ export default function JoinInvite() {
           <div className="rounded-3xl p-8 text-center space-y-5"
             style={{ background: '#FFFFFF', boxShadow: '0 8px 40px rgba(0,0,0,0.08)' }}>
             <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto"
-              style={{ background: '#E8F5E9' }}>
+              style={{ background: C.successBg }}>
               <CheckCircle className="h-10 w-10 text-green-600" />
             </div>
 
@@ -215,11 +215,11 @@ export default function JoinInvite() {
                     {' '}שיתף/ה איתך את <strong>{shareContext.vehicle_label}</strong>
                   </p>
                 </div>
-                <div className="rounded-2xl p-4 text-right" style={{ background: shareContext.role === 'editor' ? '#E8F5E9' : '#E3F2FD' }}>
-                  <p className="text-sm font-bold mb-1" style={{ color: shareContext.role === 'editor' ? '#2D5233' : '#1565C0' }}>
+                <div className="rounded-2xl p-4 text-right" style={{ background: shareContext.role === 'editor' ? C.successBg : '#E3F2FD' }}>
+                  <p className="text-sm font-bold mb-1" style={{ color: shareContext.role === 'editor' ? C.primary : '#1565C0' }}>
                     {shareContext.role === 'editor' ? 'הרשאת עורך' : 'הרשאת צופה'}
                   </p>
-                  <p className="text-xs leading-relaxed" style={{ color: '#374151' }}>
+                  <p className="text-xs leading-relaxed" style={{ color: C.gray700 }}>
                     {shareContext.role === 'editor'
                       ? 'אפשר להוסיף ולערוך טיפולים, מסמכים ופרטים. אי אפשר למחוק את הרכב או לשתף עם אחרים.'
                       : 'אפשר לראות הכל — טיפולים, מסמכים ופרטים. בלי הרשאת עריכה.'}
@@ -264,7 +264,7 @@ export default function JoinInvite() {
           <div className="rounded-3xl p-8 text-center space-y-5"
             style={{ background: '#FFFFFF', boxShadow: '0 8px 40px rgba(0,0,0,0.08)' }}>
             <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto"
-              style={{ background: '#FEF2F2' }}>
+              style={{ background: C.errorBg }}>
               <XCircle className="h-10 w-10 text-red-500" />
             </div>
             <h2 className="font-bold text-xl text-gray-900">{message}</h2>

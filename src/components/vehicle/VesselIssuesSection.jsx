@@ -34,16 +34,16 @@ const CATEGORY_COLORS = {
 };
 
 const PRIORITY_STYLES = {
-  urgent: { bg: '#FEF2F2', color: '#DC2626', label: 'דחופה' },
-  high:   { bg: '#FEF3C7', color: '#D97706', label: 'גבוהה' },
-  medium: { bg: '#DBEAFE', color: '#2563EB', label: 'בינונית' },
-  low:    { bg: '#F3F4F6', color: '#6B7280', label: 'נמוכה' },
+  urgent: { bg: C.errorBg, color: C.error, label: 'דחופה' },
+  high:   { bg: C.warnBg, color: C.warn, label: 'גבוהה' },
+  medium: { bg: C.infoBg, color: '#2563EB', label: 'בינונית' },
+  low:    { bg: C.gray100, color: C.gray500, label: 'נמוכה' },
 };
 
 const STATUS_STYLES = {
-  'open':        { bg: '#FEF3C7', color: '#D97706', label: 'פתוח',   icon: AlertTriangle },
+  'open':        { bg: C.warnBg, color: C.warn, label: 'פתוח',   icon: AlertTriangle },
   'in-progress': { bg: M.light, color: M.primary, label: 'בטיפול', icon: Clock },
-  'done':        { bg: '#E8F5E9', color: '#2E7D32', label: 'הושלם',  icon: CheckCircle },
+  'done':        { bg: C.successBg, color: '#2E7D32', label: 'הושלם',  icon: CheckCircle },
 };
 
 const FILTERS = [
@@ -95,7 +95,7 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
       className={`rounded-2xl mb-3 overflow-hidden transition-all ${isDone ? 'opacity-70' : ''}`}
       style={{
         background: '#fff',
-        border: `1px solid ${isOverdue ? '#FECACA' : M.border}`,
+        border: `1px solid ${isOverdue ? C.errorBorder : M.border}`,
         boxShadow: isOverdue ? '0 2px 12px rgba(220,38,38,0.08)' : '0 2px 12px rgba(12,123,147,0.06)',
       }}
       dir="rtl"
@@ -108,7 +108,7 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
             onClick={() => onToggleComplete(issue)}
             className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 transition-all active:scale-95"
             style={{
-              background: isDone ? '#E8F5E9' : M.light,
+              background: isDone ? C.successBg : M.light,
               border: `1.5px solid ${isDone ? '#A5D6A7' : M.border}`,
             }}
           >
@@ -154,8 +154,8 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
               {issue.target_date && !isDone && (
                 <span className={`text-[11px] font-medium px-2 py-0.5 rounded-lg flex items-center gap-1`}
                   style={{
-                    background: isOverdue ? '#FEF2F2' : '#F0F9FF',
-                    color: isOverdue ? '#DC2626' : '#0369A1',
+                    background: isOverdue ? C.errorBg : '#F0F9FF',
+                    color: isOverdue ? C.error : '#0369A1',
                   }}>
                   <Calendar className="w-3 h-3" />
                   {fmtDate(issue.target_date)}
@@ -244,9 +244,9 @@ function IssueCard({ issue, onEdit, onDelete, onToggleComplete, readOnly = false
             )}
 
             {adviceError && (
-              <div className="rounded-xl p-3 mt-2" style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
-                <p className="text-xs" style={{ color: '#DC2626' }}>{adviceError}</p>
-                <button onClick={handleAdvice} className="text-xs underline mt-1" style={{ color: '#DC2626' }}>
+              <div className="rounded-xl p-3 mt-2" style={{ background: C.errorBg, border: `1px solid ${C.errorBorder}` }}>
+                <p className="text-xs" style={{ color: C.error }}>{adviceError}</p>
+                <button onClick={handleAdvice} className="text-xs underline mt-1" style={{ color: C.error }}>
                   נסה שוב
                 </button>
               </div>

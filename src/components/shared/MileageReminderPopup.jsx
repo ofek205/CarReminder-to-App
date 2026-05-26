@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Gauge, Clock } from "lucide-react";
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";
+import { C } from '@/lib/designTokens';
 
 /**
  * MileageReminderPopup
@@ -55,7 +56,7 @@ export default function MileageReminderPopup({ open, onClose }) {
         {/*  Hero (amber variant. signals action needed)  */}
         <div className="relative overflow-hidden"
           style={{
-            background: 'linear-gradient(165deg, #92400E 0%, #D97706 50%, #F59E0B 100%)',
+            background: `linear-gradient(165deg, ${C.warnDark} 0%, ${C.warn} 50%, ${C.warnIcon} 100%)`,
             padding: '28px 24px 24px',
           }}>
           <div className="absolute pointer-events-none rounded-full"
@@ -91,9 +92,9 @@ export default function MileageReminderPopup({ open, onClose }) {
           </p>
 
           <div className="flex items-center gap-2 justify-center mt-3 rounded-xl px-3 py-2"
-            style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
-            <Clock className="h-3.5 w-3.5" style={{ color: '#D97706' }} />
-            <span className="text-[11px] font-bold" style={{ color: '#92400E' }}>
+            style={{ background: C.warnSubtle, border: `1px solid ${C.warnBorder}` }}>
+            <Clock className="h-3.5 w-3.5" style={{ color: C.warn }} />
+            <span className="text-[11px] font-bold" style={{ color: C.warnDark }}>
               מספיק פעם בחודש
             </span>
           </div>
@@ -106,7 +107,7 @@ export default function MileageReminderPopup({ open, onClose }) {
             className="w-full text-white font-bold transition-all active:translate-y-px mt-5"
             style={{
               height: 52, borderRadius: 16,
-              background: 'linear-gradient(135deg, #2D5233 0%, #4A8C5C 100%)',
+              background: `linear-gradient(135deg, ${C.primary} 0%, #4A8C5C 100%)`,
               boxShadow: '0 12px 24px -6px rgba(45,82,51,0.4), 0 4px 8px rgba(45,82,51,0.15)',
               fontSize: 16,
             }}>
@@ -114,7 +115,7 @@ export default function MileageReminderPopup({ open, onClose }) {
           </button>
           <button onClick={() => handleClose('dismissed')}
             className="w-full font-bold transition-all hover:bg-gray-50 mt-2"
-            style={{ height: 44, borderRadius: 12, color: '#9CA3AF', fontSize: 13 }}>
+            style={{ height: 44, borderRadius: 12, color: C.gray400, fontSize: 13 }}>
             תזכיר לי בחודש הבא
           </button>
         </div>

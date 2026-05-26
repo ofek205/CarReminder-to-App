@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { AlertTriangle } from "lucide-react";
+import { C } from '@/lib/designTokens';
 
 /**
  * ConfirmDeleteDialog. destructive confirmation with the same premium
@@ -24,7 +25,7 @@ export default function ConfirmDeleteDialog({
         {/*  Hero (red "danger" variant)  */}
         <div className="relative overflow-hidden"
           style={{
-            background: 'linear-gradient(165deg, #7F1D1D 0%, #B91C1C 50%, #DC2626 100%)',
+            background: `linear-gradient(165deg, #7F1D1D 0%, #B91C1C 50%, ${C.error} 100%)`,
             padding: '28px 24px 24px',
           }}>
           <div className="absolute pointer-events-none rounded-full"
@@ -73,7 +74,7 @@ export default function ConfirmDeleteDialog({
               className="w-full m-0 text-white font-bold transition-all active:translate-y-px"
               style={{
                 height: 52, borderRadius: 16,
-                background: 'linear-gradient(135deg, #B91C1C 0%, #DC2626 100%)',
+                background: `linear-gradient(135deg, #B91C1C 0%, ${C.error} 100%)`,
                 boxShadow: '0 12px 24px -6px rgba(220,38,38,0.4), 0 4px 8px rgba(220,38,38,0.15)',
                 fontSize: 16,
               }}>

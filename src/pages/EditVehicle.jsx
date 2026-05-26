@@ -507,14 +507,14 @@ export default function EditVehicle() {
       <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
         <div className="max-w-sm w-full text-center">
           <div className="text-7xl mb-4" role="img" aria-hidden="true">✏️</div>
-          <h1 className="text-xl font-bold mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב לעריכה</h1>
-          <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
+          <h1 className="text-xl font-bold mb-2" style={{ color: C.text }}>לא בחרנו רכב לעריכה</h1>
+          <p className="text-sm mb-6" style={{ color: C.gray500 }}>
             בחר רכב מהרשימה כדי לערוך אותו.
           </p>
           <button
             onClick={() => navigate('/Vehicles')}
             className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-            style={{ background: 'linear-gradient(135deg, #2D5233 0%, #4B7A53 100%)', color: '#fff' }}>
+            style={{ background: `linear-gradient(135deg, ${C.primary} 0%, #4B7A53 100%)`, color: '#fff' }}>
             חזרה לרשימת הרכבים
           </button>
         </div>
@@ -527,9 +527,9 @@ export default function EditVehicle() {
   if (!isGuestRole && isViewOnly(role)) {
     return (
       <div dir="rtl" className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="rounded-2xl p-6 max-w-sm" style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }}>
-          <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה לערוך רכב</p>
-          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר, תצוגה בלבד</p>
+        <div className="rounded-2xl p-6 max-w-sm" style={{ background: C.infoBg, border: '1px solid #93C5FD' }}>
+          <p className="font-bold text-lg mb-2" style={{ color: C.infoDark }}>אין לך הרשאה לערוך רכב</p>
+          <p className="text-sm mb-4" style={{ color: C.infoDark }}>הצטרפת כחבר, תצוגה בלבד</p>
           <button onClick={() => navigate(-1)} className="px-6 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563EB' }}>חזרה</button>
         </div>
       </div>
@@ -570,7 +570,7 @@ export default function EditVehicle() {
             </p>
           </div>
           <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
-            style={{ background: '#FFBF00', boxShadow: '0 4px 16px rgba(255,191,0,0.45)' }}>
+            style={{ background: C.yellow, boxShadow: '0 4px 16px rgba(255,191,0,0.45)' }}>
             <PenLine className="w-5 h-5" style={{ color: T.primary }} />
           </div>
         </div>
@@ -599,7 +599,7 @@ export default function EditVehicle() {
             <Camera className="h-3.5 w-3.5" /> צלם
           </label>
           <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95"
-            style={{ background: '#F3F4F6', color: T.primary, border: `1px solid ${T.border}` }}>
+            style={{ background: C.gray100, color: T.primary, border: `1px solid ${T.border}` }}>
             <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
             📁 גלריה
           </label>
@@ -737,7 +737,7 @@ export default function EditVehicle() {
                   <button type="button"
                     onClick={() => setUsageMetric(m => m === 'קילומטרים' ? 'שעות מנוע' : 'קילומטרים')}
                     className="text-[10px] font-bold px-2 py-0.5 rounded-full transition-all active:scale-95"
-                    style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0' }}>
+                    style={{ background: C.successSubtle, color: '#059669', border: `1px solid ${C.successLighter}` }}>
                     {usageMetric === 'קילומטרים' ? 'עבור לשעות מנוע' : 'עבור לק"מ'}
                   </button>
                 )}
@@ -774,7 +774,7 @@ export default function EditVehicle() {
               setting first. */}
           {hasRegistration && !vesselMode && (
             <label className="flex items-start gap-3 rounded-xl p-3 cursor-pointer transition-colors hover:bg-gray-50"
-              style={{ border: '1px solid #E5E7EB' }}>
+              style={{ border: `1px solid ${C.gray200}` }}>
               <input
                 type="checkbox"
                 checked={form.auto_sync_enabled !== false}
@@ -935,7 +935,7 @@ export default function EditVehicle() {
                 </button>
                 <button type="button" onClick={() => setTireQuestion('no')}
                   className="px-6 py-2.5 rounded-xl text-sm font-bold transition-all"
-                  style={{ background: tireQuestion === 'no' ? '#E5E7EB' : '#fff', color: tireQuestion === 'no' ? T.text : T.muted, border: `1.5px solid ${tireQuestion === 'no' ? '#D1D5DB' : T.border}` }}>
+                  style={{ background: tireQuestion === 'no' ? C.gray200 : '#fff', color: tireQuestion === 'no' ? T.text : T.muted, border: `1.5px solid ${tireQuestion === 'no' ? C.gray300 : T.border}` }}>
                   לא
                 </button>
               </div>

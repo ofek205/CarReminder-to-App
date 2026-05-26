@@ -382,9 +382,9 @@ export default function AddAccident() {
   if (!isGuestRole && isViewOnly(role)) {
     return (
       <div dir="rtl" className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="rounded-2xl p-6 max-w-sm" style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }}>
-          <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה לתעד תאונה</p>
-          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר - תצוגה בלבד</p>
+        <div className="rounded-2xl p-6 max-w-sm" style={{ background: C.infoBg, border: '1px solid #93C5FD' }}>
+          <p className="font-bold text-lg mb-2" style={{ color: C.infoDark }}>אין לך הרשאה לתעד תאונה</p>
+          <p className="text-sm mb-4" style={{ color: C.infoDark }}>הצטרפת כחבר - תצוגה בלבד</p>
           <button onClick={() => navigate(-1)} className="px-6 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563EB' }}>חזרה</button>
         </div>
       </div>
@@ -398,7 +398,7 @@ export default function AddAccident() {
     <div dir="rtl">
       {/* Header */}
       <div className="rounded-3xl p-4 mb-5 relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #991B1B 0%, #DC2626 100%)', boxShadow: '0 4px 20px rgba(220,38,38,0.25)' }}>
+        style={{ background: `linear-gradient(135deg, ${C.errorDark} 0%, ${C.error} 100%)`, boxShadow: '0 4px 20px rgba(220,38,38,0.25)' }}>
         <div className="absolute -top-10 -left-10 w-36 h-36 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
         <div className="relative z-10 flex items-center gap-2.5">
           <Link to={createPageUrl('Accidents')}>
@@ -426,7 +426,7 @@ export default function AddAccident() {
 
       {isDemo && (
         <div className="rounded-2xl p-3 mb-1 flex items-center gap-2 text-xs font-medium"
-          style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}>
+          style={{ background: C.warnBg, color: C.warnDark, border: `1px solid ${C.warnBorder}` }}>
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>זוהי תאונה לדוגמה בלבד - הנתונים אינם אמיתיים</span>
         </div>
@@ -435,13 +435,13 @@ export default function AddAccident() {
       {/* Draft resume prompt */}
       {draft.showResume && (
         <div className="rounded-2xl p-3.5 mb-4 flex items-center justify-between"
-          style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A' }} dir="rtl">
-          <p className="text-xs font-bold" style={{ color: '#92400E' }}>רוצה להמשיך מאיפה שהפסקת?</p>
+          style={{ background: C.warnSubtle, border: `1.5px solid ${C.warnBorder}` }} dir="rtl">
+          <p className="text-xs font-bold" style={{ color: C.warnDark }}>רוצה להמשיך מאיפה שהפסקת?</p>
           <div className="flex gap-2">
             <button type="button" onClick={draft.resumeDraft}
               className="text-[11px] font-bold px-3 py-1.5 rounded-xl" style={{ background: C.primary, color: '#fff' }}>המשך טיוטה</button>
             <button type="button" onClick={draft.discardDraft}
-              className="text-[11px] font-bold px-3 py-1.5 rounded-xl" style={{ background: '#F3F4F6', color: '#6B7280' }}>התחל מחדש</button>
+              className="text-[11px] font-bold px-3 py-1.5 rounded-xl" style={{ background: C.gray100, color: C.gray500 }}>התחל מחדש</button>
           </div>
         </div>
       )}
@@ -846,7 +846,7 @@ export default function AddAccident() {
                 className={`flex-1 h-10 rounded-xl text-sm font-bold transition-colors ${!form.injured ? 'bg-white border' : 'text-white'}`}
                 style={!form.injured
                   ? { borderColor: C.border, color: C.text }
-                  : { background: '#DC2626' }}>
+                  : { background: C.error }}>
                 כן
               </button>
             </div>
@@ -918,7 +918,7 @@ export default function AddAccident() {
                         className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
                         aria-label="הסר עד"
                       >
-                        <X className="w-4 h-4" style={{ color: '#DC2626' }} />
+                        <X className="w-4 h-4" style={{ color: C.error }} />
                       </button>
                     </div>
                     <Input
@@ -981,7 +981,7 @@ export default function AddAccident() {
                 disabled
                 title="שמור את התאונה כדי להפיק דוח"
                 className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-colors opacity-60 cursor-not-allowed"
-                style={{ background: '#F9FAFB', color: C.muted, border: `1.5px solid ${C.border}` }}>
+                style={{ background: C.gray50, color: C.muted, border: `1.5px solid ${C.border}` }}>
                 <Download className="w-4 h-4" />
                 ייצוא דוח רשמי — זמין לאחר שמירה
               </button>
@@ -1032,24 +1032,24 @@ export default function AddAccident() {
       {showGuestSignup && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" dir="rtl">
           <div className="bg-white rounded-3xl p-6 max-w-xs w-full text-center shadow-2xl space-y-4">
-            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: '#FFF8E1' }}>
+            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center" style={{ background: C.yellowSoft }}>
               <span className="text-2xl">🔒</span>
             </div>
             <h2 className="text-lg font-bold text-gray-900">הירשם כדי לשמור</h2>
-            <p className="text-sm" style={{ color: '#6B7280' }}>
+            <p className="text-sm" style={{ color: C.gray500 }}>
               הרשמה בחינם - ותוכל לתעד תאונות, לשמור תמונות ולגשת מכל מכשיר
             </p>
             <button
               onClick={() => { window.location.href = '/Auth'; }}
               className="w-full h-12 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-              style={{ background: '#FFBF00', color: '#2D5233' }}
+              style={{ background: C.yellow, color: C.primary }}
             >
               הירשם בחינם
             </button>
             <button
               onClick={() => setShowGuestSignup(false)}
               className="w-full text-xs py-1 font-medium"
-              style={{ color: '#D1D5DB' }}
+              style={{ color: C.gray300 }}
             >
               חזרה
             </button>

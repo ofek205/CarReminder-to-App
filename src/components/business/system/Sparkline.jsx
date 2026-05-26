@@ -16,8 +16,9 @@
  * @param {number}   height       px, default 28
  */
 import React from 'react';
+import { C } from '@/lib/designTokens';
 
-export default function Sparkline({ data, color = '#10B981', height = 28 }) {
+export default function Sparkline({ data, color = C.successBright, height = 28 }) {
   if (!Array.isArray(data) || data.length < 2) return null;
   const w = 80;
   const h = height;

@@ -15,6 +15,7 @@ import TriggersTab from '@/components/admin/TriggersTab';
 import SendLogTab from '@/components/admin/SendLogTab';
 import StatsStrip from '@/components/admin/StatsStrip';
 import BroadcastDialog from '@/components/admin/BroadcastDialog';
+import { C } from '@/lib/designTokens';
 
 /**
  * EmailCenter. Admin-only Email Management Center (Phase 1).
@@ -64,16 +65,16 @@ export default function EmailCenter() {
     return (
       <div dir="rtl" className="min-h-screen flex items-center justify-center p-6" style={{ background: '#F4F7F3' }}>
         <div className="max-w-md text-center rounded-3xl p-8"
-          style={{ background: 'white', border: '1.5px solid #E5E7EB' }}>
+          style={{ background: 'white', border: `1.5px solid ${C.gray200}` }}>
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: '#FEE2E2' }}>
-            <ShieldAlert className="w-8 h-8" style={{ color: '#DC2626' }} />
+            style={{ background: C.errorLight }}>
+            <ShieldAlert className="w-8 h-8" style={{ color: C.error }} />
           </div>
-          <h2 className="text-xl font-bold mb-2" style={{ color: '#1C2E20' }}>גישה חסומה</h2>
+          <h2 className="text-xl font-bold mb-2" style={{ color: C.text }}>גישה חסומה</h2>
           <p className="text-sm text-gray-600 mb-5">
             מרכז ניהול המיילים זמין לאדמינים בלבד.
           </p>
-          <Button onClick={() => navigate('/')} className="rounded-xl" style={{ background: '#2D5233', color: 'white' }}>
+          <Button onClick={() => navigate('/')} className="rounded-xl" style={{ background: C.primary, color: 'white' }}>
             חזרה לדף הראשי
           </Button>
         </div>

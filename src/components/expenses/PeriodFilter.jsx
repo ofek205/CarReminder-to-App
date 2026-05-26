@@ -81,7 +81,7 @@ export default function PeriodFilter({ period, onChange, earliestYear }) {
       </PopoverTrigger>
       <PopoverContent dir="rtl" className="w-72 p-2 rounded-2xl" align="end">
         {/* Tab strip */}
-        <div className="grid grid-cols-3 gap-1 mb-2 p-1 rounded-xl" style={{ background: '#F3F4F6' }}>
+        <div className="grid grid-cols-3 gap-1 mb-2 p-1 rounded-xl" style={{ background: C.gray100 }}>
           {[['year','שנה'], ['month','חודש'], ['range','טווח']].map(([k, label]) => (
             <button
               key={k}
@@ -90,7 +90,7 @@ export default function PeriodFilter({ period, onChange, earliestYear }) {
               className="h-8 rounded-lg text-xs font-bold transition-colors"
               style={tab === k
                 ? { background: '#fff', color: C.primary, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }
-                : { background: 'transparent', color: '#6B7280' }}
+                : { background: 'transparent', color: C.gray500 }}
             >
               {label}
             </button>
@@ -109,7 +109,7 @@ export default function PeriodFilter({ period, onChange, earliestYear }) {
                   className="h-9 rounded-lg text-sm font-bold flex items-center justify-center gap-1 transition-colors"
                   style={selected
                     ? { background: C.primary, color: '#fff' }
-                    : { background: '#F9FAFB', color: C.text }}
+                    : { background: C.gray50, color: C.text }}
                 >
                   {selected && <Check className="w-3.5 h-3.5" />}
                   {y}
@@ -131,7 +131,7 @@ export default function PeriodFilter({ period, onChange, earliestYear }) {
                   className="h-7 px-2 rounded-md text-[11px] font-bold transition-colors"
                   style={(period?.year === y)
                     ? { background: C.primary, color: '#fff' }
-                    : { background: '#F3F4F6', color: '#374151' }}
+                    : { background: C.gray100, color: C.gray700 }}
                 >
                   {y}
                 </button>
@@ -150,7 +150,7 @@ export default function PeriodFilter({ period, onChange, earliestYear }) {
                     className="h-9 rounded-lg text-xs font-bold transition-colors"
                     style={selected
                       ? { background: C.primary, color: '#fff' }
-                      : { background: '#F9FAFB', color: C.text }}
+                      : { background: C.gray50, color: C.text }}
                   >
                     {m}
                   </button>

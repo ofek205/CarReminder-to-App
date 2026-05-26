@@ -1009,7 +1009,7 @@ function ConversionCta({ isAuthenticated, saving, saved, onSave, onAuth, onExpor
   }
   return (
     <section className="rounded-3xl border border-[#D8E5D9] p-5 text-center"
-      style={{ background: 'linear-gradient(135deg, #E8F2EA 0%, #FFF8E1 100%)' }}>
+      style={{ background: `linear-gradient(135deg, ${C.light} 0%, ${C.yellowSoft} 100%)` }}>
       <Save className="h-8 w-8 text-[#2D5233] mx-auto mb-2" />
       <p className="text-lg font-bold text-[#1C2E20]">רוצה לשמור את הרכב לרכבים שלך?</p>
       <p className="text-sm text-gray-600 mt-1 mb-4">
@@ -1076,7 +1076,7 @@ function StateCard({ tone, title, text, details, ctaLabel, ctaHref }) {
       {ctaLabel && ctaHref && (
         <a href={ctaHref}
           className="inline-block mt-4 text-xs font-bold underline underline-offset-2 hover:no-underline"
-          style={{ color: '#92400E' }}>
+          style={{ color: C.warnDark }}>
           {ctaLabel}
         </a>
       )}
@@ -1228,7 +1228,7 @@ function PrintStyles() {
 
       .vehicle-report-preview .report-header {
         padding-bottom: 12px;
-        border-bottom: 2px solid #2D5233;
+        border-bottom: 2px solid ${C.primary};
       }
 
       .vehicle-report-preview .report-brand {
@@ -1245,7 +1245,7 @@ function PrintStyles() {
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #2D5233;
+        background: ${C.primary};
         color: #E8B829;
       }
 
@@ -1260,7 +1260,7 @@ function PrintStyles() {
         margin: 0;
         font-size: 18px;
         font-weight: 900;
-        color: #2D5233;
+        color: ${C.primary};
       }
 
       .vehicle-report-preview .report-brand-subtitle,
@@ -1282,7 +1282,7 @@ function PrintStyles() {
         padding: 14px;
         border-radius: 18px;
         background: #F5FAF6;
-        border: 1px solid #D8E5D9;
+        border: 1px solid ${C.border};
       }
 
       .vehicle-report-preview .report-hero h1 {
@@ -1297,7 +1297,7 @@ function PrintStyles() {
         padding: 8px 12px;
         border-radius: 10px;
         border: 2px solid #1A3A5C;
-        background: #FFBF00;
+        background: ${C.yellow};
         color: #111;
         text-align: center;
         font-size: 22px;
@@ -1313,7 +1313,7 @@ function PrintStyles() {
       .vehicle-report-preview .report-section h2 {
         margin: 0 0 6px;
         font-size: 13px;
-        color: #2D5233;
+        color: ${C.primary};
         border-bottom: 1px solid #E5ECE6;
         padding-bottom: 4px;
       }
@@ -1433,7 +1433,7 @@ function PrintStyles() {
           align-items: center;
           gap: 16px;
           padding-bottom: 10px;
-          border-bottom: 2px solid #2D5233;
+          border-bottom: 2px solid ${C.primary};
         }
 
         .report-brand {
@@ -1450,7 +1450,7 @@ function PrintStyles() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: #2D5233;
+          background: ${C.primary};
           color: #E8B829;
         }
 
@@ -1465,7 +1465,7 @@ function PrintStyles() {
           margin: 0;
           font-size: 18px;
           font-weight: 900;
-          color: #2D5233;
+          color: ${C.primary};
         }
 
         .report-brand-subtitle,
@@ -1491,7 +1491,7 @@ function PrintStyles() {
           padding: 12px;
           border-radius: 18px;
           background: #F5FAF6;
-          border: 1px solid #D8E5D9;
+          border: 1px solid ${C.border};
         }
 
         .report-hero h1 {
@@ -1506,7 +1506,7 @@ function PrintStyles() {
           padding: 8px 12px;
           border-radius: 10px;
           border: 2px solid #1A3A5C;
-          background: #FFBF00;
+          background: ${C.yellow};
           color: #111;
           text-align: center;
           font-size: 22px;
@@ -1523,7 +1523,7 @@ function PrintStyles() {
         .report-section h2 {
           margin: 0 0 5px;
           font-size: 12px;
-          color: #2D5233;
+          color: ${C.primary};
           border-bottom: 1px solid #E5ECE6;
           padding-bottom: 3px;
         }

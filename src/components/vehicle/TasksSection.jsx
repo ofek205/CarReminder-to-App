@@ -22,17 +22,17 @@ const CATEGORIES = {
 };
 
 const PRIORITY_CONFIG = {
-  urgent: { color: '#DC2626', bg: '#FEF2F2', label: 'דחוף' },
-  high:   { color: '#D97706', bg: '#FFF8E1', label: 'גבוה' },
-  medium: { color: '#2563EB', bg: '#EFF6FF', label: 'בינוני' },
-  low:    { color: '#6B7280', bg: '#F3F4F6', label: 'נמוך' },
+  urgent: { color: C.error, bg: C.errorBg, label: 'דחוף' },
+  high:   { color: C.warn, bg: C.yellowSoft, label: 'גבוה' },
+  medium: { color: '#2563EB', bg: C.infoSubtle, label: 'בינוני' },
+  low:    { color: C.gray500, bg: C.gray100, label: 'נמוך' },
 };
 
 const CARD_COLORS = [
   { key: 'yellow', bg: '#FFF9C4', border: '#F9E547' },
   { key: 'pink',   bg: '#FCE4EC', border: '#F48FB1' },
   { key: 'blue',   bg: '#E3F2FD', border: '#90CAF9' },
-  { key: 'green',  bg: '#E8F5E9', border: '#A5D6A7' },
+  { key: 'green',  bg: C.successBg, border: '#A5D6A7' },
   { key: 'orange', bg: '#FFF3E0', border: '#FFB74D' },
 ];
 
@@ -53,15 +53,15 @@ function TaskCard({ task, T, onToggle, onDelete }) {
   return (
     <div className="rounded-xl p-3.5 relative transition-all"
       style={{
-        background: isDone ? '#F9FAFB' : color.bg,
-        border: `1.5px solid ${isDone ? '#E5E7EB' : color.border}`,
+        background: isDone ? C.gray50 : color.bg,
+        border: `1.5px solid ${isDone ? C.gray200 : color.border}`,
         opacity: isDone ? 0.6 : 1,
       }} dir="rtl">
       <div className="flex items-start gap-2.5">
         {/* Checkbox */}
         <button onClick={() => onToggle(task.id, !isDone)}
           className="w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all"
-          style={{ borderColor: isDone ? '#10B981' : '#D1D5DB', background: isDone ? '#10B981' : 'transparent' }}>
+          style={{ borderColor: isDone ? C.successBright : C.gray300, background: isDone ? C.successBright : 'transparent' }}>
           {isDone && <Check className="w-3 h-3 text-white" />}
         </button>
 
@@ -70,7 +70,7 @@ function TaskCard({ task, T, onToggle, onDelete }) {
           <div className="flex items-center gap-1.5 mb-1">
             <span className="w-2 h-2 rounded-full shrink-0" style={{ background: priority.color }} />
             <p className={`text-sm font-bold truncate ${isDone ? 'line-through' : ''}`}
-              style={{ color: isDone ? '#9CA3AF' : '#1C2E20' }}>
+              style={{ color: isDone ? C.gray400 : C.text }}>
               {task.title}
             </p>
           </div>
@@ -85,7 +85,7 @@ function TaskCard({ task, T, onToggle, onDelete }) {
             )}
             {task.due_date && (
               <span className="text-[10px] font-bold flex items-center gap-0.5"
-                style={{ color: isOverdue ? '#DC2626' : '#9CA3AF' }}>
+                style={{ color: isOverdue ? C.error : C.gray400 }}>
                 <Calendar className="w-2.5 h-2.5" />
                 {formatDateHe(task.due_date)}
                 {isOverdue && ' ⚠️'}
@@ -95,7 +95,7 @@ function TaskCard({ task, T, onToggle, onDelete }) {
 
           {/* Content */}
           {task.content && !isDone && (
-            <p className="text-xs mt-1 leading-relaxed" style={{ color: '#6B7280' }}>
+            <p className="text-xs mt-1 leading-relaxed" style={{ color: C.gray500 }}>
               {task.content}
             </p>
           )}
@@ -104,7 +104,7 @@ function TaskCard({ task, T, onToggle, onDelete }) {
         {/* Delete */}
         <button onClick={() => onDelete(task.id)}
           className="w-5 h-5 rounded flex items-center justify-center shrink-0 hover:bg-red-50 transition-all">
-          <Trash2 className="w-3 h-3" style={{ color: '#DC2626' }} />
+          <Trash2 className="w-3 h-3" style={{ color: C.error }} />
         </button>
       </div>
     </div>
@@ -290,8 +290,8 @@ export default function TasksSection({ vehicle }) {
                     className="px-2.5 py-1 rounded-full text-xs font-medium border transition-all active:scale-[0.95]"
                     style={{
                       background: form.category === cat ? T.light : '#fff',
-                      borderColor: form.category === cat ? T.primary : '#E5E7EB',
-                      color: form.category === cat ? T.primary : '#6B7280',
+                      borderColor: form.category === cat ? T.primary : C.gray200,
+                      color: form.category === cat ? T.primary : C.gray500,
                     }}>
                     {cat}
                   </button>
@@ -310,7 +310,7 @@ export default function TasksSection({ vehicle }) {
                       className="flex-1 py-1.5 rounded-lg text-[10px] font-bold text-center transition-all border"
                       style={{
                         background: form.priority === key ? cfg.bg : '#fff',
-                        borderColor: form.priority === key ? cfg.color : '#E5E7EB',
+                        borderColor: form.priority === key ? cfg.color : C.gray200,
                         color: cfg.color,
                       }}>
                       {cfg.label}

@@ -12,6 +12,7 @@
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { C } from '@/lib/designTokens';
 
 export default function ActionTile({ to, icon: Icon, label, primary = false }) {
   if (primary) {
@@ -20,7 +21,7 @@ export default function ActionTile({ to, icon: Icon, label, primary = false }) {
         to={to}
         className="rounded-2xl p-3 flex flex-col items-start gap-2 transition-all hover:scale-[1.03] active:scale-[0.98] group"
         style={{
-          background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+          background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
           boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
         }}
       >
@@ -40,25 +41,25 @@ export default function ActionTile({ to, icon: Icon, label, primary = false }) {
       className="rounded-2xl p-3 flex flex-col items-start gap-2 border transition-all hover:scale-[1.03] active:scale-[0.98] group"
       style={{
         background: '#FFFFFF',
-        borderColor: '#D1FAE5',
+        borderColor: C.successLight,
         boxShadow: '0 2px 8px rgba(15,40,28,0.04)',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = '#10B981';
+        e.currentTarget.style.borderColor = C.successBright;
         e.currentTarget.style.boxShadow = '0 6px 16px rgba(16,185,129,0.15)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = '#D1FAE5';
+        e.currentTarget.style.borderColor = C.successLight;
         e.currentTarget.style.boxShadow = '0 2px 8px rgba(15,40,28,0.04)';
       }}
     >
       <div
         className="w-9 h-9 rounded-xl flex items-center justify-center"
-        style={{ background: '#ECFDF5', color: '#10B981' }}
+        style={{ background: C.successSubtle, color: C.successBright }}
       >
         <Icon className="w-4 h-4" />
       </div>
-      <span className="text-sm font-bold" style={{ color: '#0B2912' }}>{label}</span>
+      <span className="text-sm font-bold" style={{ color: C.primaryDark }}>{label}</span>
     </Link>
   );
 }

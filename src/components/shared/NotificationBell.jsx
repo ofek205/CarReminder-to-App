@@ -27,6 +27,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { he as heLocale } from 'date-fns/locale';
 import { configForType as appConfigForType, requiresActionForType, decodeNotifBody } from '@/lib/appNotificationConfig';
 import { calcAllReminders } from '@/components/shared/ReminderEngine';
+import { C } from '@/lib/designTokens';
 
 // Hebrew "X ago" label for an ISO timestamp. Returns null for
 // missing/invalid input so callers can omit the row entirely.
@@ -69,8 +70,8 @@ function isActionNotification(notification) {
 // SEMANTIC (don't change with vehicle theme) — urgency reads the
 // same on a green Toyota dashboard or a marine-blue boat dashboard.
 const NOTIF_TIER = {
-  urgent:    { fg: '#DC2626', bg: 'rgba(220,38,38,0.10)', label: 'דחוף',  rank: 0 },
-  warn:      { fg: '#F59E0B', bg: 'rgba(245,158,11,0.10)', label: 'בקרוב', rank: 1 },
+  urgent:    { fg: C.error, bg: 'rgba(220,38,38,0.10)', label: 'דחוף',  rank: 0 },
+  warn:      { fg: C.warnIcon, bg: 'rgba(245,158,11,0.10)', label: 'בקרוב', rank: 1 },
   share:     { fg: '#4F46E5', bg: 'rgba(79,70,229,0.10)', label: 'שיתוף', rank: 2 },
   community: { fg: '#0D9488', bg: 'rgba(13,148,136,0.10)', label: 'קהילה', rank: 3 },
   info:      { fg: '#16A34A', bg: 'rgba(22,163,74,0.10)', label: 'כללי',  rank: 4 },
@@ -162,7 +163,7 @@ function EmptyState({ allEmpty }) {
   return (
     <div className="py-12 px-6 text-center">
       <EmptyEnvelope variant={allEmpty ? 'plain' : 'checked'} />
-      <p className="mt-4 text-[14px] font-semibold" style={{ color: '#1C2E20' }}>
+      <p className="mt-4 text-[14px] font-semibold" style={{ color: C.text }}>
         {allEmpty ? 'אין התראות' : 'הכל קראת'}
       </p>
       <p className="mt-1 text-[12px]" style={{ color: '#8B9C8E' }}>
@@ -666,12 +667,12 @@ export default function NotificationBell() {
         onClick={toggleBell}
         // w-11 h-11 = 44pt — Apple HIG minimum tap target.
         className="relative w-11 h-11 rounded-xl flex items-center justify-center transition-all active:scale-[0.95]"
-        style={{ background: unreadCount > 0 ? '#FEF2F2' : '#F3F4F6' }}
+        style={{ background: unreadCount > 0 ? C.errorBg : C.gray100 }}
         aria-label={unreadCount > 0 ? `התראות (${unreadCount} חדשות)` : 'התראות'}
         aria-expanded={popupOpen}
         aria-haspopup="menu"
       >
-        <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? '#DC2626' : '#6B7280' }} aria-hidden="true" />
+        <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? C.error : C.gray500 }} aria-hidden="true" />
         {unreadCount > 0 && (
           // Badge with a soft outer glow + pulse animation. Outer ring
           // (box-shadow first stop) blends into the surrounding top bar
@@ -680,7 +681,7 @@ export default function NotificationBell() {
           // are injected once via the effect below.
           <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
             style={{
-              background: '#DC2626',
+              background: C.error,
               boxShadow: '0 0 0 2px #fff, 0 0 14px rgba(220,38,38,0.55)',
               fontVariantNumeric: 'tabular-nums',
               animation: popupOpen ? 'none' : 'crBellPulse 1800ms ease-in-out infinite',
@@ -707,7 +708,7 @@ export default function NotificationBell() {
           <div className="absolute left-0 top-12 z-50 w-[360px] max-w-[calc(100vw-24px)] rounded-3xl overflow-hidden"
             style={{
               background: '#FFFFFF',
-              border: '1px solid #E5E7EB',
+              border: `1px solid ${C.gray200}`,
               boxShadow: '0 24px 60px rgba(28,46,32,0.22), 0 4px 12px rgba(28,46,32,0.08)',
             }} dir="rtl">
             {/* Header — subtle green-tinted bg strip gives the
@@ -718,9 +719,9 @@ export default function NotificationBell() {
               className="flex items-center justify-between px-4 py-3"
               style={{ background: '#F4FAF6', borderBottom: '1px solid #E5EBE6' }}
             >
-              <span className="text-[15px] font-bold tracking-tight" style={{ color: '#1C2E20' }}>התראות</span>
+              <span className="text-[15px] font-bold tracking-tight" style={{ color: C.text }}>התראות</span>
               {unreadCount > 0 && (
-                <button onClick={markAllRead} className="text-[12px] font-semibold transition-colors hover:opacity-80" style={{ color: '#2D5233' }}>
+                <button onClick={markAllRead} className="text-[12px] font-semibold transition-colors hover:opacity-80" style={{ color: C.primary }}>
                   סמן הכל כנקרא
                 </button>
               )}
@@ -769,7 +770,7 @@ export default function NotificationBell() {
                       className="flex items-center gap-3 transition-all"
                       style={{
                         background: 'transparent',
-                        borderBottom: '1px solid #F3F4F6',
+                        borderBottom: `1px solid ${C.gray100}`,
                         borderRight: `${isUrgent ? 4 : 3}px solid ${t.fg}`,
                         padding: isUrgent ? '14px 16px' : '12px 16px',
                       }}>
@@ -859,7 +860,7 @@ export default function NotificationBell() {
                         </div>
                         <div className="flex-1 min-w-0">
                           {/* Title — Heebo 500 14px, primary text. */}
-                          <p className="text-[14px] font-medium truncate" style={{ color: '#1C2E20', lineHeight: 1.35 }}>
+                          <p className="text-[14px] font-medium truncate" style={{ color: C.text, lineHeight: 1.35 }}>
                             {n.appType === 'admin_message' ? decodeNotifBody(n.label) : n.label}
                           </p>
                           {/* Body — 12px muted; truncates after one line. */}
@@ -910,7 +911,7 @@ export default function NotificationBell() {
                                 onClick={(e) => { e.stopPropagation(); handleInviteAction(n, 'decline'); }}
                                 disabled={!!inviteActing}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95"
-                                style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+                                style={{ background: C.errorBg, color: C.error, border: `1px solid ${C.errorBorder}` }}>
                                 {inviteActing === `${n.id}-decline`
                                   ? <Loader2 className="w-3 h-3 animate-spin" />
                                   : <X className="w-3 h-3" />}
@@ -930,15 +931,15 @@ export default function NotificationBell() {
                           title={isRead ? 'סמן כלא נקרא' : 'סמן כנקרא'}>
                           <div className="w-2.5 h-2.5 rounded-full border-2 transition-all"
                             style={{
-                              background: isRead ? 'transparent' : '#DC2626',
-                              borderColor: isRead ? '#D1D5DB' : '#DC2626',
+                              background: isRead ? 'transparent' : C.error,
+                              borderColor: isRead ? C.gray300 : C.error,
                             }} />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}
                           className="w-11 h-11 rounded-lg flex items-center justify-center hover:bg-red-50 transition-all"
                           title="הסר התראה">
-                          <X className="w-3.5 h-3.5" style={{ color: '#D1D5DB' }} />
+                          <X className="w-3.5 h-3.5" style={{ color: C.gray300 }} />
                         </button>
                       </div>
                     </div>
@@ -950,7 +951,7 @@ export default function NotificationBell() {
             {notifications.length > 0 && (
               <button onClick={() => { setPopupOpen(false); navigate(createPageUrl('Notifications')); }}
                 className="w-full py-3.5 text-center text-[13px] font-semibold transition-colors hover:bg-gray-50"
-                style={{ color: '#2D5233', borderTop: '1px solid #F3F4F6' }}>
+                style={{ color: C.primary, borderTop: `1px solid ${C.gray100}` }}>
                 כל ההתראות ←
               </button>
             )}
