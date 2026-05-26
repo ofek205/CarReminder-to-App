@@ -9,11 +9,12 @@
  * X domain" hint without spending a full tone surface.
  */
 import React from 'react';
+import { C } from '@/lib/designTokens';
 
 const ACCENT_BAR = {
-  emerald: '#10B981',
-  amber:   '#F59E0B',
-  blue:    '#3B82F6',
+  emerald: C.successBright,
+  amber:   C.warnIcon,
+  blue:    C.info,
   red:     '#EF4444',
   purple:  '#A855F7',
 };
@@ -25,7 +26,7 @@ export default function Card({ accent, padding = 'p-4 sm:p-5', className = '', c
       className={`relative rounded-2xl border overflow-hidden ${padding} ${className}`}
       style={{
         background: '#FFFFFF',
-        borderColor: '#E5EDE8',
+        borderColor: C.bgSage,
         boxShadow: '0 4px 16px rgba(15,40,28,0.04)',
       }}
       {...rest}

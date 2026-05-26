@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useFirstTimeTour from '@/hooks/useFirstTimeTour';
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from '@/lib/popups/systemPopups';
+import { C } from '@/lib/designTokens';
 
 /**
  * FirstTimeTour. 4-step contextual tooltip tour for first-time users.
@@ -62,12 +63,12 @@ const ARROW_SIZE = 12;
 // connector arrow so they tie back to the same family.
 const THEMES = {
   default: {
-    badgeBg:      '#E8F2EA',
-    badgeColor:   '#2D5233',
-    dotActive:    '#2D5233',
-    buttonGrad:   'linear-gradient(135deg, #2D5233 0%, #4A8C5C 100%)',
+    badgeBg:      C.light,
+    badgeColor:   C.primary,
+    dotActive:    C.primary,
+    buttonGrad:   `linear-gradient(135deg, ${C.primary} 0%, #4A8C5C 100%)`,
     buttonShadow: 'rgba(45,82,51,0.35)',
-    ring:         '#2D5233',
+    ring:         C.primary,
     haloOuter:    'rgba(74, 140, 92, 0.08)',
     haloPulse:    'rgba(74, 140, 92, 0.15)',
     accent:       '#4A8C5C',
@@ -494,7 +495,7 @@ export default function FirstTimeTour({
           <div className="flex items-center gap-1">
             <button onClick={skip}
               className="font-semibold transition-colors"
-              style={{ padding: '8px 12px', color: '#9CA3AF', fontSize: 12 }}
+              style={{ padding: '8px 12px', color: C.gray400, fontSize: 12 }}
               aria-label="דלג על הסיור">
               דלג
             </button>
@@ -520,7 +521,7 @@ export default function FirstTimeTour({
                 style={{
                   width: i === step ? 20 : 10,
                   height: 10,
-                  background: i === step ? T.dotActive : '#D1D5DB',
+                  background: i === step ? T.dotActive : C.gray300,
                   padding: 0,
                   border: 'none',
                 }}

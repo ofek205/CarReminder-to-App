@@ -15,6 +15,7 @@ import {
   Sparkles, Bell, Gift, Star, Heart, AlertTriangle, Info, CheckCircle,
   Wrench, Car, Ship, Calendar, Users, TrendingUp, Zap, Rocket, MessageCircle,
 } from 'lucide-react';
+import { C } from '@/lib/designTokens';
 
 //  Categories
 export const CATEGORIES = [
@@ -26,10 +27,10 @@ export const CATEGORIES = [
 
 //  Statuses
 export const STATUSES = [
-  { value: 'draft',    label: 'טיוטה',   color: '#6B7280', bg: '#F3F4F6' },
-  { value: 'active',   label: 'פעיל',    color: '#059669', bg: '#D1FAE5' },
-  { value: 'paused',   label: 'מושהה',   color: '#D97706', bg: '#FEF3C7' },
-  { value: 'archived', label: 'בארכיון', color: '#9CA3AF', bg: '#F9FAFB' },
+  { value: 'draft',    label: 'טיוטה',   color: C.gray500, bg: C.gray100 },
+  { value: 'active',   label: 'פעיל',    color: '#059669', bg: C.successLight },
+  { value: 'paused',   label: 'מושהה',   color: C.warn, bg: C.warnBg },
+  { value: 'archived', label: 'בארכיון', color: C.gray400, bg: C.gray50 },
 ];
 
 //  Design themes
@@ -40,10 +41,10 @@ export const THEMES = [
   {
     value: 'brand',
     label: 'Brand (ירוק)',
-    primary: '#2D5233',
-    bg: 'linear-gradient(165deg, #1C3620 0%, #2D5233 45%, #4A8C5C 100%)',
+    primary: C.primary,
+    bg: `linear-gradient(165deg, #1C3620 0%, ${C.primary} 45%, #4A8C5C 100%)`,
     textOnBg: '#FFFFFF',
-    accent: '#FFBF00',
+    accent: C.yellow,
   },
   {
     value: 'info',
@@ -56,18 +57,18 @@ export const THEMES = [
   {
     value: 'success',
     label: 'Success (ירוק-בהיר)',
-    primary: '#10B981',
-    bg: 'linear-gradient(165deg, #065F46 0%, #10B981 100%)',
+    primary: C.successBright,
+    bg: `linear-gradient(165deg, ${C.successDark} 0%, ${C.successBright} 100%)`,
     textOnBg: '#FFFFFF',
-    accent: '#A7F3D0',
+    accent: C.successLighter,
   },
   {
     value: 'warning',
     label: 'Warning (כתום)',
-    primary: '#D97706',
-    bg: 'linear-gradient(165deg, #92400E 0%, #D97706 100%)',
+    primary: C.warn,
+    bg: `linear-gradient(165deg, ${C.warnDark} 0%, ${C.warn} 100%)`,
     textOnBg: '#FFFFFF',
-    accent: '#FDE68A',
+    accent: C.warnBorder,
   },
   {
     value: 'promo',

@@ -32,6 +32,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 // Living Dashboard system - shared with all B2B pages.
 import { PageShell, Card } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 const MAX_NAME = 120;
 
@@ -209,12 +210,12 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
             className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center"
             style={isRequest
               ? {
-                  background: 'linear-gradient(135deg, #92400E 0%, #F59E0B 80%, #FCD34D 100%)',
+                  background: `linear-gradient(135deg, ${C.warnDark} 0%, ${C.warnIcon} 80%, #FCD34D 100%)`,
                   color: '#FFFFFF',
                   boxShadow: '0 8px 20px rgba(245,158,11,0.32)',
                 }
               : {
-                  background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                  background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                   color: '#FFFFFF',
                   boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
                 }}
@@ -225,12 +226,12 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
             <p
               className="text-[11px] font-bold inline-flex items-center gap-1 px-2 py-0.5 rounded-md"
               style={isRequest
-                ? { background: '#FFFBEB', color: '#92400E' }
-                : { background: '#D1FAE5', color: '#065F46' }}
+                ? { background: C.warnSubtle, color: C.warnDark }
+                : { background: C.successLight, color: C.successDark }}
             >
               {isRequest ? 'דורש אישור' : 'יצירה מיידית'}
             </p>
-            <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: '#4B5D52' }}>
+            <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: C.textAlt }}>
               {isRequest
                 ? 'מילוי טופס וקבלת תשובה מהאדמין תוך זמן קצר.'
                 : 'תיווצר סביבת עבודה נפרדת. הרכבים האישיים שלך נשארים פרטיים.'}
@@ -246,8 +247,8 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
       {isRequest && (
         <Card accent="amber" className="mb-4" padding="px-3.5 py-2.5">
           <div className="flex items-start gap-2">
-            <Clock className="h-4 w-4 shrink-0 mt-0.5" style={{ color: '#92400E' }} />
-            <div className="text-[11px] leading-relaxed" style={{ color: '#92400E' }}>
+            <Clock className="h-4 w-4 shrink-0 mt-0.5" style={{ color: C.warnDark }} />
+            <div className="text-[11px] leading-relaxed" style={{ color: C.warnDark }}>
               הבקשה תישלח לבדיקת אדמין. מומלץ לפרט את הסיבה ואת התפקיד של החשבון השני (סניף נוסף, פעילות נפרדת, וכד׳).
             </div>
           </div>
@@ -257,8 +258,8 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
       <Card>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold mb-1.5" style={{ color: '#0B2912' }}>
-              שם החשבון העסקי <span style={{ color: '#DC2626' }}>*</span>
+            <label className="block text-xs font-bold mb-1.5" style={{ color: C.primaryDark }}>
+              שם החשבון העסקי <span style={{ color: C.error }}>*</span>
             </label>
             <Input
               type="text"
@@ -267,13 +268,13 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
               placeholder="לדוגמה: יצור פלסטיק בע&quot;מ"
               maxLength={MAX_NAME}
               className="h-11 rounded-xl"
-              style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+              style={{ background: '#FFFFFF', borderColor: C.successLight }}
               required
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold mb-1.5" style={{ color: '#0B2912' }}>
+            <label className="block text-xs font-bold mb-1.5" style={{ color: C.primaryDark }}>
               ח.פ. / מספר עוסק
             </label>
             <Input
@@ -282,13 +283,13 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
               onChange={(e) => setBusinessId(e.target.value)}
               placeholder="לא חובה"
               className="h-11 rounded-xl"
-              style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+              style={{ background: '#FFFFFF', borderColor: C.successLight }}
               dir="ltr"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold mb-1.5" style={{ color: '#0B2912' }}>
+            <label className="block text-xs font-bold mb-1.5" style={{ color: C.primaryDark }}>
               אימייל ליצירת קשר
             </label>
             <Input
@@ -297,15 +298,15 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
               onChange={(e) => setContactEmail(e.target.value)}
               placeholder="לא חובה"
               className="h-11 rounded-xl"
-              style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+              style={{ background: '#FFFFFF', borderColor: C.successLight }}
               dir="ltr"
             />
           </div>
 
           {isRequest && (
             <div>
-              <label className="block text-xs font-bold mb-1.5" style={{ color: '#0B2912' }}>
-                סיבת הבקשה <span style={{ color: '#DC2626' }}>*</span>
+              <label className="block text-xs font-bold mb-1.5" style={{ color: C.primaryDark }}>
+                סיבת הבקשה <span style={{ color: C.error }}>*</span>
               </label>
               <Textarea
                 value={reason}
@@ -313,7 +314,7 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
                 rows={3}
                 placeholder="לדוגמה: סניף שני בעיר אחרת, פעילות נפרדת לחברת בת, או צרכים אחרים"
                 className="rounded-xl"
-                style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+                style={{ background: '#FFFFFF', borderColor: C.successLight }}
                 required
               />
             </div>
@@ -324,7 +325,7 @@ function CreateOrRequestForm({ mode, latestRequest, onCreated, onRequested }) {
             disabled={submitting}
             className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-60"
             style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
               boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
             }}
@@ -354,15 +355,15 @@ function PendingState({ request }) {
         <div
           className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
           style={{
-            background: 'linear-gradient(135deg, #92400E 0%, #F59E0B 80%, #FCD34D 100%)',
+            background: `linear-gradient(135deg, ${C.warnDark} 0%, ${C.warnIcon} 80%, #FCD34D 100%)`,
             color: '#FFFFFF',
             boxShadow: '0 8px 20px rgba(245,158,11,0.32)',
           }}
         >
           <Clock className="h-6 w-6" />
         </div>
-        <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>הבקשה בדרך לאישור</p>
-        <p className="text-[11px] leading-relaxed" style={{ color: '#4B5D52' }}>
+        <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>הבקשה בדרך לאישור</p>
+        <p className="text-[11px] leading-relaxed" style={{ color: C.textAlt }}>
           ברגע שהבקשה תאושר, החשבון העסקי החדש ייפתח אוטומטית ויופיע במחליף הסביבות.
         </p>
       </Card>
@@ -370,11 +371,11 @@ function PendingState({ request }) {
       <Card accent="emerald">
         <p
           className="text-[11px] font-bold mb-2 flex items-center gap-2"
-          style={{ color: '#0B2912' }}
+          style={{ color: C.primaryDark }}
         >
           <span
             className="inline-block w-1 h-3.5 rounded-full"
-            style={{ background: 'linear-gradient(180deg, #065F46 0%, #34D399 100%)' }}
+            style={{ background: `linear-gradient(180deg, ${C.successDark} 0%, ${C.successMid} 100%)` }}
           />
           פרטי הבקשה
         </p>
@@ -396,8 +397,8 @@ function DeniedBanner({ request }) {
   return (
     <Card accent="red" className="mb-4" padding="px-3.5 py-2.5">
       <div className="flex items-start gap-2">
-        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: '#991B1B' }} />
-        <div className="text-[11px] leading-relaxed flex-1" style={{ color: '#991B1B' }}>
+        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: C.errorDark }} />
+        <div className="text-[11px] leading-relaxed flex-1" style={{ color: C.errorDark }}>
           <p className="font-bold mb-0.5">הבקשה הקודמת נדחתה</p>
           {request.review_note && <p className="mb-1">{request.review_note}</p>}
           <p className="text-[10px]" style={{ color: 'rgba(153,27,27,0.7)' }}>{fmtDate(request.reviewed_at)}</p>
@@ -409,11 +410,11 @@ function DeniedBanner({ request }) {
 
 function Detail({ label, value, multiline }) {
   return (
-    <div className="py-1.5 first:pt-0 last:pb-0" style={{ borderBottom: '1px solid #F0F7F4' }}>
-      <p className="text-[10px] mb-0.5" style={{ color: '#6B7C72' }}>{label}</p>
+    <div className="py-1.5 first:pt-0 last:pb-0" style={{ borderBottom: `1px solid ${C.bgSubtle}` }}>
+      <p className="text-[10px] mb-0.5" style={{ color: C.mutedAlt }}>{label}</p>
       <p
         className={`text-xs font-bold ${multiline ? 'whitespace-pre-line' : 'truncate'}`}
-        style={{ color: '#0B2912' }}
+        style={{ color: C.primaryDark }}
       >
         {value}
       </p>

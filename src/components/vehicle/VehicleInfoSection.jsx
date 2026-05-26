@@ -269,7 +269,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
             it no longer auto-triggers AI extraction. */}
         {step === 'upload' && (
           <div className="space-y-3 pt-1">
-            <p className="text-sm" style={{ color: '#6B7280' }}>
+            <p className="text-sm" style={{ color: C.gray500 }}>
               עדכן את תוקף {docLabel}. אפשר לצרף מסמך לתיוק או להמשיך ישר להזנת תאריך.
             </p>
             {error && (
@@ -297,9 +297,9 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
             {/* Or-divider + direct path to manual entry — the primary
                 action for users who only want to update the date. */}
             <div className="flex items-center gap-2 py-1">
-              <div className="flex-1 h-px" style={{ background: '#E5E7EB' }} />
-              <span className="text-xs" style={{ color: '#9CA3AF' }}>או</span>
-              <div className="flex-1 h-px" style={{ background: '#E5E7EB' }} />
+              <div className="flex-1 h-px" style={{ background: C.gray200 }} />
+              <span className="text-xs" style={{ color: C.gray400 }}>או</span>
+              <div className="flex-1 h-px" style={{ background: C.gray200 }} />
             </div>
             <button type="button" onClick={() => setStep('manual')}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
@@ -312,8 +312,8 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
                 when the admin has flipped scan_extraction off. */}
             {!aiScanAllowed && (
               <div className="flex items-center justify-center gap-1.5 mt-1">
-                <Info className="w-3 h-3" style={{ color: '#92400E' }} />
-                <span className="text-[11px] font-bold" style={{ color: '#92400E' }}>
+                <Info className="w-3 h-3" style={{ color: C.warnDark }} />
+                <span className="text-[11px] font-bold" style={{ color: C.warnDark }}>
                   סריקה אוטומטית כרגע לא פעילה
                 </span>
               </div>
@@ -338,7 +338,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
                   </span>
                 </span>
                 <button type="button" onClick={() => setUploadedDoc(null)}
-                  className="text-[11px] font-bold shrink-0" style={{ color: '#9CA3AF' }}>
+                  className="text-[11px] font-bold shrink-0" style={{ color: C.gray400 }}>
                   הסר
                 </button>
               </div>
@@ -362,8 +362,8 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
                 className="h-12 text-base font-bold tabular-nums" />
               {!isNewer && manualForm.expiry_date && (
                 <div className="flex items-center gap-1.5 mt-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" style={{ color: '#D97706' }} />
-                  <span className="text-[11px]" style={{ color: '#92400E' }}>
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" style={{ color: C.warn }} />
+                  <span className="text-[11px]" style={{ color: C.warnDark }}>
                     התאריך זהה או ישן יותר מהקיים ({formatDateHe(currentDate)})
                   </span>
                 </div>
@@ -372,7 +372,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
 
             {/* Optional title */}
             <div>
-              <label className="block text-xs mb-1" style={{ color: '#6B7280' }}>
+              <label className="block text-xs mb-1" style={{ color: C.gray500 }}>
                 כותרת המסמך
               </label>
               <Input type="text"
@@ -386,7 +386,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
             {uploadedDoc && aiScanAllowed && (
               <button type="button" onClick={scanDocument}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-[0.97]"
-                style={{ background: '#FFFBEB', color: '#92400E', border: '1px solid #FDE68A' }}>
+                style={{ background: C.warnSubtle, color: C.warnDark, border: `1px solid ${C.warnBorder}` }}>
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>נסה סריקה אוטומטית עם AI</span>
               </button>
@@ -399,7 +399,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
                 <CheckCircle2 className="w-4 h-4 inline ml-1" /> שמור ועדכן
               </button>
               <button onClick={() => { setError(''); setStep('upload'); }}
-                className="px-4 py-3 rounded-xl font-bold text-sm" style={{ color: '#9CA3AF' }}>
+                className="px-4 py-3 rounded-xl font-bold text-sm" style={{ color: C.gray400 }}>
                 חזור
               </button>
             </div>
@@ -411,7 +411,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
           <div className="flex flex-col items-center py-8 gap-3">
             <Loader2 className="w-8 h-8 animate-spin" style={{ color: T.primary }} />
             <p className="text-sm font-bold" style={{ color: T.text }}>סורק את המסמך...</p>
-            <p className="text-xs" style={{ color: '#9CA3AF' }}>מחלץ תאריכים ופרטים</p>
+            <p className="text-xs" style={{ color: C.gray400 }}>מחלץ תאריכים ופרטים</p>
           </div>
         )}
 
@@ -463,7 +463,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
                 <CheckCircle2 className="w-4 h-4 inline ml-1" /> שמור ועדכן
               </button>
               <button onClick={() => { reset(); }}
-                className="px-4 py-2.5 rounded-xl font-bold text-sm" style={{ color: '#9CA3AF' }}>
+                className="px-4 py-2.5 rounded-xl font-bold text-sm" style={{ color: C.gray400 }}>
                 ביטול
               </button>
             </div>
@@ -473,7 +473,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         {/* Done step */}
         {step === 'done' && (
           <div className="flex flex-col items-center py-6 gap-2">
-            <CheckCircle2 className="w-12 h-12" style={{ color: '#10B981' }} />
+            <CheckCircle2 className="w-12 h-12" style={{ color: C.successBright }} />
             <p className="text-sm font-bold" style={{ color: T.text }}>{docLabel} עודכן בהצלחה!</p>
           </div>
         )}
@@ -587,9 +587,9 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
 
   const STATUS_ACCENT = {
     ok:      { color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0' },
-    warn:    { color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
-    danger:  { color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
-    missing: { color: '#9CA3AF', bg: '#F9FAFB', border: '#E5E7EB' },
+    warn:    { color: C.warn, bg: C.warnSubtle, border: C.warnBorder },
+    danger:  { color: C.error, bg: C.errorBg, border: C.errorBorder },
+    missing: { color: C.gray400, bg: C.gray50, border: C.gray200 },
   };
 
   const st = isMissing ? 'missing' : (status.status || 'missing');
@@ -600,18 +600,18 @@ function StatusCard({ icon: Icon, label, status, dateField, vehicle, T, vesselMo
       style={{ background: '#FFFFFF', border: `1.5px solid ${accent.border}`, borderRight: `4px solid ${accent.color}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
       <div className="flex items-center gap-2">
         <Icon className="w-4 h-4" style={{ color: accent.color }} />
-        <span className="text-sm font-bold" style={{ color: '#374151' }}>{label}</span>
+        <span className="text-sm font-bold" style={{ color: C.gray700 }}>{label}</span>
       </div>
       {subtitle && (
-        <p className="text-xs font-medium" style={{ color: '#9CA3AF' }}>{subtitle}</p>
+        <p className="text-xs font-medium" style={{ color: C.gray400 }}>{subtitle}</p>
       )}
 
       {isMissing ? (
         <Link to={`${createPageUrl('EditVehicle')}?id=${vehicle.id}&field=${dateField}`}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all active:scale-[0.97]"
-          style={{ background: '#FFF7ED', border: '1px solid #FFEDD5' }}>
-          <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#EA580C' }} />
-          <span className="text-xs font-bold" style={{ color: '#EA580C' }}>לא הוזן - לחץ להוספה</span>
+          style={{ background: C.orangeBg, border: '1px solid #FFEDD5' }}>
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: C.orange }} />
+          <span className="text-xs font-bold" style={{ color: C.orange }}>לא הוזן - לחץ להוספה</span>
         </Link>
       ) : (
         <>
@@ -800,14 +800,14 @@ export function OwnershipHistoryPanel({ history, theme }) {
             key={i}
             className="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5"
             style={{
-              background: isCurrent ? T.light : '#F9FAFB',
-              border: `1px solid ${isCurrent ? T.border : '#F3F4F6'}`,
+              background: isCurrent ? T.light : C.gray50,
+              border: `1px solid ${isCurrent ? T.border : C.gray100}`,
             }}
           >
             <span className="flex items-center gap-1.5 min-w-0">
               <span
                 className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                style={{ background: isCurrent ? T.primary : '#D1D5DB', color: '#fff' }}
+                style={{ background: isCurrent ? T.primary : C.gray300, color: '#fff' }}
               >
                 {i + 1}
               </span>
@@ -902,7 +902,7 @@ function VesselInspectionChecklist({ vehicle, T }) {
   const totalTracked = tracked.filter(i => i.has).length;
 
   const headerBg = warnCount > 0
-    ? { bg: '#FEF3C7', border: '#FDE68A', text: '#92400E' }
+    ? { bg: C.warnBg, border: C.warnBorder, text: C.warnDark }
     : readyCount === tracked.length
     ? { bg: T.light, border: T.border, text: T.primary }
     : { bg: T.light, border: T.border, text: T.primary };
@@ -941,14 +941,14 @@ function VesselInspectionChecklist({ vehicle, T }) {
               return (
               <Wrapper key={item.key} {...wrapperProps}
                 className="flex items-center justify-between rounded-xl px-3 py-2.5 transition-all"
-                style={{ background: isMissing ? '#FFF7ED' : '#FFFFFF', border: `1px solid ${isMissing ? '#FFEDD5' : T.border}`, display: 'flex' }}>
+                style={{ background: isMissing ? C.orangeBg : '#FFFFFF', border: `1px solid ${isMissing ? '#FFEDD5' : T.border}`, display: 'flex' }}>
                 <div className="flex items-center gap-2 min-w-0">
                   {statusIcon(item.has ? item.st.status : 'neutral')}
                   <span className="text-xs font-medium truncate" style={{ color: T.text }}>{item.label}</span>
                 </div>
                 <div className="shrink-0 mr-2">
                   {isMissing
-                    ? <span className="text-xs font-bold" style={{ color: '#EA580C' }}>לחץ להוספה</span>
+                    ? <span className="text-xs font-bold" style={{ color: C.orange }}>לחץ להוספה</span>
                     : statusLabel(item.st.status, item.st.label, false)}
                 </div>
               </Wrapper>

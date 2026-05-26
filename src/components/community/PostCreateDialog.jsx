@@ -269,7 +269,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
               <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all"
                 style={{
-                  background: isAnonymous ? 'rgba(255,255,255,0.2)' : '#FFBF00',
+                  background: isAnonymous ? 'rgba(255,255,255,0.2)' : C.yellow,
                   boxShadow: isAnonymous ? 'none' : '0 2px 12px rgba(255,191,0,0.4)',
                 }}>
                 {isAnonymous
@@ -355,7 +355,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                         className="w-7 h-7 rounded-full flex items-center justify-center cursor-pointer hover:bg-black/5 transition-colors"
                         style={{ background: 'rgba(0,0,0,0.04)' }}
                         aria-label="בטל בחירה">
-                        <X className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
+                        <X className="w-3.5 h-3.5" style={{ color: C.gray500 }} />
                       </span>
                     )}
                     <ChevronDown className={`w-5 h-5 transition-transform ${pickerOpen ? 'rotate-180' : ''}`}
@@ -363,17 +363,17 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                   </div>
                 </button>
                 {pickerOpen && (
-                  <div className="mt-2 rounded-2xl border overflow-hidden" style={{ background: '#fff', borderColor: '#E5E7EB', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}>
+                  <div className="mt-2 rounded-2xl border overflow-hidden" style={{ background: '#fff', borderColor: C.gray200, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}>
                     <div className="max-h-60 overflow-y-auto overscroll-contain p-2 space-y-1">
                       <button type="button" onClick={() => { setLinkedVehicleId(''); setPickerOpen(false); }}
                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all active:bg-gray-50 hover:bg-gray-50"
-                        style={{ background: !selectedVehicle ? '#F3F4F6' : 'transparent' }}>
-                        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#E5E7EB' }}>
-                          <Sparkles className="w-4 h-4" style={{ color: '#6B7280' }} />
+                        style={{ background: !selectedVehicle ? C.gray100 : 'transparent' }}>
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: C.gray200 }}>
+                          <Sparkles className="w-4 h-4" style={{ color: C.gray500 }} />
                         </div>
                         <div className="flex-1 text-right">
-                          <p className="text-[13px] font-bold" style={{ color: '#374151' }}>שאלה כללית</p>
-                          <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לכלי תחבורה</p>
+                          <p className="text-[13px] font-bold" style={{ color: C.gray700 }}>שאלה כללית</p>
+                          <p className="text-[10px]" style={{ color: C.gray400 }}>בלי קישור לכלי תחבורה</p>
                         </div>
                         {!selectedVehicle && <Check className="w-4 h-4" style={{ color: T.primary }} />}
                       </button>
@@ -392,10 +392,10 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                                 : <VehicleIcon vehicle={v} className="w-4 h-4" style={{ color: theme.primary }} />}
                             </div>
                             <div className="flex-1 text-right min-w-0">
-                              <p className="text-[13px] font-bold truncate" style={{ color: '#1F2937' }}>
+                              <p className="text-[13px] font-bold truncate" style={{ color: C.gray800 }}>
                                 {v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim()}
                               </p>
-                              <p className="text-[10px]" style={{ color: '#9CA3AF' }}>
+                              <p className="text-[10px]" style={{ color: C.gray400 }}>
                                 {[v.manufacturer, v.year].filter(Boolean).join(' · ')}
                                 {v.current_km ? ` · ${Number(v.current_km).toLocaleString()} ק"מ` : ''}
                               </p>
@@ -419,21 +419,21 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
               className="text-[14px] resize-none rounded-2xl p-4 focus-visible:ring-2 focus-visible:ring-offset-0 transition-all"
               style={{
                 background: '#fff',
-                border: `1.5px solid ${bodyError ? '#FCA5A5' : body.trim().length > 0 ? T.primary + '60' : '#E5E7EB'}`,
+                border: `1.5px solid ${bodyError ? '#FCA5A5' : body.trim().length > 0 ? T.primary + '60' : C.gray200}`,
                 minHeight: 130,
                 boxShadow: body.trim().length > 0 ? `0 0 0 4px ${T.primary}10, 0 1px 4px rgba(0,0,0,0.04)` : '0 1px 4px rgba(0,0,0,0.04)',
               }} />
             <div className="flex items-center justify-between mt-1.5 px-1">
               {body.length > 0 && body.length < 10 && (
-                <span className="text-[10px] font-bold flex items-center gap-1" style={{ color: '#DC2626' }}>
+                <span className="text-[10px] font-bold flex items-center gap-1" style={{ color: C.error }}>
                   ⚠️ מינימום 10 תווים ({10 - body.length} נוספים)
                 </span>
               )}
               {body.length === 0 && (
-                <span className="text-[10px] font-medium" style={{ color: '#9CA3AF' }}>✏️ ספר על הבעיה / השאלה / החוויה</span>
+                <span className="text-[10px] font-medium" style={{ color: C.gray400 }}>✏️ ספר על הבעיה / השאלה / החוויה</span>
               )}
               <span className="text-[10px] font-bold mr-auto"
-                style={{ color: body.length > 1800 ? '#DC2626' : body.length >= 10 ? T.primary : '#D1D5DB' }}>
+                style={{ color: body.length > 1800 ? C.error : body.length >= 10 ? T.primary : C.gray300 }}>
                 {body.length}/2000
               </span>
             </div>
@@ -443,15 +443,15 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
           {/* Similar posts. shown while typing */}
           {similarPosts.length > 0 && !similarDismissed && (
             <div className="rounded-2xl p-3 space-y-2 transition-all"
-              style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A' }}>
+              style={{ background: C.warnSubtle, border: `1.5px solid ${C.warnBorder}` }}>
               <div className="flex items-center justify-between">
-                <p className="text-xs font-bold flex items-center gap-1.5" style={{ color: '#92400E' }}>
+                <p className="text-xs font-bold flex items-center gap-1.5" style={{ color: C.warnDark }}>
                   <MessageSquare className="w-3.5 h-3.5" />
                   נמצאו שאלות דומות
                 </p>
                 <button onClick={() => setSimilarDismissed(true)}
                   className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: '#FEF3C7', color: '#B45309' }}>
+                  style={{ background: C.warnBg, color: C.warnMid }}>
                   פרסם בכל זאת
                 </button>
               </div>
@@ -459,51 +459,51 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                 <button key={sp.id}
                   onClick={() => { onClose(); reset(); navigate(createPageUrl('Community') + `?post=${sp.id}`); }}
                   className="w-full text-right rounded-xl p-2.5 flex items-start gap-2 transition-all active:scale-[0.98]"
-                  style={{ background: '#fff', border: '1px solid #FDE68A' }}>
+                  style={{ background: '#fff', border: `1px solid ${C.warnBorder}` }}>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold truncate" style={{ color: '#1F2937' }}>
+                    <p className="text-xs font-bold truncate" style={{ color: C.gray800 }}>
                       {sp.is_anonymous ? `אנונימי${sp.anonymous_number ? ` #${sp.anonymous_number}` : ''}` : sp.author_name}
                     </p>
-                    <p className="text-[11px] leading-relaxed mt-0.5 line-clamp-2" style={{ color: '#6B7280' }}>
+                    <p className="text-[11px] leading-relaxed mt-0.5 line-clamp-2" style={{ color: C.gray500 }}>
                       {sp.body?.slice(0, 120)}
                     </p>
                   </div>
-                  <ArrowLeft className="w-4 h-4 shrink-0 mt-1" style={{ color: '#D97706' }} />
+                  <ArrowLeft className="w-4 h-4 shrink-0 mt-1" style={{ color: C.warn }} />
                 </button>
               ))}
             </div>
           )}
           {searchingSimilar && body.trim().length >= 12 && (
             <div className="flex items-center gap-2 px-2">
-              <Loader2 className="w-3 h-3 animate-spin" style={{ color: '#D97706' }} />
-              <span className="text-[10px] font-medium" style={{ color: '#D97706' }}>מחפש שאלות דומות...</span>
+              <Loader2 className="w-3 h-3 animate-spin" style={{ color: C.warn }} />
+              <span className="text-[10px] font-medium" style={{ color: C.warn }}>מחפש שאלות דומות...</span>
             </div>
           )}
 
           {/* Anonymous toggle. vibrant card */}
           <div className="rounded-2xl p-3 flex items-center justify-between transition-all"
             style={{
-              background: isAnonymous ? '#FFFBEB' : '#fff',
-              border: `1.5px solid ${isAnonymous ? '#FDE68A' : '#E5E7EB'}`,
+              background: isAnonymous ? C.warnSubtle : '#fff',
+              border: `1.5px solid ${isAnonymous ? C.warnBorder : C.gray200}`,
               boxShadow: isAnonymous ? '0 2px 8px rgba(217,119,6,0.15)' : '0 1px 4px rgba(0,0,0,0.04)',
             }}>
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
-                style={{ background: isAnonymous ? '#FDE68A' : '#F3F4F6' }}>
-                <User className="w-3.5 h-3.5" style={{ color: isAnonymous ? '#92400E' : '#9CA3AF' }} />
+                style={{ background: isAnonymous ? C.warnBorder : C.gray100 }}>
+                <User className="w-3.5 h-3.5" style={{ color: isAnonymous ? C.warnDark : C.gray400 }} />
               </div>
               <div>
-                <p className="text-sm font-bold" style={{ color: isAnonymous ? '#92400E' : '#1F2937' }}>
+                <p className="text-sm font-bold" style={{ color: isAnonymous ? C.warnDark : C.gray800 }}>
                   {isAnonymous ? '👤 פוסט אנונימי' : 'פוסט אנונימי'}
                 </p>
                 {isAnonymous && (
-                  <p className="text-[10px] font-medium" style={{ color: '#B45309' }}>השם שלך לא יוצג</p>
+                  <p className="text-[10px] font-medium" style={{ color: C.warnMid }}>השם שלך לא יוצג</p>
                 )}
               </div>
               <button onClick={() => setShowAnonHelp(s => !s)}
                 className="w-5 h-5 rounded-full flex items-center justify-center transition-all hover:bg-gray-200"
-                style={{ background: '#E5E7EB' }}>
-                <HelpCircle className="w-3 h-3" style={{ color: '#9CA3AF' }} />
+                style={{ background: C.gray200 }}>
+                <HelpCircle className="w-3 h-3" style={{ color: C.gray400 }} />
               </button>
             </div>
 
@@ -511,7 +511,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
             <button onClick={() => setIsAnonymous(a => !a)}
               className="relative w-12 h-7 rounded-full transition-all shrink-0"
               style={{
-                background: isAnonymous ? '#D97706' : '#D1D5DB',
+                background: isAnonymous ? C.warn : C.gray300,
                 boxShadow: isAnonymous ? 'inset 0 2px 4px rgba(0,0,0,0.15)' : 'inset 0 1px 2px rgba(0,0,0,0.1)',
               }}>
               <div className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md transition-all"
@@ -521,7 +521,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
           {showAnonHelp && (
             <div className="rounded-xl p-3 text-[11px] leading-relaxed"
-              style={{ background: '#FFFBEB', border: '1px solid #FEF3C7', color: '#92400E' }}>
+              style={{ background: C.warnSubtle, border: `1px solid ${C.warnBg}`, color: C.warnDark }}>
               בפרסום אנונימי, השם שלך לא יוצג.
             </div>
           )}
@@ -544,7 +544,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
           ) : (
             <label className="rounded-2xl p-3 flex items-center justify-between cursor-pointer transition-all active:scale-[0.99] hover:shadow-md"
               style={{
-                background: `linear-gradient(135deg, ${T.light || '#F3F4F6'}, #fff)`,
+                background: `linear-gradient(135deg, ${T.light || C.gray100}, #fff)`,
                 border: `1.5px dashed ${T.primary}40`,
               }}>
               <div className="flex items-center gap-2.5">
@@ -553,7 +553,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
                   <ImageIcon className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold" style={{ color: '#1F2937' }}>הוספת תמונה</p>
+                  <p className="text-sm font-bold" style={{ color: C.gray800 }}>הוספת תמונה</p>
                   <p className="text-[10px] font-medium" style={{ color: T.primary }}>📸 גלריה או מצלמה</p>
                 </div>
               </div>
@@ -574,8 +574,8 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
           <button onClick={handleSubmit} disabled={!isValid || saving}
             className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.97] flex items-center justify-center gap-2 disabled:opacity-40 relative overflow-hidden"
             style={{
-              background: isValid ? (T.grad || T.primary) : '#E5E7EB',
-              color: isValid ? '#fff' : '#9CA3AF',
+              background: isValid ? (T.grad || T.primary) : C.gray200,
+              color: isValid ? '#fff' : C.gray400,
               boxShadow: isValid ? `0 8px 24px ${T.primary}50, 0 2px 4px ${T.primary}30` : 'none',
             }}>
             {saving ? (
@@ -590,7 +590,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
           {isValid && (() => {
             const e = getAiExpertForDomain(domain);
             return (
-              <p className="text-center text-[10px] mt-2 font-medium" style={{ color: '#9CA3AF' }}>
+              <p className="text-center text-[10px] mt-2 font-medium" style={{ color: C.gray400 }}>
                 🤖 {e.fullName} יענה תוך כמה שניות
               </p>
             );

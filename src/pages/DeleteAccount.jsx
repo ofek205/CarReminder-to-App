@@ -21,9 +21,9 @@ export default function DeleteAccount() {
   if (!isAuthenticated || isGuest) {
     return (
       <div dir="rtl" className="max-w-md mx-auto py-16 px-4 text-center">
-        <AlertTriangle className="w-12 h-12 mx-auto mb-4" style={{ color: '#D97706' }} />
+        <AlertTriangle className="w-12 h-12 mx-auto mb-4" style={{ color: C.warn }} />
         <h1 className="text-xl font-bold mb-2">נדרשת התחברות</h1>
-        <p className="text-sm mb-6" style={{ color: '#6B7280' }}>כדי למחוק חשבון או נתונים, יש להתחבר קודם</p>
+        <p className="text-sm mb-6" style={{ color: C.gray500 }}>כדי למחוק חשבון או נתונים, יש להתחבר קודם</p>
         <button onClick={() => navigate(createPageUrl('Auth'))}
           className="px-6 py-3 rounded-2xl font-bold text-white" style={{ background: C.primary }}>
           התחבר
@@ -112,8 +112,8 @@ export default function DeleteAccount() {
       {step === 'choose' && (
         <div className="space-y-6">
           <div className="text-center">
-            <h1 className="text-2xl font-bold mb-2" style={{ color: '#1F2937' }}>מחיקת חשבון ונתונים</h1>
-            <p className="text-sm" style={{ color: '#6B7280' }}>
+            <h1 className="text-2xl font-bold mb-2" style={{ color: C.gray800 }}>מחיקת חשבון ונתונים</h1>
+            <p className="text-sm" style={{ color: C.gray500 }}>
               CarReminder מאפשרת לך למחוק את הנתונים שלך בכל עת.
               <br />בחר מה ברצונך לעשות:
             </p>
@@ -122,12 +122,12 @@ export default function DeleteAccount() {
           {/* Option 1: Delete data only */}
           <button onClick={() => { setMode('data'); setStep('confirm'); }}
             className="w-full rounded-2xl p-5 text-right transition-all active:scale-[0.99]"
-            style={{ background: '#FFF8E1', border: '1.5px solid #FDE68A' }}>
+            style={{ background: C.yellowSoft, border: `1.5px solid ${C.warnBorder}` }}>
             <div className="flex items-center gap-3 mb-2">
-              <FileX className="w-6 h-6" style={{ color: '#D97706' }} />
-              <span className="text-base font-bold" style={{ color: '#92400E' }}>מחק את הנתונים שלי</span>
+              <FileX className="w-6 h-6" style={{ color: C.warn }} />
+              <span className="text-base font-bold" style={{ color: C.warnDark }}>מחק את הנתונים שלי</span>
             </div>
-            <p className="text-xs" style={{ color: '#B45309' }}>
+            <p className="text-xs" style={{ color: C.warnMid }}>
               מוחק את כל הרכבים, המסמכים, הטיפולים והפוסטים שלך. החשבון נשאר פעיל ואפשר להתחיל מחדש.
             </p>
           </button>
@@ -135,18 +135,18 @@ export default function DeleteAccount() {
           {/* Option 2: Delete account */}
           <button onClick={() => { setMode('account'); setStep('confirm'); }}
             className="w-full rounded-2xl p-5 text-right transition-all active:scale-[0.99]"
-            style={{ background: '#FEF2F2', border: '1.5px solid #FECACA' }}>
+            style={{ background: C.errorBg, border: `1.5px solid ${C.errorBorder}` }}>
             <div className="flex items-center gap-3 mb-2">
-              <Trash2 className="w-6 h-6" style={{ color: '#DC2626' }} />
-              <span className="text-base font-bold" style={{ color: '#991B1B' }}>מחק את החשבון לצמיתות</span>
+              <Trash2 className="w-6 h-6" style={{ color: C.error }} />
+              <span className="text-base font-bold" style={{ color: C.errorDark }}>מחק את החשבון לצמיתות</span>
             </div>
-            <p className="text-xs" style={{ color: '#DC2626' }}>
+            <p className="text-xs" style={{ color: C.error }}>
               מוחק את החשבון, כל הנתונים, הרכבים, המסמכים והפוסטים. לא ניתן לשחזר. תנותק מהמערכת.
             </p>
           </button>
 
           <div className="text-center">
-            <p className="text-[10px]" style={{ color: '#9CA3AF' }}>
+            <p className="text-[10px]" style={{ color: C.gray400 }}>
               לשאלות: support@car-reminder.app
             </p>
           </div>
@@ -157,13 +157,13 @@ export default function DeleteAccount() {
         <div className="space-y-6">
           <div className="text-center">
             <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
-              style={{ background: mode === 'account' ? '#FEF2F2' : '#FFF8E1' }}>
-              <AlertTriangle className="w-8 h-8" style={{ color: mode === 'account' ? '#DC2626' : '#D97706' }} />
+              style={{ background: mode === 'account' ? C.errorBg : C.yellowSoft }}>
+              <AlertTriangle className="w-8 h-8" style={{ color: mode === 'account' ? C.error : C.warn }} />
             </div>
             <h2 className="text-xl font-bold mb-2">
               {mode === 'account' ? 'בטוח שברצונך למחוק את החשבון?' : 'בטוח שברצונך למחוק את כל הנתונים?'}
             </h2>
-            <p className="text-sm" style={{ color: '#6B7280' }}>
+            <p className="text-sm" style={{ color: C.gray500 }}>
               {mode === 'account'
                 ? 'כל הנתונים שלך יימחקו לצמיתות. לא ניתן לשחזר.'
                 : 'כל הרכבים, המסמכים, הטיפולים והפוסטים שלך יימחקו. החשבון ישאר פעיל.'}
@@ -171,7 +171,7 @@ export default function DeleteAccount() {
           </div>
 
           {error && (
-            <div className="p-3 rounded-xl text-center text-sm font-bold" style={{ background: '#FEF2F2', color: '#DC2626' }}>
+            <div className="p-3 rounded-xl text-center text-sm font-bold" style={{ background: C.errorBg, color: C.error }}>
               {error}
             </div>
           )}
@@ -179,7 +179,7 @@ export default function DeleteAccount() {
           {/* Re-auth gate. Deletion is destructive and irreversible; require
               the account password every time, even if the session is fresh. */}
           <div className="space-y-2">
-            <label className="text-xs font-bold block" style={{ color: '#6B7280' }}>
+            <label className="text-xs font-bold block" style={{ color: C.gray500 }}>
               הזן סיסמה לאישור
             </label>
             <input
@@ -188,15 +188,15 @@ export default function DeleteAccount() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-xl text-sm font-bold border"
-              style={{ borderColor: '#E5E7EB', background: '#F9FAFB' }}
+              style={{ borderColor: C.gray200, background: C.gray50 }}
               placeholder="הסיסמה שלך"
               dir="ltr"
             />
           </div>
 
           <div className="space-y-3">
-            <p className="text-xs font-bold" style={{ color: '#6B7280' }}>הנתונים הבאים יימחקו:</p>
-            <ul className="text-xs space-y-1" style={{ color: '#9CA3AF' }}>
+            <p className="text-xs font-bold" style={{ color: C.gray500 }}>הנתונים הבאים יימחקו:</p>
+            <ul className="text-xs space-y-1" style={{ color: C.gray400 }}>
               <li>- כל כלי הרכב וכלי השייט</li>
               <li>- מסמכים (ביטוח, רישיון, וכו')</li>
               <li>- טיפולים ותיקונים</li>
@@ -211,7 +211,7 @@ export default function DeleteAccount() {
             <button onClick={handleDelete}
               disabled={reauthPending || !confirmPassword}
               className="flex-1 py-3.5 rounded-2xl font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-50"
-              style={{ background: mode === 'account' ? '#DC2626' : '#D97706' }}>
+              style={{ background: mode === 'account' ? C.error : C.warn }}>
               {reauthPending ? (
                 <span className="inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> מאמת...</span>
               ) : (
@@ -219,7 +219,7 @@ export default function DeleteAccount() {
               )}
             </button>
             <button onClick={() => { setStep('choose'); setMode(null); setError(''); setConfirmPassword(''); }}
-              className="px-6 py-3.5 rounded-2xl font-bold text-sm" style={{ color: '#6B7280', background: '#F3F4F6' }}>
+              className="px-6 py-3.5 rounded-2xl font-bold text-sm" style={{ color: C.gray500, background: C.gray100 }}>
               ביטול
             </button>
           </div>
@@ -228,19 +228,19 @@ export default function DeleteAccount() {
 
       {step === 'deleting' && (
         <div className="text-center py-16">
-          <Loader2 className="w-10 h-10 mx-auto mb-4 animate-spin" style={{ color: '#DC2626' }} />
-          <p className="text-base font-bold" style={{ color: '#1F2937' }}>מוחק נתונים...</p>
-          <p className="text-sm mt-1" style={{ color: '#9CA3AF' }}>זה עשוי לקחת מספר שניות</p>
+          <Loader2 className="w-10 h-10 mx-auto mb-4 animate-spin" style={{ color: C.error }} />
+          <p className="text-base font-bold" style={{ color: C.gray800 }}>מוחק נתונים...</p>
+          <p className="text-sm mt-1" style={{ color: C.gray400 }}>זה עשוי לקחת מספר שניות</p>
         </div>
       )}
 
       {step === 'done' && (
         <div className="text-center py-16">
-          <CheckCircle className="w-14 h-14 mx-auto mb-4" style={{ color: '#10B981' }} />
-          <h2 className="text-xl font-bold mb-2" style={{ color: '#1F2937' }}>
+          <CheckCircle className="w-14 h-14 mx-auto mb-4" style={{ color: C.successBright }} />
+          <h2 className="text-xl font-bold mb-2" style={{ color: C.gray800 }}>
             {mode === 'account' ? 'החשבון נמחק' : 'הנתונים נמחקו'}
           </h2>
-          <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
+          <p className="text-sm mb-6" style={{ color: C.gray500 }}>
             {mode === 'account'
               ? 'כל הנתונים שלך נמחקו. אם תרצה, תמיד אפשר ליצור חשבון חדש.'
               : 'כל הנתונים שלך נמחקו. החשבון עדיין פעיל ואפשר להתחיל מחדש.'}

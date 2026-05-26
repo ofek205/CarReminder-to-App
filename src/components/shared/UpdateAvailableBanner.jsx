@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import useUpdateAvailable, { snoozeUpdateBanner } from '@/hooks/useUpdateAvailable';
+import { C } from '@/lib/designTokens';
 
 /**
  * UpdateAvailableBanner — bottom non-blocking strip telling native
@@ -107,7 +108,7 @@ export default function UpdateAvailableBanner() {
           className="rounded-2xl overflow-hidden"
           style={{
             background: '#FFFFFF',
-            border: '1px solid #D1FAE5',
+            border: `1px solid ${C.successLight}`,
             boxShadow: '0 16px 32px -8px rgba(15,40,28,0.18), 0 4px 8px rgba(15,40,28,0.08)',
           }}
         >
@@ -118,7 +119,7 @@ export default function UpdateAvailableBanner() {
             <div
               style={{
                 width: 4,
-                background: 'linear-gradient(180deg, #10B981 0%, #34D399 100%)',
+                background: `linear-gradient(180deg, ${C.successBright} 0%, ${C.successMid} 100%)`,
               }}
             />
             <div className="flex-1 flex items-center gap-3 px-3 py-2.5">
@@ -128,18 +129,18 @@ export default function UpdateAvailableBanner() {
                 className="flex items-center justify-center shrink-0"
                 style={{
                   width: 36, height: 36, borderRadius: 10,
-                  background: '#ECFDF5',
-                  color: '#065F46',
+                  background: C.successSubtle,
+                  color: C.successDark,
                 }}
               >
                 <Sparkles size={18} strokeWidth={2.5} />
               </div>
 
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold text-right leading-tight" style={{ color: '#0B2912' }}>
+                <p className="text-[13px] font-bold text-right leading-tight" style={{ color: C.primaryDark }}>
                   גרסה חדשה זמינה
                 </p>
-                <p className="text-[11px] text-right leading-tight mt-0.5" style={{ color: '#4B5D52' }}>
+                <p className="text-[11px] text-right leading-tight mt-0.5" style={{ color: C.textAlt }}>
                   שדרגו לגרסה האחרונה כדי ליהנות משיפורים וכלים חדשים.
                   {latestVersion && currentVersion && (
                     <>
@@ -164,7 +165,7 @@ export default function UpdateAvailableBanner() {
                     height: 30,
                     padding: '0 12px',
                     borderRadius: 10,
-                    background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                    background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                     boxShadow: '0 4px 10px rgba(16,185,129,0.28)',
                   }}
                 >
@@ -174,7 +175,7 @@ export default function UpdateAvailableBanner() {
                   type="button"
                   onClick={handleSnooze}
                   className="font-bold text-[11px]"
-                  style={{ color: '#9CA3AF', height: 26 }}
+                  style={{ color: C.gray400, height: 26 }}
                 >
                   אחר כך
                 </button>

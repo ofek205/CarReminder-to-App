@@ -1,30 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { Car, Bell, Sparkles, ShieldCheck, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { hapticFeedback } from '@/lib/capacitor';
+import { C } from '@/lib/designTokens';
 
 const STORAGE_KEY = 'cr_onboarding_completed_v1';
 
 const SLIDES = [
   {
     icon: Car,
-    color: '#2D5233',
-    bg: '#E8F2EA',
+    color: C.primary,
+    bg: C.light,
     title: 'ברוך הבא ל-CarReminder',
     subtitle: 'ניהול חכם לכלי התחבורה שלך',
     body: 'הוסף את כלי התחבורה שלך פעם אחת ואנחנו נזכור בשבילך את הבדיקות, הביטוח, הטיפולים והמסמכים החשובים.',
   },
   {
     icon: Bell,
-    color: '#D97706',
-    bg: '#FFF8E1',
+    color: C.warn,
+    bg: C.yellowSoft,
     title: 'תזכורות בזמן אמת',
     subtitle: 'בלי להישאר עם טסט שפג',
     body: 'נתריע לך ימים ספורים לפני פקיעת טסט, ביטוח ומסמכים. תקבל התראה למכשיר או במייל.',
   },
   {
     icon: Sparkles,
-    color: '#D97706',
-    bg: '#FFFBEB',
+    color: C.warn,
+    bg: C.warnSubtle,
     title: 'ברוך ויוסי, מומחי ה-AI',
     subtitle: 'שאלה על הרכב? פשוט תשאל',
     body: 'ברוך המוסכניק עם 25 שנות ניסיון ברכב, ויוסי טכנאי כלי שייט מומחה. תן להם לענות לך על תקלות, טיפולים ומחירים.',
@@ -90,14 +91,14 @@ export default function OnboardingTour({ onComplete }) {
           <button onClick={skip}
             aria-label="דלג על ההדרכה"
             className="text-xs font-bold px-3 py-1.5 rounded-full transition-colors"
-            style={{ color: '#6B7280', background: '#F3F4F6' }}>
+            style={{ color: C.gray500, background: C.gray100 }}>
             דלג
           </button>
           <button onClick={skip}
             aria-label="סגור הדרכה"
             className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-            style={{ background: '#F3F4F6' }}>
-            <X className="w-4 h-4" style={{ color: '#6B7280' }} aria-hidden="true" />
+            style={{ background: C.gray100 }}>
+            <X className="w-4 h-4" style={{ color: C.gray500 }} aria-hidden="true" />
           </button>
         </div>
 
@@ -107,13 +108,13 @@ export default function OnboardingTour({ onComplete }) {
             style={{ background: current.bg }}>
             <Icon className="w-12 h-12" style={{ color: current.color }} aria-hidden="true" />
           </div>
-          <h2 id="onboarding-title" className="text-xl font-bold mb-1" style={{ color: '#1C2E20' }}>
+          <h2 id="onboarding-title" className="text-xl font-bold mb-1" style={{ color: C.text }}>
             {current.title}
           </h2>
           <p className="text-xs font-bold mb-4" style={{ color: current.color }}>
             {current.subtitle}
           </p>
-          <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
+          <p className="text-sm leading-relaxed" style={{ color: C.gray500 }}>
             {current.body}
           </p>
         </div>
@@ -130,7 +131,7 @@ export default function OnboardingTour({ onComplete }) {
               style={{
                 width: i === slide ? 24 : 8,
                 height: 8,
-                background: i === slide ? current.color : '#E5E7EB',
+                background: i === slide ? current.color : C.gray200,
               }} />
           ))}
         </div>
@@ -141,8 +142,8 @@ export default function OnboardingTour({ onComplete }) {
             <button onClick={prev}
               aria-label="שקופית קודמת"
               className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all active:scale-[0.95]"
-              style={{ background: '#fff', border: '1.5px solid #E5E7EB' }}>
-              <ChevronRight className="w-5 h-5" style={{ color: '#6B7280' }} aria-hidden="true" />
+              style={{ background: '#fff', border: `1.5px solid ${C.gray200}` }}>
+              <ChevronRight className="w-5 h-5" style={{ color: C.gray500 }} aria-hidden="true" />
             </button>
           )}
           <button onClick={next}

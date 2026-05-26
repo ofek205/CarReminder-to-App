@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { useMyEmailPreferences, useUpdateMyEmailPreference } from '@/hooks/useEmailAdmin';
 import { useAuth } from '@/components/shared/GuestContext';
 import { toast } from 'sonner';
+import { C } from '@/lib/designTokens';
 
 /**
  * NotificationPreferences. user-facing page (not admin) for managing
@@ -17,8 +18,8 @@ import { toast } from 'sonner';
  */
 
 const CATEGORY_VISUAL = {
-  transactional: { icon: Mail,        label: 'תפעולי',    fg: '#1E40AF', bg: '#DBEAFE' },
-  reminder:      { icon: Clock,       label: 'תזכורות',   fg: '#92400E', bg: '#FEF3C7' },
+  transactional: { icon: Mail,        label: 'תפעולי',    fg: C.infoDark, bg: C.infoBg },
+  reminder:      { icon: Clock,       label: 'תזכורות',   fg: C.warnDark, bg: C.warnBg },
   system:        { icon: AlertCircle, label: 'מערכת',     fg: '#6B21A8', bg: '#F3E8FF' },
   marketing:     { icon: FileText,    label: 'עדכונים',   fg: '#9D174D', bg: '#FCE7F3' },
 };
@@ -34,14 +35,14 @@ export default function NotificationPreferences() {
       <div dir="rtl" className="min-h-screen flex items-center justify-center p-6"
         style={{ background: '#F4F7F3' }}>
         <div className="max-w-md text-center rounded-3xl p-8"
-          style={{ background: 'white', border: '1.5px solid #E5E7EB' }}>
-          <Shield className="w-10 h-10 mx-auto mb-3" style={{ color: '#2D5233' }} />
+          style={{ background: 'white', border: `1.5px solid ${C.gray200}` }}>
+          <Shield className="w-10 h-10 mx-auto mb-3" style={{ color: C.primary }} />
           <h2 className="text-lg font-bold mb-2">נדרשת התחברות</h2>
           <p className="text-sm text-gray-600 mb-5">
             כדי לנהל העדפות מייל, יש להתחבר לחשבון.
           </p>
           <Button onClick={() => navigate('/Auth')} className="rounded-xl"
-            style={{ background: '#2D5233', color: 'white' }}>
+            style={{ background: C.primary, color: 'white' }}>
             להתחברות
           </Button>
         </div>
@@ -76,7 +77,7 @@ export default function NotificationPreferences() {
 
         {/* Info banner */}
         <div className="rounded-2xl p-3 mb-5 text-xs"
-          style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E3A8A' }}>
+          style={{ background: C.infoSubtle, border: '1px solid #BFDBFE', color: '#1E3A8A' }}>
           <strong>הערה:</strong> מיילי אימות, התחברות וסוגים חיוניים שנבחר מראש נשלחים תמיד. כל שאר המיילים כבויים כברירת מחדל, ואפשר להפעיל אותם כאן.
         </div>
 
@@ -97,9 +98,9 @@ export default function NotificationPreferences() {
                 {items.map(item => (
                   <div key={item.key}
                     className="rounded-2xl p-4 mb-2 flex items-start gap-3"
-                    style={{ background: 'white', border: '1.5px solid #E5E7EB' }}>
+                    style={{ background: 'white', border: `1.5px solid ${C.gray200}` }}>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-sm mb-0.5" style={{ color: '#1C2E20' }}>
+                      <h3 className="font-bold text-sm mb-0.5" style={{ color: C.text }}>
                         {item.display_name}
                         {!item.enabled && (
                           <span className="mr-2 text-[10px] font-normal text-gray-400">(כבוי באופן גלובלי)</span>

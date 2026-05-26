@@ -1,25 +1,26 @@
 import React, { useState } from 'react';
 import { Loader2, CheckCircle2, XCircle, Clock, MinusCircle, Mail, Eye, MousePointerClick, AlertCircle, Send, Download } from 'lucide-react';
 import { useSendLog, useEmailNotifications, useSendEvents } from '@/hooks/useEmailAdmin';
+import { C } from '@/lib/designTokens';
 
 const STATUS_VISUAL = {
-  sent:    { icon: CheckCircle2, label: 'נשלח',  bg: '#D1FAE5', fg: '#047857' },
-  queued:  { icon: Clock,        label: 'בתור',  bg: '#FEF3C7', fg: '#92400E' },
-  failed:  { icon: XCircle,      label: 'נכשל',  bg: '#FEE2E2', fg: '#991B1B' },
-  skipped: { icon: MinusCircle,  label: 'דולג', bg: '#F3F4F6', fg: '#6B7280' },
+  sent:    { icon: CheckCircle2, label: 'נשלח',  bg: C.successLight, fg: '#047857' },
+  queued:  { icon: Clock,        label: 'בתור',  bg: C.warnBg, fg: C.warnDark },
+  failed:  { icon: XCircle,      label: 'נכשל',  bg: C.errorLight, fg: C.errorDark },
+  skipped: { icon: MinusCircle,  label: 'דולג', bg: C.gray100, fg: C.gray500 },
 };
 
 // Per-event visuals for the timeline (Phase 3: Resend webhook events).
 const EVENT_VISUAL = {
   sent:             { icon: Send,               label: 'נשלח',       fg: '#2563EB' },
   delivered:        { icon: CheckCircle2,       label: 'נמסר',       fg: '#047857' },
-  delivery_delayed: { icon: Clock,              label: 'עיכוב',      fg: '#D97706' },
+  delivery_delayed: { icon: Clock,              label: 'עיכוב',      fg: C.warn },
   opened:           { icon: Eye,                label: 'נפתח',       fg: '#0891B2' },
   clicked:          { icon: MousePointerClick,  label: 'קליק',       fg: '#7C3AED' },
-  bounced:          { icon: AlertCircle,        label: 'הוחזר',      fg: '#DC2626' },
-  complained:       { icon: AlertCircle,        label: 'דווח כספאם', fg: '#DC2626' },
-  failed:           { icon: XCircle,            label: 'נכשל',       fg: '#DC2626' },
-  other:            { icon: Mail,               label: 'אירוע',      fg: '#6B7280' },
+  bounced:          { icon: AlertCircle,        label: 'הוחזר',      fg: C.error },
+  complained:       { icon: AlertCircle,        label: 'דווח כספאם', fg: C.error },
+  failed:           { icon: XCircle,            label: 'נכשל',       fg: C.error },
+  other:            { icon: Mail,               label: 'אירוע',      fg: C.gray500 },
 };
 
 function escCsv(v) {
@@ -106,7 +107,7 @@ export default function SendLogTab() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm" style={{ color: '#1C2E20' }}>{nameFor(row.notification_key)}</span>
+                    <span className="font-bold text-sm" style={{ color: C.text }}>{nameFor(row.notification_key)}</span>
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: v.bg, color: v.fg }}>
                       {v.label}
                     </span>

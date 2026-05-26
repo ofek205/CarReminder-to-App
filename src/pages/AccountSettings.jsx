@@ -47,7 +47,7 @@ function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChang
 
   return (
     <div className="rounded-2xl p-4 mb-3 transition-all"
-      style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+      style={{ background: '#FFFFFF', border: `1.5px solid ${C.gray200}`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
       dir="rtl">
       <div className="flex items-center gap-4">
         {/* Avatar */}
@@ -100,7 +100,7 @@ function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChang
 
       {/* Role change - only shown for non-owner members, only by owner */}
       {canChangeRole && member.role !== 'בעלים' && (
-        <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: '1px solid #F3F4F6' }}>
+        <div className="mt-3 pt-3 flex items-center gap-2" style={{ borderTop: `1px solid ${C.gray100}` }}>
           <span className="text-xs font-bold text-gray-500 shrink-0">שנה תפקיד:</span>
           <div className="flex gap-1.5 flex-1">
             {['מנהל', 'שותף'].map(r => {
@@ -110,9 +110,9 @@ function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChang
                 <button key={r} onClick={() => handleRoleChange(r)} disabled={changingRole || active}
                   className="flex-1 py-2 rounded-xl text-xs font-bold transition-all border"
                   style={{
-                    background: active ? rInfo.bg : '#FAFAFA',
-                    color: active ? rInfo.color : '#9CA3AF',
-                    borderColor: active ? rInfo.color : '#E5E7EB',
+                    background: active ? rInfo.bg : C.grayBg,
+                    color: active ? rInfo.color : C.gray400,
+                    borderColor: active ? rInfo.color : C.gray200,
                     opacity: changingRole ? 0.5 : 1,
                   }}>
                   {r === 'מנהל' ? 'שותף עורך' : 'שותף צופה'}
@@ -268,7 +268,7 @@ function AuthAccountSettings({ embedded = false }) {
             {canManage(myRole) && (
               <Button onClick={() => setShowInvite(true)}
                 className="w-full h-12 rounded-2xl font-bold text-base gap-2 mt-2"
-                style={{ background: '#FFBF00', color: C.primary }}>
+                style={{ background: C.yellow, color: C.primary }}>
                 <UserPlus className="h-5 w-5" />
                 הזמן משתמש חדש
               </Button>
@@ -289,7 +289,7 @@ function AuthAccountSettings({ embedded = false }) {
           </div>
           <Button onClick={() => setShowInvite(true)}
             className="rounded-xl font-bold gap-2 h-10 px-4"
-            style={{ background: '#FFBF00', color: C.primary }}>
+            style={{ background: C.yellow, color: C.primary }}>
             <UserPlus className="h-4 w-4" />
             הזמן משתמש
           </Button>
@@ -363,7 +363,7 @@ function AuthAccountSettings({ embedded = false }) {
                       <Car className="w-5 h-5" style={{ color: '#075985' }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm truncate" style={{ color: '#1F2937' }}>{vName}</p>
+                      <p className="font-bold text-sm truncate" style={{ color: C.gray800 }}>{vName}</p>
                       <p className="text-[11px]" style={{ color: '#075985' }}>
                         משותף עם {v.share_count} {v.share_count === 1 ? 'משתמש' : 'משתמשים'}
                       </p>
@@ -384,14 +384,14 @@ function AuthAccountSettings({ embedded = false }) {
                 return (
                   <button key={v.id} type="button" onClick={() => setAccessModalVehicle(v)}
                     className="w-full rounded-2xl p-3 text-right flex items-center gap-3 transition-all active:scale-[0.99]"
-                    style={{ background: '#fff', border: '1.5px solid #FDE68A' }}>
+                    style={{ background: '#fff', border: `1.5px solid ${C.warnBorder}` }}>
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: '#FEF3C7' }}>
-                      <Car className="w-5 h-5" style={{ color: '#92400E' }} />
+                      style={{ background: C.warnBg }}>
+                      <Car className="w-5 h-5" style={{ color: C.warnDark }} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm truncate" style={{ color: '#1F2937' }}>{vName}</p>
-                      <p className="text-[11px]" style={{ color: '#92400E' }}>{roleLabel}</p>
+                      <p className="font-bold text-sm truncate" style={{ color: C.gray800 }}>{vName}</p>
+                      <p className="text-[11px]" style={{ color: C.warnDark }}>{roleLabel}</p>
                     </div>
                     <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90" />
                   </button>
@@ -424,7 +424,7 @@ function AuthAccountSettings({ embedded = false }) {
             onClick={() => setInvitesExpanded(v => !v)}
             aria-expanded={invitesExpanded}
             className="w-full flex items-center justify-between rounded-2xl px-4 py-3 transition-colors"
-            style={{ background: '#FEF3C7', border: '1px solid #FDE68A' }}>
+            style={{ background: C.warnBg, border: `1px solid ${C.warnBorder}` }}>
             <div className="flex items-center gap-2.5">
               <Link2 className="w-5 h-5 text-amber-600" />
               <div className="text-right">
@@ -446,7 +446,7 @@ function AuthAccountSettings({ embedded = false }) {
             <div className="mt-2 space-y-2">
               {activeInvites.map(invite => (
                 <div key={invite.id} className="rounded-2xl p-3.5 flex items-center justify-between"
-                  style={{ background: '#FEF3C7', border: '1px solid #FDE68A' }} dir="rtl">
+                  style={{ background: C.warnBg, border: `1px solid ${C.warnBorder}` }} dir="rtl">
                   <div className="flex items-center gap-3 min-w-0">
                     <Link2 className="w-4 h-4 text-amber-600 shrink-0" />
                     <div className="min-w-0">
@@ -471,7 +471,7 @@ function AuthAccountSettings({ embedded = false }) {
       {/* View-only banner for members */}
       {myRole === 'שותף' && (
         <div className="rounded-2xl p-4 flex items-center gap-3 mb-6"
-          style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }} dir="rtl">
+          style={{ background: C.infoBg, border: '1px solid #93C5FD' }} dir="rtl">
           <Eye className="w-5 h-5 text-blue-600 shrink-0" />
           <p className="text-sm font-bold text-blue-800">
             הצטרפת כשותף - תצוגה בלבד. לא ניתן לערוך או למחוק.

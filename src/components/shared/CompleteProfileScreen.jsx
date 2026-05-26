@@ -106,30 +106,30 @@ export default function CompleteProfileScreen({ user, onDone }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-5"
-      style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 50%, #F0F9FF 100%)' }}>
+      style={{ background: `linear-gradient(135deg, #F0FDF4 0%, ${C.successSubtle} 50%, #F0F9FF 100%)` }}>
       <div className="w-full max-w-sm" dir="rtl">
         {/* Welcome header */}
         <div className="text-center mb-6">
           <div className="w-16 h-16 rounded-2xl mx-auto mb-3 flex items-center justify-center"
-            style={{ background: '#2D5233' }}>
+            style={{ background: C.primary }}>
             <User className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-xl font-bold" style={{ color: '#1C2E20' }}>
+          <h1 className="text-xl font-bold" style={{ color: C.text }}>
             {fullName ? `שלום ${fullName}` : 'ברוך הבא'}
           </h1>
-          <p className="text-sm mt-1" style={{ color: '#6B7280' }}>
+          <p className="text-sm mt-1" style={{ color: C.gray500 }}>
             רגע קצר, ונוכל להתחיל לשלוח לך תזכורות.
           </p>
         </div>
 
         {/* Form card */}
         <div className="rounded-2xl p-5 space-y-4"
-          style={{ background: '#fff', border: '1.5px solid #D8E5D9', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
+          style={{ background: '#fff', border: `1.5px solid ${C.border}`, boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
 
           {/* Phone */}
           <div>
-            <label className="text-xs font-bold mb-1.5 block" style={{ color: '#374151' }}>
-              <Phone className="w-3.5 h-3.5 inline ml-1" style={{ color: '#2D5233' }} />
+            <label className="text-xs font-bold mb-1.5 block" style={{ color: C.gray700 }}>
+              <Phone className="w-3.5 h-3.5 inline ml-1" style={{ color: C.primary }} />
               מספר טלפון
             </label>
             <Input
@@ -142,15 +142,15 @@ export default function CompleteProfileScreen({ user, onDone }) {
               className="text-center text-base"
               maxLength={15}
             />
-            <p className="text-[10px] mt-1" style={{ color: '#9CA3AF' }}>
+            <p className="text-[10px] mt-1" style={{ color: C.gray400 }}>
               כדי שנוכל להתריע לפני טסט וביטוח
             </p>
           </div>
 
           {/* Birth date */}
           <div>
-            <label className="text-xs font-bold mb-1.5 block" style={{ color: '#374151' }}>
-              <Calendar className="w-3.5 h-3.5 inline ml-1" style={{ color: '#2D5233' }} />
+            <label className="text-xs font-bold mb-1.5 block" style={{ color: C.gray700 }}>
+              <Calendar className="w-3.5 h-3.5 inline ml-1" style={{ color: C.primary }} />
               תאריך לידה
             </label>
             {/* Use our shared DateInput rather than the native <input type="date">.
@@ -167,7 +167,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
           {/* Save button */}
           <button onClick={handleSave} disabled={saving}
             className="w-full py-3.5 rounded-2xl font-bold text-base transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60"
-            style={{ background: '#2D5233', color: '#fff', boxShadow: '0 4px 16px rgba(45,82,51,0.3)' }}>
+            style={{ background: C.primary, color: '#fff', boxShadow: '0 4px 16px rgba(45,82,51,0.3)' }}>
             {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : (
               <>
                 המשך <ArrowLeft className="w-4 h-4" />
@@ -178,12 +178,12 @@ export default function CompleteProfileScreen({ user, onDone }) {
           {/* Skip */}
           <button onClick={handleSkip}
             className="w-full py-2 text-sm font-medium transition-all"
-            style={{ color: '#9CA3AF' }}>
+            style={{ color: C.gray400 }}>
             אמלא אחר כך
           </button>
         </div>
 
-        <p className="text-center text-[10px] mt-4" style={{ color: '#9CA3AF' }}>
+        <p className="text-center text-[10px] mt-4" style={{ color: C.gray400 }}>
           אפשר לשנות בכל עת באזור האישי
         </p>
       </div>

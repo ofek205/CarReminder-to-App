@@ -71,7 +71,7 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
     <div className="rounded-2xl px-4 py-3.5" dir="rtl"
       style={{
         background: '#FFFFFF',
-        border: '1.5px solid #E5E7EB',
+        border: `1.5px solid ${C.gray200}`,
         boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
       }}>
 
@@ -85,23 +85,23 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
                 : <Clock className="h-5 w-5" style={{ color: T.primary }} />}
             </div>
             <div>
-              <p className="text-xs font-bold" style={{ color: '#6B7280' }}>{sectionLabel}</p>
+              <p className="text-xs font-bold" style={{ color: C.gray500 }}>{sectionLabel}</p>
               {currentValue ? (
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xl font-bold" style={{ color: '#111827' }}>
                     {Number(currentValue).toLocaleString()}
                   </span>
-                  <span className="text-xs font-bold" style={{ color: '#9CA3AF' }}>{unit}</span>
+                  <span className="text-xs font-bold" style={{ color: C.gray400 }}>{unit}</span>
                 </div>
               ) : (
-                <span className="text-sm font-medium" style={{ color: '#9CA3AF' }}>טרם עודכן</span>
+                <span className="text-sm font-medium" style={{ color: C.gray400 }}>טרם עודכן</span>
               )}
               {updateDate && (() => {
                 const days = Math.floor((Date.now() - new Date(updateDate).getTime()) / (1000 * 60 * 60 * 24));
                 const isOld = days > 30;
                 const timeAgo = days === 0 ? 'היום' : days === 1 ? 'אתמול' : days < 30 ? `לפני ${days} ימים` : days < 60 ? 'לפני חודש' : `לפני ${Math.round(days / 30)} חודשים`;
                 return (
-                  <p className="text-[10px] font-medium" style={{ color: isOld ? '#D97706' : '#9CA3AF' }}>
+                  <p className="text-[10px] font-medium" style={{ color: isOld ? C.warn : C.gray400 }}>
                     עודכן {timeAgo} · {new Date(updateDate).toLocaleDateString('he-IL')}
                     {isOld && ' ⚠️'}
                   </p>

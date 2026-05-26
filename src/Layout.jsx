@@ -30,6 +30,7 @@ import useIsAdmin from "@/hooks/useIsAdmin";
 import useSharedVehicleRealtime from "@/hooks/useSharedVehicleRealtime";
 import { useQuery } from "@tanstack/react-query";
 import { withTimeout } from "@/lib/supabaseQuery";
+import { C } from '@/lib/designTokens';
 // Lazy-load the 568-line bell + its useEffect-heavy data fetching. It
 // renders only for authenticated users, so deferring it keeps the
 // initial bundle smaller and avoids parsing notification logic for
@@ -181,7 +182,7 @@ function GuestBanner() {
   const navigate = useNavigate();
   return (
     <div className="flex items-center gap-2 px-3 py-1" dir="rtl"
-      style={{ background: 'linear-gradient(135deg, #2D5233, #3A6B42)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+      style={{ background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
       <p className="text-[10px] font-medium text-white/70 flex-1 truncate">מצב אורח</p>
       <Link
         to={createPageUrl('Auth')}
@@ -191,7 +192,7 @@ function GuestBanner() {
       </Link>
       <Button onClick={() => navigate(createPageUrl('Auth'))}
         className="text-[11px] font-bold h-8 px-3 gap-1 rounded-full touch-manipulation shrink-0"
-        style={{ background: '#FFBF00', color: '#2D5233' }}>
+        style={{ background: C.yellow, color: C.primary }}>
         <UserPlus className="h-3.5 w-3.5" />
         הירשם
       </Button>
@@ -448,7 +449,7 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
               {item.name === 'AdminAlerts' && unackAlertCount > 0 && (
                 <span
                   className="ms-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full text-white shrink-0"
-                  style={{ background: '#DC2626' }}
+                  style={{ background: C.error }}
                   aria-label={`${unackAlertCount} התראות לא טופלו`}
                 >
                   {unackAlertCount > 9 ? '9+' : unackAlertCount}
@@ -483,7 +484,7 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
             Play Store rollout when half the install base is on the new
             version and half is still on the old one. Sourced from
             package.json via the __APP_VERSION__ Vite define. */}
-        <p className="text-center text-[10px] pt-2" style={{ color: '#9CA3AF' }}>
+        <p className="text-center text-[10px] pt-2" style={{ color: C.gray400 }}>
           CarReminder &middot; גרסה {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—'}
         </p>
       </div>
@@ -952,7 +953,7 @@ function LayoutInner({ children }) {
           153). In portrait the values are 0 on most devices so layout
           is unchanged; landscape clears the notch correctly.
 
-          background:#2D5233 paints the safe-area-inset-top region
+          background:${C.primary} paints the safe-area-inset-top region
           (~59pt on Dynamic Island devices) opaque. Without it, the
           area above the white inner bar was transparent and revealed
           the page content (e.g. vehicle hero image) bleeding into the
@@ -969,7 +970,7 @@ function LayoutInner({ children }) {
         paddingTop:   'var(--inset-top,   env(safe-area-inset-top,   0px))',
         paddingLeft:  'var(--inset-left,  env(safe-area-inset-left,  0px))',
         paddingRight: 'var(--inset-right, env(safe-area-inset-right, 0px))',
-        background: '#2D5233',
+        background: C.primary,
         zIndex: 9998,
       }}>
         {isGuest && <GuestBanner />}
@@ -989,7 +990,7 @@ function LayoutInner({ children }) {
                     setTimeout(() => { btnClicked.current = false; }, 150);
                   }}
                   className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-90"
-                  style={{ background: open ? '#E5E7EB' : '#F3F4F6', position: 'relative', zIndex: 10001 }}
+                  style={{ background: open ? C.gray200 : C.gray100, position: 'relative', zIndex: 10001 }}
                   aria-label={open ? 'סגור תפריט' : 'פתח תפריט'}
                   aria-expanded={open}
                   aria-haspopup="menu">

@@ -633,7 +633,7 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
   else if (vehicleCategory === 'offroad')    repairProfessional = 'מוסך מוסמך לכלי שטח';
 
   return (
-    <div dir="rtl" className="-mx-4 -mt-4 flex flex-col" style={{ background: '#F9FAFB', minHeight: '100dvh' }}>
+    <div dir="rtl" className="-mx-4 -mt-4 flex flex-col" style={{ background: C.gray50, minHeight: '100dvh' }}>
 
       {/* Hero gradient header. scrolls away naturally so the layout's fixed
           top bar is the only thing pinned. Sticky here was overlapping the
@@ -643,7 +643,7 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
           <div className="flex items-center justify-between mb-2">
             {/* Left avatar. yellow accent */}
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ background: '#FFBF00', boxShadow: '0 4px 16px rgba(255,191,0,0.5), 0 2px 4px rgba(255,191,0,0.3)' }}>
+              style={{ background: C.yellow, boxShadow: '0 4px 16px rgba(255,191,0,0.5), 0 2px 4px rgba(255,191,0,0.3)' }}>
               <Sparkles className="w-6 h-6" style={{ color: C.primary }} />
             </div>
 
@@ -743,7 +743,7 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
                         className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-black/5 transition-colors"
                         style={{ background: 'rgba(0,0,0,0.04)' }}
                         aria-label="בטל בחירה">
-                        <X className="w-3.5 h-3.5" style={{ color: '#6B7280' }} />
+                        <X className="w-3.5 h-3.5" style={{ color: C.gray500 }} />
                       </button>
                     )}
                     <ChevronDown className={`w-5 h-5 transition-transform ${pickerOpen ? 'rotate-180' : ''}`}
@@ -757,13 +757,13 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
             <div className="space-y-1 max-h-72 overflow-y-auto">
               <button onClick={() => { setSelectedVehicleId(null); setPickerOpen(false); }}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all hover:bg-gray-50"
-                style={{ background: !selectedVehicle ? '#F3F4F6' : 'transparent' }}>
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: '#E5E7EB' }}>
-                  <Sparkles className="w-4 h-4" style={{ color: '#6B7280' }} />
+                style={{ background: !selectedVehicle ? C.gray100 : 'transparent' }}>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: C.gray200 }}>
+                  <Sparkles className="w-4 h-4" style={{ color: C.gray500 }} />
                 </div>
                 <div className="flex-1 text-right">
-                  <p className="text-[13px] font-bold" style={{ color: '#374151' }}>שאלה כללית</p>
-                  <p className="text-[10px]" style={{ color: '#9CA3AF' }}>בלי קישור לכלי תחבורה מסוים</p>
+                  <p className="text-[13px] font-bold" style={{ color: C.gray700 }}>שאלה כללית</p>
+                  <p className="text-[10px]" style={{ color: C.gray400 }}>בלי קישור לכלי תחבורה מסוים</p>
                 </div>
                 {!selectedVehicle && <Check className="w-4 h-4" style={{ color: C.primary }} />}
               </button>
@@ -782,10 +782,10 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
                         : <VehicleIcon vehicle={v} className="w-4 h-4" style={{ color: theme.primary }} />}
                     </div>
                     <div className="flex-1 text-right min-w-0">
-                      <p className="text-[13px] font-bold truncate" style={{ color: '#1F2937' }}>
+                      <p className="text-[13px] font-bold truncate" style={{ color: C.gray800 }}>
                         {v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim()}
                       </p>
-                      <p className="text-[10px]" style={{ color: '#9CA3AF' }}>
+                      <p className="text-[10px]" style={{ color: C.gray400 }}>
                         {[v.manufacturer, v.year].filter(Boolean).join(' · ')}
                         {v.current_km ? ` · ${Number(v.current_km).toLocaleString()} ק"מ` : ''}
                         {v.current_engine_hours && !v.current_km ? ` · ${v.current_engine_hours} שעות` : ''}
@@ -796,7 +796,7 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
                 );
               })}
               {vehicles.length === 0 && (
-                <p className="text-[11px] text-center py-3" style={{ color: '#9CA3AF' }}>אין כלי תחבורה שמורים</p>
+                <p className="text-[11px] text-center py-3" style={{ color: C.gray400 }}>אין כלי תחבורה שמורים</p>
               )}
             </div>
           </PopoverContent>
@@ -816,13 +816,13 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
         {/* Disclaimer. vibrant amber */}
         <div className="flex items-start gap-2 px-3 py-2.5 rounded-2xl"
           style={{
-            background: 'linear-gradient(135deg, #FFFBEB, #FEF3C7)',
-            border: '1.5px solid #FDE68A',
+            background: `linear-gradient(135deg, ${C.warnSubtle}, ${C.warnBg})`,
+            border: `1.5px solid ${C.warnBorder}`,
             boxShadow: '0 1px 4px rgba(217,119,6,0.08)',
           }}>
           <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: '#FDE68A' }}>
-            <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#92400E' }} />
+            style={{ background: C.warnBorder }}>
+            <AlertTriangle className="w-3.5 h-3.5" style={{ color: C.warnDark }} />
           </div>
           <p className="text-[10px] leading-relaxed font-medium" style={{ color: '#78350F' }}>
             <span className="font-bold">לתשומת לב:</span> התשובות לצורך התרשמות בלבד. AI עלול לטעות - מומלץ להתייעץ עם {repairProfessional}.
@@ -839,20 +839,20 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
               <div className="relative w-20 h-20 mx-auto mb-3">
                 <div className="absolute inset-0 rounded-3xl"
                   style={{
-                    background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)',
-                    border: '2px solid #FDE68A',
+                    background: `linear-gradient(135deg, ${C.warnBg}, ${C.yellowSoft})`,
+                    border: `2px solid ${C.warnBorder}`,
                     boxShadow: '0 8px 24px rgba(217,119,6,0.2)',
                   }} />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Wrench className="w-10 h-10" style={{ color: '#D97706' }} />
+                  <Wrench className="w-10 h-10" style={{ color: C.warn }} />
                 </div>
                 <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center"
                   style={{ background: '#16A34A', boxShadow: '0 2px 8px rgba(22,163,74,0.4)' }}>
                   <Check className="w-4 h-4 text-white" strokeWidth={3} />
                 </div>
               </div>
-              <h3 className="text-lg font-bold mb-1" style={{ color: '#1F2937' }}>שלום! אני {expert.firstName}</h3>
-              <p className="text-sm leading-relaxed max-w-[300px] mx-auto" style={{ color: '#6B7280' }}>
+              <h3 className="text-lg font-bold mb-1" style={{ color: C.gray800 }}>שלום! אני {expert.firstName}</h3>
+              <p className="text-sm leading-relaxed max-w-[300px] mx-auto" style={{ color: C.gray500 }}>
                 {expert.role}.{' '}
                 {expert.domain === 'vessel'
                   ? 'שאל אותי על תחזוקה, כושר שייט, ציוד בטיחות או מנועים ימיים.'
@@ -882,7 +882,7 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
             <div className="space-y-2 mt-5 px-1">
               <div className="flex items-center gap-2 mb-2 px-1">
                 <Sparkles className="w-3.5 h-3.5" style={{ color: C.primary }} />
-                <p className="text-[11px] font-bold" style={{ color: '#1F2937' }}>
+                <p className="text-[11px] font-bold" style={{ color: C.gray800 }}>
                   {selectedVehicle ? `הצעות ל${itemNoun} הזה:` : 'הצעות לשאלה:'}
                 </p>
               </div>
@@ -891,8 +891,8 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
                   className="w-full text-right p-3.5 rounded-2xl text-[13px] font-medium transition-all active:scale-[0.98] hover:shadow-md card-animate group"
                   style={{
                     background: '#fff',
-                    border: '1.5px solid #E5E7EB',
-                    color: '#374151',
+                    border: `1.5px solid ${C.gray200}`,
+                    color: C.gray700,
                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                     animationDelay: `${100 + i * 60}ms`,
                   }}>
@@ -933,16 +933,16 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
                 <div className={`flex gap-2 card-animate group ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                   {isAssistant && (
                     <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: '#FFFBEB', border: '1.5px solid #FEF3C7' }}>
-                      <Wrench className="w-3.5 h-3.5" style={{ color: '#D97706' }} />
+                      style={{ background: C.warnSubtle, border: `1.5px solid ${C.warnBg}` }}>
+                      <Wrench className="w-3.5 h-3.5" style={{ color: C.warn }} />
                     </div>
                   )}
                   <div className="max-w-[78%] flex flex-col gap-1">
                     <div className="rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed"
                       style={{
                         background: msg.role === 'user' ? C.primary : '#fff',
-                        color: msg.role === 'user' ? '#fff' : (msg.error ? '#DC2626' : '#1F2937'),
-                        border: msg.role === 'user' ? 'none' : '1px solid #E5E7EB',
+                        color: msg.role === 'user' ? '#fff' : (msg.error ? C.error : C.gray800),
+                        border: msg.role === 'user' ? 'none' : `1px solid ${C.gray200}`,
                         borderRadius: msg.role === 'user' ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-word',
@@ -951,7 +951,7 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
                     </div>
                     {/* Action row below message */}
                     <div className={`flex items-center gap-2 text-[9px] px-2 ${msg.role === 'user' ? 'justify-start flex-row-reverse' : 'justify-start'}`}
-                      style={{ color: '#9CA3AF' }}>
+                      style={{ color: C.gray400 }}>
                       {msg.ts && <span>{timeFmt(msg.ts)}</span>}
                       {isAssistant && msg.provider && <AiProviderBadge provider={msg.provider} />}
                       {isAssistant && !msg.error && (
@@ -964,7 +964,7 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
                       {isAssistant && msg.error && msg.retryText && (
                         <button onClick={() => retryLast(msg.retryText)}
                           className="flex items-center gap-1 px-2 py-0.5 rounded-full font-bold transition-all"
-                          style={{ background: '#FEE2E2', color: '#DC2626' }}>
+                          style={{ background: C.errorLight, color: C.error }}>
                           <RotateCcw className="w-2.5 h-2.5" />
                           נסה שוב
                         </button>
@@ -980,14 +980,14 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
         {sending && (
           <div className="flex gap-2 card-animate">
             <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: '#FFFBEB', border: '1.5px solid #FEF3C7' }}>
-              <Wrench className="w-3.5 h-3.5 animate-pulse" style={{ color: '#D97706' }} />
+              style={{ background: C.warnSubtle, border: `1.5px solid ${C.warnBg}` }}>
+              <Wrench className="w-3.5 h-3.5 animate-pulse" style={{ color: C.warn }} />
             </div>
             <div className="rounded-2xl px-4 py-3 flex items-center gap-1.5"
-              style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: '20px 20px 20px 4px' }}>
-              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#D97706', animationDelay: '0ms' }} />
-              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#D97706', animationDelay: '150ms' }} />
-              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#D97706', animationDelay: '300ms' }} />
+              style={{ background: '#fff', border: `1px solid ${C.gray200}`, borderRadius: '20px 20px 20px 4px' }}>
+              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: C.warn, animationDelay: '0ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: C.warn, animationDelay: '150ms' }} />
+              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: C.warn, animationDelay: '300ms' }} />
             </div>
           </div>
         )}
@@ -1005,12 +1005,12 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
           bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
           background: 'rgba(255,255,255,0.95)',
           backdropFilter: 'blur(12px)',
-          borderTop: '1px solid #E5E7EB',
+          borderTop: `1px solid ${C.gray200}`,
           boxShadow: '0 -4px 16px rgba(0,0,0,0.04)',
         }}>
         {error && (
           <div className="px-3 py-2 text-[11px] font-bold text-center flex items-center justify-center gap-1.5"
-            style={{ background: 'linear-gradient(135deg, #FEF2F2, #FEE2E2)', color: '#DC2626' }}>
+            style={{ background: `linear-gradient(135deg, ${C.errorBg}, ${C.errorLight})`, color: C.error }}>
             <AlertTriangle className="w-3 h-3" />
             {error}
           </div>
@@ -1028,8 +1028,8 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
             maxLength={MAX_LEN}
             className="flex-1 h-11 rounded-full px-4 text-[13px] focus-visible:ring-2 focus-visible:ring-offset-0 transition-all"
             style={{
-              background: '#F9FAFB',
-              border: `1.5px solid ${input.trim().length > 0 ? C.primary + '40' : '#E5E7EB'}`,
+              background: C.gray50,
+              border: `1.5px solid ${input.trim().length > 0 ? C.primary + '40' : C.gray200}`,
               boxShadow: input.trim().length > 0 ? `0 0 0 3px ${C.primary}10` : 'none',
             }} />
           <button onClick={() => send()} disabled={!isInputValid || sending}
@@ -1048,7 +1048,7 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
           </button>
         </div>
         {input.length > MAX_LEN * 0.7 && (
-          <div className="px-3 pb-1.5 text-[9px] text-left font-bold" style={{ color: charsLeft < 50 ? '#DC2626' : '#9CA3AF' }}>
+          <div className="px-3 pb-1.5 text-[9px] text-left font-bold" style={{ color: charsLeft < 50 ? C.error : C.gray400 }}>
             {charsLeft} תווים נותרו
           </div>
         )}

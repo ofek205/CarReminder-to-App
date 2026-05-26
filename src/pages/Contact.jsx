@@ -225,7 +225,7 @@ export default function Contact() {
             aria-invalid={touched.name && !!errors.name}
             aria-describedby="contact-name-error" />
           {touched.name && errors.name && (
-            <p id="contact-name-error" className="text-xs font-medium mt-1 flex items-center gap-1" style={{ color: '#DC2626' }}>⚠ {errors.name}</p>
+            <p id="contact-name-error" className="text-xs font-medium mt-1 flex items-center gap-1" style={{ color: C.error }}>⚠ {errors.name}</p>
           )}
         </div>
         <div>
@@ -237,7 +237,7 @@ export default function Contact() {
             aria-invalid={touched.email && !!errors.email}
             aria-describedby="contact-email-error" />
           {touched.email && errors.email && (
-            <p id="contact-email-error" className="text-xs font-medium mt-1 flex items-center gap-1" style={{ color: '#DC2626' }}>⚠ {errors.email}</p>
+            <p id="contact-email-error" className="text-xs font-medium mt-1 flex items-center gap-1" style={{ color: C.error }}>⚠ {errors.email}</p>
           )}
         </div>
         <div>
@@ -254,7 +254,7 @@ export default function Contact() {
             aria-invalid={touched.message && !!errors.message}
             aria-describedby="contact-message-error" />
           {touched.message && errors.message && (
-            <p id="contact-message-error" className="text-xs font-medium mt-1 flex items-center gap-1" style={{ color: '#DC2626' }}>⚠ {errors.message}</p>
+            <p id="contact-message-error" className="text-xs font-medium mt-1 flex items-center gap-1" style={{ color: C.error }}>⚠ {errors.message}</p>
           )}
         </div>
 

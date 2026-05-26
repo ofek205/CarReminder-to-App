@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import { useEmailSettings, useToggleKillSwitch } from '@/hooks/useEmailAdmin';
 import { toast } from 'sonner';
+import { C } from '@/lib/designTokens';
 
 /**
  * KillSwitchBanner. global pause control for all outgoing emails.
@@ -48,17 +49,17 @@ export default function KillSwitchBanner() {
     return (
       <div dir="rtl"
         className="rounded-2xl p-4 mb-6 flex items-start gap-3"
-        style={{ background: '#FEF2F2', border: '2px solid #FCA5A5' }}>
+        style={{ background: C.errorBg, border: '2px solid #FCA5A5' }}>
         <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: '#FEE2E2' }}>
-          <AlertTriangle className="w-5 h-5" style={{ color: '#DC2626' }} />
+          style={{ background: C.errorLight }}>
+          <AlertTriangle className="w-5 h-5" style={{ color: C.error }} />
         </div>
         <div className="flex-1">
-          <h3 className="font-bold text-base mb-1" style={{ color: '#991B1B' }}>
+          <h3 className="font-bold text-base mb-1" style={{ color: C.errorDark }}>
             שליחת המיילים מושעת
           </h3>
           {settings?.pause_reason && (
-            <p className="text-sm mb-2" style={{ color: '#991B1B' }}>
+            <p className="text-sm mb-2" style={{ color: C.errorDark }}>
               סיבה: {settings.pause_reason}
             </p>
           )}
@@ -69,7 +70,7 @@ export default function KillSwitchBanner() {
             onClick={handleResume}
             disabled={toggle.isPending}
             className="gap-2 h-9 rounded-xl font-bold"
-            style={{ background: '#DC2626', color: 'white' }}>
+            style={{ background: C.error, color: 'white' }}>
             {toggle.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
             חידוש שליחה
           </Button>
@@ -82,16 +83,16 @@ export default function KillSwitchBanner() {
     <>
       <div dir="rtl"
         className="rounded-2xl p-4 mb-6 flex items-center gap-3"
-        style={{ background: '#ECFDF5', border: '1.5px solid #A7F3D0' }}>
+        style={{ background: C.successSubtle, border: `1.5px solid ${C.successLighter}` }}>
         <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: '#D1FAE5' }}>
+          style={{ background: C.successLight }}>
           <Play className="w-5 h-5" style={{ color: '#047857' }} />
         </div>
         <div className="flex-1">
           <h3 className="font-bold text-sm" style={{ color: '#064E3B' }}>
             שליחת מיילים פעילה
           </h3>
-          <p className="text-xs" style={{ color: '#065F46' }}>
+          <p className="text-xs" style={{ color: C.successDark }}>
             כל המיילים יוצאים כרגיל דרך Resend.
           </p>
         </div>
@@ -135,7 +136,7 @@ export default function KillSwitchBanner() {
               onClick={handlePause}
               disabled={toggle.isPending}
               className="rounded-xl gap-2"
-              style={{ background: '#DC2626', color: 'white' }}>
+              style={{ background: C.error, color: 'white' }}>
               {toggle.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
               השעה עכשיו
             </Button>

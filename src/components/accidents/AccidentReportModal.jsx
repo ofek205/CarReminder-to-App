@@ -230,7 +230,7 @@ export default function AccidentReportModal({
               type="button"
               onClick={onPreview}
               className="w-full text-right rounded-3xl border bg-[#F5FAF6] p-4 transition-colors hover:border-[#2D5233]"
-              style={{ borderColor: '#D8E5D9' }}
+              style={{ borderColor: C.border }}
             >
               <p className="text-sm font-bold text-[#1C2E20] mb-1">צפייה בדוח</p>
               <p className="text-xs leading-relaxed text-gray-600">

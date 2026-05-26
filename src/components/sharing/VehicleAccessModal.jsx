@@ -30,12 +30,12 @@ import ShareVehicleDialog from './ShareVehicleDialog';
 // viewer (read-only). Falls back to viewer if the role string is
 // unexpected so the badge never renders blank.
 const ROLE_META = {
-  'מנהל': { label: 'שותף עורך',  Icon: Edit, color: '#2D5233', bg: '#E8F5E9', other: 'שותף',  otherLabel: 'שותף צופה' },
+  'מנהל': { label: 'שותף עורך',  Icon: Edit, color: C.primary, bg: C.successBg, other: 'שותף',  otherLabel: 'שותף צופה' },
   'שותף': { label: 'שותף צופה',  Icon: Eye,  color: '#1565C0', bg: '#E3F2FD', other: 'מנהל',  otherLabel: 'שותף עורך' },
 };
 
 const STATUS_META = {
-  pending:  { label: 'ממתין/ה',   color: '#92400E', bg: '#FEF3C7' },
+  pending:  { label: 'ממתין/ה',   color: C.warnDark, bg: C.warnBg },
   accepted: { label: 'פעיל',       color: '#1B5E20', bg: '#DCFCE7' },
 };
 
@@ -180,9 +180,9 @@ export default function VehicleAccessModal({
           {!isOwner ? (
             //  Sharee view — only self-leave option
             <div className="space-y-4 pt-2">
-              <div className="rounded-2xl p-4" style={{ background: '#FEF3C7', border: '1.5px solid #FDE68A' }}>
-                <p className="text-sm font-bold" style={{ color: '#92400E' }}>הרכב הזה שותף איתך</p>
-                <p className="text-xs mt-1" style={{ color: '#B45309' }}>
+              <div className="rounded-2xl p-4" style={{ background: C.warnBg, border: `1.5px solid ${C.warnBorder}` }}>
+                <p className="text-sm font-bold" style={{ color: C.warnDark }}>הרכב הזה שותף איתך</p>
+                <p className="text-xs mt-1" style={{ color: C.warnMid }}>
                   {/* Show the owner's full name when we have it — closes
                       the "who shared this with me?" question before any
                       destructive action. Falls back to the gendered
@@ -197,7 +197,7 @@ export default function VehicleAccessModal({
                 onClick={() => setConfirmLeave(true)}
                 variant="outline"
                 className="w-full rounded-2xl h-12 gap-2 font-bold"
-                style={{ color: '#DC2626', borderColor: '#FECACA' }}>
+                style={{ color: C.error, borderColor: C.errorBorder }}>
                 <LogOut className="w-4 h-4" />
                 יציאה מהשיתוף
               </Button>
@@ -210,8 +210,8 @@ export default function VehicleAccessModal({
                   <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
                 </div>
               ) : shares.length === 0 ? (
-                <div className="py-8 text-center rounded-2xl" style={{ background: '#F9FAFB' }}>
-                  <Users className="w-10 h-10 mx-auto mb-2" style={{ color: '#9CA3AF' }} />
+                <div className="py-8 text-center rounded-2xl" style={{ background: C.gray50 }}>
+                  <Users className="w-10 h-10 mx-auto mb-2" style={{ color: C.gray400 }} />
                   <p className="text-sm font-bold text-gray-600">עוד אין שיתופים</p>
                   <p className="text-xs mt-1 text-gray-400">אפשר להזמין מישהו ולשתף איתו את הרכב</p>
                 </div>
@@ -231,7 +231,7 @@ export default function VehicleAccessModal({
                       <button
                         onClick={() => setShowShareDialog(true)}
                         className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all active:scale-95"
-                        style={{ background: '#F59E0B', color: '#fff', boxShadow: '0 2px 6px rgba(245,158,11,0.35)' }}>
+                        style={{ background: C.warnIcon, color: '#fff', boxShadow: '0 2px 6px rgba(245,158,11,0.35)' }}>
                         <Plus className="w-3.5 h-3.5" />
                         הזמן עוד משתמש
                       </button>
@@ -249,13 +249,13 @@ export default function VehicleAccessModal({
                     const canEditRole = s.status === 'accepted' && roleMeta.other;
                     return (
                       <div key={s.id} className="rounded-2xl p-3 flex items-center gap-3"
-                        style={{ background: '#FFF', border: '1.5px solid #E5E7EB' }}>
+                        style={{ background: '#FFF', border: `1.5px solid ${C.gray200}` }}>
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                           style={{ background: roleMeta.bg }}>
                           <RoleIcon className="w-5 h-5" style={{ color: roleMeta.color }} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-sm truncate" style={{ color: '#1F2937' }}>{s.shared_with_name}</p>
+                          <p className="font-bold text-sm truncate" style={{ color: C.gray800 }}>{s.shared_with_name}</p>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             {/* Role badge — clickable when editable.
                                 The hover ring + RefreshCw icon signal
@@ -296,7 +296,7 @@ export default function VehicleAccessModal({
                         <button
                           onClick={() => setConfirmRevoke({ share_id: s.id, name: s.shared_with_name })}
                           className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all active:scale-95"
-                          style={{ background: '#FEF2F2', color: '#DC2626' }}
+                          style={{ background: C.errorBg, color: C.error }}
                           aria-label={`בטל שיתוף עם ${s.shared_with_name}`}
                           title="בטל שיתוף">
                           <UserMinus className="w-4 h-4" />

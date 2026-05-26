@@ -5,6 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Loader2, Play, Clock, CheckCircle2, AlertCircle, Info, Save } from 'lucide-react';
 import { useEmailTriggers, useSaveTrigger, useRunDispatcher, useEmailNotifications } from '@/hooks/useEmailAdmin';
 import { toast } from 'sonner';
+import { C } from '@/lib/designTokens';
 
 /**
  * TriggersTab. admin-facing controls for the automation layer.
@@ -59,13 +60,13 @@ export default function TriggersTab() {
 
       {/* Dispatcher runner */}
       <div className="rounded-2xl p-4 flex items-center gap-3 flex-wrap"
-        style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB' }}>
+        style={{ background: '#FFFFFF', border: `1.5px solid ${C.gray200}` }}>
         <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: '#DBEAFE' }}>
-          <Play className="w-5 h-5" style={{ color: '#1E40AF' }} />
+          style={{ background: C.infoBg }}>
+          <Play className="w-5 h-5" style={{ color: C.infoDark }} />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-sm" style={{ color: '#1C2E20' }}>הפעלה ידנית של ה-Dispatcher</h3>
+          <h3 className="font-bold text-sm" style={{ color: C.text }}>הפעלה ידנית של ה-Dispatcher</h3>
           <p className="text-xs text-gray-500">
             ה-cron רץ אוטומטית כל שעה. כאן אפשר להריץ מיד לבדיקה או לזרז שליחה.
           </p>
@@ -84,7 +85,7 @@ export default function TriggersTab() {
             onClick={() => handleRun({ dryRun: false })}
             disabled={run.isPending}
             className="gap-2 h-9 rounded-xl"
-            style={{ background: '#2D5233', color: 'white' }}>
+            style={{ background: C.primary, color: 'white' }}>
             {run.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
             הרץ עכשיו
           </Button>
@@ -95,10 +96,10 @@ export default function TriggersTab() {
       {lastRun && (
         <div className="rounded-2xl p-3 text-xs"
           style={{
-            background: lastRun.ok !== false ? '#ECFDF5' : '#FEF2F2',
-            border: `1.5px solid ${lastRun.ok !== false ? '#A7F3D0' : '#FCA5A5'}`,
+            background: lastRun.ok !== false ? C.successSubtle : C.errorBg,
+            border: `1.5px solid ${lastRun.ok !== false ? C.successLighter : '#FCA5A5'}`,
           }}>
-          <div className="flex items-center gap-2 mb-1 font-bold" style={{ color: lastRun.ok !== false ? '#064E3B' : '#991B1B' }}>
+          <div className="flex items-center gap-2 mb-1 font-bold" style={{ color: lastRun.ok !== false ? '#064E3B' : C.errorDark }}>
             {lastRun.ok !== false ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
             הרצה אחרונה: {new Date(lastRun.at).toLocaleTimeString('he-IL')}
             {lastRun.dryRun && <span className="text-[10px] font-normal">(dry run)</span>}
@@ -130,7 +131,7 @@ export default function TriggersTab() {
 
 function Stat({ label, value, warn }) {
   return (
-    <div className="rounded-lg p-2" style={{ background: warn ? '#FECACA' : 'rgba(255,255,255,0.6)' }}>
+    <div className="rounded-lg p-2" style={{ background: warn ? C.errorBorder : 'rgba(255,255,255,0.6)' }}>
       <div className="text-lg font-bold leading-none">{value}</div>
       <div className="text-[10px] text-gray-600">{label}</div>
     </div>
@@ -174,14 +175,14 @@ function TriggerRow({ row }) {
 
   return (
     <div dir="rtl" className="rounded-2xl p-4"
-      style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB' }}>
+      style={{ background: '#FFFFFF', border: `1.5px solid ${C.gray200}` }}>
       <div className="flex items-center gap-3 flex-wrap mb-3">
         <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: '#FEF3C7' }}>
-          <Clock className="w-5 h-5" style={{ color: '#92400E' }} />
+          style={{ background: C.warnBg }}>
+          <Clock className="w-5 h-5" style={{ color: C.warnDark }} />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-sm" style={{ color: '#1C2E20' }}>
+          <h3 className="font-bold text-sm" style={{ color: C.text }}>
             {row.notification?.display_name || row.notification_key}
           </h3>
           <p className="text-[11px] text-gray-500 font-mono" dir="ltr">{row.notification_key}</p>
@@ -243,7 +244,7 @@ function TriggerRow({ row }) {
           disabled={!dirty || save.isPending}
           onClick={handleSave}
           className="gap-1.5 rounded-xl h-8 text-xs"
-          style={{ background: dirty ? '#2D5233' : '#9CA3AF', color: 'white' }}>
+          style={{ background: dirty ? C.primary : C.gray400, color: 'white' }}>
           {save.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
           שמירה
         </Button>

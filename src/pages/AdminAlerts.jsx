@@ -60,7 +60,7 @@ const KIND_META = {
 const SEVERITY_META = {
   high:   { label: "גבוה",   color: C.error,   bg: C.errorBg },
   medium: { label: "בינוני", color: C.warn,    bg: C.warnBg  },
-  low:    { label: "נמוך",   color: C.muted,   bg: "#F3F4F6" },
+  low:    { label: "נמוך",   color: C.muted,   bg: C.gray100 },
 };
 
 export default function AdminAlerts() {
@@ -253,8 +253,8 @@ function AlertCard({ alert, onAcknowledge, isAcknowledging }) {
   const kindMeta = KIND_META[alert.kind] || {
     label: alert.kind,
     icon:  Bell,
-    color: "#6B7280",
-    bg:    "#F3F4F6",
+    color: C.gray500,
+    bg:    C.gray100,
   };
   const sevMeta = SEVERITY_META[alert.severity] || SEVERITY_META.low;
   const Icon = kindMeta.icon;
@@ -271,7 +271,7 @@ function AlertCard({ alert, onAcknowledge, isAcknowledging }) {
     if (!replySubject.trim() || !replyBody.trim() || !contactEmail) return;
     setSending(true);
     try {
-      const bodyHtml = `<p style="font-size:15px;line-height:1.75;color:#1F2937;margin:0">${escapeHtml(replyBody).replace(/\n/g, '<br/>')}</p>`;
+      const bodyHtml = `<p style="font-size:15px;line-height:1.75;color:${C.gray800};margin:0">${escapeHtml(replyBody).replace(/\n/g, '<br/>')}</p>`;
       const html = buildEmailHtml({
         preheader: replySubject.trim(),
         title: replySubject.trim(),
@@ -365,8 +365,8 @@ function AlertCard({ alert, onAcknowledge, isAcknowledging }) {
           {contactEmail && replyOpen && (
             <div className="mt-3 space-y-2 p-3 rounded-xl" style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
               <div className="flex items-center gap-1.5 mb-1">
-                <Mail className="w-3.5 h-3.5" style={{ color: '#3B82F6' }} />
-                <span className="text-[11px] font-bold" style={{ color: '#1E40AF' }}>תגובה ל-{contactEmail}</span>
+                <Mail className="w-3.5 h-3.5" style={{ color: C.info }} />
+                <span className="text-[11px] font-bold" style={{ color: C.infoDark }}>תגובה ל-{contactEmail}</span>
               </div>
               <input
                 className="w-full text-xs border rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-blue-300"
@@ -394,7 +394,7 @@ function AlertCard({ alert, onAcknowledge, isAcknowledging }) {
                   onClick={handleSendReply}
                   disabled={!replySubject.trim() || !replyBody.trim() || sending}
                   className="text-[11px] font-medium px-3 py-1.5 rounded-lg transition disabled:opacity-40"
-                  style={{ background: '#DBEAFE', color: '#1E40AF' }}
+                  style={{ background: C.infoBg, color: C.infoDark }}
                 >
                   {sending ? 'שולח...' : 'שלח תגובה'}
                 </button>

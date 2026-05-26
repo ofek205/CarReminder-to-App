@@ -37,6 +37,7 @@ import {
   KpiTile,
   AnimatedCount,
 } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 const PAGE_SIZE = 25;
 
@@ -58,18 +59,18 @@ function vehicleStatus(v) {
   if (worst < 0) {
     return {
       key: 'overdue', label: 'דחוף', accent: 'red',
-      chipBg: '#FEE2E2', chipFg: '#991B1B',
+      chipBg: C.errorLight, chipFg: C.errorDark,
     };
   }
   if (worst <= 60) {
     return {
       key: 'soon', label: 'בקרוב', accent: 'amber',
-      chipBg: '#FEF3C7', chipFg: '#92400E',
+      chipBg: C.warnBg, chipFg: C.warnDark,
     };
   }
   return {
     key: 'ok', label: 'תקין', accent: 'emerald',
-    chipBg: '#D1FAE5', chipFg: '#065F46',
+    chipBg: C.successLight, chipFg: C.successDark,
   };
 }
 
@@ -286,8 +287,8 @@ export default function Fleet() {
             className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
             style={{
               background: '#FFFFFF',
-              color: '#10B981',
-              border: '1.5px solid #D1FAE5',
+              color: C.successBright,
+              border: `1.5px solid ${C.successLight}`,
             }}
           >
             <Upload className="h-4 w-4" />
@@ -297,7 +298,7 @@ export default function Fleet() {
             to={createPageUrl('AddVehicle')}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
             style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
               boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
             }}
@@ -349,7 +350,7 @@ export default function Fleet() {
           onChange={(e) => setSearch(e.target.value)}
           placeholder="חפש לפי מספר רישוי, שם, יצרן או דגם"
           className="h-11 rounded-xl pr-10 pl-9 text-sm"
-          style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+          style={{ background: '#FFFFFF', borderColor: C.successLight }}
         />
         {search && (
           <button
@@ -407,15 +408,15 @@ export default function Fleet() {
       {/* List */}
       {isLoading ? (
         <Card className="text-center py-8">
-          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען רכבים...</p>
+          <p className="text-xs" style={{ color: C.mutedAlt }}>טוען רכבים...</p>
         </Card>
       ) : filtered.length === 0 ? (
         <Card className="text-center py-12">
-          <Truck className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
-          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+          <Truck className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
+          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>
             {vehicles.length === 0 ? 'הצי שלך עוד ריק' : 'אין רכבים תואמים לסינון'}
           </p>
-          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+          <p className="text-xs leading-relaxed" style={{ color: C.mutedAlt }}>
             {vehicles.length === 0
               ? 'התחל בהוספת הרכב הראשון. ניתן לחפש לפי מספר רישוי דרך משרד התחבורה.'
               : hasFilters
@@ -425,7 +426,7 @@ export default function Fleet() {
         </Card>
       ) : (
         <>
-          <h2 className="text-sm font-bold mb-2.5" style={{ color: '#0B2912' }}>
+          <h2 className="text-sm font-bold mb-2.5" style={{ color: C.primaryDark }}>
             {filtered.length === vehicles.length
               ? `כל הצי (${vehicles.length})`
               : `מציג ${filtered.length} מתוך ${vehicles.length}`}
@@ -449,13 +450,13 @@ export default function Fleet() {
                 className="px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
                 style={{
                   background: '#FFFFFF',
-                  color: '#10B981',
-                  border: '1.5px solid #D1FAE5',
+                  color: C.successBright,
+                  border: `1.5px solid ${C.successLight}`,
                 }}
               >
                 הקודם
               </button>
-              <span style={{ color: '#4B5D52' }}>
+              <span style={{ color: C.textAlt }}>
                 עמוד {page + 1} מתוך {totalPages}
               </span>
               <button
@@ -465,8 +466,8 @@ export default function Fleet() {
                 className="px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
                 style={{
                   background: '#FFFFFF',
-                  color: '#10B981',
-                  border: '1.5px solid #D1FAE5',
+                  color: C.successBright,
+                  border: `1.5px solid ${C.successLight}`,
                 }}
               >
                 הבא
@@ -497,21 +498,21 @@ function FleetRow({ vehicle, driverName }) {
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{label}</p>
+                <p className="text-sm font-bold truncate" style={{ color: C.primaryDark }}>{label}</p>
                 {vehicle.license_plate && (
                   <span
                     className="text-[10px] font-mono shrink-0 px-1.5 py-0.5 rounded tabular-nums"
                     dir="ltr"
-                    style={{ background: '#F0F7F4', color: '#4B5D52' }}
+                    style={{ background: C.bgSubtle, color: C.textAlt }}
                   >
                     {vehicle.license_plate}
                   </span>
                 )}
               </div>
-              <p className="text-[11px] truncate leading-relaxed" style={{ color: '#6B7C72' }}>
+              <p className="text-[11px] truncate leading-relaxed" style={{ color: C.mutedAlt }}>
                 {driverName
-                  ? <>נהג: <span className="font-bold" style={{ color: '#0B2912' }}>{driverName}</span></>
-                  : <span style={{ color: '#A7B3AB' }}>ללא נהג משויך</span>}
+                  ? <>נהג: <span className="font-bold" style={{ color: C.primaryDark }}>{driverName}</span></>
+                  : <span style={{ color: C.borderAlt }}>ללא נהג משויך</span>}
                 {reason && <>{` · ${reason}`}</>}
               </p>
             </div>
@@ -521,7 +522,7 @@ function FleetRow({ vehicle, driverName }) {
             >
               {status.label}
             </span>
-            <ChevronLeft className="h-4 w-4 shrink-0" style={{ color: '#A7B3AB' }} />
+            <ChevronLeft className="h-4 w-4 shrink-0" style={{ color: C.borderAlt }} />
           </div>
         </Card>
       </Link>
@@ -533,21 +534,21 @@ function FleetRow({ vehicle, driverName }) {
 // accents. Active state uses the deep emerald gradient base; inactive
 // state uses a soft tint of the same tone (or a neutral white).
 const CHIP_INACTIVE_BY_TONE = {
-  red:     { background: '#FEF2F2', color: '#991B1B', borderColor: '#FECACA' },
-  amber:   { background: '#FFFBEB', color: '#92400E', borderColor: '#FCD34D' },
-  emerald: { background: '#ECFDF5', color: '#065F46', borderColor: '#A7F3D0' },
-  blue:    { background: '#EFF6FF', color: '#1E40AF', borderColor: '#BFDBFE' },
+  red:     { background: C.errorBg, color: C.errorDark, borderColor: C.errorBorder },
+  amber:   { background: C.warnSubtle, color: C.warnDark, borderColor: '#FCD34D' },
+  emerald: { background: C.successSubtle, color: C.successDark, borderColor: C.successLighter },
+  blue:    { background: C.infoSubtle, color: C.infoDark, borderColor: '#BFDBFE' },
 };
 
 function Chip({ active, onClick, children, tone }) {
   const inactive = CHIP_INACTIVE_BY_TONE[tone] || {
-    background: '#FFFFFF', color: '#4B5D52', borderColor: '#E5EDE8',
+    background: '#FFFFFF', color: C.textAlt, borderColor: C.bgSage,
   };
   const style = active
     ? {
-        background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+        background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
         color: '#FFFFFF',
-        borderColor: '#065F46',
+        borderColor: C.successDark,
         boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
       }
     : inactive;

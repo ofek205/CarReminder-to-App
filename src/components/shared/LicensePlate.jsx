@@ -3,6 +3,7 @@ import { Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/clipboard';
 import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
+import { C } from '@/lib/designTokens';
 
 /**
  * Israeli license plate display. yellow plate, IL flag, copy button.
@@ -49,7 +50,7 @@ export default function LicensePlate({ value, size = 'md', showCopy = true, clas
         className="inline-flex items-center gap-1.5 rounded shrink-0"
         style={{
           padding: P.padding,
-          background: '#FFBF00',
+          background: C.yellow,
           border: `${P.borderWidth}px solid #1A3A5C`,
           boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
           height: P.height,

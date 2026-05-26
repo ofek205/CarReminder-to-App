@@ -1030,9 +1030,9 @@ export default function AddVehicle() {
   if (!isGuestRole && isViewOnly(role)) {
     return (
       <div dir="rtl" className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="rounded-2xl p-6 max-w-sm" style={{ background: '#DBEAFE', border: '1px solid #93C5FD' }}>
-          <p className="font-bold text-lg mb-2" style={{ color: '#1E40AF' }}>אין לך הרשאה להוסיף כלי תחבורה</p>
-          <p className="text-sm mb-4" style={{ color: '#1E40AF' }}>הצטרפת כחבר, תצוגה בלבד</p>
+        <div className="rounded-2xl p-6 max-w-sm" style={{ background: C.infoBg, border: '1px solid #93C5FD' }}>
+          <p className="font-bold text-lg mb-2" style={{ color: C.infoDark }}>אין לך הרשאה להוסיף כלי תחבורה</p>
+          <p className="text-sm mb-4" style={{ color: C.infoDark }}>הצטרפת כחבר, תצוגה בלבד</p>
           <button onClick={() => navigate(-1)} className="px-6 py-2 rounded-xl font-bold text-sm text-white" style={{ background: '#2563EB' }}>חזרה</button>
         </div>
       </div>
@@ -1146,20 +1146,20 @@ export default function AddVehicle() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" dir="rtl" role="dialog" aria-modal="true" aria-labelledby="mismatch-title">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto"
-              style={{ background: '#FFF8E1' }}>
+              style={{ background: C.yellowSoft }}>
               <span className="text-3xl" role="img" aria-label="warning">⚠️</span>
             </div>
             <div className="text-center space-y-2">
               <h2 id="mismatch-title" className="text-lg font-bold text-gray-900">
                 סוג הרכב לא תואם לקטגוריה
               </h2>
-              <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
-                המספר <span dir="ltr" className="font-mono font-bold" style={{ color: '#DC2626' }}>{typeMismatch.pendingFields.license_plate || plateQuery}</span>
+              <p className="text-sm leading-relaxed" style={{ color: C.gray500 }}>
+                המספר <span dir="ltr" className="font-mono font-bold" style={{ color: C.error }}>{typeMismatch.pendingFields.license_plate || plateQuery}</span>
                 {' '}שייך לפי משרד התחבורה ל
-                <span className="font-bold" style={{ color: '#2D5233' }}>{typeMismatch.detectedLabel}</span>,
+                <span className="font-bold" style={{ color: C.primary }}>{typeMismatch.detectedLabel}</span>,
                 {' '}אבל בחרת בקטגוריה <span className="font-bold">{selectedCategory?.label}</span>.
               </p>
-              <p className="text-xs" style={{ color: '#9CA3AF' }}>
+              <p className="text-xs" style={{ color: C.gray400 }}>
                 כדי שהטסט, הביטוח והמפרט יהיו נכונים, מומלץ להחליף לקטגוריה הנכונה.
               </p>
             </div>
@@ -1167,7 +1167,7 @@ export default function AddVehicle() {
               <button onClick={confirmSwitchCategory}
                 className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 style={{
-                  background: 'linear-gradient(135deg, #2D5233 0%, #4B7A53 100%)',
+                  background: `linear-gradient(135deg, ${C.primary} 0%, #4B7A53 100%)`,
                   color: '#fff',
                   boxShadow: '0 4px 16px rgba(45,82,51,0.25)',
                 }}>
@@ -1175,12 +1175,12 @@ export default function AddVehicle() {
               </button>
               <button onClick={keepCurrentCategory}
                 className="w-full py-2.5 rounded-2xl font-bold text-xs transition-all active:scale-[0.98]"
-                style={{ background: '#fff', color: '#6B7280', border: '1.5px solid #E5E7EB' }}>
+                style={{ background: '#fff', color: C.gray500, border: `1.5px solid ${C.gray200}` }}>
                 השאר בקטגוריה "{selectedCategory?.label}" בכל זאת
               </button>
               <button onClick={cancelMismatch}
                 className="w-full py-2 text-xs font-medium transition-colors"
-                style={{ color: '#DC2626' }}>
+                style={{ color: C.error }}>
                 ביטול / בדוק את מספר הרישוי
               </button>
             </div>
@@ -1233,10 +1233,10 @@ export default function AddVehicle() {
               <CheckCircle2 className="w-7 h-7 text-white" />
             </div>
             <h2 className="text-lg font-bold text-gray-900">{isVesselCategory ? 'כלי השייט נשמר!' : 'הרכב נשמר!'}</h2>
-            <p className="text-sm leading-relaxed" style={{ color: '#6B7280' }}>
+            <p className="text-sm leading-relaxed" style={{ color: C.gray500 }}>
               הפרטים נשמרו זמנית במכשיר שלך.
               <br />
-              <strong style={{ color: '#374151' }}>הירשם בחינם</strong> כדי שיישמרו לצמיתות, תקבל תזכורות ותוכל לגשת מכל מכשיר.
+              <strong style={{ color: C.gray700 }}>הירשם בחינם</strong> כדי שיישמרו לצמיתות, תקבל תזכורות ותוכל לגשת מכל מכשיר.
             </p>
             <Button
               onClick={() => { window.location.href = '/Auth'; }}
@@ -1248,7 +1248,7 @@ export default function AddVehicle() {
             <button
               onClick={() => { setShowGuestSignup(false); navigate(createPageUrl('Dashboard')); }}
               className="w-full text-xs py-1 font-medium"
-              style={{ color: '#9CA3AF' }}
+              style={{ color: C.gray400 }}
             >
               אמשיך כאורח בינתיים
             </button>
@@ -1277,14 +1277,14 @@ export default function AddVehicle() {
             </div>
           </div>
           <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
-            style={{ background: '#FFBF00', boxShadow: '0 4px 16px rgba(255,191,0,0.45)' }}>
+            style={{ background: C.yellow, boxShadow: '0 4px 16px rgba(255,191,0,0.45)' }}>
             <Plus className="w-5 h-5" style={{ color: T.primary }} />
           </div>
         </div>
         {/* Progress bar inside header */}
         <div className="relative z-10 mt-4 flex items-center gap-2">
           <div className="flex-1 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }}>
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: !categoryReady ? '33%' : formVisible ? '100%' : '66%', background: '#FFBF00', boxShadow: '0 0 8px rgba(255,191,0,0.5)' }} />
+            <div className="h-full rounded-full transition-all duration-500" style={{ width: !categoryReady ? '33%' : formVisible ? '100%' : '66%', background: C.yellow, boxShadow: '0 0 8px rgba(255,191,0,0.5)' }} />
           </div>
           <span className="text-[10px] font-bold shrink-0" style={{ color: 'rgba(255,255,255,0.7)' }}>
             {!categoryReady ? '1/3' : formVisible ? '3/3' : '2/3'}
@@ -1294,7 +1294,7 @@ export default function AddVehicle() {
 
       {/*  Step 1: Vehicle type  */}
       <div className="mb-6" data-tour="av-category">
-        <h2 className="font-bold text-lg mb-3 text-center" style={{ color: '#1C2E20' }}>בחר סוג כלי רכב</h2>
+        <h2 className="font-bold text-lg mb-3 text-center" style={{ color: C.text }}>בחר סוג כלי רכב</h2>
         <VehicleTypeSelector
           variant="tabs"
           value={form.vehicle_type_id}
@@ -1375,7 +1375,7 @@ export default function AddVehicle() {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-all duration-150 active:scale-95"
                     style={active
                       ? { background: T.primary, borderColor: T.primary, color: '#fff', boxShadow: `0 2px 8px ${T.primary}30` }
-                      : { background: '#fff', borderColor: '#D1D5DB', color: '#374151' }
+                      : { background: '#fff', borderColor: C.gray300, color: C.gray700 }
                     }
                   >
                     {active && <Check className="h-3 w-3 shrink-0" />}
@@ -1450,7 +1450,7 @@ export default function AddVehicle() {
 
       {/*  Step 2: Method selection  */}
       <div className={`transition-all duration-300 ${categoryReady ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-      <h2 className="font-bold text-lg mb-4 text-center" style={{ color: '#1C2E20' }}>איך תרצה להוסיף?</h2>
+      <h2 className="font-bold text-lg mb-4 text-center" style={{ color: C.text }}>איך תרצה להוסיף?</h2>
       <div className="space-y-3 mb-6" data-tour="av-methods">
 
         {/* 1. Plate lookup - only if category supports it */}
@@ -1568,13 +1568,13 @@ export default function AddVehicle() {
         >
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
-              style={{ background: aiScanAllowed ? '#FEF3C7' : '#F3F4F6', borderColor: aiScanAllowed ? '#FDE68A' : '#E5E7EB' }}>
-              <FileText className="h-5 w-5" style={{ color: aiScanAllowed ? '#D97706' : '#9CA3AF' }} />
+              style={{ background: aiScanAllowed ? C.warnBg : C.gray100, borderColor: aiScanAllowed ? C.warnBorder : C.gray200 }}>
+              <FileText className="h-5 w-5" style={{ color: aiScanAllowed ? C.warn : C.gray400 }} />
             </div>
             <div className="flex-1">
               <p className="font-semibold text-gray-800 text-sm flex items-center gap-1.5 flex-wrap">
                 📷 סריקת רישיון רכב
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#FFBF00', color: '#2D5233' }}>AI</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: C.yellow, color: C.primary }}>AI</span>
                 {!aiScanAllowed && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">
                     כרגע לא זמין
@@ -1619,15 +1619,15 @@ export default function AddVehicle() {
             {/* Draft resume prompt */}
             {draft.showResume && (
               <div className="rounded-2xl p-3.5 mb-4 flex items-center justify-between"
-                style={{ background: '#FFFBEB', border: '1.5px solid #FDE68A', boxShadow: '0 2px 8px rgba(217,119,6,0.08)' }} dir="rtl">
-                <p className="text-xs font-bold" style={{ color: '#92400E' }}>רוצה להמשיך מאיפה שהפסקת?</p>
+                style={{ background: C.warnSubtle, border: `1.5px solid ${C.warnBorder}`, boxShadow: '0 2px 8px rgba(217,119,6,0.08)' }} dir="rtl">
+                <p className="text-xs font-bold" style={{ color: C.warnDark }}>רוצה להמשיך מאיפה שהפסקת?</p>
                 <div className="flex gap-2">
                   <button onClick={draft.resumeDraft}
                     className="text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all active:scale-95"
                     style={{ background: T.primary, color: '#fff' }}>המשך טיוטה</button>
                   <button onClick={draft.discardDraft}
                     className="text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all active:scale-95"
-                    style={{ background: '#F3F4F6', color: '#6B7280' }}>התחל מחדש</button>
+                    style={{ background: C.gray100, color: C.gray500 }}>התחל מחדש</button>
                 </div>
               </div>
             )}
@@ -1647,16 +1647,16 @@ export default function AddVehicle() {
                 type="button"
                 onClick={() => { resetAll(); setSelectedMethod(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 className="text-xs flex items-center gap-1.5 font-bold px-3 py-1.5 rounded-full transition-all active:scale-95"
-                style={{ background: '#F3F4F6', color: '#6B7280' }}
+                style={{ background: C.gray100, color: C.gray500 }}
               >
                 <X className="h-3 w-3" />
                 שנה שיטה
               </button>
             </div>
             {autofillFields.size > 0 && (
-              <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl" style={{ background: '#ECFDF5', border: '1px solid #A7F3D0' }}>
+              <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl" style={{ background: C.successSubtle, border: `1px solid ${C.successLighter}` }}>
                 <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: '#059669' }} />
-                <span className="text-xs font-bold" style={{ color: '#065F46' }}>{autofillFields.size} שדות מולאו אוטומטית</span>
+                <span className="text-xs font-bold" style={{ color: C.successDark }}>{autofillFields.size} שדות מולאו אוטומטית</span>
               </div>
             )}
 
@@ -1931,7 +1931,7 @@ export default function AddVehicle() {
                           <button type="button"
                             onClick={() => setUsageMetric(m => m === 'קילומטרים' ? 'שעות מנוע' : 'קילומטרים')}
                             className="text-[10px] font-bold px-2 py-0.5 rounded-full transition-all active:scale-95"
-                            style={{ background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0' }}>
+                            style={{ background: C.successSubtle, color: '#059669', border: `1px solid ${C.successLighter}` }}>
                             {usageMetric === 'קילומטרים' ? 'עבור לשעות מנוע' : 'עבור לק"מ'}
                           </button>
                         )}
@@ -2116,19 +2116,19 @@ export default function AddVehicle() {
                         <span style={{ fontSize: '18px', filter: 'grayscale(0)' }}>🔧</span>
                       </div>
                       <div>
-                        <p className="font-bold text-sm" style={{ color: '#1C2E20' }}>החלפת צמיגים לאחרונה?</p>
-                        <p className="text-xs" style={{ color: '#7A8A7C' }}>נעזור לך לעקוב אחר תקינותם</p>
+                        <p className="font-bold text-sm" style={{ color: C.text }}>החלפת צמיגים לאחרונה?</p>
+                        <p className="text-xs" style={{ color: C.muted }}>נעזור לך לעקוב אחר תקינותם</p>
                       </div>
                     </div>
                     <div className="flex gap-3" dir="rtl">
                       <button type="button" onClick={() => setTireQuestion('yes')}
                         className="px-6 py-2.5 rounded-xl text-sm font-bold transition-all"
-                        style={{ background: tireQuestion === 'yes' ? T.yellow : '#fff', color: tireQuestion === 'yes' ? T.primary : '#7A8A7C', border: '1.5px solid ' + (tireQuestion === 'yes' ? T.yellow : T.border) }}>
+                        style={{ background: tireQuestion === 'yes' ? T.yellow : '#fff', color: tireQuestion === 'yes' ? T.primary : C.muted, border: '1.5px solid ' + (tireQuestion === 'yes' ? T.yellow : T.border) }}>
                         כן
                       </button>
                       <button type="button" onClick={() => setTireQuestion('no')}
                         className="px-6 py-2.5 rounded-xl text-sm font-bold transition-all"
-                        style={{ background: tireQuestion === 'no' ? '#E5E7EB' : '#fff', color: tireQuestion === 'no' ? '#1C2E20' : '#7A8A7C', border: '1.5px solid ' + (tireQuestion === 'no' ? '#D1D5DB' : '#D8E5D9') }}>
+                        style={{ background: tireQuestion === 'no' ? C.gray200 : '#fff', color: tireQuestion === 'no' ? C.text : C.muted, border: '1.5px solid ' + (tireQuestion === 'no' ? C.gray300 : C.border) }}>
                         לא
                       </button>
                     </div>
@@ -2156,14 +2156,14 @@ export default function AddVehicle() {
                                 className="flex-1 px-3 py-2 rounded-xl text-sm font-bold transition-all"
                                 style={{
                                   background: form.tires_changed_count === opt.val ? T.primary : '#fff',
-                                  color: form.tires_changed_count === opt.val ? '#fff' : '#7A8A7C',
+                                  color: form.tires_changed_count === opt.val ? '#fff' : C.muted,
                                   border: '1.5px solid ' + (form.tires_changed_count === opt.val ? T.primary : T.border),
                                 }}>
                                 {opt.label}
                               </button>
                             ))}
                           </div>
-                          <p className="text-[11px] mt-1" style={{ color: '#7A8A7C' }}>
+                          <p className="text-[11px] mt-1" style={{ color: C.muted }}>
                             {isTwoWheeler
                               ? (form.tires_changed_count === 2
                                   ? 'נשער ששני הצמיגים חדשים באותה נקודה'

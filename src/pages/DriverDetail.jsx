@@ -55,6 +55,7 @@ import { refreshSignedUrl } from '@/lib/supabaseStorage';
 import ExternalDriverFormDialog from '@/components/drivers/ExternalDriverFormDialog';
 import AssignDriverDialog from '@/components/drivers/AssignDriverDialog';
 import { createPageUrl } from '@/utils';
+import { C } from '@/lib/designTokens';
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('he-IL') : '';
 
@@ -222,7 +223,7 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
             type="button"
             onClick={() => setEditing(true)}
             className="h-10 px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98]"
-            style={{ background: '#FFFFFF', color: '#10B981', border: '1.5px solid #D1FAE5' }}
+            style={{ background: '#FFFFFF', color: C.successBright, border: `1.5px solid ${C.successLight}` }}
             aria-label="ערוך"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -232,7 +233,7 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
             type="button"
             onClick={() => setArchiving(true)}
             className="h-10 px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98]"
-            style={{ background: '#FFFFFF', color: '#991B1B', border: '1.5px solid #FECACA' }}
+            style={{ background: '#FFFFFF', color: C.errorDark, border: `1.5px solid ${C.errorBorder}` }}
             aria-label="העבר לארכיון"
           >
             <Archive className="h-3.5 w-3.5" />
@@ -249,7 +250,7 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
           <div
             className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center"
             style={{
-              background: 'linear-gradient(135deg, #92400E 0%, #F59E0B 80%, #FCD34D 100%)',
+              background: `linear-gradient(135deg, ${C.warnDark} 0%, ${C.warnIcon} 80%, #FCD34D 100%)`,
               color: '#FFFFFF',
               boxShadow: '0 8px 20px rgba(245,158,11,0.32)',
             }}
@@ -260,14 +261,14 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
             <div className="flex items-center gap-1.5 flex-wrap">
               <span
                 className="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                style={{ background: '#FFFBEB', color: '#92400E' }}
+                style={{ background: C.warnSubtle, color: C.warnDark }}
               >
                 ללא חשבון
               </span>
               {isArchived && (
                 <span
                   className="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                  style={{ background: '#F0F7F4', color: '#4B5D52' }}
+                  style={{ background: C.bgSubtle, color: C.textAlt }}
                 >
                   בארכיון
                 </span>
@@ -277,9 +278,9 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
                   href={`tel:${driver.phone}`}
                   dir="ltr"
                   className="text-[11px] font-bold tabular-nums px-2 py-0.5 rounded-md inline-flex items-center gap-1 hover:bg-emerald-50/60"
-                  style={{ background: '#F0F7F4', color: '#0B2912' }}
+                  style={{ background: C.bgSubtle, color: C.primaryDark }}
                 >
-                  <Phone className="h-3 w-3" style={{ color: '#10B981' }} />
+                  <Phone className="h-3 w-3" style={{ color: C.successBright }} />
                   {driver.phone}
                 </a>
               )}
@@ -325,11 +326,11 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
           <div className="flex items-center gap-2">
             <AlertTriangle
               className="h-4 w-4 shrink-0"
-              style={{ color: expStatus.kind === 'expired' ? '#991B1B' : '#92400E' }}
+              style={{ color: expStatus.kind === 'expired' ? C.errorDark : C.warnDark }}
             />
             <p
               className="text-xs font-bold"
-              style={{ color: expStatus.kind === 'expired' ? '#991B1B' : '#92400E' }}
+              style={{ color: expStatus.kind === 'expired' ? C.errorDark : C.warnDark }}
             >
               {expStatus.label} ({fmtDate(driver.license_expiry_date)})
             </p>
@@ -353,13 +354,13 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
         <Row icon={Calendar} label="תוקף עד" value={fmtDate(driver.license_expiry_date) || 'לא הוזן'} />
         {Array.isArray(driver.license_categories) && driver.license_categories.length > 0 ? (
           <div className="mt-2">
-            <p className="text-[10px] font-bold mb-1.5" style={{ color: '#6B7C72' }}>קטגוריות</p>
+            <p className="text-[10px] font-bold mb-1.5" style={{ color: C.mutedAlt }}>קטגוריות</p>
             <div className="flex flex-wrap gap-1.5">
               {driver.license_categories.map(c => (
                 <span
                   key={c}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold"
-                  style={{ background: '#F0F7F4', color: '#0B2912' }}
+                  style={{ background: C.bgSubtle, color: C.primaryDark }}
                 >
                   <span>{categoryEmoji(c) || '•'}</span>
                   <span>{categoryShortLabel(c)}</span>
@@ -368,7 +369,7 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
             </div>
           </div>
         ) : (
-          <p className="text-[11px] mt-1" style={{ color: '#A7B3AB' }}>לא הוזנו קטגוריות רישיון</p>
+          <p className="text-[11px] mt-1" style={{ color: C.borderAlt }}>לא הוזנו קטגוריות רישיון</p>
         )}
 
         {(driver.license_photo_url || driver.license_photo_storage_path) ? (
@@ -376,14 +377,14 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
             type="button"
             onClick={openLicensePhoto}
             className="mt-3 w-full h-11 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01] active:scale-[0.99]"
-            style={{ background: '#FFFFFF', color: '#10B981', border: '1.5px solid #D1FAE5' }}
+            style={{ background: '#FFFFFF', color: C.successBright, border: `1.5px solid ${C.successLight}` }}
           >
             <ImageIcon className="h-3.5 w-3.5" />
             צפה בתמונת הרישיון
             <ExternalLink className="h-3 w-3" />
           </button>
         ) : (
-          <p className="text-[11px] mt-3 text-center" style={{ color: '#A7B3AB' }}>תמונת רישיון לא הועלתה</p>
+          <p className="text-[11px] mt-3 text-center" style={{ color: C.borderAlt }}>תמונת רישיון לא הועלתה</p>
         )}
       </InfoSection>
 
@@ -398,7 +399,7 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
               onClick={() => setAssigning(true)}
               className="h-9 px-3 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all hover:scale-[1.03] active:scale-[0.97]"
               style={{
-                background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+                background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
                 color: '#FFFFFF',
                 boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
               }}
@@ -410,9 +411,9 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
         }
       >
         {assignmentsLoading ? (
-          <p className="text-center text-xs py-2" style={{ color: '#6B7C72' }}>טוען...</p>
+          <p className="text-center text-xs py-2" style={{ color: C.mutedAlt }}>טוען...</p>
         ) : activeAssignments.length === 0 ? (
-          <p className="text-[11px] py-2 text-center" style={{ color: '#A7B3AB' }}>אין שיבוצים פעילים כרגע</p>
+          <p className="text-[11px] py-2 text-center" style={{ color: C.borderAlt }}>אין שיבוצים פעילים כרגע</p>
         ) : (
           <ul className="space-y-2">
             {activeAssignments.map(a => (
@@ -435,13 +436,13 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
               <li
                 key={a.id}
                 className="text-[11px] flex items-center justify-between py-1"
-                style={{ color: '#6B7C72' }}
+                style={{ color: C.mutedAlt }}
               >
                 <span className="flex items-center gap-1.5">
                   <Truck className="h-3 w-3" />
                   {vehicleLabel(a.vehicle_id)}
                 </span>
-                <span className="tabular-nums" style={{ color: '#A7B3AB' }} dir="ltr">
+                <span className="tabular-nums" style={{ color: C.borderAlt }} dir="ltr">
                   {fmtDate(a.valid_from)}{a.valid_to ? ` - ${fmtDate(a.valid_to)}` : ''}
                 </span>
               </li>
@@ -452,7 +453,7 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
 
       {driver.notes && (
         <InfoSection title="הערות" accent="emerald">
-          <p className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: '#0B2912' }}>
+          <p className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: C.primaryDark }}>
             {driver.notes}
           </p>
         </InfoSection>
@@ -638,7 +639,7 @@ function RegisteredDriverDetail({ userId, accountId, navigate }) {
               </span>
               <span
                 className="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                style={{ background: '#EFF6FF', color: '#1E40AF' }}
+                style={{ background: C.infoSubtle, color: C.infoDark }}
               >
                 עם חשבון
               </span>
@@ -679,7 +680,7 @@ function RegisteredDriverDetail({ userId, accountId, navigate }) {
             onClick={() => setAssigning(true)}
             className="h-9 px-3 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all hover:scale-[1.03] active:scale-[0.97]"
             style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
               boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
             }}
@@ -690,7 +691,7 @@ function RegisteredDriverDetail({ userId, accountId, navigate }) {
         }
       >
         {active.length === 0 ? (
-          <p className="text-[11px] py-2 text-center" style={{ color: '#A7B3AB' }}>אין שיבוצים פעילים</p>
+          <p className="text-[11px] py-2 text-center" style={{ color: C.borderAlt }}>אין שיבוצים פעילים</p>
         ) : (
           <ul className="space-y-2">
             {active.map(a => (
@@ -712,13 +713,13 @@ function RegisteredDriverDetail({ userId, accountId, navigate }) {
               <li
                 key={a.id}
                 className="text-[11px] flex items-center justify-between py-1"
-                style={{ color: '#6B7C72' }}
+                style={{ color: C.mutedAlt }}
               >
                 <span className="flex items-center gap-1.5">
                   <Truck className="h-3 w-3" />
                   {vehicleLabel(a.vehicle_id)}
                 </span>
-                <span className="tabular-nums" style={{ color: '#A7B3AB' }} dir="ltr">
+                <span className="tabular-nums" style={{ color: C.borderAlt }} dir="ltr">
                   {fmtDate(a.valid_from)}{a.valid_to ? ` - ${fmtDate(a.valid_to)}` : ''}
                 </span>
               </li>
@@ -774,7 +775,7 @@ function InfoSection({ title, accent, right, children }) {
   return (
     <SystemCard accent={accent} className="mb-3">
       <div className="flex items-center justify-between mb-2.5">
-        <p className="text-sm font-bold" style={{ color: '#0B2912' }}>{title}</p>
+        <p className="text-sm font-bold" style={{ color: C.primaryDark }}>{title}</p>
         {right}
       </div>
       {children}
@@ -786,13 +787,13 @@ function Row({ icon: Icon, label, value, dir }) {
   return (
     <div
       className="flex items-center gap-2 py-1.5 first:pt-0 last:pb-0"
-      style={{ borderBottom: '1px solid #F0F7F4' }}
+      style={{ borderBottom: `1px solid ${C.bgSubtle}` }}
     >
-      <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: '#10B981' }} />
-      <span className="text-[11px] shrink-0" style={{ color: '#6B7C72' }}>{label}</span>
+      <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: C.successBright }} />
+      <span className="text-[11px] shrink-0" style={{ color: C.mutedAlt }}>{label}</span>
       <span
         className="text-xs font-bold mr-auto truncate tabular-nums"
-        style={{ color: '#0B2912' }}
+        style={{ color: C.primaryDark }}
         dir={dir}
       >
         {value}
@@ -809,10 +810,10 @@ function AssignmentItem({ assignment, vehicleLabel, onEnd }) {
   //   temporary → blue tint  (time-bounded)
   //   permanent → mint tint  (the default)
   const tint = isFuture
-    ? { bg: '#FFFBEB', icon: '#92400E' }
+    ? { bg: C.warnSubtle, icon: C.warnDark }
     : isTemp
-      ? { bg: '#EFF6FF', icon: '#1E40AF' }
-      : { bg: '#F0F7F4', icon: '#10B981' };
+      ? { bg: C.infoSubtle, icon: C.infoDark }
+      : { bg: C.bgSubtle, icon: C.successBright };
   return (
     <li
       className="rounded-xl p-2.5 flex items-center gap-2"
@@ -820,10 +821,10 @@ function AssignmentItem({ assignment, vehicleLabel, onEnd }) {
     >
       <Truck className="h-4 w-4 shrink-0" style={{ color: tint.icon }} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>
+        <p className="text-sm font-bold truncate" style={{ color: C.primaryDark }}>
           {vehicleLabel(assignment.vehicle_id)}
         </p>
-        <p className="text-[10px]" style={{ color: '#6B7C72' }}>
+        <p className="text-[10px]" style={{ color: C.mutedAlt }}>
           {isFuture
             ? `מתחיל ${fmtDate(assignment.valid_from)}`
             : isTemp
@@ -835,7 +836,7 @@ function AssignmentItem({ assignment, vehicleLabel, onEnd }) {
         type="button"
         onClick={onEnd}
         className="shrink-0 h-8 w-8 rounded-lg bg-white flex items-center justify-center transition-all hover:scale-[1.05] active:scale-[0.95]"
-        style={{ border: '1px solid #FECACA', color: '#991B1B' }}
+        style={{ border: `1px solid ${C.errorBorder}`, color: C.errorDark }}
         aria-label="סיים שיבוץ"
         title="סיים שיבוץ"
       >
@@ -848,7 +849,7 @@ function AssignmentItem({ assignment, vehicleLabel, onEnd }) {
 function Centered({ text }) {
   return (
     <div dir="rtl" className="max-w-md mx-auto py-16 px-6 text-center">
-      <p className="text-sm" style={{ color: '#6B7C72' }}>{text}</p>
+      <p className="text-sm" style={{ color: C.mutedAlt }}>{text}</p>
     </div>
   );
 }

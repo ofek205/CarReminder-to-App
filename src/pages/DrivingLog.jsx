@@ -36,16 +36,17 @@ import {
   KpiTile,
   AnimatedCount,
 } from '@/components/business/system';
+import { C } from '@/lib/designTokens';
 
 // Status mapping keyed to the Living Dashboard accent palette so each
 // route row's Card stripe matches the inline status pill. The chip
 // colors mirror Routes.jsx (manager jumping between the two doesn't
 // have to re-learn the code).
 const STATUS_LABEL = {
-  pending:     { label: 'ממתין',  accent: 'amber',   chipBg: '#FEF3C7', chipFg: '#92400E' },
-  in_progress: { label: 'בביצוע', accent: 'blue',    chipBg: '#DBEAFE', chipFg: '#1E40AF' },
-  completed:   { label: 'הושלם',  accent: 'emerald', chipBg: '#D1FAE5', chipFg: '#065F46' },
-  cancelled:   { label: 'בוטל',   accent: 'red',     chipBg: '#FEE2E2', chipFg: '#991B1B' },
+  pending:     { label: 'ממתין',  accent: 'amber',   chipBg: C.warnBg, chipFg: C.warnDark },
+  in_progress: { label: 'בביצוע', accent: 'blue',    chipBg: C.infoBg, chipFg: C.infoDark },
+  completed:   { label: 'הושלם',  accent: 'emerald', chipBg: C.successLight, chipFg: C.successDark },
+  cancelled:   { label: 'בוטל',   accent: 'red',     chipBg: C.errorLight, chipFg: C.errorDark },
 };
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('he-IL') : '';
 
@@ -218,7 +219,7 @@ export default function DrivingLog() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="חפש לפי כותרת, נהג או רכב"
             className="h-11 rounded-xl pr-8 pl-3 text-sm"
-            style={{ background: '#FFFFFF', borderColor: '#D1FAE5' }}
+            style={{ background: '#FFFFFF', borderColor: C.successLight }}
           />
         </div>
 
@@ -251,15 +252,15 @@ export default function DrivingLog() {
       {/* Results */}
       {routesLoading ? (
         <Card className="text-center py-8">
-          <p className="text-xs" style={{ color: '#6B7C72' }}>טוען נסיעות...</p>
+          <p className="text-xs" style={{ color: C.mutedAlt }}>טוען נסיעות...</p>
         </Card>
       ) : filtered.length === 0 ? (
         <Card className="text-center py-12">
-          <FileText className="h-10 w-10 mx-auto mb-3" style={{ color: '#A7F3D0' }} />
-          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+          <FileText className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
+          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>
             {routes.length === 0 ? 'עוד אין נסיעות מתועדות' : 'לא נמצאו נסיעות תואמות'}
           </p>
-          <p className="text-xs leading-relaxed" style={{ color: '#6B7C72' }}>
+          <p className="text-xs leading-relaxed" style={{ color: C.mutedAlt }}>
             {routes.length === 0
               ? 'עם יצירת המשימה הראשונה עם נהג, היא תופיע כאן ביומן.'
               : 'נסה לשנות את הסינון או לנקות את החיפוש.'}
@@ -279,7 +280,7 @@ export default function DrivingLog() {
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>{r.title}</p>
+                          <p className="text-sm font-bold truncate" style={{ color: C.primaryDark }}>{r.title}</p>
                           <span
                             className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold"
                             style={{ background: status.chipBg, color: status.chipFg }}
@@ -287,7 +288,7 @@ export default function DrivingLog() {
                             {status.label}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 text-[11px] flex-wrap mb-1.5" style={{ color: '#6B7C72' }}>
+                        <div className="flex items-center gap-3 text-[11px] flex-wrap mb-1.5" style={{ color: C.mutedAlt }}>
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
                             {fmtDate(r.scheduled_for) || fmtDate(r.created_at)}
@@ -311,7 +312,7 @@ export default function DrivingLog() {
                           showSubtitle={false}
                         />
                       </div>
-                      <ChevronLeft className="h-4 w-4 shrink-0 mt-0.5" style={{ color: '#A7B3AB' }} />
+                      <ChevronLeft className="h-4 w-4 shrink-0 mt-0.5" style={{ color: C.borderAlt }} />
                     </div>
                   </Card>
                 </Link>

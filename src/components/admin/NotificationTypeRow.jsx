@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { useToggleNotification } from '@/hooks/useEmailAdmin';
 import { toast } from 'sonner';
+import { C } from '@/lib/designTokens';
 
 // Map category → visual (icon + color)
 const CATEGORY_VISUAL = {
-  transactional: { icon: Mail,       label: 'טרנזקציוני',  bg: '#DBEAFE', fg: '#1E40AF' },
-  reminder:      { icon: Clock,      label: 'תזכורת',       bg: '#FEF3C7', fg: '#92400E' },
+  transactional: { icon: Mail,       label: 'טרנזקציוני',  bg: C.infoBg, fg: C.infoDark },
+  reminder:      { icon: Clock,      label: 'תזכורת',       bg: C.warnBg, fg: C.warnDark },
   system:        { icon: AlertCircle,label: 'מערכת',        bg: '#F3E8FF', fg: '#6B21A8' },
   auth:          { icon: Bell,       label: 'אימות',         bg: '#E0F7FA', fg: '#0E7490' },
   marketing:     { icon: Mail,       label: 'שיווק',         bg: '#FCE7F3', fg: '#9D174D' },
@@ -44,7 +45,7 @@ export default function NotificationTypeRow({ notification, onEditTemplate, onSe
   return (
     <div dir="rtl"
       className="rounded-2xl p-4 mb-3 transition-all"
-      style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+      style={{ background: '#FFFFFF', border: `1.5px solid ${C.gray200}`, boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
       <div className="flex items-center gap-4 flex-wrap">
 
         {/* Icon */}
@@ -56,7 +57,7 @@ export default function NotificationTypeRow({ notification, onEditTemplate, onSe
         {/* Body */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <h3 className="font-bold text-sm" style={{ color: '#1C2E20' }}>
+            <h3 className="font-bold text-sm" style={{ color: C.text }}>
               {notification.display_name}
             </h3>
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
@@ -65,7 +66,7 @@ export default function NotificationTypeRow({ notification, onEditTemplate, onSe
             </span>
             {!notification.is_implemented && (
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ background: '#FEF3C7', color: '#92400E' }}>
+                style={{ background: C.warnBg, color: C.warnDark }}>
                 לא מיושם עדיין
               </span>
             )}
@@ -113,7 +114,7 @@ export default function NotificationTypeRow({ notification, onEditTemplate, onSe
               className="gap-1.5 rounded-xl h-9"
               onClick={() => onBroadcast(notification)}
               disabled={!notification.enabled}
-              style={{ background: '#2D5233', color: 'white' }}>
+              style={{ background: C.primary, color: 'white' }}>
               <Megaphone className="w-3.5 h-3.5" />
               שלח לכולם
             </Button>

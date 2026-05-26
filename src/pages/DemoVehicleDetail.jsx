@@ -27,6 +27,7 @@ import {
   Image,
   CalendarPlus,
 } from "lucide-react";
+import { C } from '@/lib/designTokens';
 
 //  Calendar helper 
 function downloadIcs(title, dateStr) {
@@ -323,11 +324,11 @@ export default function DemoVehicleDetail() {
 
       {/* Demo notice banner */}
       <div className="mb-5 rounded-2xl p-3.5 flex items-center gap-3"
-        style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
+        style={{ background: `linear-gradient(135deg, ${C.warnBg}, ${C.yellowSoft})`, border: `1.5px solid ${C.warnBorder}` }} dir="rtl">
         <span className="text-lg">👀</span>
         <div className="flex-1">
-          <p className="text-sm font-bold" style={{ color: '#92400E' }}>רכב לדוגמה</p>
-          <p className="text-xs" style={{ color: '#B45309' }}>כך ייראה הניהול שלך - הוסף את כלי התחבורה האמיתי שלך כדי להתחיל</p>
+          <p className="text-sm font-bold" style={{ color: C.warnDark }}>רכב לדוגמה</p>
+          <p className="text-xs" style={{ color: C.warnMid }}>כך ייראה הניהול שלך - הוסף את כלי התחבורה האמיתי שלך כדי להתחיל</p>
         </div>
       </div>
 

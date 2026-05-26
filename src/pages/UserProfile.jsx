@@ -27,6 +27,7 @@ import FieldError from '../components/shared/FieldError';
 import SystemErrorBanner from '../components/shared/SystemErrorBanner';
 import PinLockCard from '../components/shared/PinLockCard';
 import ChangePasswordCard from '../components/profile/ChangePasswordCard';
+import { C } from '@/lib/designTokens';
 
 const MIN_AGE_YEARS = 12;
 
@@ -125,7 +126,7 @@ function ProfileCompletionBanner({ fullName, phone, birthDate }) {
         <div
           className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 mt-0.5"
           style={{
-            background: 'linear-gradient(135deg, #92400E 0%, #F59E0B 80%, #FCD34D 100%)',
+            background: `linear-gradient(135deg, ${C.warnDark} 0%, ${C.warnIcon} 80%, #FCD34D 100%)`,
             color: '#FFFFFF',
             boxShadow: '0 4px 12px rgba(245,158,11,0.32)',
           }}
@@ -133,10 +134,10 @@ function ProfileCompletionBanner({ fullName, phone, birthDate }) {
           <Star className="h-4 w-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>
+          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>
             השלם את הפרופיל שלך ({filledCount}/3)
           </p>
-          <p className="text-xs leading-relaxed mb-2" style={{ color: '#92400E' }}>
+          <p className="text-xs leading-relaxed mb-2" style={{ color: C.warnDark }}>
             פרטים אלו עוזרים לנו לתת לך שירות טוב יותר ולזהות אותך בכל מקום באפליקציה.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -144,7 +145,7 @@ function ProfileCompletionBanner({ fullName, phone, birthDate }) {
               <span
                 key={label}
                 className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-bold"
-                style={{ background: '#FFFFFF', color: '#92400E', border: '1px solid #FCD34D' }}
+                style={{ background: '#FFFFFF', color: C.warnDark, border: '1px solid #FCD34D' }}
               >
                 <Icon className="h-3 w-3" />
                 {label} חסר
@@ -156,15 +157,15 @@ function ProfileCompletionBanner({ fullName, phone, birthDate }) {
             "warning / nudge" tone. The percentage sits on top of a
             slim filled track so progress is readable at a glance. */}
         <div className="shrink-0 flex flex-col items-center gap-1">
-          <span className="text-lg font-black tabular-nums" style={{ color: '#92400E' }} dir="ltr">
+          <span className="text-lg font-black tabular-nums" style={{ color: C.warnDark }} dir="ltr">
             {Math.round((filledCount / 3) * 100)}%
           </span>
-          <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: '#FEF3C7' }}>
+          <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: C.warnBg }}>
             <div
               className="h-full transition-all duration-500"
               style={{
                 width: `${(filledCount / 3) * 100}%`,
-                background: 'linear-gradient(90deg, #92400E 0%, #F59E0B 80%, #FCD34D 100%)',
+                background: `linear-gradient(90deg, ${C.warnDark} 0%, ${C.warnIcon} 80%, #FCD34D 100%)`,
               }}
             />
           </div>
@@ -184,24 +185,24 @@ export default function UserProfilePage({ embedded = false }) {
           <div
             className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto"
             style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
               boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
             }}
           >
             <UserPlus className="h-8 w-8" />
           </div>
-          <h2 className="font-bold text-lg" style={{ color: '#0B2912' }}>
+          <h2 className="font-bold text-lg" style={{ color: C.primaryDark }}>
             הירשם כדי לנהל את הפרופיל שלך
           </h2>
-          <p className="text-sm" style={{ color: '#6B7C72' }}>
+          <p className="text-sm" style={{ color: C.mutedAlt }}>
             האזור האישי כולל פרטי רישיון נהיגה, תוקף הרישיון ועוד. זמין לאחר הרשמה.
           </p>
           <Button
             onClick={() => window.location.href = '/Auth'}
             className="gap-2"
             style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
               fontWeight: 700,
               boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
@@ -393,11 +394,11 @@ function AuthUserProfile({ embedded = false }) {
           <div className="flex items-center gap-3 mb-5">
             <div
               className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ background: '#D1FAE5', color: '#065F46' }}
+              style={{ background: C.successLight, color: C.successDark }}
             >
               <User className="h-5 w-5" />
             </div>
-            <h2 className="font-bold text-base" style={{ color: '#0B2912' }}>פרטים אישיים</h2>
+            <h2 className="font-bold text-base" style={{ color: C.primaryDark }}>פרטים אישיים</h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -474,13 +475,13 @@ function AuthUserProfile({ embedded = false }) {
             <div className="flex items-center gap-3">
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center relative shrink-0"
-                style={{ background: '#DBEAFE', color: '#1E40AF' }}
+                style={{ background: C.infoBg, color: C.infoDark }}
               >
                 <ScanLine className="h-5 w-5" />
                 <span
                   className="absolute -top-1 -left-1 text-[8px] font-black px-1 rounded-full"
                   style={{
-                    background: 'linear-gradient(135deg, #065F46 0%, #10B981 100%)',
+                    background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 100%)`,
                     color: '#FFFFFF',
                     boxShadow: '0 2px 4px rgba(16,185,129,0.32)',
                   }}
@@ -488,7 +489,7 @@ function AuthUserProfile({ embedded = false }) {
                   AI
                 </span>
               </div>
-              <h2 className="font-bold text-base" style={{ color: '#0B2912' }}>רישיון נהיגה</h2>
+              <h2 className="font-bold text-base" style={{ color: C.primaryDark }}>רישיון נהיגה</h2>
             </div>
             <Button
               onClick={() => setShowScan(true)}
@@ -496,8 +497,8 @@ function AuthUserProfile({ embedded = false }) {
               disabled={!aiScanAllowed}
               className="gap-2 text-sm w-full sm:w-auto disabled:opacity-60 disabled:cursor-not-allowed"
               style={aiScanAllowed
-                ? { borderColor: '#10B981', color: '#10B981', background: '#FFFFFF' }
-                : { borderColor: '#D1D5DB', color: '#6B7280', background: '#F9FAFB' }
+                ? { borderColor: C.successBright, color: C.successBright, background: '#FFFFFF' }
+                : { borderColor: C.gray300, color: C.gray500, background: C.gray50 }
               }
               title={aiScanAllowed ? undefined : 'סריקה חכמה אינה זמינה כרגע'}
             >
@@ -538,8 +539,8 @@ function AuthUserProfile({ embedded = false }) {
           className="w-full h-12 text-base font-bold transition-all hover:scale-[1.01] active:scale-[0.98]"
           style={{
             background: saving
-              ? '#9CA3AF'
-              : 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              ? C.gray400
+              : `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
             color: '#FFFFFF',
             boxShadow: saving
               ? 'none'
@@ -553,7 +554,7 @@ function AuthUserProfile({ embedded = false }) {
             PIN lock + password change live here together. Both are
             authentication concerns rather than notification ones. */}
         <div className="mt-8 space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider mb-3 px-1" style={{ color: '#9CA3AF' }}>
+          <h3 className="text-xs font-bold uppercase tracking-wider mb-3 px-1" style={{ color: C.gray400 }}>
             אבטחה
           </h3>
           <PinLockCard />
@@ -561,10 +562,10 @@ function AuthUserProfile({ embedded = false }) {
         </div>
 
         {/* Delete account link */}
-        <div className="mt-6 pt-6" style={{ borderTop: '1px solid #F3F4F6' }}>
+        <div className="mt-6 pt-6" style={{ borderTop: `1px solid ${C.gray100}` }}>
           <Link to={createPageUrl('DeleteAccount')}
             className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all active:scale-[0.98]"
-            style={{ color: '#9CA3AF' }}>
+            style={{ color: C.gray400 }}>
             <Trash2 className="w-4 h-4" />
             מחיקת חשבון ונתונים
           </Link>
@@ -576,7 +577,7 @@ function AuthUserProfile({ embedded = false }) {
             am I running?" reference and shouldn't compete with
             actionable items above. Updates automatically on the next
             build whenever `version` is bumped in package.json. */}
-        <p className="text-center text-[11px] mt-4 mb-2" style={{ color: '#9CA3AF' }}>
+        <p className="text-center text-[11px] mt-4 mb-2" style={{ color: C.gray400 }}>
           CarReminder &middot; גרסה {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—'}
         </p>
       </div>

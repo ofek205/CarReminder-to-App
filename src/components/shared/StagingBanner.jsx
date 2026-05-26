@@ -13,6 +13,7 @@
  * the page chrome and clipped the first ~28px of every screen.
  */
 import React from 'react';
+import { C } from '@/lib/designTokens';
 
 const STAGING_HOST_FRAGMENT = 'git-staging';
 
@@ -33,8 +34,8 @@ export default function StagingBanner() {
         position: 'sticky',
         top: 0,
         zIndex: 9999,
-        background: 'linear-gradient(90deg,#FACC15 0%,#F59E0B 100%)',
-        color: '#1F2937',
+        background: `linear-gradient(90deg,#FACC15 0%,${C.warnIcon} 100%)`,
+        color: C.gray800,
         textAlign: 'center',
         padding: '6px 12px',
         fontSize: 13,

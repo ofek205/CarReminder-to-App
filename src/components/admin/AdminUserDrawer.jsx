@@ -25,6 +25,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/business/system';
 import { buildEmailHtml, escapeHtml } from '@/lib/emailTemplates';
 import { isVessel } from '@/components/shared/DateStatusUtils';
+import { C } from '@/lib/designTokens';
 
 // Format an ILS amount with no decimals — same convention as /Reports.
 const fmtMoney = (n) => new Intl.NumberFormat('he-IL', {
@@ -53,24 +54,24 @@ const fmtRelative = (d) => {
 // Category meta for documents — keeps the chip + icon consistent with the
 // /Documents page itself.
 const DOC_CATEGORY_META = {
-  'ביטוח חובה':    { color: '#3B82F6', bg: '#EFF6FF', emoji: '🛡' },
+  'ביטוח חובה':    { color: C.info, bg: C.infoSubtle, emoji: '🛡' },
   'ביטוח מקיף':    { color: '#6366F1', bg: '#EEF2FF', emoji: '🔒' },
   'ביטוח צד ג':    { color: '#06B6D4', bg: '#ECFEFF', emoji: '🤝' },
-  'רישיון רכב':    { color: '#10B981', bg: '#ECFDF5', emoji: '🚗' },
-  'רישיון נהיגה':  { color: '#F59E0B', bg: '#FFFBEB', emoji: '👤' },
-  'טסט':           { color: '#EA580C', bg: '#FFF7ED', emoji: '🔧' },
+  'רישיון רכב':    { color: C.successBright, bg: C.successSubtle, emoji: '🚗' },
+  'רישיון נהיגה':  { color: C.warnIcon, bg: C.warnSubtle, emoji: '👤' },
+  'טסט':           { color: C.orange, bg: C.orangeBg, emoji: '🔧' },
   'טיפול תקופתי':  { color: '#A855F7', bg: '#FAF5FF', emoji: '⚙️' },
-  'מסמך אחר':      { color: '#6B7280', bg: '#F9FAFB', emoji: '📄' },
+  'מסמך אחר':      { color: C.gray500, bg: C.gray50, emoji: '📄' },
 };
 const docMeta = (cat) => DOC_CATEGORY_META[cat] || DOC_CATEGORY_META['מסמך אחר'];
 
 // Activity kind → icon + tone. Matches the route status / activity log
 // vocabulary used elsewhere in the B2B family.
 const ACTIVITY_META = {
-  maintenance: { icon: Wrench,         label: 'טיפול',      tone: { bg: '#D1FAE5', fg: '#065F46' } },
-  repair:      { icon: AlertTriangle,  label: 'תיקון',      tone: { bg: '#FEF3C7', fg: '#92400E' } },
-  accident:    { icon: AlertTriangle,  label: 'תאונה',      tone: { bg: '#FEE2E2', fg: '#991B1B' } },
-  expense:     { icon: TrendingUp,     label: 'הוצאה',      tone: { bg: '#DBEAFE', fg: '#1E40AF' } },
+  maintenance: { icon: Wrench,         label: 'טיפול',      tone: { bg: C.successLight, fg: C.successDark } },
+  repair:      { icon: AlertTriangle,  label: 'תיקון',      tone: { bg: C.warnBg, fg: C.warnDark } },
+  accident:    { icon: AlertTriangle,  label: 'תאונה',      tone: { bg: C.errorLight, fg: C.errorDark } },
+  expense:     { icon: TrendingUp,     label: 'הוצאה',      tone: { bg: C.infoBg, fg: C.infoDark } },
 };
 
 // Default: drawer closed = null. When non-null, contains { id, name }
@@ -130,7 +131,7 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
         style={{
           background: `
             radial-gradient(ellipse at 70% -10%, rgba(16,185,129,0.06) 0%, transparent 40%),
-            linear-gradient(180deg, #F0F7F4 0%, #FFFFFF 50%)
+            linear-gradient(180deg, ${C.bgSubtle} 0%, #FFFFFF 50%)
           `,
           boxShadow: '-12px 0 32px rgba(11,41,18,0.18)',
           animation: 'admin-drawer-in 220ms cubic-bezier(0.16,1,0.3,1)',
@@ -143,7 +144,7 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
           style={{
             background: 'rgba(240,247,244,0.92)',
             backdropFilter: 'blur(8px)',
-            borderBottom: '1px solid #E5EDE8',
+            borderBottom: `1px solid ${C.bgSage}`,
           }}
         >
           <button
@@ -152,11 +153,11 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
             className="p-2 rounded-xl hover:bg-emerald-100/40 transition"
             aria-label="סגור"
           >
-            <X className="w-4 h-4" style={{ color: '#0B2912' }} />
+            <X className="w-4 h-4" style={{ color: C.primaryDark }} />
           </button>
           <div className="text-center flex-1 min-w-0">
-            <p className="text-[10px] font-bold" style={{ color: '#10B981' }}>פירוט חשבון</p>
-            <p className="text-sm font-bold truncate" style={{ color: '#0B2912' }}>
+            <p className="text-[10px] font-bold" style={{ color: C.successBright }}>פירוט חשבון</p>
+            <p className="text-sm font-bold truncate" style={{ color: C.primaryDark }}>
               {account.name || 'ללא שם'}
             </p>
           </div>
@@ -215,7 +216,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
           <div
             className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-black"
             style={{
-              background: 'linear-gradient(135deg, #065F46 0%, #10B981 80%, #34D399 100%)',
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
               boxShadow: '0 8px 20px rgba(16,185,129,0.32)',
             }}
@@ -224,7 +225,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <p className="text-sm font-black truncate" style={{ color: '#0B2912' }}>
+              <p className="text-sm font-black truncate" style={{ color: C.primaryDark }}>
                 {owner?.full_name || account?.name || 'ללא שם'}
               </p>
               {owner?.role === 'admin' && (
@@ -238,7 +239,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
               {account?.kind === 'business' && (
                 <span
                   className="text-[10px] font-bold px-1.5 py-0.5 rounded inline-flex items-center gap-1"
-                  style={{ background: '#D1FAE5', color: '#065F46' }}
+                  style={{ background: C.successLight, color: C.successDark }}
                 >
                   <Briefcase className="w-3 h-3" /> עסקי
                 </span>
@@ -247,12 +248,12 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
                   ≤7 active, ≤30 active_30d, ≤90 inactive, >90 dormant. */}
               {daysSinceSignin === null ? (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: '#F0F7F4', color: '#6B7C72' }}>
+                  style={{ background: C.bgSubtle, color: C.mutedAlt }}>
                   לא התחבר
                 </span>
               ) : daysSinceSignin <= 7 ? (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: '#D1FAE5', color: '#065F46' }}>
+                  style={{ background: C.successLight, color: C.successDark }}>
                   פעיל
                 </span>
               ) : daysSinceSignin <= 30 ? (
@@ -262,34 +263,34 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
                 </span>
               ) : daysSinceSignin <= 90 ? (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: '#FEF3C7', color: '#92400E' }}>
+                  style={{ background: C.warnBg, color: C.warnDark }}>
                   לא פעיל ({daysSinceSignin} ימים)
                 </span>
               ) : (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: '#FEE2E2', color: '#991B1B' }}>
+                  style={{ background: C.errorLight, color: C.errorDark }}>
                   דורם ({daysSinceSignin} ימים)
                 </span>
               )}
             </div>
 
             {/* Identity rows — email / phone / verified / created. */}
-            <div className="space-y-1 text-[11px]" style={{ color: '#4B5D52' }}>
+            <div className="space-y-1 text-[11px]" style={{ color: C.textAlt }}>
               {owner?.email && (
                 <CopyableRow icon={Mail} value={owner.email} dir="ltr"
                   trailing={!owner.email_confirmed_at && (
                     <span className="text-[9px] font-bold px-1 rounded"
-                      style={{ background: '#FEF3C7', color: '#92400E' }}>!</span>
+                      style={{ background: C.warnBg, color: C.warnDark }}>!</span>
                   )} />
               )}
               {owner?.phone && (
                 <CopyableRow icon={Phone} value={owner.phone} dir="ltr" />
               )}
               <div className="flex items-center gap-1.5">
-                <Calendar className="w-3 h-3 shrink-0" style={{ color: '#10B981' }} />
+                <Calendar className="w-3 h-3 shrink-0" style={{ color: C.successBright }} />
                 <span>נוצר: {fmtDate(account?.created_at)}</span>
                 {owner?.last_sign_in_at && (
-                  <span style={{ color: '#A7B3AB' }}>
+                  <span style={{ color: C.borderAlt }}>
                     · התחבר {fmtRelative(owner.last_sign_in_at)}
                   </span>
                 )}
@@ -335,7 +336,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
           icon={Truck}
           title="כלי תחבורה"
           right={vehicles.length > 0 && (
-            <span className="text-[11px] tabular-nums" style={{ color: '#6B7C72' }} dir="ltr">
+            <span className="text-[11px] tabular-nums" style={{ color: C.mutedAlt }} dir="ltr">
               {vehicles.length}
             </span>
           )}
@@ -353,7 +354,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
                 <VehicleRow key={v.id} vehicle={v} />
               ))}
               {vehicles.length > 12 && (
-                <li className="text-center text-[11px] py-1.5" style={{ color: '#A7B3AB' }}>
+                <li className="text-center text-[11px] py-1.5" style={{ color: C.borderAlt }}>
                   ועוד {vehicles.length - 12} כלי תחבורה
                 </li>
               )}
@@ -371,11 +372,11 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
             <div className="flex items-center gap-1.5">
               {expiringDocs > 0 && (
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: '#FEF3C7', color: '#92400E' }}>
+                  style={{ background: C.warnBg, color: C.warnDark }}>
                   {expiringDocs} פגים ב-30 ימים
                 </span>
               )}
-              <span className="text-[11px] tabular-nums" style={{ color: '#6B7C72' }} dir="ltr">
+              <span className="text-[11px] tabular-nums" style={{ color: C.mutedAlt }} dir="ltr">
                 {documents.length}
               </span>
             </div>
@@ -394,7 +395,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
                 <DocumentRow key={d.id} doc={d} />
               ))}
               {documents.length > 10 && (
-                <li className="text-center text-[11px] py-1.5" style={{ color: '#A7B3AB' }}>
+                <li className="text-center text-[11px] py-1.5" style={{ color: C.borderAlt }}>
                   ועוד {documents.length - 10} מסמכים
                 </li>
               )}
@@ -410,7 +411,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
             icon={Users}
             title="חברי החשבון"
             right={(
-              <span className="text-[11px] tabular-nums" style={{ color: '#6B7C72' }} dir="ltr">
+              <span className="text-[11px] tabular-nums" style={{ color: C.mutedAlt }} dir="ltr">
                 {members.length}
               </span>
             )}
@@ -430,9 +431,9 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
             total={totals.spend_total}
           />
           <div className="flex items-center justify-between mt-3 pt-2.5"
-            style={{ borderTop: '1px solid #F0F7F4' }}>
-            <span className="text-[11px] font-bold" style={{ color: '#0B2912' }}>סה״כ</span>
-            <span className="text-sm font-black tabular-nums" style={{ color: '#065F46' }} dir="ltr">
+            style={{ borderTop: `1px solid ${C.bgSubtle}` }}>
+            <span className="text-[11px] font-bold" style={{ color: C.primaryDark }}>סה״כ</span>
+            <span className="text-sm font-black tabular-nums" style={{ color: C.successDark }} dir="ltr">
               {fmtMoney(totals.spend_total)}
             </span>
           </div>
@@ -446,7 +447,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
             icon={Activity}
             title="פעילות אחרונה"
             right={(
-              <span className="text-[11px]" style={{ color: '#6B7C72' }}>
+              <span className="text-[11px]" style={{ color: C.mutedAlt }}>
                 30 אחרונים
               </span>
             )}
@@ -454,7 +455,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
           <ul className="space-y-1.5">
             {activity.slice(0, 15).map((a, i) => <ActivityRow key={i} item={a} />)}
             {activity.length > 15 && (
-              <li className="text-center text-[11px] py-1.5" style={{ color: '#A7B3AB' }}>
+              <li className="text-center text-[11px] py-1.5" style={{ color: C.borderAlt }}>
                 ועוד {activity.length - 15} אירועים
               </li>
             )}
@@ -490,11 +491,11 @@ function KpiTile({ label, value, sub, tone = 'emerald' }) {
   // Tone palette mirrors the system KpiTile but stays inline so we can
   // shrink the type ramp for the drawer (where space is tight).
   const tones = {
-    emerald: { bg: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)', border: '#A7F3D0', label: '#065F46', value: '#0B2912' },
-    blue:    { bg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)', border: '#BFDBFE', label: '#1E40AF', value: '#0B2912' },
-    amber:   { bg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)', border: '#FCD34D', label: '#92400E', value: '#0B2912' },
-    purple:  { bg: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)', border: '#E9D5FF', label: '#6B21A8', value: '#0B2912' },
-    red:     { bg: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '#FECACA', label: '#991B1B', value: '#0B2912' },
+    emerald: { bg: `linear-gradient(135deg, ${C.successSubtle} 0%, ${C.successLight} 100%)`, border: C.successLighter, label: C.successDark, value: C.primaryDark },
+    blue:    { bg: `linear-gradient(135deg, ${C.infoSubtle} 0%, ${C.infoBg} 100%)`, border: '#BFDBFE', label: C.infoDark, value: C.primaryDark },
+    amber:   { bg: `linear-gradient(135deg, ${C.warnSubtle} 0%, ${C.warnBg} 100%)`, border: '#FCD34D', label: C.warnDark, value: C.primaryDark },
+    purple:  { bg: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)', border: '#E9D5FF', label: '#6B21A8', value: C.primaryDark },
+    red:     { bg: `linear-gradient(135deg, ${C.errorBg} 0%, ${C.errorLight} 100%)`, border: C.errorBorder, label: C.errorDark, value: C.primaryDark },
   };
   const t = tones[tone] || tones.emerald;
   return (
@@ -509,7 +510,7 @@ function KpiTile({ label, value, sub, tone = 'emerald' }) {
         {value}
       </p>
       {sub && (
-        <p className="text-[10px] truncate mt-0.5" style={{ color: '#4B5D52' }}>{sub}</p>
+        <p className="text-[10px] truncate mt-0.5" style={{ color: C.textAlt }}>{sub}</p>
       )}
     </div>
   );
@@ -518,8 +519,8 @@ function KpiTile({ label, value, sub, tone = 'emerald' }) {
 function SectionHeader({ icon: Icon, title, right }) {
   return (
     <div className="flex items-center justify-between mb-2.5">
-      <h3 className="text-sm font-bold flex items-center gap-1.5" style={{ color: '#0B2912' }}>
-        <Icon className="w-4 h-4" style={{ color: '#10B981' }} />
+      <h3 className="text-sm font-bold flex items-center gap-1.5" style={{ color: C.primaryDark }}>
+        <Icon className="w-4 h-4" style={{ color: C.successBright }} />
         {title}
       </h3>
       {right}
@@ -529,7 +530,7 @@ function SectionHeader({ icon: Icon, title, right }) {
 
 function EmptyText({ children }) {
   return (
-    <p className="text-[11px] py-2 text-center" style={{ color: '#A7B3AB' }}>{children}</p>
+    <p className="text-[11px] py-2 text-center" style={{ color: C.borderAlt }}>{children}</p>
   );
 }
 
@@ -542,16 +543,16 @@ function CopyableRow({ icon: Icon, label, value, dir, trailing, small }) {
   };
   return (
     <div className="flex items-center gap-1.5 group">
-      {Icon && <Icon className="w-3 h-3 shrink-0" style={{ color: '#10B981' }} />}
+      {Icon && <Icon className="w-3 h-3 shrink-0" style={{ color: C.successBright }} />}
       {label && (
-        <span className="text-[9px] uppercase tracking-wider font-bold shrink-0" style={{ color: '#A7B3AB' }}>
+        <span className="text-[9px] uppercase tracking-wider font-bold shrink-0" style={{ color: C.borderAlt }}>
           {label}
         </span>
       )}
       <span
         className={`truncate ${small ? 'text-[10px] font-mono' : ''}`}
         dir={dir}
-        style={small ? { color: '#6B7C72' } : undefined}
+        style={small ? { color: C.mutedAlt } : undefined}
       >
         {value}
       </span>
@@ -562,7 +563,7 @@ function CopyableRow({ icon: Icon, label, value, dir, trailing, small }) {
         className="opacity-0 group-hover:opacity-100 transition shrink-0 p-0.5 hover:bg-emerald-100/40 rounded"
         aria-label="העתק"
       >
-        <Copy className="w-3 h-3" style={{ color: '#A7B3AB' }} />
+        <Copy className="w-3 h-3" style={{ color: C.borderAlt }} />
       </button>
     </div>
   );
@@ -575,8 +576,8 @@ function BreakdownBars({ data, total, tone = 'emerald' }) {
   );
   if (entries.length === 0) return null;
   const colors = {
-    emerald: { fill: 'linear-gradient(90deg, #065F46 0%, #34D399 100%)', track: '#F0F7F4' },
-    blue:    { fill: 'linear-gradient(90deg, #1E40AF 0%, #60A5FA 100%)', track: '#EFF6FF' },
+    emerald: { fill: `linear-gradient(90deg, ${C.successDark} 0%, ${C.successMid} 100%)`, track: C.bgSubtle },
+    blue:    { fill: `linear-gradient(90deg, ${C.infoDark} 0%, #60A5FA 100%)`, track: C.infoSubtle },
   };
   const c = colors[tone] || colors.emerald;
   return (
@@ -587,12 +588,12 @@ function BreakdownBars({ data, total, tone = 'emerald' }) {
         return (
           <div key={label}>
             <div className="flex items-center justify-between text-[11px] mb-0.5">
-              <span className="flex items-center gap-1 truncate" style={{ color: '#0B2912' }}>
-                <Icon className="w-3 h-3 shrink-0" style={{ color: '#10B981' }} />
+              <span className="flex items-center gap-1 truncate" style={{ color: C.primaryDark }}>
+                <Icon className="w-3 h-3 shrink-0" style={{ color: C.successBright }} />
                 {label}
               </span>
-              <span className="tabular-nums font-bold shrink-0" style={{ color: '#4B5D52' }} dir="ltr">
-                {count} <span style={{ color: '#A7B3AB' }}>· {pct}%</span>
+              <span className="tabular-nums font-bold shrink-0" style={{ color: C.textAlt }} dir="ltr">
+                {count} <span style={{ color: C.borderAlt }}>· {pct}%</span>
               </span>
             </div>
             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: c.track }}>
@@ -622,12 +623,12 @@ function DocCategoryBars({ data, total }) {
         return (
           <div key={label}>
             <div className="flex items-center justify-between text-[11px] mb-0.5">
-              <span className="flex items-center gap-1 truncate" style={{ color: '#0B2912' }}>
+              <span className="flex items-center gap-1 truncate" style={{ color: C.primaryDark }}>
                 <span>{meta.emoji}</span>
                 {label}
               </span>
-              <span className="tabular-nums font-bold shrink-0" style={{ color: '#4B5D52' }} dir="ltr">
-                {count} <span style={{ color: '#A7B3AB' }}>· {pct}%</span>
+              <span className="tabular-nums font-bold shrink-0" style={{ color: C.textAlt }} dir="ltr">
+                {count} <span style={{ color: C.borderAlt }}>· {pct}%</span>
               </span>
             </div>
             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: meta.bg }}>
@@ -645,7 +646,7 @@ function DocCategoryBars({ data, total }) {
 
 function SpendByCategoryBars({ byCat, total }) {
   const entries = [
-    { key: 'repair',    label: 'תיקונים', color: '#EA580C' },
+    { key: 'repair',    label: 'תיקונים', color: C.orange },
     { key: 'insurance', label: 'ביטוח',   color: '#7C3AED' },
     { key: 'other',     label: 'אחר',     color: '#64748B' },
   ];
@@ -657,12 +658,12 @@ function SpendByCategoryBars({ byCat, total }) {
         return (
           <div key={key}>
             <div className="flex items-center justify-between text-[11px] mb-0.5">
-              <span className="font-bold" style={{ color: '#0B2912' }}>{label}</span>
-              <span className="tabular-nums font-bold shrink-0" style={{ color: '#4B5D52' }} dir="ltr">
-                {fmtMoney(value)} <span style={{ color: '#A7B3AB' }}>· {pct}%</span>
+              <span className="font-bold" style={{ color: C.primaryDark }}>{label}</span>
+              <span className="tabular-nums font-bold shrink-0" style={{ color: C.textAlt }} dir="ltr">
+                {fmtMoney(value)} <span style={{ color: C.borderAlt }}>· {pct}%</span>
               </span>
             </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F0F7F4' }}>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: C.bgSubtle }}>
               <div className="h-full" style={{ width: `${pct}%`, background: color }} />
             </div>
           </div>
@@ -687,27 +688,27 @@ function VehicleRow({ vehicle: v }) {
     : null;
   const worstDays = Math.min(daysToTest ?? 999, daysToInsurance ?? 999);
   const status = worstDays < 0
-    ? { bg: '#FEE2E2', fg: '#991B1B', text: 'דחוף' }
+    ? { bg: C.errorLight, fg: C.errorDark, text: 'דחוף' }
     : worstDays <= 30
-    ? { bg: '#FEF3C7', fg: '#92400E', text: 'מתקרב' }
-    : { bg: '#D1FAE5', fg: '#065F46', text: 'תקין' };
+    ? { bg: C.warnBg, fg: C.warnDark, text: 'מתקרב' }
+    : { bg: C.successLight, fg: C.successDark, text: 'תקין' };
 
   return (
     <li
       className="flex items-center gap-2 px-2.5 py-2 rounded-lg"
-      style={{ background: '#FFFFFF', border: '1px solid #E5EDE8' }}
+      style={{ background: '#FFFFFF', border: `1px solid ${C.bgSage}` }}
     >
-      <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: '#10B981' }} />
+      <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: C.successBright }} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[12px] font-bold truncate" style={{ color: '#0B2912' }}>
+          <span className="text-[12px] font-bold truncate" style={{ color: C.primaryDark }}>
             {label}
           </span>
           {v.license_plate && (
             <span
               className="text-[9px] font-mono px-1 py-0.5 rounded shrink-0 tabular-nums"
               dir="ltr"
-              style={{ background: '#F0F7F4', color: '#4B5D52' }}
+              style={{ background: C.bgSubtle, color: C.textAlt }}
             >
               {v.license_plate}
             </span>
@@ -719,7 +720,7 @@ function VehicleRow({ vehicle: v }) {
             {status.text}
           </span>
         </div>
-        <p className="text-[10px] truncate mt-0.5" style={{ color: '#6B7C72' }}>
+        <p className="text-[10px] truncate mt-0.5" style={{ color: C.mutedAlt }}>
           {[v.year, v.vehicle_type].filter(Boolean).join(' · ') || '—'}
         </p>
       </div>
@@ -734,20 +735,20 @@ function DocumentRow({ doc: d }) {
     : null;
   const expiryChip = days === null ? null
     : days < 0
-    ? { bg: '#FEE2E2', fg: '#991B1B', text: 'פג' }
+    ? { bg: C.errorLight, fg: C.errorDark, text: 'פג' }
     : days <= 30
-    ? { bg: '#FEF3C7', fg: '#92400E', text: `בעוד ${days} ימים` }
-    : { bg: '#D1FAE5', fg: '#065F46', text: 'בתוקף' };
+    ? { bg: C.warnBg, fg: C.warnDark, text: `בעוד ${days} ימים` }
+    : { bg: C.successLight, fg: C.successDark, text: 'בתוקף' };
 
   return (
     <li
       className="flex items-center gap-2 px-2.5 py-2 rounded-lg"
-      style={{ background: '#FFFFFF', border: '1px solid #E5EDE8' }}
+      style={{ background: '#FFFFFF', border: `1px solid ${C.bgSage}` }}
     >
       <span className="shrink-0 text-base">{meta.emoji}</span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[12px] font-bold truncate" style={{ color: '#0B2912' }}>
+          <span className="text-[12px] font-bold truncate" style={{ color: C.primaryDark }}>
             {d.title || d.category || 'מסמך'}
           </span>
           <span
@@ -766,7 +767,7 @@ function DocumentRow({ doc: d }) {
           )}
         </div>
         {d.expires_at && (
-          <p className="text-[10px] mt-0.5 tabular-nums" style={{ color: '#6B7C72' }} dir="ltr">
+          <p className="text-[10px] mt-0.5 tabular-nums" style={{ color: C.mutedAlt }} dir="ltr">
             תוקף עד: {fmtDate(d.expires_at)}
           </p>
         )}
@@ -778,16 +779,16 @@ function DocumentRow({ doc: d }) {
 function MemberRow({ member: m }) {
   const ROLE_TONE = {
     'בעלים':  { bg: '#FAF5FF', fg: '#6B21A8', label: 'בעלים' },
-    'מנהל':   { bg: '#D1FAE5', fg: '#065F46', label: 'מנהל' },
-    'שותף':   { bg: '#EFF6FF', fg: '#1E40AF', label: 'צופה' },
-    'driver': { bg: '#FFFBEB', fg: '#92400E', label: 'נהג' },
+    'מנהל':   { bg: C.successLight, fg: C.successDark, label: 'מנהל' },
+    'שותף':   { bg: C.infoSubtle, fg: C.infoDark, label: 'צופה' },
+    'driver': { bg: C.warnSubtle, fg: C.warnDark, label: 'נהג' },
   };
-  const tone = ROLE_TONE[m.role] || { bg: '#F0F7F4', fg: '#4B5D52', label: m.role };
+  const tone = ROLE_TONE[m.role] || { bg: C.bgSubtle, fg: C.textAlt, label: m.role };
   const initials = (m.display_name || m.email || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('') || '?';
   return (
     <li
       className="flex items-center gap-2 px-2.5 py-2 rounded-lg"
-      style={{ background: '#FFFFFF', border: '1px solid #E5EDE8' }}
+      style={{ background: '#FFFFFF', border: `1px solid ${C.bgSage}` }}
     >
       <div
         className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black"
@@ -797,7 +798,7 @@ function MemberRow({ member: m }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[12px] font-bold truncate" style={{ color: '#0B2912' }}>
+          <span className="text-[12px] font-bold truncate" style={{ color: C.primaryDark }}>
             {m.display_name || 'ללא שם'}
           </span>
           <span
@@ -808,13 +809,13 @@ function MemberRow({ member: m }) {
           </span>
         </div>
         {m.email && (
-          <p className="text-[10px] truncate mt-0.5" style={{ color: '#6B7C72' }} dir="ltr">
+          <p className="text-[10px] truncate mt-0.5" style={{ color: C.mutedAlt }} dir="ltr">
             {m.email}
           </p>
         )}
       </div>
       {m.joined_at && (
-        <span className="text-[10px] shrink-0 tabular-nums" style={{ color: '#A7B3AB' }} dir="ltr">
+        <span className="text-[10px] shrink-0 tabular-nums" style={{ color: C.borderAlt }} dir="ltr">
           {fmtDate(m.joined_at)}
         </span>
       )}
@@ -828,7 +829,7 @@ function ActivityRow({ item }) {
   return (
     <li
       className="flex items-center gap-2 px-2.5 py-2 rounded-lg"
-      style={{ background: '#FFFFFF', border: '1px solid #E5EDE8' }}
+      style={{ background: '#FFFFFF', border: `1px solid ${C.bgSage}` }}
     >
       <div
         className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center"
@@ -841,16 +842,16 @@ function ActivityRow({ item }) {
           <span className="text-[11px] font-bold" style={{ color: meta.tone.fg }}>
             {meta.label}
           </span>
-          <span className="text-[12px] truncate" style={{ color: '#0B2912' }}>
+          <span className="text-[12px] truncate" style={{ color: C.primaryDark }}>
             {item.title}
           </span>
         </div>
-        <p className="text-[10px] mt-0.5" style={{ color: '#6B7C72' }}>
+        <p className="text-[10px] mt-0.5" style={{ color: C.mutedAlt }}>
           {fmtDateTime(item.occurred_at)}
         </p>
       </div>
       {Number(item.cost) > 0 && (
-        <span className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: '#065F46' }} dir="ltr">
+        <span className="text-[11px] font-bold tabular-nums shrink-0" style={{ color: C.successDark }} dir="ltr">
           {fmtMoneyShort(item.cost)}
         </span>
       )}
@@ -902,10 +903,10 @@ function AdminNotes({ userId }) {
   const isDirty = loaded && note !== savedNote;
 
   return (
-    <Card style={{ borderRight: '3px solid #F59E0B' }} className="p-3">
+    <Card style={{ borderRight: `3px solid ${C.warnIcon}` }} className="p-3">
       <div className="flex items-center gap-2 mb-2">
-        <Pencil className="w-3.5 h-3.5" style={{ color: '#F59E0B' }} />
-        <span className="text-[11px] font-bold" style={{ color: '#92400E' }}>הערות אדמין</span>
+        <Pencil className="w-3.5 h-3.5" style={{ color: C.warnIcon }} />
+        <span className="text-[11px] font-bold" style={{ color: C.warnDark }}>הערות אדמין</span>
       </div>
       {!loaded ? (
         <div className="h-16 flex items-center justify-center"><LoadingDot /></div>
@@ -928,7 +929,7 @@ function AdminNotes({ userId }) {
                 onClick={handleSave}
                 disabled={saving}
                 className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition"
-                style={{ background: '#FEF3C7', color: '#92400E' }}
+                style={{ background: C.warnBg, color: C.warnDark }}
               >
                 {saving ? 'שומר...' : 'שמור'}
               </button>
@@ -954,7 +955,7 @@ function SendEmailForm({ email, userId }) {
     if (!canSend) return;
     setSending(true);
     try {
-      const bodyHtml = `<p style="font-size:15px;line-height:1.75;color:#1F2937;margin:0">${escapeHtml(body).replace(/\n/g, '<br/>')}</p>`;
+      const bodyHtml = `<p style="font-size:15px;line-height:1.75;color:${C.gray800};margin:0">${escapeHtml(body).replace(/\n/g, '<br/>')}</p>`;
       const html = buildEmailHtml({
         preheader: subject.trim(),
         title: subject.trim(),
@@ -988,13 +989,13 @@ function SendEmailForm({ email, userId }) {
   };
 
   return (
-    <Card className="p-3" style={{ borderRight: '3px solid #3B82F6' }}>
+    <Card className="p-3" style={{ borderRight: `3px solid ${C.info}` }}>
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 w-full text-right"
       >
-        <Send className="w-3.5 h-3.5" style={{ color: '#3B82F6' }} />
-        <span className="text-[11px] font-bold" style={{ color: '#1E40AF' }}>שלח מייל למשתמש</span>
+        <Send className="w-3.5 h-3.5" style={{ color: C.info }} />
+        <span className="text-[11px] font-bold" style={{ color: C.infoDark }}>שלח מייל למשתמש</span>
         <span className="text-[10px] text-gray-400 mr-auto truncate max-w-[180px]" dir="ltr">{email}</span>
       </button>
       {open && (
@@ -1019,7 +1020,7 @@ function SendEmailForm({ email, userId }) {
               onClick={handleSend}
               disabled={!canSend || sending}
               className="text-[11px] font-medium px-3 py-1.5 rounded-lg transition disabled:opacity-40"
-              style={{ background: '#DBEAFE', color: '#1E40AF' }}
+              style={{ background: C.infoBg, color: C.infoDark }}
             >
               {sending ? 'שולח...' : 'שלח'}
             </button>
@@ -1086,14 +1087,14 @@ function AdminActions({ accountId, accountName, ownerId, ownerRole, onClose, onA
             onClick={handleToggleRole}
             disabled={togglingRole}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-right transition hover:bg-amber-50"
-            style={{ border: '1px solid #E5EDE8' }}
+            style={{ border: `1px solid ${C.bgSage}` }}
           >
-            <UserCog className="w-4 h-4 shrink-0" style={{ color: '#D97706' }} />
+            <UserCog className="w-4 h-4 shrink-0" style={{ color: C.warn }} />
             <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-bold" style={{ color: '#0B2912' }}>
+              <p className="text-[12px] font-bold" style={{ color: C.primaryDark }}>
                 {isOwnerAdmin ? 'הסר הרשאת אדמין' : 'הפוך לאדמין'}
               </p>
-              <p className="text-[10px]" style={{ color: '#6B7C72' }}>
+              <p className="text-[10px]" style={{ color: C.mutedAlt }}>
                 הרשאה נוכחית: {isOwnerAdmin ? 'אדמין' : 'משתמש'}
               </p>
             </div>
@@ -1107,12 +1108,12 @@ function AdminActions({ accountId, accountName, ownerId, ownerRole, onClose, onA
             type="button"
             onClick={() => setConfirmDelete(true)}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-right transition hover:bg-red-50"
-            style={{ border: '1px solid #FECACA' }}
+            style={{ border: `1px solid ${C.errorBorder}` }}
           >
-            <Trash2 className="w-4 h-4 shrink-0" style={{ color: '#DC2626' }} />
+            <Trash2 className="w-4 h-4 shrink-0" style={{ color: C.error }} />
             <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-bold" style={{ color: '#991B1B' }}>מחק חשבון</p>
-              <p className="text-[10px]" style={{ color: '#6B7C72' }}>
+              <p className="text-[12px] font-bold" style={{ color: C.errorDark }}>מחק חשבון</p>
+              <p className="text-[10px]" style={{ color: C.mutedAlt }}>
                 ימחק את החשבון, הרכבים, המסמכים וכל הנתונים
               </p>
             </div>
@@ -1120,11 +1121,11 @@ function AdminActions({ accountId, accountName, ownerId, ownerRole, onClose, onA
         )}
 
         {confirmDelete && (
-          <div className="rounded-lg p-3" style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
-            <p className="text-[12px] font-bold mb-1" style={{ color: '#991B1B' }}>
+          <div className="rounded-lg p-3" style={{ background: C.errorBg, border: `1px solid ${C.errorBorder}` }}>
+            <p className="text-[12px] font-bold mb-1" style={{ color: C.errorDark }}>
               למחוק את "{accountName}"?
             </p>
-            <p className="text-[10px] mb-3" style={{ color: '#6B7C72' }}>
+            <p className="text-[10px] mb-3" style={{ color: C.mutedAlt }}>
               הפעולה בלתי הפיכה. כל הרכבים, המסמכים והנתונים ימחקו לצמיתות.
             </p>
             <div className="flex gap-2">
@@ -1133,7 +1134,7 @@ function AdminActions({ accountId, accountName, ownerId, ownerRole, onClose, onA
                 onClick={handleDelete}
                 disabled={deleting}
                 className="flex-1 text-[11px] font-bold py-2 rounded-lg text-white transition"
-                style={{ background: deleting ? '#9CA3AF' : '#DC2626' }}
+                style={{ background: deleting ? C.gray400 : C.error }}
               >
                 {deleting ? 'מוחק...' : 'כן, מחק לצמיתות'}
               </button>
@@ -1141,7 +1142,7 @@ function AdminActions({ accountId, accountName, ownerId, ownerRole, onClose, onA
                 type="button"
                 onClick={() => setConfirmDelete(false)}
                 className="flex-1 text-[11px] font-bold py-2 rounded-lg transition"
-                style={{ background: '#FFFFFF', border: '1px solid #D1D5DB', color: '#374151' }}
+                style={{ background: '#FFFFFF', border: `1px solid ${C.gray300}`, color: C.gray700 }}
               >
                 ביטול
               </button>
@@ -1163,14 +1164,14 @@ function LoadingDot() {
 function DrawerSkeleton() {
   return (
     <div className="space-y-3 animate-pulse">
-      <div className="rounded-2xl h-24" style={{ background: '#F0F7F4' }} />
+      <div className="rounded-2xl h-24" style={{ background: C.bgSubtle }} />
       <div className="grid grid-cols-2 gap-2.5">
         {[0, 1, 2, 3].map(i => (
-          <div key={i} className="rounded-2xl h-16" style={{ background: '#F0F7F4' }} />
+          <div key={i} className="rounded-2xl h-16" style={{ background: C.bgSubtle }} />
         ))}
       </div>
-      <div className="rounded-2xl h-32" style={{ background: '#F0F7F4' }} />
-      <div className="rounded-2xl h-32" style={{ background: '#F0F7F4' }} />
+      <div className="rounded-2xl h-32" style={{ background: C.bgSubtle }} />
+      <div className="rounded-2xl h-32" style={{ background: C.bgSubtle }} />
     </div>
   );
 }
@@ -1178,11 +1179,11 @@ function DrawerSkeleton() {
 function DrawerError({ message }) {
   return (
     <Card accent="red" className="text-center py-6">
-      <AlertTriangle className="w-8 h-8 mx-auto mb-2" style={{ color: '#991B1B' }} />
-      <p className="text-sm font-bold mb-1" style={{ color: '#0B2912' }}>שגיאה בטעינת הפרטים</p>
-      <p className="text-[11px]" style={{ color: '#6B7C72' }}>{message}</p>
-      <p className="text-[10px] mt-3" style={{ color: '#A7B3AB' }}>
-        ייתכן שה-RPC <code style={{ background: '#FEE2E2', padding: '1px 4px', borderRadius: 4 }}>admin_account_details</code> עוד לא פרוס. הרץ את <code style={{ background: '#FEE2E2', padding: '1px 4px', borderRadius: 4 }}>supabase-admin-account-details.sql</code> ב-Supabase.
+      <AlertTriangle className="w-8 h-8 mx-auto mb-2" style={{ color: C.errorDark }} />
+      <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>שגיאה בטעינת הפרטים</p>
+      <p className="text-[11px]" style={{ color: C.mutedAlt }}>{message}</p>
+      <p className="text-[10px] mt-3" style={{ color: C.borderAlt }}>
+        ייתכן שה-RPC <code style={{ background: C.errorLight, padding: '1px 4px', borderRadius: 4 }}>admin_account_details</code> עוד לא פרוס. הרץ את <code style={{ background: C.errorLight, padding: '1px 4px', borderRadius: 4 }}>supabase-admin-account-details.sql</code> ב-Supabase.
       </p>
     </Card>
   );

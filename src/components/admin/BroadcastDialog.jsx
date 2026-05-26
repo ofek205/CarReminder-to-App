@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Megaphone, Info, CheckCircle2, AlertCircle, Users } from 'lucide-react';
 import { useRunBroadcast } from '@/hooks/useEmailAdmin';
 import { toast } from 'sonner';
+import { C } from '@/lib/designTokens';
 
 /**
  * BroadcastDialog. "send to all opted-in users" for a marketing /
@@ -85,7 +86,7 @@ export default function BroadcastDialog({ notification, open, onClose }) {
               <p className="text-sm text-gray-700">
                 הפעולה תשלח את המייל <strong>{notification.display_name}</strong> לכל המשתמשים הרשומים שלא ביקשו להחריג את סוג ההתראה הזה.
               </p>
-              <div className="rounded-xl p-3 text-xs flex gap-2" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+              <div className="rounded-xl p-3 text-xs flex gap-2" style={{ background: C.infoSubtle, border: '1px solid #BFDBFE' }}>
                 <Info className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#1E3A8A' }} />
                 <div style={{ color: '#1E3A8A' }}>
                   <strong>מומלץ לבדוק קודם</strong> ב-Dry run כמה נמענים יקבלו ומה התוכן שייצא, לפני שליחה בפועל. Send Test ליצירת תצוגת "מייל אחד אלי" נשאר זמין ב-UI הראשי.
@@ -103,19 +104,19 @@ export default function BroadcastDialog({ notification, open, onClose }) {
 
           {step === 'confirm' && preview && (
             <>
-              <div className="rounded-2xl p-4" style={{ background: '#F4F7F3', border: '1.5px solid #D8E5D9' }}>
+              <div className="rounded-2xl p-4" style={{ background: '#F4F7F3', border: `1.5px solid ${C.border}` }}>
                 <div className="flex items-center gap-2 mb-1" style={{ color: '#1C3620' }}>
                   <Users className="w-5 h-5" />
                   <span className="text-lg font-bold">{eligible}</span>
                   <span className="text-sm">נמענים זכאים</span>
                 </div>
-                <p className="text-[11px]" style={{ color: '#3A6B42' }}>
+                <p className="text-[11px]" style={{ color: C.accent }}>
                   המייל יישלח לכולם. נמענים שכבר קיבלו את ההודעה הזו היום ידולגו אוטומטית.
                 </p>
               </div>
               {eligible === 0 && (
                 <div className="rounded-xl p-3 text-xs flex gap-2"
-                  style={{ background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E' }}>
+                  style={{ background: C.warnBg, border: `1px solid ${C.warnBorder}`, color: C.warnDark }}>
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   אין נמענים זכאים כרגע. ודא/י שיש משתמשים עם email מאומת שלא ביטלו את ההתראה הזו בהעדפות שלהם.
                 </div>
@@ -134,10 +135,10 @@ export default function BroadcastDialog({ notification, open, onClose }) {
           {step === 'done' && result && (
             <div className="rounded-2xl p-4 space-y-2"
               style={{
-                background: result.ok !== false ? '#ECFDF5' : '#FEF2F2',
-                border: `1.5px solid ${result.ok !== false ? '#A7F3D0' : '#FCA5A5'}`,
+                background: result.ok !== false ? C.successSubtle : C.errorBg,
+                border: `1.5px solid ${result.ok !== false ? C.successLighter : '#FCA5A5'}`,
               }}>
-              <div className="flex items-center gap-2 font-bold text-sm" style={{ color: result.ok !== false ? '#064E3B' : '#991B1B' }}>
+              <div className="flex items-center gap-2 font-bold text-sm" style={{ color: result.ok !== false ? '#064E3B' : C.errorDark }}>
                 {result.ok !== false ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                 {result.ok !== false ? 'ההפצה הושלמה' : 'ההפצה נכשלה'}
               </div>
@@ -159,7 +160,7 @@ export default function BroadcastDialog({ notification, open, onClose }) {
           {step === 'intro' && (
             <>
               <Button variant="outline" onClick={onClose} className="rounded-xl">ביטול</Button>
-              <Button onClick={runDryRun} className="rounded-xl gap-2" style={{ background: '#2D5233', color: 'white' }}>
+              <Button onClick={runDryRun} className="rounded-xl gap-2" style={{ background: C.primary, color: 'white' }}>
                 <Info className="w-4 h-4" />
                 בדיקת נמענים (Dry run)
               </Button>
@@ -172,14 +173,14 @@ export default function BroadcastDialog({ notification, open, onClose }) {
                 onClick={send}
                 disabled={eligible === 0}
                 className="rounded-xl gap-2"
-                style={{ background: eligible > 0 ? '#DC2626' : '#9CA3AF', color: 'white' }}>
+                style={{ background: eligible > 0 ? C.error : C.gray400, color: 'white' }}>
                 <Megaphone className="w-4 h-4" />
                 שלח ל-{eligible} נמענים
               </Button>
             </>
           )}
           {step === 'done' && (
-            <Button onClick={onClose} className="rounded-xl" style={{ background: '#2D5233', color: 'white' }}>סגירה</Button>
+            <Button onClick={onClose} className="rounded-xl" style={{ background: C.primary, color: 'white' }}>סגירה</Button>
           )}
         </DialogFooter>
       </DialogContent>
@@ -189,7 +190,7 @@ export default function BroadcastDialog({ notification, open, onClose }) {
 
 function Stat({ label, value, warn }) {
   return (
-    <div className="rounded-lg p-2" style={{ background: warn ? '#FECACA' : 'rgba(255,255,255,0.6)' }}>
+    <div className="rounded-lg p-2" style={{ background: warn ? C.errorBorder : 'rgba(255,255,255,0.6)' }}>
       <div className="text-lg font-bold leading-none">{Number(value || 0)}</div>
       <div className="text-[10px] text-gray-600">{label}</div>
     </div>

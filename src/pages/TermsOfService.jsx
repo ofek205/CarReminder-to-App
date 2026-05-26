@@ -11,9 +11,9 @@ export default function TermsOfService() {
         <ArrowRight className="w-4 h-4" /> חזרה
       </button>
       <h1 className="text-2xl font-bold mb-6">תנאי שימוש - CarReminder</h1>
-      <p className="text-xs mb-4" style={{ color: '#9CA3AF' }}>עודכן לאחרונה: אפריל 2026</p>
+      <p className="text-xs mb-4" style={{ color: C.gray400 }}>עודכן לאחרונה: אפריל 2026</p>
 
-      <div className="space-y-5 text-sm leading-relaxed" style={{ color: '#374151' }}>
+      <div className="space-y-5 text-sm leading-relaxed" style={{ color: C.gray700 }}>
         <section>
           <h2 className="text-base font-bold mb-2">1. קבלת התנאים</h2>
           <p>השימוש באפליקציית CarReminder מהווה הסכמה לתנאים אלה. אם אינך מסכים - אנא הפסק להשתמש באפליקציה.</p>

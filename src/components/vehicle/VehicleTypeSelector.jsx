@@ -377,7 +377,7 @@ function TabVariant({ selectedCategory, onSelectCategory }) {
             style={active ? { borderColor: T.primary, background: T.light, boxShadow: `0 4px 12px ${T.primary}20` } : undefined}
           >
             <div className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
-              style={{ background: active ? T.primary : '#F3F4F6' }}>
+              style={{ background: active ? T.primary : C.gray100 }}>
               <Icon className={cn('h-4 w-4', active ? 'text-white' : 'text-gray-500')} />
             </div>
             <span className="text-[10px] sm:text-xs font-semibold text-center leading-tight"

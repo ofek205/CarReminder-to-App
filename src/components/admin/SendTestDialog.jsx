@@ -10,6 +10,7 @@ import { extractPlaceholders } from '@/lib/emailValidate';
 import { sendEmail } from '@/lib/sendEmail';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { C } from '@/lib/designTokens';
 
 // Sensible defaults for the admin's Send-Test flow. Used instead of the
 // generic `[varName]` stub so a test send feels like a real email. Anything
@@ -180,18 +181,18 @@ export default function SendTestDialog({ notification, open, onClose }) {
           {result && (
             <div className="rounded-xl p-3 flex gap-2 items-start"
               style={{
-                background: result.ok ? '#ECFDF5' : '#FEF2F2',
-                border: `1.5px solid ${result.ok ? '#A7F3D0' : '#FCA5A5'}`,
+                background: result.ok ? C.successSubtle : C.errorBg,
+                border: `1.5px solid ${result.ok ? C.successLighter : '#FCA5A5'}`,
               }}>
               {result.ok
                 ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#047857' }} />
-                : <XCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#DC2626' }} />}
+                : <XCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.error }} />}
               <div className="flex-1">
-                <p className="text-xs font-bold" style={{ color: result.ok ? '#064E3B' : '#991B1B' }}>
+                <p className="text-xs font-bold" style={{ color: result.ok ? '#064E3B' : C.errorDark }}>
                   {result.msg}
                 </p>
                 {result.id && (
-                  <p className="text-[10px] font-mono mt-1" dir="ltr" style={{ color: '#065F46' }}>
+                  <p className="text-[10px] font-mono mt-1" dir="ltr" style={{ color: C.successDark }}>
                     Resend ID: {result.id}
                   </p>
                 )}
@@ -206,7 +207,7 @@ export default function SendTestDialog({ notification, open, onClose }) {
             onClick={handleSend}
             disabled={sending || !recipient}
             className="rounded-xl gap-2"
-            style={{ background: '#2D5233', color: 'white' }}>
+            style={{ background: C.primary, color: 'white' }}>
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             שלח בדיקה
           </Button>

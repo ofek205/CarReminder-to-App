@@ -1,4 +1,5 @@
 import React from 'react';
+import { C } from '@/lib/designTokens';
 
 /**
  * AccidentPrintReport — single-page case summary.
@@ -292,7 +293,7 @@ export function AccidentPrintStyles() {
         justify-content: space-between;
         gap: 12px;
         padding-bottom: 10px;
-        border-bottom: 2px solid #1f2937;
+        border-bottom: 2px solid ${C.gray800};
         margin-bottom: 12px;
       }
       .accident-report-preview .rep-head-brand,
@@ -305,7 +306,7 @@ export function AccidentPrintStyles() {
       .accident-report-print .rep-logo {
         width: 36px;
         height: 36px;
-        background: #1f2937;
+        background: ${C.gray800};
         color: #fff;
         font-weight: 800;
         font-size: 14px;
@@ -319,13 +320,13 @@ export function AccidentPrintStyles() {
       .accident-report-print .rep-title {
         font-size: 14.5px;
         font-weight: 800;
-        color: #1f2937;
+        color: ${C.gray800};
         margin: 0;
       }
       .accident-report-preview .rep-subtitle,
       .accident-report-print .rep-subtitle {
         font-size: 10.5px;
-        color: #6b7280;
+        color: ${C.gray500};
         margin: 1px 0 0;
       }
       .accident-report-preview .rep-meta,
@@ -340,8 +341,8 @@ export function AccidentPrintStyles() {
       /* ── Summary card ────────────────────────────────────────── */
       .accident-report-preview .rep-summary,
       .accident-report-print .rep-summary {
-        background: #f9fafb;
-        border: 1px solid #e5e7eb;
+        background: ${C.gray50};
+        border: 1px solid ${C.gray200};
         border-radius: 8px;
         padding: 10px 14px;
         margin-bottom: 10px;
@@ -354,7 +355,7 @@ export function AccidentPrintStyles() {
       .accident-report-print .rep-summary-when {
         font-size: 13.5px;
         font-weight: 800;
-        color: #1f2937;
+        color: ${C.gray800};
       }
       .accident-report-preview .rep-summary-where,
       .accident-report-print .rep-summary-where {
@@ -365,7 +366,7 @@ export function AccidentPrintStyles() {
       .accident-report-preview .rep-summary-coords,
       .accident-report-print .rep-summary-coords {
         font-size: 10px;
-        color: #9ca3af;
+        color: ${C.gray400};
         font-weight: 500;
       }
       .accident-report-preview .rep-summary-parties,
@@ -374,7 +375,7 @@ export function AccidentPrintStyles() {
         align-items: center;
         gap: 8px;
         font-size: 11.5px;
-        color: #1f2937;
+        color: ${C.gray800};
         margin-top: 6px;
       }
       .accident-report-preview .rep-party-tag,
@@ -383,7 +384,7 @@ export function AccidentPrintStyles() {
       }
       .accident-report-preview .rep-vs,
       .accident-report-print .rep-vs {
-        color: #9ca3af;
+        color: ${C.gray400};
         font-weight: 700;
       }
 
@@ -405,13 +406,13 @@ export function AccidentPrintStyles() {
         line-height: 1.6;
       }
       .accident-report-preview .rep-pill-alert,
-      .accident-report-print .rep-pill-alert { background: #fee2e2; color: #991b1b; }
+      .accident-report-print .rep-pill-alert { background: ${C.errorLight}; color: ${C.errorDark}; }
       .accident-report-preview .rep-pill-warn,
-      .accident-report-print .rep-pill-warn  { background: #fef3c7; color: #92400e; }
+      .accident-report-print .rep-pill-warn  { background: ${C.warnBg}; color: ${C.warnDark}; }
       .accident-report-preview .rep-pill-ok,
       .accident-report-print .rep-pill-ok    { background: #dcfce7; color: #166534; }
       .accident-report-preview .rep-pill-muted,
-      .accident-report-print .rep-pill-muted { background: #e5e7eb; color: #1f2937; }
+      .accident-report-print .rep-pill-muted { background: ${C.gray200}; color: ${C.gray800}; }
 
       /* ── Prose blocks (description, damage, prefilled labels) ──── */
       .accident-report-preview .rep-prose,
@@ -426,14 +427,14 @@ export function AccidentPrintStyles() {
       .accident-report-print .rep-prose-label {
         font-size: 10.5px;
         font-weight: 800;
-        color: #1f2937;
+        color: ${C.gray800};
         margin: 0 0 2px;
         letter-spacing: 0.02em;
       }
       .accident-report-preview .rep-prose-text,
       .accident-report-print .rep-prose-text {
         font-size: 11.5px;
-        color: #1f2937;
+        color: ${C.gray800};
         white-space: pre-wrap;
         margin: 0;
       }
@@ -441,7 +442,7 @@ export function AccidentPrintStyles() {
       .accident-report-print .rep-doc-photo {
         max-width: 220px;
         max-height: 130px;
-        border: 1px solid #d1d5db;
+        border: 1px solid ${C.gray300};
         border-radius: 6px;
         margin-top: 4px;
       }
@@ -457,23 +458,23 @@ export function AccidentPrintStyles() {
       .accident-report-preview .rep-party-col,
       .accident-report-print .rep-party-col {
         background: #fff;
-        border: 1px solid #e5e7eb;
+        border: 1px solid ${C.gray200};
         border-radius: 8px;
         padding: 8px 12px;
       }
       .accident-report-preview .rep-party-muted,
       .accident-report-print .rep-party-muted {
         opacity: 0.7;
-        background: #f9fafb;
+        background: ${C.gray50};
       }
       .accident-report-preview .rep-party-title,
       .accident-report-print .rep-party-title {
         font-size: 11px;
         font-weight: 800;
-        color: #1f2937;
+        color: ${C.gray800};
         margin: 0 0 5px;
         padding-bottom: 4px;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid ${C.gray200};
       }
       .accident-report-preview .rep-party-row,
       .accident-report-print .rep-party-row {
@@ -486,19 +487,19 @@ export function AccidentPrintStyles() {
       }
       .accident-report-preview .rep-party-key,
       .accident-report-print .rep-party-key {
-        color: #6b7280;
+        color: ${C.gray500};
         font-weight: 600;
       }
       .accident-report-preview .rep-party-val,
       .accident-report-print .rep-party-val {
-        color: #1f2937;
+        color: ${C.gray800};
         font-weight: 700;
         word-break: break-word;
       }
       .accident-report-preview .rep-party-empty,
       .accident-report-print .rep-party-empty {
         font-size: 10.5px;
-        color: #9ca3af;
+        color: ${C.gray400};
         font-style: italic;
         margin: 0;
       }
@@ -507,7 +508,7 @@ export function AccidentPrintStyles() {
       .accident-report-preview .rep-inline-line,
       .accident-report-print .rep-inline-line {
         font-size: 11px;
-        color: #1f2937;
+        color: ${C.gray800};
         margin: 0 0 8px;
       }
 
@@ -527,7 +528,7 @@ export function AccidentPrintStyles() {
         font-size: 11px;
         line-height: 1.5;
         padding: 3px 6px;
-        background: #f9fafb;
+        background: ${C.gray50};
         border-radius: 4px;
         display: flex;
         flex-wrap: wrap;
@@ -537,7 +538,7 @@ export function AccidentPrintStyles() {
       .accident-report-preview .rep-witness-name,
       .accident-report-print .rep-witness-name {
         font-weight: 700;
-        color: #1f2937;
+        color: ${C.gray800};
       }
       .accident-report-preview .rep-witness-phone,
       .accident-report-print .rep-witness-phone {
@@ -566,8 +567,8 @@ export function AccidentPrintStyles() {
       }
       .accident-report-preview .rep-photo-cell,
       .accident-report-print .rep-photo-cell {
-        background: #f3f4f6;
-        border: 1px solid #e5e7eb;
+        background: ${C.gray100};
+        border: 1px solid ${C.gray200};
         border-radius: 5px;
         overflow: hidden;
       }
@@ -590,7 +591,7 @@ export function AccidentPrintStyles() {
       .accident-report-preview .rep-sign p,
       .accident-report-print .rep-sign p {
         font-size: 10px;
-        color: #6b7280;
+        color: ${C.gray500};
         margin: 4px 0 0;
         text-align: center;
         font-weight: 600;
@@ -598,7 +599,7 @@ export function AccidentPrintStyles() {
       .accident-report-preview .rep-sign-line,
       .accident-report-print .rep-sign-line {
         height: 1px;
-        background: #1f2937;
+        background: ${C.gray800};
       }
 
       /* ── Footer disclaimer ─────────────────────────────────────── */
@@ -606,11 +607,11 @@ export function AccidentPrintStyles() {
       .accident-report-print .rep-disclaimer {
         font-size: 9px;
         line-height: 1.45;
-        color: #9ca3af;
+        color: ${C.gray400};
         text-align: center;
         margin-top: 12px;
         padding-top: 8px;
-        border-top: 1px dashed #e5e7eb;
+        border-top: 1px dashed ${C.gray200};
       }
 
       /* ── Print mode ────────────────────────────────────────────── */

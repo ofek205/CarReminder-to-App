@@ -21,11 +21,11 @@ function timeAgo(date) {
 }
 
 const AVATAR_GRADIENTS = [
-  'linear-gradient(135deg, #2D5233, #4A8C5C)',
+  `linear-gradient(135deg, ${C.primary}, #4A8C5C)`,
   'linear-gradient(135deg, #0C7B93, #14B8C8)',
   'linear-gradient(135deg, #7C3AED, #A78BFA)',
-  'linear-gradient(135deg, #D97706, #FBBF24)',
-  'linear-gradient(135deg, #DC2626, #F87171)',
+  `linear-gradient(135deg, ${C.warn}, #FBBF24)`,
+  `linear-gradient(135deg, ${C.error}, #F87171)`,
   'linear-gradient(135deg, #0369A1, #38BDF8)',
 ];
 
@@ -44,7 +44,7 @@ function Avatar({ name, userId, size = 40, isAnonymous = false, anonymousNumber 
   if (isAnonymous) {
     return (
       <div className="rounded-full flex items-center justify-center font-bold shrink-0"
-        style={{ width: size, height: size, background: '#E5E7EB', color: '#6B7280', fontSize: size * 0.3 }}>
+        style={{ width: size, height: size, background: C.gray200, color: C.gray500, fontSize: size * 0.3 }}>
         {anonymousNumber ? `#${anonymousNumber}` : '?'}
       </div>
     );
@@ -68,7 +68,7 @@ function HighlightText({ text, query }) {
     const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
     return parts.map((part, i) =>
       part.toLowerCase() === query.toLowerCase()
-        ? <mark key={i} className="rounded-sm px-0.5" style={{ background: '#FEF08A', color: '#92400E' }}>{part}</mark>
+        ? <mark key={i} className="rounded-sm px-0.5" style={{ background: '#FEF08A', color: C.warnDark }}>{part}</mark>
         : part
     );
   } catch { return text; }
@@ -337,32 +337,32 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
 
   return (
     <div dir="rtl" className="rounded-2xl overflow-hidden"
-      style={{ background: '#fff', border: '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      style={{ background: '#fff', border: `1px solid ${C.gray200}`, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
 
       {/* Header */}
       <div className="flex items-start gap-3 px-4 pt-4 pb-2">
         <Avatar name={post.author_name} userId={post.user_id} size={40} isAnonymous={post.is_anonymous} anonymousNumber={post.anonymous_number} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-sm font-bold" style={{ color: '#1F2937' }}>
+            <span className="text-sm font-bold" style={{ color: C.gray800 }}>
               {post.is_anonymous ? `אנונימי${post.anonymous_number ? ` #${post.anonymous_number}` : ''}` : post.author_name}
             </span>
             {!post.is_anonymous && vehicle && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                style={{ background: T.light || '#F3F4F6', color: T.primary }}>
+                style={{ background: T.light || C.gray100, color: T.primary }}>
                 {VIcon && <VIcon className="w-2.5 h-2.5" />}
                 {vehicle.nickname || vehicle.manufacturer}
               </span>
             )}
           </div>
-          <p className="text-[11px] mt-0.5" style={{ color: '#9CA3AF' }}>{timeAgo(post.created_at)}</p>
+          <p className="text-[11px] mt-0.5" style={{ color: C.gray400 }}>{timeAgo(post.created_at)}</p>
         </div>
 
         {(isOwner || canInteract) ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-all shrink-0 mt-0.5">
-                <MoreHorizontal className="w-4 h-4" style={{ color: '#9CA3AF' }} />
+                <MoreHorizontal className="w-4 h-4" style={{ color: C.gray400 }} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" dir="rtl" className="w-44">
@@ -412,7 +412,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
             <textarea value={editText} onChange={e => setEditText(e.target.value.slice(0, 2000))}
               rows={4} maxLength={2000}
               className="w-full text-sm leading-relaxed rounded-xl p-3 outline-none focus:ring-2"
-              style={{ background: '#FAFAFA', border: '1px solid #E5E7EB', color: '#374151' }} />
+              style={{ background: C.grayBg, border: `1px solid ${C.gray200}`, color: C.gray700 }} />
             <div className="flex items-center gap-2">
               <button onClick={handleSaveEdit} disabled={savingEdit || editText.trim().length < 10}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all active:scale-[0.97] disabled:opacity-50"
@@ -422,18 +422,18 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
               </button>
               <button onClick={cancelEdit} disabled={savingEdit}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-[0.97]"
-                style={{ background: '#F3F4F6', color: '#6B7280' }}>
+                style={{ background: C.gray100, color: C.gray500 }}>
                 <XIcon className="w-3 h-3" />
                 ביטול
               </button>
-              <span className="text-[10px] mr-auto" style={{ color: editText.length > 1800 ? '#DC2626' : '#9CA3AF' }}>
+              <span className="text-[10px] mr-auto" style={{ color: editText.length > 1800 ? C.error : C.gray400 }}>
                 {editText.length}/2000
               </span>
             </div>
           </div>
         ) : (
           <>
-            <p className={`text-sm leading-relaxed ${!expanded && isLong ? 'line-clamp-4' : ''}`} style={{ color: '#374151' }}>
+            <p className={`text-sm leading-relaxed ${!expanded && isLong ? 'line-clamp-4' : ''}`} style={{ color: C.gray700 }}>
               {searchQuery ? <HighlightText text={post.body} query={searchQuery} /> : post.body}
             </p>
             {isLong && (
@@ -471,15 +471,15 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
 
       {/* Reaction summary */}
       {(likeCount > 0 || totalReactions > 0 || commentCount > 0) && (
-        <div className="flex items-center gap-3 px-4 py-2 mx-4 rounded-lg mb-1" style={{ background: '#FAFAFA' }}>
-          <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: '#6B7280' }}>
+        <div className="flex items-center gap-3 px-4 py-2 mx-4 rounded-lg mb-1" style={{ background: C.grayBg }}>
+          <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: C.gray500 }}>
             {likeCount > 0 && <span className="flex items-center gap-0.5">👍 {likeCount}</span>}
             {EMOJIS.filter(e => e !== '👍').map(e => reactionCounts[e] ? <span key={e} className="flex items-center gap-0.5">{e} {reactionCounts[e]}</span> : null)}
           </div>
           {commentCount > 0 && (
             <button onClick={() => setShowComments(s => !s)}
               className="mr-auto text-[11px] font-medium hover:underline transition-all"
-              style={{ color: showComments ? T.primary : '#9CA3AF' }}>
+              style={{ color: showComments ? T.primary : C.gray400 }}>
               {commentCount === 1 ? 'תגובה אחת' : `${commentCount} תגובות`}
             </button>
           )}
@@ -489,16 +489,16 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
       {/* AI thinking - only for recent posts (< 5 min) with no comments yet */}
       {commentCount === 0 && post.created_at && (Date.now() - new Date(post.created_at).getTime()) < 5 * 60 * 1000 && (
         <div className="flex items-center gap-2 mx-4 mb-2 px-3 py-2 rounded-xl"
-          style={{ background: '#FFFBEB', border: '1px solid #FEF3C7' }}>
-          <Wrench className="w-3.5 h-3.5 animate-pulse" style={{ color: '#D97706' }} />
-          <span className="text-[11px] font-medium" style={{ color: '#92400E' }}>
+          style={{ background: C.warnSubtle, border: `1px solid ${C.warnBg}` }}>
+          <Wrench className="w-3.5 h-3.5 animate-pulse" style={{ color: C.warn }} />
+          <span className="text-[11px] font-medium" style={{ color: C.warnDark }}>
             {getAiExpertForDomain(post.domain).fullName} חושב...
           </span>
         </div>
       )}
 
       {/* Action bar */}
-      <div className="flex items-center px-2 py-1.5 mx-2 mb-2 rounded-xl" style={{ background: '#FAFAFA' }}>
+      <div className="flex items-center px-2 py-1.5 mx-2 mb-2 rounded-xl" style={{ background: C.grayBg }}>
         {/* Like */}
         <div className="flex-1 relative">
           <button
@@ -515,7 +515,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
             onContextMenu={(e) => { e.preventDefault(); if (canInteract) setShowEmojis(!showEmojis); }}
             onDoubleClick={() => { if (canInteract) setShowEmojis(!showEmojis); }}
             className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all active:scale-[0.95]"
-            style={{ color: myChoice ? '#2563EB' : '#6B7280' }}>
+            style={{ color: myChoice ? '#2563EB' : C.gray500 }}>
             {myReaction
               ? <span className={`text-base leading-none ${myChoice ? 'like-pop' : ''}`}>{myReaction}</span>
               : <ThumbsUp className={`w-4 h-4 ${liked ? 'like-pop' : ''}`} fill={liked ? '#2563EB' : 'none'} />
@@ -526,7 +526,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
             <>
               <div className="fixed inset-0 z-30" onClick={() => setShowEmojis(false)} />
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-40 flex gap-1 px-2 py-1.5 rounded-2xl bg-white"
-                style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: '1px solid #E5E7EB' }}>
+                style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.15)', border: `1px solid ${C.gray200}` }}>
                 {EMOJIS.map(e => (
                   <button key={e} onClick={() => handleReaction(e)}
                     className={`w-9 h-9 rounded-full flex items-center justify-center text-lg transition-all hover:scale-125 ${myReaction === e ? 'bg-blue-100 scale-110' : ''}`}>
@@ -541,7 +541,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         {/* Comment */}
         <button onClick={() => setShowComments(!showComments)}
           className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all active:scale-[0.95]"
-          style={{ color: showComments ? T.primary : '#6B7280' }}>
+          style={{ color: showComments ? T.primary : C.gray500 }}>
           <MessageCircle className="w-4 h-4" />
           <span>תגובה</span>
         </button>
@@ -549,7 +549,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         {/* Share */}
         <button onClick={handleShare}
           className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all active:scale-[0.95]"
-          style={{ color: '#6B7280' }}>
+          style={{ color: C.gray500 }}>
           <Share2 className="w-4 h-4" />
           <span>שיתוף</span>
         </button>

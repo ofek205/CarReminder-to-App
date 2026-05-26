@@ -26,9 +26,9 @@ function fmtDate(dateStr) {
 }
 
 const STATUS_MAP = {
-  'פתוח':   { bg: '#FEF2F2', color: '#DC2626', gradBg: '#991B1B', icon: AlertTriangle, label: 'פתוח' },
-  'בטיפול': { bg: '#FEF3C7', color: '#92400E', gradBg: '#92400E', icon: Clock,         label: 'בטיפול' },
-  'סגור':   { bg: '#E8F5E9', color: '#2E7D32', gradBg: '#2E7D32', icon: CheckCircle,   label: 'סגור' },
+  'פתוח':   { bg: C.errorBg, color: C.error, gradBg: C.errorDark, icon: AlertTriangle, label: 'פתוח' },
+  'בטיפול': { bg: C.warnBg, color: C.warnDark, gradBg: C.warnDark, icon: Clock,         label: 'בטיפול' },
+  'סגור':   { bg: C.successBg, color: '#2E7D32', gradBg: '#2E7D32', icon: CheckCircle,   label: 'סגור' },
 };
 
 //  Status Summary Cards 
@@ -37,9 +37,9 @@ function StatusSummary({ accidents }) {
   accidents.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
 
   const items = [
-    { key: 'פתוח',   label: 'פתוחות',  count: counts['פתוח'],   color: '#DC2626', bg: '#FEF2F2', icon: AlertTriangle },
-    { key: 'בטיפול', label: 'בטיפול',  count: counts['בטיפול'], color: '#D97706', bg: '#FEF3C7', icon: Clock },
-    { key: 'סגור',   label: 'סגורות',  count: counts['סגור'],   color: '#2E7D32', bg: '#E8F5E9', icon: CheckCircle },
+    { key: 'פתוח',   label: 'פתוחות',  count: counts['פתוח'],   color: C.error, bg: C.errorBg, icon: AlertTriangle },
+    { key: 'בטיפול', label: 'בטיפול',  count: counts['בטיפול'], color: C.warn, bg: C.warnBg, icon: Clock },
+    { key: 'סגור',   label: 'סגורות',  count: counts['סגור'],   color: '#2E7D32', bg: C.successBg, icon: CheckCircle },
   ];
 
   return (
@@ -286,7 +286,7 @@ function AccidentRow({ accident, vehicleName, vehicle, onStatusChange, onExport,
                           className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-bold text-right transition-colors hover:bg-gray-50"
                           style={selected
                             ? { background: s.bg, color: s.color }
-                            : { color: '#374151' }}
+                            : { color: C.gray700 }}
                         >
                           <Icon className="w-3.5 h-3.5" style={{ color: s.color }} />
                           {s.label}
@@ -323,7 +323,7 @@ function EmptyState() {
   return (
     <div className="text-center py-12" dir="rtl">
       <div className="rounded-3xl p-8 relative overflow-hidden"
-        style={{ background: '#FEF2F2' }}>
+        style={{ background: C.errorBg }}>
         <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full"
           style={{ background: 'rgba(220,38,38,0.05)' }} />
         <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full"
@@ -331,8 +331,8 @@ function EmptyState() {
 
         <div className="relative z-10">
           <div className="w-20 h-20 rounded-full mx-auto mb-5 flex items-center justify-center"
-            style={{ background: '#FECACA' }}>
-            <AlertTriangle className="w-10 h-10" style={{ color: '#DC2626' }} />
+            style={{ background: C.errorBorder }}>
+            <AlertTriangle className="w-10 h-10" style={{ color: C.error }} />
           </div>
           <h3 className="font-bold text-xl mb-2" style={{ color: C.text }}>אין תאונות רשומות</h3>
           <p className="text-sm mb-6 max-w-xs mx-auto leading-relaxed" style={{ color: C.muted }}>
@@ -469,7 +469,7 @@ export default function Accidents() {
     <div dir="rtl">
       {/* Header with gradient banner */}
       <div className="rounded-3xl p-5 mb-5 relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #991B1B 0%, #DC2626 100%)', boxShadow: '0 8px 32px rgba(153,27,27,0.25)' }}>
+        style={{ background: `linear-gradient(135deg, ${C.errorDark} 0%, ${C.error} 100%)`, boxShadow: '0 8px 32px rgba(153,27,27,0.25)' }}>
         {/* Decorative circles */}
         <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }} />
         <div className="absolute -bottom-6 -right-6 w-28 h-28 rounded-full" style={{ background: 'rgba(255,191,0,0.15)' }} />
@@ -493,7 +493,7 @@ export default function Accidents() {
             </div>
             <Link to={createPageUrl('AddAccident')}>
               <button className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-                style={{ background: C.yellow, color: '#991B1B', boxShadow: '0 4px 12px rgba(255,191,0,0.3)' }}>
+                style={{ background: C.yellow, color: C.errorDark, boxShadow: '0 4px 12px rgba(255,191,0,0.3)' }}>
                 חדשה
                 <Plus className="h-4 w-4" />
               </button>
@@ -505,7 +505,7 @@ export default function Accidents() {
       {/* Demo banner */}
       {isGuest && !hasGuestAccidents && sortedAccidents.length > 0 && (
         <div className="rounded-2xl p-3 mb-4 flex items-center gap-2 text-xs font-medium"
-          style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
+          style={{ background: C.warnBg, color: C.warnDark, border: `1px solid ${C.warnBorder}` }}
           dir="rtl">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>תאונות לדוגמה - הוסף את כלי הרכב שלך כדי לתעד תאונות אמיתיות</span>

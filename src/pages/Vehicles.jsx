@@ -452,11 +452,11 @@ function VehiclesContent({ vehicles, isLoading }) {
       {/* Demo banner */}
       {filteredByPage.some(v => v._isDemo) && (
         <div className="rounded-2xl p-3.5 mb-4 flex items-center gap-3"
-          style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }} dir="rtl">
-          <Car className="w-5 h-5 shrink-0" style={{ color: '#92400E' }} />
+          style={{ background: `linear-gradient(135deg, ${C.warnBg}, ${C.yellowSoft})`, border: `1.5px solid ${C.warnBorder}` }} dir="rtl">
+          <Car className="w-5 h-5 shrink-0" style={{ color: C.warnDark }} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold" style={{ color: '#92400E' }}>{isVesselPage ? 'כלי שייט לדוגמה' : 'רכבים לדוגמה'}</p>
-            <p className="text-xs" style={{ color: '#B45309' }}>הוסף את הרכב האמיתי שלך כדי להתחיל</p>
+            <p className="text-sm font-bold" style={{ color: C.warnDark }}>{isVesselPage ? 'כלי שייט לדוגמה' : 'רכבים לדוגמה'}</p>
+            <p className="text-xs" style={{ color: C.warnMid }}>הוסף את הרכב האמיתי שלך כדי להתחיל</p>
           </div>
         </div>
       )}

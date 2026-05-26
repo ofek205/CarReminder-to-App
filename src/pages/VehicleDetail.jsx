@@ -200,7 +200,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
   const needsAction = (testDays !== null && testDays <= 60) || (insDays !== null && insDays <= 60);
   const statusBadge = needsAction
     ? { label: 'תחזוקה נדרשת', bg: T.yellow, color: T.primary }
-    : { label: 'תקין', bg: '#E8F5E9', color: '#2E7D32' };
+    : { label: 'תקין', bg: C.successBg, color: '#2E7D32' };
 
   function daysLabel(d) {
     if (d === null) return '-';
@@ -294,14 +294,14 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
         </Link>
         <Link to={createPageUrl(`Documents?vehicle_id=${vehicleId}`)}>
           <button className="py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-            style={{ background: '#fff', color: '#6B7280', border: '1.5px solid #E5E7EB' }}>
+            style={{ background: '#fff', color: C.gray500, border: `1.5px solid ${C.gray200}` }}>
             מסמכים <FileText className="h-4 w-4" />
           </button>
         </Link>
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <button className="py-3 px-3 rounded-xl font-bold text-sm flex items-center justify-center transition-all active:scale-[0.98]"
-              style={{ background: '#fff', color: '#DC2626', border: '1.5px solid #FECACA' }}>
+              style={{ background: '#fff', color: C.error, border: `1.5px solid ${C.errorBorder}` }}>
               <Trash2 className="h-4 w-4" />
             </button>
           </AlertDialogTrigger>
@@ -321,11 +321,11 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
       {/* Demo / Guest banner */}
       {vehicle._isDemo ? (
         <div className="mx-4 mb-4 rounded-2xl p-3.5 flex items-center gap-3"
-          style={{ background: 'linear-gradient(135deg, #FEF3C7, #FFF8E1)', border: '1.5px solid #FDE68A' }}>
-          <Car className="h-5 w-5 shrink-0" style={{ color: '#92400E' }} />
+          style={{ background: `linear-gradient(135deg, ${C.warnBg}, ${C.yellowSoft})`, border: `1.5px solid ${C.warnBorder}` }}>
+          <Car className="h-5 w-5 shrink-0" style={{ color: C.warnDark }} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold" style={{ color: '#92400E' }}>{vWord} לדוגמה</p>
-            <p className="text-xs" style={{ color: '#B45309' }}>הוסף את ה{vWord} האמיתי שלך כדי להתחיל</p>
+            <p className="text-sm font-bold" style={{ color: C.warnDark }}>{vWord} לדוגמה</p>
+            <p className="text-xs" style={{ color: C.warnMid }}>הוסף את ה{vWord} האמיתי שלך כדי להתחיל</p>
           </div>
         </div>
       ) : (
@@ -386,16 +386,16 @@ export default function VehicleDetail() {
       <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
         <div className="max-w-sm w-full text-center">
           <div className="mb-4 flex justify-center" aria-hidden="true">
-            <Car className="h-14 w-14" style={{ color: '#2D5233' }} />
+            <Car className="h-14 w-14" style={{ color: C.primary }} />
           </div>
-          <h1 className="text-xl font-bold mb-2" style={{ color: '#1C2E20' }}>לא בחרנו רכב</h1>
-          <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
+          <h1 className="text-xl font-bold mb-2" style={{ color: C.text }}>לא בחרנו רכב</h1>
+          <p className="text-sm mb-6" style={{ color: C.gray500 }}>
             נראה שהגעת לכאן בלי לבחור רכב. חזור לרשימה כדי לבחור אחד.
           </p>
           <button
             onClick={() => navigate('/Vehicles')}
             className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-            style={{ background: 'linear-gradient(135deg, #2D5233 0%, #4B7A53 100%)', color: '#fff' }}>
+            style={{ background: `linear-gradient(135deg, ${C.primary} 0%, #4B7A53 100%)`, color: '#fff' }}>
             חזרה לרשימת הרכבים
           </button>
         </div>
@@ -412,16 +412,16 @@ export default function VehicleDetail() {
         <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
           <div className="max-w-sm w-full text-center">
             <div className="mb-4 flex justify-center" aria-hidden="true">
-              <Search className="h-14 w-14" style={{ color: '#2D5233' }} />
+              <Search className="h-14 w-14" style={{ color: C.primary }} />
             </div>
-            <h1 className="text-xl font-bold mb-2" style={{ color: '#1C2E20' }}>הרכב לא נמצא</h1>
-            <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
+            <h1 className="text-xl font-bold mb-2" style={{ color: C.text }}>הרכב לא נמצא</h1>
+            <p className="text-sm mb-6" style={{ color: C.gray500 }}>
               ייתכן שהרכב נמחק או שהקישור פג תוקף.
             </p>
             <button
               onClick={() => navigate('/Vehicles')}
               className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-              style={{ background: 'linear-gradient(135deg, #2D5233 0%, #4B7A53 100%)', color: '#fff' }}>
+              style={{ background: `linear-gradient(135deg, ${C.primary} 0%, #4B7A53 100%)`, color: '#fff' }}>
               חזרה לרשימת הרכבים
             </button>
           </div>
@@ -788,7 +788,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
               <Link
                 to={createPageUrl('Drivers')}
                 className="h-9 px-3 rounded-2xl flex items-center gap-1.5 transition-all active:scale-95"
-                style={{ background: '#2D5233', color: '#fff', boxShadow: '0 2px 6px rgba(45,82,51,0.35)' }}
+                style={{ background: C.primary, color: '#fff', boxShadow: '0 2px 6px rgba(45,82,51,0.35)' }}
                 aria-label="שייך נהג לרכב"
                 title="שייך נהג"
               >
@@ -809,7 +809,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
                   type="button"
                   onClick={() => setShareDialogOpen(true)}
                   className="h-8 px-2.5 rounded-xl flex items-center gap-1.5 transition-all active:scale-95"
-                  style={{ background: '#F59E0B', color: '#fff', boxShadow: '0 2px 6px rgba(245,158,11,0.35)' }}
+                  style={{ background: C.warnIcon, color: '#fff', boxShadow: '0 2px 6px rgba(245,158,11,0.35)' }}
                   aria-label="שתף את הרכב"
                   title="שיתוף הרכב">
                   <Share2 className="w-3.5 h-3.5" />
@@ -893,7 +893,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
 
       {/*  View-only banner for חבר  */}
       {isViewOnly(role) && (
-        <div className="mx-4 mb-3 rounded-2xl px-4 py-2.5 flex items-center gap-2 text-sm font-medium" style={{ background: '#DBEAFE', color: '#1E40AF', border: '1px solid #93C5FD' }} dir="rtl">
+        <div className="mx-4 mb-3 rounded-2xl px-4 py-2.5 flex items-center gap-2 text-sm font-medium" style={{ background: C.infoBg, color: C.infoDark, border: '1px solid #93C5FD' }} dir="rtl">
           הצטרפת כחבר - תצוגה בלבד
         </div>
       )}
@@ -922,7 +922,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <button className="py-3 px-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-                style={{ background: '#FEF2F2', color: '#DC2626', border: '1.5px solid #FECACA' }}>
+                style={{ background: C.errorBg, color: C.error, border: `1.5px solid ${C.errorBorder}` }}>
                 <Trash2 className="h-4 w-4" />
               </button>
             </AlertDialogTrigger>

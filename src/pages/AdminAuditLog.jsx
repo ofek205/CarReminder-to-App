@@ -40,7 +40,7 @@ const ACTION_META = {
   acknowledge_alert: { label: "סימון התראה",   icon: CheckCircle, color: C.success, bg: C.successBg },
 };
 
-const FALLBACK_META = { label: "פעולה",  icon: Activity,  color: C.muted, bg: "#F3F4F6" };
+const FALLBACK_META = { label: "פעולה",  icon: Activity,  color: C.muted, bg: C.gray100 };
 
 function escCsv(v) {
   if (v === null || v === undefined) return "";

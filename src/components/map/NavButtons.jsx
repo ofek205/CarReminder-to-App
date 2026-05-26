@@ -1,5 +1,6 @@
 import React from 'react';
 import { Star } from 'lucide-react';
+import { C } from '@/lib/designTokens';
 
 // Brand SVG marks. Inlined to avoid extra asset requests; same source as the
 // previous inline copies in FindGarage.jsx.
@@ -71,7 +72,7 @@ export function NavButtonsCompact({ lat, lon }) {
         aria-label="פתח ב-Waze"
         title="Waze"
         className="flex-1 flex items-center justify-center rounded-md"
-        style={{ background: '#fff', border: '1px solid #E5E7EB', height: 26 }}
+        style={{ background: '#fff', border: `1px solid ${C.gray200}`, height: 26 }}
       >
         <WazeMark size={14} />
       </button>
@@ -83,7 +84,7 @@ export function NavButtonsCompact({ lat, lon }) {
         aria-label="פתח ב-Google Maps"
         title="Google Maps"
         className="flex-1 flex items-center justify-center rounded-md"
-        style={{ background: '#fff', border: '1px solid #E5E7EB', height: 26 }}
+        style={{ background: '#fff', border: `1px solid ${C.gray200}`, height: 26 }}
       >
         <GoogleMapsMark size={14} />
       </button>
@@ -104,7 +105,7 @@ export function NavButtonsRow({ lat, lon, name, includeRating = false }) {
           openGoogleNav(lat, lon);
         }}
         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-[0.95]"
-        style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#202124' }}
+        style={{ background: '#fff', border: `1px solid ${C.gray200}`, color: '#202124' }}
       >
         <GoogleMapsMark size={14} />
         Google Maps
@@ -115,7 +116,7 @@ export function NavButtonsRow({ lat, lon, name, includeRating = false }) {
           openWazeNav(lat, lon);
         }}
         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-[0.95]"
-        style={{ background: '#fff', border: '1px solid #E5E7EB', color: '#0A73B8' }}
+        style={{ background: '#fff', border: `1px solid ${C.gray200}`, color: '#0A73B8' }}
       >
         <WazeMark size={14} />
         Waze
@@ -127,7 +128,7 @@ export function NavButtonsRow({ lat, lon, name, includeRating = false }) {
             openGoogleSearch(name, lat, lon);
           }}
           className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-[11px] font-bold transition-all active:scale-[0.95]"
-          style={{ background: '#FFF8E1', color: '#F57F17' }}
+          style={{ background: C.yellowSoft, color: '#F57F17' }}
         >
           <Star className="w-3 h-3" style={{ color: '#FBBC04' }} />
           דירוג
