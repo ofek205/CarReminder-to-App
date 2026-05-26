@@ -107,12 +107,26 @@ function resolveBootDestination() {
   try {
     last = sessionStorage.getItem('cr_last_route');
   } catch {}
-  if (last && /^\/[A-Za-z][\w/-]*$/.test(last) && last !== '/' && last !== '/Auth') {
-    return last;
+  const lastIsValid =
+    last && /^\/[A-Za-z][\w/-]*$/.test(last) && last !== '/' && last !== '/Auth';
+
+  // Admin routing: an admin's default landing surface is /AdminUsers, not
+  // /Dashboard or whatever non-admin page they happened to be on last.
+  // We still respect a last-route hint, but ONLY when that hint points
+  // into the admin surface itself — that way refreshing while you were
+  // on /AdminAnalytics keeps you on /AdminAnalytics, but landing at `/`
+  // from a bookmark while your session last touched /BusinessDashboard
+  // doesn't trap you in a non-admin view.
+  let isAdmin = false;
+  try { isAdmin = localStorage.getItem('cr_is_admin') === '1'; } catch {}
+
+  if (isAdmin) {
+    if (lastIsValid && last.startsWith('/Admin')) return last;
+    return '/AdminUsers';
   }
-  try {
-    if (localStorage.getItem('cr_is_admin') === '1') return '/AdminUsers';
-  } catch {}
+
+  // Non-admin: legacy behavior — last route wins, falls back to Dashboard.
+  if (lastIsValid) return last;
   return '/Dashboard';
 }
 
