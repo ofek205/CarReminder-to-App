@@ -402,6 +402,17 @@ export default function FindGarage() {
       setFetching(true);
     }
 
+    // Hoisted out of the try block so the catch + finally below can see
+    // `signal` — JS block-scopes `const`/`let` per branch, and an earlier
+    // version that declared the AbortController inside the try made
+    // catch/finally reference an undefined identifier (ReferenceError if
+    // the try throws after `signal` is destructured — and a silent lint
+    // hole the rest of the time).
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const { signal } = controller;
+
     try {
 
       // Car query — design notes:
@@ -470,13 +481,10 @@ export default function FindGarage() {
 
       const hdrs = { 'Content-Type': 'application/x-www-form-urlencoded' };
 
-      // Cancel any in-flight request from a previous fetchGarages call.
-      // This prevents stale responses from overwriting fresh ones when
-      // the user drags the map or changes the radius quickly.
-      if (abortRef.current) abortRef.current.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-      const { signal } = controller;
+      // (AbortController is hoisted above the try block — see the comment
+      // there. We keep `controller` available here in case any code below
+      // needs it directly, but the destructured `signal` is what the
+      // fetch callers and the catch/finally branches read.)
 
       // Fetch with multi-server fallback. Overpass returns HTTP 200 with
       // `{remark: "runtime error: Query timed out ..."}` and an empty

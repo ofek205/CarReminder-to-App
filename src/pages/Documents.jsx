@@ -986,7 +986,7 @@ function GroupedDocList({ docs, vehicles, onOpen, onDownload, onDelete, openingI
 
 //  Guest Documents 
 function GuestDocuments({ vehicleIdParam }) {
-  const { guestDocuments, guestVehicles, addGuestDocument, removeGuestDocument } = useAuth();
+  const { guestDocuments, guestVehicles, addGuestDocument, removeGuestDocument, updateGuestDocument } = useAuth();
   const [showAdd, setShowAdd] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [saving, setSaving] = useState(false);

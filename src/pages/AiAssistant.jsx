@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import AiProviderBadge from '@/components/shared/AiProviderBadge';
 import useAccountRole from '@/hooks/useAccountRole';
 import useMyVehicles from '@/hooks/useMyVehicles';
+import { useFeatureFlag } from '@/lib/featureFlags';
 
 const STORAGE_KEY_PREFIX = 'yossi_chat_';
 // Chat history retention. After this many days the saved messages
@@ -29,6 +30,42 @@ const getStorageKey = (userId) => `${STORAGE_KEY_PREFIX}${userId || 'guest'}`;
 const MIN_LEN = 2;
 const MAX_LEN = 800;
 const MIN_INTERVAL_MS = 1500; // rate limit between sends
+
+// Attachment limits. 6 MB matches the Edge Function's fetchAsBase64
+// ceiling in ai-proxy/index.ts so anything that passes the client
+// check will also pass the server check. Only images and PDFs — those
+// are the modalities Gemini 2.5 Flash supports under the free tier
+// at the document-token rate.
+const ATTACHMENT_MAX_BYTES = 6 * 1024 * 1024;
+const ATTACHMENT_ACCEPT    = 'image/*,application/pdf';
+
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Read a File into a base64 string (no data: prefix). We split on the
+// first comma rather than slice a fixed offset because the prefix
+// length depends on the mime type. Returns { base64, dataUrl } so the
+// caller can show the dataUrl as a preview and ship base64 to the API.
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result || '';
+      const comma = dataUrl.indexOf(',');
+      if (comma < 0) {
+        reject(new Error('Invalid file data'));
+        return;
+      }
+      resolve({ base64: dataUrl.slice(comma + 1), dataUrl });
+    };
+    reader.onerror = () => reject(reader.error || new Error('Read failed'));
+    reader.readAsDataURL(file);
+  });
+}
 
 const SUGGESTED_PROMPTS_GENERAL_CAR = [
   'מה חשוב לבדוק לפני קניית רכב יד שניה?',
@@ -157,10 +194,24 @@ export default function AiAssistant() {
   }, [vehicles, selectedVehicleId]);
   const [maintenanceLogs, setMaintenanceLogs] = useState([]); // logs for selected vehicle
   const [error, setError] = useState(null);
+  // Attachment state. We keep the file + base64 + preview together so
+  // the chip can render the thumbnail (dataUrl) while send() ships the
+  // raw base64. Cleared after a successful send so the next message
+  // starts fresh. `loading` covers the brief window where we're
+  // reading a multi-megabyte file off disk and the chip should show
+  // a spinner instead of an interactive remove button.
+  const [attachment, setAttachment] = useState(null);
+  // ^ shape: { file: File, base64: string, dataUrl: string, isImage: boolean, loading: boolean }
   const lastSendRef = useRef(0);
   const scrollRef = useRef(null);
   const messagesEndRef = useRef(null); // sentinel at bottom of message list — anchor for scrollIntoView
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
+  // Feature flag: chat attachments. Hidden from non-admins until the
+  // app_config row is flipped to true. Admins always pass. Hook is
+  // reactive — flipping the toggle in the admin screen updates this
+  // tab without a reload via featureFlags' pub-sub.
+  const { enabled: attachmentsEnabled } = useFeatureFlag('chat_attachments_enabled');
 
   // Load chat history. works for both guests and authenticated users
   useEffect(() => {
@@ -350,15 +401,86 @@ export default function AiAssistant() {
     return '\n\n' + lines.join('\n');
   }, [selectedVehicle, maintenanceLogs]);
 
+  // Open the OS file picker. Triggered by the paperclip button.
+  // The hidden <input> handles the rest via onChange.
+  const openFilePicker = () => {
+    if (!fileInputRef.current) return;
+    // Reset value so picking the SAME file twice in a row (after a
+    // remove) still fires onChange. Without this, browsers skip the
+    // event when the value is identical to the previous selection.
+    fileInputRef.current.value = '';
+    fileInputRef.current.click();
+  };
+
+  // Validate + read the picked file. Sets `attachment` on success;
+  // shows a toast and clears the picker on failure.
+  const handleFilePicked = async (file) => {
+    if (!file) return;
+    // Size check first — base64 expands by ~33% so a 6 MB file becomes
+    // ~8 MB in the JSON payload, which is the Edge Function's payload
+    // ceiling. Anything over the raw 6 MB will be rejected server-side.
+    if (file.size > ATTACHMENT_MAX_BYTES) {
+      toast.error('הקובץ גדול מ-6 מגה. צמצם אותו ונסה שוב.');
+      return;
+    }
+    const isImage = file.type.startsWith('image/');
+    const isPdf   = file.type === 'application/pdf';
+    if (!isImage && !isPdf) {
+      toast.error('ניתן לצרף רק תמונות או קבצי PDF.');
+      return;
+    }
+    if (file.size === 0) {
+      toast.error('הקובץ ריק.');
+      return;
+    }
+
+    // Show the chip in loading state immediately so the user gets
+    // visual feedback while the file reads.
+    setAttachment({
+      file,
+      base64:   '',
+      dataUrl:  '',
+      isImage,
+      loading:  true,
+    });
+
+    try {
+      const { base64, dataUrl } = await fileToBase64(file);
+      setAttachment({
+        file,
+        base64,
+        dataUrl,
+        isImage,
+        loading: false,
+      });
+    } catch (err) {
+      console.warn('[AiAssistant] file read failed:', err?.message);
+      setAttachment(null);
+      toast.error('שגיאה בקריאת הקובץ. נסה שוב.');
+    }
+  };
+
+  const removeAttachment = () => {
+    setAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const send = async (text, isRetry = false) => {
     setError(null);
     const raw = (text !== undefined ? text : input);
     const clean = sanitize(raw);
 
-    // Validations
-    if (!clean) return;
+    // Validations. With an attachment, an empty text is valid — a
+    // photo of a warning light is a real question on its own. Without
+    // one, fall back to the original min-length rule.
+    const hasAttachment = !!attachment && !attachment.loading;
+    if (attachment?.loading) {
+      setError('הקובץ עדיין נטען, נסה שוב בעוד רגע');
+      return;
+    }
+    if (!clean && !hasAttachment) return;
     hapticFeedback('light');
-    if (clean.length < MIN_LEN) {
+    if (!hasAttachment && clean.length < MIN_LEN) {
       setError('הודעה קצרה מדי');
       return;
     }
@@ -377,7 +499,23 @@ export default function AiAssistant() {
     lastSendRef.current = now;
 
     if (!isRetry) setInput('');
-    const userMsg = { role: 'user', content: clean, ts: now, vehicleId: selectedVehicleId };
+    const userMsg = {
+      role: 'user',
+      content: clean,
+      ts: now,
+      vehicleId: selectedVehicleId,
+      // Attachment metadata for the bubble. We deliberately do NOT
+      // store the dataUrl or base64 here — a single 4 MB image would
+      // blow past localStorage limits after just a couple of
+      // messages. Only the name + type + size are persisted; the
+      // bubble shows a generic icon after a page reload.
+      attachmentMeta: hasAttachment ? {
+        name:    attachment.file.name,
+        isImage: attachment.isImage,
+        mime:    attachment.file.type,
+        size:    attachment.file.size,
+      } : null,
+    };
     // On retry: don't re-add the user message (it's already there)
     if (!isRetry) {
       setMessages(prev => [...prev, userMsg]);
@@ -479,11 +617,30 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
 - שאלות הכנה: קצרות, 2-4 שאלות, לא שגרת חקירה.
 - תשובה לאחר מידע: ממוקדת, ניתנת לסריקה (כותרות/בולטים כשמתאים), בלי "הקדמות".${vehicleContext}`;
 
-      // Conversation history (last 6 messages, excluding errors/retries)
-      const recentMessages = [...messages.filter(m => !m.error).slice(-6), userMsg].map(m => ({
-        role: m.role,
-        content: m.content,
-      }));
+      // Conversation history (last 6 messages, excluding errors/retries).
+      //
+      // The CURRENT user message gets an array-shaped content when an
+      // attachment is present, so the Edge Function's hasImages check
+      // in serve() picks it up and routes to a vision-capable provider
+      // (Gemini today). Historical messages ship as plain strings —
+      // their attachments are not preserved across sessions (the
+      // base64 is gone the moment send() finishes).
+      const recentMessages = [...messages.filter(m => !m.error).slice(-6), userMsg].map(m => {
+        if (m === userMsg && hasAttachment) {
+          const parts = [];
+          if (clean) parts.push({ type: 'text', text: clean });
+          parts.push({
+            type: attachment.isImage ? 'image' : 'document',
+            source: {
+              type:       'base64',
+              media_type: attachment.file.type,
+              data:       attachment.base64,
+            },
+          });
+          return { role: m.role, content: parts };
+        }
+        return { role: m.role, content: m.content };
+      });
 
       const json = await aiRequest({
         // `feature` tells the Edge Function which admin-configured
@@ -553,6 +710,10 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
       }]);
     } finally {
       setSending(false);
+      // Clear the attachment regardless of outcome — the chip should
+      // not linger after a send attempt. The retry flow sends the
+      // text only by design (PM call: re-attaching adds confusion).
+      removeAttachment();
       inputRef.current?.focus();
     }
   };

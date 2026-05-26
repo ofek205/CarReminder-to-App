@@ -184,9 +184,40 @@ function migrateFile(content) {
  * the closing `} from` line and consider that the end of the import.
  */
 function ensureImport(content) {
-  if (/from\s+['"]@\/lib\/designTokens['"]/.test(content)) return content;
+  // Already imports `C` specifically? Nothing to do.
+  //
+  // Bug history (v5.4.1): the original check was just
+  //   if (/from .* designTokens.../.test(content)) return content;
+  // which returned early whenever a file imported ANY symbol from
+  // designTokens (commonly `getTheme`, `isVesselType`, etc.) without
+  // requiring `C` to be in the destructure list. 14 files passed that
+  // check, didn't get a `C` import added, and shipped to production
+  // with a runtime ReferenceError on every page that touched them.
+  // Match against the destructure list directly so `getTheme`-only
+  // imports don't fool us anymore.
+  const importedC =
+    /from\s+['"]@\/lib\/designTokens['"]/.test(content) &&
+    /import\s*\{[^}]*\bC\b[^}]*\}\s*from\s*['"]@\/lib\/designTokens['"]/.test(content);
+  if (importedC) return content;
+
   const lines = content.split('\n');
-  // Find the last line that closes an import statement (contains `from '...'` or `from "..."`)
+
+  // First strategy — if there's already an `import { X } from '@/lib/designTokens'`
+  // line, add `C` to its destructure list. Keeps the import surface tidy
+  // and avoids a duplicate-import warning from no-duplicate-imports.
+  const existingImportIdx = lines.findIndex(line =>
+    /^import\s*\{[^}]+\}\s*from\s*['"]@\/lib\/designTokens['"]/.test(line)
+  );
+  if (existingImportIdx >= 0) {
+    lines[existingImportIdx] = lines[existingImportIdx].replace(
+      /^(import\s*\{)\s*/,
+      '$1 C, ',
+    );
+    return lines.join('\n');
+  }
+
+  // Second strategy — no existing import. Add a new line right after the
+  // last `import ... from '...'` statement so the result groups cleanly.
   let lastImportEnd = -1;
   for (let i = 0; i < lines.length; i++) {
     if (/\bfrom\s+['"]/.test(lines[i]) && /^(import\s|.*}\s*from\s)/.test(lines[i].trim())) {
@@ -195,6 +226,9 @@ function ensureImport(content) {
   }
   if (lastImportEnd >= 0) {
     lines.splice(lastImportEnd + 1, 0, "import { C } from '@/lib/designTokens';");
+  } else {
+    // No imports at all — prepend.
+    lines.unshift("import { C } from '@/lib/designTokens';", '');
   }
   return lines.join('\n');
 }
