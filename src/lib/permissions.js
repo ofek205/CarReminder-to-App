@@ -8,9 +8,14 @@
  *
  * Usage:
  *   import { canEdit, canDelete, canManage, isViewOnly } from '@/lib/permissions';
-import { C } from '@/lib/designTokens';
  *   if (canEdit(role)) { ... }
  */
+
+// Design tokens used by ROLE_INFO below. Earlier this import was
+// accidentally pasted INSIDE the JSDoc block above — the parser
+// treated it as a comment and ROLE_INFO threw `C is not defined`
+// in production. Keep this on its own line outside any comment.
+import { C } from '@/lib/designTokens';
 
 /** Owner or Admin. can add/edit vehicles, maintenance, documents */
 export function canEdit(role) {
