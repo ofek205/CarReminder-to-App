@@ -25,6 +25,7 @@ import {
   formatRelative, daysForFilter, getRangeStart,
   inRange, safeDate, buildSeries, retentionColor,
 } from './admin/dashboardHelpers';
+import { C } from '@/lib/designTokens';
 
 // 
 // Constants
@@ -54,17 +55,17 @@ const SEGMENTS = [
 const TODAY = new Date();
 
 // Neutral BI palette - intentionally different from main app branding
-const C = {
-  blue:   '#3B82F6',
-  green:  '#10B981',
-  amber:  '#F59E0B',
+const BI = {
+  blue:   C.info,
+  green:  C.successBright,
+  amber:  C.warnIcon,
   red:    '#EF4444',
   purple: '#8B5CF6',
   teal:   '#0891B2',
   slate:  '#64748B',
 };
 
-const CHART_PALETTE = [C.blue, C.green, C.amber, C.red, C.purple, C.teal];
+const CHART_PALETTE = [BI.blue, BI.green, BI.amber, BI.red, BI.purple, BI.teal];
 
 // Helpers (formatRelative / daysForFilter / getRangeStart/End / inRange /
 // safeDate / dayStr / buildSeries / retentionColor) were extracted to
@@ -91,7 +92,7 @@ function SectionLabel({ children, allTime = false }) {
   );
 }
 
-function MetricCard({ label, value, sub, color = C.blue, icon: Icon, danger = false }) {
+function MetricCard({ label, value, sub, color = BI.blue, icon: Icon, danger = false }) {
   return (
     <div className={`bg-white rounded-2xl border shadow-sm p-5 flex flex-col gap-3
       ${danger ? 'border-red-200' : 'border-gray-100'}`}>
@@ -149,7 +150,7 @@ function BiTooltip({ active, payload, label }) {
 
 function FunnelBar({ step, value, maxValue, rate, showDropoff, dropoffPct }) {
   const barPct = maxValue > 0 ? Math.max(4, Math.round((value / maxValue) * 100)) : 4;
-  const rateColor = rate >= 50 ? C.green : rate >= 25 ? C.amber : C.red;
+  const rateColor = rate >= 50 ? BI.green : rate >= 25 ? BI.amber : BI.red;
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
@@ -159,7 +160,7 @@ function FunnelBar({ step, value, maxValue, rate, showDropoff, dropoffPct }) {
       <div className="h-8 bg-gray-50 rounded-lg overflow-hidden relative">
         <div
           className="h-full rounded-lg transition-all duration-700 ease-out"
-          style={{ width: `${barPct}%`, backgroundColor: C.blue, opacity: Math.max(0.3, barPct / 100) + 0.3 }}
+          style={{ width: `${barPct}%`, backgroundColor: BI.blue, opacity: Math.max(0.3, barPct / 100) + 0.3 }}
         />
         {rate !== null && (
           <span className="absolute inset-0 flex items-center pr-3 text-[10px] font-bold text-gray-400">
@@ -214,16 +215,16 @@ function RetentionCard({ label, period, rate, count, total }) {
 // conversion rate). Anything smaller dilutes the "at a glance" promise.
 function HeroKpi({ icon: Icon, label, value, delta, deltaUnit = '%', deltaLabel, hint, tone = 'blue' }) {
   const palette = {
-    blue:   { bg: '#EFF6FF', border: '#DBEAFE', icon: '#3B82F6', text: '#1E40AF' },
-    green:  { bg: '#ECFDF5', border: '#D1FAE5', icon: '#10B981', text: '#065F46' },
-    amber:  { bg: '#FFFBEB', border: '#FDE68A', icon: '#F59E0B', text: '#92400E' },
+    blue:   { bg: C.infoSubtle, border: C.infoBg, icon: C.info, text: C.infoDark },
+    green:  { bg: C.successSubtle, border: C.successLight, icon: C.successBright, text: C.successDark },
+    amber:  { bg: C.warnSubtle, border: C.warnBorder, icon: C.warnIcon, text: C.warnDark },
     purple: { bg: '#FAF5FF', border: '#E9D5FF', icon: '#8B5CF6', text: '#5B21B6' },
   }[tone] || { bg: '#F8FAFC', border: '#E2E8F0', icon: '#64748B', text: '#1E293B' };
 
   const hasDelta = delta !== null && delta !== undefined && !isNaN(delta);
   const up = hasDelta && delta > 0;
   const down = hasDelta && delta < 0;
-  const deltaColor = up ? '#059669' : down ? '#DC2626' : '#64748B';
+  const deltaColor = up ? '#059669' : down ? C.error : '#64748B';
   const deltaArrow = up ? '↑' : down ? '↓' : '·';
 
   return (
@@ -348,7 +349,7 @@ function AppleRelayChip() {
   return (
     <span
       className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0"
-      style={{ background: '#F3F4F6', color: '#374151' }}
+      style={{ background: C.gray100, color: C.gray700 }}
       title="המשתמש בחר ב-Hide My Email של אפל. אפל לא חושפת את הכתובת האמיתית, אבל כל מייל שתשלח לכאן יועבר אוטומטית למשתמש דרך השרתים של אפל."
     >
       Apple Relay
@@ -1114,9 +1115,9 @@ export default function AdminDashboard() {
                         <YAxis yAxisId="right" orientation="left" tick={{ fontSize: 11, fill: '#A855F7' }} axisLine={false} tickLine={false} unit="%" domain={[0, 100]} />
                         <Tooltip content={<BiTooltip />} />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
-                        <Bar yAxisId="left" dataKey="אורחים"  fill={C.purple} radius={[4, 4, 0, 0]} />
-                        <Bar yAxisId="left" dataKey="הרשמות" fill={C.green}  radius={[4, 4, 0, 0]} />
-                        <Line yAxisId="right" type="monotone" dataKey="המרה %" stroke={C.amber} strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                        <Bar yAxisId="left" dataKey="אורחים"  fill={BI.purple} radius={[4, 4, 0, 0]} />
+                        <Bar yAxisId="left" dataKey="הרשמות" fill={BI.green}  radius={[4, 4, 0, 0]} />
+                        <Line yAxisId="right" type="monotone" dataKey="המרה %" stroke={BI.amber} strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
                       </ComposedChart>
                     </ResponsiveContainer>
                   )
@@ -1274,13 +1275,13 @@ export default function AdminDashboard() {
                   {showAlerts && (
                     <div className="px-5 pb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                       {[
-                        { label: 'טסט פג תוקף',      count: expiredTest.length, color: C.red    },
-                        { label: 'טסט - עד 30 יום',   count: soonTest.length,   color: C.amber  },
-                        { label: 'ביטוח פג תוקף',     count: expiredIns.length, color: C.red    },
-                        { label: 'ביטוח - עד 30 יום', count: soonIns.length,    color: C.amber  },
-                        { label: '🔴 פירוטכניקה פגה', count: expiredPyro.length,color: C.red    },
-                        { label: '🧯 מטף כיבוי פג',   count: expiredExt.length, color: C.red    },
-                        { label: '🛟 אסדת הצלה פגה',  count: expiredRaft.length,color: C.red    },
+                        { label: 'טסט פג תוקף',      count: expiredTest.length, color: BI.red    },
+                        { label: 'טסט - עד 30 יום',   count: soonTest.length,   color: BI.amber  },
+                        { label: 'ביטוח פג תוקף',     count: expiredIns.length, color: BI.red    },
+                        { label: 'ביטוח - עד 30 יום', count: soonIns.length,    color: BI.amber  },
+                        { label: '🔴 פירוטכניקה פגה', count: expiredPyro.length,color: BI.red    },
+                        { label: '🧯 מטף כיבוי פג',   count: expiredExt.length, color: BI.red    },
+                        { label: '🛟 אסדת הצלה פגה',  count: expiredRaft.length,color: BI.red    },
                       ].filter(a => a.count > 0).map(a => (
                         <div key={a.label}
                           className="flex items-center justify-between rounded-xl px-4 py-3 border"
@@ -1844,10 +1845,10 @@ function AdminUsersTab({ onOpenDrawer }) {
 // value + a delta chip (colored green/red/gray based on direction).
 function InsightCard({ label, value, sub, delta, deltaSuffix = '%', tone = 'blue' }) {
   const tones = {
-    blue:   { bg: 'from-blue-50 to-white',    dot: '#3B82F6' },
-    green:  { bg: 'from-emerald-50 to-white', dot: '#10B981' },
+    blue:   { bg: 'from-blue-50 to-white',    dot: C.info },
+    green:  { bg: 'from-emerald-50 to-white', dot: C.successBright },
     purple: { bg: 'from-purple-50 to-white',  dot: '#A855F7' },
-    amber:  { bg: 'from-amber-50 to-white',   dot: '#F59E0B' },
+    amber:  { bg: 'from-amber-50 to-white',   dot: C.warnIcon },
   };
   const t = tones[tone] || tones.blue;
   const hasDelta = delta !== null && delta !== undefined && !Number.isNaN(delta);
@@ -1904,8 +1905,8 @@ function StatPill({ label, value, tone = 'blue' }) {
 // and the rest at a glance — that's the most useful BI signal.
 function LeaderboardCard({ title, icon: Icon, accent = 'emerald', metricLabel, rows, metricKey, secondaryKey, secondaryLabel, onOpen }) {
   const accentColors = {
-    emerald: { stripe: '#10B981', icon: '#065F46', bg: '#ECFDF5', bar: 'linear-gradient(90deg, #065F46 0%, #34D399 100%)' },
-    blue:    { stripe: '#3B82F6', icon: '#1E40AF', bg: '#EFF6FF', bar: 'linear-gradient(90deg, #1E40AF 0%, #60A5FA 100%)' },
+    emerald: { stripe: C.successBright, icon: C.successDark, bg: C.successSubtle, bar: `linear-gradient(90deg, ${C.successDark} 0%, ${C.successMid} 100%)` },
+    blue:    { stripe: C.info, icon: C.infoDark, bg: C.infoSubtle, bar: `linear-gradient(90deg, ${C.infoDark} 0%, #60A5FA 100%)` },
     purple:  { stripe: '#A855F7', icon: '#6B21A8', bg: '#FAF5FF', bar: 'linear-gradient(90deg, #6B21A8 0%, #C084FC 100%)' },
   };
   const c = accentColors[accent] || accentColors.emerald;
@@ -1927,13 +1928,13 @@ function LeaderboardCard({ title, icon: Icon, accent = 'emerald', metricLabel, r
           >
             <Icon className="w-4 h-4" />
           </div>
-          <h3 className="text-sm font-bold flex-1 truncate" style={{ color: '#0B2912' }}>
+          <h3 className="text-sm font-bold flex-1 truncate" style={{ color: C.primaryDark }}>
             {title}
           </h3>
         </div>
 
         {rows.length === 0 ? (
-          <p className="text-[11px] py-3 text-center" style={{ color: '#A7B3AB' }}>
+          <p className="text-[11px] py-3 text-center" style={{ color: C.borderAlt }}>
             אין נתונים
           </p>
         ) : (
@@ -1957,14 +1958,14 @@ function LeaderboardCard({ title, icon: Icon, accent = 'emerald', metricLabel, r
                         >
                           {idx + 1}
                         </span>
-                        <span className="text-[12px] font-bold truncate" style={{ color: '#0B2912' }}>
+                        <span className="text-[12px] font-bold truncate" style={{ color: C.primaryDark }}>
                           {r.name}
                         </span>
                       </div>
                       <span className="text-[11px] font-black tabular-nums shrink-0" style={{ color: c.icon }} dir="ltr">
                         {value}
                         {sec !== null && sec > 0 && (
-                          <span className="text-[10px] mr-1 font-bold" style={{ color: '#A7B3AB' }}>
+                          <span className="text-[10px] mr-1 font-bold" style={{ color: C.borderAlt }}>
                             ({sec} {secondaryLabel})
                           </span>
                         )}
@@ -1984,7 +1985,7 @@ function LeaderboardCard({ title, icon: Icon, accent = 'emerald', metricLabel, r
         )}
 
         {rows.length > 0 && (
-          <p className="text-[9px] mt-2.5 pt-2 text-center" style={{ color: '#A7B3AB', borderTop: '1px solid #F0F7F4' }}>
+          <p className="text-[9px] mt-2.5 pt-2 text-center" style={{ color: C.borderAlt, borderTop: `1px solid ${C.bgSubtle}` }}>
             לחץ על שורה לצפייה בפירוט מלא
           </p>
         )}
@@ -2243,12 +2244,12 @@ function AdminBugsTab() {
   };
 
   const sourceBadge = source === 'remote'
-    ? { label: 'מסונכרן מ-Supabase (כל המכשירים)', bg: '#E8F2EA', text: '#1C3620' }
+    ? { label: 'מסונכרן מ-Supabase (כל המכשירים)', bg: C.light, text: '#1C3620' }
     : source === 'local'
-      ? { label: 'מקומי בלבד (הדפדפן הזה) — Supabase לא זמין', bg: '#FEF3C7', text: '#92400E' }
+      ? { label: 'מקומי בלבד (הדפדפן הזה) — Supabase לא זמין', bg: C.warnBg, text: C.warnDark }
       : source === 'loading'
-        ? { label: 'טוען...', bg: '#F3F4F6', text: '#6B7280' }
-        : { label: 'שגיאה בטעינה', bg: '#FEE2E2', text: '#991B1B' };
+        ? { label: 'טוען...', bg: C.gray100, text: C.gray500 }
+        : { label: 'שגיאה בטעינה', bg: C.errorLight, text: C.errorDark };
 
   return (
     <div className="space-y-4">
@@ -2274,7 +2275,7 @@ function AdminBugsTab() {
             <button onClick={exportJson} disabled={bugs.length === 0}
               className="text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1"
               style={{
-                background: bugs.length > 0 ? '#2D5233' : '#9CA3AF',
+                background: bugs.length > 0 ? C.primary : C.gray400,
                 color: '#fff',
                 opacity: bugs.length > 0 ? 1 : 0.6,
                 cursor: bugs.length > 0 ? 'pointer' : 'not-allowed',
@@ -2325,7 +2326,7 @@ function AdminBugsTab() {
                   <div className="flex items-center gap-2">
                     {b.resolved && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                        style={{ background: '#E8F2EA', color: '#1C3620' }}>טופל</span>
+                        style={{ background: C.light, color: '#1C3620' }}>טופל</span>
                     )}
                     <span className="text-[10px] text-gray-500">
                       {b.created_at

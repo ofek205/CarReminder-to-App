@@ -27,18 +27,10 @@ import {
   clearBootLogs,
   getBootSnapshot,
 } from '@/lib/bootDiagnostics';
+import { C } from '@/lib/designTokens';
 
-const C = {
-  bg:        '#FAFFFE',
-  card:      '#FFFFFF',
-  border:    '#D8E5D9',
-  text:      '#1C2E20',
-  muted:     '#6B7280',
-  green:     '#2D5233',
-  red:       '#DC2626',
-  amber:     '#D97706',
-  ok:        '#10B981',
-};
+// Diagnostic page bg — slightly tinted, no global token match
+const BOOT_BG = '#FAFFFE';
 
 function StageRow({ entry, prevEntry }) {
   const delta = prevEntry ? entry.t - prevEntry.t : entry.t;
@@ -60,7 +52,7 @@ function StageRow({ entry, prevEntry }) {
           {entry.stage}
         </div>
         {entry.extra && Object.keys(entry.extra).length > 0 && (
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 2, wordBreak: 'break-all' }}>
+          <div style={{ fontSize: 11, color: C.gray500, marginTop: 2, wordBreak: 'break-all' }}>
             {Object.entries(entry.extra)
               .filter(([k]) => k !== 'ua')
               .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
@@ -73,7 +65,7 @@ function StageRow({ entry, prevEntry }) {
           fontFamily: 'ui-monospace,Menlo,monospace',
           fontSize: 12,
           fontWeight: 700,
-          color: slow ? C.amber : C.green,
+          color: slow ? C.warn : C.primary,
           textAlign: 'left',
           direction: 'ltr',
           minWidth: 70,
@@ -81,7 +73,7 @@ function StageRow({ entry, prevEntry }) {
       >
         {entry.t} ms
         {prevEntry && (
-          <div style={{ fontSize: 10, color: slow ? C.amber : C.muted, fontWeight: 500 }}>
+          <div style={{ fontSize: 10, color: slow ? C.warn : C.gray500, fontWeight: 500 }}>
             +{delta} ms
           </div>
         )}
@@ -101,7 +93,7 @@ function BootLogSection({ title, log, isCurrent }) {
         <h2 style={{ fontSize: 16, fontWeight: 800, color: C.text, margin: 0 }}>
           {title} {isCurrent && '(הריצה הנוכחית)'}
         </h2>
-        <div style={{ fontSize: 11, color: C.muted, fontFamily: 'ui-monospace,Menlo,monospace' }}>
+        <div style={{ fontSize: 11, color: C.gray500, fontFamily: 'ui-monospace,Menlo,monospace' }}>
           {log.length} stages • {totalMs} ms
         </div>
       </header>
@@ -110,10 +102,10 @@ function BootLogSection({ title, log, isCurrent }) {
         <div
           style={{
             padding: 16,
-            background: C.card,
+            background: C.bg,
             border: `1px dashed ${C.border}`,
             borderRadius: 12,
-            color: C.muted,
+            color: C.gray500,
             textAlign: 'center',
             fontSize: 13,
           }}
@@ -128,8 +120,8 @@ function BootLogSection({ title, log, isCurrent }) {
               fontWeight: 700,
               padding: '6px 12px',
               borderRadius: 999,
-              background: succeeded ? '#ECFDF5' : '#FEF2F2',
-              color: succeeded ? C.ok : C.red,
+              background: succeeded ? C.successSubtle : C.errorBg,
+              color: succeeded ? C.successBright : C.error,
               display: 'inline-block',
               marginBottom: 8,
             }}
@@ -141,7 +133,7 @@ function BootLogSection({ title, log, isCurrent }) {
               listStyle: 'none',
               padding: 0,
               margin: 0,
-              background: C.card,
+              background: C.bg,
               border: `1px solid ${C.border}`,
               borderRadius: 12,
               overflow: 'hidden',
@@ -272,7 +264,7 @@ export default function BootDebug() {
       dir="rtl"
       style={{
         minHeight: '100vh',
-        background: C.bg,
+        background: BOOT_BG,
         padding: '20px 16px 60px',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         color: C.text,
@@ -282,7 +274,7 @@ export default function BootDebug() {
         <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 6px' }}>
           יומן אבחון פתיחה
         </h1>
-        <p style={{ fontSize: 13, color: C.muted, margin: '0 0 20px', lineHeight: 1.6 }}>
+        <p style={{ fontSize: 13, color: C.gray500, margin: '0 0 20px', lineHeight: 1.6 }}>
           כל שלב במסלול הפתיחה נכתב ל-localStorage באופן סינכרוני. אם
           האפליקציה נתקעת, הדף הזה מראה איפה זה קרה. שלח את היומן (כפתור
           העתקה) כדי שנוכל לאתר את הבעיה.
@@ -293,7 +285,7 @@ export default function BootDebug() {
           <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999, background: '#E0F2FE', color: '#075985' }}>
             {platform}
           </span>
-          <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 999, background: C.card, border: `1px solid ${C.border}`, color: C.muted, fontFamily: 'ui-monospace,Menlo,monospace', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 999, background: C.bg, border: `1px solid ${C.border}`, color: C.gray500, fontFamily: 'ui-monospace,Menlo,monospace', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {ua.slice(0, 80)}
           </span>
         </div>
@@ -309,7 +301,7 @@ export default function BootDebug() {
               flex: '1 1 140px',
               padding: '12px 18px',
               borderRadius: 12,
-              background: C.green,
+              background: C.primary,
               color: '#fff',
               fontWeight: 700,
               border: 'none',
@@ -326,7 +318,7 @@ export default function BootDebug() {
               flex: '1 1 140px',
               padding: '12px 18px',
               borderRadius: 12,
-              background: sendStatus === 'sent' ? C.ok : sendStatus === 'failed' ? C.red : '#1F2937',
+              background: sendStatus === 'sent' ? C.successBright : sendStatus === 'failed' ? C.error : C.gray800,
               color: '#fff',
               fontWeight: 700,
               border: 'none',
@@ -346,8 +338,8 @@ export default function BootDebug() {
               flex: '1 1 100px',
               padding: '12px 18px',
               borderRadius: 12,
-              background: C.card,
-              color: C.green,
+              background: C.bg,
+              color: C.primary,
               fontWeight: 700,
               border: `1px solid ${C.border}`,
               fontSize: 14,
@@ -362,8 +354,8 @@ export default function BootDebug() {
               flex: '1 1 100px',
               padding: '12px 18px',
               borderRadius: 12,
-              background: C.card,
-              color: C.green,
+              background: C.bg,
+              color: C.primary,
               fontWeight: 700,
               border: `1px solid ${C.border}`,
               fontSize: 14,
@@ -378,10 +370,10 @@ export default function BootDebug() {
               flex: '1 1 100px',
               padding: '12px 18px',
               borderRadius: 12,
-              background: '#FFFFFF',
-              color: C.red,
+              background: C.bg,
+              color: C.error,
               fontWeight: 700,
-              border: `1px solid ${C.red}`,
+              border: `1px solid ${C.error}`,
               fontSize: 14,
               cursor: 'pointer',
             }}

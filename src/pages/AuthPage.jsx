@@ -9,6 +9,7 @@ import logo from '@/assets/logo.png';
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { isValidEmail } from '@/lib/validators';
+import { C } from '@/lib/designTokens';
 // Sign in with Apple — STATIC import (not dynamic) so the bundler
 // pre-resolves the package at build time. The previous dynamic
 // `await import(/* @vite-ignore */ '@capacitor-community/apple-sign-in')`
@@ -66,22 +67,10 @@ async function dispatchWelcomeEmail(email, fullName) {
   }
 }
 
-//  Design tokens
-const C = {
-  green:     '#4B7A53',
-  greenDark: '#2D5233',
-  greenLight:'#E8F2EA',
-  yellow:    '#FFBF00',
-  yellowSoft:'#FFF8E1',
-  card:      '#FFFFFF',
-  muted:     '#7A8A7C',
-  border:    '#D8E5D9',
-  text:      '#1C2E20',
-  error:     '#DC2626',
-  errorBg:   '#FEF2F2',
-  success:   '#16A34A',
-  successBg: '#F0FDF4',
-};
+// Auth-specific colors with no exact global token match
+const AUTH_GREEN = '#4B7A53';
+const AUTH_SUCCESS = '#16A34A';
+const AUTH_SUCCESS_BG = '#F0FDF4';
 
 const QUICK_CHECK_RETURN_KEY = 'vehicle_quick_check_return';
 
@@ -118,7 +107,7 @@ function AuthInput({ icon: Icon, label, type: initialType, value, onChange, plac
       <div className="relative">
         <div className="absolute top-1/2 -translate-y-1/2 z-10"
           style={{ [dir === 'ltr' ? 'left' : 'right']: '14px' }}>
-          <Icon className="w-4.5 h-4.5" style={{ color: focused ? C.green : C.muted, transition: 'color 0.2s' }} />
+          <Icon className="w-4.5 h-4.5" style={{ color: focused ? AUTH_GREEN : C.muted, transition: 'color 0.2s' }} />
         </div>
         <input
           type={type}
@@ -131,10 +120,10 @@ function AuthInput({ icon: Icon, label, type: initialType, value, onChange, plac
           className="w-full rounded-2xl text-sm transition-all duration-200"
           style={{
             padding: '14px 44px',
-            border: `2px solid ${focused ? C.green : C.border}`,
+            border: `2px solid ${focused ? AUTH_GREEN : C.border}`,
             background: focused ? '#FAFFFE' : '#F8FAF8',
             outline: 'none',
-            boxShadow: focused ? `0 0 0 4px ${C.green}15` : 'none',
+            boxShadow: focused ? `0 0 0 4px ${AUTH_GREEN}15` : 'none',
           }}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -1086,7 +1075,7 @@ export default function AuthPage() {
             <img src={logo} alt="" className="w-full h-full object-contain" />
           </div>
           <div className="h-8 w-8 border-3 rounded-full animate-spin"
-            style={{ borderColor: C.border, borderTopColor: C.green }} />
+            style={{ borderColor: C.border, borderTopColor: AUTH_GREEN }} />
         </div>
       </div>
     );
@@ -1102,7 +1091,7 @@ export default function AuthPage() {
 
         {/* Green gradient */}
         <div className="absolute inset-0"
-          style={{ background: `linear-gradient(160deg, ${C.greenDark} 0%, #3B6D43 45%, ${C.green} 100%)` }} />
+          style={{ background: `linear-gradient(160deg, ${C.primary} 0%, #3B6D43 45%, ${AUTH_GREEN} 100%)` }} />
 
         {/* Car image - very subtle texture */}
         <img src="/hero-car.jpg" alt=""
@@ -1162,7 +1151,7 @@ export default function AuthPage() {
               <button onClick={() => setShowForm(true)}
                 className="w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
                 style={{
-                  background: `linear-gradient(135deg, ${C.greenDark} 0%, ${C.green} 100%)`,
+                  background: `linear-gradient(135deg, ${C.primary} 0%, ${AUTH_GREEN} 100%)`,
                   color: 'white',
                   boxShadow: '0 6px 24px rgba(45,82,51,0.30)',
                 }}>
@@ -1193,16 +1182,16 @@ export default function AuthPage() {
               {/* Google */}
               <button onClick={() => handleOAuth('google')} disabled={oauthLoading === 'google'}
                 className="w-full py-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-3"
-                style={{ background: '#fff', color: C.text, border: `1.5px solid ${C.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                style={{ background: '#fff`, color: C.text, border: `1.5px solid ${C.border}`, boxShadow: `0 2px 8px rgba(0,0,0,0.04)' }}>
                 <GoogleIcon />
                 <span>{oauthLoading === 'google' ? 'מתחבר...' : 'המשך עם Google'}</span>
               </button>
 
               {/* Guest */}
-              <div className="mt-4 pt-3" style={{ borderTop: '1px solid #E5E7EB' }}>
+              <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.gray200}` }}>
                 <button onClick={handleGuest}
                   className="w-full py-3.5 text-sm font-bold rounded-2xl transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
-                  style={{ color: '#374151', background: '#F9FAFB', border: '1.5px solid #D1D5DB', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                  style={{ color: C.gray700, background: C.gray50, border: `1.5px solid ${C.gray300}`, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
                   <span>👋</span>
                   <span>כניסה כאורח - בלי הרשמה</span>
                 </button>
@@ -1226,7 +1215,7 @@ export default function AuthPage() {
                 else { setShowForm(false); setError(''); setSuccess(''); }
               }}
               className="flex items-center gap-1.5 mb-5 py-2 px-1 rounded-lg transition-colors"
-              style={{ color: C.green }}>
+              style={{ color: AUTH_GREEN }}>
               <ArrowRight className="w-4 h-4" />
               <span className="text-sm font-bold">
                 {mode === 'reset' ? 'חזרה להתחברות' : 'חזרה'}
@@ -1235,7 +1224,7 @@ export default function AuthPage() {
 
             {/* Form card */}
             <div ref={formRef} className="w-full rounded-3xl p-6"
-              style={{ background: C.card, boxShadow: '0 4px 32px rgba(45,82,51,0.10)', border: `1px solid ${C.border}` }}>
+              style={{ background: C.bg, boxShadow: '0 4px 32px rgba(45,82,51,0.10)', border: `1px solid ${C.border}` }}>
 
               {/* Header — three branches:
                   • update-password: arrived from a recovery link, hide tabs
@@ -1243,14 +1232,14 @@ export default function AuthPage() {
                   • everything else: normal login/signup/reset tab toggle */}
               {mode === 'update-password' ? (
                 <div className="text-center mb-6">
-                  <h2 className="text-lg font-bold" style={{ color: C.greenDark }}>בחירת סיסמה חדשה</h2>
+                  <h2 className="text-lg font-bold" style={{ color: C.primary }}>בחירת סיסמה חדשה</h2>
                   <p className="text-xs mt-1" style={{ color: C.muted }}>
                     לפחות 8 תווים, עם אות וספרה.
                   </p>
                 </div>
               ) : mode === 'verify-email' ? (
                 <div className="text-center mb-6">
-                  <h2 className="text-lg font-bold" style={{ color: C.greenDark }}>אימות האימייל</h2>
+                  <h2 className="text-lg font-bold" style={{ color: C.primary }}>אימות האימייל</h2>
                   <p className="text-xs mt-2 leading-relaxed" style={{ color: C.muted }}>
                     שלחנו את קוד האימות אל
                   </p>
@@ -1265,7 +1254,7 @@ export default function AuthPage() {
                     onClick={() => { setMode(m); setError(''); setSuccess(''); }}
                     className="flex-1 py-3 text-sm font-bold transition-all duration-200 rounded-2xl"
                     style={{
-                      background: mode === m ? C.greenDark : 'transparent',
+                      background: mode === m ? C.primary : 'transparent',
                       color: mode === m ? 'white' : C.muted,
                       boxShadow: mode === m ? '0 2px 8px rgba(45,82,51,0.2)' : 'none',
                     }}>
@@ -1305,8 +1294,8 @@ export default function AuthPage() {
                           // has typed the full 6-digit code. Project is
                           // configured for 6-digit OTPs (Supabase Auth
                           // → Providers → Email → OTP Length = 6).
-                          border: `2px solid ${verificationCode.length === 6 ? C.green : C.border}`,
-                          color: C.greenDark,
+                          border: `2px solid ${verificationCode.length === 6 ? AUTH_GREEN : C.border}`,
+                          color: C.primary,
                           letterSpacing: '0.4em',
                         }}
                       />
@@ -1368,13 +1357,13 @@ export default function AuthPage() {
                         checked={rememberMe}
                         onChange={(e) => setRememberMe(e.target.checked)}
                         className="w-4 h-4 rounded cursor-pointer"
-                        style={{ accentColor: C.green }}
+                        style={{ accentColor: AUTH_GREEN }}
                       />
                       <span className="text-xs font-bold">זכור אותי</span>
                     </label>
                     <button type="button" onClick={() => { setMode('reset'); setError(''); setSuccess(''); }}
                       className="text-xs font-bold transition-colors"
-                      style={{ color: C.green }}>
+                      style={{ color: AUTH_GREEN }}>
                       שכחתי סיסמה
                     </button>
                   </div>
@@ -1393,18 +1382,18 @@ export default function AuthPage() {
                       checked={termsAccepted}
                       onChange={(e) => setTermsAccepted(e.target.checked)}
                       className="w-4 h-4 rounded cursor-pointer mt-0.5 flex-shrink-0"
-                      style={{ accentColor: C.green }}
+                      style={{ accentColor: AUTH_GREEN }}
                       aria-describedby="terms-help"
                     />
                     <span id="terms-help" className="text-xs leading-relaxed font-medium">
                       קראתי ואני מאשר/ת את{' '}
                       <Link to={createPageUrl('TermsOfService')} target="_blank" rel="noopener noreferrer"
-                        className="font-bold underline" style={{ color: C.green }}>
+                        className="font-bold underline" style={{ color: AUTH_GREEN }}>
                         תנאי השימוש
                       </Link>
                       {' '}ואת{' '}
                       <Link to={createPageUrl('PrivacyPolicy')} target="_blank" rel="noopener noreferrer"
-                        className="font-bold underline" style={{ color: C.green }}>
+                        className="font-bold underline" style={{ color: AUTH_GREEN }}>
                         מדיניות הפרטיות
                       </Link>
                     </span>
@@ -1420,7 +1409,7 @@ export default function AuthPage() {
                 {/* Error message */}
                 {error && (
                   <div className="flex items-start gap-2.5 rounded-2xl px-4 py-3 text-sm font-semibold"
-                    style={{ background: C.errorBg, color: C.error, border: '1px solid #FECACA' }}>
+                    style={{ background: C.errorBg, color: C.error, border: `1px solid ${C.errorBorder}` }}>
                     <span className="shrink-0 mt-0.5">⚠</span>
                     <span>{error}</span>
                   </div>
@@ -1429,7 +1418,7 @@ export default function AuthPage() {
                 {/* Success message */}
                 {success && (
                   <div className="flex items-start gap-2.5 rounded-2xl px-4 py-3 text-sm font-semibold"
-                    style={{ background: C.successBg, color: C.success, border: '1px solid #BBF7D0' }}>
+                    style={{ background: AUTH_SUCCESS_BG, color: AUTH_SUCCESS, border: '1px solid #BBF7D0' }}>
                     <span className="shrink-0 mt-0.5">✓</span>
                     <span>{success}</span>
                   </div>
@@ -1439,7 +1428,7 @@ export default function AuthPage() {
                 <button type="submit" disabled={loading}
                   className="w-full py-4 rounded-2xl font-bold text-base transition-all duration-200 active:scale-[0.98] mt-2"
                   style={{
-                    background: loading ? '#9CA3AF' : `linear-gradient(135deg, ${C.greenDark} 0%, ${C.green} 100%)`,
+                    background: loading ? C.gray400 : `linear-gradient(135deg, ${C.primary} 0%, ${AUTH_GREEN} 100%)`,
                     color: 'white',
                     boxShadow: loading ? 'none' : '0 4px 16px rgba(45,82,51,0.25)',
                     cursor: loading ? 'not-allowed' : 'pointer',
@@ -1459,7 +1448,7 @@ export default function AuthPage() {
                 {mode === 'reset' && (
                   <button type="button" onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
                     className="w-full text-center py-3 text-sm font-bold transition-colors mt-2"
-                    style={{ color: C.green }}>
+                    style={{ color: AUTH_GREEN }}>
                     חזרה להתחברות
                   </button>
                 )}
@@ -1475,7 +1464,7 @@ export default function AuthPage() {
                       disabled={resendCooldown > 0}
                       className="text-xs font-bold py-2 px-3 transition-colors"
                       style={{
-                        color: resendCooldown > 0 ? C.muted : C.green,
+                        color: resendCooldown > 0 ? C.muted : AUTH_GREEN,
                         cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer',
                       }}>
                       {resendCooldown > 0
@@ -1531,7 +1520,7 @@ export default function AuthPage() {
 
       {/* Bottom accent */}
       <div className="fixed bottom-0 left-0 right-0 h-1"
-        style={{ background: `linear-gradient(to left, ${C.greenDark}, ${C.yellow}, ${C.greenDark})`, opacity: 0.25 }} />
+        style={{ background: `linear-gradient(to left, ${C.primary}, ${C.yellow}, ${C.primary})`, opacity: 0.25 }} />
     </div>
   );
 }
