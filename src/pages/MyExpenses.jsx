@@ -299,7 +299,7 @@ export default function MyExpenses() {
   // Vehicles for the picker
   const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery({
     queryKey: ['my-expenses-vehicles', accountId],
-    queryFn:  () => db.vehicles.filter({ account_id: accountId }),
+    queryFn:  () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled:  !!accountId,
     staleTime: 5 * 60 * 1000,
   });

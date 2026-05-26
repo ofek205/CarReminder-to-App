@@ -183,7 +183,7 @@ export default function AddAccident() {
   // Fetch vehicles
   const { data: authVehicles = [] } = useQuery({
     queryKey: ['vehicles', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
+    queryFn: () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled: !!accountId,
   });
   const vehicles = isGuest ? [...guestVehicles, DEMO_VEHICLE] : authVehicles;

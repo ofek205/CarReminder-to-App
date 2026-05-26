@@ -203,7 +203,7 @@ function AuthAccountSettings({ embedded = false }) {
   // Fetch vehicles for selection
   const { data: vehicles = [] } = useQuery({
     queryKey: ['account-vehicles', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
+    queryFn: () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled: !!accountId,
   });
 

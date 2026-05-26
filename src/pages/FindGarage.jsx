@@ -295,7 +295,7 @@ export default function FindGarage() {
     } else if (isAuthenticated && accountId) {
       (async () => {
         try {
-          const vehicles = await db.vehicles.filter({ account_id: accountId });
+          const vehicles = await db.vehicles.filter({ account_id: accountId }, { light: true });
           setHasVessel(vehicles.some(v => isVesselType(v.vehicle_type, v.nickname)));
         } catch { /* ignore */ }
       })();

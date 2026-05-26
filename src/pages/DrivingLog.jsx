@@ -101,7 +101,7 @@ export default function DrivingLog() {
   // Vehicles for vehicle labels + the picker.
   const { data: vehicles = [] } = useQuery({
     queryKey: ['driving-log-vehicles', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
+    queryFn: () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled,
     staleTime: 5 * 60 * 1000,
   });

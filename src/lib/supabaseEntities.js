@@ -83,6 +83,37 @@ function sanitizeRow(row) {
   return clean;
 }
 
+// Per-table "light" column lists — used when filter() is called with
+// `{ light: true }`. The light list deliberately OMITS heavy base64
+// columns (vehicle_photo, license_photo, etc.) that bloat the response
+// and cause slow_query alerts on mobile / slow networks. v5.4.1 saw 17
+// `vehicles.filter` queries cross the 3s threshold inside 15 minutes
+// — every one of them on a caller that didn't actually need the photo
+// payload, just the basic vehicle metadata.
+//
+// Callers that DO need photos (AddVehicle, EditVehicle, VehicleDetail
+// for the hero photo) keep using the default `select: '*'` — same as
+// before, no behavior change.
+//
+// Keep this list ⊇ what each caller reads. If a new column is added
+// to vehicles and a `light: true` caller needs it, add it here.
+const LIGHT_COLUMNS = {
+  vehicles: [
+    'id', 'account_id', 'owner_id', 'created_at', 'updated_at',
+    'license_plate', 'nickname', 'manufacturer', 'model', 'year', 'vehicle_type',
+    'test_due_date', 'insurance_due_date', 'license_due_date', 'inspection_report_expiry_date',
+    'current_km', 'last_known_km', 'km_update_date',
+    'current_engine_hours', 'engine_hours_update_date',
+    'share_count', 'is_shared_with_me', 'is_archived', 'is_business', 'status',
+    'fuel_type', 'flag_country', 'engine_manufacturer',
+    'auto_sync_enabled', 'last_gov_sync_at', 'last_gov_sync_km', 'last_gov_sync_test_date',
+    'first_reminder_armed_at', 'notification_subscribers',
+    'pyrotechnics_expiry_date', 'fire_extinguisher_expiry_date',
+    'life_raft_expiry_date', 'last_shipyard_date', 'hours_since_shipyard',
+    'last_offroad_service_date', 'offroad_equipment', 'offroad_usage_type',
+  ].join(','),
+};
+
 function makeEntity(table) {
   return {
     /**
@@ -92,12 +123,21 @@ function makeEntity(table) {
      *   select . column list string, e.g. 'id,name,status'. Defaults '*'.
      *             Use this on list pages to skip heavy base64 columns
      *             (vehicle_photo, receipt_photo, image_url, file_url).
+     *   light  . shortcut for `select = LIGHT_COLUMNS[table]`. The
+     *             light list omits known-heavy columns (vehicle_photo,
+     *             license_photo, etc.) so list pages don't drag the
+     *             whole payload across the wire. Ignored if `select` is
+     *             set explicitly. Currently defined for 'vehicles'.
      *   limit  . integer, caps rows returned.
      *   order  . { column, ascending? } for server-side ordering.
      */
-    async filter(conditions = {}, { select = '*', limit, order } = {}) {
+    async filter(conditions = {}, { select, light, limit, order } = {}) {
       validateFilterKeys(conditions);
-      let query = supabase.from(table).select(select);
+      const effectiveSelect =
+        select ??
+        (light && LIGHT_COLUMNS[table]) ??
+        '*';
+      let query = supabase.from(table).select(effectiveSelect);
       for (const [key, value] of Object.entries(conditions)) {
         query = query.eq(key, value);
       }

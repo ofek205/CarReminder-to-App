@@ -124,7 +124,7 @@ export default function Expenses() {
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ['expenses-vehicle-picker', accountId],
-    queryFn: () => db.vehicles.filter({ account_id: accountId }),
+    queryFn: () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled: !!accountId && isManager,
     staleTime: 5 * 60 * 1000,
   });
