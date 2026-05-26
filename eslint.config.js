@@ -38,7 +38,16 @@ export default [
     ...pluginJs.configs.recommended,
     ...pluginReact.configs.flat.recommended,
     languageOptions: {
-      globals: globals.browser,
+      globals: {
+        ...globals.browser,
+        // Vite-replaced build-time constants. Listed here so the
+        // no-undef rule below doesn't flag legitimate `__APP_VERSION__`
+        // references in Layout.jsx / Settings.jsx / UserProfile.jsx
+        // (read via package.json → vite.config.js define block). Add
+        // any new `__VITE_FOO__`-style constants from vite.config.js
+        // here too.
+        __APP_VERSION__: "readonly",
+      },
       parserOptions: {
         ecmaVersion: 2022,
         sourceType: "module",
@@ -102,6 +111,20 @@ export default [
           allowNamedExports: true,
         },
       ],
+      // The big one — catches references to identifiers that are neither
+      // declared nor imported. Was previously inherited from
+      // `pluginJs.configs.recommended` (which spreads above), but spreading
+      // a config object and THEN providing a `rules:` block replaces the
+      // recommended rules entirely. The omission let v5.4.1 ship with 14
+      // files calling `C.token` without importing C — production users hit
+      // "C is not defined" toasts until the hot-fix landed.
+      //
+      // Set to error 2026-05-26 as part of the v5.4.1-hotfix1 post-mortem.
+      // KEEP IT AT "error" — every refactor (manual or scripted) that
+      // introduces a typo / forgotten import is a production crash waiting
+      // for the first user to land on that screen. The lint check is fast,
+      // local, and free.
+      "no-undef": "error",
     },
   },
   // ----------------------------------------------------------------

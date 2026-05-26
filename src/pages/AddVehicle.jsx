@@ -50,7 +50,7 @@ import VesselScanWizard from "../components/vehicle/VesselScanWizard";
 import { toast } from "sonner";
 import { toastError } from "@/lib/userErrorReport";
 import { useAuth } from "../components/shared/GuestContext";
-import { C as defaultC, getTheme } from '@/lib/designTokens';
+import { C, getTheme } from '@/lib/designTokens';
 import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { useQueryClient } from '@tanstack/react-query';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -323,7 +323,7 @@ export default function AddVehicle() {
 
   }, [isTwoWheeler]);
   const [showOffroadSection, setShowOffroadSection] = useState(false);
-  const T = isVesselCategory ? getTheme('כלי שייט') : defaultC;
+  const T = isVesselCategory ? getTheme('כלי שייט') : C;
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;

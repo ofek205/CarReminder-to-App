@@ -36,13 +36,18 @@ export default function PeriodFilter({ period, onChange, earliestYear }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab]   = useState(period?.type || 'year');
 
+  // Hoisted at component scope so both the years useMemo below and the
+  // monthly grid further down can read it (the grid previously read a
+  // `currentYear` that was only declared inside the useMemo callback — a
+  // ReferenceError that ESLint no-undef finally caught after 5.4.1).
+  const currentYear = new Date().getFullYear();
+
   // Year list — current year down to (earliestYear OR currentYear-6).
   // Capped at 15 entries so a brand-new vehicle from 1995 doesn't
   // produce a 30-row scroll. earliestYear comes from
   // fn_vehicle_expense_date_bounds and reflects only years that
   // actually have data → no empty options.
   const years = useMemo(() => {
-    const currentYear = new Date().getFullYear();
     const minYear = Math.min(
       currentYear,
       Number.isFinite(earliestYear) ? Math.max(earliestYear, currentYear - 14) : currentYear - 6

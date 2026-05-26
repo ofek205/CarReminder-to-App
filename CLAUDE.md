@@ -137,6 +137,20 @@ git push origin staging
 
 אם בעתיד יחזרו שגיאות lint — לתקן לפני push, לא לעקוף. `--no-verify` נשאר זמין כ-escape hatch לחירום מקומי בלבד, ולעולם לא בעלייה לפרודקשן.
 
+### no-undef — לקח מ-v5.4.1-hotfix1
+
+ב-2026-05-26 נשבר הייצור בגלל שמיגרציה אוטומטית הזריקה את הזיהוי `C.token` ל-14 קבצים בלי שורת `import { C } from '@/lib/designTokens'`. הסיבה שזה חמק:
+
+```
+eslint.config.js פרש את pluginJs.configs.recommended,
+ואז סיפק rules: שהחליף את כל הכללים שלו.
+no-undef נמחק שקטית מההגדרה.
+```
+
+מאז no-undef מופעל מפורשות תחת `rules:`. **לעולם להשאיר אותו כ-error.** הוא קל, מהיר, ותופס את כל המחלקה של "refactor שכח להוסיף import" — באג שעולה זמן ייצורי כל פעם שאדם / סקריפט / סוכן עורך קוד.
+
+נספח: globals של Vite (`__APP_VERSION__` וכל `__VITE_*__` עתידי) מוצהרים ב-`languageOptions.globals`.
+
 ---
 
 ## אכיפה אוטומטית — GitHub Actions
