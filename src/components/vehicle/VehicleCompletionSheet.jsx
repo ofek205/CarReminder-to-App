@@ -84,21 +84,30 @@ function getInsuranceCompanies(categoryLabel) {
 // Decide which optional fields to render based on what gov.il actually
 // returned. The `result` shape is whatever lookupVehicleQuickCheck()
 // produced — we read the same paths VehicleCheck.jsx + the insert
-// payload reads. Photo/nickname/insurance/tires are always asked
-// (gov.il never has them). current_km is only asked when the saved row
-// shows it null/zero.
+// payload reads.
+//
+// Field behavior:
+//   • photo/nickname/insurance/tires — always asked (gov.il has none).
+//   • current_km — only asked when gov.il DID return a value. We
+//     pre-fill it from the last-test reading and invite the user to
+//     refine it ("ק"מ מהטסט האחרון, ניתן לעדכן"). When gov.il didn't
+//     return km (vessels, aviation, plate not in the registry) we
+//     omit the field entirely — without a baseline the user has
+//     nothing useful to compare against and it just becomes noise.
 function computeMissingFields(result, savedVehicle) {
   const km =
     savedVehicle?.current_km ??
     result?.kmData?.km ??
     result?.basicInfo?.km ??
     null;
+  const hasApiKm = typeof km === 'number' && km > 0;
   return {
     photo:     true,
     nickname:  true,
     insurance: true,
     tires:     true,
-    currentKm: km == null || km === 0,
+    currentKm: hasApiKm,
+    apiKmValue: hasApiKm ? km : null,
   };
 }
 
@@ -152,11 +161,15 @@ export default function VehicleCompletionSheet({
   );
   const plateDisplay = savedVehicle?.license_plate || result?.basicInfo?.licensePlate || '';
 
+  // Form state. `current_km` is pre-filled with the API value when
+  // available so the user can either confirm or refine it. The save
+  // path only writes a column if the value actually changed from the
+  // pre-fill, so a confirm-without-edit doesn't trip an UPDATE.
   const [form, setForm] = useState({
     nickname: '',
     vehicle_photo: '',
     vehicle_photo_storage_path: '',
-    current_km: '',
+    current_km: fields.apiKmValue != null ? String(fields.apiKmValue) : '',
     insurance_due_date: '',
     insurance_company: '',
     insurance_company_other: '',
@@ -205,17 +218,28 @@ export default function VehicleCompletionSheet({
     }
   };
 
+  // "Has the user actually filled anything?" — drives the save-vs-skip
+  // shortcut. current_km is pre-filled from the API, so a literal
+  // truthy check would always return true. We compare against the
+  // pre-fill: km only counts as "changed" if it differs from what
+  // gov.il gave us.
   const hasAnyValue = useMemo(() => {
+    const kmChanged = (() => {
+      if (form.current_km === '' || form.current_km == null) return false;
+      const n = Number(form.current_km);
+      if (!Number.isFinite(n)) return false;
+      return fields.apiKmValue == null || n !== fields.apiKmValue;
+    })();
     return Boolean(
       form.nickname ||
       form.vehicle_photo ||
-      form.current_km ||
+      kmChanged ||
       form.insurance_due_date ||
       (form.insurance_company && form.insurance_company !== 'אחר') ||
       (form.insurance_company === 'אחר' && form.insurance_company_other) ||
       form.last_tire_change_date,
     );
-  }, [form]);
+  }, [form, fields.apiKmValue]);
 
   const handleSave = async () => {
     if (saving || !vehicleId) return;
@@ -229,9 +253,14 @@ export default function VehicleCompletionSheet({
       if (form.nickname.trim()) patch.nickname = form.nickname.trim();
       if (form.vehicle_photo) patch.vehicle_photo = form.vehicle_photo;
       if (form.vehicle_photo_storage_path) patch.vehicle_photo_storage_path = form.vehicle_photo_storage_path;
+      // current_km — only write if the user actually changed the
+      // pre-filled value. The pre-fill came from gov.il and is
+      // already on the row; rewriting it would no-op the DB but
+      // still touch updated_at and trigger query invalidations.
       if (form.current_km !== '' && form.current_km !== null) {
         const kmNum = Number(form.current_km);
-        if (Number.isFinite(kmNum) && kmNum >= 0) patch.current_km = kmNum;
+        const unchanged = fields.apiKmValue != null && kmNum === fields.apiKmValue;
+        if (Number.isFinite(kmNum) && kmNum >= 0 && !unchanged) patch.current_km = kmNum;
       }
       if (form.insurance_due_date) patch.insurance_due_date = form.insurance_due_date;
       if (form.insurance_company) {
@@ -305,7 +334,7 @@ export default function VehicleCompletionSheet({
           <div className="mt-3 h-px" style={{ background: C.successLight }} />
 
           <p className="text-[13px] mt-3 font-medium" style={{ color: C.gray500 }}>
-            כמה פרטים שיעזרו לנו לעזור לך — לזכור תזכורות, טיפולים וביטוח.
+            כמה פרטים שיעזרו לנו לעזור לך לזכור תזכורות, טיפולים וביטוח.
           </p>
         </div>
 
@@ -419,7 +448,10 @@ export default function VehicleCompletionSheet({
             </div>
           )}
 
-          {/* Current km — only when gov.il didn't return it */}
+          {/* Current km — only shown when gov.il actually returned a
+              value. Pre-filled with the API reading; the user confirms
+              or refines. The helper line below the input names the
+              source so the value isn't a mystery number. */}
           {fields.currentKm && (
             <div>
               <Label className="text-[13px] font-bold mb-2 block" style={{ color: C.gray700 }}>
@@ -435,6 +467,9 @@ export default function VehicleCompletionSheet({
                 disabled={saving}
                 className="h-11"
               />
+              <p className="text-[12px] mt-1.5 leading-snug" style={{ color: C.gray500 }}>
+                מהטסט האחרון במשרד התחבורה. אפשר לעדכן אם נסעת מאז.
+              </p>
             </div>
           )}
 
