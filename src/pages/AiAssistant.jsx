@@ -8,7 +8,7 @@ import VehicleIcon from '../components/shared/VehicleIcon';
 import VehicleImage, { hasVehiclePhoto } from '../components/shared/VehicleImage';
 import { isVessel, getDateStatus, getVehicleLabels } from '../components/shared/DateStatusUtils';
 import { getAiExpert } from '@/lib/aiExpert';
-import { Send, Wrench, Loader2, Sparkles, Trash2, AlertTriangle, Check, ChevronDown, X, Copy, RotateCcw, Info, Paperclip, FileText } from 'lucide-react';
+import { Send, Wrench, Loader2, Sparkles, Trash2, AlertTriangle, Check, ChevronDown, X, Copy, RotateCcw, Info, Paperclip, FileText, Camera } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
@@ -207,6 +207,13 @@ export default function AiAssistant() {
   const messagesEndRef = useRef(null); // sentinel at bottom of message list — anchor for scrollIntoView
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  // Second hidden input dedicated to the camera button. Same accept
+  // list, but with capture="environment" so mobile WebViews open the
+  // back camera directly instead of the photo library / file picker.
+  // Desktop browsers ignore the capture hint and fall back to a normal
+  // file picker — acceptable degradation since desktops rarely have a
+  // useful camera attached.
+  const cameraInputRef = useRef(null);
   // Feature flag: chat attachments. Hidden from non-admins until the
   // app_config row is flipped to true. Admins always pass. Hook is
   // reactive — flipping the toggle in the admin screen updates this
@@ -410,6 +417,17 @@ export default function AiAssistant() {
     // event when the value is identical to the previous selection.
     fileInputRef.current.value = '';
     fileInputRef.current.click();
+  };
+
+  // Open the live camera. Triggered by the camera button.
+  // Same downstream flow as openFilePicker — the difference is purely
+  // which hidden <input> we click. Mobile WebViews honour the capture
+  // attribute and open the camera directly; desktops fall back to a
+  // file picker.
+  const openCameraPicker = () => {
+    if (!cameraInputRef.current) return;
+    cameraInputRef.current.value = '';
+    cameraInputRef.current.click();
   };
 
   // Validate + read the picked file. Sets `attachment` on success;
@@ -1215,6 +1233,23 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
           aria-hidden="true"
         />
 
+        {/* Hidden camera input. capture="environment" hints to mobile
+            WebViews that the back camera should open directly; desktop
+            browsers ignore the hint and fall back to a normal file
+            picker. Images only — no PDF capture from a camera. */}
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFilePicked(f);
+          }}
+          aria-hidden="true"
+        />
+
         {/* Attachment preview chip. Renders only while an attachment
             is selected. Designer spec: lives ABOVE the input row, same
             max-width as the input area, soft shadow, rounded-2xl.
@@ -1255,10 +1290,30 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
         )}
 
         <div className="flex items-center gap-2 px-3 py-2.5 max-w-md mx-auto">
-          {/* Paperclip button. Hidden from non-admins until the
-              chat_attachments_enabled flag is on. DOM order puts it
-              first so RTL layout shows it on the visual RIGHT, the
-              natural "start" of the row in Hebrew. */}
+          {/* Camera + Paperclip buttons. Both hidden from non-admins
+              until the chat_attachments_enabled flag is on. DOM order
+              puts the camera first so it lands at the visual RIGHT in
+              RTL — the natural "start" of the row in Hebrew. The
+              paperclip sits to its left. */}
+          {attachmentsEnabled && (
+            <button
+              type="button"
+              onClick={openCameraPicker}
+              disabled={sending || attachment?.loading}
+              className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 relative transition-all active:scale-[0.92] disabled:opacity-30"
+              style={{
+                background: attachment ? C.light : 'transparent',
+              }}
+              aria-label="צלם תמונה">
+              <Camera className="w-5 h-5"
+                style={{ color: attachment ? C.primary : C.gray500 }} />
+              {attachment && !attachment.loading && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full"
+                  style={{ background: C.yellow }}
+                  aria-hidden="true" />
+              )}
+            </button>
+          )}
           {attachmentsEnabled && (
             <button
               type="button"
