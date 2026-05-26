@@ -141,11 +141,22 @@ function checkVesselFull(vehicleType, nickname, manufacturer) {
 
 /**
  * Get theme tokens based on vehicle type.
+ *
+ * Note: references `OFFROAD_EXACT` and `offroad` which are declared
+ * below in this file. JavaScript hoists const declarations to the
+ * module top of the binding scope, so by the time the function is
+ * CALLED (post-module-init) both are initialized. The eslint
+ * `no-use-before-define` rule fires anyway — disabled here because
+ * moving the data tables above the export would force the whole
+ * file to read bottom-up. Keeping the order (functions first, data
+ * below) is the project convention.
  */
+ 
 export function getTheme(vehicleType, nickname, manufacturer) {
   if (checkVesselFull(vehicleType, nickname, manufacturer)) return marine;
   // Off-road gets the brown/earthy theme
   // (check has to come BEFORE motorcycle/truck keyword matching)
+  // eslint-disable-next-line no-use-before-define
   if (vehicleType && OFFROAD_EXACT.has(vehicleType)) return offroad;
   return C;
 }
