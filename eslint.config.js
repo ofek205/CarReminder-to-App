@@ -32,9 +32,20 @@ export default [
     files: [
       "src/components/**/*.{js,mjs,cjs,jsx}",
       "src/pages/**/*.{js,mjs,cjs,jsx}",
+      "src/lib/**/*.{js,mjs,cjs,jsx}",
       "src/Layout.jsx",
     ],
-    ignores: ["src/lib/**/*", "src/components/ui/**/*"],
+    // src/components/ui/** stays out — those are shadcn primitives we
+    // copy verbatim from the library. JSX-specific rules trip on them
+    // (e.g. react/no-unknown-property for cmdk-input-wrapper).
+    //
+    // src/lib/** USED to be excluded too — that's how v5.4.4-hotfix1
+    // happened (an `import { C }` line nested inside a JSDoc comment
+    // in src/lib/permissions.js shipped to prod and ROLE_INFO threw
+    // "C is not defined" the moment any role-display screen mounted).
+    // It's back in the scan list now so no-undef + the rest of our
+    // rules cover lib code too.
+    ignores: ["src/components/ui/**/*"],
     ...pluginJs.configs.recommended,
     ...pluginReact.configs.flat.recommended,
     languageOptions: {

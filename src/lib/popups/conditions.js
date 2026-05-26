@@ -21,7 +21,6 @@
  * = ignored.
  */
 
-import { getVehicleCategory } from '@/lib/designTokens';
 
 function vehicleMatchesSegment(v, segment) {
   if (!v) return false;

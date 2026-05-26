@@ -11,7 +11,11 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
   const [appPublicSettings, setAppPublicSettings] = useState(null);
 
+  // `checkAppState` is declared below — useEffect runs POST-render,
+  // after the const is initialised. Safe at runtime; lint fires on
+  // declaration order only.
   useEffect(() => {
+    // eslint-disable-next-line no-use-before-define
     checkAppState();
   }, []);
 
