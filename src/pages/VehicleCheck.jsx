@@ -34,6 +34,7 @@ import { C } from '@/lib/designTokens';
 // taps "Export PDF".
 import { OwnershipHistoryPanel } from '@/components/vehicle/VehicleInfoSection';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
+import VehicleCompletionSheet from '@/components/vehicle/VehicleCompletionSheet';
 
 const loadingMessages = [
   'בודקים נתוני רישוי...',
@@ -80,6 +81,11 @@ export default function VehicleCheck() {
   const [saved, setSaved] = useState(false);
   const [reportMode, setReportMode] = useState(null);
   const [autoSearchQueued, setAutoSearchQueued] = useState(false);
+  // Post-save "fill the gaps" bottom sheet. Holds the just-saved vehicle
+  // row so the sheet can UPDATE it with photo/insurance/etc. without
+  // re-fetching. Null while idle or after dismissal — see
+  // src/components/vehicle/VehicleCompletionSheet.jsx for the flow.
+  const [completionSheet, setCompletionSheet] = useState(null);
   // Set when lookupVehicleQuickCheck reports the plate digits exist in
   // two different MoT registries (see vehicleLookup namespace collision
   // notes). Shape: { plate, matches: [{ source, fields, normalized }, ...] }
@@ -243,7 +249,7 @@ export default function VehicleCheck() {
 
     setSaving(true);
     try {
-      await saveQuickCheckVehicle(result, accountId);
+      const newVehicle = await saveQuickCheckVehicle(result, accountId);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['vehicles'] }),
         queryClient.invalidateQueries({ queryKey: ['my-vehicles'] }),
@@ -251,7 +257,17 @@ export default function VehicleCheck() {
         queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] }),
       ]);
       setSaved(true);
-      toast.success('הרכב נוסף לרכבים שלך');
+      // Trigger the post-save completion sheet — captures personal info
+      // that gov.il doesn't return (photo, nickname, insurance, sometimes
+      // current_km). Sheet self-stamps `completion_prompted_at` so it
+      // never re-opens for the same vehicle. If the create didn't return
+      // a row (older db helper), the toast fires but the sheet doesn't —
+      // graceful fallback.
+      if (newVehicle?.id) {
+        setCompletionSheet({ vehicleId: newVehicle.id, savedVehicle: newVehicle });
+      } else {
+        toast.success('הרכב נוסף לרכבים שלך');
+      }
     } catch (err) {
       if (err?.code === 'duplicate_vehicle') {
         toastError('הרכב הזה כבר קיים ברשימת הרכבים שלך', { action: 'vehicle_check_duplicate', err });
@@ -401,6 +417,26 @@ export default function VehicleCheck() {
         onChoose={chooseMultiMatch}
         onCancel={cancelMultiMatch}
         titleId="vc-multimatch-title"
+      />
+
+      {/* Post-save "fill the gaps" bottom sheet. Opens on successful
+          save with the new vehicle's id + the gov.il result so it can
+          decide which optional fields to ask for. Dismiss = skip; sheet
+          stamps `completion_prompted_at` once it opens so we never
+          re-prompt for the same vehicle. */}
+      <VehicleCompletionSheet
+        open={!!completionSheet}
+        onClose={() => setCompletionSheet(null)}
+        vehicleId={completionSheet?.vehicleId}
+        accountId={accountId}
+        result={result}
+        savedVehicle={completionSheet?.savedVehicle}
+        vehicleCategoryLabel={result?.basicInfo?.vehicleType || result?.basicInfo?.categoryLabel}
+        onSaved={() => {
+          setCompletionSheet(null);
+          queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+          queryClient.invalidateQueries({ queryKey: ['my-vehicles'] });
+        }}
       />
     </div>
   );
