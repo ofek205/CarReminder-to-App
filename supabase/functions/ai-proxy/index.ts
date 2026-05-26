@@ -132,6 +132,7 @@ const ALLOWED_SURFACES = new Set([
   'expense_personal_scan',
   'expense_business_scan',
   'document_scan',
+  'maintenance_log_scan',   // garage receipt scan in MaintenanceSection
 ]);
 
 interface UsageLogInput {

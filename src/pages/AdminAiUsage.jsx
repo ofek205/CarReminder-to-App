@@ -100,6 +100,7 @@ const SURFACE_LABELS = {
   expense_personal_scan: 'סריקת קבלה אישית',
   expense_business_scan: 'סריקת קבלה עסקית',
   document_scan:         'סריקת מסמך כללי',
+  maintenance_log_scan:  'סריקת קבלת טיפול',
 };
 
 export default function AdminAiUsage() {

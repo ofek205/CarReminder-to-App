@@ -23,6 +23,8 @@ import { scheduleLocalNotification } from '@/lib/notificationChannels';
 import { db } from '@/lib/supabaseEntities';
 import { reportUserError } from '@/lib/crashReporter';
 import ManufacturerScheduleCard from './ManufacturerScheduleCard';
+import ScanConfirmDialog from '@/components/shared/ScanConfirmDialog';
+import ScanReviewSheet   from '@/components/shared/ScanReviewSheet';
 
 export default function MaintenanceSection({ vehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
@@ -38,6 +40,20 @@ export default function MaintenanceSection({ vehicle }) {
   const [receiptStoragePath, setReceiptStoragePath] = useState(null);
   const [receiptUploading, setReceiptUploading] = useState(false);
   const [aiScanning, setAiScanning] = useState(false);
+
+  // Gated scan flow state — mirrors the pilot in ExpenseFormDialog.
+  // After upload we pause for "scan with AI?" instead of running the
+  // model unattended; after extraction we show a review sheet so the
+  // user can fix anything misread before it lands in the form.
+  //   step:      'idle' | 'confirm' | 'scanning' | 'review'
+  //   file:      the original picked File (for thumbnail in dialogs)
+  //   base64:    the compressed data URL (already in memory; used by
+  //               scanReceipt so we don't read the file twice)
+  //   extracted: AI output, shown for review
+  const [scanStep,          setScanStep]          = useState('idle');
+  const [pendingScanFile,   setPendingScanFile]   = useState(null);
+  const [pendingScanBase64, setPendingScanBase64] = useState('');
+  const [extractedScanData, setExtractedScanData] = useState({});
   const [garageDropdownOpen, setGarageDropdownOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
@@ -79,8 +95,11 @@ export default function MaintenanceSection({ vehicle }) {
     enabled: !isGuest && !!vehicle.id,
   });
 
-  // AI receipt scanner - uses proxy to avoid exposing API key
-  const scanReceipt = async (base64) => {
+  // AI receipt scanner — runs Claude vision via the proxy and returns
+  // the parsed object. Used to be inline-applied to the form, but now
+  // the gated flow shows ScanReviewSheet first so the caller decides
+  // what to do with the result.
+  const _extractReceiptFromBase64 = async (base64) => {
     setAiScanning(true);
     try {
       const { aiRequest } = await import('@/lib/aiProxy');
@@ -89,6 +108,8 @@ export default function MaintenanceSection({ vehicle }) {
       const json = await aiRequest({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 300,
+        feature:  'scan_extraction',
+        surface:  'maintenance_log_scan',
         messages: [{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
           { type: 'text', text: 'סרוק את הקבלה/חשבונית הזו וחלץ: 1) שם המוסך/עסק 2) סכום לתשלום 3) תאריך 4) תיאור קצר של העבודה. החזר JSON בלבד: {"garage":"","cost":"","date":"YYYY-MM-DD","description":""}. אם לא ניתן לזהות שדה - השאר ריק.' }
@@ -96,34 +117,48 @@ export default function MaintenanceSection({ vehicle }) {
       });
       const text = json?.content?.[0]?.text || '';
       const match = text.match(/\{[\s\S]*\}/);
-      if (match) {
-        const parsed = JSON.parse(match[0]);
-        // Sanitize parsed values
-        const safeStr = (v) => typeof v === 'string' ? v.replace(/<[^>]*>/g, '').trim().slice(0, 100) : '';
-        setForm(f => ({
-          ...f,
-          garage_name: safeStr(parsed.garage) || f.garage_name,
-          cost: safeStr(parsed.cost) || f.cost,
-          date: (/^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : '') || f.date,
-          title: safeStr(parsed.description) || f.title,
-        }));
-      }
+      if (!match) return null;
+      const parsed = JSON.parse(match[0]);
+      const safeStr = (v) => typeof v === 'string' ? v.replace(/<[^>]*>/g, '').trim().slice(0, 100) : '';
+      // Normalize keys to match the SCAN_REVIEW_SCHEMA below.
+      return {
+        title:       safeStr(parsed.description) || '',
+        date:        /^\d{4}-\d{2}-\d{2}$/.test(parsed.date) ? parsed.date : '',
+        cost:        safeStr(parsed.cost) || '',
+        garage_name: safeStr(parsed.garage) || '',
+      };
     } catch (err) {
       console.error('Receipt scan error:', err);
+      return null;
     } finally { setAiScanning(false); }
   };
+
+  // Field schema for the review sheet — controls labels + types + dir.
+  // Keys MUST match the object returned by _extractReceiptFromBase64.
+  const MAINT_SCAN_REVIEW_SCHEMA = [
+    { key: 'title',       label: 'תיאור הטיפול', type: 'text',                  placeholder: 'לא זוהה' },
+    { key: 'date',        label: 'תאריך',         type: 'date',                  placeholder: 'לא זוהה' },
+    { key: 'cost',        label: 'עלות (₪)',      type: 'number',                placeholder: 'לא זוהה' },
+    { key: 'garage_name', label: 'מוסך / ספק',    type: 'text',                  placeholder: 'לא זוהה' },
+  ];
 
   const handleReceiptUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const v = validateUploadFile(file, 'photo', 10);
     if (!v.ok) { toastError(v.error, { action: 'maint_receipt_validate' }); return; }
+    // Compress + read base64 in parallel with the bucket upload. Once
+    // both ready we set the pendingScan state and open the confirm
+    // dialog — same pattern as ExpenseFormDialog's pilot.
     const compressed = await compressImage(file, { maxWidth: 1400, maxHeight: 1400, quality: 0.78 });
     const reader = new FileReader();
     reader.onload = ev => {
       const base64 = ev.target.result;
       setReceiptPhoto(base64);
-      scanReceipt(base64);
+      // Pause here for explicit confirmation instead of auto-scanning.
+      setPendingScanFile(file);
+      setPendingScanBase64(base64);
+      setScanStep('confirm');
     };
     reader.readAsDataURL(compressed);
     setReceiptUploading(true);
@@ -140,6 +175,60 @@ export default function MaintenanceSection({ vehicle }) {
       setReceiptUploading(false);
     }
   };
+
+  // Dialog: user picked "Yes, scan" — run the model, capture the
+  // parsed object, and open the review sheet.
+  const handleScanConfirm = async () => {
+    setScanStep('scanning');
+    const out = await _extractReceiptFromBase64(pendingScanBase64);
+    if (!out) {
+      // Quiet failure — keep the receipt attached, let the user fill
+      // the form manually. The original code did the same.
+      setScanStep('idle');
+      setPendingScanFile(null);
+      setPendingScanBase64('');
+      return;
+    }
+    setExtractedScanData(out);
+    setScanStep('review');
+  };
+
+  // Dialog: user picked "No, enter manually" — keep the receipt
+  // attached but don't run the AI. Saves token quota for users that
+  // just want to file the photo alongside the entry.
+  const handleScanSkip = () => {
+    setScanStep('idle');
+    setPendingScanFile(null);
+    setPendingScanBase64('');
+  };
+
+  // Review sheet: user confirmed the parsed values — merge into the
+  // form, preserving anything the user has already typed (the original
+  // behaviour was to overwrite blindly; we keep the user's edits).
+  const handleReviewConfirm = (values) => {
+    setForm(f => ({
+      ...f,
+      title:       values.title       || f.title,
+      date:        values.date        || f.date,
+      cost:        values.cost        || f.cost,
+      garage_name: values.garage_name || f.garage_name,
+    }));
+    setScanStep('idle');
+    setPendingScanFile(null);
+    setPendingScanBase64('');
+    setExtractedScanData({});
+  };
+
+  // Review sheet: user wants to fill manually — drop the parsed
+  // values, keep the receipt attached.
+  const handleReviewSkip = () => {
+    setScanStep('idle');
+    setPendingScanFile(null);
+    setPendingScanBase64('');
+    setExtractedScanData({});
+  };
+
+  const handleReviewBack = () => setScanStep('confirm');
 
   const openDialog = (type, opts = {}) => {
     setEditingId(null);
@@ -810,6 +899,30 @@ export default function MaintenanceSection({ vehicle }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Gated scan flow — same shared components as the
+              ExpenseFormDialog pilot. ScanConfirmDialog pauses for
+              "scan with AI?" instead of auto-running, then
+              ScanReviewSheet shows the extracted fields with inline
+              edit before they land in the maintenance form. */}
+      <ScanConfirmDialog
+        open={scanStep === 'confirm'}
+        file={pendingScanFile}
+        title="לסרוק את הקבלה עם AI?"
+        description="ה-AI יחלץ מוסך, סכום, תאריך ותיאור הטיפול. תוכל לערוך לפני אישור."
+        onConfirm={handleScanConfirm}
+        onSkip={handleScanSkip}
+        onCancel={handleScanSkip}
+      />
+      <ScanReviewSheet
+        open={scanStep === 'review'}
+        file={pendingScanFile}
+        extracted={extractedScanData}
+        schema={MAINT_SCAN_REVIEW_SCHEMA}
+        onConfirm={handleReviewConfirm}
+        onSkip={handleReviewSkip}
+        onBack={handleReviewBack}
+      />
     </>
   );
 }
