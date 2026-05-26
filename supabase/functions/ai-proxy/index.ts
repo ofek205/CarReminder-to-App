@@ -118,11 +118,28 @@ async function isUsageTrackingEnabled(sb: ReturnType<typeof createClient>): Prom
   return usageFlagInFlight;
 }
 
+// Allowed values for the optional `surface` field on a request. Keeps
+// in sync with the CHECK constraint in supabase-ai-quota-alerts.sql.
+// Anything not in this set is silently dropped (logged as NULL) so a
+// client typo doesn't break the request.
+const ALLOWED_SURFACES = new Set([
+  'chat_assistant',
+  'community_reply',
+  'vehicle_scan',
+  'vessel_scan',
+  'vehicle_inline_scan',
+  'driver_license_scan',
+  'expense_personal_scan',
+  'expense_business_scan',
+  'document_scan',
+]);
+
 interface UsageLogInput {
   user_id:           string;
   provider:          'groq' | 'gemini' | 'claude' | 'grok';
   model:             string;
   feature:           string | null;
+  surface:           string | null;
   prompt_tokens:     number | null;
   completion_tokens: number | null;
   total_tokens:      number | null;
@@ -140,6 +157,7 @@ async function logAiUsage(
       provider:          opts.provider,
       model:             opts.model,
       feature:           opts.feature,
+      surface:           opts.surface,
       prompt_tokens:     opts.prompt_tokens,
       completion_tokens: opts.completion_tokens,
       total_tokens:      opts.total_tokens,
@@ -514,12 +532,20 @@ async function extractDocument(
 
   // Best-effort usage log. Extraction always uses Gemini today, always
   // has an attached document, always under the scan_extraction feature.
+  // Surface comes from the request body when the call site supplied it
+  // — lets the dashboard separate vehicle_scan from expense_personal_scan
+  // even though both ride the same feature key.
   const um = j?.usageMetadata || {};
+  const extractSurface: string | null =
+    (typeof body?.surface === 'string' && ALLOWED_SURFACES.has(body.surface))
+      ? body.surface
+      : null;
   await logAiUsage(sb, {
     user_id:           userId,
     provider:          'gemini',
     model:             GEMINI_MODEL,
     feature:           'scan_extraction',
+    surface:           extractSurface,
     prompt_tokens:     um.promptTokenCount     ?? null,
     completion_tokens: um.candidatesTokenCount ?? null,
     total_tokens:      um.totalTokenCount      ?? null,
@@ -715,12 +741,20 @@ serve(async (req) => {
   // success path doesn't repeat the boilerplate. The log call is
   // awaited so the row lands before the worker context dies — adds
   // ~50 ms but guarantees the analytics surface stays consistent.
+  // Pick up the surface tag from the request body and validate it.
+  // Anything unknown is dropped to NULL — keeps the dashboard clean.
+  const requestSurface: string | null =
+    (typeof body?.surface === 'string' && ALLOWED_SURFACES.has(body.surface))
+      ? body.surface
+      : null;
+
   const respondAndLog = async (r: any) => {
     await logAiUsage(supabase, {
       user_id:           user.id,
       provider:          r?.provider,
       model:             r?.model || 'unknown',
       feature:           typeof body?.feature === 'string' ? body.feature : null,
+      surface:           requestSurface,
       prompt_tokens:     r?.usage?.prompt_tokens     ?? null,
       completion_tokens: r?.usage?.completion_tokens ?? null,
       total_tokens:      r?.usage?.total_tokens      ?? null,

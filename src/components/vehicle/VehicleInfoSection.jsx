@@ -130,6 +130,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         // is off aiRequest throws SCAN_EXTRACTION_DISABLED and we route
         // back to 'manual' with the file still attached.
         feature: 'scan_extraction',
+        surface: 'vehicle_inline_scan',
         model: 'claude-sonnet-4-20250514',
         max_tokens: 300,
         messages: [{

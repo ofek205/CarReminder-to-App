@@ -98,7 +98,7 @@ export default function DriverLicenseScanDialog({ open, onClose, onSave }) {
       }
     };
 
-    const result = await extractDataFromUploadedFile({ file_url: fileUrl, json_schema: schema });
+    const result = await extractDataFromUploadedFile({ file_url: fileUrl, json_schema: schema, surface: 'driver_license_scan' });
 
     if (result.status !== 'success' || !result.output) {
       setError('לא הצלחתי לקרוא את הרישיון. ניתן להמשיך עם הזנה ידנית.');

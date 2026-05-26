@@ -665,6 +665,8 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
         // provider to prefer. Defaults to 'gemini' server-side when no
         // override is set.
         feature: 'yossi_chat',
+        // `surface` tags the call site for the analytics dashboard.
+        surface: 'chat_assistant',
         model: 'llama-3.3-70b-versatile',
         max_tokens: 700,
         system: systemPrompt,

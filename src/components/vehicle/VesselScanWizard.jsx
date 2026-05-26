@@ -184,6 +184,7 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
       const result = await extractDataFromUploadedFile({
         file_url: fileUrl,
         json_schema: VESSEL_SCHEMA,
+        surface: 'vessel_scan',
       });
 
       if (result.status !== 'success' || !result.output) {
