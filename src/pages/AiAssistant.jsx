@@ -757,9 +757,13 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
   const labels = getVehicleLabels(selectedVehicle?.vehicle_type, selectedVehicle?.nickname);
   const itemNoun = selectedVehicle ? labels.vehicleWord : 'רכב';
 
-  // Input validation
+  // Input validation. With an attachment, an empty text is valid —
+  // the photo carries the question. Length cap still applies whenever
+  // there IS text. Loading attachments don't count as ready yet, so
+  // the send button stays disabled while we read the file off disk.
   const charsLeft = MAX_LEN - input.length;
-  const isInputValid = input.trim().length >= MIN_LEN && input.length <= MAX_LEN;
+  const hasReadyAttachment = !!attachment && !attachment.loading;
+  const isInputValid = (input.trim().length >= MIN_LEN || hasReadyAttachment) && input.length <= MAX_LEN;
 
   // Category-aware derivations. We use getVehicleCategory() (the same
   // helper that powers icon/theme picking) so chip prompts AND the
@@ -1109,6 +1113,25 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
                         wordBreak: 'break-word',
                       }}>
                       {msg.content}
+                      {/* Attachment indicator. Designer spec: thin strip
+                          inside the bubble, lower opacity, icon + LTR
+                          filename. We don't persist the dataUrl so
+                          there is no thumbnail post-reload — just the
+                          icon and name. */}
+                      {msg.attachmentMeta && (
+                        <div className="mt-2 pt-2 flex items-center gap-1.5 text-[11px] font-medium"
+                          style={{
+                            borderTop: msg.role === 'user'
+                              ? '1px solid rgba(255,255,255,0.25)'
+                              : `1px solid ${C.gray200}`,
+                            opacity: 0.85,
+                          }}>
+                          {msg.attachmentMeta.isImage
+                            ? <Paperclip className="w-3 h-3 shrink-0" />
+                            : <FileText  className="w-3 h-3 shrink-0" />}
+                          <span className="truncate" dir="ltr">{msg.attachmentMeta.name}</span>
+                        </div>
+                      )}
                     </div>
                     {/* Action row below message */}
                     <div className={`flex items-center gap-2 text-[9px] px-2 ${msg.role === 'user' ? 'justify-start flex-row-reverse' : 'justify-start'}`}
@@ -1176,7 +1199,85 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
             {error}
           </div>
         )}
+
+        {/* Hidden file input. Triggered by the paperclip button below.
+            One picker for both images and PDFs — the OS native file
+            chooser handles the type filter via the `accept` attribute. */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ATTACHMENT_ACCEPT}
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFilePicked(f);
+          }}
+          aria-hidden="true"
+        />
+
+        {/* Attachment preview chip. Renders only while an attachment
+            is selected. Designer spec: lives ABOVE the input row, same
+            max-width as the input area, soft shadow, rounded-2xl.
+            aria-live so screen readers announce the attachment. */}
+        {attachmentsEnabled && attachment && (
+          <div className="px-3 pt-2 max-w-md mx-auto" aria-live="polite">
+            <div className="flex items-center gap-2.5 p-2.5 rounded-2xl"
+              style={{
+                background: '#fff',
+                border: `1.5px solid ${C.gray200}`,
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              }}>
+              <div className="w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center shrink-0"
+                style={{ background: attachment.isImage ? C.gray100 : C.warnSubtle }}>
+                {attachment.loading
+                  ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: C.gray400 }} aria-hidden="true" />
+                  : attachment.isImage
+                    ? <img src={attachment.dataUrl} alt="" className="w-full h-full object-cover" />
+                    : <FileText className="w-5 h-5" style={{ color: C.warn }} aria-hidden="true" />}
+              </div>
+              <div className="flex-1 min-w-0 text-right">
+                <p className="text-[12px] font-bold truncate" style={{ color: C.gray800 }} dir="ltr">
+                  {attachment.file.name}
+                </p>
+                <p className="text-[10px] font-medium" style={{ color: C.gray500 }} dir="ltr">
+                  {formatFileSize(attachment.file.size)}
+                </p>
+              </div>
+              <button onClick={removeAttachment}
+                disabled={attachment.loading || sending}
+                className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 transition-colors disabled:opacity-30"
+                style={{ background: C.gray100 }}
+                aria-label="הסר צירוף">
+                <X className="w-3 h-3" style={{ color: C.gray500 }} />
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 px-3 py-2.5 max-w-md mx-auto">
+          {/* Paperclip button. Hidden from non-admins until the
+              chat_attachments_enabled flag is on. DOM order puts it
+              first so RTL layout shows it on the visual RIGHT, the
+              natural "start" of the row in Hebrew. */}
+          {attachmentsEnabled && (
+            <button
+              type="button"
+              onClick={openFilePicker}
+              disabled={sending || attachment?.loading}
+              className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 relative transition-all active:scale-[0.92] disabled:opacity-30"
+              style={{
+                background: attachment ? C.light : 'transparent',
+              }}
+              aria-label="צרף תמונה או מסמך">
+              <Paperclip className="w-5 h-5"
+                style={{ color: attachment ? C.primary : C.gray500 }} />
+              {attachment && !attachment.loading && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full"
+                  style={{ background: C.yellow }}
+                  aria-hidden="true" />
+              )}
+            </button>
+          )}
           <Input
             ref={inputRef}
             value={input}
