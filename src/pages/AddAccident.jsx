@@ -19,6 +19,7 @@ import { Link } from 'react-router-dom';
 import { lookupVehicleByPlate } from '../services/vehicleLookup';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
+import PlateScanButton from '@/components/shared/PlateScanButton';
 import { useAuth } from '../components/shared/GuestContext';
 import { DEMO_ACCIDENTS, DEMO_VEHICLE } from '../components/shared/demoVehicleData';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -615,6 +616,21 @@ export default function AddAccident() {
                 style={{ background: C.primary, color: '#fff' }}>
                 {lookupStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
               </Button>
+            </div>
+            {/* Optional plate-photo shortcut — same shared component as
+                the Dashboard hero + /VehicleCheck. Fills the plate
+                field; the user still taps the search button to pull
+                gov.il details. Zero image retention (in-memory only). */}
+            <div className="mt-2">
+              <PlateScanButton
+                size="compact"
+                disabled={lookupStatus === 'loading'}
+                onPlateDetected={(p) => {
+                  setPlateQuery(p);
+                  handleChange('other_driver_plate', p);
+                  if (lookupStatus !== 'idle' && lookupStatus !== 'loading') setLookupStatus('idle');
+                }}
+              />
             </div>
             <p className="text-[11px] mt-1" style={{ color: C.muted }}>
               <Search className="w-3 h-3 inline ml-0.5" style={{ verticalAlign: '-2px' }} />
