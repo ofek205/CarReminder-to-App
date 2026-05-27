@@ -109,6 +109,7 @@ export default function AdminAiUsage() {
   const navigate = useNavigate();
   const [rows,    setRows]    = useState([]);
   const [flags,   setFlags]   = useState({});
+  const [userInfo, setUserInfo] = useState({});   // user_id → { email, name }
   const [loading, setLoading] = useState(true);
   const [savingFlag, setSavingFlag] = useState(null);
 
@@ -116,7 +117,7 @@ export default function AdminAiUsage() {
     setLoading(true);
     const since30 = new Date(Date.now() - THIRTY_DAYS_MS).toISOString();
     try {
-      const [usageRes, flagsRes] = await Promise.all([
+      const [usageRes, flagsRes, accountsRes] = await Promise.all([
         supabase
           .from('ai_usage_logs')
           .select('user_id, provider, model, feature, surface, prompt_tokens, completion_tokens, total_tokens, had_attachment, created_at')
@@ -127,10 +128,25 @@ export default function AdminAiUsage() {
           .from('app_config')
           .select('key, value')
           .in('key', Object.keys(FLAG_LABELS)),
+        // Resolve who each user_id is. admin_list_accounts is the same RPC
+        // the admin dashboard uses; it returns the account owner's email +
+        // name keyed by owner_user_id. Soft-fail: if the RPC isn't
+        // deployed the list still renders with raw UUIDs.
+        supabase.rpc('admin_list_accounts').then(
+          (r) => r,
+          () => ({ data: [], error: null }),
+        ),
       ]);
       if (usageRes.error) throw usageRes.error;
       if (flagsRes.error) throw flagsRes.error;
       setRows(usageRes.data || []);
+      const infoMap = {};
+      (accountsRes?.data || []).forEach((r) => {
+        if (r.owner_user_id) {
+          infoMap[r.owner_user_id] = { email: r.owner_email, name: r.owner_name };
+        }
+      });
+      setUserInfo(infoMap);
       const map = {};
       (flagsRes.data || []).forEach(r => {
         const v = r.value;
@@ -420,19 +436,38 @@ export default function AdminAiUsage() {
               <Empty text="אין נתונים בטווח הזה." />
             ) : (
               <ul className="space-y-2">
-                {stats.topUsers.map((u, idx) => (
-                  <li key={u.user_id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-50">
-                    <span className="w-6 h-6 rounded-full bg-[#2D5233] text-white text-xs font-bold flex items-center justify-center shrink-0">
-                      {idx + 1}
-                    </span>
-                    <span className="flex-1 text-[12px] font-mono truncate text-gray-700" dir="ltr">
-                      {u.user_id}
-                    </span>
-                    <span className="text-[12px] font-bold text-[#1F2937]" dir="ltr">
-                      {numberFmt(u.tokens)}
-                    </span>
-                  </li>
-                ))}
+                {stats.topUsers.map((u, idx) => {
+                  const info = userInfo[u.user_id];
+                  const primary = info?.email || info?.name || null;
+                  return (
+                    <li key={u.user_id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-50">
+                      <span className="w-6 h-6 rounded-full bg-[#2D5233] text-white text-xs font-bold flex items-center justify-center shrink-0">
+                        {idx + 1}
+                      </span>
+                      <span className="flex-1 min-w-0" dir="ltr">
+                        {primary ? (
+                          <>
+                            <span className="block text-[12px] font-medium truncate text-gray-800">
+                              {primary}
+                            </span>
+                            <span className="block text-[10px] font-mono truncate text-gray-400">
+                              {u.user_id}
+                            </span>
+                          </>
+                        ) : (
+                          // No matching account (e.g. a non-owner member or
+                          // a deleted user) — fall back to the raw UUID.
+                          <span className="block text-[12px] font-mono truncate text-gray-700">
+                            {u.user_id}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-[12px] font-bold text-[#1F2937] shrink-0" dir="ltr">
+                        {numberFmt(u.tokens)}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </Section>
