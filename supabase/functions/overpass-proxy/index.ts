@@ -41,18 +41,35 @@ import { buildCorsHeaders, CAPACITOR_ORIGINS } from '../_shared/cors.ts';
 //   ⚠️ Every entry MUST be a planet mirror (regional extracts return
 //   false-empty for Israel). Verify a new mirror with:
 //     curl -sX POST <url> --data 'data=[out:json];node["shop"="car_repair"](32.0,34.7,32.15,34.85);out count;'
+// Verified from the Supabase Edge runtime (2026-05-27):
+//   • overpass-api.de    → 200 with a UA; intermittently 504 under load
+//                          (transient — the retry below recovers it).
+//   • kumi.systems       → often hangs from the edge IP (→ timeout abort),
+//                          but kept as redundancy for when .de is 504ing.
+//   • private.coffee     → same profile as kumi.
+// Dropped (never contribute, only added latency + noise to the race):
+//   • maps.mail.ru       → HTTP 403 (blocks our IP range).
+//   • overpass.osm.jp    → invalid TLS cert (NotValidForName) — broken.
 const MIRRORS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-  'https://overpass.osm.jp/api/interpreter',
 ];
 
-// Per-mirror hard timeout. Overpass's own [timeout:N] is server-side; we
-// also cap the network wait so one hung mirror can't stall the race.
-const MIRROR_TIMEOUT_MS = 30_000;
+// Per-mirror hard timeout. Overpass's own [timeout:N] is 25s server-side;
+// we cap the network wait just above that so one hung mirror can't stall
+// the race. NOTE: with early-resolution (raceForData) a fast mirror no
+// longer waits for the slow ones — this cap only bounds the worst case
+// where EVERY mirror is slow.
+const MIRROR_TIMEOUT_MS = 27_000;
 const MAX_QUERY_LEN = 8_000;
+
+// overpass-api.de returns a transient 504/502/429 under load. A single
+// retry after a short backoff recovers most of these within one request,
+// which is the difference between "sometimes finds, sometimes doesn't"
+// and "always finds". Only transient statuses are retried.
+const RETRY_STATUSES = new Set([429, 502, 503, 504]);
+const RETRY_BACKOFF_MS = 600;
 
 // Overpass mirrors reject requests without a descriptive User-Agent —
 // overpass-api.de returns HTTP 406 Not Acceptable for the default Deno
@@ -72,10 +89,20 @@ function json(body: unknown, status: number, req: Request) {
   });
 }
 
+// Custom error carrying the HTTP status so the retry layer can decide
+// whether the failure is transient (504 → retry) or terminal (403 → give up).
+class MirrorError extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 // One mirror attempt → parsed JSON, or throw on any failure. A response
 // counts as a failure when: network error/timeout, non-2xx, non-JSON,
 // or Overpass's soft server-side timeout (200 + remark + empty).
-async function queryMirror(server: string, body: string): Promise<unknown> {
+async function attemptMirror(server: string, body: string): Promise<unknown> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), MIRROR_TIMEOUT_MS);
   try {
@@ -88,17 +115,74 @@ async function queryMirror(server: string, body: string): Promise<unknown> {
       body,
       signal:  ctrl.signal,
     });
-    if (!res.ok) throw new Error(`${server}: HTTP ${res.status}`);
+    if (!res.ok) throw new MirrorError(`${server}: HTTP ${res.status}`, res.status);
     const ct = res.headers.get('content-type') || '';
-    if (!ct.includes('json')) throw new Error(`${server}: non-json`);
+    if (!ct.includes('json')) throw new MirrorError(`${server}: non-json`);
     const data = await res.json();
     if (data && typeof data.remark === 'string' && /timed out|runtime error/i.test(data.remark)) {
-      throw new Error(`${server}: server-side timeout`);
+      // Overpass's soft timeout is transient — same class as a 504.
+      throw new MirrorError(`${server}: server-side timeout`, 504);
     }
     return data;
   } finally {
     clearTimeout(t);
   }
+}
+
+// Mirror attempt + one retry on a transient status. overpass-api.de 504s
+// under load often enough that without this the feature flickers between
+// "found results" and "no results found"; the retry collapses that.
+async function queryMirror(server: string, body: string): Promise<unknown> {
+  try {
+    return await attemptMirror(server, body);
+  } catch (err) {
+    const status = err instanceof MirrorError ? err.status : undefined;
+    if (status && RETRY_STATUSES.has(status)) {
+      await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
+      return await attemptMirror(server, body);
+    }
+    throw err;
+  }
+}
+
+// Race the mirrors and resolve as soon as ONE returns a non-empty element
+// set — DON'T wait for the slow/hanging mirrors (the old Promise.allSettled
+// made every request wait for kumi/private.coffee to hit their 27s timeout
+// even when overpass-api.de had already answered in 2s). Only if no mirror
+// produces data do we fall back to the first VALID-but-empty payload (real
+// "no garages here"), and only if everything errored do we report failure.
+function raceForData(
+  attempts: Promise<unknown>[],
+): Promise<{ data: unknown } | { failed: string[] }> {
+  return new Promise((resolve) => {
+    let remaining = attempts.length;
+    let emptyFallback: unknown;
+    let hasFallback = false;
+    let done = false;
+    const failures: string[] = [];
+
+    for (const p of attempts) {
+      p.then((data) => {
+        if (done) return;
+        const els = (data as { elements?: unknown[] })?.elements;
+        if (Array.isArray(els) && els.length > 0) {
+          done = true;
+          resolve({ data });
+        } else if (!hasFallback) {
+          emptyFallback = data;
+          hasFallback = true;
+        }
+      }).catch((err) => {
+        failures.push(String(err?.message || err));
+      }).finally(() => {
+        remaining -= 1;
+        if (remaining === 0 && !done) {
+          done = true;
+          resolve(hasFallback ? { data: emptyFallback } : { failed: failures });
+        }
+      });
+    }
+  });
 }
 
 serve(async (req) => {
@@ -130,37 +214,18 @@ serve(async (req) => {
 
   const body = `data=${encodeURIComponent(query)}`;
 
-  // Two-phase race:
-  //   Phase 1 — resolve with the first mirror that returns a NON-EMPTY
-  //             element set. This is the win we actually want: real data.
-  //   Phase 2 — if every mirror either failed or returned empty, fall
-  //             back to the first VALID (possibly empty) payload so a
-  //             genuinely empty area still renders "no results" rather
-  //             than a server error.
+  // Race all mirrors; resolve the instant one returns data (see
+  // raceForData). Falls back to a valid-but-empty payload (real "no
+  // garages here"), then to a 502 only if every mirror errored.
   const attempts = MIRRORS.map((server) => queryMirror(server, body));
+  const outcome = await raceForData(attempts);
 
-  // Collect settled results; resolve early on first non-empty.
-  const results = await Promise.allSettled(attempts);
-  const fulfilled = results
-    .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
-    .map((r) => r.value);
-
-  const nonEmpty = fulfilled.find(
-    (d) => Array.isArray(d?.elements) && d.elements.length > 0,
-  );
-  if (nonEmpty) return json(nonEmpty, 200, req);
-
-  // No mirror had data. If at least one returned a valid (empty) payload,
-  // pass it through — the area legitimately has no matches.
-  if (fulfilled.length > 0) return json(fulfilled[0], 200, req);
+  if ('data' in outcome) return json(outcome.data, 200, req);
 
   // Everything failed (all mirrors down/blocked). Surface the per-mirror
-  // rejection reasons — they're just error strings (no secrets) and they
+  // failure reasons — they're just error strings (no secrets) and they
   // turn an opaque 502 into an actionable signal (e.g. "all 406" → UA
   // problem, "all timeout" → datacenter IP blocked).
-  const reasons = results
-    .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-    .map((r) => String(r.reason?.message || r.reason));
-  console.warn('[overpass-proxy] all mirrors failed:', reasons.join(' | '));
-  return json({ error: 'all_mirrors_unavailable', elements: [], reasons }, 502, req);
+  console.warn('[overpass-proxy] all mirrors failed:', outcome.failed.join(' | '));
+  return json({ error: 'all_mirrors_unavailable', elements: [], reasons: outcome.failed }, 502, req);
 });
