@@ -4,184 +4,173 @@ import useUpdateAvailable, { snoozeUpdateBanner } from '@/hooks/useUpdateAvailab
 import { C } from '@/lib/designTokens';
 
 /**
- * UpdateAvailableBanner — bottom non-blocking strip telling native
- * users a newer version is in the store.
+ * UpdateAvailableBanner — centered popup telling native users a newer
+ * version is available in the store.
  *
  * Sister to AppUpdateGate. AppUpdateGate is the *hard* full-screen
  * block when the installed version is below `*_min_version`. This
- * banner is the *soft* nudge when the installed version is below
+ * popup is the *soft* nudge when the installed version is below
  * `*_latest_version` — admin-controlled remotely, dismissible,
  * snoozable.
  *
- * UX spec (locked by the ux skill review):
- *   • Placement     : bottom strip above BottomNav, thumb-reach zone
+ * UX:
+ *   • Placement     : centered modal with backdrop overlay
  *   • First show    : 2.5s after boot (handled in the hook)
  *   • Snooze        : 3 days after dismissal
- *   • Re-show       : NO on background-foreground cycles; only on
- *                     wall-clock snooze expiry
- *   • Animation     : slide up 300ms ease-out on entry, slide down
- *                     200ms ease-in on dismiss
- *   • Visual weight : medium — soft green, matches AppUpdateGate
- *                     palette so "green = update" stays consistent,
- *                     no pulse / no nag
- *   • Web fallback  : never renders (useUpdateAvailable returns
+ *   • Re-show       : only on wall-clock snooze expiry
+ *   • Visual weight : prominent — matches AppUpdateGate palette,
+ *                     but dismissible (not a hard block)
+ *   • Web           : never renders (useUpdateAvailable returns
  *                     show:false on Capacitor.isNative === false)
- *
- * Stacking:
- *   • If AppUpdateGate is active (currentVersion < min), this
- *     component never renders — the gate replaces the entire app
- *     children tree.
- *   • Coexists with bottom-aligned popups (MileageReminderPopup,
- *     AiScanUnavailableDialog) because both are modal overlays that
- *     sit above the banner. The banner only competes for visual
- *     attention with the BottomNav itself.
  */
 export default function UpdateAvailableBanner() {
-  const { show, currentVersion, latestVersion, storeUrl } = useUpdateAvailable();
+  const { show, currentVersion, latestVersion, storeUrl, platform } = useUpdateAvailable();
 
-  // Local state so we can play the slide-out animation BEFORE the
-  // banner unmounts. Without this, tapping "אחר כך" flips `show` from
-  // the hook to false instantly and the strip disappears with no
-  // transition, which reads as "did something happen?" to the user.
+  // Local state for enter/exit animation.
   const [visible, setVisible] = useState(false);
+  const [animIn, setAnimIn] = useState(false);
+
   useEffect(() => {
     if (show) {
-      // Mount + small delay to let the initial transform: translateY
-      // settle before the transition class kicks in. Otherwise the
-      // browser collapses the two states into one frame and skips
-      // the animation.
       setVisible(true);
+      // Trigger enter animation on next frame.
+      requestAnimationFrame(() => requestAnimationFrame(() => setAnimIn(true)));
     } else {
-      setVisible(false);
+      setAnimIn(false);
+      const t = setTimeout(() => setVisible(false), 250);
+      return () => clearTimeout(t);
     }
   }, [show]);
 
-  if (!show) return null;
+  if (!visible) return null;
+
+  const storeName = platform === 'ios' ? 'App Store' : 'Google Play';
 
   const handleSnooze = () => {
     snoozeUpdateBanner();
-    setVisible(false);
+    setAnimIn(false);
   };
 
   const handleUpdate = () => {
-    // Snooze AND open the store. If the user actually updates, the
-    // next boot won't show the banner (latest == current). If they
-    // bail at the store, we still give them 3 days of quiet before
-    // re-prompting — they clearly know about the update now.
     snoozeUpdateBanner();
     try {
       window.open(storeUrl, '_blank', 'noopener,noreferrer');
     } catch {
-      // Capacitor WKWebView / WebView fallback if window.open is
-      // blocked: assign location instead (the browser bridge handles
-      // store schemes when registered).
       window.location.href = storeUrl;
     }
-    setVisible(false);
+    setAnimIn(false);
   };
 
   return (
     <div
       dir="rtl"
-      role="status"
-      aria-live="polite"
-      className="fixed left-0 right-0 z-[1000] pointer-events-none"
+      role="dialog"
+      aria-modal="true"
+      aria-label="עדכון גרסה זמין"
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-6"
       style={{
-        // Sit above the BottomNav. The BottomNav height changes with
-        // safe-area-inset-bottom on iPhones with a home indicator;
-        // env(safe-area-inset-bottom) + a constant covers both cases.
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 72px)',
-        padding: '0 12px',
+        background: animIn
+          ? 'rgba(15, 40, 28, 0.45)'
+          : 'rgba(15, 40, 28, 0)',
+        transition: 'background 300ms ease-out',
       }}
+      onClick={handleSnooze}
     >
       <div
-        className="mx-auto max-w-md pointer-events-auto"
+        className="max-w-sm w-full"
         style={{
-          transform: visible ? 'translateY(0)' : 'translateY(140%)',
-          opacity: visible ? 1 : 0,
-          transition: visible
-            ? 'transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease-out'
+          transform: animIn ? 'scale(1) translateY(0)' : 'scale(0.92) translateY(24px)',
+          opacity: animIn ? 1 : 0,
+          transition: animIn
+            ? 'transform 350ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease-out'
             : 'transform 200ms ease-in, opacity 200ms ease-in',
         }}
+        onClick={e => e.stopPropagation()}
       >
         <div
-          className="rounded-2xl overflow-hidden"
+          className="rounded-2xl overflow-hidden p-6"
           style={{
             background: '#FFFFFF',
-            border: `1px solid ${C.successLight}`,
-            boxShadow: '0 16px 32px -8px rgba(15,40,28,0.18), 0 4px 8px rgba(15,40,28,0.08)',
+            boxShadow: '0 24px 48px -12px rgba(15,40,28,0.22), 0 8px 16px rgba(15,40,28,0.10)',
           }}
         >
-          {/* Soft green tint stripe on the trailing edge — matches the
-              AppUpdateGate "update available" green palette without
-              the full gradient (which would compete with content). */}
-          <div className="flex items-stretch">
+          {/* Icon */}
+          <div className="flex justify-center mb-5">
             <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center"
               style={{
-                width: 4,
-                background: `linear-gradient(180deg, ${C.successBright} 0%, ${C.successMid} 100%)`,
+                background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
+                boxShadow: '0 12px 28px -8px rgba(16,185,129,0.4)',
               }}
-            />
-            <div className="flex-1 flex items-center gap-3 px-3 py-2.5">
-              {/* Icon chip. Sparkles communicates "new" without the
-                  alarm energy of an arrow or refresh icon. */}
-              <div
-                className="flex items-center justify-center shrink-0"
-                style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: C.successSubtle,
-                  color: C.successDark,
-                }}
-              >
-                <Sparkles size={18} strokeWidth={2.5} />
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold text-right leading-tight" style={{ color: C.primaryDark }}>
-                  גרסה חדשה זמינה
-                </p>
-                <p className="text-[11px] text-right leading-tight mt-0.5" style={{ color: C.textAlt }}>
-                  שדרגו לגרסה האחרונה כדי ליהנות משיפורים וכלים חדשים.
-                  {latestVersion && currentVersion && (
-                    <>
-                      {' '}
-                      <span dir="ltr" className="tabular-nums" style={{ color: '#7A6E58' }}>
-                        ({currentVersion} → {latestVersion})
-                      </span>
-                    </>
-                  )}
-                </p>
-              </div>
-
-              {/* CTAs stacked tight on the leading edge. Primary first
-                  (RTL: rightmost = primary; visual order matches the
-                  thumb's natural reach on a Hebrew phone). */}
-              <div className="flex flex-col gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleUpdate}
-                  className="text-white font-bold text-[12px] active:scale-[0.97] transition-transform"
-                  style={{
-                    height: 30,
-                    padding: '0 12px',
-                    borderRadius: 10,
-                    background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
-                    boxShadow: '0 4px 10px rgba(16,185,129,0.28)',
-                  }}
-                >
-                  עדכן עכשיו
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSnooze}
-                  className="font-bold text-[11px]"
-                  style={{ color: C.gray400, height: 26 }}
-                >
-                  אחר כך
-                </button>
-              </div>
+            >
+              <Sparkles size={30} strokeWidth={2.5} color="#FFFFFF" />
             </div>
           </div>
+
+          <h2
+            className="text-xl font-black text-center mb-2"
+            style={{ color: C.primaryDark, letterSpacing: '-0.02em' }}
+          >
+            גרסה חדשה זמינה!
+          </h2>
+          <p className="text-sm text-center leading-relaxed mb-1" style={{ color: C.textAlt }}>
+            שדרגו לגרסה האחרונה כדי ליהנות משיפורים וכלים חדשים.
+          </p>
+
+          {/* Version comparison */}
+          {latestVersion && currentVersion && (
+            <div
+              className="rounded-xl p-3 my-4 text-center"
+              style={{
+                background: C.bgSubtle,
+                border: `1px solid ${C.bgSage}`,
+              }}
+            >
+              <div className="flex items-center justify-around text-xs">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.gray400 }}>
+                    הגרסה שלך
+                  </p>
+                  <p className="font-black tabular-nums mt-1" style={{ color: C.gray500, fontSize: '1rem' }} dir="ltr">
+                    {currentVersion}
+                  </p>
+                </div>
+                <div className="text-lg" style={{ color: C.gray300 }}>→</div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.gray400 }}>
+                    חדשה
+                  </p>
+                  <p className="font-black tabular-nums mt-1" style={{ color: C.successDark, fontSize: '1rem' }} dir="ltr">
+                    {latestVersion}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Primary CTA */}
+          <button
+            type="button"
+            onClick={handleUpdate}
+            className="w-full py-3.5 rounded-2xl font-bold text-center transition-all active:scale-[0.98]"
+            style={{
+              background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
+              color: '#FFFFFF',
+              boxShadow: '0 8px 20px rgba(16,185,129,0.32), 0 2px 6px rgba(16,185,129,0.18)',
+            }}
+          >
+            עדכן ב-{storeName}
+          </button>
+
+          {/* Dismiss */}
+          <button
+            type="button"
+            onClick={handleSnooze}
+            className="w-full mt-2 py-3 rounded-2xl text-center text-sm font-bold transition-colors"
+            style={{ color: C.gray400 }}
+          >
+            אחר כך
+          </button>
         </div>
       </div>
     </div>
