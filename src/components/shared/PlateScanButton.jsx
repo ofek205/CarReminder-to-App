@@ -146,17 +146,40 @@ export default function PlateScanButton({ onPlateDetected, disabled = false, siz
         return { raw, plate: extractPlate(raw) };
       };
 
-      // First attempt; retry once if it came back empty/unusable.
-      let { raw, plate: cleaned } = await attemptScan();
+      // Resilient retry. The free Gemini vision path fails two ways, both
+      // non-deterministic and both worth a second shot:
+      //   • soft fail — 200 with an empty/unusable read (truncation, or a
+      //     PII safety block that returns no text). attemptScan resolves
+      //     with plate ''.
+      //   • hard fail — ai-proxy returns 503 ("no provider available")
+      //     when callGemini itself bombed (429 quota, safety block, cold
+      //     start). attemptScan THROWS. A bare throw used to skip the
+      //     retry entirely and surface the raw service error — exactly the
+      //     "שירות ה-AI עומס" toast the user hit. Catch it here so a
+      //     transient blip gets one more attempt before we give up.
+      // Wrap so a throw becomes a comparable result instead of unwinding.
+      const safeAttempt = async () => {
+        try { return await attemptScan(); }
+        catch (e) { return { raw: '', plate: '', error: e }; }
+      };
+
+      let { raw, plate: cleaned, error: lastError } = await safeAttempt();
       if (!cleaned || cleaned.length < 5) {
-        const second = await attemptScan();
+        const second = await safeAttempt();
         // Prefer whichever attempt produced the longer plausible read —
         // guards against attempt #1 truncating and #2 over-reading.
         if (second.plate.length > cleaned.length) {
           cleaned = second.plate;
           raw = second.raw;
         }
+        // Keep the most recent service error for the throw path below.
+        lastError = second.error || (cleaned ? null : lastError);
       }
+
+      // Both attempts hard-failed (no usable read AND a thrown service
+      // error) → surface the service message via the catch, same as before
+      // the retry wrapper existed.
+      if ((!cleaned || cleaned.length < 5) && lastError) throw lastError;
 
       if (!cleaned || cleaned.length < 5) {
         // Clean user-facing message. The raw model reply still rides
