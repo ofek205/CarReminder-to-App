@@ -503,30 +503,41 @@ export default function FindGarage() {
       // needs it directly, but the destructured `signal` is what the
       // fetch callers and the catch/finally branches read.)
 
-      // Fetch with multi-server fallback. Overpass returns HTTP 200 with
-      // `{remark: "runtime error: Query timed out ..."}` and an empty
-      // `elements` array when a query exceeds the timeout — we treat
-      // that as a failure (try next server) so we never cache an empty
-      // payload from a server-side timeout.
+      // Fetch with multi-server PARALLEL race. We hit every mirror at
+      // once and take the first VALID response (Promise.any resolves on
+      // the first fulfilled promise, ignoring rejections). This avoids
+      // the old sequential penalty where a slow/down primary made the
+      // user wait for its failure before the next mirror was even tried
+      // — exactly the "takes a long time to find" symptom when
+      // overpass-api.de was 406ing and we waited on it first.
+      //
+      // A mirror counts as failed (→ reject, so it's ignored unless ALL
+      // fail) when: non-2xx, non-JSON body, or Overpass's soft
+      // server-side timeout (200 + {remark:"runtime error: timed out"}
+      // + empty elements). The loser requests keep running in the
+      // background but we never await them; the shared abort signal
+      // cancels them when the user changes location/radius.
       const fetchFromServers = async (q) => {
-        for (const server of OVERPASS_SERVERS) {
-          try {
-            const res = await fetch(server, { method: 'POST', body: `data=${encodeURIComponent(q)}`, headers: hdrs, signal });
-            if (!res.ok) continue;
-            const ct = res.headers.get('content-type') || '';
-            if (!ct.includes('json')) continue;
-            const json = await res.json();
-            if (json && typeof json.remark === 'string' && /timed out|runtime error/i.test(json.remark)) {
-              continue; // Server-side timeout/runtime error — try next server
-            }
-            return json;
-          } catch (e) {
-            // AbortError means the user changed location/radius — stop trying
-            if (e?.name === 'AbortError') return null;
-            /* try next server */
+        const body = `data=${encodeURIComponent(q)}`;
+        const attempts = OVERPASS_SERVERS.map(async (server) => {
+          const res = await fetch(server, { method: 'POST', body, headers: hdrs, signal });
+          if (!res.ok) throw new Error(`${server}: HTTP ${res.status}`);
+          const ct = res.headers.get('content-type') || '';
+          if (!ct.includes('json')) throw new Error(`${server}: non-json`);
+          const json = await res.json();
+          if (json && typeof json.remark === 'string' && /timed out|runtime error/i.test(json.remark)) {
+            throw new Error(`${server}: server-side timeout`);
           }
+          return json;
+        });
+        try {
+          // First mirror to return a valid payload wins.
+          return await Promise.any(attempts);
+        } catch {
+          // AggregateError — every mirror rejected (all down, or the
+          // user aborted). Either way there's nothing to render.
+          return null;
         }
-        return null;
       };
 
       // Fetch car + marine in parallel
