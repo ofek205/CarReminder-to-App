@@ -153,6 +153,26 @@ serve(async (req) => {
   if (html && html.length > 200_000) return json({ error: 'html too long' }, 400, req);
   if (text && text.length > 100_000) return json({ error: 'text too long' }, 400, req);
 
+  // SECURITY: admin_direct sends create in-app notifications that appear to
+  // come from the admin. A non-admin must NOT be allowed to trigger this —
+  // block the ENTIRE request (not just the notification insertion), otherwise
+  // a non-admin could still send emails that look like admin messages.
+  // Audit finding C-1 (2026-05-27): the original code logged the block but
+  // continued to send the email — missing `return`.
+  if (notification_key === 'admin_direct') {
+    try {
+      const { data: isAdminFlag } = await supabaseAdmin!.rpc('is_admin', { uid: user.id });
+      if (!isAdminFlag) {
+        logSecurityEvent('send-email', 'admin_direct_blocked', { user_id: user.id, recipient_user_id });
+        return json({ error: 'admin_direct requires admin privileges' }, 403, req);
+      }
+    } catch (adminCheckErr) {
+      // Fail closed — if we can't verify admin status, block the send.
+      logSecurityEvent('send-email', 'admin_check_failed', { user_id: user.id, error: (adminCheckErr as Error)?.message });
+      return json({ error: 'admin verification failed' }, 500, req);
+    }
+  }
+
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -179,65 +199,59 @@ serve(async (req) => {
     // Admin direct messages also create an in-app notification so the
     // recipient sees it in the bell + gets a push notification via the
     // existing AFTER INSERT trigger on app_notifications.
-    // SECURITY: gate on is_admin() RPC — a non-admin could otherwise
-    // craft a request with notification_key='admin_direct' and inject
-    // fake admin messages into any user's bell.
+    // NOTE: admin check already ran above (pre-send gate). If we reached
+    // here with notification_key='admin_direct', the caller IS admin.
     if (notification_key === 'admin_direct') {
       try {
-        const { data: isAdminFlag } = await supabaseAdmin!.rpc('is_admin', { uid: user.id });
-        if (!isAdminFlag) {
-          logSecurityEvent('send-email', 'admin_notif_blocked', { user_id: user.id, recipient_user_id });
-        } else {
-          // Resolve recipient: explicit user_id takes priority, otherwise
-          // look up by the `to` email so replies from AdminAlerts (which
-          // only have the contact email) also land in the user's bell.
-          // Uses the GoTrue admin endpoint which supports email filter.
-          let resolvedUserId = recipient_user_id;
-          if (!resolvedUserId && to && !Array.isArray(to)) {
-            const gotrue = `${SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(to as string)}&per_page=1`;
-            try {
-              const luRes = await fetch(gotrue, {
-                headers: { Authorization: `Bearer ${SERVICE_ROLE}`, apikey: SERVICE_ROLE },
-              });
-              if (luRes.ok) {
-                const luData = await luRes.json();
-                const match = (luData.users || []).find(
-                  (u: { email?: string }) => u.email?.toLowerCase() === (to as string).toLowerCase()
-                );
-                resolvedUserId = match?.id;
-              }
-            } catch { /* lookup failed — notification won't be created, email still sent */ }
-          }
-          if (resolvedUserId) {
-            // Prefer the explicit raw admin input. Falls back to the
-            // legacy strip-HTML path only when the client didn't send
-            // plain_body — that path concatenates the email title,
-            // tagline, and footer into the notification body, which
-            // produced the corrupted notifications reported in the
-            // bell popup. The fallback stays for legacy callers that
-            // haven't been updated yet (broadcast/dispatch flows).
-            const stripped = (text || (html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ''))
-              .replace(/&#39;/g, "'")
-              .replace(/&quot;/g, '"')
-              .replace(/&lt;/g, '<')
-              .replace(/&gt;/g, '>')
-              .replace(/&amp;/g, '&')
-              .replace(/&#8203;/g, '')
-              .replace(/&nbsp;/g, ' ');
-            const plainBody = (typeof plain_body === 'string' && plain_body.trim().length > 0
-              ? plain_body
-              : stripped
-            ).slice(0, 500);
-            await supabaseAdmin!
-              .from('app_notifications')
-              .insert({
-                user_id: resolvedUserId,
-                type:    'admin_message',
-                title:   subject,
-                body:    plainBody,
-                data:    { from_admin: true, subject, body: plainBody },
-              });
-          }
+        // Resolve recipient: explicit user_id takes priority, otherwise
+        // look up by the `to` email so replies from AdminAlerts (which
+        // only have the contact email) also land in the user's bell.
+        // Uses the GoTrue admin endpoint which supports email filter.
+        let resolvedUserId = recipient_user_id;
+        if (!resolvedUserId && to && !Array.isArray(to)) {
+          const gotrue = `${SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(to as string)}&per_page=1`;
+          try {
+            const luRes = await fetch(gotrue, {
+              headers: { Authorization: `Bearer ${SERVICE_ROLE}`, apikey: SERVICE_ROLE },
+            });
+            if (luRes.ok) {
+              const luData = await luRes.json();
+              const match = (luData.users || []).find(
+                (u: { email?: string }) => u.email?.toLowerCase() === (to as string).toLowerCase()
+              );
+              resolvedUserId = match?.id;
+            }
+          } catch { /* lookup failed — notification won't be created, email still sent */ }
+        }
+        if (resolvedUserId) {
+          // Prefer the explicit raw admin input. Falls back to the
+          // legacy strip-HTML path only when the client didn't send
+          // plain_body — that path concatenates the email title,
+          // tagline, and footer into the notification body, which
+          // produced the corrupted notifications reported in the
+          // bell popup. The fallback stays for legacy callers that
+          // haven't been updated yet (broadcast/dispatch flows).
+          const stripped = (text || (html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ''))
+            .replace(/&#39;/g, "'")
+            .replace(/&quot;/g, '"')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&amp;/g, '&')
+            .replace(/&#8203;/g, '')
+            .replace(/&nbsp;/g, ' ');
+          const plainBody = (typeof plain_body === 'string' && plain_body.trim().length > 0
+            ? plain_body
+            : stripped
+          ).slice(0, 500);
+          await supabaseAdmin!
+            .from('app_notifications')
+            .insert({
+              user_id: resolvedUserId,
+              type:    'admin_message',
+              title:   subject,
+              body:    plainBody,
+              data:    { from_admin: true, subject, body: plainBody },
+            });
         }
       } catch (notifErr) {
         console.warn('app_notifications insert failed:', (notifErr as Error)?.message);

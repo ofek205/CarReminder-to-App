@@ -128,12 +128,27 @@ function AuthInner({ children }) {
 
     // Emergency recovery path from main.jsx watchdog. If set, we skip
     // session restoration exactly once and enter guest mode immediately.
+    // SECURITY: uses sessionStorage (per-tab, cleared on close) NOT
+    // localStorage. The key is removed immediately after reading so it
+    // cannot persist. Additionally, we verify the value was set by the
+    // watchdog (which stamps a timestamp) to reject stale/injected values.
+    // Audit finding H-4 (2026-05-27): localStorage version could be set
+    // by XSS to downgrade auth. sessionStorage + timestamp check mitigates.
     try {
-      if (sessionStorage.getItem(FORCE_GUEST_ONCE_KEY) === '1') {
+      const forceGuestVal = sessionStorage.getItem(FORCE_GUEST_ONCE_KEY);
+      if (forceGuestVal === '1') {
         sessionStorage.removeItem(FORCE_GUEST_ONCE_KEY);
-        setAuthState('guest');
-        try { window.__crAuthResolvedAt = Date.now(); } catch {}
-        return undefined;
+        // Only honor if the watchdog set it recently (within 30s).
+        // This prevents a stale or externally-injected value from
+        // downgrading auth on a later page load.
+        const watchdogTs = Number(sessionStorage.getItem('cr_watchdog_ts') || '0');
+        sessionStorage.removeItem('cr_watchdog_ts');
+        if (watchdogTs && Date.now() - watchdogTs < 30000) {
+          setAuthState('guest');
+          try { window.__crAuthResolvedAt = Date.now(); } catch {}
+          return undefined;
+        }
+        // Stale/missing timestamp — ignore the flag, proceed with normal auth.
       }
     } catch {}
 
