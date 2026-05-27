@@ -340,11 +340,18 @@ export default function FindGarage() {
   // surfaced as "שרת החיפוש לא הגיב" with zero results. Added two
   // community mirrors that were verified responding 200 at the time,
   // so a single mirror's outage no longer takes the whole feature down.
+  // Order matters — first responder wins. overpass.osm.ch sits second
+  // because it was the one mirror verified returning BOTH 200 AND a
+  // proper `Access-Control-Allow-Origin: *` header (a 200 without CORS
+  // is useless — the browser blocks the read). overpass-api.de stays
+  // first since it's the canonical, freshest dataset when healthy.
+  // private.coffee is last-resort: it intermittently hangs with no
+  // response, so we only reach it if everything above failed.
   const OVERPASS_SERVERS = [
     'https://overpass-api.de/api/interpreter',
-    'https://overpass.private.coffee/api/interpreter',
     'https://overpass.osm.ch/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter',
   ];
 
   // Stale-while-revalidate cache for Overpass results.
