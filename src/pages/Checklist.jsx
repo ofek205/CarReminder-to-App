@@ -145,7 +145,7 @@ export default function Checklist() {
     if (!vehicleId || (!phaseParam && !templateIdParam)) return;
     (async () => {
       try {
-        const vrows = await db.vehicles.filter({ id: vehicleId });
+        const vrows = await db.vehicles.filter({ id: vehicleId }, { light: true });
         const acc = vrows?.[0]?.account_id;
         if (!acc) throw new Error('אין גישה לכלי');
         setAccountId(acc);

@@ -340,7 +340,7 @@ export default function AddVehicle() {
     let cancelled = false;
     (async () => {
       try {
-        const vs = await db.vehicles.filter({ account_id: accountId });
+        const vs = await db.vehicles.filter({ account_id: accountId }, { light: true });
         if (!cancelled) setExistingVehicles(vs);
       } catch (err) {
         console.error('AddVehicle: Failed to load existing vehicles', err);

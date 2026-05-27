@@ -99,7 +99,7 @@ export default function ChecklistEditor() {
     if (!vehicleId || (!phaseParam && !templateIdParam)) return;
     (async () => {
       try {
-        const vrows = await db.vehicles.filter({ id: vehicleId });
+        const vrows = await db.vehicles.filter({ id: vehicleId }, { light: true });
         const v = vrows?.[0];
         if (!v) throw new Error('כלי לא נמצא');
         setVehicle(v);

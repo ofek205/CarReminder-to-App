@@ -1206,7 +1206,14 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
       {/* Input area. premium */}
       <div className="fixed left-0 right-0 z-40"
         style={{
-          bottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
+          // Sit flush on top of the BottomNav. MUST mirror the nav's own
+          // footprint from Layout.jsx (60px content + --inset-bottom). The
+          // old value used `56px + env(safe-area-inset-bottom)`, but on
+          // Android env() is 0 (the real gesture-bar inset lives in the
+          // JS-injected --inset-bottom var, NOT in env()), so the composer
+          // sat at 56px while the nav rose to 60px + gesture inset — burying
+          // the text input behind the nav. Using --inset-bottom fixes it.
+          bottom: 'calc(60px + var(--inset-bottom, env(safe-area-inset-bottom, 4px)))',
           background: 'rgba(255,255,255,0.95)',
           backdropFilter: 'blur(12px)',
           borderTop: `1px solid ${C.gray200}`,

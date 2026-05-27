@@ -109,7 +109,7 @@ export default function ChecklistHub() {
   const { data: vehicle } = useQuery({
     queryKey: ['vehicle', vehicleId],
     queryFn: async () => {
-      const rows = await db.vehicles.filter({ id: vehicleId });
+      const rows = await db.vehicles.filter({ id: vehicleId }, { light: true });
       return rows?.[0] || null;
     },
     enabled: !!vehicleId,
