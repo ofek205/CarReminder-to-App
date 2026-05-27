@@ -19,6 +19,7 @@ import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '../components/ui/drawer';
 import useReminderSnooze, { SNOOZE_OPTIONS } from '../hooks/useReminderSnooze';
+import useUserProfile from '@/hooks/useUserProfile';
 
 const TYPE_CONFIG = {
   'טסט':        { icon: Calendar,      bg: C.yellowSoft, color: C.warn,     border: C.warnBorder },
@@ -519,17 +520,10 @@ function AuthNotifications() {
   const vehicles = accountData?.vehicles || [];
   const isLoading = !accountData;
 
-  // Check if profile is incomplete
-  const { data: profileData } = useQuery({
-    queryKey: ['user-profile-check', user?.id],
-    queryFn: async () => {
-      try {
-        const profiles = await db.user_profiles.filter({ user_id: user.id }, { light: true });
-        return profiles.length > 0 ? profiles[0] : null;
-      } catch { return null; }
-    },
-    enabled: !!user?.id,
-  });
+  // Check if profile is incomplete — shared cached hook eliminates
+  // redundant Supabase round-trips (Dashboard + Bell + this page used
+  // to each fire their own query).
+  const { profile: profileData } = useUserProfile();
   const PROFILE_REMIND_KEY = 'profile_remind_dismissed_at';
   const [profileDismissed, setProfileDismissed] = useState(() => {
     try {

@@ -5,6 +5,8 @@ import { Phone, Calendar, ArrowLeft, User, Loader2 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
 import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
+import { useQueryClient } from '@tanstack/react-query';
+import { USER_PROFILE_QUERY_KEY } from '@/hooks/useUserProfile';
 
 const MIN_AGE_YEARS = 12;
 
@@ -57,6 +59,7 @@ export function isProfileSkipActive() {
  * Asks for phone + birth date. Can be skipped.
  */
 export default function CompleteProfileScreen({ user, onDone }) {
+  const queryClient = useQueryClient();
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [saving, setSaving] = useState(false);
@@ -87,6 +90,9 @@ export default function CompleteProfileScreen({ user, onDone }) {
       console.error('Profile save error:', err);
       // Don't block - save what we can
     }
+    // Bust the shared useUserProfile cache so Bell / Dashboard / Notifications
+    // immediately see the updated profile without waiting for staleTime expiry.
+    queryClient.invalidateQueries({ queryKey: [USER_PROFILE_QUERY_KEY] });
     // Real completion. mark done AND clear any active skip cooldown.
     localStorage.setItem(COMPLETE_PROFILE_KEY, '1');
     localStorage.removeItem(SKIP_UNTIL_KEY);

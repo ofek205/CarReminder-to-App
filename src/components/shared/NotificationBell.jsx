@@ -28,6 +28,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { he as heLocale } from 'date-fns/locale';
 import { configForType as appConfigForType, requiresActionForType, decodeNotifBody } from '@/lib/appNotificationConfig';
 import { calcAllReminders } from '@/components/shared/ReminderEngine';
+import useUserProfile from '@/hooks/useUserProfile';
 import { C } from '@/lib/designTokens';
 
 // Hebrew "X ago" label for an ISO timestamp. Returns null for
@@ -193,6 +194,40 @@ export default function NotificationBell() {
   const [inviteActing, setInviteActing] = useState(null);
   const [adminMsg, setAdminMsg] = useState(null);
 
+  // Shared cached profile — eliminates the per-mount Supabase call that
+  // was the #1 source of user_profiles.filter slow-query alerts (30× in
+  // 15 min). React Query caches the result; the Bell reads from cache.
+  const { profile: cachedProfile } = useUserProfile();
+
+  // Profile-derived notifications. Separated from the vehicle fetch so a
+  // profile change doesn't re-trigger the expensive 4-table cascade.
+  useEffect(() => {
+    const profileNotifs = [];
+    if (!cachedProfile || !cachedProfile.phone) {
+      profileNotifs.push({
+        id: 'profile-incomplete', vehicleId: null, type: 'profile',
+        label: 'השלם פרטים אישיים',
+        name: 'הוסף טלפון ותאריך לידה באזור האישי',
+        days: -999, isExpired: false,
+      });
+    }
+    if (cachedProfile?.license_expiration_date) {
+      const licDays = Math.ceil((new Date(cachedProfile.license_expiration_date) - new Date()) / 86400000);
+      if (licDays <= 30) {
+        profileNotifs.push({
+          id: 'license-expiry', vehicleId: null, type: 'license',
+          label: licDays < 0 ? 'רישיון נהיגה פג תוקף!' : `רישיון נהיגה בעוד ${licDays} ימים`,
+          name: 'עדכן באזור האישי',
+          days: licDays, isExpired: licDays < 0,
+        });
+      }
+    }
+    setNotifications(prev => {
+      const withoutProfile = prev.filter(n => n.id !== 'profile-incomplete' && n.id !== 'license-expiry');
+      return [...profileNotifs, ...withoutProfile];
+    });
+  }, [cachedProfile]);
+
   // Inject the badge-pulse keyframes exactly once per page. Doing it
   // here (instead of importing a CSS file) keeps the animation
   // collocated with the only component that uses it — no global CSS
@@ -252,37 +287,13 @@ export default function NotificationBell() {
     (async () => {
       try {
         const { db } = await import('@/lib/supabaseEntities');
-        const [profilesResult, membersResult, settingsResult] = await Promise.all([
-          db.user_profiles.filter({ user_id: user.id }, { light: true }).catch(() => []),
+        // Profile is now served by the cached useUserProfile hook above —
+        // removed from this Promise.all to eliminate a redundant Supabase
+        // round-trip on every refreshKey bump / workspace switch.
+        const [membersResult, settingsResult] = await Promise.all([
           db.account_members.filter({ user_id: user.id, status: MEMBER_STATUS.ACTIVE }).catch(() => []),
           db.reminder_settings.filter({ user_id: user.id }).catch(() => []),
         ]);
-
-        const profileNotifs = [];
-        const profile = profilesResult.length > 0 ? profilesResult[0] : null;
-        if (!profile || !profile.phone) {
-          profileNotifs.push({
-            id: 'profile-incomplete', vehicleId: null, type: 'profile',
-            label: 'השלם פרטים אישיים',
-            name: 'הוסף טלפון ותאריך לידה באזור האישי',
-            days: -999, isExpired: false,
-          });
-        }
-        if (profile?.license_expiration_date) {
-          const licDays = Math.ceil((new Date(profile.license_expiration_date) - new Date()) / 86400000);
-          if (licDays <= 30) {
-            profileNotifs.push({
-              id: 'license-expiry', vehicleId: null, type: 'license',
-              label: licDays < 0 ? 'רישיון נהיגה פג תוקף!' : `רישיון נהיגה בעוד ${licDays} ימים`,
-              name: 'עדכן באזור האישי',
-              days: licDays, isExpired: licDays < 0,
-            });
-          }
-        }
-        setNotifications(prev => {
-          const withoutProfile = prev.filter(n => n.id !== 'profile-incomplete' && n.id !== 'license-expiry');
-          return [...profileNotifs, ...withoutProfile];
-        });
 
         if (membersResult.length === 0) return;
         // Pick the workspace the user is currently looking at. Falls

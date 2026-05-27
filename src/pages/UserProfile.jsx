@@ -21,6 +21,8 @@ import DriverLicenseScanDialog from "../components/profile/DriverLicenseScanDial
 import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { toast } from "sonner";
 import { toastError } from "@/lib/userErrorReport";
+import { useQueryClient } from '@tanstack/react-query';
+import { USER_PROFILE_QUERY_KEY } from '@/hooks/useUserProfile';
 import { useAuth } from "../components/shared/GuestContext";
 import useFormValidation from '@/hooks/useFormValidation';
 import FieldError from '../components/shared/FieldError';
@@ -221,6 +223,7 @@ export default function UserProfilePage({ embedded = false }) {
 
 function AuthUserProfile({ embedded = false }) {
   const { refreshUser } = useAuth();
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [profileId, setProfileId] = useState(null);
@@ -305,6 +308,7 @@ function AuthUserProfile({ embedded = false }) {
     } catch (err) {
       console.error('Profile scan save error:', err);
     }
+    queryClient.invalidateQueries({ queryKey: [USER_PROFILE_QUERY_KEY] });
     toast.success('פרטי רישיון הנהיגה עודכנו בהצלחה');
   };
 
@@ -355,6 +359,7 @@ function AuthUserProfile({ embedded = false }) {
         console.error('Profile save error:', err);
         // Don't fail - auth name was already saved
       }
+      queryClient.invalidateQueries({ queryKey: [USER_PROFILE_QUERY_KEY] });
       toast.success('הפרופיל נשמר בהצלחה');
       // Notify bell to refresh (remove profile-incomplete notification)
       window.dispatchEvent(new Event('profileSaved'));

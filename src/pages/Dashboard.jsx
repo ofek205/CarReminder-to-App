@@ -27,6 +27,7 @@ import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEM
 import { format, parseISO } from 'date-fns';
 import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
 import CompleteProfileScreen, { isProfileSkipActive } from '../components/shared/CompleteProfileScreen';
+import useUserProfile from '@/hooks/useUserProfile';
 import LicensePlate from '../components/shared/LicensePlate';
 import FirstTimeTour from '../components/shared/FirstTimeTour';
 import SharedIndicator from '@/components/sharing/SharedIndicator';
@@ -844,6 +845,7 @@ export default function Dashboard() {
   const navigateRef = useNavigate();
   const { activeWorkspace, activeWorkspaceId } = useWorkspace();
   const { isDriver, canManageRoutes } = useWorkspaceRole();
+  const { profile: cachedProfile } = useUserProfile();
   useEffect(() => {
     if (isGuest) return;
     if (activeWorkspace?.account_type !== 'business') return;
@@ -1015,29 +1017,10 @@ export default function Dashboard() {
         }
         setAccountId(finalAccountId);
 
-        // Profile-completion popup.
-        //   Source of truth = DB (user_profiles.phone). The old localStorage
-        //   "profile_completed" flag would gate the popup forever after the
-        //   first session, so users who skipped once never saw it again.
-        //   Now: always check DB. If phone missing → show the popup UNLESS
-        //   the user tapped "דלג" recently (short cooldown). Notifications
-        //   page also shows a pending card the whole time phone is missing.
-        try {
-          const profiles = await db.user_profiles.filter({ user_id: user.id }, { light: true });
-          const hasPhone = profiles.length > 0 && !!profiles[0].phone;
-          if (hasPhone) {
-            localStorage.setItem('profile_completed', '1');
-          } else if (!isProfileSkipActive()) {
-            setShowCompleteProfile(true);
-          } else {
-            // Skipped recently. keep the lightweight banner instead of popup.
-            setProfileMissing(true);
-          }
-        } catch {
-          // If the profiles table read fails, fall back to showing the popup
-          // unless the user just skipped.
-          if (!isProfileSkipActive()) setShowCompleteProfile(true);
-        }
+        // Profile-completion popup — moved to a separate useEffect that
+        // reads from the shared useUserProfile hook (cached by React Query).
+        // This eliminates a redundant Supabase round-trip on every Dashboard
+        // mount that was generating slow_query_storm alerts.
 
         // Guest → authenticated migration
         const sanitizeStr = (v, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '');
@@ -1069,6 +1052,23 @@ export default function Dashboard() {
     }
     init();
   }, [isAuthenticated, user]);
+
+  // Profile-completion popup — reads from shared useUserProfile cache.
+  // Previously this was inlined inside init() which meant a raw Supabase
+  // round-trip on every Dashboard mount. Now the hook's React Query cache
+  // (staleTime 2 min) deduplicates the fetch across Bell, Notifications,
+  // and Dashboard.
+  useEffect(() => {
+    if (cachedProfile === undefined) return; // hook still loading
+    const hasPhone = !!cachedProfile?.phone;
+    if (hasPhone) {
+      localStorage.setItem('profile_completed', '1');
+    } else if (!isProfileSkipActive()) {
+      setShowCompleteProfile(true);
+    } else {
+      setProfileMissing(true);
+    }
+  }, [cachedProfile]);
 
   // my_vehicles_v = owned ∪ accepted-shared rows. The legacy
   // account-scoped filter excluded vehicles shared with the user via
