@@ -331,9 +331,19 @@ export default function FindGarage() {
     }
   };
 
-  // Fetch garages - includes tyres, with retry on alternate server
+  // Fetch garages - includes tyres, with retry on alternate server.
+  //
+  // Mirror list (tried in order; fetchFromServers falls through on
+  // 4xx/5xx, server-side timeout, or non-JSON). 2026-05-26: the two
+  // original mirrors both went unhealthy at once — overpass-api.de
+  // started returning 406 and overpass.kumi.systems timed out — which
+  // surfaced as "שרת החיפוש לא הגיב" with zero results. Added two
+  // community mirrors that were verified responding 200 at the time,
+  // so a single mirror's outage no longer takes the whole feature down.
   const OVERPASS_SERVERS = [
     'https://overpass-api.de/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter',
+    'https://overpass.osm.ch/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
   ];
 
