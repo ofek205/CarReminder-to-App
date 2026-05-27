@@ -421,6 +421,21 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
   const savedRef         = useRef(false);
   const fileInputRef     = useRef(null);
 
+  // Scan review state. B2B already has a dedicated "scan receipt"
+  // button (the explicit choice to scan), so we skip the confirm
+  // dialog here and only add the review sheet — extracted values are
+  // shown for edit BEFORE they overwrite the form, instead of landing
+  // there silently.
+  const [scanReviewOpen,   setScanReviewOpen]   = useState(false);
+  const [pendingScanFile,  setPendingScanFile]  = useState(null);
+  const [extractedScanData, setExtractedScanData] = useState({});
+  const B2B_SCAN_SCHEMA = [
+    { key: 'amount',   label: 'סכום (₪)',  type: 'number',             placeholder: 'לא זוהה' },
+    { key: 'date',     label: 'תאריך',     type: 'date',               placeholder: 'לא זוהה' },
+    { key: 'vendor',   label: 'בית עסק',   type: 'text',               placeholder: 'לא זוהה' },
+    { key: 'category', label: 'קטגוריה',   type: 'text', dir: 'ltr',   placeholder: 'לא זוהה' },
+  ];
+
   const handleClose = () => {
     // If we uploaded a fresh receipt in this session and the user
     // closes without saving, drop the orphan blob so we don't pay for
@@ -461,13 +476,16 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
         throw new Error(result?.details || 'extraction_failed');
       }
       const out = result.output;
-      // Only overwrite fields the AI confidently extracted; leave the
-      // rest of the form untouched.
-      if (out.amount && Number(out.amount) > 0) setAmount(String(out.amount));
-      if (out.date && /^\d{4}-\d{2}-\d{2}$/.test(out.date)) setDate(out.date);
-      if (out.category && CATEGORY_LABELS[out.category]) setCategory(out.category);
-      if (out.vendor && !note) setNote(out.vendor);
-      toast.success('הסריקה הושלמה — בדוק את הפרטים והוסף');
+      // Instead of overwriting the form silently, stage the values and
+      // open the review sheet. The user confirms (and edits) before
+      // anything lands in the form.
+      setExtractedScanData({
+        amount:   (out.amount && Number(out.amount) > 0) ? String(out.amount) : '',
+        date:     (out.date && /^\d{4}-\d{2}-\d{2}$/.test(out.date)) ? out.date : '',
+        vendor:   out.vendor || '',
+        category: (out.category && CATEGORY_LABELS[out.category]) ? out.category : '',
+      });
+      setScanReviewOpen(true);
     } catch (err) {
 
       console.error('receipt scan failed:', err);
@@ -475,6 +493,25 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
     } finally {
       setScanning(false);
     }
+  };
+
+  // Review sheet: user confirmed the extracted values — apply to the
+  // form, preserving anything already typed.
+  const handleScanReviewConfirm = (values) => {
+    if (values.amount)   setAmount(String(values.amount));
+    if (values.date)     setDate(values.date);
+    if (values.category && CATEGORY_LABELS[values.category]) setCategory(values.category);
+    if (values.vendor && !note) setNote(values.vendor);
+    setScanReviewOpen(false);
+    setPendingScanFile(null);
+    setExtractedScanData({});
+    toast.success('הפרטים הוטמעו בטופס');
+  };
+
+  const handleScanReviewSkip = () => {
+    setScanReviewOpen(false);
+    setPendingScanFile(null);
+    setExtractedScanData({});
   };
 
   // -- file upload ---------------------------------------------------
@@ -504,6 +541,7 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
       setDidChangeReceipt(true);
 
       if (thenScan) {
+        setPendingScanFile(file);
         await runAiScan(file_url);
       }
     } catch {
@@ -692,6 +730,20 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
           </button>
         </div>
       </div>
+
+      {/* Review sheet — shows the extracted receipt fields with inline
+          edit before they overwrite the form. The confirm dialog is
+          intentionally omitted here because the B2B "scan receipt"
+          button is itself the explicit decision to scan. */}
+      <ScanReviewSheet
+        open={scanReviewOpen}
+        file={pendingScanFile}
+        extracted={extractedScanData}
+        schema={B2B_SCAN_SCHEMA}
+        onConfirm={handleScanReviewConfirm}
+        onSkip={handleScanReviewSkip}
+        onBack={handleScanReviewSkip}
+      />
     </div>
   );
 }
