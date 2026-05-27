@@ -1214,7 +1214,7 @@ function AuthDocuments({ vehicleIdParam }) {
   const { data: vehicles = [] } = useQuery({
     queryKey: ['vehicles-list', accountId, restrictToDriverAssignments, driverAssignedVehicleIds?.join(',')],
     queryFn: async () => {
-      const all = await db.vehicles.filter({ account_id: accountId });
+      const all = await db.vehicles.filter({ account_id: accountId }, { light: true });
       if (restrictToDriverAssignments) {
         const allowed = new Set(driverAssignedVehicleIds || []);
         return (all || []).filter(v => allowed.has(v.id));

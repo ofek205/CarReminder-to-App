@@ -524,7 +524,7 @@ function AuthNotifications() {
     queryKey: ['user-profile-check', user?.id],
     queryFn: async () => {
       try {
-        const profiles = await db.user_profiles.filter({ user_id: user.id });
+        const profiles = await db.user_profiles.filter({ user_id: user.id }, { light: true });
         return profiles.length > 0 ? profiles[0] : null;
       } catch { return null; }
     },

@@ -33,21 +33,35 @@ export default function useWorkspaces() {
       // WKWebView (Capacitor session bridge) — without a timeout,
       // React Query's `isLoading` stays true forever and every page
       // that gates on accountId is permanently stuck on a spinner.
-      // 6s is more than the p99 latency for this view but short enough
+      // 8s is more than the p99 latency for this view but short enough
       // that a stuck request fails over to the localStorage seed in
       // WorkspaceContext quickly. The query auto-retries once via
-      // the `retry` option below, doubling worst-case to ~12s.
-      const TIMEOUT_MS = 6000;
+      // the `retry` option below, doubling worst-case to ~16s.
+      //
+      // Returns [] on timeout instead of throwing — the global
+      // QueryCache.onError reports every thrown error as a user-visible
+      // error (reportUserError → visible: true), which was triggering
+      // user_visible_error_spike alerts for what is actually a benign
+      // fallback scenario (WorkspaceContext picks up the localStorage
+      // seed and the user never notices). Returning [] lets the
+      // resolution effect in WorkspaceContext treat it like "no
+      // memberships yet" and the seed covers.
+      const TIMEOUT_MS = 8000;
       const fetchPromise = supabase
         .from('v_user_workspaces')
         .select('*')
         .eq('user_id', user.id);
-      const timeoutPromise = new Promise((_resolve, reject) =>
-        setTimeout(() => reject(new Error('useWorkspaces timeout')), TIMEOUT_MS)
-      );
-      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
-      if (error) throw error;
-      return data || [];
+      const result = await Promise.race([
+        fetchPromise,
+        new Promise(resolve =>
+          setTimeout(() => resolve({ data: null, error: { message: 'useWorkspaces timeout' } }), TIMEOUT_MS)
+        ),
+      ]);
+      if (result.error) {
+        console.warn('[useWorkspaces]', result.error.message || result.error);
+        return [];
+      }
+      return result.data || [];
     },
     enabled,
     // staleTime kept short because workspace membership changes mid-

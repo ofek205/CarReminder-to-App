@@ -134,6 +134,17 @@ const LIGHT_COLUMNS = {
     'current_engine_hours', 'engine_hours_update_date',
     'fuel_type',
   ].join(','),
+
+  // user_profiles light: skip license_image_url (Supabase Storage URL,
+  // not base64 — but can be long and is never needed by callers that
+  // only check phone / license_expiration_date / birth_date).
+  // High-frequency callers: NotificationBell, Dashboard init,
+  // Notifications page. Full SELECT only needed by UserProfile page
+  // (which displays the license image).
+  user_profiles: [
+    'id', 'user_id', 'phone', 'birth_date',
+    'driver_license_number', 'license_expiration_date',
+  ].join(','),
 };
 
 function makeEntity(table) {

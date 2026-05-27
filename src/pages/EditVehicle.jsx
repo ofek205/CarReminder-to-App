@@ -317,7 +317,7 @@ export default function EditVehicle() {
     const normalizedNew = normalizePlate(form.license_plate);
     if (normalizedNew && accountId && !isGuest) {
       try {
-        const allVehicles = await db.vehicles.filter({ account_id: accountId });
+        const allVehicles = await db.vehicles.filter({ account_id: accountId }, { light: true });
         const duplicate = allVehicles.find(v =>
           v.id !== vehicleId &&
           normalizePlate(v.license_plate_normalized || v.license_plate || '') === normalizedNew

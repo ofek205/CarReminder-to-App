@@ -1023,7 +1023,7 @@ export default function Dashboard() {
         //   the user tapped "דלג" recently (short cooldown). Notifications
         //   page also shows a pending card the whole time phone is missing.
         try {
-          const profiles = await db.user_profiles.filter({ user_id: user.id });
+          const profiles = await db.user_profiles.filter({ user_id: user.id }, { light: true });
           const hasPhone = profiles.length > 0 && !!profiles[0].phone;
           if (hasPhone) {
             localStorage.setItem('profile_completed', '1');

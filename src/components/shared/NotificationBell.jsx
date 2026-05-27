@@ -253,7 +253,7 @@ export default function NotificationBell() {
       try {
         const { db } = await import('@/lib/supabaseEntities');
         const [profilesResult, membersResult, settingsResult] = await Promise.all([
-          db.user_profiles.filter({ user_id: user.id }).catch(() => []),
+          db.user_profiles.filter({ user_id: user.id }, { light: true }).catch(() => []),
           db.account_members.filter({ user_id: user.id, status: MEMBER_STATUS.ACTIVE }).catch(() => []),
           db.reminder_settings.filter({ user_id: user.id }).catch(() => []),
         ]);

@@ -271,7 +271,10 @@ export default function VehicleCheck() {
       }
     } catch (err) {
       if (err?.code === 'duplicate_vehicle') {
-        toastError('הרכב הזה כבר קיים ברשימת הרכבים שלך', { action: 'vehicle_check_duplicate', err });
+        // Duplicate is expected validation — show toast but don't report
+        // as an error (toastError was triggering user_visible_error_spike
+        // alerts for what is normal user flow).
+        toast.error('הרכב הזה כבר קיים ברשימת הרכבים שלך');
       } else {
         toastError('שמירת הרכב נכשלה. נסה שוב.', { action: 'vehicle_check_save', err });
       }
