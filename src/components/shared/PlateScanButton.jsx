@@ -82,17 +82,56 @@ export default function PlateScanButton({ onPlateDetected, disabled = false, siz
         messages: [{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: mediaType, data } },
           { type: 'text', text:
-            'בתמונה: מספר רישוי של רכב ישראלי או מספר רישוי אווירי.\n' +
-            'חלץ אותו בלבד. עבור רכב יבשתי: רק ספרות (5-8). עבור כלי טיס: אלפא-נומרי.\n' +
-            'אם התמונה לא ברורה או לא של מספר רכב — החזר ריק.\n' +
-            'החזר JSON בלבד, ללא טקסט נוסף: {"plate":""}'
+            'This image shows a vehicle license plate (usually Israeli — ' +
+            'black digits on a yellow background, often with dashes like ' +
+            '69-222-58).\n' +
+            'Read the plate and return ONLY the characters, no dashes, no ' +
+            'spaces, no explanation. Israeli ground plates are 5-8 digits; ' +
+            'aircraft tail numbers may include letters.\n' +
+            'If you genuinely cannot read any plate, return the single word NONE.\n' +
+            'Examples of good replies: 6922258 / 12345678 / 4X-ECA'
           },
         ]}],
       });
-      const text = json?.content?.[0]?.text || '';
-      const match = text.match(/\{[\s\S]*?\}/);
-      const parsed = match ? JSON.parse(match[0]) : null;
-      const cleaned = String(parsed?.plate || '').trim().replace(/[^0-9A-Za-z]/g, '');
+      const text = String(json?.content?.[0]?.text || '').trim();
+
+      // Robust extraction. Models don't always honour "return only the
+      // characters" — Gemini in particular wraps the answer in prose or
+      // a ```json fence. We try, in order:
+      //   1. JSON { "plate": "..." } (legacy shape, still parse it)
+      //   2. The raw text after stripping non-alphanumerics
+      //   3. The longest digit run in the text (handles "מספר הרישוי
+      //      הוא 69-222-58" style answers)
+      // and reject the explicit NONE / empty cases.
+      const extractPlate = (raw) => {
+        if (!raw) return '';
+        if (/^\s*none\s*$/i.test(raw)) return '';
+        // 1 — JSON shape
+        const jsonMatch = raw.match(/\{[\s\S]*?\}/);
+        if (jsonMatch) {
+          try {
+            const p = JSON.parse(jsonMatch[0])?.plate;
+            if (p) {
+              const c = String(p).replace(/[^0-9A-Za-z]/g, '');
+              if (c.length >= 4) return c;
+            }
+          } catch { /* fall through */ }
+        }
+        // 2 — aviation tail number pattern (letters+digits+dash), e.g. 4X-ECA
+        const tail = raw.match(/\b[0-9]?[A-Z]{1,2}-?[A-Z0-9]{2,5}\b/);
+        if (tail) {
+          const c = tail[0].replace(/[^0-9A-Za-z]/g, '');
+          if (c.length >= 4 && /[A-Za-z]/.test(c)) return c.toUpperCase();
+        }
+        // 3 — longest digit run (ground plates). Strip separators first
+        //     so "69-222-58" reads as one 7-digit run.
+        const digits = raw.replace(/[^\d-\s]/g, '').replace(/[-\s]/g, '');
+        const run = digits.match(/\d{5,8}/);
+        if (run) return run[0];
+        return '';
+      };
+
+      const cleaned = extractPlate(text);
       if (!cleaned || cleaned.length < 4) {
         toastError('לא הצלחנו לזהות מספר רישוי. נסה תמונה ברורה יותר או הקלד ידנית.', { action: 'plate_scan_no_match' });
         return;
