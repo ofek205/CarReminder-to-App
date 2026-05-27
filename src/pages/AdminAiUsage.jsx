@@ -85,6 +85,7 @@ const FEATURE_LABELS = {
   yossi_chat:       'ייעוץ עם מומחה',
   community_expert: 'מומחה בקהילה',
   scan_extraction:  'סריקת מסמכים',
+  plate_scan:       'סריקת לוחית רישוי',
 };
 
 // Surface labels — human-readable names for the 9 call sites that

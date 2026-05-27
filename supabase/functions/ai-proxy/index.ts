@@ -133,6 +133,18 @@ const ALLOWED_SURFACES = new Set([
   'expense_business_scan',
   'document_scan',
   'maintenance_log_scan',   // garage receipt scan in MaintenanceSection
+  'plate_scan',             // license-plate camera in PlateScanButton
+]);
+
+// Known feature values for ai_usage_logs. Mirrors the DB CHECK
+// constraint. logAiUsage maps anything outside this set to NULL so a
+// new/typo feature string never trips a 23514 constraint violation and
+// drops the whole log row (and spams the edge console).
+const KNOWN_FEATURES = new Set([
+  'community_expert',
+  'yossi_chat',
+  'scan_extraction',
+  'plate_scan',
 ]);
 
 interface UsageLogInput {
@@ -153,12 +165,19 @@ async function logAiUsage(
 ): Promise<void> {
   try {
     if (!(await isUsageTrackingEnabled(sb))) return;
+    // Defensive: map any feature/surface value that isn't in the known
+    // set to NULL. The DB has CHECK constraints on both columns; an
+    // unrecognised string would throw 23514 and drop the whole row.
+    // NULL is always valid, so we degrade gracefully (lose the tag,
+    // keep the token counts) instead of losing the row + spamming logs.
+    const safeFeature = opts.feature && KNOWN_FEATURES.has(opts.feature) ? opts.feature : null;
+    const safeSurface = opts.surface && ALLOWED_SURFACES.has(opts.surface) ? opts.surface : null;
     const { error } = await sb.from('ai_usage_logs').insert({
       user_id:           opts.user_id,
       provider:          opts.provider,
       model:             opts.model,
-      feature:           opts.feature,
-      surface:           opts.surface,
+      feature:           safeFeature,
+      surface:           safeSurface,
       prompt_tokens:     opts.prompt_tokens,
       completion_tokens: opts.completion_tokens,
       total_tokens:      opts.total_tokens,

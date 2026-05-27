@@ -79,17 +79,20 @@ export default function PlateScanButton({ onPlateDetected, disabled = false, siz
         model: 'claude-sonnet-4-20250514',
         max_tokens: 80,
         feature: 'plate_scan',
+        surface: 'plate_scan',
         messages: [{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: mediaType, data } },
           { type: 'text', text:
-            'This image shows a vehicle license plate (usually Israeli — ' +
-            'black digits on a yellow background, often with dashes like ' +
-            '69-222-58).\n' +
-            'Read the plate and return ONLY the characters, no dashes, no ' +
-            'spaces, no explanation. Israeli ground plates are 5-8 digits; ' +
-            'aircraft tail numbers may include letters.\n' +
-            'If you genuinely cannot read any plate, return the single word NONE.\n' +
-            'Examples of good replies: 6922258 / 12345678 / 4X-ECA'
+            // Framed as plain OCR on purpose. Asking a vision model to
+            // "identify the license plate" trips PII/privacy refusals on
+            // Gemini (it answers with a refusal sentence and no digits,
+            // which read as "no match"). Transcribing visible characters
+            // is a neutral OCR task it performs without objection.
+            'Transcribe the large characters printed on the sign in this ' +
+            'image (it is a vehicle registration sign the user owns). ' +
+            'Output ONLY those characters with no spaces, dashes, or ' +
+            'punctuation — digits, and letters if present. ' +
+            'If no clear characters are visible, output the word NONE.'
           },
         ]}],
       });
@@ -133,7 +136,17 @@ export default function PlateScanButton({ onPlateDetected, disabled = false, siz
 
       const cleaned = extractPlate(text);
       if (!cleaned || cleaned.length < 4) {
-        toastError('לא הצלחנו לזהות מספר רישוי. נסה תמונה ברורה יותר או הקלד ידנית.', { action: 'plate_scan_no_match' });
+        // TEMP DIAGNOSTIC (remove once plate-scan is confirmed stable):
+        // surface the first 80 chars of the model's raw reply so we can
+        // tell a privacy-refusal ("I can't identify license plates")
+        // from a genuine unreadable image. Only the staging banner is
+        // visible to the tester, so this never reaches real users for
+        // long. The `extra` rides into app_errors either way.
+        const snippet = text ? text.slice(0, 80) : '(empty response)';
+        toastError(`לא זוהה מספר. תשובת AI: "${snippet}"`, {
+          action: 'plate_scan_no_match',
+          context: { ai_reply: text.slice(0, 300) },
+        });
         return;
       }
       onPlateDetected?.(cleaned);
