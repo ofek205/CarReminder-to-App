@@ -136,14 +136,10 @@ export default function PlateScanButton({ onPlateDetected, disabled = false, siz
 
       const cleaned = extractPlate(text);
       if (!cleaned || cleaned.length < 4) {
-        // TEMP DIAGNOSTIC (remove once plate-scan is confirmed stable):
-        // surface the first 80 chars of the model's raw reply so we can
-        // tell a privacy-refusal ("I can't identify license plates")
-        // from a genuine unreadable image. Only the staging banner is
-        // visible to the tester, so this never reaches real users for
-        // long. The `extra` rides into app_errors either way.
-        const snippet = text ? text.slice(0, 80) : '(empty response)';
-        toastError(`לא זוהה מספר. תשובת AI: "${snippet}"`, {
+        // Clean user-facing message. The raw model reply still rides
+        // into app_errors via `context` for debugging — we just don't
+        // surface it in the toast (it leaked AI prose to end users).
+        toastError('לא זוהה מספר רישוי. נסה תמונה ברורה יותר או הקלד ידנית.', {
           action: 'plate_scan_no_match',
           context: { ai_reply: text.slice(0, 300) },
         });
