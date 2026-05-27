@@ -744,6 +744,21 @@ serve(async (req) => {
     } catch { /* fall back to auto */ }
   }
 
+  // Plate OCR is pinned to Claude when a key is configured. The
+  // auto-ladder sends vision to Gemini first, but Gemini 2.5-flash
+  // proved unreliable on Israeli plates (2026-05-27): it
+  // intermittently refuses on PII grounds (empty completion) AND
+  // truncates multi-group plates ("69-222-58" → "6922"). Claude reads
+  // the full number and doesn't refuse a transcription task.
+  //   • ANTHROPIC_KEY set  → preferred='claude' (strict: Claude or a
+  //     503; no silent Gemini fallback, so a bad read can't slip in).
+  //   • ANTHROPIC_KEY unset → preferred='auto' (Gemini-first ladder,
+  //     i.e. exactly today's behaviour — no regression).
+  // REQUIRES: ANTHROPIC_API_KEY in the ai-proxy Edge Function secrets.
+  if (body?.feature === 'plate_scan') {
+    preferred = ANTHROPIC_KEY ? 'claude' : 'auto';
+  }
+
   // Resolve by preference. Behavior change vs. earlier versions:
   // an explicit admin selection ('gemini' / 'groq' / 'claude') is now
   // *strict* — if that provider fails we return 503 with the provider
