@@ -172,3 +172,11 @@ function buildSupabaseClient() {
 }
 
 export const supabase = buildSupabaseClient();
+
+// The resolved (trimmed) project URL + anon key, exported for the rare
+// call site that must hit an Edge Function with a raw fetch — e.g.
+// overpass-proxy in FindGarage, which needs an AbortSignal that
+// supabase.functions.invoke() doesn't accept. Use supabase.functions
+// .invoke() for everything else; only reach for these when you need
+// fetch-level control (abort, streaming, custom timeout).
+export { supabaseUrl, supabaseAnonKey };

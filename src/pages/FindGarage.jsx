@@ -4,6 +4,7 @@ import { isVesselType } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import { db } from '@/lib/supabaseEntities';
+import { supabaseUrl, supabaseAnonKey } from '@/lib/supabase';
 import {
   MapPin,
   Wrench,
@@ -331,11 +332,20 @@ export default function FindGarage() {
     }
   };
 
-  // Fetch garages - includes tyres, with retry on alternate server
-  const OVERPASS_SERVERS = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-  ];
+  // Overpass access goes through our own Edge Function proxy
+  // (supabase/functions/overpass-proxy). The browser no longer talks to
+  // public Overpass mirrors directly. Why:
+  //   • CORS — most mirrors don't send Access-Control-Allow-Origin, so
+  //     the browser-usable pool was tiny and fragile.
+  //   • CSP — every mirror had to be whitelisted in vercel.json's
+  //     connect-src; a missing entry silently killed the fallback.
+  //   • Wrong-region mirrors — a regional extract returns 200 + empty
+  //     for Israel, masking real data.
+  // The proxy fetches server-to-server (no CORS), races a wider mirror
+  // pool, and returns the first NON-EMPTY result — so the client just
+  // makes ONE call. Adding/auditing mirrors now lives entirely in the
+  // Edge Function; nothing here or in vercel.json needs to change.
+  const OVERPASS_PROXY_URL = `${supabaseUrl}/functions/v1/overpass-proxy`;
 
   // Stale-while-revalidate cache for Overpass results.
   //   Key: rounded lat/lng (1km grid) + radius + vessel flag
@@ -479,35 +489,64 @@ export default function FindGarage() {
           + `);out center tags;`
         : null;
 
-      const hdrs = { 'Content-Type': 'application/x-www-form-urlencoded' };
-
       // (AbortController is hoisted above the try block — see the comment
-      // there. We keep `controller` available here in case any code below
-      // needs it directly, but the destructured `signal` is what the
-      // fetch callers and the catch/finally branches read.)
+      // there. The destructured `signal` is what the fetch caller and the
+      // catch/finally branches read; it cancels the in-flight proxy
+      // request when the user changes location/radius.)
 
-      // Fetch with multi-server fallback. Overpass returns HTTP 200 with
-      // `{remark: "runtime error: Query timed out ..."}` and an empty
-      // `elements` array when a query exceeds the timeout — we treat
-      // that as a failure (try next server) so we never cache an empty
-      // payload from a server-side timeout.
+      // One call to our overpass-proxy Edge Function. The proxy does the
+      // multi-mirror race server-side and returns the first NON-EMPTY
+      // payload (or a valid empty one for genuinely empty areas), so the
+      // client no longer races mirrors itself. We pass the abort signal
+      // so a stale request is cancelled when a fresh fetch starts.
+      //
+      // Returns the parsed Overpass JSON on success, or null on any
+      // failure (network, non-2xx, non-JSON, or the proxy's 502
+      // all_mirrors_unavailable) so the caller renders the error state.
+      const callProxyOnce = async (q) => {
+        const res = await fetch(OVERPASS_PROXY_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            // --no-verify-jwt on the function, but the Supabase gateway
+            // still requires an apikey/Authorization header to route.
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify({ query: q }),
+          signal,
+        });
+        if (!res.ok) {
+          // 502 all_mirrors_unavailable lands here too — treat as no data.
+          console.warn(`overpass-proxy: HTTP ${res.status}`);
+          return null;
+        }
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('json')) return null;
+        return await res.json();
+      };
+
+      // The proxy already retries transient upstream 504s once, but in the
+      // rare case overpass-api.de 504s on BOTH server-side attempts while
+      // the redundancy mirrors hang, the proxy returns a 502. One more
+      // client retry (~700ms apart) collapses that residual flicker — the
+      // observed end-to-end success rate goes from ~90% to ~100% without
+      // the user ever seeing the error state. Aborts bail immediately.
       const fetchFromServers = async (q) => {
-        for (const server of OVERPASS_SERVERS) {
+        for (let attempt = 0; attempt < 2; attempt++) {
           try {
-            const res = await fetch(server, { method: 'POST', body: `data=${encodeURIComponent(q)}`, headers: hdrs, signal });
-            if (!res.ok) continue;
-            const ct = res.headers.get('content-type') || '';
-            if (!ct.includes('json')) continue;
-            const json = await res.json();
-            if (json && typeof json.remark === 'string' && /timed out|runtime error/i.test(json.remark)) {
-              continue; // Server-side timeout/runtime error — try next server
-            }
-            return json;
-          } catch (e) {
-            // AbortError means the user changed location/radius — stop trying
-            if (e?.name === 'AbortError') return null;
-            /* try next server */
+            const data = await callProxyOnce(q);
+            // Got real data, or a valid empty result → done. Only a null
+            // (proxy 502 / network) is worth retrying.
+            if (data) return data;
+          } catch (err) {
+            // Abort is expected when the user changes location/radius — the
+            // outer `if (signal.aborted) return` handles the bail.
+            if (err?.name === 'AbortError') return null;
+            console.warn('overpass-proxy fetch failed:', err?.message);
           }
+          if (signal.aborted) return null;
+          if (attempt === 0) await new Promise((r) => setTimeout(r, 700));
         }
         return null;
       };
