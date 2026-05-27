@@ -71,7 +71,10 @@ export default function PlateScanButton({ onPlateDetected, disabled = false, siz
     }
     setScanning(true);
     try {
-      const compressed = await compressImage(file, { maxWidth: 1024, maxHeight: 1024, quality: 0.7 });
+      // Higher resolution than a normal photo upload — plate OCR needs
+      // the digits crisp. 1536px keeps a full-scene shot legible while
+      // staying well under the AI request size cap.
+      const compressed = await compressImage(file, { maxWidth: 1536, maxHeight: 1536, quality: 0.82 });
       const base64 = await fileToBase64(compressed);
       const mediaType = base64.match(/^data:([^;]+);/)?.[1] || 'image/jpeg';
       const data = base64.split(',')[1];
@@ -88,11 +91,19 @@ export default function PlateScanButton({ onPlateDetected, disabled = false, siz
             // Gemini (it answers with a refusal sentence and no digits,
             // which read as "no match"). Transcribing visible characters
             // is a neutral OCR task it performs without objection.
-            'Transcribe the large characters printed on the sign in this ' +
-            'image (it is a vehicle registration sign the user owns). ' +
-            'Output ONLY those characters with no spaces, dashes, or ' +
-            'punctuation — digits, and letters if present. ' +
-            'If no clear characters are visible, output the word NONE.'
+            //
+            // Completeness emphasis added after Gemini was observed
+            // truncating "69-222-58" to "6922" — it stopped at the
+            // first dash group. We now state the expected length and
+            // demand every character.
+            'Transcribe the FULL number printed on the registration ' +
+            'sign in this image (a vehicle plate the user owns). ' +
+            'Read every character left to right — Israeli plates are ' +
+            'usually 7 or 8 digits, sometimes split by dashes like ' +
+            '69-222-58 (= 6922258). Do NOT stop at the first dash. ' +
+            'Output ONLY the characters joined together, no spaces, no ' +
+            'dashes, no punctuation, no words. ' +
+            'If no number is legible, output exactly: NONE'
           },
         ]}],
       });
