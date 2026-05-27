@@ -78,49 +78,18 @@ export default function PlateScanButton({ onPlateDetected, disabled = false, siz
       const base64 = await fileToBase64(compressed);
       const mediaType = base64.match(/^data:([^;]+);/)?.[1] || 'image/jpeg';
       const data = base64.split(',')[1];
-      const json = await aiRequest({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 80,
-        feature: 'plate_scan',
-        surface: 'plate_scan',
-        messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data } },
-          { type: 'text', text:
-            // Framed as plain OCR on purpose. Asking a vision model to
-            // "identify the license plate" trips PII/privacy refusals on
-            // Gemini (it answers with a refusal sentence and no digits,
-            // which read as "no match"). Transcribing visible characters
-            // is a neutral OCR task it performs without objection.
-            //
-            // Completeness emphasis added after Gemini was observed
-            // truncating "69-222-58" to "6922" — it stopped at the
-            // first dash group. We now state the expected length and
-            // demand every character.
-            'Transcribe the FULL number printed on the registration ' +
-            'sign in this image (a vehicle plate the user owns). ' +
-            'Read every character left to right — Israeli plates are ' +
-            'usually 7 or 8 digits, sometimes split by dashes like ' +
-            '69-222-58 (= 6922258). Do NOT stop at the first dash. ' +
-            'Output ONLY the characters joined together, no spaces, no ' +
-            'dashes, no punctuation, no words. ' +
-            'If no number is legible, output exactly: NONE'
-          },
-        ]}],
-      });
-      const text = String(json?.content?.[0]?.text || '').trim();
 
-      // Robust extraction. Models don't always honour "return only the
-      // characters" — Gemini in particular wraps the answer in prose or
-      // a ```json fence. We try, in order:
-      //   1. JSON { "plate": "..." } (legacy shape, still parse it)
-      //   2. The raw text after stripping non-alphanumerics
-      //   3. The longest digit run in the text (handles "מספר הרישוי
-      //      הוא 69-222-58" style answers)
-      // and reject the explicit NONE / empty cases.
+      // Parse a model reply into a clean plate string, '' if none.
+      // Models don't always honour "return only the characters" — they
+      // wrap it in prose or a JSON fence. Try, in order:
+      //   1. JSON { "plate": "..." } (legacy shape)
+      //   2. aviation tail number (letters+digits, e.g. 4X-ECA)
+      //   3. longest digit run (ground plates; strip dashes/spaces first
+      //      so "69-222-58" reads as one 7-digit run)
+      // Reject the explicit NONE / empty cases.
       const extractPlate = (raw) => {
         if (!raw) return '';
         if (/^\s*none\s*$/i.test(raw)) return '';
-        // 1 — JSON shape
         const jsonMatch = raw.match(/\{[\s\S]*?\}/);
         if (jsonMatch) {
           try {
@@ -131,28 +100,71 @@ export default function PlateScanButton({ onPlateDetected, disabled = false, siz
             }
           } catch { /* fall through */ }
         }
-        // 2 — aviation tail number pattern (letters+digits+dash), e.g. 4X-ECA
         const tail = raw.match(/\b[0-9]?[A-Z]{1,2}-?[A-Z0-9]{2,5}\b/);
         if (tail) {
           const c = tail[0].replace(/[^0-9A-Za-z]/g, '');
           if (c.length >= 4 && /[A-Za-z]/.test(c)) return c.toUpperCase();
         }
-        // 3 — longest digit run (ground plates). Strip separators first
-        //     so "69-222-58" reads as one 7-digit run.
         const digits = raw.replace(/[^\d-\s]/g, '').replace(/[-\s]/g, '');
         const run = digits.match(/\d{5,8}/);
         if (run) return run[0];
         return '';
       };
 
-      const cleaned = extractPlate(text);
-      if (!cleaned || cleaned.length < 4) {
+      // One AI round-trip → cleaned plate string (or '' on no usable
+      // read). Extracted into a closure so we can RETRY it: the free
+      // Gemini vision path is non-deterministic — it intermittently
+      // returns an empty completion (PII safety block) or truncates a
+      // multi-group plate. A second identical attempt usually lands
+      // a clean read where the first didn't, which is the cheapest
+      // reliability win available without a paid provider.
+      const attemptScan = async () => {
+        const json = await aiRequest({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 80,
+          feature: 'plate_scan',
+          surface: 'plate_scan',
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data } },
+            { type: 'text', text:
+              // Framed as plain OCR — "identify the license plate" trips
+              // PII refusals on Gemini; "transcribe the characters" does
+              // not. Completeness emphasis after Gemini truncated
+              // "69-222-58" → "6922" (stopped at the first dash).
+              'Transcribe the FULL number printed on the registration ' +
+              'sign in this image (a vehicle plate the user owns). ' +
+              'Read every character left to right — Israeli plates are ' +
+              'usually 7 or 8 digits, sometimes split by dashes like ' +
+              '69-222-58 (= 6922258). Do NOT stop at the first dash. ' +
+              'Output ONLY the characters joined together, no spaces, no ' +
+              'dashes, no punctuation, no words. ' +
+              'If no number is legible, output exactly: NONE'
+            },
+          ]}],
+        });
+        const raw = String(json?.content?.[0]?.text || '').trim();
+        return { raw, plate: extractPlate(raw) };
+      };
+
+      // First attempt; retry once if it came back empty/unusable.
+      let { raw, plate: cleaned } = await attemptScan();
+      if (!cleaned || cleaned.length < 5) {
+        const second = await attemptScan();
+        // Prefer whichever attempt produced the longer plausible read —
+        // guards against attempt #1 truncating and #2 over-reading.
+        if (second.plate.length > cleaned.length) {
+          cleaned = second.plate;
+          raw = second.raw;
+        }
+      }
+
+      if (!cleaned || cleaned.length < 5) {
         // Clean user-facing message. The raw model reply still rides
         // into app_errors via `context` for debugging — we just don't
         // surface it in the toast (it leaked AI prose to end users).
         toastError('לא זוהה מספר רישוי. נסה תמונה ברורה יותר או הקלד ידנית.', {
           action: 'plate_scan_no_match',
-          context: { ai_reply: text.slice(0, 300) },
+          context: { ai_reply: raw.slice(0, 300) },
         });
         return;
       }
