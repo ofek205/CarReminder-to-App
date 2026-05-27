@@ -77,7 +77,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
         birth_date: birthDate || null,
       };
       // Check if profile exists
-      const existing = await db.user_profiles.filter({ user_id: user.id });
+      const existing = await db.user_profiles.filter({ user_id: user.id }, { light: true });
       if (existing.length > 0) {
         await db.user_profiles.update(existing[0].id, profileData);
       } else {
