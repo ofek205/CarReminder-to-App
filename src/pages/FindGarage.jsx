@@ -331,25 +331,23 @@ export default function FindGarage() {
     }
   };
 
-  // Fetch garages - includes tyres, with retry on alternate server.
+  // Overpass mirrors — fetched in a PARALLEL race (see fetchFromServers).
   //
-  // Mirror list (tried in order; fetchFromServers falls through on
-  // 4xx/5xx, server-side timeout, or non-JSON). 2026-05-26: the two
-  // original mirrors both went unhealthy at once — overpass-api.de
-  // started returning 406 and overpass.kumi.systems timed out — which
-  // surfaced as "שרת החיפוש לא הגיב" with zero results. Added two
-  // community mirrors that were verified responding 200 at the time,
-  // so a single mirror's outage no longer takes the whole feature down.
-  // Order matters — first responder wins. overpass.osm.ch sits second
-  // because it was the one mirror verified returning BOTH 200 AND a
-  // proper `Access-Control-Allow-Origin: *` header (a 200 without CORS
-  // is useless — the browser blocks the read). overpass-api.de stays
-  // first since it's the canonical, freshest dataset when healthy.
-  // private.coffee is last-resort: it intermittently hangs with no
-  // response, so we only reach it if everything above failed.
+  // ⚠️ MUST be FULL-PLANET mirrors. A regional instance returns HTTP
+  // 200 with an empty `elements` array for out-of-region queries, which
+  // the race counts as a valid win — masking a global mirror's real
+  // results. 2026-05-26 incident: overpass.osm.ch was added during an
+  // overpass-api.de outage, but it is a SWITZERLAND-ONLY extract
+  // (verified: 0 car_repair in Tel Aviv, 109 in Zürich) so every Israel
+  // search came back "no results". Removed. Only keep planet mirrors:
+  //   • overpass-api.de        — canonical, freshest
+  //   • overpass.kumi.systems  — full planet
+  //   • overpass.private.coffee — full planet
+  // When adding a mirror, FIRST verify it has Israel data:
+  //   curl -s -X POST <url> --data 'data=[out:json];node["shop"="car_repair"](32.0,34.7,32.15,34.85);out count;'
+  // and that it returns Access-Control-Allow-Origin (browser CORS).
   const OVERPASS_SERVERS = [
     'https://overpass-api.de/api/interpreter',
-    'https://overpass.osm.ch/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
     'https://overpass.private.coffee/api/interpreter',
   ];
