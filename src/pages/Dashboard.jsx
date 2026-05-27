@@ -32,6 +32,7 @@ import FirstTimeTour from '../components/shared/FirstTimeTour';
 import SharedIndicator from '@/components/sharing/SharedIndicator';
 import { Share2 } from 'lucide-react';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
+import PlateScanButton from '@/components/shared/PlateScanButton';
 // Lazy-loaded — only mounts on first card-share-tap so we don't pull
 // the dialog + its 9 RPC bindings into the dashboard's first paint.
 const ShareVehicleDialog = React.lazy(() => import('@/components/sharing/ShareVehicleDialog'));
@@ -227,6 +228,13 @@ function VehicleCheckHero({ plate, onPlateChange, onSubmit, submitting, compact 
           <Search className="w-4 h-4" />
           {submitting ? 'מעביר...' : 'בדוק רכב'}
         </button>
+      </div>
+
+      {/* Optional plate-photo shortcut — same component as /VehicleCheck,
+          compact variant for the hero. Fills the plate input via
+          onPlateChange; the user still taps "בדוק רכב". */}
+      <div className="mt-2.5">
+        <PlateScanButton onPlateDetected={onPlateChange} disabled={submitting} size="compact" />
       </div>
     </section>
   );

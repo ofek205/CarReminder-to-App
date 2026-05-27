@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  AlertTriangle, ArrowLeft, BadgeCheck, CalendarDays, Camera, Car, CheckCircle2,
+  AlertTriangle, ArrowLeft, BadgeCheck, CalendarDays, Car, CheckCircle2,
   ChevronLeft, Download, Gauge, Info, Loader2, LockKeyhole, RotateCcw, Save,
   Search, ShieldCheck, Sparkles, UserPlus, Wrench, XCircle,
 } from 'lucide-react';
@@ -35,9 +35,7 @@ import { C } from '@/lib/designTokens';
 import { OwnershipHistoryPanel } from '@/components/vehicle/VehicleInfoSection';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 import VehicleCompletionSheet from '@/components/vehicle/VehicleCompletionSheet';
-import { aiRequest } from '@/lib/aiProxy';
-import { compressImage } from '@/lib/imageCompress';
-import { validateUploadFile } from '@/lib/securityUtils';
+import PlateScanButton from '@/components/shared/PlateScanButton';
 
 const loadingMessages = [
   'בודקים נתוני רישוי...',
@@ -69,25 +67,6 @@ const TONE_TEXT = {
 };
 const QUICK_CHECK_PREFILL_KEY = 'vehicle_quick_check_prefill_plate';
 
-// Read a File as a base64 data URL. Used by the plate-photo scanner.
-//
-// The bytes are forwarded to ai-proxy in the HTTP body and discarded
-// the moment that promise resolves — they never touch the DB, never
-// touch Storage, never persist beyond the in-flight network call.
-// The project-wide eslint rule on `readAsDataURL` exists to keep
-// base64 OUT of Postgres columns (Sprint A migration); the in-memory
-// AI-vision use case is exactly the pattern the rule was NOT meant to
-// block.
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result || ''));
-    r.onerror = () => reject(new Error('שגיאה בקריאת התמונה'));
-    // eslint-disable-next-line no-restricted-syntax -- in-memory AI scan; not persisted
-    r.readAsDataURL(file);
-  });
-}
-
 export default function VehicleCheck() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -108,12 +87,6 @@ export default function VehicleCheck() {
   // re-fetching. Null while idle or after dismissal — see
   // src/components/vehicle/VehicleCompletionSheet.jsx for the flow.
   const [completionSheet, setCompletionSheet] = useState(null);
-  // Plate-from-photo OCR — optional shortcut. The image is processed
-  // in-memory only: base64 → ai-proxy → discard. We never upload it to
-  // Storage and never write the bytes to the DB. 24h "retention" is
-  // therefore zero retention. See plateScanRef below.
-  const [plateScanning, setPlateScanning] = useState(false);
-  const plateScanRef = useRef(null);
   // Set when lookupVehicleQuickCheck reports the plate digits exist in
   // two different MoT registries (see vehicleLookup namespace collision
   // notes). Shape: { plate, matches: [{ source, fields, normalized }, ...] }
@@ -222,69 +195,6 @@ export default function VehicleCheck() {
       setError(err?.code === 'invalid_plate'
         ? err.message
         : 'לא הצלחנו להשלים את הבדיקה כרגע. נסה שוב בעוד רגע.');
-    }
-  };
-
-  // Plate-from-photo OCR. Camera/file picker → AI vision → fill the
-  // plate input. The image only lives in browser memory; it is sent to
-  // ai-proxy as base64 in the HTTP body and never persisted (no
-  // Storage upload, no DB write). PM decision: we do NOT auto-trigger
-  // search. The user reviews the extracted number and clicks "בדוק
-  // רכב" themselves — protects against scan errors burning gov.il
-  // quota and gives the user a chance to correct an obvious mistake.
-  const handlePlateScan = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (plateScanning) return;
-    const v = validateUploadFile(file, 'photo', 10);
-    if (!v.ok) {
-      toastError(v.error, { action: 'plate_scan_validate' });
-      e.target.value = '';
-      return;
-    }
-    setPlateScanning(true);
-    setError('');
-    try {
-      // Aggressive compression: 1024px wide is plenty for plate OCR
-      // and keeps the HTTP body small (most plate photos are
-      // landscape close-ups of < 2MB after compression).
-      const compressed = await compressImage(file, { maxWidth: 1024, maxHeight: 1024, quality: 0.7 });
-      const base64 = await fileToBase64(compressed);
-      const mediaType = base64.match(/^data:([^;]+);/)?.[1] || 'image/jpeg';
-      const data = base64.split(',')[1];
-      const json = await aiRequest({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 80,
-        feature: 'plate_scan',
-        messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data } },
-          { type: 'text', text:
-            'בתמונה: מספר רישוי של רכב ישראלי או מספר רישוי אווירי.\n' +
-            'חלץ אותו בלבד. עבור רכב יבשתי: רק ספרות (5-8). עבור כלי טיס: אלפא-נומרי.\n' +
-            'אם התמונה לא ברורה או לא של מספר רכב — החזר ריק.\n' +
-            'החזר JSON בלבד, ללא טקסט נוסף: {"plate":""}'
-          },
-        ]}],
-      });
-      const text = json?.content?.[0]?.text || '';
-      const match = text.match(/\{[\s\S]*?\}/);
-      const parsed = match ? JSON.parse(match[0]) : null;
-      const raw = String(parsed?.plate || '').trim();
-      // Server-side validation will reject garbage anyway; this is a
-      // first defence so the user gets a clear "not detected" message
-      // instead of a search that returns "vehicle not found".
-      const cleaned = raw.replace(/[^0-9A-Za-z]/g, '');
-      if (!cleaned || cleaned.length < 4) {
-        toastError('לא הצלחנו לזהות מספר רישוי. נסה תמונה ברורה יותר או הקלד ידנית.', { action: 'plate_scan_no_match' });
-        return;
-      }
-      handlePlateChange(cleaned);
-      toast.success('מספר זוהה — בדוק שזה נכון ולחץ "בדוק רכב"');
-    } catch (err) {
-      toastError(err?.message || 'הסריקה נכשלה. נסה שוב או הקלד ידנית.', { action: 'plate_scan', err });
-    } finally {
-      setPlateScanning(false);
-      e.target.value = '';
     }
   };
 
@@ -422,44 +332,19 @@ export default function VehicleCheck() {
                     value={plate}
                     onChange={handlePlateChange}
                     onEnter={search}
-                    disabled={isBusy || plateScanning}
+                    disabled={isBusy}
                   />
                   {/* Optional shortcut: photograph the plate, the AI
-                      extracts the digits and pre-fills the input. The
-                      user still has to press "בדוק רכב" — we don't
-                      auto-trigger so a mis-scan can't burn gov.il
-                      quota. See handlePlateScan above for the flow. */}
-                  <input
-                    ref={plateScanRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handlePlateScan}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => plateScanRef.current?.click()}
-                    disabled={isBusy || plateScanning}
-                    className="mt-3 w-full h-12 rounded-xl border flex items-center justify-center gap-2 text-sm font-bold transition-colors disabled:opacity-60"
-                    style={{
-                      background: '#FFFFFF',
-                      borderColor: C.gray200,
-                      color: C.gray700,
-                    }}
-                  >
-                    {plateScanning ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        סורק...
-                      </>
-                    ) : (
-                      <>
-                        <Camera className="w-4 h-4" strokeWidth={2} />
-                        סרוק תמונה של מספר רכב
-                      </>
-                    )}
-                  </button>
+                      extracts the digits and pre-fills the input. Shared
+                      with the Dashboard hero — see PlateScanButton. The
+                      user still presses "בדוק רכב" manually; we don't
+                      auto-trigger so a mis-scan can't burn gov.il quota. */}
+                  <div className="mt-3">
+                    <PlateScanButton
+                      onPlateDetected={handlePlateChange}
+                      disabled={isBusy}
+                    />
+                  </div>
                   {error && <p className="text-xs text-red-600 text-right mt-2">{error}</p>}
                 </div>
                 <Button
