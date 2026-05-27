@@ -4,6 +4,7 @@ import { isVesselType } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import { db } from '@/lib/supabaseEntities';
+import { supabaseUrl, supabaseAnonKey } from '@/lib/supabase';
 import {
   MapPin,
   Wrench,
@@ -331,26 +332,20 @@ export default function FindGarage() {
     }
   };
 
-  // Overpass mirrors — fetched in a PARALLEL race (see fetchFromServers).
-  //
-  // ⚠️ MUST be FULL-PLANET mirrors. A regional instance returns HTTP
-  // 200 with an empty `elements` array for out-of-region queries, which
-  // the race counts as a valid win — masking a global mirror's real
-  // results. 2026-05-26 incident: overpass.osm.ch was added during an
-  // overpass-api.de outage, but it is a SWITZERLAND-ONLY extract
-  // (verified: 0 car_repair in Tel Aviv, 109 in Zürich) so every Israel
-  // search came back "no results". Removed. Only keep planet mirrors:
-  //   • overpass-api.de        — canonical, freshest
-  //   • overpass.kumi.systems  — full planet
-  //   • overpass.private.coffee — full planet
-  // When adding a mirror, FIRST verify it has Israel data:
-  //   curl -s -X POST <url> --data 'data=[out:json];node["shop"="car_repair"](32.0,34.7,32.15,34.85);out count;'
-  // and that it returns Access-Control-Allow-Origin (browser CORS).
-  const OVERPASS_SERVERS = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://overpass.private.coffee/api/interpreter',
-  ];
+  // Overpass access goes through our own Edge Function proxy
+  // (supabase/functions/overpass-proxy). The browser no longer talks to
+  // public Overpass mirrors directly. Why:
+  //   • CORS — most mirrors don't send Access-Control-Allow-Origin, so
+  //     the browser-usable pool was tiny and fragile.
+  //   • CSP — every mirror had to be whitelisted in vercel.json's
+  //     connect-src; a missing entry silently killed the fallback.
+  //   • Wrong-region mirrors — a regional extract returns 200 + empty
+  //     for Israel, masking real data.
+  // The proxy fetches server-to-server (no CORS), races a wider mirror
+  // pool, and returns the first NON-EMPTY result — so the client just
+  // makes ONE call. Adding/auditing mirrors now lives entirely in the
+  // Edge Function; nothing here or in vercel.json needs to change.
+  const OVERPASS_PROXY_URL = `${supabaseUrl}/functions/v1/overpass-proxy`;
 
   // Stale-while-revalidate cache for Overpass results.
   //   Key: rounded lat/lng (1km grid) + radius + vessel flag
@@ -494,46 +489,48 @@ export default function FindGarage() {
           + `);out center tags;`
         : null;
 
-      const hdrs = { 'Content-Type': 'application/x-www-form-urlencoded' };
-
       // (AbortController is hoisted above the try block — see the comment
-      // there. We keep `controller` available here in case any code below
-      // needs it directly, but the destructured `signal` is what the
-      // fetch callers and the catch/finally branches read.)
+      // there. The destructured `signal` is what the fetch caller and the
+      // catch/finally branches read; it cancels the in-flight proxy
+      // request when the user changes location/radius.)
 
-      // Fetch with multi-server PARALLEL race. We hit every mirror at
-      // once and take the first VALID response (Promise.any resolves on
-      // the first fulfilled promise, ignoring rejections). This avoids
-      // the old sequential penalty where a slow/down primary made the
-      // user wait for its failure before the next mirror was even tried
-      // — exactly the "takes a long time to find" symptom when
-      // overpass-api.de was 406ing and we waited on it first.
+      // One call to our overpass-proxy Edge Function. The proxy does the
+      // multi-mirror race server-side and returns the first NON-EMPTY
+      // payload (or a valid empty one for genuinely empty areas), so the
+      // client no longer races mirrors itself. We pass the abort signal
+      // so a stale request is cancelled when a fresh fetch starts.
       //
-      // A mirror counts as failed (→ reject, so it's ignored unless ALL
-      // fail) when: non-2xx, non-JSON body, or Overpass's soft
-      // server-side timeout (200 + {remark:"runtime error: timed out"}
-      // + empty elements). The loser requests keep running in the
-      // background but we never await them; the shared abort signal
-      // cancels them when the user changes location/radius.
+      // Returns the parsed Overpass JSON on success, or null on any
+      // failure (network, non-2xx, non-JSON, or the proxy's 502
+      // all_mirrors_unavailable) so the caller renders the error state.
       const fetchFromServers = async (q) => {
-        const body = `data=${encodeURIComponent(q)}`;
-        const attempts = OVERPASS_SERVERS.map(async (server) => {
-          const res = await fetch(server, { method: 'POST', body, headers: hdrs, signal });
-          if (!res.ok) throw new Error(`${server}: HTTP ${res.status}`);
-          const ct = res.headers.get('content-type') || '';
-          if (!ct.includes('json')) throw new Error(`${server}: non-json`);
-          const json = await res.json();
-          if (json && typeof json.remark === 'string' && /timed out|runtime error/i.test(json.remark)) {
-            throw new Error(`${server}: server-side timeout`);
-          }
-          return json;
-        });
         try {
-          // First mirror to return a valid payload wins.
-          return await Promise.any(attempts);
-        } catch {
-          // AggregateError — every mirror rejected (all down, or the
-          // user aborted). Either way there's nothing to render.
+          const res = await fetch(OVERPASS_PROXY_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              // --no-verify-jwt on the function, but the Supabase gateway
+              // still requires an apikey/Authorization header to route.
+              'apikey': supabaseAnonKey,
+              'Authorization': `Bearer ${supabaseAnonKey}`,
+            },
+            body: JSON.stringify({ query: q }),
+            signal,
+          });
+          if (!res.ok) {
+            // 502 all_mirrors_unavailable lands here too — treat as no data.
+            console.warn(`overpass-proxy: HTTP ${res.status}`);
+            return null;
+          }
+          const ct = res.headers.get('content-type') || '';
+          if (!ct.includes('json')) return null;
+          return await res.json();
+        } catch (err) {
+          // Abort is expected when the user changes location/radius — the
+          // outer `if (signal.aborted) return` handles the bail. Any other
+          // error means the proxy is unreachable; render the error state.
+          if (err?.name === 'AbortError') return null;
+          console.warn('overpass-proxy fetch failed:', err?.message);
           return null;
         }
       };
