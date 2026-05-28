@@ -174,12 +174,13 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
       const json = await aiRequest({
         model: 'llama-3.3-70b-versatile',
-        // 500 was hitting the cap mid-word on the first expert reply: the
-        // system prompt asks for "3-6 sentences" with price ranges, but
-        // Hebrew tokenizes denser than the budget assumed. 800 keeps the
-        // intended length while giving headroom. DB-side slice(0,1000)
-        // still caps the stored text.
-        max_tokens: 800,
+        // 500 was hitting the cap mid-word; 800 still left some bulleted
+        // first replies clipped. 1500 matches the global default and
+        // gives the model enough room to wrap a substantive answer with
+        // price ranges in Hebrew (which tokenizes denser than English).
+        // The system prompt still steers toward "3-6 sentences" so most
+        // replies stay focused — this is purely upper headroom.
+        max_tokens: 1500,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       });
@@ -188,7 +189,11 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
         await supabase.from('community_comments').insert({
           post_id: post.id, user_id: post.user_id,
           author_name: expert.communityName,
-          body: aiText.replace(/<[^>]*>/g, '').slice(0, 1000), is_ai: true,
+          // Raised from 1000 → 2500 (2026-05-28). Pairs with max_tokens
+          // 1500 above — a thorough first reply with bulleted advice and
+          // price ranges runs ~1500-2000 chars in Hebrew. 2500 fits any
+          // reasonable expert answer without DB-side truncation.
+          body: aiText.replace(/<[^>]*>/g, '').slice(0, 2500), is_ai: true,
         });
         queryClient.invalidateQueries({ queryKey: ['community_comments', post.id] });
         queryClient.invalidateQueries({ queryKey: ['community_comment_counts', domain] });
