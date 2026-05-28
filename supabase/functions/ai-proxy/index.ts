@@ -324,7 +324,26 @@ async function callGemini(body: any) {
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY! },
     body: JSON.stringify({
       contents: [{ parts }],
-      generationConfig: { maxOutputTokens: body.max_tokens || 400, temperature: 0.7 },
+      generationConfig: {
+        // Raised from 400 → 1500 (2026-05-28). 400 left zero headroom on
+        // vision requests because gemini-2.5-flash bills internal
+        // "thinking" tokens against this budget. Users reported answers
+        // cut off mid-word when an image was attached. 1500 gives a
+        // comfortable answer envelope; thinkingConfig below caps the
+        // hidden reasoning so we always have room for visible output.
+        maxOutputTokens: body.max_tokens || 1500,
+        temperature: 0.7,
+        // gemini-2.5-flash has "thinking" enabled by default. On a vision
+        // request the model burns 500–800 tokens reasoning about the
+        // image BEFORE the first visible token — and that reasoning is
+        // billed against maxOutputTokens. Without an explicit cap, the
+        // answer envelope gets eaten by the internal reasoning and
+        // generation hard-stops mid-word at finishReason=MAX_TOKENS.
+        // For a conversational mechanic assistant, the system prompt
+        // already shapes the response — extra "thinking" adds latency
+        // and cost without quality. Set to 0 to disable.
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     }),
   });
   if (!res.ok) {
@@ -340,6 +359,14 @@ async function callGemini(body: any) {
   }
   const j = await res.json();
   const text = j?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  // Detect truncation. finishReason='MAX_TOKENS' means we hit the cap
+  // and the response is incomplete (often mid-word). Log so we can
+  // raise the budget if we see this in production. The text is still
+  // returned — a partial answer is better than nothing for the user.
+  const finishReason = j?.candidates?.[0]?.finishReason;
+  if (finishReason === 'MAX_TOKENS') {
+    console.warn(`[ai-proxy] gemini: response truncated at maxOutputTokens (${body.max_tokens || 1500})`);
+  }
   if (!text) {
     // Empty completions are the silent killer — Gemini returns 200 with
     // no candidates when safety filters block the prompt. Log so we
@@ -531,9 +558,14 @@ async function extractDocument(
         ],
       }],
       generationConfig: {
-        maxOutputTokens: 1024,
+        maxOutputTokens: 2048,
         temperature: 0.1,
         responseMimeType: 'application/json',
+        // gemini-2.5-flash's thinking mode counts against output budget.
+        // For schema-driven JSON extraction we want all tokens going to
+        // the structured response, not internal reasoning. Disable to
+        // prevent occasional truncated/empty JSON on complex documents.
+        thinkingConfig: { thinkingBudget: 0 },
       },
     }),
   }).catch(() => null);

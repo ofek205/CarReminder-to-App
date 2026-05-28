@@ -668,7 +668,13 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
         // `surface` tags the call site for the analytics dashboard.
         surface: 'chat_assistant',
         model: 'llama-3.3-70b-versatile',
-        max_tokens: 700,
+        // Raised 700 → 1500 (2026-05-28): on vision requests Gemini's
+        // thinking-mode reasoning was eating most of the 700-token
+        // budget, leaving the visible answer cut off mid-word. 1500
+        // gives a comfortable answer envelope. Plain-text requests
+        // never hit anywhere near this; this is purely defense for
+        // image-attached cases that route to Gemini.
+        max_tokens: 1500,
         system: systemPrompt,
         messages: recentMessages,
       });
