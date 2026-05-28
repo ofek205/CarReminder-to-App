@@ -440,6 +440,15 @@ export default function VehicleCheck() {
           stamps `completion_prompted_at` once it opens so we never
           re-prompt for the same vehicle. */}
       <VehicleCompletionSheet
+        // key forces a fresh mount when a new vehicle is saved. Without
+        // it, the sheet's useState(initial) ran ONCE at /VehicleCheck
+        // mount — when `result` was still null — so form.current_km was
+        // initialised to '' and never updated, even though the gov.il km
+        // arrived later. Result: km field showed empty instead of the
+        // pre-filled value from משרד התחבורה. Re-keying on vehicleId
+        // remounts the sheet for each new save with the latest result,
+        // so the pre-fill (and any other derived state) is correct.
+        key={completionSheet?.vehicleId || 'closed'}
         open={!!completionSheet}
         onClose={() => setCompletionSheet(null)}
         vehicleId={completionSheet?.vehicleId}

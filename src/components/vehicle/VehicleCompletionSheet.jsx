@@ -287,7 +287,20 @@ export default function VehicleCompletionSheet({
   const companies = getInsuranceCompanies(vehicleCategoryLabel);
 
   return (
-    <Drawer open={open} onOpenChange={(o) => { if (!o) handleSkip(); }}>
+    <Drawer
+      open={open}
+      onOpenChange={(o) => { if (!o) handleSkip(); }}
+      // dismissible=false disables vaul's pull-to-dismiss gesture. Without
+      // it, every downward swipe on the body was interpreted as "drag to
+      // close" — which (a) ate the scroll gesture so the user could never
+      // scroll inside the sheet to see the bottom fields, and (b) when
+      // they pulled hard enough the sheet closed losing whatever they
+      // filled in (insurance date, company etc) without a save. With
+      // dismissible=false the only exit paths are the X button and the
+      // "דלג, אסיים אחר-כך" button — both deliberate clicks. Scroll on
+      // the body now behaves natively.
+      dismissible={false}
+    >
       <DrawerContent dir="rtl" className="max-h-[92vh] p-0 overflow-hidden mx-auto w-full max-w-md">
         {/* Hero — typography-only welcome. No checkmark glyph, no emoji.
             The license plate chip + vehicle name carry the recognition. */}
