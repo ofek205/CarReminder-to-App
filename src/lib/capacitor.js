@@ -238,6 +238,21 @@ export async function initKeyboard() {
   if (!isIOS) return; // Android handled natively in MainActivity.java
   try {
     const { Keyboard } = await import('@capacitor/keyboard');
+    // Force the iOS WebView to resize when the keyboard opens. The static
+    // `Keyboard.resize: 'none'` in capacitor.config.ts is correct for
+    // Android (MainActivity handles IME insets natively — having both
+    // resize would double-shrink). On iOS there's no such native handler,
+    // and 'none' relies on the false assumption that WKWebView "naturally
+    // shrinks the layout viewport". It does NOT — only the visualViewport
+    // (a JS API) updates, so `100dvh` and `position: fixed; bottom: 0`
+    // stay anchored to the full-screen height while the system keyboard
+    // overlays the bottom half. Result: inputs vanish behind the keyboard,
+    // BottomNav unreachable, no way to dismiss by tap.
+    //
+    // Setting 'native' at runtime — iOS-only, in the gated block — makes
+    // WKWebView shrink its own frame so the layout viewport, `100dvh`,
+    // and all fixed bars rise above the keyboard automatically.
+    try { await Keyboard.setResizeMode({ mode: 'native' }); } catch {}
     Keyboard.addListener('keyboardWillShow', () => {
       document.body.classList.add('keyboard-visible');
     });
