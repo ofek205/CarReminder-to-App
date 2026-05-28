@@ -468,7 +468,7 @@ export default function Reports() {
     }
     setExporting(true);
     try {
-      const XLSX = await import('xlsx');
+      const ExcelJS = await import('exceljs');
       // Export reflects the user's active sort — same order they see
       // on screen — so they can reproduce a screenshot exactly.
       const rows = sortedLines.map(r => ({
@@ -480,15 +480,29 @@ export default function Reports() {
         'סכום (₪)': r.amount,
         'הערה':     r.note,
       }));
-      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('דוח הוצאות');
+      // Headers + bold styling
+      const headers = Object.keys(rows[0] || {});
+      ws.addRow(headers);
+      ws.getRow(1).font = { bold: true };
+      rows.forEach(r => ws.addRow(headers.map(h => r[h])));
       // Set column widths so the file opens readable.
-      ws['!cols'] = [
-        { wch: 12 }, { wch: 22 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 40 },
-      ];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'דוח הוצאות');
+      const widths = [12, 22, 12, 10, 12, 40];
+      headers.forEach((_, i) => { if (widths[i]) ws.getColumn(i + 1).width = widths[i]; });
       const filename = `fleet-expenses-${todayISO()}.xlsx`;
-      XLSX.writeFile(wb, filename);
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       toast.success(`יצוא הצליח (${rows.length} שורות)`);
     } catch (err) {
       toast.error('יצוא נכשל. נסה שוב.');

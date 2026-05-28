@@ -55,99 +55,70 @@ function parsePastedText(text) {
   ));
 }
 
-// Defense-in-depth wrappers around xlsx parsing.
+// Defense-in-depth wrappers around spreadsheet parsing.
 //
-// xlsx@0.18.5 has two unpatched CVEs (Prototype Pollution + ReDoS) that
-// the maintainer hasn't fixed. We can't drop the library yet — too much
-// refactor. Instead, harden the only place we accept user-supplied
-// xlsx files (this one):
-//
+// Migrated from xlsx@0.18.5 (two unpatched CVEs) to exceljs which has
+// no known vulnerabilities. The hardening guards remain as belt-and-
+// suspenders:
 //   1. Reject files larger than 5 MB or with an unexpected extension.
-//      Caps ReDoS amplification and refuses obviously-malicious payloads.
-//   2. Race the parse against a 10-second timeout so a runaway regex
-//      can't pin the tab.
-//   3. Snapshot a few well-known Object.prototype properties before the
-//      parse and check them after — if they changed, we know the file
-//      tried to mutate the prototype and we throw before consuming
-//      anything.
-//   4. The downstream consumption already normalises to digit-only
-//      plate strings (4-8 chars), so even on a clean parse the data
-//      surface is tiny.
+//   2. Race the parse against a 10-second timeout.
+//   3. CSV files are parsed with a simple manual splitter (no library).
+//   4. Downstream normalisation to digit-only plate strings (4-8 chars)
+//      keeps the data surface tiny regardless.
+//
+// NOTE: .xls (old binary Excel format) is no longer supported — exceljs
+// only handles the modern XML-based .xlsx/.xlsm. Users with .xls files
+// get a friendly message to re-save as .xlsx.
 const MAX_XLSX_BYTES   = 5 * 1024 * 1024;       // 5 MB
 const PARSE_TIMEOUT_MS = 10_000;
-const ALLOWED_EXTS     = new Set(['xlsx', 'xls', 'csv', 'xlsm']);
+const ALLOWED_EXTS     = new Set(['xlsx', 'csv', 'xlsm']);
 
-function _protoSnapshot() {
-  // Snapshot a handful of high-risk Object.prototype keys. A malicious
-  // xlsx that sets `__proto__.constructor = ...` or similar will leave
-  // a fingerprint here we can detect.
-  return {
-    constructor:    Object.prototype.constructor,
-    hasOwnProperty: Object.prototype.hasOwnProperty,
-    toString:       Object.prototype.toString,
-    valueOf:        Object.prototype.valueOf,
-    polluted:       Object.prototype.polluted,           // expected undefined
-    isAdmin:        Object.prototype.isAdmin,            // expected undefined
-  };
-}
-
-function _protoChanged(before) {
-  const after = _protoSnapshot();
-  for (const k of Object.keys(before)) {
-    if (after[k] !== before[k]) return true;
-  }
-  return false;
+function _parseCsvBuffer(buffer) {
+  const text = new TextDecoder().decode(buffer);
+  return Array.from(new Set(
+    text
+      .split(/[\r\n]+/)
+      .map(line => line.split(/[,;\t]/)[0])
+      .map(normalizePlate)
+      .filter(Boolean)
+  ));
 }
 
 async function parseXlsxFile(file) {
-  // 1. Cheap pre-checks before we hand the buffer to XLSX.read.
+  // 1. Cheap pre-checks before we hand the buffer to exceljs.
   const name = (file?.name || '').toLowerCase();
   const ext  = name.split('.').pop() || '';
-  if (!ALLOWED_EXTS.has(ext)) throw new Error('סוג קובץ לא נתמך — צריך xlsx, xls, xlsm או csv');
+  if (ext === 'xls') throw new Error('פורמט .xls ישן לא נתמך — שמור את הקובץ מחדש כ-.xlsx ונסה שוב');
+  if (!ALLOWED_EXTS.has(ext)) throw new Error('סוג קובץ לא נתמך — צריך xlsx, xlsm או csv');
   if (file.size > MAX_XLSX_BYTES) throw new Error('הקובץ גדול מדי (מקסימום 5MB)');
 
-  // Lazy load to keep bundle out of the main chunk.
-  const XLSX = await import('xlsx');
   const buffer = await file.arrayBuffer();
 
-  // 2. Snapshot Object.prototype so we can detect a pollution attempt.
-  const before = _protoSnapshot();
+  // CSV — simple manual parse, no library needed.
+  if (ext === 'csv') return _parseCsvBuffer(buffer);
 
-  // 3. Race the parse against a timeout (xlsx parse is synchronous so
-  //    `Promise.race` doesn't actually interrupt it — but it does let
-  //    us surface a friendly error if the parse hangs unusually long,
-  //    which is the symptom of a ReDoS payload mid-parse).
+  // XLSX / XLSM — use exceljs (lazy-loaded).
+  const ExcelJS = await import('exceljs');
+
   const workbook = await Promise.race([
-    Promise.resolve().then(() => XLSX.read(buffer, {
-      type: 'array',
-      // Disable features that expand the attack surface and that we
-      // don't use downstream.
-      cellHTML:    false,
-      cellFormula: false,
-      cellStyles:  false,
-      bookSheets:  false,
-    })),
+    new ExcelJS.Workbook().xlsx.load(buffer),
     new Promise((_, reject) => setTimeout(
       () => reject(new Error('עיבוד הקובץ ארך יותר מדי — נסה קובץ אחר')),
       PARSE_TIMEOUT_MS,
     )),
   ]);
 
-  // 4. Pollution check. If the parse mutated Object.prototype, refuse
-  //    to consume the result — we'd be operating on a tampered runtime.
-  if (_protoChanged(before)) {
-    throw new Error('הקובץ נדחה — מבנה לא תקין');
-  }
-
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const sheet = workbook.worksheets[0];
   if (!sheet) return [];
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-  return Array.from(new Set(
-    rows
-      .map(row => Array.isArray(row) ? row[0] : null)
-      .map(normalizePlate)
-      .filter(Boolean)
-  ));
+
+  const plates = [];
+  sheet.eachRow((row) => {
+    // row.values is 1-indexed — first column is at index 1.
+    const val = row.values[1];
+    const plate = normalizePlate(val);
+    if (plate) plates.push(plate);
+  });
+  return Array.from(new Set(plates));
 }
 
 async function lookupAll(plates, onProgress) {
@@ -485,12 +456,12 @@ function InputStep({ onPlatesParsed, onContinue, plates }) {
           >
             <Upload className="h-7 w-7 text-gray-400" />
             <p className="text-sm font-bold text-gray-700">לחץ לבחירת קובץ</p>
-            <p className="text-[11px] text-gray-500">תומך ב xlsx, xls, csv</p>
+            <p className="text-[11px] text-gray-500">תומך ב xlsx, csv</p>
           </button>
           <input
             ref={fileRef}
             type="file"
-            accept=".xlsx,.xls,.csv"
+            accept=".xlsx,.xlsm,.csv"
             className="hidden"
             onChange={(e) => handleFile(e.target.files?.[0])}
           />
