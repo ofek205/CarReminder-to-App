@@ -173,7 +173,13 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
       const userMessage = `שאלה מהקהילה:\n"${post.body}"${vehicleContext}`;
 
       const json = await aiRequest({
-        model: 'llama-3.3-70b-versatile', max_tokens: 500,
+        model: 'llama-3.3-70b-versatile',
+        // 500 was hitting the cap mid-word on the first expert reply: the
+        // system prompt asks for "3-6 sentences" with price ranges, but
+        // Hebrew tokenizes denser than the budget assumed. 800 keeps the
+        // intended length while giving headroom. DB-side slice(0,1000)
+        // still caps the stored text.
+        max_tokens: 800,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       });

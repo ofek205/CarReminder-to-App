@@ -119,7 +119,13 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
               // Surface tag for the analytics dashboard.
               surface: 'community_reply',
               model: 'claude-sonnet-4-20250514',
-              max_tokens: 400,
+              // 400 was hitting the cap mid-word: the system prompt asks
+              // for "2-4 sentences" but the AI often produces a bulleted
+              // clarification list, and Hebrew tokenizes denser than the
+              // budget assumed. 800 keeps the intended length while giving
+              // headroom so a slightly longer reply isn't cut mid-character.
+              // The DB-side slice(0,1000) still caps the stored text.
+              max_tokens: 800,
               system: systemPrompt,
               messages: [{
                 role: 'user',
