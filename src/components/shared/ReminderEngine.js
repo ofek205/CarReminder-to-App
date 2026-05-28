@@ -56,10 +56,19 @@ export function daysWord(n) {
   return 'ימים';
 }
 
-/** "בעוד N ימים" with correct plural — handles "בעוד יום" (1),
- *  "בעוד יומיים" (2), "בעוד 3 ימים" (3+). */
+/** "בעוד N ימים" with correct plural — handles:
+ *    0 → "היום!"        (day-of, urgent)
+ *    1 → "בעוד יום"
+ *    2 → "בעוד יומיים"
+ *    3+ → "בעוד N ימים"
+ *
+ *  The 0 case is critical: the old code returned "בעוד 0 ימים" which
+ *  reads as broken/robotic copy in notifications. "היום!" is the
+ *  natural Hebrew rendering and the "!" carries the urgency the user
+ *  needs to act today rather than tomorrow. */
 export function inDays(n) {
   const abs = Math.abs(n);
+  if (abs === 0) return 'היום!';
   if (abs === 1) return 'בעוד יום';
   if (abs === 2) return 'בעוד יומיים';
   return `בעוד ${abs} ימים`;

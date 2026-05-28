@@ -79,6 +79,36 @@ const PASSIVE_DAYS_THRESHOLD = 365;
 const PASSIVE_NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const PASSIVE_LAST_FIRED_PREFIX = 'cr_passive_nudge_last_';
 
+// Anti-spam dedup for the "immediate" alarm slot (overdue +1h and upcoming
+// morning-of-trigger). Without this, every recalc — which runs on every
+// Dashboard mount + every vehicle save — cancels and re-plants the same
+// +1h alarm. The result, reported by users (2026-05-28): a flood of push
+// notifications about overdue items fires roughly one hour after EVERY
+// app open. The marker stores the timestamp at which the immediate alarm
+// is expected to fire. Three states:
+//   - marker > now  → alarm planted, not yet fired. Re-plant at same time.
+//   - marker > 0 && now-marker < cooldown → already fired recently. Skip.
+//   - else → no prior fire OR cooldown expired → plant new immediate.
+// Cooldowns:
+//   - overdue: respects user's overdue_repeat_every_days setting (3d default).
+//   - upcoming: 24h. The reminder reappears in-app via the bell; we don't
+//     need to push daily about a deadline that hasn't passed yet.
+const IMMEDIATE_FIRE_AT_PREFIX = 'cr_reminder_immediate_at_';
+const UPCOMING_DEDUP_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+function getImmediateFireAt(reminderId) {
+  try {
+    const v = Number(localStorage.getItem(IMMEDIATE_FIRE_AT_PREFIX + reminderId) || '0');
+    return Number.isFinite(v) ? v : 0;
+  } catch { return 0; }
+}
+
+function setImmediateFireAt(reminderId, ts) {
+  try {
+    localStorage.setItem(IMMEDIATE_FIRE_AT_PREFIX + reminderId, String(ts));
+  } catch { /* storage unavailable — degrade to old behaviour */ }
+}
+
 //  Per-type "days before due" lookup 
 function daysBeforeFor(type, settings) {
   switch (type) {
@@ -154,11 +184,36 @@ function computeScheduleTimes(reminder, settings) {
     const repeatEvery = Number.isFinite(parsed) && parsed >= 1
       ? Math.min(30, Math.floor(parsed))
       : 3;
-    const times = [new Date(now + 60 * 60 * 1000)]; // +1h
+
+    // Anti-spam dedup: track when the +1h immediate was last planted.
+    // Without this, every recalc (= every Dashboard mount) plants a new
+    // +1h alarm, which fires ~1h after every app open. Users with
+    // multiple overdue items were getting a flood of push notifications
+    // every time they entered the app (reported 2026-05-28).
+    const cooldownMs = repeatEvery * 24 * 60 * 60 * 1000;
+    const prevImmediateAt = getImmediateFireAt(reminder.id);
+    const futureTimes = [];
     for (let i = 1; i <= MAX_OVERDUE_REPEATS; i++) {
-      times.push(morningSlot(i * repeatEvery));
+      futureTimes.push(morningSlot(i * repeatEvery));
     }
-    return times;
+
+    if (prevImmediateAt > now) {
+      // Previous +1h alarm hasn't fired yet — cancel-all just removed it.
+      // Re-plant at the same time so the user still gets that nudge.
+      return [new Date(prevImmediateAt), ...futureTimes];
+    }
+    if (prevImmediateAt > 0 && (now - prevImmediateAt) < cooldownMs) {
+      // Already nudged recently — skip the immediate, plant only the
+      // future morning repeats. The next overdue push will be the
+      // soonest morningSlot (which respects repeatEvery).
+      return futureTimes;
+    }
+
+    // First overdue OR cooldown expired — plant a fresh +1h immediate
+    // and remember its fire time so the next recalc respects it.
+    const immediateAt = now + 60 * 60 * 1000;
+    setImmediateFireAt(reminder.id, immediateAt);
+    return [new Date(immediateAt), ...futureTimes];
   }
 
   // Upcoming. fire `daysBefore` days ahead of due date, at morning hour.
@@ -181,7 +236,26 @@ function computeScheduleTimes(reminder, settings) {
 
   // If trigger is already due today (daysLeft < daysBefore), fire tomorrow.
   const slot = triggerInDays === 0 ? morningSlot(1) : morningSlot(triggerInDays);
-  return slot.getTime() > now ? [slot] : [morningSlot(1)];
+  const targetSlot = slot.getTime() > now ? slot : morningSlot(1);
+
+  // Anti-spam dedup for upcoming reminders. When a reminder enters the
+  // "X days before" window, we want to nudge the user — but only ONCE
+  // per 24h, not every time they open the app. Without this guard, an
+  // upcoming reminder with daysLeft <= daysBefore would re-plant
+  // "tomorrow 8am" on every recalc; if the user opens the app on
+  // morning N before 8am, cancel-all removes the alarm BEFORE it fires,
+  // then the next day's 8am gets planted, and the cycle repeats.
+  const prevUpcomingAt = getImmediateFireAt(reminder.id);
+  if (prevUpcomingAt > now) {
+    // Pending alarm — re-plant at same time (cancel-all erased it).
+    return [new Date(prevUpcomingAt)];
+  }
+  if (prevUpcomingAt > 0 && (now - prevUpcomingAt) < UPCOMING_DEDUP_COOLDOWN_MS) {
+    // Already nudged in last 24h — skip. The in-app bell still shows it.
+    return [];
+  }
+  setImmediateFireAt(reminder.id, targetSlot.getTime());
+  return [targetSlot];
 }
 
 //  Title / body from engine output 
