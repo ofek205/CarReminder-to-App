@@ -56,13 +56,53 @@ export function daysWord(n) {
   return 'ימים';
 }
 
-/** "בעוד N ימים" with correct plural — handles "בעוד יום" (1),
- *  "בעוד יומיים" (2), "בעוד 3 ימים" (3+). */
+/** Natural Hebrew "in N days" — handles:
+ *    0 → "היום!"          (day-of, urgent)
+ *    1 → "מחר"            (tomorrow)
+ *    2 → "בעוד יומיים"
+ *    7 → "בעוד שבוע"
+ *    14 → "בעוד שבועיים"
+ *    30 → "בעוד חודש"
+ *    else → "בעוד N ימים"
+ *
+ *  We prefer human time units (שבוע/שבועיים/חודש) over raw day counts
+ *  on the round boundaries — "בעוד שבוע" reads like a friend wrote it;
+ *  "בעוד 7 ימים" reads like a robot. 1 day specifically becomes "מחר"
+ *  instead of "בעוד יום" — the user already knows tomorrow exists.
+ *  0 keeps its "!" because day-of is the most urgent slot. */
 export function inDays(n) {
   const abs = Math.abs(n);
-  if (abs === 1) return 'בעוד יום';
-  if (abs === 2) return 'בעוד יומיים';
+  if (abs === 0)  return 'היום!';
+  if (abs === 1)  return 'מחר';
+  if (abs === 2)  return 'בעוד יומיים';
+  if (abs === 7)  return 'בעוד שבוע';
+  if (abs === 14) return 'בעוד שבועיים';
+  if (abs === 30) return 'בעוד חודש';
   return `בעוד ${abs} ימים`;
+}
+
+/** Natural Hebrew "N days ago" — mirror of inDays for the past:
+ *    0 → "היום"
+ *    1 → "אתמול"
+ *    2 → "לפני יומיים"
+ *    7 → "לפני שבוע"
+ *    14 → "לפני שבועיים"
+ *    30 → "לפני חודש"
+ *    else → "לפני N ימים"
+ *
+ *  Used in overdue labels to tell the user HOW LONG something has
+ *  been expired. Previously the engine just said "פג תוקף!" with no
+ *  time context — bad UX, the user couldn't tell if it expired today
+ *  or a year ago. */
+export function daysAgo(n) {
+  const abs = Math.abs(n);
+  if (abs === 0)  return 'היום';
+  if (abs === 1)  return 'אתמול';
+  if (abs === 2)  return 'לפני יומיים';
+  if (abs === 7)  return 'לפני שבוע';
+  if (abs === 14) return 'לפני שבועיים';
+  if (abs === 30) return 'לפני חודש';
+  return `לפני ${abs} ימים`;
 }
 
 /** Human-readable Hebrew label for days remaining.
@@ -177,7 +217,9 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
           name: vName, vehicleId: v.id,
           dueDate: v.test_due_date, daysLeft: dl,
           status: urgencyFromDays(dl),
-          label: dl < 0 ? `${vLabels.testWord} פג תוקף!${vintageTag}` : `${vLabels.testWord} ${inDays(dl)}${vintageTag}`,
+          label: dl < 0
+            ? `${vLabels.testWord} פג ${daysAgo(dl)}${vintageTag}`
+            : `${vLabels.testWord} ${inDays(dl)}${vintageTag}`,
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }
@@ -194,7 +236,7 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
           name: vName, vehicleId: v.id,
           dueDate: v.insurance_due_date, daysLeft: dl,
           status: urgencyFromDays(dl),
-          label: dl < 0 ? `${iw} פג תוקף!` : `${iw} ${inDays(dl)}`,
+          label: dl < 0 ? `${iw} פג ${daysAgo(dl)}` : `${iw} ${inDays(dl)}`,
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }
@@ -214,7 +256,7 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
           name: vName, vehicleId: v.id,
           dueDate: v.inspection_report_expiry_date, daysLeft: dl,
           status: urgencyFromDays(dl),
-          label: dl < 0 ? 'תסקיר פג תוקף!' : `תסקיר ${inDays(dl)}`,
+          label: dl < 0 ? `תסקיר פג ${daysAgo(dl)}` : `תסקיר ${inDays(dl)}`,
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }
@@ -236,7 +278,7 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
             typeName: word, name: vName, vehicleId: v.id,
             dueDate: v[field], daysLeft: dl,
             status: urgencyFromDays(dl),
-            label: dl < 0 ? `${word} פג תוקף!` : `${word} ${inDays(dl)}`,
+            label: dl < 0 ? `${word} פג ${daysAgo(dl)}` : `${word} ${inDays(dl)}`,
             linkTo: `VehicleDetail?id=${v.id}`,
           });
         }
@@ -391,7 +433,9 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
         vehicleId: doc.vehicle_id || null,
         dueDate: doc.expiry_date, daysLeft: dl,
         status: urgencyFromDays(dl),
-        label: dl < 0 ? `${doc.document_type || 'מסמך'} פג תוקף!` : `${doc.document_type || 'מסמך'} ${inDays(dl)}`,
+        label: dl < 0
+          ? `${doc.document_type || 'מסמך'} פג ${daysAgo(dl)}`
+          : `${doc.document_type || 'מסמך'} ${inDays(dl)}`,
         linkTo: doc.vehicle_id ? `Documents?vehicle_id=${doc.vehicle_id}` : 'Documents',
       });
     }
