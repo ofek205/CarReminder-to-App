@@ -89,24 +89,62 @@ const PASSIVE_LAST_FIRED_PREFIX = 'cr_passive_nudge_last_';
 //   - marker > now  → alarm planted, not yet fired. Re-plant at same time.
 //   - marker > 0 && now-marker < cooldown → already fired recently. Skip.
 //   - else → no prior fire OR cooldown expired → plant new immediate.
+//
+// SEPARATE MARKERS PER PHASE (revision 2026-05-28b, PM critique):
+// Using a single key for both upcoming and overdue meant a reminder
+// transitioning upcoming→overdue would inherit the upcoming cooldown
+// and silently suppress the critical "you just became overdue" +1h
+// nudge for up to 3 days. Now we track upcoming and overdue phases
+// independently — phase transition always allows a fresh immediate
+// nudge because the overdue marker is unset when entering overdue
+// for the first time.
+//
 // Cooldowns:
 //   - overdue: respects user's overdue_repeat_every_days setting (3d default).
 //   - upcoming: 24h. The reminder reappears in-app via the bell; we don't
 //     need to push daily about a deadline that hasn't passed yet.
-const IMMEDIATE_FIRE_AT_PREFIX = 'cr_reminder_immediate_at_';
+const UPCOMING_FIRE_AT_PREFIX = 'cr_reminder_upcoming_at_';
+const OVERDUE_FIRE_AT_PREFIX  = 'cr_reminder_overdue_at_';
 const UPCOMING_DEDUP_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
-function getImmediateFireAt(reminderId) {
+// Global "app opened recently" suppression. When the user opens the app,
+// they're actively engaged — they've already seen the reminders in the
+// bell. Pushing a fresh notification ~1h later is the worst kind of
+// spam: redundant AND poorly timed. We record the open time and refuse
+// to plant ANY +1h immediate slot within this window.
+//
+// Why 6 hours and not 24: a user who opens at 8am and runs errands all
+// day deserves a 4pm reminder if their test expired at noon. 6h is the
+// "I just used the app, don't bug me about what I just saw" boundary
+// without blocking legitimately fresh nudges in the same day.
+const APP_OPEN_TS_KEY = 'cr_app_last_opened_ts';
+const APP_OPEN_SUPPRESS_MS = 6 * 60 * 60 * 1000;
+
+function getMarker(prefix, reminderId) {
   try {
-    const v = Number(localStorage.getItem(IMMEDIATE_FIRE_AT_PREFIX + reminderId) || '0');
+    const v = Number(localStorage.getItem(prefix + reminderId) || '0');
     return Number.isFinite(v) ? v : 0;
   } catch { return 0; }
 }
 
-function setImmediateFireAt(reminderId, ts) {
+function setMarker(prefix, reminderId, ts) {
   try {
-    localStorage.setItem(IMMEDIATE_FIRE_AT_PREFIX + reminderId, String(ts));
+    localStorage.setItem(prefix + reminderId, String(ts));
   } catch { /* storage unavailable — degrade to old behaviour */ }
+}
+
+function recordAppOpen() {
+  try {
+    localStorage.setItem(APP_OPEN_TS_KEY, String(Date.now()));
+  } catch {}
+}
+
+function appOpenedRecently() {
+  try {
+    const ts = Number(localStorage.getItem(APP_OPEN_TS_KEY) || '0');
+    if (!Number.isFinite(ts) || ts <= 0) return false;
+    return (Date.now() - ts) < APP_OPEN_SUPPRESS_MS;
+  } catch { return false; }
 }
 
 //  Per-type "days before due" lookup 
@@ -190,8 +228,13 @@ function computeScheduleTimes(reminder, settings) {
     // +1h alarm, which fires ~1h after every app open. Users with
     // multiple overdue items were getting a flood of push notifications
     // every time they entered the app (reported 2026-05-28).
+    //
+    // OVERDUE-SPECIFIC marker (rev 2026-05-28b): separate from upcoming
+    // so a reminder freshly transitioning from upcoming→overdue gets a
+    // proper "you just missed it" +1h push — even if the upcoming
+    // cooldown was still active.
     const cooldownMs = repeatEvery * 24 * 60 * 60 * 1000;
-    const prevImmediateAt = getImmediateFireAt(reminder.id);
+    const prevImmediateAt = getMarker(OVERDUE_FIRE_AT_PREFIX, reminder.id);
     const futureTimes = [];
     for (let i = 1; i <= MAX_OVERDUE_REPEATS; i++) {
       futureTimes.push(morningSlot(i * repeatEvery));
@@ -209,10 +252,19 @@ function computeScheduleTimes(reminder, settings) {
       return futureTimes;
     }
 
+    // Global "user just opened the app" suppression. They're actively
+    // engaged — pushing a +1h about an item they already saw in the
+    // bell is exactly the spam users complained about. Plant only the
+    // future morning repeats; they'll catch the user a few days later
+    // when they're not actively in the app.
+    if (appOpenedRecently()) {
+      return futureTimes;
+    }
+
     // First overdue OR cooldown expired — plant a fresh +1h immediate
     // and remember its fire time so the next recalc respects it.
     const immediateAt = now + 60 * 60 * 1000;
-    setImmediateFireAt(reminder.id, immediateAt);
+    setMarker(OVERDUE_FIRE_AT_PREFIX, reminder.id, immediateAt);
     return [new Date(immediateAt), ...futureTimes];
   }
 
@@ -245,7 +297,11 @@ function computeScheduleTimes(reminder, settings) {
   // "tomorrow 8am" on every recalc; if the user opens the app on
   // morning N before 8am, cancel-all removes the alarm BEFORE it fires,
   // then the next day's 8am gets planted, and the cycle repeats.
-  const prevUpcomingAt = getImmediateFireAt(reminder.id);
+  //
+  // UPCOMING-SPECIFIC marker (rev 2026-05-28b): separate from overdue.
+  // When the reminder eventually transitions to overdue, the overdue
+  // branch checks its own marker and isn't blocked by this cooldown.
+  const prevUpcomingAt = getMarker(UPCOMING_FIRE_AT_PREFIX, reminder.id);
   if (prevUpcomingAt > now) {
     // Pending alarm — re-plant at same time (cancel-all erased it).
     return [new Date(prevUpcomingAt)];
@@ -254,7 +310,13 @@ function computeScheduleTimes(reminder, settings) {
     // Already nudged in last 24h — skip. The in-app bell still shows it.
     return [];
   }
-  setImmediateFireAt(reminder.id, targetSlot.getTime());
+  // App-opened suppression: same logic as overdue branch — don't push
+  // about an item the user just saw in the bell. They get the bell now
+  // and tomorrow morning's scheduled alarm in 24h+.
+  if (appOpenedRecently()) {
+    return [];
+  }
+  setMarker(UPCOMING_FIRE_AT_PREFIX, reminder.id, targetSlot.getTime());
   return [targetSlot];
 }
 
@@ -363,6 +425,14 @@ export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER
       scheduled++;
     }
   }
+
+  // Record this scheduling pass as the user's most recent "app open"
+  // event AFTER the loop completes. This timestamp is read by the
+  // appOpenedRecently() guard in computeScheduleTimes() on the NEXT
+  // invocation (e.g., when the user navigates back to Dashboard within
+  // a few hours). It deliberately does NOT affect THIS run — otherwise
+  // the very first call would suppress its own +1h slots.
+  recordAppOpen();
 
   if (import.meta.env.DEV) console.log(`[NotificationService] Scheduled ${scheduled} notifications`);
   return { scheduled };
