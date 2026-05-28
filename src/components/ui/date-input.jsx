@@ -23,15 +23,23 @@ import { isIOS } from "@/lib/capacitor";
  *   green) — the popover calendar is fully app-rendered and works
  *   consistently.
  *
+ *   Opt-out: pass `native` to force the HTML5 native picker on Android
+ *   too. Use this when the field is rendered inside a vaul Drawer —
+ *   the Drawer eats Radix Popover pointer events, so a date click in
+ *   the Calendar never reaches its onSelect handler (silently broken
+ *   in VehicleCompletionSheet 2026-05-27). The native picker has no
+ *   such conflict.
+ *
  * Contract (unchanged from the old wrapper):
  *   • value prop is ISO YYYY-MM-DD or empty string.
  *   • onChange receives a synthetic event whose target.value is
  *     ISO YYYY-MM-DD or empty string.
  *   • min / max props accepted as YYYY-MM-DD strings.
+ *   • native prop (optional) — force the HTML5 native picker.
  *   • forwardRef preserved.
  */
-const DateInput = React.forwardRef(({ className, value, onChange, min, max, disabled, placeholder, ...props }, ref) => {
-  if (isIOS) {
+const DateInput = React.forwardRef(({ className, value, onChange, min, max, disabled, placeholder, native, ...props }, ref) => {
+  if (isIOS || native) {
     // iOS path — keep native input.
     return (
       <input

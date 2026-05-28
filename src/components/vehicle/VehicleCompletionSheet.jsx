@@ -288,7 +288,7 @@ export default function VehicleCompletionSheet({
 
   return (
     <Drawer open={open} onOpenChange={(o) => { if (!o) handleSkip(); }}>
-      <DrawerContent dir="rtl" className="max-h-[92vh] p-0 overflow-hidden">
+      <DrawerContent dir="rtl" className="max-h-[92vh] p-0 overflow-hidden mx-auto w-full max-w-md">
         {/* Hero — typography-only welcome. No checkmark glyph, no emoji.
             The license plate chip + vehicle name carry the recognition. */}
         <div
@@ -411,8 +411,9 @@ export default function VehicleCompletionSheet({
                   </Label>
                   <DateInput
                     value={form.insurance_due_date}
-                    onChange={(v) => handleChange('insurance_due_date', v)}
+                    onChange={(e) => handleChange('insurance_due_date', e?.target?.value || '')}
                     placeholder="בחר תאריך"
+                    native
                   />
                 </div>
                 <div>
@@ -481,8 +482,9 @@ export default function VehicleCompletionSheet({
               </Label>
               <DateInput
                 value={form.last_tire_change_date}
-                onChange={(v) => handleChange('last_tire_change_date', v)}
+                onChange={(e) => handleChange('last_tire_change_date', e?.target?.value || '')}
                 placeholder="בחר תאריך"
+                native
               />
             </div>
           )}
