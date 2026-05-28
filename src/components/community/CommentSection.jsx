@@ -119,7 +119,14 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
               // Surface tag for the analytics dashboard.
               surface: 'community_reply',
               model: 'claude-sonnet-4-20250514',
-              max_tokens: 400,
+              // 400 was hitting the cap mid-word; 800 still left some
+              // bulleted replies clipped. 1500 matches the global default
+              // and gives the model enough room to wrap up a clarification
+              // list or substantive answer in Hebrew (which tokenizes
+              // denser than English). The system prompt still steers
+              // toward "2-4 sentences" so most replies stay short — this
+              // is purely upper headroom so nothing is cut mid-character.
+              max_tokens: 1500,
               system: systemPrompt,
               messages: [{
                 role: 'user',
@@ -132,7 +139,12 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
                 post_id: postId,
                 user_id: null,
                 author_name: expert.communityName,
-                body: aiText.replace(/<[^>]*>/g, '').slice(0, 1000),
+                // Raised from 1000 → 2500 (2026-05-28). 1000 was a safety
+                // cap originally paired with max_tokens=400; with the
+                // budget at 1500 a thorough reply can run ~1500-2000 chars
+                // in Hebrew. 2500 fits any reasonable expert answer
+                // without truncating mid-sentence on the DB write.
+                body: aiText.replace(/<[^>]*>/g, '').slice(0, 2500),
                 is_ai: true,
               });
               queryClient.invalidateQueries({ queryKey: ['community_comments', postId] });
