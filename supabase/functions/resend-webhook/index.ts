@@ -94,6 +94,14 @@ async function verifySvix(body: string, headers: Headers): Promise<boolean> {
   const svixSignature = headers.get('svix-signature');
   if (!svixId || !svixTimestamp || !svixSignature) return false;
 
+  // Replay protection: reject webhooks older than 5 minutes.
+  // Without this, an attacker who captured a valid webhook could replay
+  // it indefinitely. Audit finding H-3 (2026-05-27).
+  const tsSeconds = parseInt(svixTimestamp, 10);
+  if (isNaN(tsSeconds)) return false;
+  const ageMs = Date.now() - tsSeconds * 1000;
+  if (Math.abs(ageMs) > 5 * 60 * 1000) return false; // allow 5min clock skew
+
   // Svix secrets start with "whsec_" and are base64 after the prefix.
   const rawSecret = WEBHOOK_SECRET.startsWith('whsec_') ? WEBHOOK_SECRET.slice(6) : WEBHOOK_SECRET;
   const keyBytes = Uint8Array.from(atob(rawSecret), c => c.charCodeAt(0));

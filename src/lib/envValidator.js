@@ -67,21 +67,21 @@ const CUSTOM_CHECKS = [
     }
     return null;
   },
-  // Defence-in-depth heads-up (warning, not a hard fail). The DEV
-  // shortcut in AuthPage.jsx reads VITE_DEV_EMAIL / VITE_DEV_PASSWORD
-  // inside an `if (import.meta.env.DEV) { … }` guard. Vite strips
-  // the whole branch in production builds, so the values themselves
-  // never reach the bundle — confirmed in v4.0.0 build. This check
-  // used to be a hard error (returned a string → blocked startup
-  // with a config-error screen) but that blocked the Android prod
-  // build for any developer whose .env.local still had these set.
-  // Downgraded to console.warn so CI/local prod builds with stale
-  // dev creds get a visible heads-up without breaking the app.
+  // Defence-in-depth: flag stale VITE_DEV_* env vars that would leak
+  // into the production bundle. The dev shortcut in AuthPage now uses
+  // hardcoded dev-only values (no env vars at all). If someone still
+  // has the old VITE_ prefixed vars set, Vite will inline them into
+  // the bundle as dead env entries — warn loudly.
+  // Audit finding 2026-05-27: renamed to non-VITE_ prefix to prevent
+  // credentials from appearing in dist JS.
   function checkNoDevCredsInProd(env) {
     if (!env.PROD) return null;
     if (env.VITE_DEV_EMAIL || env.VITE_DEV_PASSWORD) {
-       
-      console.warn('[envValidator] VITE_DEV_EMAIL / VITE_DEV_PASSWORD are set in a PROD build. Vite tree-shakes the DEV branch so the values do not reach the bundle, but consider unsetting them in CI for hygiene.');
+      console.warn('[envValidator] SECURITY: VITE_DEV_EMAIL / VITE_DEV_PASSWORD are still set. These WILL leak into the production bundle. Remove the VITE_ prefix or delete them entirely — AuthPage no longer reads them.');
+    }
+    // Also warn about AI keys with VITE_ prefix.
+    if (env.VITE_GEMINI_API_KEY || env.VITE_GROQ_API_KEY) {
+      console.warn('[envValidator] SECURITY: VITE_GEMINI_API_KEY / VITE_GROQ_API_KEY are set with VITE_ prefix. These WILL leak into the production bundle. Remove the VITE_ prefix — production uses ai-proxy Edge Function secrets.');
     }
     return null;
   },

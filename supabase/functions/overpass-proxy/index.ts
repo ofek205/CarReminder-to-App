@@ -206,10 +206,27 @@ serve(async (req) => {
   if (query.length > MAX_QUERY_LEN) {
     return json({ error: 'Query too long' }, 413, req);
   }
-  // Cheap shape check — Overpass QL always carries [out:...] and an out;
+  // Shape check — Overpass QL always carries [out:...] and an out;
   // statement. Blocks the function being used as a generic open relay.
   if (!/\[out:/i.test(query) || !/\bout\b/i.test(query)) {
     return json({ error: 'Not an Overpass query' }, 400, req);
+  }
+
+  // Blocklist: reject queries that could abuse the proxy for resource
+  // exhaustion or data scraping beyond the intended garage-finder scope.
+  // Audit finding H-2 (2026-05-27).
+  const queryLower = query.toLowerCase();
+  const BLOCKED_PATTERNS = [
+    /\[timeout:\s*(\d+)/.test(query) && parseInt(RegExp.$1, 10) > 30,  // server-side timeout > 30s
+    /\brecurse\b/i.test(query),        // recursive queries are expensive
+    /\bconvert\b/i.test(query),         // type conversions can scan huge datasets
+    /\bmake\b/i.test(query),            // geometry creation is expensive
+    /\btimeline\b/i.test(query),        // historical data dumps
+    /\bdiff\b/i.test(query),            // diff queries can be very expensive
+    /\badiff\b/i.test(query),           // augmented diff
+  ];
+  if (BLOCKED_PATTERNS.some(Boolean)) {
+    return json({ error: 'Query type not allowed' }, 400, req);
   }
 
   const body = `data=${encodeURIComponent(query)}`;

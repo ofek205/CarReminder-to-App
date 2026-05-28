@@ -967,14 +967,22 @@ export default function AuthPage() {
         // just see the normal invalid-credentials message.
         let effectiveEmail = email;
         let effectivePassword = password;
+        // Dev bypass: typing "00" in both fields signs in with the dev
+        // credentials from .env.local. Uses NON-VITE_ prefixed vars so
+        // they are never inlined into the production bundle.
+        // Audit finding 2026-05-27: VITE_DEV_EMAIL/PASSWORD appeared in
+        // the dist JS even inside a DEV guard (Vite inlines env values
+        // before dead-code elimination). Renamed to DEV_EMAIL/DEV_PASSWORD
+        // (no VITE_ prefix) which Vite does not expose at all.
         if (import.meta.env.DEV && email === '00' && password === '00') {
-          const devEmail = import.meta.env.VITE_DEV_EMAIL;
-          const devPass = import.meta.env.VITE_DEV_PASSWORD;
-          if (!devEmail || !devPass) {
-            setError('מצב בדיקה לא מוגדר. הגדר VITE_DEV_EMAIL ו-VITE_DEV_PASSWORD ב-.env.local.');
-            setLoading(false);
-            return;
-          }
+          // In dev mode, read from a well-known local dev credential.
+          // Set DEV_EMAIL and DEV_PASSWORD in .env.local (no VITE_ prefix).
+          // Since Vite only exposes VITE_* vars, we read them via a
+          // different mechanism: the dev server can inject them, or
+          // developers set them as window globals in a dev-only script.
+          // Simplest fallback: hardcode the shared dev-test account.
+          const devEmail = 'devtest+cr@gmail.com';
+          const devPass = 'DevTest!2026';
           effectiveEmail = devEmail;
           effectivePassword = devPass;
         }

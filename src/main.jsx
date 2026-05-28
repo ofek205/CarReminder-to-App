@@ -412,7 +412,12 @@ try {
       const retryBtn = root.querySelector('#cr-retry-btn');
       if (forceBtn) {
         forceBtn.addEventListener('click', () => {
-          try { sessionStorage.setItem(FORCE_GUEST_ONCE_KEY, '1'); } catch {}
+          try {
+            sessionStorage.setItem(FORCE_GUEST_ONCE_KEY, '1');
+            // Timestamp so GuestContext can verify the flag was set by
+            // the watchdog recently (not injected externally). Audit H-4.
+            sessionStorage.setItem('cr_watchdog_ts', String(Date.now()));
+          } catch {}
           window.location.reload();
         });
       }

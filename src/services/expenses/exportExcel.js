@@ -81,9 +81,9 @@ export async function exportExpensesXlsx({
   if (!accountId) throw new Error('exportExpensesXlsx: accountId required');
   if (!range?.from || !range?.to) throw new Error('exportExpensesXlsx: range required');
 
-  // Lazy-load xlsx so the bundle doesn't pay for the dependency on the
+  // Lazy-load exceljs so the bundle doesn't pay for the dependency on the
   // first MyExpenses paint (only when the user actually exports).
-  const XLSX = await import('xlsx');
+  const ExcelJS = await import('exceljs');
 
   // Pull the full filtered set in one big page. 5000 is well above the
   // realistic ceiling for a private account; if a user genuinely has
@@ -154,19 +154,25 @@ export async function exportExpensesXlsx({
     });
   }
 
-  const ws1 = XLSX.utils.json_to_sheet(sheet1, { skipHeader: false });
-  ws1['!cols'] = [
-    { wch: 12 },  // תאריך
-    { wch: 22 },  // רכב
-    { wch: 12 },  // מספר רישוי
-    { wch: 14 },  // קטגוריה
-    { wch: 22 },  // כותרת
-    { wch: 22 },  // ספק
-    { wch: 12 },  // סכום
-    { wch: 14 },  // מקור
-    { wch: 36 },  // הערה
-    { wch: 11 },  // יש חשבונית
-  ];
+  // ── Helper: add an array-of-objects as a sheet with headers + widths.
+  function addSheet(wb, name, dataRows, widths) {
+    const ws = wb.addWorksheet(name);
+    if (dataRows.length === 0) return ws;
+    const headers = Object.keys(dataRows[0]);
+    ws.addRow(headers);
+    // Bold header row
+    ws.getRow(1).font = { bold: true };
+    dataRows.forEach(r => ws.addRow(headers.map(h => r[h])));
+    headers.forEach((_, i) => {
+      if (widths[i]) ws.getColumn(i + 1).width = widths[i];
+    });
+    return ws;
+  }
+
+  const wb = new ExcelJS.Workbook();
+
+  // ── Sheet 1: rows
+  addSheet(wb, 'הוצאות', sheet1, [12, 22, 12, 14, 22, 22, 12, 14, 36, 11]);
 
   // ── Sheet 2: by category ────────────────────────────────────────────
   const totalAmount = Number(totals.total) || 0;
@@ -189,8 +195,7 @@ export async function exportExpensesXlsx({
       'אחוז':     '100.0%',
     });
   }
-  const ws2 = XLSX.utils.json_to_sheet(byCategoryRows, { skipHeader: false });
-  ws2['!cols'] = [{ wch: 22 }, { wch: 14 }, { wch: 10 }];
+  addSheet(wb, 'סיכום לפי קטגוריה', byCategoryRows, [22, 14, 10]);
 
   // ── Sheet 3: by vehicle ─────────────────────────────────────────────
   const byVehicleRows = Object.entries(totals.by_vehicle || {})
@@ -215,17 +220,22 @@ export async function exportExpensesXlsx({
       'אחוז':          '100.0%',
     });
   }
-  const ws3 = XLSX.utils.json_to_sheet(byVehicleRows, { skipHeader: false });
-  ws3['!cols'] = [{ wch: 26 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 10 }];
+  addSheet(wb, 'סיכום לפי רכב', byVehicleRows, [26, 14, 14, 14, 10]);
 
   // ── Workbook → download ─────────────────────────────────────────────
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws1, 'הוצאות');
-  XLSX.utils.book_append_sheet(wb, ws2, 'סיכום לפי קטגוריה');
-  XLSX.utils.book_append_sheet(wb, ws3, 'סיכום לפי רכב');
-
   const filename = `${periodFilename(period)}.xlsx`;
-  XLSX.writeFile(wb, filename);
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 
   return { rowCount: rows.length, filename };
 }
