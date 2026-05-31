@@ -59,46 +59,61 @@ async function reportEdgeError(action: string, error: unknown, extra?: Record<st
 
 function buildNudgeHtml(firstName: string): string {
   const name = firstName || 'שלום';
-  // Copy: "version A" (simplicity-first), approved 2026-05-31. No dashes
-  // anywhere per product request. "CarReminder" is the product name.
+  // Copy: "peace of mind" direction (approved 2026-05-31). Conversion goal:
+  // get a registered-but-empty user to add their first vehicle. Leads with
+  // the positive outcome (we remind you, you never miss), proves the ease
+  // with the plate visual, single CTA. No dashes in prose.
   return `
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
 <body style="margin:0;padding:0;background:#f5f5f0;font-family:Heebo,Arial,sans-serif">
-<div style="max-width:520px;margin:20px auto;background:#fff;border-radius:12px;overflow:hidden">
-  <div style="background:linear-gradient(135deg,#4B7A53,#2D5233);padding:32px 24px;text-align:center">
-    <h1 style="color:#fff;margin:0;font-size:23px">הוספת רכב בלי טפסים</h1>
-    <p style="color:#c8e6c9;margin:8px 0 0;font-size:14px">${name}, זה לוקח שניות</p>
+<div style="max-width:520px;margin:20px auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <div style="background:linear-gradient(135deg,#4B7A53,#2D5233);padding:34px 24px;text-align:center">
+    <h1 style="color:#fff;margin:0;font-size:25px;font-weight:800">הרכב שלך, תמיד בזמן</h1>
+    <p style="color:#c8e6c9;margin:10px 0 0;font-size:15px">${name}, נשאר רק להוסיף את הרכב</p>
   </div>
-  <div style="padding:24px">
-    <p style="font-size:15px;color:#333;line-height:1.7;text-align:center;margin:0 0 18px">
-      מקלידים מספר רישוי (או מצלמים אותו), וזהו. כל השאר נמשך אוטומטית:
+  <div style="padding:26px 24px">
+    <p style="font-size:16px;color:#333;line-height:1.7;text-align:center;margin:0 0 22px">
+      נזכיר לך לפני כל טסט, ביטוח וטיפול. בלי לזכור, בלי לחשב, בלי הפתעות.
     </p>
 
     <!-- License plate (Israeli style: blue IL tag + yellow field) -->
-    <div style="text-align:center;margin:0 0 6px">
+    <div style="text-align:center;margin:0 0 8px">
       <table cellpadding="0" cellspacing="0" align="center" style="border-collapse:separate;border:2px solid #111;border-radius:8px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.18)">
         <tr>
-          <td style="background:#0033A0;color:#fff;padding:9px 9px;font-size:12px;font-weight:bold;text-align:center;line-height:1.25;font-family:Arial,sans-serif">
+          <td style="background:#0033A0;color:#fff;padding:10px 10px;font-size:12px;font-weight:bold;text-align:center;line-height:1.25;font-family:Arial,sans-serif">
             <span style="display:block;font-size:9px;letter-spacing:1px">ישראל</span>IL
           </td>
-          <td style="background:#F5D200;padding:8px 20px;font-size:27px;font-weight:bold;color:#111;letter-spacing:3px;font-family:Arial,sans-serif" dir="ltr">12-345-67</td>
+          <td style="background:#F5D200;padding:9px 22px;font-size:28px;font-weight:bold;color:#111;letter-spacing:3px;font-family:Arial,sans-serif" dir="ltr">12-345-67</td>
         </tr>
       </table>
     </div>
 
-    <!-- pulled automatically → result card -->
-    <div style="text-align:center;color:#4B7A53;font-size:13px;font-weight:bold;margin:0 0 6px">נמשך אוטומטית ↓</div>
-    <div style="background:#f0f7f1;border:1px solid #d6e7d8;border-radius:10px;padding:13px 16px;margin:0 auto 4px;max-width:320px;text-align:center">
-      <div style="font-weight:bold;color:#1C2E20;font-size:16px">טויוטה קורולה 2020</div>
-      <div style="color:#4B7A53;font-size:13px;margin-top:4px">טסט עד 03/2026 · ביטוח · טיפולים</div>
-    </div>
-    <p style="font-size:13px;color:#888;text-align:center;margin:0 0 4px">אתם לא ממלאים כלום.</p>
+    <div style="text-align:center;color:#4B7A53;font-size:13px;font-weight:bold;margin:0 0 16px">מקלידים את המספר, וכל זה מסודר ↓</div>
 
-    <div style="text-align:center;margin:24px 0 8px">
-      <a href="${APP_URL}" style="display:inline-block;background:#4B7A53;color:#fff;padding:13px 36px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">
-        הוספת רכב בשניות
+    <!-- 3 green checks: what gets covered automatically -->
+    <table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 8px">
+      <tr>
+        <td style="text-align:center;padding:0 14px">
+          <div style="width:40px;height:40px;border-radius:50%;background:#e8f3ea;text-align:center;line-height:40px;color:#2D7A3E;font-size:21px;font-weight:bold;margin:0 auto 6px">&#10003;</div>
+          <div style="font-size:13px;color:#1C2E20;font-weight:bold">טסט</div>
+        </td>
+        <td style="text-align:center;padding:0 14px">
+          <div style="width:40px;height:40px;border-radius:50%;background:#e8f3ea;text-align:center;line-height:40px;color:#2D7A3E;font-size:21px;font-weight:bold;margin:0 auto 6px">&#10003;</div>
+          <div style="font-size:13px;color:#1C2E20;font-weight:bold">ביטוח</div>
+        </td>
+        <td style="text-align:center;padding:0 14px">
+          <div style="width:40px;height:40px;border-radius:50%;background:#e8f3ea;text-align:center;line-height:40px;color:#2D7A3E;font-size:21px;font-weight:bold;margin:0 auto 6px">&#10003;</div>
+          <div style="font-size:13px;color:#1C2E20;font-weight:bold">טיפולים</div>
+        </td>
+      </tr>
+    </table>
+    <p style="font-size:13px;color:#888;text-align:center;margin:6px 0 0">10 שניות, מספר רישוי, וזהו.</p>
+
+    <div style="text-align:center;margin:26px 0 8px">
+      <a href="${APP_URL}" style="display:inline-block;background:#4B7A53;color:#fff;padding:14px 38px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:16px">
+        הוסף רכב וקבל תזכורות
       </a>
     </div>
     <p style="font-size:13px;color:#888;text-align:center">
@@ -202,7 +217,7 @@ serve(async (req) => {
         await reportEdgeError('notify_no_vehicle_rpc', notifErr, { recipient: u.email });
       }
 
-      const subject = `${firstName ? `${firstName}, ` : ''}להוסיף רכב לוקח שניות`;
+      const subject = `${firstName ? `${firstName}, ` : ''}נשאר רק להוסיף את הרכב`;
       const html = buildNudgeHtml(firstName);
 
       try {
