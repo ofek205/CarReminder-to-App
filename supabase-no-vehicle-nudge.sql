@@ -69,7 +69,7 @@ VALUES (
   '{{firstName}}, להוסיף רכב לוקח שניות',
   'מקלידים מספר רישוי, והשאר אוטומטי',
   'הוספת רכב בלי טפסים',
-  '<p>מקלידים מספר רישוי ולוחצים בדוק רכב, או מצלמים את לוחית הרישוי. כל הפרטים נמשכים אוטומטית ממשרד התחבורה: יצרן, דגם, שנה ותאריך הטסט. אתם לא ממלאים כלום.</p>',
+  '<p style="text-align:center">מקלידים מספר רישוי (או מצלמים אותו), וזהו. כל השאר נמשך אוטומטית:</p><table cellpadding="0" cellspacing="0" align="center" style="border-collapse:separate;border:2px solid #111;border-radius:8px;overflow:hidden;margin:0 auto 6px"><tr><td style="background:#0033A0;color:#fff;padding:9px;font-size:12px;font-weight:bold;text-align:center;line-height:1.25"><span style="display:block;font-size:9px">ישראל</span>IL</td><td style="background:#F5D200;padding:8px 20px;font-size:27px;font-weight:bold;color:#111;letter-spacing:3px" dir="ltr">12-345-67</td></tr></table><div style="text-align:center;color:#4B7A53;font-size:13px;font-weight:bold;margin:0 0 6px">נמשך אוטומטית ↓</div><div style="background:#f0f7f1;border:1px solid #d6e7d8;border-radius:10px;padding:13px 16px;margin:0 auto 4px;max-width:320px;text-align:center"><div style="font-weight:bold;color:#1C2E20;font-size:16px">טויוטה קורולה 2020</div><div style="color:#4B7A53;font-size:13px;margin-top:4px">טסט עד 03/2026 · ביטוח · טיפולים</div></div><p style="text-align:center;color:#888;font-size:13px">אתם לא ממלאים כלום.</p>',
   'הוספת רכב בשניות',
   'https://car-reminder.app',
   'שאלה או צריכים עזרה? פשוט השיבו למייל הזה.',

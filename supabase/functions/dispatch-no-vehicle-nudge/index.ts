@@ -72,12 +72,31 @@ function buildNudgeHtml(firstName: string): string {
     <p style="color:#c8e6c9;margin:8px 0 0;font-size:14px">${name}, זה לוקח שניות</p>
   </div>
   <div style="padding:24px">
-    <p style="font-size:15px;color:#333;line-height:1.7">
-      מקלידים מספר רישוי ולוחצים בדוק רכב, או מצלמים את לוחית הרישוי.
-      כל הפרטים נמשכים אוטומטית ממשרד התחבורה: יצרן, דגם, שנה ותאריך
-      הטסט. אתם לא ממלאים כלום.
+    <p style="font-size:15px;color:#333;line-height:1.7;text-align:center;margin:0 0 18px">
+      מקלידים מספר רישוי (או מצלמים אותו), וזהו. כל השאר נמשך אוטומטית:
     </p>
-    <div style="text-align:center;margin:28px 0">
+
+    <!-- License plate (Israeli style: blue IL tag + yellow field) -->
+    <div style="text-align:center;margin:0 0 6px">
+      <table cellpadding="0" cellspacing="0" align="center" style="border-collapse:separate;border:2px solid #111;border-radius:8px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.18)">
+        <tr>
+          <td style="background:#0033A0;color:#fff;padding:9px 9px;font-size:12px;font-weight:bold;text-align:center;line-height:1.25;font-family:Arial,sans-serif">
+            <span style="display:block;font-size:9px;letter-spacing:1px">ישראל</span>IL
+          </td>
+          <td style="background:#F5D200;padding:8px 20px;font-size:27px;font-weight:bold;color:#111;letter-spacing:3px;font-family:Arial,sans-serif" dir="ltr">12-345-67</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- pulled automatically → result card -->
+    <div style="text-align:center;color:#4B7A53;font-size:13px;font-weight:bold;margin:0 0 6px">נמשך אוטומטית ↓</div>
+    <div style="background:#f0f7f1;border:1px solid #d6e7d8;border-radius:10px;padding:13px 16px;margin:0 auto 4px;max-width:320px;text-align:center">
+      <div style="font-weight:bold;color:#1C2E20;font-size:16px">טויוטה קורולה 2020</div>
+      <div style="color:#4B7A53;font-size:13px;margin-top:4px">טסט עד 03/2026 · ביטוח · טיפולים</div>
+    </div>
+    <p style="font-size:13px;color:#888;text-align:center;margin:0 0 4px">אתם לא ממלאים כלום.</p>
+
+    <div style="text-align:center;margin:24px 0 8px">
       <a href="${APP_URL}" style="display:inline-block;background:#4B7A53;color:#fff;padding:13px 36px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">
         הוספת רכב בשניות
       </a>
