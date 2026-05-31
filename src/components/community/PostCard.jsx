@@ -14,6 +14,7 @@ import useIsAdmin from '@/hooks/useIsAdmin';
 import useSignedUrl from '@/hooks/useSignedUrl';
 import CommentSection from './CommentSection';
 import ReportDialog from './ReportDialog';
+import ConfirmDeleteDialog from '../shared/ConfirmDeleteDialog';
 
 function timeAgo(date) {
   try { return formatDistanceToNow(new Date(date), { addSuffix: false, locale: he }); }
@@ -85,6 +86,9 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   const [savingEdit, setSavingEdit] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [blocking, setBlocking] = useState(false);
+  // In-app confirms (native confirm() renders broken on Android Capacitor).
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmBlockOpen, setConfirmBlockOpen] = useState(false);
   const { user, isGuest } = useAuth();
   const queryClient = useQueryClient();
   const isLong = post.body?.length > 200;
@@ -235,8 +239,9 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm('למחוק את השאלה?')) return;
+  const handleDelete = () => setConfirmDeleteOpen(true);
+  const doDelete = async () => {
+    setConfirmDeleteOpen(false);
     setDeleting(true);
     try {
       await db.community_posts.delete(post.id);
@@ -251,13 +256,17 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
   // the user's feed immediately (the community_posts_visible view filters
   // them out server-side). Apple Guideline 1.2 requires this immediacy —
   // "Blocking should ... remove it from the user's feed instantly."
-  const handleBlock = async () => {
+  // Sanitize the interpolated author name (same reason as the old confirm()
+  // call: a crafted name with newlines / quotes can spoof the dialog
+  // message). Used in the in-app block-confirm dialog title.
+  const safeBlockName = String(post.author_name || '').replace(/[^\p{L}\p{N} .\-#]/gu, '').slice(0, 60) || 'משתמש';
+  const handleBlock = () => {
     if (!user || !post.user_id || post.user_id === user.id) return;
-    // Sanitize the interpolated author name (same reason as the old confirm()
-    // call: confirm() renders plain text, but a crafted name with newlines /
-    // quotes can spoof the dialog message without an XSS.)
-    const safeName = String(post.author_name || '').replace(/[^\p{L}\p{N} .\-#]/gu, '').slice(0, 60) || 'משתמש';
-    if (!confirm(`לחסום את ${safeName}? לא תראו עוד פוסטים ותגובות שלהם.`)) return;
+    setConfirmBlockOpen(true);
+  };
+  const doBlock = async () => {
+    setConfirmBlockOpen(false);
+    if (!user || !post.user_id || post.user_id === user.id) return;
     setBlocking(true);
     try {
       const { error } = await supabase.from('blocked_users').insert({
@@ -576,6 +585,23 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
         onClose={() => setReportOpen(false)}
         postId={post.id}
         postAuthorName={post.is_anonymous ? null : post.author_name}
+      />
+
+      {/* In-app confirms (native confirm() breaks on Android Capacitor) */}
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onConfirm={doDelete}
+        onCancel={() => setConfirmDeleteOpen(false)}
+        title="למחוק את השאלה?"
+        description="השאלה וכל התגובות שלה יימחקו. פעולה זו לא ניתנת לביטול."
+      />
+      <ConfirmDeleteDialog
+        open={confirmBlockOpen}
+        onConfirm={doBlock}
+        onCancel={() => setConfirmBlockOpen(false)}
+        title={`לחסום את ${safeBlockName}?`}
+        description="לא תראו עוד פוסטים ותגובות שלהם בקהילה."
+        confirmLabel="חסום"
       />
     </div>
   );

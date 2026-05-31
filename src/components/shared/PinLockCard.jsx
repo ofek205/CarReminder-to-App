@@ -3,6 +3,7 @@ import { Switch } from '@/components/ui/switch';
 import { Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import PinLock from './PinLock';
+import ConfirmDeleteDialog from './ConfirmDeleteDialog';
 import { isPinEnabled, clearPin } from '@/lib/pinLock';
 import { C } from '@/lib/designTokens';
 
@@ -16,16 +17,22 @@ import { C } from '@/lib/designTokens';
 export default function PinLockCard() {
   const [enabled, setEnabled] = useState(() => isPinEnabled());
   const [setupOpen, setSetupOpen] = useState(false);
+  // In-app confirm (native confirm() renders broken on Android Capacitor).
+  const [confirmDisableOpen, setConfirmDisableOpen] = useState(false);
 
   const handleToggle = () => {
     if (enabled) {
-      if (!confirm('לבטל את נעילת הקוד? בפעם הבאה תיכנס ישר בלי קוד.')) return;
-      clearPin();
-      setEnabled(false);
-      toast.success('נעילת הקוד בוטלה');
+      setConfirmDisableOpen(true);
     } else {
       setSetupOpen(true);
     }
+  };
+
+  const doDisable = () => {
+    setConfirmDisableOpen(false);
+    clearPin();
+    setEnabled(false);
+    toast.success('נעילת הקוד בוטלה');
   };
 
   return (
@@ -59,6 +66,15 @@ export default function PinLockCard() {
           onSuccess={() => { setEnabled(true); setSetupOpen(false); }}
           onCancel={() => setSetupOpen(false)} />
       )}
+      {/* In-app confirm (native confirm() breaks on Android Capacitor) */}
+      <ConfirmDeleteDialog
+        open={confirmDisableOpen}
+        onConfirm={doDisable}
+        onCancel={() => setConfirmDisableOpen(false)}
+        title="לבטל את נעילת הקוד?"
+        description="בפעם הבאה תיכנס ישר בלי קוד."
+        confirmLabel="בטל נעילה"
+      />
     </>
   );
 }

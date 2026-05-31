@@ -17,6 +17,7 @@ import {
   PageLayout, PageHeader, Hero, Card, CTAButton, StatusPill,
   StatusBar, EmptyState, LoadingState, SkeletonBar,
 } from '@/design/primitives';
+import { DateInput } from '@/components/ui/date-input';
 
 // Section wrapper used throughout this page. Centralized so future
 // changes (e.g. adding "copy code" affordances) happen once.
@@ -115,6 +116,8 @@ const fontWeights = [
 
 export default function DevComponents() {
   const [activeStatus, setActiveStatus] = useState(null);
+  const [demoBirthDate, setDemoBirthDate] = useState('');
+  const [demoDate, setDemoDate] = useState('');
 
   return (
     <PageLayout width="wide">
@@ -139,6 +142,7 @@ export default function DevComponents() {
             ['p-loading', 'LoadingState'],
             ['p-pageheader', 'PageHeader'],
             ['p-hero', 'Hero'],
+            ['p-dateinput', 'DateInput'],
           ].map(([id, label]) => (
             <a
               key={id}
@@ -150,6 +154,44 @@ export default function DevComponents() {
           ))}
         </nav>
       </Card>
+
+      {/*  DateInput  */}
+      <Section
+        id="p-dateinput"
+        title="DateInput"
+        description="הקלדה ישירה (DD/MM/YYYY) + לוח שנה עם dropdown חודש/שנה. iOS משתמש בקלט נייטיב."
+      >
+        <Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-cr-xs text-cr-text-secondary font-cr-semibold mb-2">
+                תאריך לידה (טווח 1900–היום)
+              </p>
+              <DateInput
+                value={demoBirthDate}
+                onChange={e => setDemoBirthDate(e.target.value)}
+                fromYear={1900}
+                toYear={new Date().getFullYear()}
+              />
+              <code className="text-[11px] text-cr-text-muted font-mono block mt-2" dir="ltr">
+                {demoBirthDate || '(empty)'}
+              </code>
+            </div>
+            <div>
+              <p className="text-cr-xs text-cr-text-secondary font-cr-semibold mb-2">
+                ברירת מחדל (טווח 1900–היום+10)
+              </p>
+              <DateInput
+                value={demoDate}
+                onChange={e => setDemoDate(e.target.value)}
+              />
+              <code className="text-[11px] text-cr-text-muted font-mono block mt-2" dir="ltr">
+                {demoDate || '(empty)'}
+              </code>
+            </div>
+          </div>
+        </Card>
+      </Section>
 
       {/*  Tokens — Colors  */}
       <Section

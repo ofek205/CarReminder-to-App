@@ -6,6 +6,7 @@ import { Loader2, History, RotateCcw, ChevronLeft } from 'lucide-react';
 import { useTemplateVersions, useRevertToVersion } from '@/hooks/useEmailAdmin';
 import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
+import ConfirmDeleteDialog from '@/components/shared/ConfirmDeleteDialog';
 
 /**
  * VersionHistoryDialog. list of auto-snapshots for a template. Admin
@@ -16,13 +17,17 @@ export default function VersionHistoryDialog({ template, open, onClose }) {
   const { data: versions = [], isLoading } = useTemplateVersions(template?.id);
   const revert = useRevertToVersion();
   const [selected, setSelected] = useState(null);
+  // In-app confirm (native confirm() renders broken on Android Capacitor).
+  const [confirmRevertOpen, setConfirmRevertOpen] = useState(false);
 
   if (!template) return null;
 
-  const handleRevert = async (snap) => {
-    if (!confirm(`לחזור לגרסה מ-${new Date(snap.created_at).toLocaleString('he-IL')}?\nהגרסה הנוכחית תישמר כגרסה חדשה בהיסטוריה.`)) return;
+  const handleRevert = (snap) => { if (snap) setConfirmRevertOpen(true); };
+  const doRevert = async () => {
+    setConfirmRevertOpen(false);
+    if (!selected) return;
     try {
-      await revert.mutateAsync({ templateId: template.id, snapshot: snap.snapshot });
+      await revert.mutateAsync({ templateId: template.id, snapshot: selected.snapshot });
       toast.success('שוחזר בהצלחה');
       onClose?.();
     } catch (e) {
@@ -104,6 +109,16 @@ export default function VersionHistoryDialog({ template, open, onClose }) {
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* In-app confirm (native confirm() breaks on Android Capacitor) */}
+      <ConfirmDeleteDialog
+        open={confirmRevertOpen}
+        onConfirm={doRevert}
+        onCancel={() => setConfirmRevertOpen(false)}
+        title="לשחזר לגרסה זו?"
+        description={selected ? `הגרסה מ-${new Date(selected.created_at).toLocaleString('he-IL')} תיטען. הגרסה הנוכחית תישמר כגרסה חדשה בהיסטוריה — שום דבר לא יאבד.` : ''}
+        confirmLabel="שחזר"
+      />
     </Dialog>
   );
 }

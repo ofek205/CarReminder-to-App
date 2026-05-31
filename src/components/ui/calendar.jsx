@@ -1,9 +1,115 @@
 import * as React from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker } from "react-day-picker"
+import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react"
+import { DayPicker, useNavigation, useDayPicker } from "react-day-picker"
+import { format } from "date-fns"
+import { he } from "date-fns/locale"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
+
+// Custom caption: month + year as borderless native <select>s, with the
+// prev/next month arrows pinned to the edges. We render this ourselves
+// instead of react-day-picker's built-in captionLayout="dropdown-buttons"
+// because that layout depends on rdp's bundled stylesheet (which this
+// project doesn't import — it's a Tailwind/shadcn setup), so the native
+// select and the caption label both render and overlap into a doubled
+// "מאי/מאי 2026/2026" mess. Owning the caption gives clean RTL control:
+// month select on the right, year on the left, arrows at the edges.
+// Native <select> is deliberate — on Android it opens the OS picker, the
+// fast way to jump 40+ years for a birth date.
+function CalendarCaption({ displayMonth }) {
+  const { goToMonth, nextMonth, previousMonth } = useNavigation();
+  const { fromDate, toDate } = useDayPicker();
+
+  const fromYear = fromDate ? fromDate.getFullYear() : 1900;
+  const toYear = toDate ? toDate.getFullYear() : new Date().getFullYear() + 10;
+
+  const month = displayMonth.getMonth();
+  const year = displayMonth.getFullYear();
+
+  const months = React.useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, i) => ({
+        value: i,
+        label: format(new Date(2020, i, 1), "LLLL", { locale: he }),
+      })),
+    []
+  );
+  // Most-recent year first — a birth date is far likelier to be recent
+  // than 1900, so the list opens near where the user is heading.
+  const years = React.useMemo(() => {
+    const out = [];
+    for (let y = toYear; y >= fromYear; y--) out.push(y);
+    return out;
+  }, [fromYear, toYear]);
+
+  const selectCls =
+    "appearance-none bg-transparent text-center font-bold text-sm text-[#2D5233] cursor-pointer rounded-lg py-1 pr-2 pl-5 hover:bg-[#4B7A53]/10 focus:outline-none focus:ring-2 focus:ring-[#4B7A53]/30 transition-colors";
+
+  return (
+    <div className="relative flex items-center justify-center pt-1">
+      {/* prev-month — RTL: right edge, points inward */}
+      <button
+        type="button"
+        aria-label="חודש קודם"
+        disabled={!previousMonth}
+        onClick={() => previousMonth && goToMonth(previousMonth)}
+        className={cn(
+          buttonVariants({ variant: "outline" }),
+          "absolute right-1 h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 disabled:opacity-20"
+        )}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+
+      <div className="flex items-center gap-1.5">
+        {/* month */}
+        <div className="relative inline-flex items-center">
+          <select
+            aria-label="חודש"
+            value={month}
+            onChange={(e) => goToMonth(new Date(year, Number(e.target.value), 1))}
+            className={selectCls}
+          >
+            {months.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute left-1 h-3 w-3 opacity-50" />
+        </div>
+        {/* year — LTR numerals */}
+        <div className="relative inline-flex items-center">
+          <select
+            aria-label="שנה"
+            dir="ltr"
+            value={year}
+            onChange={(e) => goToMonth(new Date(Number(e.target.value), month, 1))}
+            className={cn(selectCls, "tabular-nums")}
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute left-1 h-3 w-3 opacity-50" />
+        </div>
+      </div>
+
+      {/* next-month — RTL: left edge, points inward */}
+      <button
+        type="button"
+        aria-label="חודש הבא"
+        disabled={!nextMonth}
+        onClick={() => nextMonth && goToMonth(nextMonth)}
+        className={cn(
+          buttonVariants({ variant: "outline" }),
+          "absolute left-1 h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 disabled:opacity-20"
+        )}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 function Calendar({
   className,
@@ -23,17 +129,6 @@ function Calendar({
         month: "space-y-4",
         caption: "flex justify-center pt-1 relative items-center",
         caption_label: "text-sm font-medium",
-        // Month + year dropdowns (rendered when captionLayout="dropdown-buttons").
-        // These are native <select>s — on Android they open the OS picker,
-        // which is the fast way to jump 40+ years for a birth date instead
-        // of tapping the prev-month arrow hundreds of times. `vhidden` hides
-        // the redundant text label that rdp still renders for a11y.
-        caption_dropdowns: "flex justify-center items-center gap-1.5",
-        dropdown:
-          "appearance-none rounded-lg border border-input bg-white px-2 py-1 text-sm font-medium text-[#1C2E20] focus:outline-none focus:ring-2 focus:ring-[#4B7A53]/30 cursor-pointer",
-        dropdown_month: "relative",
-        dropdown_year: "relative",
-        vhidden: "sr-only",
         nav: "space-x-1 flex items-center",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
@@ -70,16 +165,9 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        // RTL arrows: previous-month button sits on the RIGHT (right-1), and
-        // its chevron should point INWARD toward the calendar (←), matching
-        // the standard Hebrew calendar convention. next-month button on the
-        // LEFT points inward the other way (→).
-        IconLeft: ({ className, ...props }) => (
-          <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
-        ),
-        IconRight: ({ className, ...props }) => (
-          <ChevronRight className={cn("h-4 w-4", className)} {...props} />
-        ),
+        // Custom caption — see CalendarCaption above. Replaces both the
+        // default label layout AND the broken dropdown-buttons layout.
+        Caption: CalendarCaption,
       }}
       {...props} />)
   );
