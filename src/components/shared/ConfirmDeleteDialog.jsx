@@ -14,6 +14,13 @@ export default function ConfirmDeleteDialog({
   onCancel,
   title = "למחוק את הפריט?",
   description = "המחיקה סופית ולא ניתנת לביטול.",
+  // Action button label. Defaults to "מחק" for delete flows, but the
+  // dialog also serves other consequential confirmations (block a user,
+  // reset a PIN, revert a version) — pass the matching verb there. The
+  // red "danger" hero stays for all of them; these are all actions the
+  // user should pause on. (2026-05-31: replaces native confirm() that
+  // rendered broken on Android Capacitor.)
+  confirmLabel = "מחק",
 }) {
   return (
     <AlertDialog open={open} onOpenChange={(v) => { if (!v) onCancel(); }}>
@@ -78,7 +85,7 @@ export default function ConfirmDeleteDialog({
                 boxShadow: '0 12px 24px -6px rgba(220,38,38,0.4), 0 4px 8px rgba(220,38,38,0.15)',
                 fontSize: 16,
               }}>
-              מחק
+              {confirmLabel}
             </AlertDialogAction>
           </AlertDialogFooter>
         </div>

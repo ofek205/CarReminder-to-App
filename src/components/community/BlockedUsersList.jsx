@@ -5,6 +5,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { Ban, RotateCcw, Loader2 } from 'lucide-react';
+import ConfirmDeleteDialog from '@/components/shared/ConfirmDeleteDialog';
 import { C } from '@/lib/designTokens';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -27,6 +28,9 @@ export default function BlockedUsersList() {
   const { user, isGuest } = useAuth();
   const queryClient = useQueryClient();
   const [unblockingId, setUnblockingId] = React.useState(null);
+  // In-app confirm (native confirm() renders broken on Android Capacitor).
+  // Holds the row being unblocked: { id, name }.
+  const [pendingUnblock, setPendingUnblock] = React.useState(null);
 
   const { data: blocks = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['blocked_users', user?.id],
@@ -43,9 +47,16 @@ export default function BlockedUsersList() {
     retry: 1,
   });
 
-  const handleUnblock = async (blockId, blockedName) => {
+  const handleUnblock = (blockId, blockedName) => {
     const safeName = String(blockedName || '').replace(/[^\p{L}\p{N} .\-#]/gu, '').slice(0, 60) || 'משתמש';
-    if (!confirm(`להסיר חסימה של ${safeName}? תראו שוב פוסטים ותגובות שלהם.`)) return;
+    setPendingUnblock({ id: blockId, name: safeName });
+  };
+
+  const doUnblock = async () => {
+    const target = pendingUnblock;
+    setPendingUnblock(null);
+    if (!target) return;
+    const blockId = target.id;
     setUnblockingId(blockId);
     try {
       const { error } = await supabase.from('blocked_users').delete().eq('id', blockId);
@@ -148,6 +159,16 @@ export default function BlockedUsersList() {
           })}
         </ul>
       )}
+
+      {/* In-app confirm (native confirm() breaks on Android Capacitor) */}
+      <ConfirmDeleteDialog
+        open={!!pendingUnblock}
+        onConfirm={doUnblock}
+        onCancel={() => setPendingUnblock(null)}
+        title={`להסיר חסימה של ${pendingUnblock?.name || 'משתמש'}?`}
+        description="תראו שוב פוסטים ותגובות שלהם בקהילה."
+        confirmLabel="הסר חסימה"
+      />
     </div>
   );
 }

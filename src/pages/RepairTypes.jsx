@@ -13,6 +13,7 @@ import { Plus, Edit, Trash2, Loader2, Wrench } from "lucide-react";
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import EmptyState from "../components/shared/EmptyState";
+import ConfirmDeleteDialog from "../components/shared/ConfirmDeleteDialog";
 
 export default function RepairTypes() {
   const { isGuest } = useAuth();
@@ -21,6 +22,10 @@ export default function RepairTypes() {
   const [editingType, setEditingType] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: '' });
+  // In-app confirms (native confirm() renders broken on Android Capacitor).
+  // Each holds the pending type plus, for the deactivate path, the log count.
+  const [confirmDeactivate, setConfirmDeactivate] = useState(null); // { type, count } | null
+  const [confirmDeleteType, setConfirmDeleteType] = useState(null); // type | null
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -77,21 +82,31 @@ export default function RepairTypes() {
   };
 
   const handleDelete = async (type) => {
-    // Check if there are logs using this type
+    // Check if there are logs using this type, then open the matching
+    // in-app confirm dialog (soft-deactivate vs hard-delete).
     const logs = await db.repair_logs.filter({ repair_type_id: type.id });
-
     if (logs.length > 0) {
-      // Soft delete — preserves historical log → type name binding
-      if (!confirm(`קיימים ${logs.length} תיקונים המשתמשים בסוג זה. הסוג יסומן כלא פעיל ולא יהיה זמין להוספה עתידית. להמשיך?`)) {
-        return;
-      }
-      await db.repair_types.update(type.id, { is_active: false });
+      setConfirmDeactivate({ type, count: logs.length });
     } else {
-      // Hard delete
-      if (!confirm('למחוק סוג תיקון זה? פעולה זו בלתי הפיכה.')) return;
-      await db.repair_types.delete(type.id);
+      setConfirmDeleteType(type);
     }
+  };
 
+  // Soft delete — preserves historical log → type name binding.
+  const doDeactivate = async () => {
+    const target = confirmDeactivate?.type;
+    setConfirmDeactivate(null);
+    if (!target) return;
+    await db.repair_types.update(target.id, { is_active: false });
+    queryClient.invalidateQueries({ queryKey: ['repair-types'] });
+  };
+
+  // Hard delete — no logs reference this type.
+  const doDeleteType = async () => {
+    const target = confirmDeleteType;
+    setConfirmDeleteType(null);
+    if (!target) return;
+    await db.repair_types.delete(target.id);
     queryClient.invalidateQueries({ queryKey: ['repair-types'] });
   };
 
@@ -203,6 +218,24 @@ export default function RepairTypes() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* In-app confirms (native confirm() breaks on Android Capacitor) */}
+      <ConfirmDeleteDialog
+        open={!!confirmDeactivate}
+        onConfirm={doDeactivate}
+        onCancel={() => setConfirmDeactivate(null)}
+        title="להשבית את סוג התיקון?"
+        description={`קיימים ${confirmDeactivate?.count || 0} תיקונים המשתמשים בסוג זה. הסוג יסומן כלא פעיל ולא יהיה זמין להוספה עתידית.`}
+        confirmLabel="השבת"
+      />
+      <ConfirmDeleteDialog
+        open={!!confirmDeleteType}
+        onConfirm={doDeleteType}
+        onCancel={() => setConfirmDeleteType(null)}
+        title="למחוק סוג תיקון זה?"
+        description="פעולה זו בלתי הפיכה."
+        confirmLabel="מחק"
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { toastError } from '@/lib/userErrorReport';
 import { tryUnlock, clearPin, isPinEnabled, isStillUnlocked, setPin, lockNow } from '@/lib/pinLock';
 import { hapticFeedback } from '@/lib/capacitor';
 import { supabase } from '@/lib/supabase';
+import ConfirmDeleteDialog from './ConfirmDeleteDialog';
 import logo from '@/assets/logo.png';
 
 const PIN_LENGTH = 4;
@@ -90,6 +91,8 @@ export default function PinLock({ mode = 'unlock', onSuccess, onForgot, onCancel
   const [firstPin, setFirstPin] = useState('');
   const [shake, setShake] = useState(false);
   const [lockoutSec, setLockoutSec] = useState(0);
+  // In-app confirm (native confirm() renders broken on Android Capacitor).
+  const [confirmForgotOpen, setConfirmForgotOpen] = useState(false);
   const lockoutTimer = useRef(null);
 
   useEffect(() => { injectShakeCSS(); }, []);
@@ -171,8 +174,9 @@ export default function PinLock({ mode = 'unlock', onSuccess, onForgot, onCancel
     }
   };
 
-  const handleForgot = async () => {
-    if (!confirm('שכחת קוד? זה יבטל את הנעילה ויחזיר אותך למסך ההתחברות.')) return;
+  const handleForgot = () => setConfirmForgotOpen(true);
+  const doForgot = async () => {
+    setConfirmForgotOpen(false);
     clearPin();
     try { await supabase.auth.signOut(); } catch {}
     onCancel?.();
@@ -262,6 +266,16 @@ export default function PinLock({ mode = 'unlock', onSuccess, onForgot, onCancel
           ביטול
         </button>
       )}
+
+      {/* In-app confirm (native confirm() breaks on Android Capacitor) */}
+      <ConfirmDeleteDialog
+        open={confirmForgotOpen}
+        onConfirm={doForgot}
+        onCancel={() => setConfirmForgotOpen(false)}
+        title="לאפס את קוד הנעילה?"
+        description="הנעילה תבוטל ותוחזר למסך ההתחברות."
+        confirmLabel="אפס"
+      />
     </div>
   );
 }

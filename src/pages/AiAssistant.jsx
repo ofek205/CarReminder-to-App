@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import AiProviderBadge from '@/components/shared/AiProviderBadge';
+import ConfirmDeleteDialog from '@/components/shared/ConfirmDeleteDialog';
 import useAccountRole from '@/hooks/useAccountRole';
 import useMyVehicles from '@/hooks/useMyVehicles';
 import { useFeatureFlag } from '@/lib/featureFlags';
@@ -756,8 +757,13 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
     toast[ok ? 'success' : 'error'](ok ? 'הועתק ללוח' : 'שגיאה בהעתקה');
   };
 
-  const clearChat = () => {
-    if (!confirm('למחוק את כל היסטוריית השיחה?')) return;
+  // In-app confirm instead of native confirm() — the native dialog
+  // renders broken on Android Capacitor (shows the app splash behind a
+  // barely-visible OK/CANCEL). 2026-05-31.
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const clearChat = () => setConfirmClearOpen(true);
+  const doClearChat = () => {
+    setConfirmClearOpen(false);
     setMessages([]);
     if (user?.id) {
       try { localStorage.removeItem(getStorageKey(user.id)); } catch {}
@@ -1385,6 +1391,16 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
           </div>
         )}
       </div>
+
+      {/* Clear-history confirm (in-app — native confirm() breaks on Android) */}
+      <ConfirmDeleteDialog
+        open={confirmClearOpen}
+        onConfirm={doClearChat}
+        onCancel={() => setConfirmClearOpen(false)}
+        title="למחוק את היסטוריית השיחה?"
+        description="כל ההודעות בצ'אט הזה יימחקו. פעולה זו לא ניתנת לביטול."
+        confirmLabel="מחק הכל"
+      />
     </div>
   );
 }

@@ -58,6 +58,7 @@ import {
   AnimatedCount,
 } from '@/components/business/system';
 import { C } from '@/lib/designTokens';
+import ConfirmDeleteDialog from '@/components/shared/ConfirmDeleteDialog';
 
 // Each category gets a tone from the system palette so the expense
 // list reads as a colored mosaic, not a uniform gray list.
@@ -94,6 +95,9 @@ export default function Expenses() {
   const queryClient = useQueryClient();
 
   const [editing, setEditing] = useState(null); // null | {} (new) | row (edit)
+  // In-app delete confirm (native confirm() renders broken on Android
+  // Capacitor). Holds the expense row pending deletion.
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   // Phase 9 step 7 — keyset pagination on created_at, 30 rows per page.
   const PAGE_SIZE = 30;
@@ -154,6 +158,24 @@ export default function Expenses() {
     );
 
   const vehicleById = Object.fromEntries(vehicles.map(v => [v.id, v]));
+
+  // Run the actual delete once the in-app confirm is accepted. Mirrors
+  // the original inline onClick body, operating on the captured row.
+  const doDeleteExpense = async () => {
+    const e = pendingDelete;
+    setPendingDelete(null);
+    if (!e) return;
+    try {
+      const { error } = await supabase.rpc('delete_vehicle_expense', { p_id: e.id });
+      if (error) throw error;
+      if (e.receipt_storage_path) deleteFile(e.receipt_storage_path).catch(() => {});
+      toast.success('ההוצאה נמחקה');
+      await queryClient.invalidateQueries({ queryKey: ['expenses'] });
+    } catch (delErr) {
+      toastError('המחיקה נכשלה. נסה שוב.', { action: 'expense_inline_delete', err: delErr });
+      reportUserError('delete_expense', delErr);
+    }
+  };
 
   // Stats over the loaded page(s). Approximate; primarily a "what
   // does the latest activity look like" summary for the eye, not an
@@ -240,19 +262,7 @@ export default function Expenses() {
                 expense={e}
                 vehicle={vehicleById[e.vehicle_id]}
                 onEdit={() => setEditing(e)}
-                onDelete={async () => {
-                  if (!confirm('למחוק את ההוצאה? פעולה זו לא ניתנת לביטול.')) return;
-                  try {
-                    const { error } = await supabase.rpc('delete_vehicle_expense', { p_id: e.id });
-                    if (error) throw error;
-                    if (e.receipt_storage_path) deleteFile(e.receipt_storage_path).catch(() => {});
-                    toast.success('ההוצאה נמחקה');
-                    await queryClient.invalidateQueries({ queryKey: ['expenses'] });
-                  } catch (delErr) {
-                    toastError('המחיקה נכשלה. נסה שוב.', { action: 'expense_inline_delete', err: delErr });
-                    reportUserError('delete_expense', delErr);
-                  }
-                }}
+                onDelete={() => setPendingDelete(e)}
               />
             ))}
           </ul>
@@ -290,6 +300,16 @@ export default function Expenses() {
           }}
         />
       )}
+
+      {/* In-app delete confirm (native confirm() breaks on Android Capacitor) */}
+      <ConfirmDeleteDialog
+        open={!!pendingDelete}
+        onConfirm={doDeleteExpense}
+        onCancel={() => setPendingDelete(null)}
+        title="למחוק את ההוצאה?"
+        description="פעולה זו לא ניתנת לביטול."
+        confirmLabel="מחק"
+      />
     </PageShell>
   );
 }
