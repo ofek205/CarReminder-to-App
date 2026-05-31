@@ -24,6 +24,69 @@
 -- Run ONCE in the SQL Editor.
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- ───────────────────────────────────────────────────────────────────────────
+-- Register the notification in the admin Email Center so it appears in the
+-- Notifications tab (with an editable/previewable template) and the Send Log.
+--
+-- REQUIRED, not just cosmetic: email_send_log.notification_key has an FK to
+-- email_notifications(key). Without this row, the Edge Function's send-log
+-- INSERT fails the FK → the dedup (NOT EXISTS in email_send_log) never
+-- registers → users get re-emailed every run. This row makes the log write
+-- succeed and the once-only guarantee hold.
+--
+-- trigger_type='time' (it's a 4-day lifecycle nudge). No email_triggers row
+-- is added on purpose: sending is owned by the dedicated
+-- dispatch-no-vehicle-nudge function + its own cron, NOT the generic
+-- reminder dispatcher / broadcast button (which use different candidate
+-- RPCs). So the admin sees + previews + logs it, but the actual send stays
+-- controlled by our function. Same posture as the 'welcome' lifecycle email.
+-- ───────────────────────────────────────────────────────────────────────────
+
+INSERT INTO public.email_notifications
+  (key, display_name, description, category, enabled, trigger_type, is_implemented)
+VALUES
+  ('reminder_no_vehicles',
+   'תזכורת: לא הוסיף רכב',
+   'נשלח למשתמש שנרשם ולא הוסיף אף כלי תחבורה (בלסט חד-פעמי + אוטומציה 4 ימים). כולל גם התראת פעמון ו-push.',
+   'reminder', true, 'time', true)
+ON CONFLICT (key) DO UPDATE
+  SET display_name   = EXCLUDED.display_name,
+      description    = EXCLUDED.description,
+      category       = EXCLUDED.category,
+      enabled        = EXCLUDED.enabled,
+      trigger_type   = EXCLUDED.trigger_type,
+      is_implemented = EXCLUDED.is_implemented,
+      updated_at     = now();
+
+-- Template — drives the admin preview ("where do I see the design?"). The
+-- actual email HTML lives in the Edge Function (same as 'welcome'); this
+-- mirrors that copy so the Email Center preview is faithful. Copy "version
+-- A" (simplicity-first), no dashes.
+INSERT INTO public.email_templates
+  (notification_key, subject, preheader, title, body_html, cta_label, cta_url, footer_note, variables)
+VALUES (
+  'reminder_no_vehicles',
+  '{{firstName}}, להוסיף רכב לוקח שניות',
+  'מקלידים מספר רישוי, והשאר אוטומטי',
+  'הוספת רכב בלי טפסים',
+  '<p>מקלידים מספר רישוי ולוחצים בדוק רכב, או מצלמים את לוחית הרישוי. כל הפרטים נמשכים אוטומטית ממשרד התחבורה: יצרן, דגם, שנה ותאריך הטסט. אתם לא ממלאים כלום.</p>',
+  'הוספת רכב בשניות',
+  'https://car-reminder.app',
+  'שאלה או צריכים עזרה? פשוט השיבו למייל הזה.',
+  '["firstName"]'::jsonb
+)
+ON CONFLICT (notification_key) DO UPDATE
+  SET subject     = EXCLUDED.subject,
+      preheader   = EXCLUDED.preheader,
+      title       = EXCLUDED.title,
+      body_html   = EXCLUDED.body_html,
+      cta_label   = EXCLUDED.cta_label,
+      cta_url     = EXCLUDED.cta_url,
+      footer_note = EXCLUDED.footer_note,
+      variables   = EXCLUDED.variables,
+      updated_at  = now();
+
+
 DROP FUNCTION IF EXISTS public.admin_no_vehicle_nudge_list(int);
 
 CREATE FUNCTION public.admin_no_vehicle_nudge_list(p_min_age_days int DEFAULT 4)
