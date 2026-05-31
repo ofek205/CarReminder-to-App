@@ -172,6 +172,20 @@ serve(async (req) => {
 
     for (const u of users) {
       const firstName = (u.full_name || '').trim().split(/\s+/)[0] || '';
+
+      // Bell notification (+ native push via the app_notifications AFTER
+      // INSERT trigger). Best-effort and once-ever per user (the RPC +
+      // unique partial index dedup), independent of the email outcome so
+      // a Resend failure doesn't cost the user their in-app nudge.
+      try {
+        await supabase.rpc('notify_no_vehicle', {
+          p_user_id: u.user_id,
+          p_first_name: firstName || null,
+        });
+      } catch (notifErr) {
+        await reportEdgeError('notify_no_vehicle_rpc', notifErr, { recipient: u.email });
+      }
+
       const subject = `${firstName ? `${firstName}, ` : ''}עוד לא הוספת רכב ל-CarReminder`;
       const html = buildNudgeHtml(firstName);
 

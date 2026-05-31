@@ -114,6 +114,70 @@ SELECT cron.schedule(
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- In-app bell notification + native push for the SAME no-vehicle moment.
+--
+-- Inserting one row into app_notifications also fans out a native push to
+-- the user's device tokens via the existing AFTER INSERT trigger
+-- (trg_app_notifications_dispatch_push → dispatch-push). So this single
+-- RPC delivers BOTH the bell badge and the mobile push.
+--
+-- Once-ever per user: a unique partial index is the race-proof guarantee;
+-- the RPC also pre-checks and swallows the unique violation so a second
+-- call is a silent no-op (matches the email's once-only semantics).
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE UNIQUE INDEX IF NOT EXISTS app_notif_no_vehicle_once
+  ON public.app_notifications (user_id)
+  WHERE type = 'no_vehicle';
+
+DROP FUNCTION IF EXISTS public.notify_no_vehicle(uuid, text);
+
+CREATE FUNCTION public.notify_no_vehicle(p_user_id uuid, p_first_name text DEFAULT NULL)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_name text := NULLIF(btrim(coalesce(p_first_name, '')), '');
+BEGIN
+  IF p_user_id IS NULL THEN RETURN false; END IF;
+
+  -- Pre-check (fast path) — already notified once → no-op.
+  IF EXISTS (
+    SELECT 1 FROM public.app_notifications
+     WHERE user_id = p_user_id AND type = 'no_vehicle'
+  ) THEN
+    RETURN false;
+  END IF;
+
+  -- Insert the bell row. The AFTER INSERT trigger handles the push.
+  -- Wrapped so a concurrent insert (unique index) is swallowed silently.
+  BEGIN
+    INSERT INTO public.app_notifications (user_id, type, title, body, data)
+    VALUES (
+      p_user_id,
+      'no_vehicle',
+      CASE WHEN v_name IS NOT NULL
+           THEN v_name || ', עוד לא הוספת רכב'
+           ELSE 'עוד לא הוספת רכב' END,
+      'הוסיפו את כלי התחבורה הראשון שלכם כדי לקבל תזכורות לטסט, ביטוח וטיפולים — לוקח פחות מדקה.',
+      jsonb_build_object('reason', 'no_vehicles_owned')
+    );
+  EXCEPTION WHEN unique_violation THEN
+    RETURN false;
+  END;
+
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.notify_no_vehicle(uuid, text) FROM public;
+REVOKE ALL ON FUNCTION public.notify_no_vehicle(uuid, text) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.notify_no_vehicle(uuid, text) TO service_role;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- SMOKE TEST (read-only — does NOT send anything):
 --   SELECT count(*) FROM admin_no_vehicle_nudge_list(0);   -- blast audience
 --   SELECT count(*) FROM admin_no_vehicle_nudge_list(4);   -- daily-cron audience
