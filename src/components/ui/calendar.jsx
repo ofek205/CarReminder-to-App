@@ -23,6 +23,17 @@ function Calendar({
         month: "space-y-4",
         caption: "flex justify-center pt-1 relative items-center",
         caption_label: "text-sm font-medium",
+        // Month + year dropdowns (rendered when captionLayout="dropdown-buttons").
+        // These are native <select>s — on Android they open the OS picker,
+        // which is the fast way to jump 40+ years for a birth date instead
+        // of tapping the prev-month arrow hundreds of times. `vhidden` hides
+        // the redundant text label that rdp still renders for a11y.
+        caption_dropdowns: "flex justify-center items-center gap-1.5",
+        dropdown:
+          "appearance-none rounded-lg border border-input bg-white px-2 py-1 text-sm font-medium text-[#1C2E20] focus:outline-none focus:ring-2 focus:ring-[#4B7A53]/30 cursor-pointer",
+        dropdown_month: "relative",
+        dropdown_year: "relative",
+        vhidden: "sr-only",
         nav: "space-x-1 flex items-center",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),

@@ -459,6 +459,8 @@ function AuthUserProfile({ embedded = false }) {
                 value={form.birth_date}
                 onChange={e => handleChange('birth_date', e.target.value)}
                 max={maxBirthDateForMinAge()}
+                fromYear={1900}
+                toYear={new Date().getFullYear()}
                 className={!form.birth_date ? 'border-amber-300 focus:border-amber-500 bg-amber-50/30' : ''}
               />
             </div>
