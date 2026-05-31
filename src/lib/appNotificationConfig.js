@@ -10,7 +10,7 @@
  * this module is purely visual / navigational.
  */
 
-import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, Mail, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus, Download } from 'lucide-react';
+import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, Mail, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus, Download, Car } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 
 const ACTION_REQUIRED_TYPES = new Set([
@@ -208,6 +208,18 @@ export const APP_NOTIF_CONFIG = {
       if (p === 'android') return 'https://play.google.com/store/apps/details?id=com.carreminder.app';
       return null;
     },
+  },
+  no_vehicle: {
+    // Onboarding nudge — user registered but never added a vehicle.
+    // Created by the notify_no_vehicle RPC alongside the email nudge, so
+    // the bell + native push reinforce the same "add your first vehicle"
+    // moment. Brand-green, welcoming (not an error). Routes straight to
+    // the add-vehicle form so the tap completes the action it asks for.
+    icon: Car,
+    bg: C.light,
+    iconColor: C.primary,
+    iconBg: C.primary,
+    buildHref: () => '/AddVehicle',
   },
   account_invite_offered: {
     icon: UserPlus,
