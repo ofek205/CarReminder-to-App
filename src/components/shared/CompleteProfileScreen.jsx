@@ -168,6 +168,8 @@ export default function CompleteProfileScreen({ user, onDone }) {
               value={birthDate}
               onChange={e => setBirthDate(e.target.value)}
               max={maxBirthDateForMinAge()}
+              fromYear={1900}
+              toYear={new Date().getFullYear()}
             />
           </div>
 
