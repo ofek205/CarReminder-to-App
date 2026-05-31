@@ -152,7 +152,7 @@ function buildNudgeHtml(firstName: string): string {
 
     <!-- CTA -->
     <div style="text-align:center;margin:0 0 14px">
-      <a href="${APP_URL}" class="cta" style="display:inline-block;background:#2D5233;color:#fff;padding:15px 44px;border-radius:12px;text-decoration:none;font-weight:bold;font-size:16px;box-shadow:0 4px 14px rgba(45,82,51,0.35)">
+      <a href="${APP_URL}/AddVehicle" class="cta" style="display:inline-block;background:#2D5233;color:#fff;padding:15px 44px;border-radius:12px;text-decoration:none;font-weight:bold;font-size:16px;box-shadow:0 4px 14px rgba(45,82,51,0.35)">
         הוסף רכב עכשיו
       </a>
     </div>
