@@ -67,17 +67,38 @@ function buildNudgeHtml(firstName: string): string {
   return `
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<style>
+  /* Fluid base works everywhere; this media query just tightens things on
+     small phones (Apple Mail + Gmail app honour it; others fall back to
+     the inline base, which already fits). */
+  @media only screen and (max-width:480px) {
+    .pad      { padding: 26px 18px 24px !important; }
+    .h1       { font-size: 21px !important; }
+    .lead     { font-size: 14px !important; }
+    .plateNum { font-size: 25px !important; padding: 10px 16px !important; letter-spacing: 2px !important; }
+    .feat     { font-size: 12px !important; }
+    .featIcon { width: 42px !important; height: 42px !important; line-height: 42px !important; font-size: 20px !important; }
+    .cta      { padding: 15px 32px !important; display: block !important; }
+  }
+</style>
+</head>
 <body style="margin:0;padding:0;background:#f1f0ea;font-family:Heebo,Arial,sans-serif">
-<div style="max-width:524px;margin:20px auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 6px 28px rgba(0,0,0,0.09)">
-  <div style="height:4px;background:linear-gradient(90deg,#2D5233,#4B7A53,#F5D200)"></div>
-  <div style="padding:32px 28px 28px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f0ea">
+ <tr>
+  <td align="center" style="padding:20px 12px">
+   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:524px;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 6px 28px rgba(0,0,0,0.09)">
+    <tr><td style="height:4px;background:linear-gradient(90deg,#2D5233,#4B7A53,#F5D200);font-size:0;line-height:0">&nbsp;</td></tr>
+    <tr><td class="pad" style="padding:32px 28px 28px">
 
     <!-- Header: friendly, name + wave -->
-    <h1 style="color:#1C2E20;margin:0;font-size:23px;font-weight:800;text-align:center;line-height:1.35">
+    <h1 class="h1" style="color:#1C2E20;margin:0;font-size:23px;font-weight:800;text-align:center;line-height:1.35">
       ${name}, נשאר רק צעד אחד קטן <span style="white-space:nowrap">&#128075;</span>
     </h1>
-    <p style="font-size:15px;color:#5c6b5f;line-height:1.7;text-align:center;margin:12px 0 26px">
+    <p class="lead" style="font-size:15px;color:#5c6b5f;line-height:1.7;text-align:center;margin:12px 0 26px">
       הוסף את מספר הרכב שלך, ואנחנו נזכיר לך בזמן על
       <b style="color:#2D7A3E">טסט</b>,
       <b style="color:#2D7A3E">ביטוח</b> ו<b style="color:#2D7A3E">טיפולים</b>.
@@ -93,7 +114,7 @@ function buildNudgeHtml(firstName: string): string {
           <td style="background:#0033A0;color:#fff;padding:12px 12px;font-size:13px;font-weight:bold;text-align:center;line-height:1.2;font-family:Arial,sans-serif">
             <span style="display:block;font-size:13px">&#127470;&#127473;</span>IL
           </td>
-          <td style="background:#F5D200;padding:11px 24px;font-size:30px;font-weight:bold;color:#111;letter-spacing:3px;font-family:Arial,sans-serif" dir="ltr">12-345-67</td>
+          <td class="plateNum" style="background:#F5D200;padding:11px 24px;font-size:30px;font-weight:bold;color:#111;letter-spacing:3px;font-family:Arial,sans-serif" dir="ltr">12-345-67</td>
         </tr>
       </table>
     </div>
@@ -103,20 +124,20 @@ function buildNudgeHtml(firstName: string): string {
       <tr>
         <td width="33%" style="text-align:center;padding:0 5px">
           <div style="border:1px solid #e6ebe6;border-radius:14px;padding:14px 4px 12px">
-            <div style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128203;</div>
-            <div style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; טסט</div>
+            <div class="featIcon" style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128203;</div>
+            <div class="feat" style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; טסט</div>
           </div>
         </td>
         <td width="33%" style="text-align:center;padding:0 5px">
           <div style="border:1px solid #e6ebe6;border-radius:14px;padding:14px 4px 12px">
-            <div style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128737;</div>
-            <div style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; ביטוח</div>
+            <div class="featIcon" style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128737;</div>
+            <div class="feat" style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; ביטוח</div>
           </div>
         </td>
         <td width="33%" style="text-align:center;padding:0 5px">
           <div style="border:1px solid #e6ebe6;border-radius:14px;padding:14px 4px 12px">
-            <div style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128295;</div>
-            <div style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; טיפולים</div>
+            <div class="featIcon" style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128295;</div>
+            <div class="feat" style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; טיפולים</div>
           </div>
         </td>
       </tr>
@@ -131,15 +152,18 @@ function buildNudgeHtml(firstName: string): string {
 
     <!-- CTA -->
     <div style="text-align:center;margin:0 0 14px">
-      <a href="${APP_URL}" style="display:inline-block;background:#2D5233;color:#fff;padding:15px 44px;border-radius:12px;text-decoration:none;font-weight:bold;font-size:16px;box-shadow:0 4px 14px rgba(45,82,51,0.35)">
+      <a href="${APP_URL}" class="cta" style="display:inline-block;background:#2D5233;color:#fff;padding:15px 44px;border-radius:12px;text-decoration:none;font-weight:bold;font-size:16px;box-shadow:0 4px 14px rgba(45,82,51,0.35)">
         הוסף רכב עכשיו
       </a>
     </div>
     <p style="font-size:13px;color:#9aa39c;text-align:center;margin:0">
       צריך עזרה? פשוט השב למייל הזה ונענה לך.
     </p>
-  </div>
-</div>
+    </td></tr>
+   </table>
+  </td>
+ </tr>
+</table>
 </body>
 </html>`;
 }
