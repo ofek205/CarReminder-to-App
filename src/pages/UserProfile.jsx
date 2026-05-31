@@ -583,10 +583,17 @@ function AuthUserProfile({ embedded = false }) {
             quiet trailing line, not as a card, because it's a "what
             am I running?" reference and shouldn't compete with
             actionable items above. Updates automatically on the next
-            build whenever `version` is bumped in package.json. */}
-        <p className="text-center text-[11px] mt-4 mb-2" style={{ color: C.gray400 }}>
-          CarReminder &middot; גרסה {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—'}
-        </p>
+            build whenever `version` is bumped in package.json.
+
+            Hidden when `embedded` (inside the Settings tabs): Settings
+            renders its OWN page-level version footer, so showing this one
+            too produced a duplicate "גרסה 5.5.6" stacked twice. Standalone
+            /UserProfile still shows it (embedded=false). */}
+        {!embedded && (
+          <p className="text-center text-[11px] mt-4 mb-2" style={{ color: C.gray400 }}>
+            CarReminder &middot; גרסה {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—'}
+          </p>
+        )}
       </div>
     </div>
   );
