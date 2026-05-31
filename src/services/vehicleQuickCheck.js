@@ -1,4 +1,6 @@
 import { db } from '@/lib/supabaseEntities';
+import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { lookupVehicleByPlate, isAircraftPlate } from '@/services/vehicleLookup';
 import { generateVehicleInsights } from '@/lib/vehicleInsights';
 
@@ -287,18 +289,43 @@ export async function vehicleExistsInAccount(accountId, plate) {
   ) || null;
 }
 
+// Resolve the account to save into. If the caller already has an
+// accountId, use it. Otherwise self-heal: a fresh signup can reach
+// "add to my vehicles" BEFORE the account resolves client-side (the
+// provisioning race that produced the "לא נמצא חשבון פעיל" spike — 5
+// failed saves in 15 min). ensure_user_account is idempotent and
+// race-safe (returns the single personal account thanks to the
+// accounts_one_personal_per_owner_uq unique index), so calling it here
+// gets-or-creates the account on demand instead of failing the user.
+async function resolveAccountId(accountId) {
+  if (accountId) return accountId;
+  const { data, error } = await withTimeout(
+    supabase.rpc('ensure_user_account'),
+    'ensure_user_account'
+  );
+  if (error) throw error;
+  if (!data) {
+    const err = new Error('no_account');
+    err.code = 'no_account';
+    throw err;
+  }
+  return data;
+}
+
 export async function saveQuickCheckVehicle(result, accountId) {
-  if (!result || !accountId) {
+  if (!result) {
     const err = new Error('missing_context');
     err.code = 'missing_context';
     throw err;
   }
-  const duplicate = await vehicleExistsInAccount(accountId, result.basicInfo?.licensePlate || result.plate);
+  // May provision on demand if accountId is null (fresh-signup race).
+  const acctId = await resolveAccountId(accountId);
+  const duplicate = await vehicleExistsInAccount(acctId, result.basicInfo?.licensePlate || result.plate);
   if (duplicate) {
     const err = new Error('duplicate_vehicle');
     err.code = 'duplicate_vehicle';
     err.vehicle = duplicate;
     throw err;
   }
-  return db.vehicles.create(buildVehicleInsertPayload(result, accountId));
+  return db.vehicles.create(buildVehicleInsertPayload(result, acctId));
 }
