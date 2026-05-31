@@ -59,65 +59,84 @@ async function reportEdgeError(action: string, error: unknown, extra?: Record<st
 
 function buildNudgeHtml(firstName: string): string {
   const name = firstName || 'שלום';
-  // Copy: "peace of mind" direction (approved 2026-05-31). Conversion goal:
-  // get a registered-but-empty user to add their first vehicle. Leads with
-  // the positive outcome (we remind you, you never miss), proves the ease
-  // with the plate visual, single CTA. No dashes in prose.
+  // Copy: "peace of mind", friendly/rich direction (approved 2026-05-31,
+  // matching the reference the owner liked). Light surface, plate as hero,
+  // icon feature-cards, one strong CTA. Emoji used as cross-client-safe
+  // icons (Gmail strips inline SVG; emoji render everywhere). No dashes in
+  // prose. The plate number keeps its dashes — that's plate formatting.
   return `
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
-<body style="margin:0;padding:0;background:#f5f5f0;font-family:Heebo,Arial,sans-serif">
-<div style="max-width:520px;margin:20px auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
-  <div style="background:linear-gradient(135deg,#4B7A53,#2D5233);padding:34px 24px;text-align:center">
-    <h1 style="color:#fff;margin:0;font-size:25px;font-weight:800">הרכב שלך, תמיד בזמן</h1>
-    <p style="color:#c8e6c9;margin:10px 0 0;font-size:15px">${name}, נשאר רק להוסיף את הרכב</p>
-  </div>
-  <div style="padding:26px 24px">
-    <p style="font-size:16px;color:#333;line-height:1.7;text-align:center;margin:0 0 22px">
-      נזכיר לך לפני כל טסט, ביטוח וטיפול. בלי לזכור, בלי לחשב, בלי הפתעות.
+<body style="margin:0;padding:0;background:#f1f0ea;font-family:Heebo,Arial,sans-serif">
+<div style="max-width:524px;margin:20px auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 6px 28px rgba(0,0,0,0.09)">
+  <div style="height:4px;background:linear-gradient(90deg,#2D5233,#4B7A53,#F5D200)"></div>
+  <div style="padding:32px 28px 28px">
+
+    <!-- Header: friendly, name + wave -->
+    <h1 style="color:#1C2E20;margin:0;font-size:23px;font-weight:800;text-align:center;line-height:1.35">
+      ${name}, נשאר רק צעד אחד קטן <span style="white-space:nowrap">&#128075;</span>
+    </h1>
+    <p style="font-size:15px;color:#5c6b5f;line-height:1.7;text-align:center;margin:12px 0 26px">
+      הוסף את מספר הרכב שלך, ואנחנו נזכיר לך בזמן על
+      <b style="color:#2D7A3E">טסט</b>,
+      <b style="color:#2D7A3E">ביטוח</b> ו<b style="color:#2D7A3E">טיפולים</b>.
     </p>
 
-    <!-- License plate (Israeli style: blue IL tag + yellow field) -->
-    <div style="text-align:center;margin:0 0 8px">
-      <table cellpadding="0" cellspacing="0" align="center" style="border-collapse:separate;border:2px solid #111;border-radius:8px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.18)">
+    <!-- Plate card (the hero) -->
+    <div style="background:#f6f8f5;border:1px solid #e3ebe4;border-radius:16px;padding:20px 16px 22px;text-align:center;margin:0 0 22px">
+      <p style="margin:0 0 14px;font-size:14px;font-weight:bold;color:#2D5233;line-height:1.5">
+        מקלידים מספר רכב, וכל התזכורות מסתדרות לבד <span style="color:#4B7A53">&#8623;</span>
+      </p>
+      <table cellpadding="0" cellspacing="0" align="center" style="border-collapse:separate;border:3px solid #111;border-radius:10px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.22)">
         <tr>
-          <td style="background:#0033A0;color:#fff;padding:10px 10px;font-size:12px;font-weight:bold;text-align:center;line-height:1.25;font-family:Arial,sans-serif">
-            <span style="display:block;font-size:9px;letter-spacing:1px">ישראל</span>IL
+          <td style="background:#0033A0;color:#fff;padding:12px 12px;font-size:13px;font-weight:bold;text-align:center;line-height:1.2;font-family:Arial,sans-serif">
+            <span style="display:block;font-size:13px">&#127470;&#127473;</span>IL
           </td>
-          <td style="background:#F5D200;padding:9px 22px;font-size:28px;font-weight:bold;color:#111;letter-spacing:3px;font-family:Arial,sans-serif" dir="ltr">12-345-67</td>
+          <td style="background:#F5D200;padding:11px 24px;font-size:30px;font-weight:bold;color:#111;letter-spacing:3px;font-family:Arial,sans-serif" dir="ltr">12-345-67</td>
         </tr>
       </table>
     </div>
 
-    <div style="text-align:center;color:#4B7A53;font-size:13px;font-weight:bold;margin:0 0 16px">מקלידים את המספר, וכל זה מסודר ↓</div>
-
-    <!-- 3 green checks: what gets covered automatically -->
-    <table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 8px">
+    <!-- 3 feature cards with icon + check -->
+    <table cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 22px">
       <tr>
-        <td style="text-align:center;padding:0 14px">
-          <div style="width:40px;height:40px;border-radius:50%;background:#e8f3ea;text-align:center;line-height:40px;color:#2D7A3E;font-size:21px;font-weight:bold;margin:0 auto 6px">&#10003;</div>
-          <div style="font-size:13px;color:#1C2E20;font-weight:bold">טסט</div>
+        <td width="33%" style="text-align:center;padding:0 5px">
+          <div style="border:1px solid #e6ebe6;border-radius:14px;padding:14px 4px 12px">
+            <div style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128203;</div>
+            <div style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; טסט</div>
+          </div>
         </td>
-        <td style="text-align:center;padding:0 14px">
-          <div style="width:40px;height:40px;border-radius:50%;background:#e8f3ea;text-align:center;line-height:40px;color:#2D7A3E;font-size:21px;font-weight:bold;margin:0 auto 6px">&#10003;</div>
-          <div style="font-size:13px;color:#1C2E20;font-weight:bold">ביטוח</div>
+        <td width="33%" style="text-align:center;padding:0 5px">
+          <div style="border:1px solid #e6ebe6;border-radius:14px;padding:14px 4px 12px">
+            <div style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128737;</div>
+            <div style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; ביטוח</div>
+          </div>
         </td>
-        <td style="text-align:center;padding:0 14px">
-          <div style="width:40px;height:40px;border-radius:50%;background:#e8f3ea;text-align:center;line-height:40px;color:#2D7A3E;font-size:21px;font-weight:bold;margin:0 auto 6px">&#10003;</div>
-          <div style="font-size:13px;color:#1C2E20;font-weight:bold">טיפולים</div>
+        <td width="33%" style="text-align:center;padding:0 5px">
+          <div style="border:1px solid #e6ebe6;border-radius:14px;padding:14px 4px 12px">
+            <div style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128295;</div>
+            <div style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; טיפולים</div>
+          </div>
         </td>
       </tr>
     </table>
-    <p style="font-size:13px;color:#888;text-align:center;margin:6px 0 0">10 שניות, מספר רישוי, וזהו.</p>
 
-    <div style="text-align:center;margin:26px 0 8px">
-      <a href="${APP_URL}" style="display:inline-block;background:#4B7A53;color:#fff;padding:14px 38px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:16px">
-        הוסף רכב וקבל תזכורות
+    <!-- Ease strip -->
+    <div style="background:#eaf4ec;border-radius:12px;padding:13px 16px;text-align:center;margin:0 0 22px">
+      <span style="font-size:18px;vertical-align:middle">&#9201;</span>
+      <span style="font-size:14px;font-weight:bold;color:#2D5233;vertical-align:middle"> זה לוקח פחות מ-10 שניות</span>
+      <div style="font-size:12px;color:#5c6b5f;margin-top:3px">מספר רכב אחד, וזהו.</div>
+    </div>
+
+    <!-- CTA -->
+    <div style="text-align:center;margin:0 0 14px">
+      <a href="${APP_URL}" style="display:inline-block;background:#2D5233;color:#fff;padding:15px 44px;border-radius:12px;text-decoration:none;font-weight:bold;font-size:16px;box-shadow:0 4px 14px rgba(45,82,51,0.35)">
+        הוסף רכב עכשיו
       </a>
     </div>
-    <p style="font-size:13px;color:#888;text-align:center">
-      שאלה או צריכים עזרה? פשוט השיבו למייל הזה.
+    <p style="font-size:13px;color:#9aa39c;text-align:center;margin:0">
+      צריך עזרה? פשוט השב למייל הזה ונענה לך.
     </p>
   </div>
 </div>
@@ -217,7 +236,7 @@ serve(async (req) => {
         await reportEdgeError('notify_no_vehicle_rpc', notifErr, { recipient: u.email });
       }
 
-      const subject = `${firstName ? `${firstName}, ` : ''}נשאר רק להוסיף את הרכב`;
+      const subject = `${firstName ? `${firstName}, ` : ''}נשאר רק צעד אחד קטן`;
       const html = buildNudgeHtml(firstName);
 
       try {

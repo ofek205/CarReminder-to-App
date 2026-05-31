@@ -66,11 +66,11 @@ INSERT INTO public.email_templates
   (notification_key, subject, preheader, title, body_html, cta_label, cta_url, footer_note, variables)
 VALUES (
   'reminder_no_vehicles',
-  '{{firstName}}, נשאר רק להוסיף את הרכב',
-  'נזכיר לך לפני כל טסט, ביטוח וטיפול',
-  'הרכב שלך, תמיד בזמן',
-  '<p style="text-align:center;font-size:16px">נזכיר לך לפני כל טסט, ביטוח וטיפול. בלי לזכור, בלי לחשב, בלי הפתעות.</p><table cellpadding="0" cellspacing="0" align="center" style="border-collapse:separate;border:2px solid #111;border-radius:8px;overflow:hidden;margin:0 auto 8px"><tr><td style="background:#0033A0;color:#fff;padding:10px;font-size:12px;font-weight:bold;text-align:center;line-height:1.25"><span style="display:block;font-size:9px">ישראל</span>IL</td><td style="background:#F5D200;padding:9px 22px;font-size:28px;font-weight:bold;color:#111;letter-spacing:3px" dir="ltr">12-345-67</td></tr></table><div style="text-align:center;color:#4B7A53;font-size:13px;font-weight:bold;margin:0 0 16px">מקלידים את המספר, וכל זה מסודר ↓</div><table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 8px"><tr><td style="text-align:center;padding:0 14px"><div style="width:40px;height:40px;border-radius:50%;background:#e8f3ea;text-align:center;line-height:40px;color:#2D7A3E;font-size:21px;font-weight:bold;margin:0 auto 6px">&#10003;</div><div style="font-size:13px;color:#1C2E20;font-weight:bold">טסט</div></td><td style="text-align:center;padding:0 14px"><div style="width:40px;height:40px;border-radius:50%;background:#e8f3ea;text-align:center;line-height:40px;color:#2D7A3E;font-size:21px;font-weight:bold;margin:0 auto 6px">&#10003;</div><div style="font-size:13px;color:#1C2E20;font-weight:bold">ביטוח</div></td><td style="text-align:center;padding:0 14px"><div style="width:40px;height:40px;border-radius:50%;background:#e8f3ea;text-align:center;line-height:40px;color:#2D7A3E;font-size:21px;font-weight:bold;margin:0 auto 6px">&#10003;</div><div style="font-size:13px;color:#1C2E20;font-weight:bold">טיפולים</div></td></tr></table><p style="text-align:center;color:#888;font-size:13px">10 שניות, מספר רישוי, וזהו.</p>',
-  'הוסף רכב וקבל תזכורות',
+  '{{firstName}}, נשאר רק צעד אחד קטן',
+  'הוסף את מספר הרכב ונזכיר לך בזמן',
+  'נשאר רק צעד אחד קטן',
+  '<p style="text-align:center;font-size:15px;color:#5c6b5f">הוסף את מספר הרכב שלך, ואנחנו נזכיר לך בזמן על <b style="color:#2D7A3E">טסט</b>, <b style="color:#2D7A3E">ביטוח</b> ו<b style="color:#2D7A3E">טיפולים</b>.</p><div style="background:#f6f8f5;border:1px solid #e3ebe4;border-radius:16px;padding:20px 16px;text-align:center;margin:0 0 22px"><p style="margin:0 0 14px;font-size:14px;font-weight:bold;color:#2D5233">מקלידים מספר רכב, וכל התזכורות מסתדרות לבד</p><table cellpadding="0" cellspacing="0" align="center" style="border-collapse:separate;border:3px solid #111;border-radius:10px;overflow:hidden"><tr><td style="background:#0033A0;color:#fff;padding:12px;font-size:13px;font-weight:bold;text-align:center;line-height:1.2"><span style="display:block;font-size:13px">&#127470;&#127473;</span>IL</td><td style="background:#F5D200;padding:11px 24px;font-size:30px;font-weight:bold;color:#111;letter-spacing:3px" dir="ltr">12-345-67</td></tr></table></div><table cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 22px"><tr><td width="33%" style="text-align:center;padding:0 5px"><div style="border:1px solid #e6ebe6;border-radius:14px;padding:14px 4px"><div style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128203;</div><div style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; טסט</div></div></td><td width="33%" style="text-align:center;padding:0 5px"><div style="border:1px solid #e6ebe6;border-radius:14px;padding:14px 4px"><div style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128737;</div><div style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; ביטוח</div></div></td><td width="33%" style="text-align:center;padding:0 5px"><div style="border:1px solid #e6ebe6;border-radius:14px;padding:14px 4px"><div style="width:46px;height:46px;border-radius:50%;background:#eaf4ec;text-align:center;line-height:46px;font-size:22px;margin:0 auto 8px">&#128295;</div><div style="font-size:13px;color:#1C2E20;font-weight:bold">&#10003; טיפולים</div></div></td></tr></table><div style="background:#eaf4ec;border-radius:12px;padding:13px 16px;text-align:center"><span style="font-size:14px;font-weight:bold;color:#2D5233">&#9201; זה לוקח פחות מ-10 שניות</span><div style="font-size:12px;color:#5c6b5f;margin-top:3px">מספר רכב אחד, וזהו.</div></div>',
+  'הוסף רכב עכשיו',
   'https://car-reminder.app',
   'שאלה או צריכים עזרה? פשוט השיבו למייל הזה.',
   '["firstName"]'::jsonb
@@ -221,11 +221,11 @@ BEGIN
     VALUES (
       p_user_id,
       'no_vehicle',
-      -- Copy "peace of mind" direction, approved 2026-05-31. No dashes.
+      -- Copy "peace of mind", friendly direction, approved 2026-05-31. No dashes.
       CASE WHEN v_name IS NOT NULL
-           THEN v_name || ', הרכב שלך תמיד בזמן'
-           ELSE 'הרכב שלך, תמיד בזמן' END,
-      'הוסף רכב אחד ונזכיר לך לפני כל טסט, ביטוח וטיפול. לוקח שניות.',
+           THEN v_name || ', נשאר רק צעד אחד קטן'
+           ELSE 'נשאר רק צעד אחד קטן' END,
+      'הוסף את מספר הרכב ונזכיר לך בזמן על כל טסט, ביטוח וטיפול. לוקח שניות.',
       jsonb_build_object('reason', 'no_vehicles_owned')
     );
   EXCEPTION WHEN unique_violation THEN
