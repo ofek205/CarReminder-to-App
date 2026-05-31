@@ -193,13 +193,42 @@ serve(async (req) => {
     // the one-time blast passes 0 explicitly.
     let dryRun = false;
     let minAgeDays = 4;
+    let testEmail: string | null = null;
+    let testName = '';
     try {
       const body = await req.json();
       dryRun = body?.dry_run === true;
       if (typeof body?.min_age_days === 'number' && body.min_age_days >= 0) {
         minAgeDays = Math.floor(body.min_age_days);
       }
+      if (typeof body?.test_email === 'string' && body.test_email.includes('@')) {
+        testEmail = body.test_email.trim();
+      }
+      if (typeof body?.test_name === 'string') testName = body.test_name.trim();
     } catch { /* defaults */ }
+
+    // ── Test mode ──────────────────────────────────────────────────────
+    // { "test_email": "you@example.com" } sends ONE real email (the exact
+    // blast HTML) to that address only. Does NOT touch the candidate list,
+    // does NOT log to email_send_log, does NOT create a bell/push — pure
+    // preview to yourself. Optional { "test_name": "אופק" } personalises it.
+    if (testEmail) {
+      const subject = `${testName ? `${testName}, ` : ''}נשאר רק צעד אחד קטן`;
+      const html = buildNudgeHtml(testName);
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: FROM, to: [testEmail], subject, html }),
+        });
+        let data: any = {};
+        try { data = await res.json(); } catch { /* non-JSON */ }
+        return json({ ok: res.ok, test: true, sent_to: testEmail, status: res.status, resend: data });
+      } catch (err: any) {
+        await reportEdgeError('test_send', err, { recipient: testEmail });
+        return json({ ok: false, test: true, error: err?.message || 'send failed' }, 500);
+      }
+    }
 
     // Honour the global kill-switch (best-effort — if the table/row is
     // missing we proceed, same posture as the rest of the email system).

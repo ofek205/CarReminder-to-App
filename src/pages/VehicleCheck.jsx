@@ -243,10 +243,12 @@ export default function VehicleCheck() {
       goToAuth();
       return;
     }
-    if (accountLoading || !accountId) {
-      toastError('לא נמצא חשבון פעיל לשמירת הרכב', { action: 'vehicle_check_no_account' });
-      return;
-    }
+    // NOTE: we deliberately DON'T hard-block on a null accountId here.
+    // A brand-new user can reach "add to my vehicles" before their
+    // account resolves client-side (provisioning race). Passing accountId
+    // (possibly null) into saveQuickCheckVehicle lets it self-heal via
+    // ensure_user_account — get-or-create on demand — instead of throwing
+    // the "לא נמצא חשבון פעיל" error users were hitting.
 
     setSaving(true);
     try {
@@ -275,6 +277,11 @@ export default function VehicleCheck() {
         // as an error (toastError was triggering user_visible_error_spike
         // alerts for what is normal user flow).
         toast.error('הרכב הזה כבר קיים ברשימת הרכבים שלך');
+      } else if (err?.code === 'no_account') {
+        // On-demand provisioning couldn't resolve an account (rare —
+        // transient network/auth). Tell the user to retry in a moment
+        // rather than implying a permanent failure.
+        toastError('עוד רגע — מסיימים להכין את החשבון שלך. נסה שוב.', { action: 'vehicle_check_no_account', err });
       } else {
         toastError('שמירת הרכב נכשלה. נסה שוב.', { action: 'vehicle_check_save', err });
       }

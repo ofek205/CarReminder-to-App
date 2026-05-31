@@ -56,10 +56,13 @@ const DateInput = React.forwardRef(({ className, value, onChange, min, max, disa
       <input
         ref={ref}
         type="date"
-        value={value || ""}
+        // Coerce to string — a non-string value (Date/number) would make
+        // the native date input behave unpredictably. Defensive, same
+        // spirit as safeParseISO on the Popover path.
+        value={typeof value === "string" ? value : ""}
         onChange={onChange}
-        min={min}
-        max={max}
+        min={typeof min === "string" ? min : undefined}
+        max={typeof max === "string" ? max : undefined}
         disabled={disabled}
         placeholder={placeholder}
         dir="ltr"
@@ -118,20 +121,28 @@ function typedToISO(text, minDate, maxDate) {
   return iso;
 }
 
+// Crash-proof parseISO. date-fns parseISO does `argument.split(...)`
+// internally, so passing ANYTHING that isn't a string (a Date object, a
+// number, gov.il sometimes returns these) throws "e.split is not a
+// function" — which crashed /vehicle-check's completion drawer for real
+// users (5 errors, 2026-05-28→31). A shared date primitive must never
+// crash on bad input: coerce non-strings to "no date" instead.
+function safeParseISO(v) {
+  if (!v || typeof v !== "string") return undefined;
+  const d = parseISO(v);
+  return isValid(d) ? d : undefined;
+}
+
 const DateInputPopover = React.forwardRef(({ className, value, onChange, min, max, disabled, placeholder = "DD/MM/YYYY", fromYear, toYear, ...props }, ref) => {
   const [open, setOpen] = React.useState(false);
 
   // ISO YYYY-MM-DD → Date object for the calendar.
-  const selectedDate = React.useMemo(() => {
-    if (!value) return undefined;
-    const d = parseISO(value);
-    return isValid(d) ? d : undefined;
-  }, [value]);
+  const selectedDate = React.useMemo(() => safeParseISO(value), [value]);
 
   // min/max as Date objects for the calendar's disabled function + typed
   // validation.
-  const minDate = min ? parseISO(min) : undefined;
-  const maxDate = max ? parseISO(max) : undefined;
+  const minDate = safeParseISO(min);
+  const maxDate = safeParseISO(max);
   const isDisabledDay = (date) => {
     if (minDate && isValid(minDate) && date < minDate) return true;
     if (maxDate && isValid(maxDate) && date > maxDate) return true;
