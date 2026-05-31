@@ -158,10 +158,11 @@ BEGIN
     VALUES (
       p_user_id,
       'no_vehicle',
+      -- Copy "version A" (simplicity-first), approved 2026-05-31. No dashes.
       CASE WHEN v_name IS NOT NULL
-           THEN v_name || ', עוד לא הוספת רכב'
-           ELSE 'עוד לא הוספת רכב' END,
-      'הוסיפו את כלי התחבורה הראשון שלכם כדי לקבל תזכורות לטסט, ביטוח וטיפולים — לוקח פחות מדקה.',
+           THEN v_name || ', להוסיף רכב לוקח שניות'
+           ELSE 'להוסיף רכב לוקח שניות' END,
+      'מקלידים מספר רישוי או מצלמים את הלוחית, וכל הפרטים נמשכים אוטומטית.',
       jsonb_build_object('reason', 'no_vehicles_owned')
     );
   EXCEPTION WHEN unique_violation THEN

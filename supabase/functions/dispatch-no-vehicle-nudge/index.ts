@@ -59,8 +59,8 @@ async function reportEdgeError(action: string, error: unknown, extra?: Record<st
 
 function buildNudgeHtml(firstName: string): string {
   const name = firstName || 'שלום';
-  // Visible copy is pure Hebrew; "CarReminder" is the product name, kept in
-  // the header lockup exactly as the welcome email does.
+  // Copy: "version A" (simplicity-first), approved 2026-05-31. No dashes
+  // anywhere per product request. "CarReminder" is the product name.
   return `
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
@@ -68,21 +68,18 @@ function buildNudgeHtml(firstName: string): string {
 <body style="margin:0;padding:0;background:#f5f5f0;font-family:Heebo,Arial,sans-serif">
 <div style="max-width:520px;margin:20px auto;background:#fff;border-radius:12px;overflow:hidden">
   <div style="background:linear-gradient(135deg,#4B7A53,#2D5233);padding:32px 24px;text-align:center">
-    <h1 style="color:#fff;margin:0;font-size:23px">${name}, נשאר רק צעד אחד</h1>
-    <p style="color:#c8e6c9;margin:8px 0 0;font-size:14px">הוסיפו את כלי התחבורה הראשון שלכם</p>
+    <h1 style="color:#fff;margin:0;font-size:23px">הוספת רכב בלי טפסים</h1>
+    <p style="color:#c8e6c9;margin:8px 0 0;font-size:14px">${name}, זה לוקח שניות</p>
   </div>
   <div style="padding:24px">
     <p style="font-size:15px;color:#333;line-height:1.7">
-      נרשמתם — אבל עדיין לא הוספתם רכב, ובלי זה אי אפשר להתחיל.
-      ברגע שמוסיפים רכב, אנחנו דואגים לכל השאר: תזכורת לפני טסט,
-      לפני חידוש ביטוח, מעקב טיפולים, וכל המסמכים במקום אחד.
-    </p>
-    <p style="font-size:15px;color:#333;line-height:1.7">
-      ההוספה לוקחת פחות מדקה — מספיק מספר רישוי, והפרטים נמשכים אוטומטית.
+      מקלידים מספר רישוי ולוחצים בדוק רכב, או מצלמים את לוחית הרישוי.
+      כל הפרטים נמשכים אוטומטית ממשרד התחבורה: יצרן, דגם, שנה ותאריך
+      הטסט. אתם לא ממלאים כלום.
     </p>
     <div style="text-align:center;margin:28px 0">
       <a href="${APP_URL}" style="display:inline-block;background:#4B7A53;color:#fff;padding:13px 36px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">
-        הוספת הרכב שלי
+        הוספת רכב בשניות
       </a>
     </div>
     <p style="font-size:13px;color:#888;text-align:center">
@@ -186,7 +183,7 @@ serve(async (req) => {
         await reportEdgeError('notify_no_vehicle_rpc', notifErr, { recipient: u.email });
       }
 
-      const subject = `${firstName ? `${firstName}, ` : ''}עוד לא הוספת רכב ל-CarReminder`;
+      const subject = `${firstName ? `${firstName}, ` : ''}להוסיף רכב לוקח שניות`;
       const html = buildNudgeHtml(firstName);
 
       try {
