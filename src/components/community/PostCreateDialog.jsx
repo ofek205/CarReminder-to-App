@@ -16,7 +16,8 @@ import { createPageUrl } from '@/utils';
 import useFormDraft from '@/hooks/useFormDraft';
 import FieldError from '../shared/FieldError';
 import { toast } from 'sonner';
-import { getAiExpertForDomain } from '@/lib/aiExpert';
+import { getAiExpertForDomain, buildVehicleContext, buildCommunitySystemPrompt } from '@/lib/aiExpert';
+import { urlToImagePart } from '@/lib/urlToBase64';
 import { compressImage } from '@/lib/imageCompress';
 
 // Hebrew stop words to filter from search keywords
@@ -127,62 +128,35 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
   // functions so the lexical order matters (TDZ otherwise).
   const generateAiResponse = async (post, vehicle) => {
     try {
-      let vehicleContext = '';
-      if (vehicle) {
-        const details = [];
-        if (vehicle.manufacturer) details.push(`יצרן: ${vehicle.manufacturer}`);
-        if (vehicle.model) details.push(`דגם: ${vehicle.model}`);
-        if (vehicle.year) details.push(`שנה: ${vehicle.year}`);
-        if (vehicle.engine_model) details.push(`מנוע: ${vehicle.engine_model}`);
-        if (vehicle.engine_cc) details.push(`נפח: ${vehicle.engine_cc}`);
-        if (vehicle.horsepower) details.push(`כוח: ${vehicle.horsepower}`);
-        if (vehicle.fuel_type) details.push(`דלק: ${vehicle.fuel_type}`);
-        if (vehicle.transmission) details.push(`גיר: ${vehicle.transmission}`);
-        if (vehicle.current_km) details.push(`ק"מ: ${Number(vehicle.current_km).toLocaleString()}`);
-        if (vehicle.current_engine_hours) details.push(`שעות מנוע: ${Number(vehicle.current_engine_hours).toLocaleString()}`);
-        if (vehicle.drivetrain) details.push(`כונן: ${vehicle.drivetrain}`);
-        if (vehicle.trim_level) details.push(`גימור: ${vehicle.trim_level}`);
-        if (vehicle.front_tire) details.push(`צמיגים: ${vehicle.front_tire}`);
-        if (vehicle.vehicle_type) details.push(`סוג: ${vehicle.vehicle_type}`);
-        vehicleContext = `\n\nפרטי הרכב של השואל:\n${details.join('\n')}`;
-      }
-
+      const vehicleContext = buildVehicleContext(vehicle);
       const expert = getAiExpertForDomain(domain);
-      const systemPrompt = expert.domain === 'vessel'
-        ? `אתה ${expert.fullName}, ${expert.role}. אתה מכיר לעומק את כל סוגי הסירות, המנועים הימיים (Yanmar, Mercury, Volvo Penta), מערכות חשמל ימיות, ואת כל המרינות בישראל.
 
-כללים:
-- ענה בעברית בלבד
-- אם ניתנו פרטי כלי שייט - התייחס אליהם ספציפית (דגם, מנוע, גודל)
-- אם ניתנו שעות מנוע - זה נתון קריטי! התייחס אליו: ציין אם הכלי בקילומטראז'/שעות גבוהות, אילו בדיקות ותחזוקות נדרשות בשלב הזה (למשל: מעל 500 שעות = החלפת אימפלר ובדיקת anodes, מעל 1000 = שיפוץ מנוע אפשרי), והאם הבעיה קשורה לבלאי טבעי בגיל הזה
-- תן עצה מעשית ובטיחותית עם הערכת עלות ישראלית
-- אל תמציא עובדות - אם אתה לא בטוח, אמור "מומלץ לבדוק עם טכנאי"
-- אורך תגובה: 3-6 משפטים מרוכזים`
-        : `אתה ${expert.fullName}, ${expert.role}. אתה מכיר לעומק את כל דגמי הרכב הנפוצים בישראל, בעיות ידועות לפי דגם ושנה, ומחירי תיקון ישראליים.
+      // Fetch the attached photo (if any) and ship it to the vision model.
+      // The whole point of "what does this warning light mean" is the
+      // image — the old code never sent it, leaving the AI blind. Public
+      // bucket so no auth needed; degrades to text-only on any failure.
+      const imagePart = post.image_url ? await urlToImagePart(post.image_url) : null;
 
-כללים:
-- ענה בעברית בלבד
-- אם ניתנו פרטי רכב - התייחס לדגם הספציפי ולבעיות הידועות שלו
-- אם ניתן קילומטראז' - זה נתון קריטי! התייחס אליו: ציין אם הרכב בקילומטראז' גבוה, אילו טיפולים ובדיקות נדרשים בשלב הזה (למשל: מעל 100K = בדיקת רצועת טיימינג, מעל 150K = בדיקת מצמד/תיבת הילוכים, מעל 200K = תשומת לב מוגברת למנוע), והאם הבעיה המתוארת אופיינית לרכב בקילומטראז' הזה
-- אם ניתנו שעות מנוע (בעיקר לכלי שטח/משאיות) - התייחס באותו אופן כנתון משמעותי לגבי בלאי ותחזוקה נדרשת
-- ציין טווח מחירים ישראלי ריאלי לתיקון (₪)
-- הבדל בין דחוף (בטיחותי) לבין משהו שיכול לחכות
-- אל תמציא עובדות - אם אתה לא בטוח, אמור "צריך לבדוק במוסך"
-- אורך תגובה: 3-6 משפטים מרוכזים`;
+      const systemPrompt = buildCommunitySystemPrompt(expert, {
+        vehicleContext,
+        hasImage: !!imagePart,
+      });
 
-      const userMessage = `שאלה מהקהילה:\n"${post.body}"${vehicleContext}`;
+      const userText = `שאלה מהקהילה:\n"${post.body}"`;
+      // Anthropic-style content blocks — text + optional image. The
+      // ai-proxy normalizes this to Gemini inline_data parts.
+      const content = imagePart
+        ? [{ type: 'text', text: userText }, imagePart]
+        : userText;
 
       const json = await aiRequest({
         model: 'llama-3.3-70b-versatile',
-        // 500 was hitting the cap mid-word; 800 still left some bulleted
-        // first replies clipped. 1500 matches the global default and
-        // gives the model enough room to wrap a substantive answer with
-        // price ranges in Hebrew (which tokenizes denser than English).
-        // The system prompt still steers toward "3-6 sentences" so most
-        // replies stay focused — this is purely upper headroom.
+        // 1500 matches the global default and gives room for a thorough
+        // forum answer with price ranges in Hebrew (denser tokenization).
+        // The prompt steers toward 4-7 sentences so replies stay focused.
         max_tokens: 1500,
         system: systemPrompt,
-        messages: [{ role: 'user', content: userMessage }],
+        messages: [{ role: 'user', content }],
       });
       const aiText = json?.content?.[0]?.text || '';
       if (aiText) {

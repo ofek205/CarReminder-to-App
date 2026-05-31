@@ -566,7 +566,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
 
       {/* Comments */}
       {showComments && (
-        <CommentSection postId={post.id} postOwnerId={post.user_id} postDomain={post.domain} postBody={post.body} canComment={canComment} T={T} onCommentAdded={onCommentAdded} />
+        <CommentSection postId={post.id} postOwnerId={post.user_id} postDomain={post.domain} postBody={post.body} linkedVehicleId={post.linked_vehicle_id || null} canComment={canComment} T={T} onCommentAdded={onCommentAdded} />
       )}
 
       {/* Report dialog — mounted once per card, opened by the dropdown's Report item.

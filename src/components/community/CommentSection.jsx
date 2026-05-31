@@ -7,8 +7,14 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { getAiExpertForDomain } from '@/lib/aiExpert';
+import { getAiExpertForDomain, buildVehicleContext, buildCommunitySystemPrompt, buildPrivateChatInvite } from '@/lib/aiExpert';
 import { C } from '@/lib/designTokens';
+
+// Community AI answer cap (initial reply + follow-ups). Generous enough
+// to deliver real value across a few turns, bounded so a long thread
+// can't rack up unlimited AI calls. The soft private-chat invite is
+// appended once mid-thread (see handleSend) — it is NOT a hard wall.
+const MAX_AI_REPLIES = 5;
 
 function timeAgo(date) {
   try { return formatDistanceToNow(new Date(date), { addSuffix: false, locale: he }); }
@@ -24,7 +30,7 @@ const AVATAR_GRADIENTS = [
   'linear-gradient(135deg, #0369A1, #38BDF8)',
 ];
 
-export default function CommentSection({ postId, postOwnerId, postDomain, postBody, canComment: canCommentProp, T, onCommentAdded }) {
+export default function CommentSection({ postId, postOwnerId, postDomain, postBody, linkedVehicleId, canComment: canCommentProp, T, onCommentAdded }) {
   const canComment = canCommentProp;
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -45,6 +51,21 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
     },
     enabled: !!postId,
     staleTime: 30 * 1000,
+  });
+
+  // Linked vehicle for the post (if any) — so the AI keeps the vehicle
+  // context on EVERY follow-up, not just the initial reply. Light query
+  // (no base64 photo). Returns null when the post isn't linked to a car.
+  const { data: linkedVehicle = null } = useQuery({
+    queryKey: ['community_linked_vehicle', linkedVehicleId],
+    queryFn: async () => {
+      try {
+        const rows = await db.vehicles.filter({ id: linkedVehicleId }, { light: true });
+        return rows?.[0] || null;
+      } catch { return null; }
+    },
+    enabled: !!linkedVehicleId,
+    staleTime: 5 * 60 * 1000,
   });
 
   const handleSend = async () => {
@@ -94,17 +115,23 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
       queryClient.invalidateQueries({ queryKey: ['community_comments', postId] });
       onCommentAdded?.();
 
-      // If this is the post owner replying, check if Yossi AI should respond (up to 3 AI replies)
+      // If this is the post owner replying, the AI expert answers the
+      // follow-up. Capped at MAX_AI_REPLIES total (initial + follow-ups)
+      // to bound cost on long threads.
       const isPostOwner = postOwnerId === user.id;
       if (isPostOwner && !anonymous) {
         const aiCount = comments.filter(c => c.is_ai).length;
-        if (aiCount < 3) {
+        if (aiCount < MAX_AI_REPLIES) {
           setAiThinking(true);
           try {
             const { aiRequest } = await import('@/lib/aiProxy');
             const expert = getAiExpertForDomain(postDomain);
-            const isVessel = expert.domain === 'vessel';
-            const systemPrompt = `אתה ${expert.fullName}, ${expert.role}. זו שיחת המשך בפורום. ענה ספציפית לשאלת ההמשך של השואל בקצרה (2-4 משפטים). היה חם ואישי.`;
+            // Same forum-style prompt as the initial reply — direct,
+            // self-contained answers with equal depth (NOT "בקצרה 2-4
+            // משפטים", which was producing shallow follow-ups). The
+            // linked-vehicle context now rides along on every turn.
+            const vehicleContext = buildVehicleContext(linkedVehicle);
+            const systemPrompt = buildCommunitySystemPrompt(expert, { vehicleContext });
             // Read from the fresh query cache — `comments` in closure is
             // captured at render time, BEFORE the user's comment was
             // inserted, so the AI used to miss the latest turn.
@@ -119,49 +146,32 @@ export default function CommentSection({ postId, postOwnerId, postDomain, postBo
               // Surface tag for the analytics dashboard.
               surface: 'community_reply',
               model: 'claude-sonnet-4-20250514',
-              // 400 was hitting the cap mid-word; 800 still left some
-              // bulleted replies clipped. 1500 matches the global default
-              // and gives the model enough room to wrap up a clarification
-              // list or substantive answer in Hebrew (which tokenizes
-              // denser than English). The system prompt still steers
-              // toward "2-4 sentences" so most replies stay short — this
-              // is purely upper headroom so nothing is cut mid-character.
               max_tokens: 1500,
               system: systemPrompt,
               messages: [{
                 role: 'user',
-                content: `פוסט מקורי: ${postBody || ''}\n\nשיחה עד כה:\n${conversationHistory}\n\nתגובה חדשה של השואל: ${userMessage}\n\nענה בקצרה.`,
+                content: `פוסט מקורי: ${postBody || ''}\n\nשיחה עד כה:\n${conversationHistory}\n\nתגובה חדשה של השואל: ${userMessage}`,
               }],
             });
-            const aiText = json?.content?.[0]?.text || '';
+            let aiText = json?.content?.[0]?.text || '';
             if (aiText) {
+              aiText = aiText.replace(/<[^>]*>/g, '');
+              // Mid-thread (on the 3rd AI reply) append a SOFT, value-framed
+              // invite to continue in the private chat — once, not a wall.
+              // The AI keeps answering afterward up to MAX_AI_REPLIES.
+              const replyNumber = aiCount + 1; // 1 = initial, so this is a follow-up
+              if (replyNumber === 3) {
+                aiText = `${aiText}\n\n${buildPrivateChatInvite(expert)}`;
+              }
               await db.community_comments.create({
                 post_id: postId,
                 user_id: null,
                 author_name: expert.communityName,
-                // Raised from 1000 → 2500 (2026-05-28). 1000 was a safety
-                // cap originally paired with max_tokens=400; with the
-                // budget at 1500 a thorough reply can run ~1500-2000 chars
-                // in Hebrew. 2500 fits any reasonable expert answer
-                // without truncating mid-sentence on the DB write.
-                body: aiText.replace(/<[^>]*>/g, '').slice(0, 2500),
+                body: aiText.slice(0, 2500),
                 is_ai: true,
               });
               queryClient.invalidateQueries({ queryKey: ['community_comments', postId] });
               onCommentAdded?.();
-              // After 3rd reply, suggest moving to private AI chat
-              if (aiCount + 1 >= 3) {
-                setTimeout(async () => {
-                  await db.community_comments.create({
-                    post_id: postId,
-                    user_id: null,
-                    author_name: expert.communityName,
-                    body: '💡 הגענו ל-3 תשובות כאן. להמשך שיחה מעמיקה יותר, אני ממליץ לעבור לצ\'אט הייעוץ הפרטי שלי. לחץ על "מומחה AI" בתפריט התחתון.',
-                    is_ai: true,
-                  });
-                  queryClient.invalidateQueries({ queryKey: ['community_comments', postId] });
-                }, 1500);
-              }
             }
           } catch (err) { console.warn('AI reply error:', err?.message); }
           setAiThinking(false);

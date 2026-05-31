@@ -420,6 +420,15 @@ async function callGroq(body: any) {
   }
   const j = await res.json();
   const text = j?.choices?.[0]?.message?.content || '';
+  // Detect truncation. OpenAI/Groq report finish_reason='length' when the
+  // response hit max_tokens and was clipped (often mid-word). Log it so a
+  // recurring clip surfaces in production logs — parity with callGemini's
+  // MAX_TOKENS detection (added 2026-05-31 after the community AI showed a
+  // mid-word "200,000 ק"מ על אא" cutoff).
+  const finishReason = j?.choices?.[0]?.finish_reason;
+  if (finishReason === 'length') {
+    console.warn(`[ai-proxy] groq: response truncated at max_tokens (${body.max_tokens || 400})`);
+  }
   if (!text) {
     console.warn('[ai-proxy] groq: empty completion');
     return null;
