@@ -495,7 +495,12 @@ export default function AuthPage() {
           return;
         }
       } catch {}
-      navigate(createPageUrl('Dashboard'), { replace: true });
+      // Land on `/` and let RootGate pick the correct home (admins →
+      // /AdminHome, everyone else → /Dashboard). Centralizing the choice in
+      // RootGate is what makes "admins always land on AdminHome" reliable —
+      // RootGate waits for the authoritative is_admin() result, whereas a
+      // hard-coded /Dashboard here would bypass that decision entirely.
+      navigate('/', { replace: true });
     }
   }, [isAuthenticated, mode, navigate, holdForRecovery]);
 
