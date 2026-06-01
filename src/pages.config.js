@@ -36,6 +36,7 @@ const TermsOfService = React.lazy(() => import('./pages/TermsOfService'));
 const AddVehicle = React.lazy(() => import('./pages/AddVehicle'));
 const EditVehicle = React.lazy(() => import('./pages/EditVehicle'));
 const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
+const AdminHome = React.lazy(() => import('./pages/AdminHome'));
 const FindGarage = React.lazy(() => import('./pages/FindGarage'));
 const Documents = React.lazy(() => import('./pages/Documents'));
 const Accidents = React.lazy(() => import('./pages/Accidents'));
@@ -109,6 +110,7 @@ export const PAGES = {
     "AddVehicle": AddVehicle,
     "AdminReviews": AdminReviews,
     "AdminDashboard": AdminDashboard,
+    "AdminHome": AdminHome,
     "Dashboard": Dashboard,
     "DemoVehicleDetail": DemoVehicleDetail,
     "Documents": Documents,

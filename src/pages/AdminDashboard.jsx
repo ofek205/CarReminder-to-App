@@ -371,7 +371,17 @@ export default function AdminDashboard() {
   const isAdmin = useIsAdmin();
   const [filter, setFilter]         = useState('week');
   const [segment, setSegment]       = useState('all'); // all | car | motorcycle | truck | vessel | offroad
-  const [adminTab, setAdminTab]     = useState('stats'); // stats | users | messages | bugs
+  // Honour a ?tab= deep-link from the grouped admin nav (e.g.
+  // /AdminDashboard?tab=messages from the תקשורת/תפעול groups). Unknown or
+  // missing values fall back to 'stats'. Read once on mount straight from the
+  // URL so no react-router dependency is needed here.
+  const initialTab = (() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get('tab');
+      return ['stats', 'users', 'popups', 'messages', 'bugs', 'versions'].includes(t) ? t : 'stats';
+    } catch { return 'stats'; }
+  })();
+  const [adminTab, setAdminTab]     = useState(initialTab); // stats | users | popups | messages | bugs | versions
   const [loading, setLoading]       = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3 } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Megaphone, Bug, Smartphone } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -152,17 +152,38 @@ const navItems = [
   // Renamed from "ניהול אדמין" — distinguishes from workspace-level
   // "מנהל" (account manager); this section is system-level admin.
   // ====================================================================
+  // CRM-grade regrouping (Phase 0): the 16 flat admin destinations are now
+  // organized into 5 sections — בית / אנשים / צמיחה / תקשורת / תפעול. Four
+  // of AdminDashboard's tabs (popups, messages, bugs, versions) are exposed
+  // here as deep-links (`Name?tab=...`); the nav renderer already handles the
+  // '?' form, and AdminDashboard reads the ?tab= param on mount. Nothing is
+  // removed — the stats hub stays reachable as "לוח סטטיסטיקה" until the
+  // analytics merge (Phase 3). The last group is "תפעול" (not "מערכת") to
+  // avoid clashing with the master "ניהול מערכת" header.
   { divider: true, title: 'ניהול מערכת', adminOnly: true },
-  { name: 'AdminDashboard',     label: 'לוח ניהול',     icon: ShieldCheck, guestAllowed: false, adminOnly: true },
-  { name: 'AdminUsers',         label: 'משתמשים',       icon: Users,       guestAllowed: false, adminOnly: true },
-  { name: 'AdminAlerts',        label: 'התראות',        icon: Bell,        guestAllowed: false, adminOnly: true },
-  { name: 'AdminAuditLog',     label: 'יומן פעולות',   icon: ClipboardList, guestAllowed: false, adminOnly: true },
-  { name: 'AdminHealth',       label: 'בריאות מערכת',  icon: HeartPulse,    guestAllowed: false, adminOnly: true },
-  { name: 'AdminAnalytics',   label: 'אנליטיקה',      icon: BarChart3,     guestAllowed: false, adminOnly: true },
-  { name: 'EmailCenter',        label: 'מיילים',        icon: Mail,        guestAllowed: false, adminOnly: true },
-  { name: 'AdminAiSettings',    label: 'הגדרות AI',     icon: Sparkles,    guestAllowed: false, adminOnly: true },
-  { name: 'AdminAiUsage',       label: 'שימוש ב-AI',    icon: BarChart3,   guestAllowed: false, adminOnly: true },
-  { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase, guestAllowed: false, adminOnly: true },
+  { name: 'AdminHome',          label: 'בית',           icon: Home,          guestAllowed: false, adminOnly: true },
+
+  { divider: true, title: 'אנשים', adminOnly: true },
+  { name: 'AdminUsers',         label: 'CRM משתמשים',   icon: Users,         guestAllowed: false, adminOnly: true },
+
+  { divider: true, title: 'צמיחה', adminOnly: true },
+  { name: 'AdminDashboard',     label: 'לוח סטטיסטיקה', icon: BarChart3,     guestAllowed: false, adminOnly: true },
+  { name: 'AdminAnalytics',     label: 'אנליטיקה מתקדמת', icon: TrendingUp,  guestAllowed: false, adminOnly: true },
+
+  { divider: true, title: 'תקשורת', adminOnly: true },
+  { name: 'EmailCenter',                label: 'מיילים',  icon: Mail,         guestAllowed: false, adminOnly: true },
+  { name: 'AdminDashboard?tab=popups',  label: 'פופ-אפים', icon: Megaphone,    guestAllowed: false, adminOnly: true },
+  { name: 'AdminDashboard?tab=messages',label: 'הודעות',  icon: MessageSquare, guestAllowed: false, adminOnly: true },
+
+  { divider: true, title: 'תפעול', adminOnly: true },
+  { name: 'AdminHealth',        label: 'בריאות מערכת',  icon: HeartPulse,    guestAllowed: false, adminOnly: true },
+  { name: 'AdminAlerts',        label: 'התראות',        icon: Bell,          guestAllowed: false, adminOnly: true },
+  { name: 'AdminAuditLog',      label: 'יומן פעולות',   icon: ClipboardList, guestAllowed: false, adminOnly: true },
+  { name: 'AdminDashboard?tab=bugs',     label: 'באגים',   icon: Bug,         guestAllowed: false, adminOnly: true },
+  { name: 'AdminDashboard?tab=versions', label: 'גרסאות', icon: Smartphone,  guestAllowed: false, adminOnly: true },
+  { name: 'AdminAiSettings',    label: 'הגדרות AI',     icon: Sparkles,      guestAllowed: false, adminOnly: true },
+  { name: 'AdminAiUsage',       label: 'שימוש ב-AI',    icon: BarChart3,     guestAllowed: false, adminOnly: true },
+  { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase,    guestAllowed: false, adminOnly: true },
 ];
 
 
