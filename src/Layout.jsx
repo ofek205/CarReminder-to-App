@@ -494,7 +494,15 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
 }
 
 function DraggableA11yButton({ onClick }) {
-  const [pos, setPos] = useState({ x: 20, y: window.innerHeight - 160 });
+  // Initial resting spot: bottom-left, lifted high enough to clear the
+  // tallest fixed bottom UI. On the AI-expert chat the fixed composer
+  // sits ~82px + inset above the bottom and is ~64px tall, so its top
+  // edge reaches ~150px. At the old y (innerHeight - 160) the button's
+  // lower edge landed right on the input row and overlapped it. Starting
+  // at innerHeight - 210 puts the button comfortably above the composer
+  // (and well above the ~77px nav on every other screen). Still fully
+  // draggable — this only sets where it first appears.
+  const [pos, setPos] = useState({ x: 20, y: window.innerHeight - 210 });
   const dragging = useRef(false);
   const offset = useRef({ x: 0, y: 0 });
   const moved = useRef(false);

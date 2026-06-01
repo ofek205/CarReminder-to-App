@@ -1218,14 +1218,19 @@ ${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים ל�
       {/* Input area. premium */}
       <div className="fixed left-0 right-0 z-40"
         style={{
-          // Sit flush on top of the BottomNav. MUST mirror the nav's own
-          // footprint from Layout.jsx (60px content + --inset-bottom). The
-          // old value used `56px + env(safe-area-inset-bottom)`, but on
-          // Android env() is 0 (the real gesture-bar inset lives in the
-          // JS-injected --inset-bottom var, NOT in env()), so the composer
-          // sat at 56px while the nav rose to 60px + gesture inset — burying
-          // the text input behind the nav. Using --inset-bottom fixes it.
-          bottom: 'calc(60px + var(--inset-bottom, env(safe-area-inset-bottom, 4px)))',
+          // Sit just above the BottomNav with a small breathing gap. The
+          // base constant MUST clear the nav's real content height from
+          // BottomNav.jsx. That height is NOT 60px: each tab is a w-11 h-11
+          // (44px) tap target + label + the row's py-1 paddings, so the bar
+          // is ~77px tall. The old value hardcoded 60px — a leftover from
+          // when the icons were w-9 h-9 (36px); when the tap targets were
+          // upgraded to 44px the nav grew but this constant didn't, so the
+          // bottom ~17px of the input row were buried behind the nav on BOTH
+          // Android and iOS. 82px = ~77px nav + ~5px gap. The `+ inset` term
+          // still lifts the whole composer above the gesture bar / keyboard
+          // (Android injects keyboard height into --inset-bottom in real
+          // time, so the row keeps riding above the keyboard when it opens).
+          bottom: 'calc(82px + var(--inset-bottom, env(safe-area-inset-bottom, 4px)))',
           background: 'rgba(255,255,255,0.95)',
           backdropFilter: 'blur(12px)',
           borderTop: `1px solid ${C.gray200}`,
