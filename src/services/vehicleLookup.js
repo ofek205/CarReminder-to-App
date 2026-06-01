@@ -86,6 +86,13 @@ const PERSONAL_IMPORT_RESOURCE_ID = '03adc637-b6fe-402b-9937-7c3d3afc9140';
 // SUG_TAKALA (defect type — typically "ליקוי בטיחותי"), TAARICH_PTICHA
 // (recall opening date). 137K records as of 2026-05.
 const OPEN_RECALL_RESOURCE_ID = '36bf1404-0be4-49d2-82dc-2f1ead4a8b93';
+// "Recall" — the master recall-CAMPAIGN catalog (3.6K rows), keyed by
+// RECALL_ID. The per-plate open-recall dataset above tells us WHICH
+// recalls a vehicle has open + their defect text, but not HOW to act on
+// them. Joining on RECALL_ID adds the actionable bits: OFEN_TIKUN (fix
+// method), YEVUAN_TEUR (importer), TELEPHONE + WEBSITE (where to book the
+// repair). Best-effort enrichment — a miss just omits the contact info.
+const RECALL_CAMPAIGN_RESOURCE_ID = '2c33523f-87aa-44ec-a736-edbb0a82975e';
 // "מאגר נתוני כלי טיס ישראליים" — the entire Israeli civil aviation
 // fleet (547 records as of 2026-05). Keyed by `Expr1` which holds the
 // ICAO registration mark (always "4X-XXX" — Israel's national prefix
@@ -1082,13 +1089,50 @@ async function fetchOpenRecalls(plateDigits) {
     const json = await res.json();
     const records = json?.result?.records;
     if (!Array.isArray(records) || records.length === 0) return null;
-    return records.map(r => ({
+    const mapped = records.map(r => ({
       id:           r.RECALL_ID != null ? String(r.RECALL_ID) : null,
       type:         safeStr(r.SUG_RECALL, 60),
       defectType:   safeStr(r.SUG_TAKALA, 60),
       description:  safeStr(r.TEUR_TAKALA, 400),
       openedDate:   safeDate(r.TAARICH_PTICHA),
     }));
+    // Enrich each recall with the campaign catalog (fix method + importer
+    // contact) by RECALL_ID. Best-effort and parallel — a failed/missing
+    // campaign row just leaves the actionable fields undefined.
+    const enriched = await Promise.all(mapped.map(async (rec) => {
+      if (!rec.id) return rec;
+      const campaign = await fetchRecallCampaign(rec.id);
+      return campaign ? { ...rec, ...campaign } : rec;
+    }));
+    return enriched;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch the actionable details for a recall campaign by RECALL_ID from the
+ * master "Recall" catalog. Returns { fixMethod, importer, phone, website }
+ * or null. Best-effort — never throws.
+ */
+async function fetchRecallCampaign(recallId) {
+  try {
+    const filters = JSON.stringify({ RECALL_ID: Number(recallId) });
+    const url = `${API_BASE}?resource_id=${encodeURIComponent(RECALL_CAMPAIGN_RESOURCE_ID)}&filters=${encodeURIComponent(filters)}&limit=1`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const r = json?.result?.records?.[0];
+    if (!r) return null;
+    return {
+      fixMethod: safeStr(r.OFEN_TIKUN, 60),
+      importer:  safeStr(r.YEVUAN_TEUR, 80),
+      phone:     safeStr(r.TELEPHONE, 40),
+      website:   safeStr(r.WEBSITE, 200),
+    };
   } catch {
     return null;
   }

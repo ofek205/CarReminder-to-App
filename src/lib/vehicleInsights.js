@@ -98,6 +98,16 @@ function openRecallInsight(vehicle) {
   const recalls = Array.isArray(vehicle.open_recalls) ? vehicle.open_recalls : [];
   const sample = recalls[0]?.description ? recalls[0].description.slice(0, 140) : null;
   const isSafety = recalls.some(r => /בטיחות/i.test(r.defectType || '') || /בטיחות/i.test(r.type || ''));
+  // Actionable detail from the recall campaign catalog (joined on
+  // RECALL_ID during lookup): how it's fixed + who to call to book it.
+  const first = recalls[0] || {};
+  const fixLine = first.fixMethod ? `אופן התיקון: ${first.fixMethod}.` : null;
+  const contactBits = [
+    first.importer ? `יבואן: ${first.importer}` : null,
+    first.phone ? `טל' ${first.phone}` : null,
+    first.website ? first.website : null,
+  ].filter(Boolean).join(' · ');
+  const contactLine = contactBits ? `לתיאום התיקון — ${contactBits}.` : null;
   return insight(
     'open-recalls',
     'danger',
@@ -105,7 +115,9 @@ function openRecallInsight(vehicle) {
     [
       isSafety ? 'אחת מהקריאות מסווגת כליקוי בטיחותי.' : null,
       sample ? `הראשונה: "${sample}${recalls[0].description.length > 140 ? '…' : ''}".` : null,
+      fixLine,
       'את התיקון אצל היבואן עושים בחינם. אם אתה קונה, זו נקודת מיקוח טובה. בקש שהתיקון יבוצע לפני העברת בעלות.',
+      contactLine,
     ].filter(Boolean).join(' '),
     'recall',
   );
