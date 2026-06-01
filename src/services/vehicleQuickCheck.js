@@ -95,7 +95,14 @@ function normalizeLookupResult(raw, plate) {
       vehicleType: source.vehicle_type || source._detectedTypeLabel,
       detectedType: source._detectedType,
       detectedTypeLabel: source._detectedTypeLabel,
-      status: source._isInactive ? 'לא פעיל' : 'פעיל',
+      // A finalized cancellation (bitul_dt → _cancellationDate) means the
+      // vehicle was REMOVED FROM THE ROAD per the Ministry of Transport —
+      // call it out explicitly so a second-hand buyer can't miss the red
+      // flag. _isInactive without a cancellation date is a lapsed test
+      // (not formally cancelled), so it stays the softer "לא פעיל".
+      status: source._cancellationDate
+        ? 'מורד מהכביש'
+        : (source._isInactive ? 'לא פעיל' : 'פעיל'),
       isVintage,
       displayName: displayName || source.license_plate || plate,
     }),
