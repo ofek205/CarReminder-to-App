@@ -1330,7 +1330,11 @@ export default function AdminDashboard() {
 
 //  Admin Tabs 
 
-function AdminUsersTab({ onOpenDrawer }) {
+// Exported so the unified CRM screen (AdminUsers) can render the SAME
+// account list behind its "חשבונות" lens — one source for the accounts
+// table instead of two. (A future phase extracts this to its own module
+// for code-splitting; for now the export keeps the logic single-sourced.)
+export function AdminUsersTab({ onOpenDrawer }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [rpcMissing, setRpcMissing] = useState(false);
