@@ -11,7 +11,7 @@
  * stripes. Same family as BusinessDashboard / Drivers / Reports so the
  * admin views feel like the rest of the product, not a separate tool.
  */
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import {
@@ -112,11 +112,53 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
     return () => window.removeEventListener('keydown', onKey);
   }, [account, onClose]);
 
+  // Keep the latest onClose in a ref so the history effect below can stay
+  // keyed on account?.id only. The parent passes an inline `() =>
+  // setDrawerAccount(null)` whose identity changes every render — depending
+  // on it directly would re-push a history sentinel on every parent render.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  // Browser-back / Android-back closes the drawer instead of navigating
+  // away from /AdminUsers. Mirrors the NotificationBell pattern: on open
+  // we push a sentinel history entry; "back" pops it and we treat that as
+  // a close. Without this the drawer was pure local state, so a back press
+  // ejected the admin from the whole users page (reported bug).
+  useEffect(() => {
+    if (!account?.id || typeof window === 'undefined') return;
+    try { window.history.pushState({ crDrawerOpen: true }, ''); } catch {}
+
+    // popstate — web browser back + the native back button when
+    // capacitor.js calls history.back().
+    const onPop = () => onCloseRef.current?.();
+    // cr:android-back — fast-path emitted by the native handler before it
+    // touches history. preventDefault tells it we consumed the press.
+    const onAndroidBack = (ev) => { ev.preventDefault(); onCloseRef.current?.(); };
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('cr:android-back', onAndroidBack);
+
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('cr:android-back', onAndroidBack);
+      // Closed by something other than back (X / ESC / backdrop / delete):
+      // the sentinel is still on the stack — pop it so we don't leak a
+      // phantom history entry. Guarded so we only ever pop our own sentinel
+      // (after a real back press the browser already removed it).
+      if (window.history.state?.crDrawerOpen) {
+        try { window.history.back(); } catch {}
+      }
+    };
+  }, [account?.id]);
+
   if (!account) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex justify-start"
+      // z-[9999] sits ABOVE the mobile top bar (z-index 9998 in Layout.jsx).
+      // At the old z-[200] the top bar painted over the drawer's sticky
+      // header on mobile, hiding the close (X) button entirely — the user
+      // had no visible way out. A full-screen modal must cover all chrome.
+      className="fixed inset-0 z-[9999] flex justify-start"
       // start = right edge in RTL, so the drawer slides in from the right.
       // The dark backdrop catches outside-clicks to close.
       onClick={onClose}
