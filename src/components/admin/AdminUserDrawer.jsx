@@ -997,12 +997,19 @@ function SendEmailForm({ email, userId }) {
     if (!canSend) return;
     setSending(true);
     try {
-      const bodyHtml = `<p style="font-size:15px;line-height:1.75;color:${C.gray800};margin:0">${escapeHtml(body).replace(/\n/g, '<br/>')}</p>`;
+      // Render as a personal 1:1 message, NOT a marketing blast. The subject
+      // shows once as the subtitle (not blown up into a duplicate H1), the
+      // body is the message alone, and a neutral title replaces the marketing
+      // tagline — otherwise a two-word note looked sparse and the greeting
+      // appeared 2-3 times (title + body + preheader).
+      const messageHtml = escapeHtml(body).replace(/\n/g, '<br/>');
+      const bodyHtml = `<p style="font-size:15px;line-height:1.8;color:${C.gray800};margin:0">${messageHtml}</p>`;
       const html = buildEmailHtml({
         preheader: subject.trim(),
-        title: subject.trim(),
+        title: 'הודעה מ-CarReminder',
+        subtitle: subject.trim(),
         bodyHtml,
-        footerNote: 'הודעה זו נשלחה אליך מצוות Car Reminder',
+        footerNote: 'קיבלת הודעה זו מצוות CarReminder. אפשר להשיב ישירות למייל הזה.',
       });
       const { error } = await supabase.functions.invoke('send-email', {
         body: {
