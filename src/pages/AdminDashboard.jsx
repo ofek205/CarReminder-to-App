@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import useIsAdmin from '@/hooks/useIsAdmin';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
-import AdminPopupsTab from '../components/admin/AdminPopupsTab';
 import AdminVersionTab from '../components/admin/AdminVersionTab';
 import {
   Users, Shield, TrendingUp, AlertTriangle, Activity, ArrowDown, ChevronDown, ChevronUp,
@@ -378,7 +377,7 @@ export default function AdminDashboard() {
   const initialTab = (() => {
     try {
       const t = new URLSearchParams(window.location.search).get('tab');
-      return ['stats', 'users', 'popups', 'messages', 'bugs', 'versions'].includes(t) ? t : 'stats';
+      return ['stats', 'bugs', 'versions'].includes(t) ? t : 'stats';
     } catch { return 'stats'; }
   })();
   const [adminTab, setAdminTab]     = useState(initialTab); // stats | users | popups | messages | bugs | versions
@@ -1002,11 +1001,12 @@ export default function AdminDashboard() {
         </div>
         {/* Admin tabs */}
         <div className="flex gap-1 px-4 sm:px-6 pb-3 overflow-x-auto">
+          {/* Trimmed to the dashboard's UNIQUE tabs. משתמשים moved to the
+              CRM (AdminUsers), פופ-אפים + הודעות to the comms hub
+              (EmailCenter), סטטיסטיקה overlaps אנליטיקה but is kept for its
+              guest-conversion + top-accounts leaderboards. */}
           {[
             { key: 'stats', label: '📊 סטטיסטיקה' },
-            { key: 'users', label: '👥 משתמשים' },
-            { key: 'popups', label: '🔔 פופ-אפים' },
-            { key: 'messages', label: '📬 הודעות' },
             { key: 'bugs', label: '🐛 באגים' },
             { key: 'versions', label: '📱 גרסאות' },
           ].map(t => (
@@ -1024,10 +1024,7 @@ export default function AdminDashboard() {
 
       <div className="px-4 sm:px-6 py-6 space-y-8 max-w-[1200px] mx-auto">
 
-        {/* Non-stats tabs */}
-        {adminTab === 'users' && <AdminUsersTab onOpenDrawer={setDrawerAccount} />}
-        {adminTab === 'popups' && <AdminPopupsTab />}
-        {adminTab === 'messages' && <AdminMessagesTab />}
+        {/* Non-stats tabs. users → CRM, popups/messages → comms hub. */}
         {adminTab === 'bugs' && <AdminBugsTab />}
         {adminTab === 'versions' && <AdminVersionTab />}
 
