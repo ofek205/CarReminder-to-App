@@ -23,6 +23,16 @@ const CME_RESOURCE_ID = '58dc4654-16b1-42ed-8170-98fadec153ea';
 // (vintage / keepsake / etc.) — but flag it so the UI can warn
 // before silently filling the form.
 const INACTIVE_RESOURCE_ID = '851ecab1-0622-4dbe-a6c7-f950cf82abf9';
+// Historical archives of the SAME "ירדו מהכביש / ביטול סופי" registry,
+// split by cancellation period. ~1.17M vehicles that exist ONLY here —
+// the current INACTIVE_RESOURCE_ID dataset does NOT contain them
+// (verified: a 2004/2014 cancellation returns 0 rows in the current set).
+// Same private-car schema + `bitul_dt`, so mapRecord + the source==='inactive'
+// handling work unchanged. Static archives (2010-2016 frozen since 2021,
+// 2000-2009 manual) so no freshness concern. Probed at the END of the
+// cascade, right after the current cancelled registry.
+const INACTIVE_2010_2016_RESOURCE_ID = '4e6b9724-4c1e-43f0-909a-154d4cc4e046';
+const INACTIVE_2000_2009_RESOURCE_ID = 'ec8cbc34-72e1-4b69-9c48-22821ba0bd6c';
 // "רכב לא פעיל ללא קוד דגם" — vehicles missing a model_cd (older
 // imports, classic cars, custom-built) that lapsed >13 months ago but
 // aren't stolen or finally cancelled. The key insight: this is where
@@ -1304,6 +1314,20 @@ export async function lookupVehicleByPlate(plate) {
   // private-car dataset plus `bitul_dt`.
   if (!records && !isShort) {
     records = await fetchGovApi(INACTIVE_RESOURCE_ID, clean);
+    if (records) source = 'inactive';
+  }
+  // Historical "ירדו מהכביש / ביטול סופי" archives (2010-2016, then
+  // 2000-2009). A vehicle finally cancelled in those periods lives ONLY
+  // here, not in the current cancelled registry above — without these
+  // tiers ~1.17M cancelled vehicles return "not found". Same schema +
+  // `bitul_dt`, so source='inactive' reuses the existing _isInactive +
+  // _cancellationDate handling and the AddVehicle off-road warning.
+  if (!records && !isShort) {
+    records = await fetchGovApi(INACTIVE_2010_2016_RESOURCE_ID, clean);
+    if (records) source = 'inactive';
+  }
+  if (!records && !isShort) {
+    records = await fetchGovApi(INACTIVE_2000_2009_RESOURCE_ID, clean);
     if (records) source = 'inactive';
   }
 
