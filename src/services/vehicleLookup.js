@@ -1109,6 +1109,69 @@ async function fetchGovApi(resourceId, query) {
   }
 }
 
+// Hebrew labels for each detected vehicle type. Shared by the single-
+// match finalizer and the short-plate multi-match decorator so both
+// paths label a vehicle identically.
+const TYPE_LABELS = {
+  motorcycle: 'אופנוע / דו-גלגלי',
+  car:        'רכב פרטי',
+  commercial: 'רכב מסחרי',
+  truck:      'משאית',
+  bus:        'אוטובוס',
+  trailer:    'גרור',
+  cme:        'כלי צמ"ה',
+  collector:  'רכב אספנות',
+};
+
+// Derive the detected vehicle type from the raw record + which registry
+// it came from. Extracted so the single-match finalizer and the short-
+// plate multi-match picker decorator stay in lockstep.
+function computeDetectedType(source, record) {
+  if (source === 'cme' || source === 'inactive_classic') {
+    return detectCollectorType(record, source);
+  }
+  if (source === 'moto') return 'motorcycle';
+  if (source === 'heavy') {
+    // Heavy dataset uses tkina_EU instead of sug_degem.
+    const tk = String(record.tkina_EU || '').toUpperCase();
+    if (tk.startsWith('O')) return 'trailer';
+    if (tk === 'M2' || tk === 'M3') return 'bus';
+    return 'truck';
+  }
+  if (source === 'personal_import') return 'car';
+  // Private-car / inactive datasets share a schema; sug_degem classifies.
+  const sugDegem = String(record.sug_degem || '').toUpperCase();
+  if (sugDegem === 'K') return 'truck';
+  if (sugDegem === 'A') return 'bus';
+  if (sugDegem === 'T') return 'trailer';
+  if (sugDegem === 'M') return 'commercial';
+  return 'car';
+}
+
+// Map a raw record to sanitized fields using the mapper that matches its
+// registry. Mirrors the single-match switch inside lookupVehicleByPlate.
+function mapBySource(source, record) {
+  return source === 'cme'              ? mapCmeRecord(record)
+       : source === 'moto'             ? mapMotoRecord(record)
+       : source === 'heavy'            ? mapHeavyRecord(record)
+       : source === 'inactive_classic' ? mapInactiveNoModelRecord(record)
+       : mapRecord(record);
+}
+
+// Build a fully-decorated candidate (mapped fields + detected type +
+// label) for the short-plate multi-match picker. Enrichment is
+// deliberately skipped for picker candidates — only one will be kept,
+// and the caller re-runs the lookup after the user chooses.
+function decorateShortMatch(source, record) {
+  const fields = mapBySource(source, record);
+  const dt = computeDetectedType(source, record);
+  fields._detectedType = dt;
+  fields._detectedTypeLabel = TYPE_LABELS[dt] || 'רכב';
+  delete fields._tozeret_cd;
+  delete fields._degem_cd;
+  return fields;
+}
+
 /**
  * Looks up a vehicle by its Israeli license plate number.
  * Tries the car API first, then the motorcycle API if not found.
@@ -1149,14 +1212,6 @@ export async function lookupVehicleByPlate(plate) {
   //     active never hits a stale cancelled record by accident.
   let records = null;
   let source = null;
-  // When a SHORT plate (4-6 digits) hits BOTH the inactive-no-model
-  // registry AND the CME registry, the user owns one of them but the
-  // app has no way of knowing which. We surface BOTH so the user can
-  // pick, instead of silently picking one and getting the wrong vehicle.
-  // For real-world example: plate 229080 = 1965 Triumph Herald (classic)
-  // AND 2024 SCHMIDT street sweeper (CME) at the same time.
-  let altRecord = null;
-  let altSource = null;
   const isShort = clean.length < 7;
 
   if (!isShort) {
@@ -1172,30 +1227,57 @@ export async function lookupVehicleByPlate(plate) {
     }
   }
 
-  // Inactive-no-model + CME for short plates → probe in PARALLEL so we
-  // can detect the dual-registry collision case. Both endpoints use
-  // exact-match `filters` (not fulltext) so neither produces spurious
-  // hits — running them concurrently costs the same as either one
-  // alone latency-wise.
+  // Short plates (4-6 digits) can legitimately live in FOUR registries:
+  //   • inactive-no-model (classic collectors) — exact-match filter
+  //   • CME / construction machinery (mispar_tzama) — exact-match filter
+  //   • motorcycles (vintage two-wheelers, e.g. Norton plate 445287)
+  //   • heavy (vintage cars filed as heavy, e.g. 1970 VW plate 275182)
+  // The road-vehicle datasets (moto/heavy) are fulltext-only, so we
+  // exact-match mispar_rechev afterwards to stop a short number from
+  // fuzz-matching a VIN/engine field. Probe all four in PARALLEL and
+  // collect every EXACT hit: one hit → use it (flows through the normal
+  // single-match path below); 2+ hits → the digits collide across
+  // registries (real case: 229080 = Triumph Herald classic + SCHMIDT
+  // sweeper CME) so we return all candidates and let the UI ask.
+  //
+  // PREVIOUS BUG: only classic + CME were probed for short plates, so a
+  // vintage motorcycle or heavy/collector car with a 4-6 digit plate
+  // returned "not found" even though gov.il has it (user report:
+  // plate 275182 = 1970 VW, 2026-06-01).
   if (!records && isShort) {
-    const [classicRes, cmeRes] = await Promise.all([
+    const [classicRes, cmeRes, motoRes, heavyRes] = await Promise.all([
       fetchInactiveNoModelApi(clean).catch(() => null),
       fetchCmeApi(clean).catch(() => null),
+      fetchGovApi(MOTO_RESOURCE_ID, clean).catch(() => null),
+      fetchGovApi(HEAVY_RESOURCE_ID, clean).catch(() => null),
     ]);
-    if (classicRes && cmeRes) {
-      // Dual-registry hit. Pick classic as the "primary" the caller
-      // sees in the single-result path, expose CME as `altRecord` so
-      // the caller can render a "choose which vehicle" dialog.
-      records = classicRes;
-      source = 'inactive_classic';
-      altRecord = cmeRes[0];
-      altSource = 'cme';
-    } else if (classicRes) {
-      records = classicRes;
-      source = 'inactive_classic';
-    } else if (cmeRes) {
-      records = cmeRes;
-      source = 'cme';
+    const exactByRechev = (recs) =>
+      (recs || []).find(r => String(r.mispar_rechev).replace(/\D/g, '') === clean) || null;
+    const candidates = [];
+    if (classicRes) candidates.push({ source: 'inactive_classic', record: classicRes[0] });
+    if (cmeRes)     candidates.push({ source: 'cme',              record: cmeRes[0] });
+    const motoRec = exactByRechev(motoRes);
+    if (motoRec)    candidates.push({ source: 'moto',  record: motoRec });
+    const heavyRec = exactByRechev(heavyRes);
+    if (heavyRec)   candidates.push({ source: 'heavy', record: heavyRec });
+
+    if (candidates.length === 1) {
+      // Single registry hit — feed it into the normal single-match path
+      // (mapper switch + enrichment + detectedType all run below).
+      records = [candidates[0].record];
+      source = candidates[0].source;
+    } else if (candidates.length >= 2) {
+      // Digits exist in 2+ registries → we can't know which vehicle the
+      // user means. Return all as candidates; the UI renders the picker.
+      // Enrichment is skipped (see decorateShortMatch) — only one is kept.
+      return {
+        _multipleMatches: true,
+        plate: clean,
+        matches: candidates.map(c => ({
+          source: c.source,
+          fields: decorateShortMatch(c.source, c.record),
+        })),
+      };
     }
   }
   // For NORMAL plates (7-8 digits), inactive-with-model is the biggest
@@ -1284,44 +1366,6 @@ export async function lookupVehicleByPlate(plate) {
   // see "אספנות" in the category selector and are expected to confirm.
   if (source === 'inactive_classic') {
     fields._isInactive = true;
-  }
-
-  // Dual-registry collision (short plate present in BOTH inactive-no-model
-  // AND CME). The user owns exactly one of these two vehicles — we have
-  // no way to know which, so we return both as candidates and let the
-  // UI ask. Skip the expensive enrichment block for the same reason:
-  // running detailed-specs / ownership / recalls for both vehicles when
-  // only one is going to be kept is wasteful. If the user wants
-  // enrichment, they can re-run the lookup after picking.
-  if (altRecord) {
-    // Decorate the primary (classic) fields with detectedType + label
-    // here, instead of relying on the big switch at the end of the
-    // function (which we're about to skip). Use the shared
-    // detectCollectorType helper so the age threshold / keyword regex
-    // stay consistent with the single-match path.
-    fields._detectedType = detectCollectorType(record, source);
-    fields._detectedTypeLabel = fields._detectedType === 'collector'
-      ? 'רכב אספנות'
-      : 'רכב פרטי';
-    delete fields._tozeret_cd;
-    delete fields._degem_cd;
-
-    // Build the alt (CME) match the same way mapCmeRecord +
-    // detectedType assignment normally would.
-    const altFields = mapCmeRecord(altRecord);
-    altFields._detectedType = detectCollectorType(altRecord, altSource);
-    altFields._detectedTypeLabel = altFields._detectedType === 'collector'
-      ? 'רכב אספנות'
-      : 'כלי צמ"ה';
-
-    return {
-      _multipleMatches: true,
-      plate: clean,
-      matches: [
-        { source,    fields },
-        { source: altSource, fields: altFields },
-      ],
-    };
   }
 
   // Detailed specs lookup + last-test odometer enrichment. Both run
@@ -1424,49 +1468,11 @@ export async function lookupVehicleByPlate(plate) {
 
   // Expose the detected type so callers can warn the user when the
   // selected category doesn't match what the Ministry of Transport says.
-  let detectedType;
-  if (source === 'cme' || source === 'inactive_classic') {
-    // Single source of truth for "is this a collector?" — see
-    // detectCollectorType for the keyword + age threshold rules.
-    // CME falls back to 'cme' when no vintage keyword; inactive_classic
-    // falls back to 'car' (with _isInactive flag already set above so
-    // the caller can show the off-road warning toast).
-    detectedType = detectCollectorType(record, source);
-  } else if (source === 'moto') {
-    detectedType = 'motorcycle';
-  } else if (source === 'heavy') {
-    // Heavy dataset uses tkina_EU instead of sug_degem.
-    const tk = String(record.tkina_EU || '').toUpperCase();
-    if (tk.startsWith('O'))      detectedType = 'trailer';
-    else if (tk === 'M2' || tk === 'M3') detectedType = 'bus';
-    else                         detectedType = 'truck';
-  } else if (source === 'personal_import') {
-    // Personal-import dataset is private-car-only (sug_rechev_nm =
-    // "פרטי נוסעים" on every row I sampled). Mapping to 'car' surfaces
-    // the right category in the AddVehicle category selector.
-    detectedType = 'car';
-  } else {
-    // Private-car dataset OR inactive-vehicle dataset (same schema).
-    // The inactive dataset uses sug_rechev_nm instead of sug_degem
-    // for vehicle classification — fall back to it when present.
-    const sugDegem = String(record.sug_degem || '').toUpperCase();
-    if      (sugDegem === 'K') detectedType = 'truck';
-    else if (sugDegem === 'A') detectedType = 'bus';
-    else if (sugDegem === 'T') detectedType = 'trailer';
-    else if (sugDegem === 'M') detectedType = 'commercial';
-    else                       detectedType = 'car';
-  }
+  // computeDetectedType is the single source of truth (shared with the
+  // short-plate multi-match decorator) — see its definition above.
+  const detectedType = computeDetectedType(source, record);
   fields._detectedType = detectedType;
-  fields._detectedTypeLabel = {
-    motorcycle: 'אופנוע / דו-גלגלי',
-    car: 'רכב פרטי',
-    commercial: 'רכב מסחרי',
-    truck: 'משאית',
-    bus: 'אוטובוס',
-    trailer: 'גרור',
-    cme: 'כלי צמ"ה',
-    collector: 'רכב אספנות',
-  }[detectedType] || 'רכב';
+  fields._detectedTypeLabel = TYPE_LABELS[detectedType] || 'רכב';
 
   return fields;
 }

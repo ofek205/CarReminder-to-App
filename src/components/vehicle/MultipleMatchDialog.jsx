@@ -80,7 +80,7 @@ export default function MultipleMatchDialog({
         </div>
         <div className="text-center space-y-2">
           <h2 id={titleId} className="text-lg font-bold" style={{ color: C.text }}>
-            נמצאו 2 רכבים עם אותה לוחית
+            נמצאו {matches.length} רכבים עם אותה לוחית
           </h2>
           <p className="text-sm leading-relaxed" style={{ color: C.gray500 }}>
             המספר{' '}
@@ -91,7 +91,7 @@ export default function MultipleMatchDialog({
             >
               {plate}
             </span>
-            {' '}רשום במשרד התחבורה כשני רכבים שונים. {questionCopy}
+            {' '}רשום במשרד התחבורה כ-{matches.length} רכבים שונים. {questionCopy}
           </p>
         </div>
         <div className="space-y-2.5">
