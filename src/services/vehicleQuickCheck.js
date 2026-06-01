@@ -28,6 +28,7 @@ const DB_COLUMNS = [
   'inspection_report_expiry_date',
   'ownership_hand', 'ownership_history',
   'is_personal_import', 'personal_import_type',
+  'is_road_removed', 'road_removed_date',
 ];
 
 const NUMBER_FIELDS = new Set([
@@ -267,6 +268,10 @@ function buildVehicleInsertPayload(result, accountId) {
     vehicle_type: source.vehicle_type || source._detectedTypeLabel || 'רכב',
     nickname: source.nickname || [source.manufacturer, source.model].filter(Boolean).join(' ') || undefined,
     is_vintage: source.is_vintage || result?.basicInfo?.isVintage || false,
+    // Removed-from-road: persisted only when the registry carries a final
+    // cancellation date (ביטול סופי), mirroring AddVehicle's mapping.
+    is_road_removed: !!source._cancellationDate,
+    road_removed_date: source._cancellationDate || null,
   };
 
   const clean = {};

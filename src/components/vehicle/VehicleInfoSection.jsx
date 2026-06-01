@@ -1033,6 +1033,27 @@ export default function VehicleInfoSection({ vehicle }) {
         </div>
       )}
 
+      {/*  Removed-from-road badge — vehicle in final-cancellation status
+          per the MoT ("ירדו מהכביש / ביטול סופי"). Red palette: a serious
+          status (no valid test/insurance, can't legally be driven), so it
+          mirrors the vintage/import badge structure but in red. */}
+      {vehicle.is_road_removed && (
+        <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
+          style={{ background: 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)', border: '1.5px solid #FECACA' }}>
+          <span className="text-lg">🚫</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold leading-tight" style={{ color: '#B91C1C' }}>
+              מורד מהכביש (ביטול סופי)
+            </p>
+            <p className="text-[11px] font-medium leading-tight mt-0.5" style={{ color: '#DC2626' }}>
+              {vehicle.road_removed_date
+                ? `לפי משרד התחבורה — תאריך ביטול: ${vehicle.road_removed_date}`
+                : 'לפי משרד התחבורה'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/*  Mileage / Engine hours  */}
       <MileageUpdateWidget vehicle={vehicle} />
 

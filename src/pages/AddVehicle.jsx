@@ -94,6 +94,11 @@ const EMPTY_FORM = {
   // Informational badge only — not user-editable.
   is_personal_import: false,
   personal_import_type: '',
+  // Removed-from-road flag (gov.il "ירדו מהכביש / ביטול סופי" registries).
+  // Set from the lookup's _cancellationDate; drives the "מורד מהכביש" badge
+  // and the "test/insurance not required" note. Not user-editable.
+  is_road_removed: false,
+  road_removed_date: null,
   last_tire_change_date: '',
   km_since_tire_change: '',
   tires_changed_count: 4,  // default assumption: a "tire change" event replaces all 4. User can narrow down.
@@ -644,6 +649,10 @@ export default function AddVehicle() {
     // as a small informational badge — no functional impact.
     is_personal_import:    fields.is_personal_import    || false,
     personal_import_type:  fields.personal_import_type  || '',
+    // Removed-from-road: only when the MoT registry carries a final
+    // cancellation date (ביטול סופי) — NOT for a merely lapsed test.
+    is_road_removed:   !!fields._cancellationDate,
+    road_removed_date: fields._cancellationDate || null,
   });
 
   // Apply lookup result to the form + UI state
@@ -957,7 +966,8 @@ export default function AddVehicle() {
         'offroad_equipment','offroad_usage_type','last_offroad_service_date',
         'inspection_report_expiry_date',
         'ownership_hand','ownership_history',
-        'is_personal_import','personal_import_type'];
+        'is_personal_import','personal_import_type',
+        'is_road_removed','road_removed_date'];
       const cleanData = { account_id: accountId };
       DB_COLUMNS.forEach(k => { if (data[k] !== undefined && data[k] !== null && data[k] !== '') cleanData[k] = data[k]; });
 
@@ -1866,6 +1876,21 @@ export default function AddVehicle() {
                       למוטוקרוס. הוא לא ניתן לרישוי בכביש, ולכן אין לו
                       טסט שנתי ואין חובת ביטוח חובה. השאר (ק"מ + חברת
                       ביטוח) ממשיך להופיע כי הוא כללי. */}
+                  {/* Removed-from-road note: a finally-cancelled vehicle has
+                      no valid annual test or compulsory insurance, so we tell
+                      the user these fields are optional (they stay visible and
+                      fillable — some owners track historical dates). */}
+                  {hasRegistration && form.is_road_removed && (
+                    <div
+                      className="rounded-xl px-3 py-2 text-xs leading-relaxed mb-1"
+                      style={{ background: C.warnSubtle, border: `1.5px solid ${C.warnBorder}`, color: C.warnDark }}
+                      dir="rtl"
+                    >
+                      רכב זה מסומן כ<strong>מורד מהכביש</strong> ברישומי משרד התחבורה
+                      {form.road_removed_date ? ` (תאריך ביטול: ${form.road_removed_date})` : ''}.
+                      {' '}מילוי תאריך טסט או ביטוח אינו חובה.
+                    </div>
+                  )}
                   {hasRegistration && (
                     <div className={`grid gap-3 ${isAviationCategory ? 'grid-cols-1' : 'grid-cols-2'}`}>
                       {/* Aircraft don't have an annual road-test equivalent
