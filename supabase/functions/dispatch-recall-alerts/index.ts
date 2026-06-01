@@ -100,6 +100,22 @@ async function campaignContact(recallId: string) {
   return out;
 }
 
+// Paginated full-table select. PostgREST caps a single select at ~1000
+// rows; without this we'd silently miss vehicles (→ missed recalls) and
+// dedup rows (→ duplicate alerts) once either table grows past 1000.
+async function selectAll(sb: any, table: string, columns: string): Promise<any[]> {
+  const SIZE = 1000;
+  const out: any[] = [];
+  for (let from = 0; ; from += SIZE) {
+    const { data, error } = await sb.from(table).select(columns).range(from, from + SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < SIZE) break;
+  }
+  return out;
+}
+
 serve(async (req) => {
   try {
     if (req.method === 'OPTIONS') return new Response('ok', { status: 200 });
@@ -122,22 +138,30 @@ serve(async (req) => {
       return json({ ok: false, error: 'recall dataset empty/unreachable' }, 502);
     }
 
-    // 2) Our vehicles + owner. Two simple queries (robust vs embedded joins).
-    const { data: vehicles, error: vErr } = await supabase
-      .from('vehicles')
-      .select('id, license_plate, license_plate_normalized, nickname, manufacturer, model, account_id');
-    if (vErr) { await reportEdgeError('load_vehicles', vErr); return json({ error: vErr.message }, 500); }
+    // 2) Our vehicles + owner. Paginated (PostgREST 1000-row cap) so we
+    // never silently skip vehicles once the fleet grows past 1000.
+    let vehicles: any[];
+    try {
+      vehicles = await selectAll(supabase, 'vehicles',
+        'id, license_plate, license_plate_normalized, nickname, manufacturer, model, account_id');
+    } catch (vErr) { await reportEdgeError('load_vehicles', vErr); return json({ error: (vErr as any)?.message }, 500); }
 
-    const accountIds = [...new Set((vehicles || []).map((v: any) => v.account_id).filter(Boolean))];
+    // Resolve account owners. Chunk the .in() list (also 1000-capped, and
+    // a huge IN blows the URL length) into batches.
+    const accountIds = [...new Set(vehicles.map((v: any) => v.account_id).filter(Boolean))];
     const ownerByAccount = new Map<string, string>();
-    if (accountIds.length) {
-      const { data: accts } = await supabase.from('accounts').select('id, owner_user_id').in('id', accountIds);
+    for (let i = 0; i < accountIds.length; i += 500) {
+      const chunk = accountIds.slice(i, i + 500);
+      const { data: accts } = await supabase.from('accounts').select('id, owner_user_id').in('id', chunk);
       for (const a of (accts || [])) if (a.owner_user_id) ownerByAccount.set(a.id, a.owner_user_id);
     }
 
-    // 3) Already-notified (vehicle_id, recall_id) pairs.
-    const { data: existing } = await supabase.from('vehicle_recall_alerts').select('vehicle_id, recall_id');
-    const seen = new Set((existing || []).map((r: any) => `${r.vehicle_id}:${r.recall_id}`));
+    // 3) Already-notified (vehicle_id, recall_id) pairs — paginated so the
+    // dedup set stays complete past 1000 rows (else we'd re-notify).
+    let existing: any[] = [];
+    try { existing = await selectAll(supabase, 'vehicle_recall_alerts', 'vehicle_id, recall_id'); }
+    catch (eErr) { await reportEdgeError('load_dedup', eErr); }
+    const seen = new Set(existing.map((r: any) => `${r.vehicle_id}:${r.recall_id}`));
 
     // 4) Compute NEW matches.
     type NewAlert = { vehicle: any; userId: string; recall: any };
