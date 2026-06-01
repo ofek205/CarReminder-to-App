@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Megaphone, Bug, Smartphone } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -172,9 +172,9 @@ const navItems = [
   { name: 'AdminAiUsage',       label: 'שימוש ב-AI',    icon: BarChart3,     guestAllowed: false, adminOnly: true },
 
   { divider: true, title: 'תקשורת', adminOnly: true },
-  { name: 'EmailCenter',                label: 'מיילים',  icon: Mail,         guestAllowed: false, adminOnly: true },
-  { name: 'AdminDashboard?tab=popups',  label: 'פופ-אפים', icon: Megaphone,    guestAllowed: false, adminOnly: true },
-  { name: 'AdminDashboard?tab=messages',label: 'הודעות',  icon: MessageSquare, guestAllowed: false, adminOnly: true },
+  // EmailCenter is now the comms hub — מיילים / פופ-אפים / הודעות live as
+  // tabs inside it, so the old ?tab= deep-links are gone.
+  { name: 'EmailCenter',        label: 'מרכז תקשורת',   icon: Mail,          guestAllowed: false, adminOnly: true },
 
   { divider: true, title: 'תפעול', adminOnly: true },
   { name: 'AdminHealth',        label: 'בריאות מערכת',  icon: HeartPulse,    guestAllowed: false, adminOnly: true },

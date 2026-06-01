@@ -2034,7 +2034,9 @@ function exportMessagesCsv(rows) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function AdminMessagesTab() {
+// Exported so the comms hub (EmailCenter) can render the contact-messages
+// inbox as a tab — one source for the messages list instead of a duplicate.
+export function AdminMessagesTab() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setMsgFilter] = useState('all');
