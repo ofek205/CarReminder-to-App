@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { withTimeout } from "@/lib/supabaseQuery";
@@ -305,7 +305,129 @@ export default function AdminAnalytics() {
 
       <EmailCard stats={email_stats} />
       <CohortCard cohorts={cohorts} />
+      <AiUsageCard />
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// AiUsageCard — folds AI usage analytics into the analytics hub (Phase 3).
+// Own lightweight query on ai_usage_logs (last 30d) so it stays isolated
+// from the main admin_analytics_summary fetch. Shows headline usage KPIs +
+// a per-feature breakdown, and links to /AdminAiUsage for the full detail
+// (heavy-user list, hourly histogram, quota) and the kill-switch flags.
+// ──────────────────────────────────────────────────────────────────
+const AI_FEATURE_LABEL = {
+  yossi_chat:       'מומחה AI',
+  community_expert: 'תגובות קהילה',
+  scan_extraction:  'סריקת מסמכים',
+};
+
+function AiUsageCard() {
+  const navigate = useNavigate();
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ['admin-analytics-ai-usage'],
+    queryFn: async () => {
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: result, error } = await withTimeout(
+        supabase
+          .from('ai_usage_logs')
+          .select('user_id, feature, total_tokens, had_attachment, created_at')
+          .gte('created_at', since)
+          .limit(5000),
+        'ai_usage_logs_summary'
+      );
+      if (error) throw error;
+      return result || [];
+    },
+    retry: 1,
+    retryDelay: 500,
+    staleTime: 120_000,
+  });
+
+  const summary = useMemo(() => {
+    const users = new Set();
+    let tokens = 0, withAttach = 0;
+    const byFeature = new Map();
+    for (const r of rows) {
+      if (r.user_id) users.add(r.user_id);
+      tokens += r.total_tokens || 0;
+      if (r.had_attachment) withAttach += 1;
+      const f = r.feature || 'אחר';
+      byFeature.set(f, (byFeature.get(f) || 0) + 1);
+    }
+    const features = [...byFeature.entries()]
+      .map(([feature, count]) => ({ feature, count }))
+      .sort((a, b) => b.count - a.count);
+    return {
+      requests: rows.length,
+      tokens,
+      users: users.size,
+      attachPct: rows.length ? Math.round((withAttach / rows.length) * 100) : 0,
+      features,
+    };
+  }, [rows]);
+
+  return (
+    <Card className="p-4 mt-4">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <Zap className="w-4 h-4" style={{ color: BI.purple }} />
+          <h3 className="text-sm font-bold text-gray-800">שימוש ב-AI (30 ימים)</h3>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => navigate('/AdminAiUsage')} className="gap-1 text-xs">
+          לפירוט מלא
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <p className="text-xs text-gray-400 text-center py-6">טוען…</p>
+      ) : isError ? (
+        <div className="text-center py-6">
+          <p className="text-xs text-gray-400 mb-2">לא הצלחנו לטעון נתוני AI</p>
+          <Button size="sm" variant="outline" onClick={() => refetch()}>נסה שוב</Button>
+        </div>
+      ) : summary.requests === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-6">אין שימוש ב-AI בתקופה זו</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+            <div className="text-center">
+              <p className="text-2xl font-bold" style={{ color: BI.purple }} dir="ltr">{summary.requests}</p>
+              <p className="text-[11px] text-gray-500">בקשות</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold" style={{ color: BI.blue }} dir="ltr">{summary.tokens.toLocaleString()}</p>
+              <p className="text-[11px] text-gray-500">טוקנים</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold" style={{ color: BI.green }} dir="ltr">{summary.users}</p>
+              <p className="text-[11px] text-gray-500">משתמשים</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold" style={{ color: BI.amber }} dir="ltr">{summary.attachPct}%</p>
+              <p className="text-[11px] text-gray-500">עם קובץ</p>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            {summary.features.map(({ feature, count }) => {
+              const pct = summary.requests ? Math.round((count / summary.requests) * 100) : 0;
+              return (
+                <div key={feature}>
+                  <div className="flex items-center justify-between text-[11px] mb-0.5">
+                    <span className="text-gray-700">{AI_FEATURE_LABEL[feature] || feature}</span>
+                    <span className="tabular-nums text-gray-500" dir="ltr">{count} · {pct}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#F1F5F9' }}>
+                    <div className="h-full" style={{ width: `${pct}%`, background: BI.purple }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </Card>
   );
 }
 

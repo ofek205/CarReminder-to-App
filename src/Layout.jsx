@@ -168,7 +168,8 @@ const navItems = [
 
   { divider: true, title: 'צמיחה', adminOnly: true },
   { name: 'AdminDashboard',     label: 'לוח סטטיסטיקה', icon: BarChart3,     guestAllowed: false, adminOnly: true },
-  { name: 'AdminAnalytics',     label: 'אנליטיקה מתקדמת', icon: TrendingUp,  guestAllowed: false, adminOnly: true },
+  { name: 'AdminAnalytics',     label: 'אנליטיקה',      icon: TrendingUp,    guestAllowed: false, adminOnly: true },
+  { name: 'AdminAiUsage',       label: 'שימוש ב-AI',    icon: BarChart3,     guestAllowed: false, adminOnly: true },
 
   { divider: true, title: 'תקשורת', adminOnly: true },
   { name: 'EmailCenter',                label: 'מיילים',  icon: Mail,         guestAllowed: false, adminOnly: true },
@@ -182,7 +183,6 @@ const navItems = [
   { name: 'AdminDashboard?tab=bugs',     label: 'באגים',   icon: Bug,         guestAllowed: false, adminOnly: true },
   { name: 'AdminDashboard?tab=versions', label: 'גרסאות', icon: Smartphone,  guestAllowed: false, adminOnly: true },
   { name: 'AdminAiSettings',    label: 'הגדרות AI',     icon: Sparkles,      guestAllowed: false, adminOnly: true },
-  { name: 'AdminAiUsage',       label: 'שימוש ב-AI',    icon: BarChart3,     guestAllowed: false, adminOnly: true },
   { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase,    guestAllowed: false, adminOnly: true },
 ];
 
