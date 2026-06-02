@@ -92,36 +92,10 @@ function inactiveInsight(vehicle) {
   );
 }
 
-function openRecallInsight(vehicle) {
-  const count = Number(vehicle.open_recalls_count);
-  if (!Number.isFinite(count) || count <= 0) return null;
-  const recalls = Array.isArray(vehicle.open_recalls) ? vehicle.open_recalls : [];
-  const sample = recalls[0]?.description ? recalls[0].description.slice(0, 140) : null;
-  const isSafety = recalls.some(r => /בטיחות/i.test(r.defectType || '') || /בטיחות/i.test(r.type || ''));
-  // Actionable detail from the recall campaign catalog (joined on
-  // RECALL_ID during lookup): how it's fixed + who to call to book it.
-  const first = recalls[0] || {};
-  const fixLine = first.fixMethod ? `אופן התיקון: ${first.fixMethod}.` : null;
-  const contactBits = [
-    first.importer ? `יבואן: ${first.importer}` : null,
-    first.phone ? `טל' ${first.phone}` : null,
-    first.website ? first.website : null,
-  ].filter(Boolean).join(' · ');
-  const contactLine = contactBits ? `לתיאום התיקון — ${contactBits}.` : null;
-  return insight(
-    'open-recalls',
-    'danger',
-    count === 1 ? 'יש קריאת recall פתוחה לרכב הזה' : `יש ${count} קריאות recall פתוחות`,
-    [
-      isSafety ? 'אחת מהקריאות מסווגת כליקוי בטיחותי.' : null,
-      sample ? `הראשונה: "${sample}${recalls[0].description.length > 140 ? '…' : ''}".` : null,
-      fixLine,
-      'את התיקון אצל היבואן עושים בחינם. אם אתה קונה, זו נקודת מיקוח טובה. בקש שהתיקון יבוצע לפני העברת בעלות.',
-      contactLine,
-    ].filter(Boolean).join(' '),
-    'recall',
-  );
-}
+// NOTE: open recalls used to be a (verbose) text insight here. They are now
+// rendered as the dedicated, actionable <RecallCard /> (clickable importer
+// phone + recall site + model/year match). The builder was removed to avoid
+// duplicating the card on the check report.
 
 function testStatusInsight(vehicle) {
   const days = daysUntil(vehicle.test_due_date || vehicle.inspection_report_expiry_date);
@@ -339,7 +313,8 @@ export function generateVehicleInsights(vehicle = {}) {
   // data isn't there or the deviation isn't worth flagging.
   const candidates = [
     inactiveInsight(vehicle),
-    openRecallInsight(vehicle),
+    // open recalls are now surfaced via the dedicated <RecallCard /> (with
+    // clickable importer phone + recall site), not as a dense text insight.
     testStatusInsight(vehicle),
     cmeMissingCertInsight(vehicle),
     rapidHandoverInsight(vehicle, age),
