@@ -166,7 +166,7 @@ serve(async (req) => {
     // 4) Compute NEW matches.
     type NewAlert = { vehicle: any; userId: string; recall: any };
     const newAlerts: NewAlert[] = [];
-    for (const v of (vehicles || [])) {
+    for (const v of vehicles) {
       const plate = digits(v.license_plate_normalized || v.license_plate);
       if (!plate) continue;
       const recalls = recallMap.get(plate);
@@ -183,7 +183,7 @@ serve(async (req) => {
       return json({
         ok: true, dry_run: true,
         recall_plates: recallMap.size,
-        vehicles_scanned: vehicles?.length || 0,
+        vehicles_scanned: vehicles.length,
         new_alerts: newAlerts.length,
         sample: newAlerts.slice(0, 20).map(a => ({
           plate: a.vehicle.license_plate, recall_id: a.recall.recall_id,
@@ -193,7 +193,7 @@ serve(async (req) => {
     }
 
     // 5) Notify + record dedup.
-    let sent = 0, failed = 0;
+    let sent = 0, failed = 0, dedupErrors = 0;
     for (const a of newAlerts) {
       const name = (a.vehicle.nickname || [a.vehicle.manufacturer, a.vehicle.model].filter(Boolean).join(' ') || 'הרכב שלך').trim();
       const contact = a.recall.recall_id ? await campaignContact(a.recall.recall_id) : null;
@@ -201,36 +201,48 @@ serve(async (req) => {
       const phonePart = contact?.phone ? ` לתיאום מול היבואן: ${contact.phone}.` : '';
       const title = 'קריאת ריקול פתוחה לרכב שלך';
       const body = `${name}: ${defect}. התיקון אצל היבואן ללא עלות.${phonePart}`;
-      try {
-        const { error: nErr } = await supabase.from('app_notifications').insert({
-          user_id: a.userId,
-          type: 'recall',
-          title,
-          body,
-          data: {
-            vehicle_id: a.vehicle.id,
-            recall_id: a.recall.recall_id,
-            plate: a.vehicle.license_plate,
-            defect_type: a.recall.defectType || null,
-            phone: contact?.phone || null,
-            website: contact?.website || null,
-          },
-        });
-        if (nErr) throw nErr;
-        // Record dedup AFTER a successful notification insert.
-        await supabase.from('vehicle_recall_alerts').insert({
-          vehicle_id: a.vehicle.id, user_id: a.userId,
-          recall_id: a.recall.recall_id, defect,
-        });
-        sent++;
-      } catch (err) {
+
+      // Notify FIRST. If the notification insert fails we must NOT write a
+      // dedup row — that would suppress this alert forever. Only a confirmed
+      // send earns a dedup record.
+      const { error: nErr } = await supabase.from('app_notifications').insert({
+        user_id: a.userId,
+        type: 'recall',
+        title,
+        body,
+        data: {
+          vehicle_id: a.vehicle.id,
+          recall_id: a.recall.recall_id,
+          plate: a.vehicle.license_plate,
+          defect_type: a.recall.defectType || null,
+          phone: contact?.phone || null,
+          website: contact?.website || null,
+        },
+      });
+      if (nErr) {
         failed++;
-        await reportEdgeError('notify_recall', err, { vehicle_id: a.vehicle.id, recall_id: a.recall.recall_id });
+        await reportEdgeError('notify_recall', nErr, { vehicle_id: a.vehicle.id, recall_id: a.recall.recall_id });
+        await new Promise(r => setTimeout(r, 120));
+        continue;
+      }
+      sent++;
+
+      // Record dedup idempotently: ignoreDuplicates makes a retried/concurrent
+      // run a no-op. A dedup-only write failure is logged but NOT counted as a
+      // send failure (the user already got the notification) — worst case it
+      // re-notifies next run, which is better than silently dropping it.
+      const { error: dErr } = await supabase.from('vehicle_recall_alerts').upsert(
+        { vehicle_id: a.vehicle.id, user_id: a.userId, recall_id: a.recall.recall_id, defect },
+        { onConflict: 'vehicle_id,recall_id', ignoreDuplicates: true },
+      );
+      if (dErr) {
+        dedupErrors++;
+        await reportEdgeError('dedup_write', dErr, { vehicle_id: a.vehicle.id, recall_id: a.recall.recall_id });
       }
       await new Promise(r => setTimeout(r, 120)); // gentle pacing
     }
 
-    return json({ ok: true, recall_plates: recallMap.size, vehicles_scanned: vehicles?.length || 0, new_alerts: newAlerts.length, sent, failed });
+    return json({ ok: true, recall_plates: recallMap.size, vehicles_scanned: vehicles.length, new_alerts: newAlerts.length, sent, failed, dedup_errors: dedupErrors });
   } catch (err: any) {
     await reportEdgeError('recall_main', err);
     return json({ error: err?.message || 'Unknown error' }, 500);
