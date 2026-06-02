@@ -1139,6 +1139,22 @@ async function fetchRecallCampaign(recallId) {
 }
 
 /**
+ * Public helper — open recalls for a saved vehicle's plate, enriched with
+ * campaign contact info. Used by the vehicle screen's RecallCard (the
+ * recall data isn't persisted on the vehicle, so it's fetched on demand,
+ * best-effort). Returns an array of recalls or null (no recall / failed).
+ */
+export async function fetchOpenRecallsForPlate(plate) {
+  const clean = String(plate || '').replace(/\D/g, '');
+  if (clean.length < 4 || clean.length > 8) return null;
+  try {
+    return await fetchOpenRecalls(clean);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Looks up a vehicle by its Israeli license plate number.
  * Returns registration data + detailed tech specs merged together.
  */

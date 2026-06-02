@@ -13,6 +13,8 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '../shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
+import RecallCard from './RecallCard';
+import { fetchOpenRecallsForPlate } from '@/services/vehicleLookup';
 import { C, getTheme } from '@/lib/designTokens';
 import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
@@ -1000,6 +1002,23 @@ export default function VehicleInfoSection({ vehicle }) {
   const extStatus      = vesselMode ? getDateStatus(vehicle.fire_extinguisher_expiry_date) : null;
   const lifeRaftStatus = vesselMode ? getDateStatus(vehicle.life_raft_expiry_date) : null;
 
+  // Open recalls aren't stored on the vehicle — fetch them on demand from
+  // the MoT registry (best-effort). The RecallCard renders nothing on
+  // empty/error, so a miss is invisible. Re-runs only when the plate changes.
+  const [recalls, setRecalls] = useState(null);
+  const [recallsLoading, setRecallsLoading] = useState(false);
+  const recallPlate = vehicle.license_plate_normalized || vehicle.license_plate;
+  useEffect(() => {
+    let alive = true;
+    if (!recallPlate) { setRecalls(null); return undefined; }
+    setRecallsLoading(true);
+    fetchOpenRecallsForPlate(recallPlate)
+      .then((r) => { if (alive) setRecalls(Array.isArray(r) ? r : null); })
+      .catch(() => { if (alive) setRecalls(null); })
+      .finally(() => { if (alive) setRecallsLoading(false); });
+    return () => { alive = false; };
+  }, [recallPlate]);
+
   return (
     <div className="space-y-4" dir="rtl">
 
@@ -1053,6 +1072,10 @@ export default function VehicleInfoSection({ vehicle }) {
           </div>
         </div>
       )}
+
+      {/*  Open recalls (קריאות שירות / ריקול) — actionable safety card.
+          Fetched on demand above; renders nothing when there are none. */}
+      <RecallCard recalls={recalls} loading={recallsLoading} />
 
       {/*  Mileage / Engine hours  */}
       <MileageUpdateWidget vehicle={vehicle} />
