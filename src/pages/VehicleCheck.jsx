@@ -13,6 +13,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import LicensePlate from '@/components/shared/LicensePlate';
 import MultipleMatchDialog from '@/components/vehicle/MultipleMatchDialog';
+import RecallCard from '@/components/vehicle/RecallCard';
 import { Button } from '@/components/ui/button';
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
@@ -397,6 +398,10 @@ export default function VehicleCheck() {
         {result && status === 'success' && (
           <div className="space-y-5">
             <SummaryCard result={result} />
+            {/* Open recalls — top priority safety flag, shown as an
+                actionable card (clickable importer phone + recall site)
+                above the general insights. */}
+            <RecallCard recalls={result.additional?.openRecalls} />
             <MarketAnecdote result={result} />
             <Insights insights={result.insights} />
             <KeyInfoGrid result={result} />

@@ -1132,6 +1132,16 @@ async function fetchRecallCampaign(recallId) {
       importer:  safeStr(r.YEVUAN_TEUR, 80),
       phone:     safeStr(r.TELEPHONE, 40),
       website:   safeStr(r.WEBSITE, 200),
+      // Matching/validity context: which model + production-year range the
+      // recall campaign covers, and when it was issued. Lets the UI show the
+      // buyer this recall really applies to their vehicle (the per-plate
+      // dataset already guarantees it; the model/years build trust) and that
+      // it's still open (recalls don't expire — they only get fulfilled).
+      campaignModel:        safeStr(r.DEGEM, 40),
+      campaignManufacturer: safeStr(r.TOZAR_TEUR, 40),
+      recallYear:           safeYear(r.SHNAT_RECALL),
+      buildFrom:            String(r.BUILD_BEGIN_A || '').slice(0, 4),
+      buildTo:              String(r.BUILD_END_A || '').slice(0, 4),
     };
   } catch {
     return null;

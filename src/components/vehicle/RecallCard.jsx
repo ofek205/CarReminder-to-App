@@ -91,6 +91,14 @@ export default function RecallCard({ recalls, loading = false }) {
         {list.map((rec, idx) => {
           const href = toHref(rec.website);
           const phone = (rec.phone || '').trim();
+          // "This recall applies to your vehicle" line — model + production
+          // years from the campaign catalog (the per-plate match already
+          // guarantees relevance; this shows the buyer WHY).
+          const matchBits = [
+            [rec.campaignManufacturer, rec.campaignModel].filter(Boolean).join(' ').trim(),
+            (rec.buildFrom && rec.buildTo) ? `שנות ייצור ${rec.buildFrom}–${rec.buildTo}` : null,
+            rec.recallYear ? `פורסם ${rec.recallYear}` : null,
+          ].filter(Boolean).join(' · ');
           return (
             <div
               key={rec.id || idx}
@@ -103,8 +111,21 @@ export default function RecallCard({ recalls, loading = false }) {
                 </p>
               )}
 
+              {/* Applies-to line — confirms the recall matches this vehicle */}
+              {matchBits && (
+                <p className="text-[11px] mt-1.5" style={{ color: '#8B9C8E' }}>
+                  חל על: {matchBits}
+                </p>
+              )}
+
               {/* Meta chips */}
               <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                {/* Open status — recalls don't expire; an open one is simply
+                    not-yet-performed, so it's always actionable. */}
+                <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold"
+                  style={{ background: '#FEF3C7', color: '#92400E' }}>
+                  טרם טופל
+                </span>
                 {rec.defectType && (
                   <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold"
                     style={{ background: '#FEF2F2', color: '#B91C1C' }}>
