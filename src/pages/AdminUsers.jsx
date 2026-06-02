@@ -34,6 +34,7 @@ import {
 import PageHeader from "../components/shared/PageHeader";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import AdminUserDrawer from "../components/admin/AdminUserDrawer";
+import { AdminUsersTab } from "./AdminDashboard";
 import useIsAdmin from "@/hooks/useIsAdmin";
 import {
   Search,
@@ -195,6 +196,11 @@ export default function AdminUsers() {
 
   const [drawerAccount, setDrawerAccount] = useState(null);
 
+  // CRM lens: "people" (one row per person, admin_user_list) vs "accounts"
+  // (one row per account, the shared AdminUsersTab). Both open the same
+  // AdminUserDrawer dossier.
+  const [crmMode, setCrmMode] = useState("people");
+
   const { data: users = [], isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["admin-user-list"],
     queryFn: async () => {
@@ -343,8 +349,33 @@ export default function AdminUsers() {
       dir="rtl"
       style={{ fontVariantNumeric: "tabular-nums" }}
     >
-      <PageHeader title="ניהול משתמשים" subtitle="כל החשבונות הרשומים במערכת" />
+      <PageHeader title="ניהול משתמשים" subtitle="לקוחות המערכת — לפי אדם או לפי חשבון" />
 
+      {/* CRM lens toggle — one screen, two views. "אנשים" = per-person
+          (admin_user_list); "חשבונות" = per-account (shared AdminUsersTab).
+          Both open the same AdminUserDrawer. */}
+      <div className="flex gap-1 mb-4 p-1 rounded-xl bg-gray-100 w-fit">
+        {[
+          { key: "people",   label: "אנשים" },
+          { key: "accounts", label: "חשבונות" },
+        ].map((m) => (
+          <button
+            key={m.key}
+            type="button"
+            onClick={() => setCrmMode(m.key)}
+            className={`text-xs font-bold px-4 py-1.5 rounded-lg transition ${
+              crmMode === m.key ? "bg-white shadow-sm text-gray-900" : "text-gray-500"
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {crmMode === "accounts" ? (
+        <AdminUsersTab onOpenDrawer={setDrawerAccount} />
+      ) : (
+      <>
       {/* Guest conversion banner */}
       {guestStats && guestStats.guests > 0 && (
         <Card className="p-3 mb-3 flex items-center justify-between flex-wrap gap-2" style={{ borderRight: `3px solid ${C.warn}`, background: C.warnBg }}>
@@ -452,7 +483,10 @@ export default function AdminUsers() {
         </div>
       )}
 
-      {/* Drawer */}
+      </>
+      )}
+
+      {/* Drawer — shared by both lenses */}
       <AdminUserDrawer
         account={drawerAccount}
         onClose={() => setDrawerAccount(null)}

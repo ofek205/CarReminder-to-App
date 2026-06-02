@@ -4,7 +4,7 @@ import useIsAdmin from '@/hooks/useIsAdmin';
 import { useEmailNotifications } from '@/hooks/useEmailAdmin';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import PageHeader from '@/components/shared/PageHeader';
-import { Mail, ShieldAlert, FileText, Zap, ListTree } from 'lucide-react';
+import { Mail, ShieldAlert, FileText, Zap, ListTree, Megaphone, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import KillSwitchBanner from '@/components/admin/KillSwitchBanner';
@@ -15,6 +15,8 @@ import TriggersTab from '@/components/admin/TriggersTab';
 import SendLogTab from '@/components/admin/SendLogTab';
 import StatsStrip from '@/components/admin/StatsStrip';
 import BroadcastDialog from '@/components/admin/BroadcastDialog';
+import AdminPopupsTab from '@/components/admin/AdminPopupsTab';
+import { AdminMessagesTab } from './AdminDashboard';
 import { C } from '@/lib/designTokens';
 
 /**
@@ -86,8 +88,8 @@ export default function EmailCenter() {
   return (
     <div dir="rtl" className="min-h-screen pb-24" style={{ background: '#F4F7F3' }}>
       <PageHeader
-        title="מרכז ניהול מיילים"
-        subtitle="תבניות, טריגרים, לוג שליחה ו-Kill Switch"
+        title="מרכז תקשורת"
+        subtitle="מיילים, פופ-אפים והודעות מהמשתמשים"
         icon={Mail}
       />
 
@@ -105,6 +107,12 @@ export default function EmailCenter() {
             </TabsTrigger>
             <TabsTrigger value="log" className="gap-2 rounded-xl">
               <ListTree className="w-4 h-4" /> לוג שליחה
+            </TabsTrigger>
+            <TabsTrigger value="popups" className="gap-2 rounded-xl">
+              <Megaphone className="w-4 h-4" /> פופ-אפים
+            </TabsTrigger>
+            <TabsTrigger value="messages" className="gap-2 rounded-xl">
+              <MessageSquare className="w-4 h-4" /> הודעות
             </TabsTrigger>
           </TabsList>
 
@@ -142,6 +150,14 @@ export default function EmailCenter() {
 
           <TabsContent value="log" className="m-0">
             <SendLogTab />
+          </TabsContent>
+
+          <TabsContent value="popups" className="m-0">
+            <AdminPopupsTab />
+          </TabsContent>
+
+          <TabsContent value="messages" className="m-0">
+            <AdminMessagesTab />
           </TabsContent>
         </Tabs>
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, ShieldCheck, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3 } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -152,17 +152,38 @@ const navItems = [
   // Renamed from "ניהול אדמין" — distinguishes from workspace-level
   // "מנהל" (account manager); this section is system-level admin.
   // ====================================================================
+  // CRM-grade regrouping (Phase 0): the 16 flat admin destinations are now
+  // organized into 5 sections — בית / אנשים / צמיחה / תקשורת / תפעול. Four
+  // of AdminDashboard's tabs (popups, messages, bugs, versions) are exposed
+  // here as deep-links (`Name?tab=...`); the nav renderer already handles the
+  // '?' form, and AdminDashboard reads the ?tab= param on mount. Nothing is
+  // removed — the stats hub stays reachable as "לוח סטטיסטיקה" until the
+  // analytics merge (Phase 3). The last group is "תפעול" (not "מערכת") to
+  // avoid clashing with the master "ניהול מערכת" header.
   { divider: true, title: 'ניהול מערכת', adminOnly: true },
-  { name: 'AdminDashboard',     label: 'לוח ניהול',     icon: ShieldCheck, guestAllowed: false, adminOnly: true },
-  { name: 'AdminUsers',         label: 'משתמשים',       icon: Users,       guestAllowed: false, adminOnly: true },
-  { name: 'AdminAlerts',        label: 'התראות',        icon: Bell,        guestAllowed: false, adminOnly: true },
-  { name: 'AdminAuditLog',     label: 'יומן פעולות',   icon: ClipboardList, guestAllowed: false, adminOnly: true },
-  { name: 'AdminHealth',       label: 'בריאות מערכת',  icon: HeartPulse,    guestAllowed: false, adminOnly: true },
-  { name: 'AdminAnalytics',   label: 'אנליטיקה',      icon: BarChart3,     guestAllowed: false, adminOnly: true },
-  { name: 'EmailCenter',        label: 'מיילים',        icon: Mail,        guestAllowed: false, adminOnly: true },
-  { name: 'AdminAiSettings',    label: 'הגדרות AI',     icon: Sparkles,    guestAllowed: false, adminOnly: true },
-  { name: 'AdminAiUsage',       label: 'שימוש ב-AI',    icon: BarChart3,   guestAllowed: false, adminOnly: true },
-  { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase, guestAllowed: false, adminOnly: true },
+  { name: 'AdminHome',          label: 'בית',           icon: Home,          guestAllowed: false, adminOnly: true },
+
+  { divider: true, title: 'אנשים', adminOnly: true },
+  { name: 'AdminUsers',         label: 'CRM משתמשים',   icon: Users,         guestAllowed: false, adminOnly: true },
+
+  { divider: true, title: 'צמיחה', adminOnly: true },
+  { name: 'AdminDashboard',     label: 'לוח סטטיסטיקה', icon: BarChart3,     guestAllowed: false, adminOnly: true },
+  { name: 'AdminAnalytics',     label: 'אנליטיקה',      icon: TrendingUp,    guestAllowed: false, adminOnly: true },
+  { name: 'AdminAiUsage',       label: 'שימוש ב-AI',    icon: BarChart3,     guestAllowed: false, adminOnly: true },
+
+  { divider: true, title: 'תקשורת', adminOnly: true },
+  // EmailCenter is now the comms hub — מיילים / פופ-אפים / הודעות live as
+  // tabs inside it, so the old ?tab= deep-links are gone.
+  { name: 'EmailCenter',        label: 'מרכז תקשורת',   icon: Mail,          guestAllowed: false, adminOnly: true },
+
+  { divider: true, title: 'תפעול', adminOnly: true },
+  { name: 'AdminHealth',        label: 'בריאות מערכת',  icon: HeartPulse,    guestAllowed: false, adminOnly: true },
+  { name: 'AdminAlerts',        label: 'התראות',        icon: Bell,          guestAllowed: false, adminOnly: true },
+  { name: 'AdminAuditLog',      label: 'יומן פעולות',   icon: ClipboardList, guestAllowed: false, adminOnly: true },
+  { name: 'AdminDashboard?tab=bugs',     label: 'באגים',   icon: Bug,         guestAllowed: false, adminOnly: true },
+  { name: 'AdminDashboard?tab=versions', label: 'גרסאות', icon: Smartphone,  guestAllowed: false, adminOnly: true },
+  { name: 'AdminAiSettings',    label: 'הגדרות AI',     icon: Sparkles,      guestAllowed: false, adminOnly: true },
+  { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase,    guestAllowed: false, adminOnly: true },
 ];
 
 
@@ -419,9 +440,28 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
       <nav className={`flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5 ${isMobile ? 'pb-4' : ''}`} dir="rtl">
         {visibleItems.map((item, i) => {
           if (item.divider) {
+            // The admin area gets a distinct visual zone so it never blends
+            // into the regular app features (user feedback: "looks the same").
+            // The master "ניהול מערכת" divider renders as a bold tinted zone
+            // header (shield + אדמין badge); its sub-group dividers use the
+            // slate admin accent so they read as part of that zone, and the
+            // admin nav items below switch to a slate palette (vs the app's
+            // green) — see the Link styling.
+            if (item.adminOnly && item.title === 'ניהול מערכת') {
+              return (
+                <div key={`div-${i}`} className="mt-4 mb-1 mx-1 px-3 py-2 rounded-xl flex items-center gap-2"
+                  style={{ background: '#EEF1F5', borderTop: '1px solid #D7DEE7' }}>
+                  <Shield className="h-3.5 w-3.5 shrink-0" style={{ color: '#475569' }} />
+                  <p className="text-[11px] font-bold" style={{ color: '#334155' }}>{item.title}</p>
+                  <span className="ms-auto text-[9px] font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: '#475569', color: '#fff' }}>אדמין</span>
+                </div>
+              );
+            }
             return (
               <div key={`div-${i}`} className="pt-3 pb-1 px-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#B0B8C1' }}>{item.title}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider"
+                  style={{ color: item.adminOnly ? '#64748B' : '#B0B8C1' }}>{item.title}</p>
               </div>
             );
           }
@@ -441,11 +481,11 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
               to={itemUrl}
               onClick={onItemClick}
               className={`flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-150 min-w-0
-                ${isActive ?
-              'bg-[#E8F2EA] text-[#2D5233]' :
-              'text-gray-600 active:bg-gray-50'}`
+                ${isActive
+                  ? (item.adminOnly ? 'bg-slate-200 text-slate-800' : 'bg-[#E8F2EA] text-[#2D5233]')
+                  : (item.adminOnly ? 'text-slate-500 active:bg-slate-100' : 'text-gray-600 active:bg-gray-50')}`
               }>
-              <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-[#2D5233]' : 'text-gray-400'}`} />
+              <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? (item.adminOnly ? 'text-slate-700' : 'text-[#2D5233]') : (item.adminOnly ? 'text-slate-400' : 'text-gray-400')}`} />
               <span className="truncate">{item.label}</span>
               {item.name === 'AdminAlerts' && unackAlertCount > 0 && (
                 <span

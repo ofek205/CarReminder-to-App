@@ -488,8 +488,11 @@ export async function initDeepLinks(navigate) {
               const { Browser } = await import('@capacitor/browser');
               await Browser.close();
             } catch {}
-            if (typeof navigate === 'function') navigate('/Dashboard');
-            else window.location.href = '/Dashboard';
+            // Land on `/` so RootGate routes to the correct home for this
+            // user (admins → /AdminHome). Hard-coding /Dashboard here would
+            // bypass the admin landing decision on native OAuth sign-in.
+            if (typeof navigate === 'function') navigate('/');
+            else window.location.href = '/';
           } catch (e) {
             console.warn('OAuth code exchange failed:', e?.message);
           }

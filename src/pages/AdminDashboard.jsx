@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import useIsAdmin from '@/hooks/useIsAdmin';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
-import AdminPopupsTab from '../components/admin/AdminPopupsTab';
 import AdminVersionTab from '../components/admin/AdminVersionTab';
 import {
   Users, Shield, TrendingUp, AlertTriangle, Activity, ArrowDown, ChevronDown, ChevronUp,
@@ -371,7 +370,17 @@ export default function AdminDashboard() {
   const isAdmin = useIsAdmin();
   const [filter, setFilter]         = useState('week');
   const [segment, setSegment]       = useState('all'); // all | car | motorcycle | truck | vessel | offroad
-  const [adminTab, setAdminTab]     = useState('stats'); // stats | users | messages | bugs
+  // Honour a ?tab= deep-link from the grouped admin nav (e.g.
+  // /AdminDashboard?tab=messages from the תקשורת/תפעול groups). Unknown or
+  // missing values fall back to 'stats'. Read once on mount straight from the
+  // URL so no react-router dependency is needed here.
+  const initialTab = (() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get('tab');
+      return ['stats', 'bugs', 'versions'].includes(t) ? t : 'stats';
+    } catch { return 'stats'; }
+  })();
+  const [adminTab, setAdminTab]     = useState(initialTab); // stats | users | popups | messages | bugs | versions
   const [loading, setLoading]       = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
@@ -992,11 +1001,12 @@ export default function AdminDashboard() {
         </div>
         {/* Admin tabs */}
         <div className="flex gap-1 px-4 sm:px-6 pb-3 overflow-x-auto">
+          {/* Trimmed to the dashboard's UNIQUE tabs. משתמשים moved to the
+              CRM (AdminUsers), פופ-אפים + הודעות to the comms hub
+              (EmailCenter), סטטיסטיקה overlaps אנליטיקה but is kept for its
+              guest-conversion + top-accounts leaderboards. */}
           {[
             { key: 'stats', label: '📊 סטטיסטיקה' },
-            { key: 'users', label: '👥 משתמשים' },
-            { key: 'popups', label: '🔔 פופ-אפים' },
-            { key: 'messages', label: '📬 הודעות' },
             { key: 'bugs', label: '🐛 באגים' },
             { key: 'versions', label: '📱 גרסאות' },
           ].map(t => (
@@ -1014,10 +1024,7 @@ export default function AdminDashboard() {
 
       <div className="px-4 sm:px-6 py-6 space-y-8 max-w-[1200px] mx-auto">
 
-        {/* Non-stats tabs */}
-        {adminTab === 'users' && <AdminUsersTab onOpenDrawer={setDrawerAccount} />}
-        {adminTab === 'popups' && <AdminPopupsTab />}
-        {adminTab === 'messages' && <AdminMessagesTab />}
+        {/* Non-stats tabs. users → CRM, popups/messages → comms hub. */}
         {adminTab === 'bugs' && <AdminBugsTab />}
         {adminTab === 'versions' && <AdminVersionTab />}
 
@@ -1320,7 +1327,11 @@ export default function AdminDashboard() {
 
 //  Admin Tabs 
 
-function AdminUsersTab({ onOpenDrawer }) {
+// Exported so the unified CRM screen (AdminUsers) can render the SAME
+// account list behind its "חשבונות" lens — one source for the accounts
+// table instead of two. (A future phase extracts this to its own module
+// for code-splitting; for now the export keeps the logic single-sourced.)
+export function AdminUsersTab({ onOpenDrawer }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [rpcMissing, setRpcMissing] = useState(false);
@@ -2020,7 +2031,9 @@ function exportMessagesCsv(rows) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function AdminMessagesTab() {
+// Exported so the comms hub (EmailCenter) can render the contact-messages
+// inbox as a tab — one source for the messages list instead of a duplicate.
+export function AdminMessagesTab() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setMsgFilter] = useState('all');

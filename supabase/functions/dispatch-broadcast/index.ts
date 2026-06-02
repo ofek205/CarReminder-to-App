@@ -26,11 +26,38 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { logSecurityEvent } from '../_shared/securityLog.ts';
 import { buildCorsHeaders } from '../_shared/cors.ts';
+import { buildUnsubscribeToken } from '../_shared/unsubscribeToken.ts';
 
 const RESEND_API_KEY  = Deno.env.get('RESEND_API_KEY');
 const SUPABASE_URL    = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const DISPATCH_SECRET = Deno.env.get('DISPATCH_SECRET');
+const UNSUBSCRIBE_SECRET = Deno.env.get('UNSUBSCRIBE_SECRET') || '';
+
+// Legal sender identity for the marketing footer (Israel תיקון 40 / CAN-SPAM).
+// SENDER_ADDRESS stays empty until a real mailing address is provided —
+// TODO(legal) before the next marketing blast.
+const SENDER_NAME    = 'CarReminder';
+const SENDER_ADDRESS = '';
+
+// Per-user public unsubscribe link ('' when the signing secret is unset, so we
+// never embed a broken link).
+async function unsubscribeUrlFor(userId: string): Promise<string> {
+  if (!UNSUBSCRIBE_SECRET || !userId) return '';
+  const token = await buildUnsubscribeToken(userId, UNSUBSCRIBE_SECRET);
+  return `${SUPABASE_URL}/functions/v1/unsubscribe?token=${encodeURIComponent(token)}`;
+}
+
+// Appends the marketing footer (sender identity + one-click unsubscribe) to a
+// rendered template's HTML — injected before </body> when present.
+function appendMarketingFooter(html: string, unsubscribeUrl: string): string {
+  const addr = SENDER_ADDRESS ? ` &middot; ${SENDER_ADDRESS}` : '';
+  const link = unsubscribeUrl
+    ? ` &middot; <a href="${unsubscribeUrl}" style="color:#9aa39c;text-decoration:underline">הסרה מדיוור שיווקי</a>`
+    : '';
+  const footer = `<div style="max-width:560px;margin:16px auto 0;text-align:center;font-size:11px;color:#9aa39c;line-height:1.7;font-family:Arial,sans-serif;direction:rtl">${SENDER_NAME}${addr}<br>קיבלת מייל זה כי נרשמת ל-CarReminder.${link}</div>`;
+  return html.includes('</body>') ? html.replace('</body>', `${footer}</body>`) : `${html}${footer}`;
+}
 
 // CORS allow-list logic lives in _shared/cors.ts. This function only
 // declares the headers it accepts (broadcast needs x-dispatch-secret
@@ -250,11 +277,29 @@ serve(async (req) => {
     return json({ error: `Recipients query: ${recErr.message}` }, 500, req);
   }
 
-  const stats = { matched: recipients?.length || 0, sent: 0, skipped: 0, errors: 0, errorDetails: [] as string[] };
+  // 3b. Enforcement (תיקון 40): broadcasts are MARKETING — exclude anyone who
+  // opted out of marketing. FAIL CLOSED: abort if we can't read the opt-out
+  // list rather than risk emailing an unsubscribed user.
+  let activeRecipients = recipients || [];
+  try {
+    const ids = activeRecipients.map((r: any) => r.user_id).filter(Boolean);
+    if (ids.length) {
+      const { data: outRows, error: outErr } = await supabase
+        .from('email_marketing_optout').select('user_id').in('user_id', ids);
+      if (outErr) throw outErr;
+      const optedOut = new Set((outRows || []).map((r: any) => r.user_id));
+      activeRecipients = activeRecipients.filter((r: any) => !optedOut.has(r.user_id));
+    }
+  } catch (e) {
+    await reportEdgeError('optout_filter', e, { key: body.notificationKey });
+    return json({ error: 'opt-out check failed — aborting to avoid emailing unsubscribed users' }, 500, req);
+  }
+
+  const stats = { matched: activeRecipients.length, sent: 0, skipped: 0, errors: 0, errorDetails: [] as string[] };
   const refDate = new Date().toISOString().slice(0, 10);   // today, for idempotency
 
   // 4. Loop.
-  for (const r of recipients || []) {
+  for (const r of activeRecipients) {
     try {
       const vars = { firstName: r.first_name || '' };
 
@@ -276,6 +321,7 @@ serve(async (req) => {
 
       if (dryRun) { stats.sent++; continue; }
 
+      const unsubUrl = await unsubscribeUrlFor(r.user_id);
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -286,8 +332,10 @@ serve(async (req) => {
           from:     `${rendered.fromName} <${rendered.fromEmail}>`,
           to:       [r.recipient_email],
           subject:  rendered.subject,
-          html:     rendered.html,
+          html:     appendMarketingFooter(rendered.html, unsubUrl),
           reply_to: rendered.replyTo || undefined,
+          // RFC 8058 one-click unsubscribe (native button in Gmail/Outlook).
+          ...(unsubUrl ? { headers: { 'List-Unsubscribe': `<${unsubUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } } : {}),
         }),
       });
 

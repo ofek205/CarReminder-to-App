@@ -158,11 +158,42 @@ async function sendApns(deviceToken: string, title: string, body: string, data: 
 
 let fcmTokenCache: { token: string; exp: number } | null = null;
 
+// Parse the FCM service-account secret defensively. A bare JSON.parse here
+// produced a cryptic "Unexpected non-whitespace character after JSON at
+// position N" for EVERY push when the secret was set malformed (the real
+// cause of a total push outage). This turns that into an actionable error
+// and tolerates the most common paste mistake — the whole JSON wrapped in
+// an extra pair of quotes.
+function parseFcmServiceAccount(raw: string): any {
+  if (!raw || !raw.trim()) {
+    throw new Error('FCM_SERVICE_ACCOUNT_JSON is empty — set it to the full Firebase service-account JSON.');
+  }
+  let text = raw.trim();
+  // Unwrap a value pasted as a quoted string: "\"{...}\"" → "{...}".
+  if (text.startsWith('"') && text.endsWith('"')) {
+    try { const inner = JSON.parse(text); if (typeof inner === 'string') text = inner.trim(); } catch { /* fall through */ }
+  }
+  let sa: any;
+  try {
+    sa = JSON.parse(text);
+  } catch (e) {
+    throw new Error(
+      `FCM_SERVICE_ACCOUNT_JSON is not valid JSON (${(e as Error).message}). ` +
+      `It must be the COMPLETE service-account JSON (starts with "{", includes "private_key" and "client_email"). ` +
+      `Re-set the secret. [raw_len=${raw.length}]`
+    );
+  }
+  if (!sa || typeof sa !== 'object' || !sa.private_key || !sa.client_email) {
+    throw new Error('FCM_SERVICE_ACCOUNT_JSON parsed but is missing private_key/client_email — re-set with the full service-account JSON.');
+  }
+  return sa;
+}
+
 async function getFcmAccessToken(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   if (fcmTokenCache && fcmTokenCache.exp - 300 > now) return fcmTokenCache.token;
 
-  const sa = JSON.parse(FCM_SA_JSON_RAW);
+  const sa = parseFcmServiceAccount(FCM_SA_JSON_RAW);
   const header = { alg: 'RS256', typ: 'JWT', kid: sa.private_key_id };
   const claims = {
     iss:   sa.client_email,
