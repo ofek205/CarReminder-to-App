@@ -17,14 +17,49 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildUnsubscribeToken } from '../_shared/unsubscribeToken.ts';
 
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const RESEND_API_KEY   = Deno.env.get('RESEND_API_KEY');
+const UNSUBSCRIBE_SECRET = Deno.env.get('UNSUBSCRIBE_SECRET') || '';
 
 const FROM = 'CarReminder <no-reply@car-reminder.app>';
 const APP_URL = 'https://car-reminder.app';
 const NOTIFICATION_KEY = 'reminder_no_vehicles';
+
+// Legal sender identity for the marketing footer (Israel תיקון 40 / CAN-SPAM).
+// SENDER_ADDRESS is intentionally empty until a real physical mailing address
+// is provided — better to omit the line than to ship a fake placeholder.
+// TODO(legal): set the registered business / mailing address before the next
+// marketing blast.
+const SENDER_NAME    = 'CarReminder';
+const SENDER_ADDRESS = '';
+
+// Public unsubscribe endpoint for a given user. Returns '' when the signing
+// secret isn't configured so we never embed a broken link.
+async function unsubscribeUrlFor(userId: string): Promise<string> {
+  if (!UNSUBSCRIBE_SECRET || !userId) return '';
+  const token = await buildUnsubscribeToken(userId, UNSUBSCRIBE_SECRET);
+  return `${SUPABASE_URL}/functions/v1/unsubscribe?token=${encodeURIComponent(token)}`;
+}
+
+// Marketing footer block (sender identity + one-click unsubscribe). Shown in
+// every marketing email per תיקון 40. `unsubscribeUrl` is per-user; when empty
+// (e.g. test mode or missing secret) the link is omitted but the identity stays.
+function marketingFooter(unsubscribeUrl: string): string {
+  const addr = SENDER_ADDRESS ? ` &middot; ${SENDER_ADDRESS}` : '';
+  const link = unsubscribeUrl
+    ? ` <a href="${unsubscribeUrl}" style="color:#5c6b5f;text-decoration:underline">הסרה מדיוור שיווקי</a>`
+    : '';
+  return `
+    <div style="border-top:1px solid #e6ebe6;margin-top:22px;padding-top:14px;text-align:center">
+      <p style="font-size:11px;color:#9aa39c;line-height:1.7;margin:0">
+        ${SENDER_NAME}${addr}<br>
+        קיבלת מייל זה כי נרשמת ל-CarReminder.${link}
+      </p>
+    </div>`;
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -57,7 +92,7 @@ async function reportEdgeError(action: string, error: unknown, extra?: Record<st
   } catch {}
 }
 
-function buildNudgeHtml(firstName: string): string {
+function buildNudgeHtml(firstName: string, unsubscribeUrl = ''): string {
   const name = firstName || 'שלום';
   // Copy: "peace of mind", friendly/rich direction (approved 2026-05-31,
   // matching the reference the owner liked). Light surface, plate as hero,
@@ -159,6 +194,7 @@ function buildNudgeHtml(firstName: string): string {
     <p style="font-size:13px;color:#9aa39c;text-align:center;margin:0">
       צריך עזרה? פשוט השב למייל הזה ונענה לך.
     </p>
+    ${marketingFooter(unsubscribeUrl)}
     </td></tr>
    </table>
   </td>
@@ -255,13 +291,36 @@ serve(async (req) => {
       return json({ ok: true, message: 'No users need the no-vehicle nudge', sent: 0 });
     }
 
+    // Enforcement (תיקון 40): the no-vehicle nudge is MARKETING, so exclude
+    // anyone who opted out. Single batch query. FAIL CLOSED — if we can't read
+    // the opt-out list we abort rather than risk emailing an unsubscribed user.
+    let activeUsers = users;
+    try {
+      const ids = users.map((u: any) => u.user_id).filter(Boolean);
+      if (ids.length) {
+        const { data: outRows, error: outErr } = await supabase
+          .from('email_marketing_optout').select('user_id').in('user_id', ids);
+        if (outErr) throw outErr;
+        const optedOut = new Set((outRows || []).map((r: any) => r.user_id));
+        activeUsers = users.filter((u: any) => !optedOut.has(u.user_id));
+      }
+    } catch (e) {
+      await reportEdgeError('optout_filter', e);
+      return json({ error: 'opt-out check failed — aborting to avoid emailing unsubscribed users' }, 500);
+    }
+
+    if (activeUsers.length === 0) {
+      return json({ ok: true, message: 'All candidates opted out of marketing', sent: 0 });
+    }
+
     if (dryRun) {
       return json({
         ok: true,
         dry_run: true,
         min_age_days: minAgeDays,
-        count: users.length,
-        users: users.slice(0, 50).map((u: any) => ({
+        count: activeUsers.length,
+        excluded_opted_out: users.length - activeUsers.length,
+        users: activeUsers.slice(0, 50).map((u: any) => ({
           email: u.email,
           full_name: u.full_name,
           days_since_signup: u.days_since_signup,
@@ -273,7 +332,7 @@ serve(async (req) => {
     let sent = 0;
     let failed = 0;
 
-    for (const u of users) {
+    for (const u of activeUsers) {
       const firstName = (u.full_name || '').trim().split(/\s+/)[0] || '';
 
       // Bell notification (+ native push via the app_notifications AFTER
@@ -290,7 +349,8 @@ serve(async (req) => {
       }
 
       const subject = `${firstName ? `${firstName}, ` : ''}נשאר רק צעד אחד קטן`;
-      const html = buildNudgeHtml(firstName);
+      const unsubUrl = await unsubscribeUrlFor(u.user_id);
+      const html = buildNudgeHtml(firstName, unsubUrl);
 
       try {
         const res = await fetch('https://api.resend.com/emails', {
@@ -299,7 +359,17 @@ serve(async (req) => {
             Authorization: `Bearer ${RESEND_API_KEY}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ from: FROM, to: [u.email], subject, html }),
+          body: JSON.stringify({
+            from: FROM, to: [u.email], subject, html,
+            // RFC 8058 one-click unsubscribe — Gmail/Outlook render a native
+            // "Unsubscribe" button and POST to the URL.
+            ...(unsubUrl ? {
+              headers: {
+                'List-Unsubscribe': `<${unsubUrl}>`,
+                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+              },
+            } : {}),
+          }),
         });
 
         let data: any = {};
