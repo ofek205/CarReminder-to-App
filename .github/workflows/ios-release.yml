@@ -198,6 +198,18 @@ jobs:
           chmod +x ./scripts/ios-verify-build.sh
           ./scripts/ios-verify-build.sh
 
+      - name: Sync marketing version from package.json
+        # iOS MARKETING_VERSION (CFBundleShortVersionString) used to be a
+        # hard-coded value in project.pbxproj that nobody bumped — so every
+        # TestFlight build shipped as the stale 5.5.6 regardless of the real
+        # app version. Android derives its versionName from package.json; this
+        # makes iOS do the same, so the store version always matches the release.
+        working-directory: ios/App
+        run: |
+          VERSION="$(node -p "require('${GITHUB_WORKSPACE}/package.json').version")"
+          echo "Setting iOS marketing version to $VERSION"
+          xcrun agvtool new-marketing-version "$VERSION"
+
       - name: Set unique build number (per CI run)
         working-directory: ios/App
         env:
