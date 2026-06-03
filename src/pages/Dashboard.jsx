@@ -34,6 +34,7 @@ import SharedIndicator from '@/components/sharing/SharedIndicator';
 import { Share2 } from 'lucide-react';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 import PlateScanButton from '@/components/shared/PlateScanButton';
+import RoadsideHelpCard from '@/components/shared/RoadsideHelpCard';
 // Lazy-loaded — only mounts on first card-share-tap so we don't pull
 // the dialog + its 9 RPC bindings into the dashboard's first paint.
 const ShareVehicleDialog = React.lazy(() => import('@/components/sharing/ShareVehicleDialog'));
@@ -1653,6 +1654,10 @@ export default function Dashboard() {
             )}
           </>
         )}
+
+        {/* Roadside help — pinned at the bottom of the home page, shown for
+            every user (incl. guests / no vehicles), since help is universal. */}
+        <RoadsideHelpCard />
       </div>
       {/* BottomNav is in Layout */}
     </div>
