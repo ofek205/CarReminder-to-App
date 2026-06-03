@@ -1066,7 +1066,7 @@ export default function VehicleInfoSection({ vehicle }) {
             </p>
             <p className="text-[11px] font-medium leading-tight mt-0.5" style={{ color: '#DC2626' }}>
               {vehicle.road_removed_date
-                ? `לפי משרד התחבורה — תאריך ביטול: ${vehicle.road_removed_date}`
+                ? `לפי משרד התחבורה · תאריך ביטול: ${vehicle.road_removed_date}`
                 : 'לפי משרד התחבורה'}
             </p>
           </div>

@@ -31,9 +31,11 @@ import useUserProfile from '@/hooks/useUserProfile';
 import LicensePlate from '../components/shared/LicensePlate';
 import FirstTimeTour from '../components/shared/FirstTimeTour';
 import SharedIndicator from '@/components/sharing/SharedIndicator';
-import { Share2 } from 'lucide-react';
+import { Share2, HelpCircle } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 import PlateScanButton from '@/components/shared/PlateScanButton';
+import RoadsideHelpCard from '@/components/shared/RoadsideHelpCard';
 // Lazy-loaded — only mounts on first card-share-tap so we don't pull
 // the dialog + its 9 RPC bindings into the dashboard's first paint.
 const ShareVehicleDialog = React.lazy(() => import('@/components/sharing/ShareVehicleDialog'));
@@ -1653,6 +1655,29 @@ export default function Dashboard() {
             )}
           </>
         )}
+
+        {/* Quick-dial grid — pinned at the bottom of the home page, shown for
+            every user (incl. guests / no vehicles). More numbers drop in as
+            square tiles next to ידידים. */}
+        <div className="mt-6" dir="rtl">
+          <h2 className="font-bold text-lg mb-3" style={{ color: C.text }}>חיוג מהיר</h2>
+          {/* Card + its "?" explainer grouped together (the "?" sits right
+              next to the card, not off by the title). */}
+          <div className="flex items-center justify-center gap-2">
+            <RoadsideHelpCard />
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" aria-label="מה זה ידידים?" className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full" style={{ color: C.primary, background: '#F0F4F1' }}>
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="center" dir="rtl" className="w-64 text-xs leading-relaxed">
+                <b>ידידים</b> הוא ארגון מתנדבים שעוזר בחינם בתקלות בדרך: פנצ'ר, מצבר ריק,
+                מפתחות שננעלו ברכב, דלק שנגמר ועוד. זמינים מסביב לשעון בחיוג 1230.
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
       </div>
       {/* BottomNav is in Layout */}
     </div>
