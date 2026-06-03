@@ -281,7 +281,19 @@ function App() {
       {/* sonner is the ONLY toast renderer — the old shadcn Toaster was
           mounted but received no toasts (every caller uses sonner's toast())
           so it was pure dead code + 3 unused npm deps. */}
-      <SonnerToaster position="top-center" dir="rtl" richColors theme="light" />
+      {/* offset pushes top-center toasts BELOW the fixed mobile top bar
+          (Layout.jsx, z-9998) — otherwise every toast (success, the
+          "כבר קיים" duplicate notice, errors) rendered hidden behind it on
+          the app / mobile, while desktop (no top bar) showed them fine.
+          var(--inset-top) is the Android-injected / iOS safe-area top inset;
+          +60px clears the white app-bar row below it. */}
+      <SonnerToaster
+        position="top-center"
+        dir="rtl"
+        richColors
+        theme="light"
+        offset="calc(var(--inset-top, env(safe-area-inset-top, 0px)) + 60px)"
+      />
       {/* ReportBugDialog mounts OUTSIDE every route boundary so it stays
           renderable when a route is in error state. Opened from anywhere
           via the cr:open-report-bug window event (see openReportBugDialog). */}
