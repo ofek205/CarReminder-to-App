@@ -1655,9 +1655,15 @@ export default function Dashboard() {
           </>
         )}
 
-        {/* Roadside help — pinned at the bottom of the home page, shown for
-            every user (incl. guests / no vehicles), since help is universal. */}
-        <RoadsideHelpCard />
+        {/* Quick-dial grid — pinned at the bottom of the home page, shown for
+            every user (incl. guests / no vehicles). More numbers drop in as
+            square tiles next to ידידים. */}
+        <div className="mt-6">
+          <h2 className="font-bold text-lg mb-3" style={{ color: C.text }} dir="rtl">חיוג מהיר</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <RoadsideHelpCard />
+          </div>
+        </div>
       </div>
       {/* BottomNav is in Layout */}
     </div>
