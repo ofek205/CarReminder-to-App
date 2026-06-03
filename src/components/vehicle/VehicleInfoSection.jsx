@@ -1073,10 +1073,6 @@ export default function VehicleInfoSection({ vehicle }) {
         </div>
       )}
 
-      {/*  Open recalls (קריאות שירות / ריקול) — actionable safety card.
-          Fetched on demand above; renders nothing when there are none. */}
-      <RecallCard recalls={recalls} loading={recallsLoading} />
-
       {/*  Mileage / Engine hours  */}
       <MileageUpdateWidget vehicle={vehicle} />
 
@@ -1281,6 +1277,11 @@ export default function VehicleInfoSection({ vehicle }) {
           </div>
         );
       })()}
+
+      {/*  Open recalls (קריאות שירות / ריקול) — collapsed by default and
+          placed LOW: useful safety info, but not the headline of the screen
+          (owner feedback). Renders nothing when there are no open recalls. */}
+      <RecallCard recalls={recalls} loading={recallsLoading} />
 
       {/*  Vessel-specific sections  */}
       {vesselMode && (
