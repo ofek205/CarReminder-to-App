@@ -301,11 +301,11 @@ export default function VehicleCompletionSheet({
       // the body now behaves natively.
       dismissible={false}
     >
-      <DrawerContent dir="rtl" className="max-h-[92vh] p-0 overflow-hidden mx-auto w-full max-w-md">
+      <DrawerContent dir="rtl" className="max-h-[92vh] p-0 overflow-hidden mx-auto w-full max-w-md flex flex-col">
         {/* Hero — typography-only welcome. No checkmark glyph, no emoji.
             The license plate chip + vehicle name carry the recognition. */}
         <div
-          className="px-6 pt-5 pb-5 relative"
+          className="px-6 pt-5 pb-5 relative shrink-0"
           style={{ background: C.successSubtle }}
         >
           <button
@@ -352,7 +352,7 @@ export default function VehicleCompletionSheet({
         </div>
 
         {/* Body — generous spacing, photo as the hero of the form */}
-        <div className="px-6 pt-6 pb-2 overflow-y-auto space-y-7">
+        <div className="px-6 pt-6 pb-2 overflow-y-auto overflow-x-hidden space-y-7 flex-1 min-h-0">
 
           {/* Photo card — centered, dominant, no dashed border */}
           {fields.photo && (
@@ -505,7 +505,7 @@ export default function VehicleCompletionSheet({
 
         {/* Footer — balanced 1:1 buttons, equal visual weight */}
         <div
-          className="px-6 pt-4 pb-6 mt-4"
+          className="px-6 pt-4 pb-6 mt-4 shrink-0"
           style={{ borderTop: `1px solid ${C.gray100}` }}
         >
           <div className="grid grid-cols-2 gap-3">
