@@ -42,8 +42,13 @@ export async function exportElementToPdf(el, filename = 'report') {
     // Render the element to canvas at 2x for crisp output. Background
     // is explicit white because some report elements rely on the page
     // background.
+    // scale drives the canvas pixel size. On native (and especially low-RAM
+    // Android / the emulator) a tall report at scale 2 builds a huge canvas
+    // that can blow the WebView memory budget → a clipped ("cut") capture or
+    // an outright OOM failure. 1.5 on native cuts the pixel count ~44% while
+    // staying crisp enough for a document; web keeps 2.
     const canvas = await html2canvas(el, {
-      scale: 2,
+      scale: isNative ? 1.5 : 2,
       useCORS: true,
       backgroundColor: '#ffffff',
       logging: false,
