@@ -31,7 +31,8 @@ import useUserProfile from '@/hooks/useUserProfile';
 import LicensePlate from '../components/shared/LicensePlate';
 import FirstTimeTour from '../components/shared/FirstTimeTour';
 import SharedIndicator from '@/components/sharing/SharedIndicator';
-import { Share2 } from 'lucide-react';
+import { Share2, Info } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import VehicleCheckPlateInput from '@/components/shared/VehicleCheckPlateInput';
 import PlateScanButton from '@/components/shared/PlateScanButton';
 import RoadsideHelpCard from '@/components/shared/RoadsideHelpCard';
@@ -1658,9 +1659,24 @@ export default function Dashboard() {
         {/* Quick-dial grid — pinned at the bottom of the home page, shown for
             every user (incl. guests / no vehicles). More numbers drop in as
             square tiles next to ידידים. */}
-        <div className="mt-6">
-          <h2 className="font-bold text-lg mb-3" style={{ color: C.text }} dir="rtl">חיוג מהיר</h2>
-          <div className="grid grid-cols-2 gap-3">
+        <div className="mt-6" dir="rtl">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold text-lg" style={{ color: C.text }}>חיוג מהיר</h2>
+            {/* "How it works?" explainer next to the title (not inside the tile) */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="flex items-center gap-1 text-xs font-medium" style={{ color: C.primary }}>
+                  <Info className="w-3.5 h-3.5" /> איך זה עובד?
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" dir="rtl" className="w-64 text-xs leading-relaxed">
+                חיוג מהיר למספרי עזרה בדרך, בלחיצה אחת. <b>ידידים</b> הוא ארגון מתנדבים שעוזר בחינם בתקלות בדרך:
+                פנצ'ר, מצבר ריק, מפתחות שננעלו ברכב, דלק שנגמר ועוד. זמינים מסביב לשעון בחיוג 1230.
+              </PopoverContent>
+            </Popover>
+          </div>
+          {/* Compact tiles wrap; more quick-dial numbers drop in beside ידידים. */}
+          <div className="flex flex-wrap gap-3">
             <RoadsideHelpCard />
           </div>
         </div>
