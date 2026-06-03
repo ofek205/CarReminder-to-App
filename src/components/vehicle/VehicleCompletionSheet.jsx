@@ -505,8 +505,12 @@ export default function VehicleCompletionSheet({
 
         {/* Footer — balanced 1:1 buttons, equal visual weight */}
         <div
-          className="px-6 pt-4 pb-6 mt-4 shrink-0"
-          style={{ borderTop: `1px solid ${C.gray100}` }}
+          className="px-6 pt-4 mt-4 shrink-0"
+          // pb includes --inset-bottom so the save button clears the Android
+          // navigation bar / iOS home indicator (the vaul drawer sits at the
+          // physical screen bottom in edge-to-edge mode). 1.5rem == the old
+          // pb-6; on web --inset-bottom is unset → falls back to 0.
+          style={{ borderTop: `1px solid ${C.gray100}`, paddingBottom: 'calc(1.5rem + var(--inset-bottom, 0px))' }}
         >
           <div className="grid grid-cols-2 gap-3">
             <Button
