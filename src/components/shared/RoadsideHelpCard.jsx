@@ -2,15 +2,14 @@ import React from 'react';
 import { Phone } from 'lucide-react';
 
 /**
- * RoadsideHelpCard — compact quick-dial tile for ידידים (volunteer roadside
- * assistance, hotline 1230). Sized like the logo (~150px square), NOT a
- * full-width row, so several quick-dial tiles can sit in a wrapping grid.
+ * RoadsideHelpCard — single quick-dial card for ידידים (volunteer roadside
+ * assistance, hotline 1230). A centered, width-bounded card (not a
+ * full-width row, not a lonely tiny square): logo + name + a clear "חייג
+ * 1230" call button. The whole card dials tel:1230.
  *
- * The whole tile is the dial target (tel:1230). The section-level "how it
- * works?" explainer lives next to the "חיוג מהיר" title (see Dashboard), not
- * inside the tile, to keep the tile clean.
- *
- * Logo is object-contain at a fixed height / auto width → keeps aspect ratio.
+ * The "how it works?" explainer lives next to the "חיוג מהיר" title in the
+ * Dashboard, not inside the card. Logo is object-contain → keeps its aspect
+ * ratio.
  */
 export default function RoadsideHelpCard() {
   return (
@@ -18,21 +17,24 @@ export default function RoadsideHelpCard() {
       href="tel:1230"
       dir="rtl"
       aria-label="חיוג מהיר לידידים, עזרה בכביש, 1230"
-      className="w-[150px] aspect-square flex flex-col items-center justify-center text-center gap-1.5 p-3 rounded-2xl active:scale-[0.97] transition-transform"
+      className="mx-auto max-w-xs flex items-center gap-3 rounded-2xl px-4 py-3 active:scale-[0.98] transition-transform"
       style={{ background: '#fff', border: '1.5px solid #E5EBE6', boxShadow: '0 2px 12px rgba(45,82,51,0.06)' }}
     >
       <img
         src="/logo-1230.png"
         alt="ידידים 1230"
-        className="h-11 w-auto object-contain"
+        className="h-12 w-auto object-contain shrink-0"
         loading="lazy"
       />
-      <p className="text-[13px] font-bold leading-tight" style={{ color: '#1C2E20' }}>ידידים</p>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold leading-tight" style={{ color: '#1C2E20' }}>ידידים</p>
+        <p className="text-xs leading-tight mt-0.5" style={{ color: '#8B9C8E' }}>עזרה בכביש · זמינים 24/7</p>
+      </div>
       <span
-        className="inline-flex items-center gap-1 text-xs font-bold"
-        style={{ color: '#2D5233' }}
+        className="shrink-0 inline-flex items-center gap-1.5 px-3 h-9 rounded-xl text-xs font-bold text-white"
+        style={{ background: '#2D5233' }}
       >
-        <Phone className="w-3 h-3" /> 1230
+        <Phone className="w-4 h-4" /> חייג 1230
       </span>
     </a>
   );

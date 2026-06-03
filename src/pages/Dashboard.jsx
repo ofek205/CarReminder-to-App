@@ -1675,10 +1675,7 @@ export default function Dashboard() {
               </PopoverContent>
             </Popover>
           </div>
-          {/* Compact tiles wrap; more quick-dial numbers drop in beside ידידים. */}
-          <div className="flex flex-wrap gap-3">
-            <RoadsideHelpCard />
-          </div>
+          <RoadsideHelpCard />
         </div>
       </div>
       {/* BottomNav is in Layout */}
