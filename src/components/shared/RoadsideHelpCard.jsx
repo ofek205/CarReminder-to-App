@@ -17,7 +17,7 @@ export default function RoadsideHelpCard() {
       href="tel:1230"
       dir="rtl"
       aria-label="חיוג מהיר לידידים, עזרה בכביש, 1230"
-      className="mx-auto max-w-xs flex items-center gap-3 rounded-2xl px-4 py-3 active:scale-[0.98] transition-transform"
+      className="max-w-xs flex items-center gap-3 rounded-2xl px-4 py-3 active:scale-[0.98] transition-transform"
       style={{ background: '#fff', border: '1.5px solid #E5EBE6', boxShadow: '0 2px 12px rgba(45,82,51,0.06)' }}
     >
       <img
