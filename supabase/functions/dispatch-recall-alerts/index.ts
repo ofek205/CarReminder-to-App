@@ -31,6 +31,42 @@ const RECALL_CAMPAIGN_RESOURCE_ID = '2c33523f-87aa-44ec-a736-edbb0a82975e';
 const PAGE = 20000;        // rows per gov.il page
 const MAX_PAGES = 20;      // safety cap (covers ~400K rows; dataset ~136K)
 
+// Only NEWLY-OPENED recalls earn a proactive notification. A recall that
+// has been open for years (the owner simply never did the free fix) is NOT
+// news — pushing it on every cron run (and again whenever the vehicle row is
+// re-created, since the per-vehicle_id dedup resets) is exactly the spam a
+// user reported: decade-old recalls (opened 2014 / 2017) re-alerting.
+//
+// "New" = opened within RECALL_FRESH_DAYS of today, measured from the gov.il
+// TAARICH_PTICHA (recall opening date). The window absorbs gov.il refresh lag
+// and any skipped cron day. Old recalls are NEVER notified — they still
+// surface in the in-vehicle RecallCard (fetchOpenRecallsForPlate), which is
+// the right place for "this car has an outstanding recall" context.
+const RECALL_FRESH_DAYS = 30;
+
+// Parse a gov.il TAARICH_PTICHA into a Date. Observed format is ISO
+// 'YYYY-MM-DD'; we also tolerate 'DD/MM/YYYY' defensively. Returns null when
+// missing/unparseable so the caller can treat it as NOT fresh (conservative:
+// no date ⇒ assume old ⇒ don't notify).
+function parseRecallDate(raw: unknown): Date | null {
+  const s = String(raw ?? '').trim();
+  if (!s) return null;
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);          // YYYY-MM-DD
+  if (m) { const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return isNaN(d.getTime()) ? null : d; }
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);            // DD/MM/YYYY
+  if (m) { const d = new Date(Date.UTC(+m[3], +m[2] - 1, +m[1])); return isNaN(d.getTime()) ? null : d; }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// A recall is "fresh" iff its opening date is within RECALL_FRESH_DAYS of now.
+function isFreshRecall(openedDate: unknown): boolean {
+  const d = parseRecallDate(openedDate);
+  if (!d) return false;                                 // unknown date ⇒ not fresh
+  const ageDays = (Date.now() - d.getTime()) / 86_400_000;
+  return ageDays >= 0 && ageDays <= RECALL_FRESH_DAYS;  // future-dated guarded too
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
@@ -163,9 +199,13 @@ serve(async (req) => {
     catch (eErr) { await reportEdgeError('load_dedup', eErr); }
     const seen = new Set(existing.map((r: any) => `${r.vehicle_id}:${r.recall_id}`));
 
-    // 4) Compute NEW matches.
+    // 4) Compute NEW matches. A match is notify-worthy only when it is BOTH
+    //    (a) freshly opened (within RECALL_FRESH_DAYS) — old recalls are
+    //        context, not news — AND
+    //    (b) not already notified for this exact (vehicle, recall) pair.
     type NewAlert = { vehicle: any; userId: string; recall: any };
     const newAlerts: NewAlert[] = [];
+    let skippedStale = 0;   // matched a saved vehicle but the recall is old
     for (const v of vehicles) {
       const plate = digits(v.license_plate_normalized || v.license_plate);
       if (!plate) continue;
@@ -175,6 +215,7 @@ serve(async (req) => {
       if (!userId) continue;
       for (const rec of recalls) {
         if (seen.has(`${v.id}:${rec.recall_id}`)) continue;
+        if (!isFreshRecall(rec.openedDate)) { skippedStale++; continue; }
         newAlerts.push({ vehicle: v, userId, recall: rec });
       }
     }
@@ -184,9 +225,12 @@ serve(async (req) => {
         ok: true, dry_run: true,
         recall_plates: recallMap.size,
         vehicles_scanned: vehicles.length,
+        fresh_window_days: RECALL_FRESH_DAYS,
+        skipped_stale: skippedStale,
         new_alerts: newAlerts.length,
         sample: newAlerts.slice(0, 20).map(a => ({
           plate: a.vehicle.license_plate, recall_id: a.recall.recall_id,
+          opened: a.recall.openedDate,
           defect: (a.recall.description || '').slice(0, 80),
         })),
       });
