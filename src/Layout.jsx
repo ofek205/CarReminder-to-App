@@ -699,16 +699,17 @@ function LayoutInner({ children }) {
     };
   }, [navigate]);
   const [welcomeState, setWelcomeState] = useState(null);
-  // Admin-published "what's new" announcement (replaces the old automatic
-  // daily welcome popup). Shown once per user; gated at render to logged-in
-  // non-guest users and never stacked on the first-time onboarding popup.
-  const releaseAnn = useReleaseAnnouncement();
   const [guestPopupClosed, setGuestPopupClosed] = useState(
     () => sessionStorage.getItem('guest_popup_closed') === '1'
   );
   const [mileageReminderOpen, setMileageReminderOpen] = useState(false);
   const [mileageCheckDone, setMileageCheckDone] = useState(false);
   const { isAuthenticated, isGuest, isLoading, user, guestVehicles } = useAuth();
+  // Admin-published "what's new" announcement (replaces the old automatic
+  // daily welcome popup). Shown once per user. Skip the fetch entirely for
+  // guests; the render is additionally gated below so it never stacks on the
+  // onboarding welcome / mileage / review / popup-engine sequence.
+  const releaseAnn = useReleaseAnnouncement(isAuthenticated && !isGuest);
   const { activeWorkspace } = useWorkspace();
   const [hasVessel, setHasVessel] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() =>
@@ -941,7 +942,7 @@ function LayoutInner({ children }) {
           two never stack. */}
       <SafeComponent label="ReleaseNotesPopup">
         <ReleaseNotesPopup
-          open={isAuthenticated && !isGuest && welcomeState === null && releaseAnn.show}
+          open={isAuthenticated && !isGuest && welcomeState === null && mileageCheckDone && releaseAnn.show}
           title={releaseAnn.announcement?.title}
           body={releaseAnn.announcement?.body}
           onClose={releaseAnn.dismiss}
@@ -983,7 +984,7 @@ function LayoutInner({ children }) {
        * Guarded so it can't overlap the welcome popup on fresh logins:
        * we wait until both welcomeState has cleared AND mileageCheckDone.
        * That keeps the sequence one-popup-at-a-time. */}
-      {isAuthenticated && !isGuest && welcomeState === null && mileageCheckDone && user && (
+      {isAuthenticated && !isGuest && welcomeState === null && mileageCheckDone && !releaseAnn.show && user && (
         <SafeComponent label="ReviewPrompt">
           <ScheduledReviewPrompt user={user} />
         </SafeComponent>
@@ -993,7 +994,7 @@ function LayoutInner({ children }) {
        * welcome popup. The engine itself enforces a 15-minute global
        * throttle + per-popup frequency, so even with many active popups
        * the user sees at most one at a time. */}
-      {(isAuthenticated || isGuest) && welcomeState === null && mileageCheckDone && (
+      {(isAuthenticated || isGuest) && welcomeState === null && mileageCheckDone && !releaseAnn.show && (
         <SafeComponent label="PopupEngine">
           <PopupEngine />
         </SafeComponent>
