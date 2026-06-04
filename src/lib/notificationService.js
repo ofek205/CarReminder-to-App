@@ -103,9 +103,17 @@ const PASSIVE_LAST_FIRED_PREFIX = 'cr_passive_nudge_last_';
 //   - overdue: respects user's overdue_repeat_every_days setting (3d default).
 //   - upcoming: 24h. The reminder reappears in-app via the bell; we don't
 //     need to push daily about a deadline that hasn't passed yet.
-const UPCOMING_FIRE_AT_PREFIX = 'cr_reminder_upcoming_at_';
 const OVERDUE_FIRE_AT_PREFIX  = 'cr_reminder_overdue_at_';
-const UPCOMING_DEDUP_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+// Upcoming reminders fire on DISCRETE milestones, each at most ONCE — never
+// on a daily cooldown (the old 24h scheme re-notified roughly every day a
+// user opened the app while a reminder sat in its window). The marker stores
+// the planned fire time per (reminder, milestone); see the upcoming branch.
+const MILESTONE_FIRE_AT_PREFIX = 'cr_reminder_ms_at_';
+// A near-due "final nudge" that complements the configured `daysBefore`
+// heads-up, so even a long lead time still gets one gentle reminder close to
+// the deadline. Only added when it is genuinely closer than `daysBefore`.
+const FINAL_REMINDER_DAYS = 3;
 
 // Global "app opened recently" suppression. When the user opens the app,
 // they're actively engaged — they've already seen the reminders in the
@@ -268,56 +276,58 @@ function computeScheduleTimes(reminder, settings) {
     return [new Date(immediateAt), ...futureTimes];
   }
 
-  // Upcoming. fire `daysBefore` days ahead of due date, at morning hour.
-  const daysBefore = daysBeforeFor(reminder.type, settings);
-  const triggerInDays = Math.max(0, reminder.daysLeft - daysBefore);
+  // ── Upcoming (daysLeft > 0): discrete one-shot milestones ────────────
+  // A reminder fires AT MOST ONCE per threshold it crosses — NOT once a day,
+  // and NOT on every app open. The previous scheme used a 24h cooldown, so a
+  // reminder sitting in its "X days before" window re-notified ~daily as the
+  // user opened the app (reported: "the notification pops every time I enter
+  // the app"). Now each milestone owns a marker holding its planned fire
+  // time:
+  //   marker > now → alarm planted, not yet fired → re-plant at the SAME
+  //                  time (cancel-all just erased it; do not shift it).
+  //   marker > 0   → already fired (its time passed — possibly while the app
+  //                  was closed) → milestone DONE, never re-fire.
+  //   marker == 0  → not yet scheduled → plant it once and record its time.
+  // Net effect: one push at `daysBefore` (e.g. 14d), one at
+  // FINAL_REMINDER_DAYS (e.g. 3d), then the overdue branch takes over.
+  // Completely silent between thresholds, regardless of how often the app
+  // is opened.
+  const daysBefore = Math.max(1, Math.floor(Number(daysBeforeFor(reminder.type, settings))) || 14);
+  const milestones = (daysBefore > FINAL_REMINDER_DAYS
+    ? [daysBefore, FINAL_REMINDER_DAYS]
+    : [daysBefore]
+  ).sort((a, b) => b - a);                       // descending, e.g. [14, 3]
 
-  // Out of horizon → schedule at the far edge of our window instead of
-  // silently returning []. The old behavior relied on "the next app open
-  // will reschedule" — but if the user never opens the app between now
-  // and the due date, they miss the reminder entirely. Firing at
-  // MAX_SCHEDULE_HORIZON_DAYS is a safety rail: we'll still recalculate
-  // on every app open, but if the user goes silent, at least *one*
-  // reminder lands in the notification queue.
-  if (triggerInDays > MAX_SCHEDULE_HORIZON_DAYS) {
-    if (import.meta.env?.DEV) {
-      console.log(`[notifSvc] horizon clamped for ${reminder.id}: ${triggerInDays} → ${MAX_SCHEDULE_HORIZON_DAYS}`);
+  const msKey = (m) => `${reminder.id}_${m}`;
+
+  // First-pass guard: if MORE THAN ONE milestone is already behind us with
+  // no marker (e.g. a vehicle added when its test is 2 days out — both the
+  // 14d and 3d milestones are in the past), fire only the most urgent and
+  // silently mark the rest done. Without this we'd plant a "tomorrow 8am"
+  // alarm for every crossed milestone at once → a burst of duplicates.
+  const unfiredPast = milestones.filter(
+    (m) => getMarker(MILESTONE_FIRE_AT_PREFIX, msKey(m)) === 0 && (reminder.daysLeft - m) <= 0,
+  );
+  if (unfiredPast.length > 1) {
+    const keep = Math.min(...unfiredPast);       // smallest = closest to due = most urgent
+    for (const m of unfiredPast) {
+      if (m !== keep) setMarker(MILESTONE_FIRE_AT_PREFIX, msKey(m), 1); // 1 = "done long ago"
     }
-    return [morningSlot(MAX_SCHEDULE_HORIZON_DAYS)];
   }
 
-  // If trigger is already due today (daysLeft < daysBefore), fire tomorrow.
-  const slot = triggerInDays === 0 ? morningSlot(1) : morningSlot(triggerInDays);
-  const targetSlot = slot.getTime() > now ? slot : morningSlot(1);
-
-  // Anti-spam dedup for upcoming reminders. When a reminder enters the
-  // "X days before" window, we want to nudge the user — but only ONCE
-  // per 24h, not every time they open the app. Without this guard, an
-  // upcoming reminder with daysLeft <= daysBefore would re-plant
-  // "tomorrow 8am" on every recalc; if the user opens the app on
-  // morning N before 8am, cancel-all removes the alarm BEFORE it fires,
-  // then the next day's 8am gets planted, and the cycle repeats.
-  //
-  // UPCOMING-SPECIFIC marker (rev 2026-05-28b): separate from overdue.
-  // When the reminder eventually transitions to overdue, the overdue
-  // branch checks its own marker and isn't blocked by this cooldown.
-  const prevUpcomingAt = getMarker(UPCOMING_FIRE_AT_PREFIX, reminder.id);
-  if (prevUpcomingAt > now) {
-    // Pending alarm — re-plant at same time (cancel-all erased it).
-    return [new Date(prevUpcomingAt)];
+  const slots = [];
+  for (const m of milestones) {
+    const planned = getMarker(MILESTONE_FIRE_AT_PREFIX, msKey(m));
+    if (planned > now) { slots.push(new Date(planned)); continue; }     // pending → re-plant
+    if (planned > 0) continue;                                          // already fired → done
+    const triggerInDays = reminder.daysLeft - m;
+    if (triggerInDays > MAX_SCHEDULE_HORIZON_DAYS) continue;            // too far; a closer pass plants it
+    // Future milestone → its own trigger morning. Just-crossed (≤0) → tomorrow.
+    const slot = triggerInDays > 0 ? morningSlot(triggerInDays) : morningSlot(1);
+    setMarker(MILESTONE_FIRE_AT_PREFIX, msKey(m), slot.getTime());
+    slots.push(slot);
   }
-  if (prevUpcomingAt > 0 && (now - prevUpcomingAt) < UPCOMING_DEDUP_COOLDOWN_MS) {
-    // Already nudged in last 24h — skip. The in-app bell still shows it.
-    return [];
-  }
-  // App-opened suppression: same logic as overdue branch — don't push
-  // about an item the user just saw in the bell. They get the bell now
-  // and tomorrow morning's scheduled alarm in 24h+.
-  if (appOpenedRecently()) {
-    return [];
-  }
-  setMarker(UPCOMING_FIRE_AT_PREFIX, reminder.id, targetSlot.getTime());
-  return [targetSlot];
+  return slots;
 }
 
 //  Title / body from engine output 
