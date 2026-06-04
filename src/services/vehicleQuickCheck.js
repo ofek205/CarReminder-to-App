@@ -110,7 +110,15 @@ function normalizeLookupResult(raw, plate) {
     registration: compact({
       firstRegistrationDate: source.first_registration_date,
       lastTestDate: source.last_test_date,
-      testDueDate: source.test_due_date || source.inspection_report_expiry_date,
+      // Only surface a test-validity date that the Ministry of Transport
+      // actually publishes. For vehicles whose test date we merely ESTIMATED
+      // (e.g. motorcycles — see mapMotoRecord), we suppress the guess so the
+      // report never presents it as a real test date that could hide a
+      // skipped test. The real "עלייה לכביש" date is shown instead.
+      testDueDate: source._test_due_estimated
+        ? (source.inspection_report_expiry_date || undefined)
+        : (source.test_due_date || source.inspection_report_expiry_date),
+      testDueEstimated: !!source._test_due_estimated,
       inspectionReportExpiryDate: source.inspection_report_expiry_date,
       cancellationDate: source._cancellationDate,
       currentKm: source.current_km,

@@ -832,7 +832,12 @@ function KeyInfoGrid({ result }) {
     { icon: Wrench, label: 'סוג דלק', value: t.fuelType },
     { icon: ShieldCheck, label: 'תיבת הילוכים', value: t.transmission },
     { icon: BadgeCheck, label: 'סוג בעלות', value: o.current },
-    { icon: CalendarDays, label: 'עלייה לכביש', value: r.firstRegistrationDate },
+    {
+      icon: CalendarDays, label: 'עלייה לכביש', value: r.firstRegistrationDate,
+      // For vehicles with no official test date (e.g. motorcycles) explain
+      // why "תוקף בדיקה" is absent instead of leaving the user guessing.
+      source: r.testDueEstimated ? 'משרד התחבורה לא מפרסם תוקף טסט לסוג כלי זה' : null,
+    },
     { icon: CalendarDays, label: 'תוקף בדיקה', value: r.testDueDate || r.inspectionReportExpiryDate },
   ].filter(item => hasDisplayValue(item.value));
   if (!items.length) return null;

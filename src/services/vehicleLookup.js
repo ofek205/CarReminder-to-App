@@ -282,8 +282,14 @@ function mapMotoRecord(r) {
   if (r.misgeret)      fields.vin           = safeStr(r.misgeret, 30);
   if (r.moed_aliya_lakvish) {
     fields.first_registration_date = safeDate(r.moed_aliya_lakvish);
-    // For motorcycles, the test month is the same as registration month every year
-    // e.g., "2023-3" means test is due in March. Calculate next test date.
+    // The motorcycle dataset carries NO official test/validity date (unlike
+    // the private-car dataset's tokef_dt). We can only ESTIMATE the next test
+    // by assuming the annual test falls in the registration month. That guess
+    // is NOT a verified fact — and worse, when the test month has already
+    // passed this year it silently rolls forward to next year, which would
+    // mask a SKIPPED test as if it were done. So we compute it but mark it
+    // estimated; the "בדוק רכב" report uses the flag to show the real
+    // "עלייה לכביש" date instead of presenting this guess as a test date.
     const parts = String(r.moed_aliya_lakvish).split('-');
     if (parts.length >= 2) {
       const regMonth = parseInt(parts[1], 10);
@@ -295,6 +301,7 @@ function mapMotoRecord(r) {
         const testYear = (regMonth < thisMonth) ? thisYear + 1 : thisYear;
         const lastDay = new Date(testYear, regMonth, 0).getDate(); // last day of the month
         fields.test_due_date = `${testYear}-${String(regMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        fields._test_due_estimated = true;   // computed guess, not a gov.il fact
       }
     }
   }
