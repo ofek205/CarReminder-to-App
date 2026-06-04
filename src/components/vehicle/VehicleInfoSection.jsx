@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "../shared/StatusBadge";
-import { getDateStatus, formatDateHe, isVessel, isOffroad, getVehicleLabels } from "../shared/DateStatusUtils";
+import { getDateStatus, formatDateHe, isVessel, isOffroad, getVehicleLabels, getTestPolicy } from "../shared/DateStatusUtils";
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES } from "../vehicle/VehicleTypeSelector";
 import { COUNTRIES } from "../vehicle/CountryFlagSelect";
 import { Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Cog, ExternalLink, Camera, Loader2, Upload, AlertTriangle, Zap, Leaf, Hash, Paperclip, ArrowRight, Sparkles, Info } from "lucide-react";
@@ -1022,14 +1022,33 @@ export default function VehicleInfoSection({ vehicle }) {
   return (
     <div className="space-y-4" dir="rtl">
 
-      {/*  Vintage badge  */}
-      {!vesselMode && (vehicle.is_vintage || (vehicle.year && new Date().getFullYear() - Number(vehicle.year) >= 30) || vehicle.vehicle_type === 'רכב אספנות') && (
-        <div className="rounded-2xl px-4 py-3 flex items-center gap-2.5"
-          style={{ background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', border: '1.5px solid #DDD6FE' }}>
-          <span className="text-lg">🏛️</span>
-          <span className="text-sm font-bold" style={{ color: '#7C3AED' }}>כלי רכב אספנות - טסט כל חצי שנה</span>
-        </div>
-      )}
+      {/*  Test-category badge — רכב מיושן (6-monthly) / רכב אספנות (annual).
+          The category, frequency text and required documents all come from
+          getTestPolicy(), the single source of truth. gov.il still owns the
+          actual due date; this badge is informational only. Replaces the old
+          badge that wrongly labelled every 30+ car "אספנות - חצי שנה". */}
+      {!vesselMode && (() => {
+        const testPolicy = getTestPolicy(vehicle);
+        if (testPolicy.category !== 'aging' && testPolicy.category !== 'collector') return null;
+        const freqText = testPolicy.frequencyMonths === 6 ? 'טסט כל חצי שנה' : 'טסט שנתי';
+        const docsText = testPolicy.requiredDocs.length > 0
+          ? `. נדרש בטסט: ${testPolicy.requiredDocs.join(', ')}`
+          : '';
+        return (
+          <div className="rounded-2xl px-4 py-3 flex items-start gap-2.5"
+            style={{ background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)', border: '1.5px solid #DDD6FE' }}>
+            <span className="text-lg">🏛️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold leading-tight" style={{ color: '#7C3AED' }}>
+                {testPolicy.label}
+              </p>
+              <p className="text-[11px] font-medium leading-tight mt-0.5" style={{ color: '#7C3AED' }}>
+                {freqText}{docsText}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/*  Personal-import badge — informational only, no logic effect.
           Sourced from gov.il's "כלי רכב ביבוא אישי" registry. Sky/cyan

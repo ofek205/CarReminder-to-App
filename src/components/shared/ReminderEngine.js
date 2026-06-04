@@ -4,8 +4,8 @@
  * No React, no side effects - just data in, reminder items out.
  */
 
-import { differenceInDays, differenceInYears, subMonths } from 'date-fns';
-import { getVehicleLabels, isVessel } from './DateStatusUtils';
+import { differenceInDays, differenceInYears } from 'date-fns';
+import { getVehicleLabels, isVessel, getTestPolicy } from './DateStatusUtils';
 
 //  Primitive helpers
 
@@ -192,24 +192,25 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
     const vName = v.nickname || [v.manufacturer, v.model].filter(Boolean).join(' ') || vLabels.vehicleFallback;
     const isV = isVessel(v.vehicle_type, v.nickname);
     const vehicleAge = v.year ? now.getFullYear() - Number(v.year) : 0;
-    // Vintage threshold: 30 years for every non-vessel type (cars,
-    // motorcycles, trucks, off-road, etc.). Vessels have their own
-    // regulatory cycle and are excluded.
-    const isVintage = !isV && (v.is_vintage || vehicleAge >= 30);
+    // Test category (aging / collector / new / regular). gov.il's
+    // test_due_date is AUTHORITATIVE for the date — the Ministry already
+    // encodes the real interval (6-monthly for aging cars, annual for
+    // collectors, etc.). The policy only supplies the display tag.
+    // The old "subtract 6 months for any 30+ vehicle" heuristic was removed:
+    // it mis-tagged every 30+ car as אספנות AND applied the aging 6-month
+    // interval to collectors — exactly backwards from the law.
+    const testPolicy = getTestPolicy(v);
+    const testTag = testPolicy.category === 'aging'
+      ? ' (מיושן)'
+      : testPolicy.category === 'collector'
+        ? ' (אספנות)'
+        : '';
 
-    // 1. Test / כושר שייט (with vintage logic)
+    // 1. Test / כושר שייט — date comes straight from gov.il, no local shift.
     if (v.test_due_date) {
-      let nextTestDate = new Date(v.test_due_date);
-      if (isVintage && nextTestDate > now) {
-        // date-fns subMonths handles month-boundary edge cases
-        // (e.g. 2025-03-31 - 6mo = 2024-09-30, not 2024-10-01 as Date's
-        // naive setMonth can produce when the day doesn't exist in the
-        // target month).
-        const halfTest = subMonths(nextTestDate, 6);
-        if (halfTest > now) nextTestDate = halfTest;
-      }
+      const nextTestDate = new Date(v.test_due_date);
       const dl = Math.ceil((nextTestDate - now) / 86400000);
-      const vintageTag = isVintage ? ' (אספנות)' : '';
+      const vintageTag = testTag;
       if (dl <= threshold) {
         items.push({
           id: `test-${v.id}`, type: 'test', emoji: '📋',

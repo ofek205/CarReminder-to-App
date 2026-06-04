@@ -145,6 +145,115 @@ export function isVintageVehicle(year) {
   return new Date().getFullYear() - Number(year) >= VINTAGE_AGE_YEARS;
 }
 
+// ── Test-frequency policy ────────────────────────────────────────────────
+// Single source of truth for how a vehicle's טסט is classified.
+//
+// IMPORTANT: gov.il's `test_due_date` is the AUTHORITATIVE next-test date for
+// every vehicle — the Ministry already encodes the real interval (annual,
+// 6-monthly for aging cars, etc.) per the specific vehicle and the current
+// law. This policy NEVER overrides that date. It exists only to drive:
+//   1. the category label/badge shown to the user,
+//   2. the list of documents the owner must bring to the test,
+//   3. a FALLBACK due-date when gov.il provides none (manual entry).
+//
+// Israeli private-vehicle rule (as of 2026, per the product spec):
+//   • new 0–3y (from first registration) → exempt, first test at age 3
+//   • 3–19y                              → annual (12 months)
+//   • 19+ "רכב מיושן"                    → every 6 months
+//   • "רכב אספנות" (owner-registered)    → annual (12 months)
+// A 30+ vehicle that was NOT registered as אספנות stays "מיושן" (6 months)
+// until the owner changes its registration — matching the law.
+export const AGING_AGE_YEARS = 19;        // רכב מיושן threshold
+
+// Vehicle types that follow the private-car test regime. Trucks, buses, CME,
+// trailers and vessels are intentionally excluded here (Phase 2 / own cycle):
+// for them we simply trust gov.il's date and show no Phase-1 frequency.
+const PRIVATE_TEST_TYPES = new Set(['רכב', 'אופנוע כביש', 'קטנוע']);
+
+/** Vehicle age in whole years, or null when the year is missing/invalid. */
+export function getVehicleAge(year) {
+  if (!year) return null;
+  const n = Number(year);
+  if (!Number.isFinite(n)) return null;
+  return new Date().getFullYear() - n;
+}
+
+/**
+ * Returns the test policy for a vehicle. Pure — no network, no side effects.
+ * @returns {{
+ *   category: 'vessel'|'collector'|'aging'|'new'|'regular'|'other',
+ *   frequencyMonths: number|null,   // null = exempt or own regulatory cycle
+ *   requiredDocs: string[],         // documents to bring to the test
+ *   label: string                   // short Hebrew badge label ('' = none)
+ * }}
+ */
+export function getTestPolicy(vehicle) {
+  const v = vehicle || {};
+  const type = v.vehicle_type;
+
+  // Vessels follow their own seaworthiness cycle (כושר שייט) — excluded.
+  if (isVessel(type, v.nickname)) {
+    return { category: 'vessel', frequencyMonths: null, requiredDocs: [], label: '' };
+  }
+
+  // רכב אספנות: a deliberate owner registration (selected vehicle type),
+  // not merely an old car. Annual test, needs a yearly fitness certificate.
+  if (type === 'רכב אספנות') {
+    return {
+      category: 'collector',
+      frequencyMonths: 12,
+      requiredDocs: ['אישור תקינות שנתי ממוסך מורשה'],
+      label: 'רכב אספנות',
+    };
+  }
+
+  const age = getVehicleAge(v.year);
+
+  // רכב מיושן: 19+ years (including 30+ NOT registered as אספנות) → 6 months.
+  if (age !== null && age >= AGING_AGE_YEARS) {
+    return {
+      category: 'aging',
+      frequencyMonths: 6,
+      requiredDocs: ['אישור רכב מיושן (בלמים והיגוי) ממוסך מורשה'],
+      label: 'רכב מיושן',
+    };
+  }
+
+  // New private vehicle: exempt for the first 3 years from registration.
+  if (PRIVATE_TEST_TYPES.has(type) && age !== null && age < 3) {
+    return { category: 'new', frequencyMonths: null, requiredDocs: [], label: '' };
+  }
+
+  // Regular private vehicle: annual.
+  if (PRIVATE_TEST_TYPES.has(type)) {
+    return { category: 'regular', frequencyMonths: 12, requiredDocs: [], label: '' };
+  }
+
+  // Trucks, buses, CME, trailers, aviation: trust gov.il (Phase 2 covers
+  // their explicit frequency/winter-inspection rules).
+  return { category: 'other', frequencyMonths: null, requiredDocs: [], label: '' };
+}
+
+/**
+ * Fallback next-test date used ONLY when gov.il provides none — e.g. a
+ * brand-new vehicle added manually whose ministry record has no next-test
+ * date yet. Israeli law exempts new private cars/motorcycles for 3 years
+ * from first registration, so the first test lands at +3 years.
+ * Returns '' when no sensible date can be derived (caller leaves it blank).
+ */
+export function computeFallbackTestDate(fields) {
+  const f = fields || {};
+  if (f.test_due_date) return f.test_due_date;
+  if (!f.first_registration_date) return '';
+  if (!PRIVATE_TEST_TYPES.has(f.vehicle_type)) return '';
+  try {
+    const d = new Date(f.first_registration_date);
+    if (isNaN(d.getTime())) return '';
+    d.setFullYear(d.getFullYear() + 3);
+    return d.toISOString().split('T')[0];
+  } catch { return ''; }
+}
+
 // Heavy / industrial equipment subtypes (forklifts, excavators, telehandlers,
 // graders, etc.) — they all hour-meter and the user thinks of them as
 // "כלי הנדסי" / "כלי צמ"ה" not "רכב". Reuses the OFFROAD_HOURS_TYPES set so

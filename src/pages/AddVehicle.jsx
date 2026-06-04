@@ -40,7 +40,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectWithClear } from "@/components/ui/select";
 import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft, Info } from "lucide-react";
 import { lookupVehicleByPlate } from "../services/vehicleLookup";
-import { normalizePlate, isVintageVehicle, isVessel } from "../components/shared/DateStatusUtils";
+import { normalizePlate, isVintageVehicle, isVessel, computeFallbackTestDate } from "../components/shared/DateStatusUtils";
 import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, CME_SUBCATEGORIES, AVIATION_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { trackUserAction } from "../components/shared/ReviewManager";
@@ -576,18 +576,9 @@ export default function AddVehicle() {
   // their first 3 years after registration. When we have the first-
   // registration date but no test date (government records for brand-new
   // vehicles don't include a next-test date), derive it automatically.
-  const autoTestDate = (fields) => {
-    if (fields.test_due_date) return fields.test_due_date;
-    if (!fields.first_registration_date) return '';
-    const EXEMPT_TYPES = new Set(['רכב', 'אופנוע כביש', 'קטנוע']);
-    if (!EXEMPT_TYPES.has(fields.vehicle_type)) return '';
-    try {
-      const d = new Date(fields.first_registration_date);
-      if (isNaN(d.getTime())) return '';
-      d.setFullYear(d.getFullYear() + 3);
-      return d.toISOString().split('T')[0];
-    } catch { return ''; }
-  };
+  // Delegated to computeFallbackTestDate so the +3y exemption rule lives in
+  // one place (DateStatusUtils) shared with the test-policy engine.
+  const autoTestDate = (fields) => computeFallbackTestDate(fields);
 
   // Build the form updates object (used both after fresh lookup and after
   // the user confirms a mismatched category)
