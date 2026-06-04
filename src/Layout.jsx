@@ -9,6 +9,8 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { FontScaleProvider } from "@/components/shared/FontScaleProvider";
 import WelcomePopup from "@/components/shared/WelcomePopup";
+import ReleaseNotesPopup from "@/components/shared/ReleaseNotesPopup";
+import useReleaseAnnouncement from "@/hooks/useReleaseAnnouncement";
 import GuestWelcomePopup from "@/components/shared/GuestWelcomePopup";
 import MileageReminderPopup from "@/components/shared/MileageReminderPopup";
 import AiScanUnavailableDialog from "@/components/shared/AiScanUnavailableDialog";
@@ -697,6 +699,10 @@ function LayoutInner({ children }) {
     };
   }, [navigate]);
   const [welcomeState, setWelcomeState] = useState(null);
+  // Admin-published "what's new" announcement (replaces the old automatic
+  // daily welcome popup). Shown once per user; gated at render to logged-in
+  // non-guest users and never stacked on the first-time onboarding popup.
+  const releaseAnn = useReleaseAnnouncement();
   const [guestPopupClosed, setGuestPopupClosed] = useState(
     () => sessionStorage.getItem('guest_popup_closed') === '1'
   );
@@ -850,7 +856,16 @@ function LayoutInner({ children }) {
     const createdAt = user.created_at ? new Date(user.created_at).getTime() : 0;
     const ageMs = createdAt ? Date.now() - createdAt : Infinity;
     const isFirstTime = ageMs < 60 * 60 * 1000; // account < 1h old
-    setWelcomeState({ isReturning: !isFirstTime, userName: user.full_name || '' });
+    // Product decision 2026-06-04: RETURNING users no longer get an automatic
+    // daily "טוב שחזרת / מה חדש" popup (it fired every day with hardcoded,
+    // non-editable content). "What's new" is now an admin-published release
+    // announcement, shown once per user via ReleaseNotesPopup. Only brand-new
+    // accounts still get the one-time onboarding welcome.
+    if (!isFirstTime) {
+      try { localStorage.setItem(storageKey, today); } catch {}
+      return;
+    }
+    setWelcomeState({ isReturning: false, userName: user.full_name || '' });
     try { localStorage.setItem(storageKey, today); } catch {}
     // Close the side drawer (and any other open popovers) so the welcome
     // modal isn't covered by the menu sheet. New users on a phone often
@@ -919,6 +934,18 @@ function LayoutInner({ children }) {
       </SafeComponent>
       <SafeComponent label="WelcomePopup">
         <WelcomePopup open={welcomeState !== null} isReturningUser={welcomeState?.isReturning ?? false} userName={welcomeState?.userName ?? ''} onClose={() => setWelcomeState(null)} />
+      </SafeComponent>
+      {/* Admin-published "what's new" — shown once per user, only when an
+          announcement exists. Gated to logged-in non-guest users and held
+          back while the first-time onboarding welcome is on screen so the
+          two never stack. */}
+      <SafeComponent label="ReleaseNotesPopup">
+        <ReleaseNotesPopup
+          open={isAuthenticated && !isGuest && welcomeState === null && releaseAnn.show}
+          title={releaseAnn.announcement?.title}
+          body={releaseAnn.announcement?.body}
+          onClose={releaseAnn.dismiss}
+        />
       </SafeComponent>
       <SafeComponent label="MileageReminderPopup">
         <MileageReminderPopup

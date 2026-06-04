@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Loader2, Smartphone, Apple, Send, XCircle,
-  CheckCircle2, AlertTriangle, RefreshCw, Users,
+  CheckCircle2, AlertTriangle, RefreshCw, Users, Megaphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -55,6 +55,10 @@ export default function AdminVersionTab() {
   const [sending, setSending] = useState({ android: false, ios: false });
   const [clearing, setClearing] = useState({ android: false, ios: false });
   const [distribution, setDistribution] = useState([]);
+  // Release announcement ("what's new" popup) — admin-published, shown once.
+  const [announcement, setAnnouncement] = useState({ title: '', body: '' });
+  const [publishedAnn, setPublishedAnn] = useState(null);
+  const [annBusy, setAnnBusy] = useState(false);
 
   // ── Fetch current config + version distribution ───────────────────
   const fetchConfig = useCallback(async () => {
@@ -75,6 +79,14 @@ export default function AdminVersionTab() {
         ios: typeof iosVal === 'string' ? iosVal : '',
         android: typeof androidVal === 'string' ? androidVal : '',
       });
+
+      // Current release announcement (admin-published "what's new").
+      const annRes = await supabase
+        .from('app_config').select('value').eq('key', 'release_announcement').maybeSingle();
+      const annVal = (!annRes.error && annRes.data?.value && typeof annRes.data.value === 'object')
+        ? annRes.data.value : null;
+      setPublishedAnn(annVal);
+      setAnnouncement({ title: annVal?.title || '', body: annVal?.body || '' });
     } catch (err) {
       console.error('Failed to fetch app versions:', err);
       toast.error('שגיאה בטעינת נתוני גרסאות');
@@ -139,6 +151,49 @@ export default function AdminVersionTab() {
       toast.error(`ניקוי נכשל: ${err.message}`);
     } finally {
       setClearing(s => ({ ...s, [platform]: false }));
+    }
+  };
+
+  // ── Publish / clear the "what's new" announcement ─────────────────
+  const handlePublishAnnouncement = async () => {
+    const body = announcement.body?.trim();
+    if (!body) {
+      toast.error('יש להזין טקסט להודעה');
+      return;
+    }
+    setAnnBusy(true);
+    try {
+      const { error } = await supabase.rpc('publish_release_announcement', {
+        p_title: announcement.title?.trim() || '',
+        p_body: body,
+        p_clear: false,
+      });
+      if (error) throw error;
+      toast.success('ההודעה פורסמה — תופיע לכל משתמש פעם אחת בכניסה הבאה');
+      await fetchConfig();
+    } catch (err) {
+      console.error('Publish announcement failed:', err);
+      toast.error(`פרסום נכשל: ${err.message}`);
+    } finally {
+      setAnnBusy(false);
+    }
+  };
+
+  const handleClearAnnouncement = async () => {
+    setAnnBusy(true);
+    try {
+      const { error } = await supabase.rpc('publish_release_announcement', {
+        p_title: '', p_body: '', p_clear: true,
+      });
+      if (error) throw error;
+      toast.success('ההודעה הופסקה — לא תוצג יותר');
+      setAnnouncement({ title: '', body: '' });
+      await fetchConfig();
+    } catch (err) {
+      console.error('Clear announcement failed:', err);
+      toast.error(`הפסקה נכשלה: ${err.message}`);
+    } finally {
+      setAnnBusy(false);
     }
   };
 
@@ -308,6 +363,107 @@ export default function AdminVersionTab() {
             </div>
           );
         })}
+      </div>
+
+      {/* ── Release announcement ("what's new" popup) ──────────────── */}
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-5 py-4 flex items-center gap-3" style={{ backgroundColor: C.primary + '0A' }}>
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ backgroundColor: C.primary + '18' }}
+          >
+            <Megaphone className="w-5 h-5" style={{ color: C.primary }} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-800">הודעת &quot;מה חדש&quot; (פופ-אפ)</h3>
+            <p className="text-[10px] text-gray-500">
+              מופיעה לכל משתמש פעם אחת בכניסה — לא אוטומטית, רק כשמפרסמים כאן
+            </p>
+          </div>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* Current status */}
+          {publishedAnn ? (
+            <div className="flex items-start gap-2 text-[11px] bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0 mt-0.5" />
+              <div className="text-gray-600">
+                <span className="font-bold text-gray-700">הודעה פעילה</span>
+                {publishedAnn.published_at && (
+                  <span className="text-gray-400">
+                    {' · פורסמה '}
+                    {format(new Date(publishedAnn.published_at), "dd/MM/yyyy 'בשעה' HH:mm", { locale: he })}
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-[11px] text-gray-500">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              אין הודעה פעילה — לא יוצג פופ-אפ
+            </div>
+          )}
+
+          {/* Title (optional) */}
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold text-gray-600">כותרת (לא חובה)</label>
+            <Input
+              dir="rtl"
+              placeholder="מה חדש בגרסה"
+              value={announcement.title}
+              onChange={(e) => setAnnouncement(a => ({ ...a, title: e.target.value }))}
+              className="text-sm h-10"
+              maxLength={120}
+              disabled={annBusy}
+            />
+          </div>
+
+          {/* Body (required) */}
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold text-gray-600">תוכן ההודעה</label>
+            <textarea
+              dir="rtl"
+              placeholder={'מה התווסף בגרסה החדשה?\nאפשר לכתוב כמה שורות.'}
+              value={announcement.body}
+              onChange={(e) => setAnnouncement(a => ({ ...a, body: e.target.value }))}
+              rows={5}
+              maxLength={2000}
+              disabled={annBusy}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-400"
+            />
+            <p className="text-[10px] text-gray-400 text-left" dir="ltr">
+              {announcement.body.length}/2000
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-1">
+            <Button
+              onClick={handlePublishAnnouncement}
+              disabled={annBusy || !announcement.body.trim()}
+              className="flex-1 gap-2 text-xs font-bold h-10"
+              style={{ backgroundColor: annBusy ? undefined : C.primary, color: annBusy ? undefined : '#fff' }}
+            >
+              {annBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              {publishedAnn ? 'עדכן ופרסם מחדש' : 'פרסם הודעה'}
+            </Button>
+            {publishedAnn && (
+              <Button
+                variant="outline"
+                onClick={handleClearAnnouncement}
+                disabled={annBusy}
+                className="gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50 h-10"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                הפסק הצגה
+              </Button>
+            )}
+          </div>
+
+          <p className="text-[10px] text-gray-400 leading-relaxed">
+            פרסום מחדש (עם טקסט חדש) יציג את הפופ-אפ שוב לכל המשתמשים, גם למי שכבר ראה את הקודם.
+          </p>
+        </div>
       </div>
 
       {/* ── Version distribution chart ─────────────────────────────── */}
