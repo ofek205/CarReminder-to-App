@@ -140,6 +140,28 @@ export function getDocEmoji(documentType) {
   return '📄';
 }
 
+//  Generator reminder cadences (Phase 2)
+// Per generator_type recommendation defaults. These drive DERIVED reminders
+// (next-due = last-done date + interval), never hard regulatory dates. The
+// detail page carries the "guidance only" liability note (spec section 11).
+//   serviceMonths : annual full-service interval (calendar)
+//   serviceHours  : work-hours service interval (250h light / 500h heavy)
+//   loadTest      : whether this type gets a yearly load-bank test reminder
+//   safety        : whether this type gets a yearly safety/fire-approval reminder
+//                   (also forced on when the user marks requires_fire_dept_approval='כן')
+//   checkMonths   : periodic operation-check cadence (1=monthly for emergency/
+//                   critical, 3=quarterly for fixed/industrial, null=none)
+export const GENERATOR_REMINDER_DEFAULTS = {
+  'גנרטור ביתי קטן':                { serviceMonths: 12, serviceHours: 250, loadTest: false, safety: false, checkMonths: null },
+  'גנרטור נייד / שטח / אירועים':     { serviceMonths: 12, serviceHours: 250, loadTest: false, safety: false, checkMonths: null },
+  'גנרטור קבוע לעסק / מבנה':         { serviceMonths: 12, serviceHours: 500, loadTest: true,  safety: false, checkMonths: 3 },
+  'גנרטור חירום':                   { serviceMonths: 12, serviceHours: 500, loadTest: true,  safety: true,  checkMonths: 1 },
+  'גנרטור תעשייתי':                 { serviceMonths: 12, serviceHours: 500, loadTest: true,  safety: false, checkMonths: 3 },
+  'גנרטור למתקן רפואי / מתקן קריטי': { serviceMonths: 12, serviceHours: 500, loadTest: true,  safety: true,  checkMonths: 1 },
+  'אחר':                           { serviceMonths: 12, serviceHours: 250, loadTest: false, safety: false, checkMonths: null },
+  _default:                        { serviceMonths: 12, serviceHours: 250, loadTest: false, safety: false, checkMonths: null },
+};
+
 //  Main calculation 
 
 /**
@@ -418,6 +440,95 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
         label: usageUpdateWord,
         linkTo: `VehicleDetail?id=${v.id}`,
       });
+    }
+
+    // 12. Generator-derived reminders (Phase 2).
+    // Generators have no test/insurance. Instead we derive "next due" from the
+    // last-done date + a per-type cadence (annual service / load test / safety
+    // approval), an hours-based service interval, and a periodic operation
+    // check for emergency/critical units. All recommendations — the detail
+    // page shows the "guidance only" liability note.
+    if (isGenerator(v.vehicle_type)) {
+      const cfg = GENERATOR_REMINDER_DEFAULTS[v.generator_type] || GENERATOR_REMINDER_DEFAULTS._default;
+
+      // anchor date + N months → next-due; surface only within `threshold` days.
+      const addByDate = (anchor, months, key, emoji, word) => {
+        if (!anchor || !months) return;
+        const due = new Date(`${String(anchor).slice(0, 10)}T00:00:00`);
+        if (isNaN(due.getTime())) return;
+        due.setMonth(due.getMonth() + months);
+        const dueIso = due.toISOString().slice(0, 10);
+        const dl = daysUntil(dueIso);
+        if (dl === null || dl > threshold) return;
+        items.push({
+          id: `${key}-${v.id}`, type: 'maintenance', emoji,
+          typeName: word, name: vName, vehicleId: v.id,
+          dueDate: dueIso, daysLeft: dl, status: urgencyFromDays(dl),
+          label: dl < 0 ? `${word} ${daysAgo(dl)}` : `${word} ${inDays(dl)}`,
+          linkTo: `VehicleDetail?id=${v.id}`,
+        });
+      };
+
+      addByDate(v.last_service_date, cfg.serviceMonths, 'gen-service', '⚙️', 'טיפול שנתי לגנרטור');
+      if (cfg.loadTest) addByDate(v.last_load_bank_test_date, 12, 'gen-loadtest', '🔌', 'בדיקת עומס לגנרטור');
+      if (cfg.safety || v.requires_fire_dept_approval === 'כן') {
+        addByDate(v.last_safety_approval_date, 12, 'gen-safety', '📋', 'חידוש אישור תקינות לגנרטור');
+      }
+
+      // Periodic operation check (monthly for emergency/critical, quarterly for
+      // fixed/industrial). Anchored on the most recent activity so any update or
+      // logged service resets the clock; surfaced from a week before it's due.
+      if (cfg.checkMonths) {
+        // Anchor on the MOST RECENT activity (not the first available), so a
+        // recent hours update / service resets the periodic-check clock.
+        const anchorTimes = [v.last_service_date, v.engine_hours_update_date, v.km_update_date, v.created_at]
+          .map(d => (d ? new Date(`${String(d).slice(0, 10)}T00:00:00`).getTime() : NaN))
+          .filter(t => Number.isFinite(t));
+        if (anchorTimes.length) {
+          const due = new Date(Math.max(...anchorTimes));
+          if (!isNaN(due.getTime())) {
+            due.setMonth(due.getMonth() + cfg.checkMonths);
+            const dl = daysUntil(due.toISOString().slice(0, 10));
+            if (dl !== null && dl <= 7) {
+              const word = cfg.checkMonths === 1 ? 'בדיקה חודשית לגנרטור' : 'בדיקה תקופתית לגנרטור';
+              items.push({
+                id: `gen-check-${v.id}`, type: 'maintenance', emoji: '🔍',
+                typeName: word, name: vName, vehicleId: v.id,
+                dueDate: due.toISOString().slice(0, 10), daysLeft: dl, status: urgencyFromDays(dl),
+                label: dl < 0 ? `${word} ${daysAgo(dl)}` : `${word} ${inDays(dl)}`,
+                linkTo: `VehicleDetail?id=${v.id}`,
+              });
+            }
+          }
+        }
+      }
+
+      // Hours-based service. Counts work-hours since the last service (or the
+      // baseline at add-time). Unknown history → count from current, so a fresh
+      // generator never false-fires.
+      const curHrs = v.current_engine_hours != null && v.current_engine_hours !== ''
+        ? Number(v.current_engine_hours) : null;
+      if (curHrs != null && cfg.serviceHours) {
+        const baseHrs = (v.work_hours_at_last_service != null && v.work_hours_at_last_service !== '')
+          ? Number(v.work_hours_at_last_service)
+          : (v.engine_hours_baseline != null && v.engine_hours_baseline !== '')
+            ? Number(v.engine_hours_baseline)
+            : curHrs;
+        const hoursSince = curHrs - baseHrs;
+        if (Number.isFinite(hoursSince) && hoursSince >= cfg.serviceHours * 0.9) {
+          const urgent = hoursSince >= cfg.serviceHours;
+          items.push({
+            id: `gen-hours-${v.id}`, type: 'maintenance', emoji: '🛠️',
+            typeName: 'טיפול לפי שעות', name: vName, vehicleId: v.id,
+            dueDate: null, daysLeft: urgent ? 0 : 30,
+            status: urgent ? 'danger' : 'warn',
+            label: urgent
+              ? `טיפול לגנרטור נדרש (${Math.round(hoursSince)} שעות עבודה)`
+              : `טיפול לגנרטור מתקרב (${Math.round(hoursSince)} שעות עבודה)`,
+            linkTo: `VehicleDetail?id=${v.id}`,
+          });
+        }
+      }
     }
   });
 
