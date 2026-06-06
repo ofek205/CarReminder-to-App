@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase, Loader2, ArrowRight, Clock, AlertTriangle,
-  Truck, Users, Map, NotebookPen,
+  Truck, Users, Map, NotebookPen, Receipt, FileSpreadsheet, RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
@@ -40,11 +40,20 @@ const USER_RANGES    = ['1-3', '4-10', '11-25', '25+'];
 
 // What a business account unlocks — grounded in the real B2B pages
 // (Fleet/BusinessDashboard, Drivers/Team, Routes/FleetMap, DrivingLog).
+// Consistent 3-tone palette: green = core value, teal = secondary,
+// orange RESERVED for alerts/tasks (here: the map/tasks tile).
+const TILE_GRADIENT = {
+  green:  'linear-gradient(135deg,#047857,#10B981)',
+  teal:   'linear-gradient(135deg,#0E7490,#22B8CF)',
+  orange: 'linear-gradient(135deg,#C2710C,#F6A93B)',
+};
 const BENEFITS = [
-  { Icon: Truck,       t: 'ניהול צי מרוכז', d: 'כל רכבי החברה במסך אחד, עם דשבורד ו-KPIs.' },
-  { Icon: Users,       t: 'נהגים וצוות',     d: 'הוספת עובדים, שיוך רכבים והרשאות.' },
-  { Icon: Map,         t: 'משימות ומפה',     d: 'תכנון משימות, שיוך לנהגים ומעקב גיאוגרפי.' },
-  { Icon: NotebookPen, t: 'יומן נסיעות',     d: 'מי נהג, איפה ומתי — תיעוד מלא.' },
+  { Icon: Truck,           tone: 'green',  t: 'צי מאוחד',       d: 'כל הרכבים בדשבורד אחד' },
+  { Icon: Users,           tone: 'teal',   t: 'צוות והרשאות',   d: 'נהגים, עובדים, שיוך רכבים' },
+  { Icon: Map,             tone: 'orange', t: 'משימות על המפה', d: 'תכנון ומעקב גיאוגרפי' },
+  { Icon: NotebookPen,     tone: 'teal',   t: 'יומן נסיעות',    d: 'מי נהג, איפה ומתי' },
+  { Icon: Receipt,         tone: 'green',  t: 'הוצאות ודוחות',  d: 'מעקב לפי רכב, הפקת דוחות' },
+  { Icon: FileSpreadsheet, tone: 'teal',   t: 'ייבוא מאקסל',    d: 'עדכון צי מקובץ קיים' },
 ];
 
 const fmtDate = (d) => d ? new Date(d).toLocaleString('he-IL', { hour12: false }) : '';
@@ -254,29 +263,70 @@ function RequestForm({ mode, latestRequest, onRequested }) {
         <DeniedBanner request={latestRequest} />
       )}
 
-      {/* Benefits — what a business account unlocks. */}
-      <Card className="mb-4">
-        <p className="text-[11px] font-bold mb-3 flex items-center gap-2" style={{ color: C.primaryDark }}>
-          <span className="inline-block w-1 h-3.5 rounded-full"
-            style={{ background: `linear-gradient(180deg, ${C.successDark} 0%, ${C.successMid} 100%)` }} />
-          מה מקבלים בחשבון עסקי
-        </p>
-        <div className="space-y-2">
-          {BENEFITS.map(({ Icon, t, d }) => (
-            <div key={t} className="flex items-start gap-3 p-2.5 rounded-xl"
-              style={{ background: '#FAFCF9', borderInlineStart: `3px solid ${C.primary}` }}>
-              <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
-                style={{ background: C.successLight, color: C.successDark }}>
-                <Icon className="h-4 w-4" />
+      {/* Value showcase — premium-SaaS feel. Soft green-tinted panel with
+          white cards floating on it for depth; brand-framed header; a refined
+          dark-green hero for the automatic-vehicle-data superpower; then a
+          breathable 2-col grid. Friendly for private users, professional for
+          fleets. Approved design (mockup v6). */}
+      <div
+        className="mb-4 rounded-3xl p-4 overflow-hidden"
+        style={{ background: '#F6FAF7', border: `1px solid ${C.border}`, boxShadow: '0 2px 12px rgba(28,46,32,0.05)' }}
+      >
+        {/* Header — brand kicker + title + subtitle */}
+        <span
+          className="inline-flex items-center gap-1.5 text-[10.5px] font-bold px-2.5 py-1 rounded-full"
+          style={{ background: '#E7F5EC', border: '1px solid #CDE9D7', color: C.successDark }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: C.successBright }} />
+          CarReminder לעסק
+        </span>
+        <h3 className="text-[18px] font-extrabold mt-2" style={{ color: C.primaryDark, letterSpacing: '-0.01em' }}>
+          ניהול צי חכם, במקום אחד
+        </h3>
+        <p className="text-[12.5px] mt-0.5" style={{ color: '#46564A' }}>פשוט לשימוש פרטי, מקצועי לצי שלם.</p>
+
+        {/* Hero — automatic vehicle data (recalls / test / public MoT data) */}
+        <div
+          className="relative mt-3 mb-3 rounded-2xl p-3.5 flex items-center gap-3 text-white"
+          style={{ background: 'linear-gradient(125deg,#1E3D28 0%,#2D5233 70%,#3C7A4D 100%)', boxShadow: '0 10px 24px -10px rgba(28,54,32,0.4)' }}
+        >
+          <span className="absolute top-2.5 left-3 text-[9.5px] font-bold flex items-center gap-1.5" style={{ color: '#D6FBE4' }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> בלייב
+          </span>
+          <div
+            className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.22)' }}
+          >
+            <RefreshCw className="w-[22px] h-[22px]" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[15px] font-extrabold">עדכונים אוטומטיים על הרכב</p>
+            <p className="text-[11.5px] mt-0.5 leading-relaxed" style={{ color: 'rgba(255,255,255,0.9)' }}>
+              ריקולים, מועדי טסט ונתונים ממאגרי משרד התחבורה, אוטומטית.
+            </p>
+          </div>
+        </div>
+
+        {/* Breathable 2-col grid */}
+        <div className="grid grid-cols-2 gap-3">
+          {BENEFITS.map(({ Icon, tone, t, d }) => (
+            <div
+              key={t}
+              className="bg-white rounded-2xl p-3.5"
+              style={{ border: `1px solid ${C.border}`, boxShadow: '0 3px 12px rgba(45,82,51,0.06)' }}
+            >
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center mb-2.5 text-white"
+                style={{ background: TILE_GRADIENT[tone] }}
+              >
+                <Icon className="w-[19px] h-[19px]" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-bold" style={{ color: C.primaryDark }}>{t}</p>
-                <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: '#5A6B5D' }}>{d}</p>
-              </div>
+              <p className="text-[13.5px] font-bold leading-tight" style={{ color: C.text }}>{t}</p>
+              <p className="text-[11.5px] mt-1 leading-relaxed" style={{ color: '#46564A' }}>{d}</p>
             </div>
           ))}
         </div>
-      </Card>
+      </div>
 
       {/* Request form */}
       <Card>
