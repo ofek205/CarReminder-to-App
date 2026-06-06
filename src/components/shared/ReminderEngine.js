@@ -5,7 +5,7 @@
  */
 
 import { differenceInDays, differenceInYears } from 'date-fns';
-import { getVehicleLabels, isVessel, getTestPolicy } from './DateStatusUtils';
+import { getVehicleLabels, isVessel, getTestPolicy, usesHours, isGenerator } from './DateStatusUtils';
 
 //  Primitive helpers
 
@@ -388,6 +388,15 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
 
     // 8. Mileage update (180+ days)
     const mDate = mileageDates[v.id] || v.km_update_date || v.engine_hours_update_date;
+    // Usage-update wording follows the vehicle's actual metric: generators
+    // track "שעות עבודה", vessels / CME / tractors track "שעות מנוע", the
+    // rest track "קילומטראז'". Previously this branched only on isVessel, so
+    // a generator (and every CME machine) was told to update "קילומטראז'".
+    const usageUpdateWord = isGenerator(v.vehicle_type)
+      ? 'עדכן שעות עבודה'
+      : usesHours(v)
+        ? 'עדכן שעות מנוע'
+        : 'עדכן קילומטראז\'';
     if (mDate) {
       const mDays = Math.floor((now - new Date(mDate)) / 86400000);
       if (mDays > 180) {
@@ -396,7 +405,7 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
           typeName: 'עדכון', name: vName, vehicleId: v.id,
           dueDate: null, daysLeft: 999,
           status: 'upcoming',
-          label: !isV ? `עדכן קילומטראז' (${mDays} ימים)` : `עדכן שעות מנוע (${mDays} ימים)`,
+          label: `${usageUpdateWord} (${mDays} ימים)`,
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }
@@ -406,7 +415,7 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
         typeName: 'עדכון', name: vName, vehicleId: v.id,
         dueDate: null, daysLeft: 999,
         status: 'upcoming',
-        label: !isV ? 'עדכן קילומטראז\'' : 'עדכן שעות מנוע',
+        label: usageUpdateWord,
         linkTo: `VehicleDetail?id=${v.id}`,
       });
     }

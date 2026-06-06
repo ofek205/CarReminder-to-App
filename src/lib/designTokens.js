@@ -206,6 +206,15 @@ const SPECIAL_EXACT = new Set([
   'רכב מיוחד', 'רכב אספנות', 'טרקטור', 'נגרר', 'קרוואן',
   'אוטובוס', 'מחרשה', 'רכב תפעולי',
 ]);
+// Generator (גנרטור) — its own category. A single canonical vehicle_type
+// ('גנרטור'); the specific subtype (ביתי / חירום / תעשייתי …) lives in the
+// dedicated `generator_type` column, not in vehicle_type. Work-hours metered.
+const GENERATOR_EXACT = new Set(['גנרטור']);
+
+/** True when this vehicle_type is a generator. */
+export function isGeneratorType(vehicleType) {
+  return GENERATOR_EXACT.has(vehicleType);
+}
 
 export function isOffroadType(vehicleType) {
   return OFFROAD_EXACT.has(vehicleType);
@@ -239,6 +248,10 @@ export function getVehicleVisual(vehicle) {
   const nick = vehicle.nickname;
   const mfr = vehicle.manufacturer;
 
+  // Generator — Zap (⚡) icon, reuses the default green theme (no dedicated
+  // theme: identity is carried by the icon + label, per design decision).
+  if (GENERATOR_EXACT.has(vt)) return { iconKey: 'generator', theme: C };
+
   // Vessel
   if (checkVesselFull(vt, nick, mfr)) return { iconKey: 'ship', theme: marine };
 
@@ -267,6 +280,9 @@ export function getVehicleCategory(vehicleType, nickname, manufacturer) {
   // Vessel FIRST so "אופנוע ים" doesn't get caught by the motorcycle
   // keyword check below.
   if (checkVesselFull(vehicleType, nickname, manufacturer)) return 'vessel';
+  // Generator — exact, single canonical type. Checked early so it never
+  // falls through to keyword matching (car).
+  if (GENERATOR_EXACT.has(vehicleType)) return 'generator';
   // Off-road exact check before any keyword matching, so "טרקטורון"
   // isn't conflated with "טרקטור" and "RZR" doesn't fall through to car.
   if (OFFROAD_EXACT.has(vehicleType)) return 'offroad';

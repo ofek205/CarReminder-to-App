@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Gauge, Clock, RefreshCw, Check, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { toastError } from '@/lib/userErrorReport';
-import { usesKm, usesHours } from '../shared/DateStatusUtils';
+import { usesKm, usesHours, isGenerator } from '../shared/DateStatusUtils';
 import { useAuth } from '../shared/GuestContext';
 import { C, getTheme } from '@/lib/designTokens';
 import { db } from '@/lib/supabaseEntities';
@@ -25,8 +25,11 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
   // Also check localStorage (always works even if DB column doesn't exist)
   const localDate    = (() => { try { return JSON.parse(localStorage.getItem('carreminder_mileage_dates') || '{}')[vehicle.id] || null; } catch { return null; } })();
   const updateDate   = localDate || dbDate || null;
-  const unit         = isKm ? 'ק״מ' : 'שעות מנוע';
-  const sectionLabel = isKm ? 'קילומטראז\'' : 'שעות מנוע';
+  // Generators meter "שעות עבודה" (work-hours), other hour-tracked vehicles
+  // (vessels / CME) meter "שעות מנוע".
+  const isGen        = isGenerator(vehicle.vehicle_type);
+  const unit         = isKm ? 'ק״מ' : isGen ? 'שעות עבודה' : 'שעות מנוע';
+  const sectionLabel = isKm ? 'קילומטראז\'' : isGen ? 'שעות עבודה' : 'שעות מנוע';
 
   const cancel = () => { setOpen(false); setValue(''); };
 
