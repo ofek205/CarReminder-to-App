@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 
 /**
@@ -18,8 +19,13 @@ export default function useIsAdmin() {
     queryKey: ['is-admin', user?.id],
     enabled,
     staleTime: 10 * 60 * 1000,
+    retry: 1,
+    retryDelay: 500,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('is_admin');
+      // withTimeout so a hung is_admin RPC can't pin the whole admin area on
+      // an infinite loading spinner (Query Timeout Gate). On timeout/error we
+      // resolve to false rather than staying pending forever.
+      const { data, error } = await withTimeout(supabase.rpc('is_admin'), 'is_admin');
       if (error) return false;
       const isAdmin = data === true;
       try { localStorage.setItem('cr_is_admin', isAdmin ? '1' : '0'); } catch {}

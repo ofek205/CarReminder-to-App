@@ -144,7 +144,7 @@ export default function CompleteProfileScreen({ user, onDone }) {
               inputMode="tel"
               value={phone}
               onChange={e => setPhone(e.target.value.replace(/[^0-9\-+\s]/g, ''))}
-              placeholder="050-1234567"
+              placeholder="05X-XXXXXXX"
               dir="ltr"
               className="text-center text-base"
               maxLength={15}

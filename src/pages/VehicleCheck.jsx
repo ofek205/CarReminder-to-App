@@ -307,11 +307,6 @@ export default function VehicleCheck() {
     setReportMode('options');
   };
 
-  const downloadReport = () => {
-    if (!result) return;
-    window.setTimeout(() => window.print(), 50);
-  };
-
   return (
     <div dir="rtl" className="vehicle-check-root min-h-screen -m-4 lg:-m-8 px-4 py-6 sm:px-6 lg:px-10"
       style={{ background: 'linear-gradient(180deg, #F5FAF6 0%, #FFFFFF 52%)' }}>

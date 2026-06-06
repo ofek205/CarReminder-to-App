@@ -1121,11 +1121,11 @@ function LayoutInner({ children }) {
           {children}
         </div>
         {/* Spacer so content never hides behind fixed BottomNav on mobile.
-            BottomNav: 60px content + safe-area-inset-bottom (up to 34px on
-            iPhone X+). Use calc so iPhone with home indicator gets full
-            clearance, while older devices stay tight. lg+ uses h-0 because
-            BottomNav is hidden on lg. */}
-        <div className="h-[calc(60px+var(--inset-bottom,env(safe-area-inset-bottom,4px)))] lg:h-0 shrink-0" aria-hidden="true" />
+            BottomNav: ~78px content (icon 44px + label + py padding + border)
+            + safe-area-inset-bottom (up to 34px on iPhone X+). Use calc so
+            iPhone with home indicator gets full clearance, while older devices
+            stay tight. lg+ uses h-0 because BottomNav is hidden on lg. */}
+        <div className="h-[calc(78px+var(--inset-bottom,env(safe-area-inset-bottom,4px)))] lg:h-0 shrink-0" aria-hidden="true" />
       </main>
 
       {/* Bottom navigation. mobile only. `sheetOpen` lifts it above the

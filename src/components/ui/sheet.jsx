@@ -37,13 +37,15 @@ const sheetVariants = cva(
     variants: {
       side: {
         top: "inset-x-0 top-0 border-b data-[state=closed]:-translate-y-full data-[state=open]:translate-y-0",
+        // Bottom sheet pads its lower edge by the safe-area inset so action
+        // buttons / last fields clear the Android nav bar + iOS home indicator.
         bottom:
-          "inset-x-0 bottom-0 border-t data-[state=closed]:translate-y-full data-[state=open]:translate-y-0",
-        // Side panels match the overlay: bottom stops 72px above the
+          "inset-x-0 bottom-0 border-t pb-[calc(1.5rem+var(--inset-bottom,env(safe-area-inset-bottom,0px)))] data-[state=closed]:translate-y-full data-[state=open]:translate-y-0",
+        // Side panels match the overlay: bottom stops ~78px above the
         // viewport so the mobile BottomNav peeks out beneath them.
-        left: "top-0 bottom-[calc(60px+var(--inset-bottom,env(safe-area-inset-bottom,4px)))] lg:bottom-0 left-0 w-3/4 border-r data-[state=closed]:-translate-x-full data-[state=open]:translate-x-0 sm:max-w-sm",
+        left: "top-0 bottom-[calc(78px+var(--inset-bottom,env(safe-area-inset-bottom,4px)))] lg:bottom-0 left-0 w-3/4 border-r data-[state=closed]:-translate-x-full data-[state=open]:translate-x-0 sm:max-w-sm",
         right:
-          "top-0 bottom-[calc(60px+var(--inset-bottom,env(safe-area-inset-bottom,4px)))] lg:bottom-0 right-0 w-3/4 border-l data-[state=closed]:translate-x-full data-[state=open]:translate-x-0 sm:max-w-sm",
+          "top-0 bottom-[calc(78px+var(--inset-bottom,env(safe-area-inset-bottom,4px)))] lg:bottom-0 right-0 w-3/4 border-l data-[state=closed]:translate-x-full data-[state=open]:translate-x-0 sm:max-w-sm",
       },
     },
     defaultVariants: {

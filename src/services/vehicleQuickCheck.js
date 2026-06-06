@@ -35,7 +35,7 @@ const DB_COLUMNS = [
 const NUMBER_FIELDS = new Set([
   'year', 'current_km', 'current_engine_hours', 'km_since_tire_change',
   'tires_changed_count', 'hours_since_shipyard', 'horsepower', 'engine_cc',
-  'total_weight', 'doors', 'seats', 'airbags', 'co2', 'green_index',
+  'doors', 'seats', 'airbags', 'co2', 'green_index',
   'tow_capacity', 'ownership_hand',
 ]);
 

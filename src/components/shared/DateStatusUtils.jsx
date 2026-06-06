@@ -183,7 +183,7 @@ const DETECTED_TYPE_TO_APP = {
   truck: 'משאית',
   bus: 'אוטובוס',
   collector: 'רכב אספנות',
-  trailer: 'נגרר',
+  trailer: 'גרור',
 };
 
 /** Vehicle age in whole years, or null when the year is missing/invalid. */
@@ -247,7 +247,9 @@ export function getTestPolicy(vehicle) {
   // yearly fitness certificate. total_weight is synced from gov.il, so the
   // >10t case is detected automatically.
   if (type === 'משאית') {
-    const over10t = Number(v.total_weight) > 10000;
+    // total_weight is stored as a unit-suffixed string (e.g. "12000 ק\"ג"),
+    // so Number() would yield NaN. Parse the leading digits before comparing.
+    const over10t = parseFloat(String(v.total_weight ?? '').replace(/[^\d.]/g, '')) > 10000;
     return {
       category: 'heavy',
       frequencyMonths: 12,
