@@ -3,7 +3,6 @@
   "src/components/sharing/VehicleAccessModal.jsx": 2,
   "src/components/vehicle/TasksSection.jsx": 1,
   "src/hooks/useEmailAdmin.js": 2,
-  "src/hooks/useIsAdmin.js": 1,
   "src/pages/ActivityLog.jsx": 1,
   "src/pages/AdminBusinessRequests.jsx": 1,
   "src/pages/AdminReviews.jsx": 1,
