@@ -834,9 +834,10 @@ function KeyInfoGrid({ result }) {
     { icon: BadgeCheck, label: 'סוג בעלות', value: o.current },
     {
       icon: CalendarDays, label: 'עלייה לכביש', value: r.firstRegistrationDate,
-      // For vehicles with no official test date (e.g. motorcycles) explain
-      // why "תוקף בדיקה" is absent instead of leaving the user guessing.
-      source: r.testDueEstimated ? 'משרד התחבורה לא מפרסם תוקף טסט לסוג כלי זה' : null,
+      // When there's no OFFICIAL test date (motorcycles have none in the
+      // registry; some records simply lack tokef_dt) explain why "תוקף
+      // בדיקה" is absent instead of showing a fabricated guess.
+      source: r.testDueEstimated ? 'אין תוקף טסט מאומת במאגר משרד התחבורה — בדוק ברישיון הרכב' : null,
     },
     { icon: CalendarDays, label: 'תוקף בדיקה', value: r.testDueDate || r.inspectionReportExpiryDate },
   ].filter(item => hasDisplayValue(item.value));

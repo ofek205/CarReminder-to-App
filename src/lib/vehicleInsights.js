@@ -98,6 +98,11 @@ function inactiveInsight(vehicle) {
 // duplicating the card on the check report.
 
 function testStatusInsight(vehicle) {
+  // Never assert a test status from a value we only estimated (e.g. a
+  // motorcycle with no official test date). Doing so would present a guess
+  // as a verified "טסט פג/מתחדש" fact — the exact thing we suppress in the
+  // report. A real inspection_report_expiry_date is still honoured below.
+  if (vehicle._test_due_estimated) return null;
   const days = daysUntil(vehicle.test_due_date || vehicle.inspection_report_expiry_date);
   if (days === null) return null;
   const label = testLabelFor(vehicle);

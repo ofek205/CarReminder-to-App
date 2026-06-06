@@ -226,19 +226,14 @@ function mapRecord(r) {
     if (d) fields.test_due_date = d;
   }
 
-  // Fallback: if no tokef_dt (new cars). use first_registration + 4 years
-  // (Israeli law: first test at 4 years old, then annually)
+  // No tokef_dt published (brand-new car, or a gap in the registry). We do
+  // NOT fabricate a test date from "first_registration + N years": a computed
+  // guess presented as a real test date can mask reality (and the legal
+  // exemption window is owned by the shared computeFallbackTestDate rule, not
+  // duplicated here). Flag the absence so the "בדוק רכב" report shows the
+  // verified "עלייה לכביש" date + a note instead of a fabricated test date.
   if (!fields.test_due_date && r.moed_aliya_lakvish) {
-    const raw = String(r.moed_aliya_lakvish);
-    // Format can be "YYYY-MM" or "YYYY-MM-DD"
-    const match = raw.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
-    if (match) {
-      const [, yr, mo, dy] = match;
-      const d = new Date(Number(yr) + 4, Number(mo) - 1, Number(dy || 1));
-      if (!isNaN(d.getTime())) {
-        fields.test_due_date = d.toISOString().split('T')[0];
-      }
-    }
+    fields._test_due_estimated = true;
   }
 
   // Registration fields
@@ -283,27 +278,14 @@ function mapMotoRecord(r) {
   if (r.moed_aliya_lakvish) {
     fields.first_registration_date = safeDate(r.moed_aliya_lakvish);
     // The motorcycle dataset carries NO official test/validity date (unlike
-    // the private-car dataset's tokef_dt). We can only ESTIMATE the next test
-    // by assuming the annual test falls in the registration month. That guess
-    // is NOT a verified fact — and worse, when the test month has already
-    // passed this year it silently rolls forward to next year, which would
-    // mask a SKIPPED test as if it were done. So we compute it but mark it
-    // estimated; the "בדוק רכב" report uses the flag to show the real
-    // "עלייה לכביש" date instead of presenting this guess as a test date.
-    const parts = String(r.moed_aliya_lakvish).split('-');
-    if (parts.length >= 2) {
-      const regMonth = parseInt(parts[1], 10);
-      if (regMonth >= 1 && regMonth <= 12) {
-        const now = new Date();
-        const thisYear = now.getFullYear();
-        const thisMonth = now.getMonth() + 1;
-        // If test month already passed this year, next test is next year
-        const testYear = (regMonth < thisMonth) ? thisYear + 1 : thisYear;
-        const lastDay = new Date(testYear, regMonth, 0).getDate(); // last day of the month
-        fields.test_due_date = `${testYear}-${String(regMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-        fields._test_due_estimated = true;   // computed guess, not a gov.il fact
-      }
-    }
+    // the private-car dataset's tokef_dt). We deliberately DO NOT fabricate
+    // one: the only option is to project the annual test onto the
+    // registration month, and once that month has passed this year the
+    // projection rolls forward — silently presenting a SKIPPED test as if it
+    // were done. Instead we flag the absence; the "בדוק רכב" report shows the
+    // verified "עלייה לכביש" date + a note, and AddVehicle relies on the
+    // shared computeFallbackTestDate rule rather than a guess.
+    fields._test_due_estimated = true;
   }
   if (r.mida_zmig_kidmi)  fields.front_tire = safeStr(r.mida_zmig_kidmi, 40);
   if (r.mida_zmig_ahori)  fields.rear_tire  = safeStr(r.mida_zmig_ahori, 40);
