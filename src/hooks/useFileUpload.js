@@ -101,17 +101,29 @@ export default function useFileUpload({
         pathPrefix = `${accountId}/${vehicleId}`;
       } else if (accountId && subPath) {
         pathPrefix = `${accountId}/${subPath}`;
-      } else if (userId) {
-        // scans/{userId} is the policy-approved path for orphan
-        // uploads (e.g. AddVehicle's photo before the vehicle row exists).
-        pathPrefix = `scans/${userId}`;
       } else if (accountId) {
-        // Legacy fallback — passes RLS only if the user is a member
-        // of `accountId` AND the policy's account_members branch matches
-        // `(foldername)[1]` against accountId. Kept for callsites still
-        // wired this way; new callsites should pass either subPath or
-        // userId for predictable behavior.
+        // Account-scoped path for pre-vehicle uploads — when we know the
+        // owning account but not yet the vehicleId (e.g. AddVehicle's
+        // photo, picked before the row is created).
+        //
+        // CRITICAL: this MUST be checked BEFORE the scans/{userId} branch
+        // below, even when the caller also passes userId. A photo saved
+        // under scans/{userId} is signable ONLY by that exact uploader
+        // (the Storage RLS `scans/{uid}` branch matches folder[2] against
+        // auth.uid()). The moment the vehicle is viewed under a different
+        // account or identity — account migration, a second account,
+        // sharing — createSignedUrl is denied and the image silently
+        // breaks. Anchoring on account_id keeps the photo readable by
+        // EVERY member of the account that owns the vehicle.
+        // (Regression: 26 vehicles had photos stuck at scans/{old-uid}
+        // and broke after the 2026-05-31 account migrations.)
         pathPrefix = `${accountId}/uploads`;
+      } else if (userId) {
+        // True pre-account fallback ONLY — reached when no accountId has
+        // resolved yet (brand-new user mid-provisioning). scans/{userId}
+        // is the policy-approved path for that case; a later save should
+        // re-home the file to the account path once the account exists.
+        pathPrefix = `scans/${userId}`;
       } else {
         throw new Error('useFileUpload: missing accountId or userId');
       }
