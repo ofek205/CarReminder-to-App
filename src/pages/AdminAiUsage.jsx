@@ -104,7 +104,7 @@ const SURFACE_LABELS = {
   maintenance_log_scan:  'סריקת קבלת טיפול',
 };
 
-export default function AdminAiUsage() {
+export default function AdminAiUsage({ embedded = false }) {
   const isAdmin  = useIsAdmin();
   const navigate = useNavigate();
   const [rows,    setRows]    = useState([]);
@@ -311,10 +311,12 @@ export default function AdminAiUsage() {
     }
   };
 
-  if (isAdmin === null) {
+  // When embedded inside the unified AdminAi tabs page, the parent owns the
+  // admin gate + page header, so skip our own chrome.
+  if (!embedded && isAdmin === null) {
     return <div className="p-8 text-center text-sm text-gray-500">בודק הרשאות...</div>;
   }
-  if (isAdmin === false) {
+  if (!embedded && isAdmin === false) {
     return (
       <div className="p-8 text-center" dir="rtl">
         <p className="text-sm text-gray-600 mb-4">דף זה פתוח לאדמינים בלבד.</p>
@@ -324,16 +326,18 @@ export default function AdminAiUsage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-4 sm:p-6" dir="rtl">
-      <div className="flex items-center justify-between mb-6">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm font-bold text-[#2D5233]">
-          <ArrowRight className="w-4 h-4" /> חזרה
-        </button>
-        <div className="flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-[#D97706]" />
-          <h1 className="text-xl sm:text-2xl font-bold text-[#1F2937]">שימוש במנוע AI</h1>
+    <div className={embedded ? '' : 'max-w-3xl mx-auto p-4 sm:p-6'} dir="rtl">
+      {!embedded && (
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm font-bold text-[#2D5233]">
+            <ArrowRight className="w-4 h-4" /> חזרה
+          </button>
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-[#D97706]" />
+            <h1 className="text-xl sm:text-2xl font-bold text-[#1F2937]">שימוש במנוע AI</h1>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-gray-600 leading-relaxed">
