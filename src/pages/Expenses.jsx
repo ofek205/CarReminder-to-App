@@ -39,6 +39,7 @@ import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
+import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import VehicleLabel from '@/components/shared/VehicleLabel';
@@ -102,7 +103,7 @@ export default function Expenses() {
   // Phase 9 step 7 — keyset pagination on created_at, 30 rows per page.
   const PAGE_SIZE = 30;
   const {
-    data: expensePages, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage,
+    data: expensePages, isLoading, isError, refetch, hasNextPage, fetchNextPage, isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: ['expenses', accountId],
     enabled: !!accountId && isManager && isBusiness,
@@ -240,6 +241,9 @@ export default function Expenses() {
         <Card className="text-center py-8">
           <p className="text-xs" style={{ color: C.mutedAlt }}>טוען הוצאות...</p>
         </Card>
+      ) : isError ? (
+        /* C2: load failure → retry banner, not a misleading "no expenses" empty state. */
+        <SystemErrorBanner message="טעינת ההוצאות נכשלה. בדוק את החיבור ונסה שוב." onRetry={() => refetch()} />
       ) : expenses.length === 0 ? (
         <Card className="text-center py-12">
           <Receipt className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
