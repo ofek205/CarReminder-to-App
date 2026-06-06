@@ -17,7 +17,7 @@ import {
 import {
   AlertCircle, RefreshCw, Users, Car, FileText,
   Mail, Bug, TrendingUp, Cake, Download, Loader2,
-  Target, Zap, Star, Flame,
+  Target, Zap, Star, Flame, Phone,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { C } from '@/lib/designTokens';
@@ -283,6 +283,8 @@ export default function AdminAnalytics() {
         <VehicleCountChart />
 
         <ZeroVehicleTrendChart />
+
+        <PhoneCoverageChart />
 
         <ChartCard title="מסמכים שהועלו לשבוע" icon={FileText} color={BI.amber}>
           <MiniChart data={documents_weekly} dataKey="count" xKey="week_start" color={BI.amber} label="מסמכים"
@@ -817,6 +819,73 @@ function ZeroVehicleTrendChart() {
             לכל קבוצת נרשמים: % שעדיין ללא רכב 7 ימים אחרי ההרשמה. קו יורד = אקטיבציה משתפרת. (קבוצות קטנות רועשות.)
           </p>
           <MiniChart data={chartData} dataKey="zero_pct" xKey="week_start" color={BI.red} type="line" label="% ללא רכב" />
+        </>
+      )}
+    </ChartCard>
+  );
+}
+
+// Phone-number coverage: how many users have a phone on file vs not. A clean
+// binary split — two big counts + a single ratio bar (no pie; a 2-slice pie
+// reads worse than a bar for "X% vs Y%"). Same population as the vehicle chart
+// (personal accounts) so the two widgets are comparable.
+function PhoneCoverageChart() {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-phone-coverage"],
+    queryFn: async () => {
+      const { data: result, error } = await withTimeout(
+        supabase.rpc("admin_phone_coverage"),
+        "admin_phone_coverage"
+      );
+      if (error) throw error;
+      return Array.isArray(result) ? result[0] : result;
+    },
+    retry: 1,
+    retryDelay: 500,
+    staleTime: 60_000,
+  });
+
+  const withPhone = Number(data?.with_phone) || 0;
+  const without = Number(data?.without_phone) || 0;
+  const total = Number(data?.total) || withPhone + without;
+  const withPct = total ? Math.round((withPhone / total) * 100) : 0;
+  const withoutPct = total ? 100 - withPct : 0;
+
+  return (
+    <ChartCard title="מספר טלפון במערכת" icon={Phone} color={BI.blue}>
+      {isLoading ? (
+        <p className="text-xs text-gray-400 text-center py-10">טוען…</p>
+      ) : isError ? (
+        <div className="text-center py-8">
+          <p className="text-xs text-gray-400 mb-2">לא הצלחנו לטעון</p>
+          <Button size="sm" variant="outline" onClick={() => refetch()}>נסה שוב</Button>
+        </div>
+      ) : total === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-10">אין נתונים</p>
+      ) : (
+        <>
+          <div className="flex gap-3 mb-3">
+            <div className="flex-1 rounded-xl p-3 bg-emerald-50">
+              <p className="text-2xl font-bold leading-none" dir="ltr" style={{ color: BI.green }}>
+                {withPhone.toLocaleString("he-IL")}
+              </p>
+              <p className="text-[11px] text-gray-500 mt-1">עם טלפון · {withPct}%</p>
+            </div>
+            <div className="flex-1 rounded-xl p-3 bg-slate-100">
+              <p className="text-2xl font-bold leading-none" dir="ltr" style={{ color: BI.slate }}>
+                {without.toLocaleString("he-IL")}
+              </p>
+              <p className="text-[11px] text-gray-500 mt-1">ללא טלפון · {withoutPct}%</p>
+            </div>
+          </div>
+          {/* Single ratio bar — green = share with a phone, fills from the
+              start (dir=ltr so the width maps to the % intuitively). */}
+          <div className="h-2.5 w-full rounded-full overflow-hidden bg-slate-200" dir="ltr">
+            <div className="h-full" style={{ width: `${withPct}%`, background: BI.green }} />
+          </div>
+          <p className="text-[10px] text-gray-400 mt-2">
+            לפי {total.toLocaleString("he-IL")} משתמשים (חשבון אישי).
+          </p>
         </>
       )}
     </ChartCard>
