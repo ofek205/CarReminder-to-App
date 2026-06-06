@@ -192,6 +192,17 @@ export function GuestDataProvider({ children }) {
     });
   }, []);
 
+  // C9: Documents.jsx calls updateGuestDocument(old.id, { _superseded: true })
+  // when a guest adds a renewed doc, but the function never existed (optional
+  // chaining swallowed it) so old copies stayed "latest". Mirror the others.
+  const updateGuestDocument = useCallback((id, patch) => {
+    setGuestDocuments(prev => {
+      const updated = prev.map(d => (d.id === id ? { ...d, ...patch } : d));
+      safeSetItem(DOCS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const getStoredGuestDocuments = useCallback(() => {
     try { return JSON.parse(localStorage.getItem(DOCS_KEY) || '[]'); } catch { return []; }
   }, []);
@@ -422,6 +433,7 @@ export function GuestDataProvider({ children }) {
     guestDocuments,
     addGuestDocument,
     removeGuestDocument,
+    updateGuestDocument,
     getStoredGuestDocuments,
     // Accidents
     guestAccidents,
