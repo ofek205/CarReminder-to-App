@@ -1,5 +1,5 @@
 import React from 'react';
-import { Car, Ship, Bike, Truck, Mountain } from 'lucide-react';
+import { Car, Ship, Bike, Truck, Mountain, Zap } from 'lucide-react';
 import { AtvIcon, JeepIcon, BuggyIcon, DirtBikeIcon, DuneBuggyIcon } from './OffroadIcons';
 import { getVehicleVisual } from '@/lib/designTokens';
 
@@ -14,6 +14,7 @@ const ICONS = {
   buggy: BuggyIcon,
   'dune-buggy': DuneBuggyIcon,
   mountain: Mountain,
+  generator: Zap,
 };
 
 /**

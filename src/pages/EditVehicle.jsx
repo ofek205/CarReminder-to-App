@@ -14,8 +14,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine } from "lucide-react";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
-import { normalizePlate, isVintageVehicle, isOffroad, usesHours, isCme } from "../components/shared/DateStatusUtils";
+import { normalizePlate, isVintageVehicle, isOffroad, usesHours, isCme, isGenerator } from "../components/shared/DateStatusUtils";
 import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
+import GeneratorFields, { GENERATOR_DB_COLUMNS } from "../components/vehicle/GeneratorFields";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { toast } from "sonner";
 import { toastError } from "@/lib/userErrorReport";
@@ -158,6 +159,26 @@ export default function EditVehicle() {
     co2: v.co2 || '',
     green_index: v.green_index || '',
     tow_capacity: v.tow_capacity || '',
+    // Generator detail fields (nullable on the row). Booleans map null→undefined
+    // so an unanswered toggle stays unselected; numbers/strings map null→''.
+    generator_type: v.generator_type || '',
+    generator_type_other: v.generator_type_other || '',
+    power_value: v.power_value ?? '',
+    power_unit: v.power_unit || '',
+    location: v.location || '',
+    serial_number: v.serial_number || '',
+    has_hour_meter: v.has_hour_meter ?? undefined,
+    work_hours_at_last_service: v.work_hours_at_last_service ?? '',
+    has_ats: v.has_ats ?? undefined,
+    is_emergency_generator: v.is_emergency_generator ?? undefined,
+    connected_to_critical_systems: v.connected_to_critical_systems ?? undefined,
+    critical_systems: Array.isArray(v.critical_systems) ? v.critical_systems : [],
+    requires_fire_dept_approval: v.requires_fire_dept_approval || '',
+    last_service_date: v.last_service_date || '',
+    last_load_bank_test_date: v.last_load_bank_test_date || '',
+    last_safety_approval_date: v.last_safety_approval_date || '',
+    technician_name: v.technician_name || '',
+    technician_phone: v.technician_phone || '',
   });
 
   useEffect(() => {
@@ -308,8 +329,11 @@ export default function EditVehicle() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Compute vesselMode locally (same as render-level computation)
+    // Compute vesselMode + generatorMode locally (same as render-level
+    // computation) — the render-body consts are declared later, so handleSubmit
+    // needs its own to avoid use-before-define.
     const vesselMode = isVesselType(form.vehicle_type, form.nickname);
+    const generatorMode = isGenerator(form.vehicle_type);
 
     // Check for duplicate license plate (excluding self). Skip the check if
     // the plate is empty. also skip for vessels (letter-based IDs get
@@ -354,7 +378,12 @@ export default function EditVehicle() {
       // 2026-05-17 gov.il auto-sync columns. last_manual_km_update_at is
       // stamped further down only when current_km actually changed; the
       // boolean toggle saves through unconditionally.
-      'auto_sync_enabled', 'last_manual_km_update_at'];
+      'auto_sync_enabled', 'last_manual_km_update_at',
+      // Generator detail columns — included ONLY for generators, so editing a
+      // car/vessel/etc. never sends these columns (buildForm defaults
+      // critical_systems to [], which would otherwise be written to every
+      // vehicle and hard-fail on environments without the SQL migration).
+      ...(generatorMode ? GENERATOR_DB_COLUMNS : [])];
 
     const data = {};
     DB_COLUMNS.forEach(k => { if (form[k] !== undefined && form[k] !== null) data[k] = form[k]; });
@@ -370,6 +399,9 @@ export default function EditVehicle() {
     }
     if (form.current_km) data.current_km = Number(form.current_km);
     if (form.current_engine_hours) data.current_engine_hours = Number(form.current_engine_hours);
+    // Generator numeric fields. Empty stays '' → converted to null below.
+    if (form.power_value !== '' && form.power_value != null) data.power_value = Number(form.power_value);
+    if (form.work_hours_at_last_service !== '' && form.work_hours_at_last_service != null) data.work_hours_at_last_service = Number(form.work_hours_at_last_service);
     // 2026-05-17: stamp last_manual_km_update_at ONLY when the user
     // actually changed the value. The gov.il auto-sync uses this
     // timestamp to decide whether it's allowed to overwrite current_km
@@ -541,10 +573,11 @@ export default function EditVehicle() {
   const vesselMode = isVesselType(form.vehicle_type, form.nickname);
   const offroadMode = isOffroad(form.vehicle_type);
   const cmeMode = isCme(form.vehicle_type);
+  const generatorMode = isGenerator(form.vehicle_type);
   // 2026-05-17: hasRegistration = false עבור מוטוקרוס בלבד.
   // מוטוקרוס מסלולי בלבד, אין לו מספר רישוי, אין חובה לטסט שנתי,
   // אין ביטוח חובה. שדות הרישוי בטופס מוסתרים כשהדגל false.
-  const hasRegistration = form.vehicle_type !== 'מוטוקרוס';
+  const hasRegistration = form.vehicle_type !== 'מוטוקרוס' && !generatorMode;
   const hasOffroadData = (form.offroad_equipment?.length > 0 || form.offroad_usage_type || form.last_offroad_service_date);
 
   const VehicleIcon = vesselMode ? Ship : Car;
@@ -565,7 +598,7 @@ export default function EditVehicle() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-white">{vesselMode ? 'עריכת כלי שייט' : 'עריכת רכב'}</h1>
+            <h1 className="text-lg font-bold text-white">{generatorMode ? 'עריכת גנרטור' : vesselMode ? 'עריכת כלי שייט' : 'עריכת רכב'}</h1>
             <p className="text-[11px] font-medium truncate" style={{ color: 'rgba(255,255,255,0.65)' }}>
               {form.nickname || [form.manufacturer, form.model].filter(Boolean).join(' ') || 'עדכון פרטים'}
             </p>
@@ -611,6 +644,10 @@ export default function EditVehicle() {
       <div className="p-4 sm:p-6 rounded-3xl" style={{ background: '#FAFAF8', border: `1.5px solid ${T.border || '#E8E0D4'}`, boxShadow: '0 2px 16px rgba(0,0,0,0.04)' }}>
         <form onSubmit={handleSubmit} className="space-y-4">
 
+          {generatorMode ? (
+            <GeneratorFields form={form} handleChange={handleChange} />
+          ) : (
+          <>
           {/* כינוי */}
           <div data-field="nickname" className="rounded-xl p-1 -m-1 transition-all">
             <Label>{vesselMode ? 'כינוי כלי השייט' : 'כינוי לרכב'}</Label>
@@ -1036,12 +1073,14 @@ export default function EditVehicle() {
               </div>
             </div>
           )}
+          </>
+          )}
 
           <button type="submit" disabled={saving}
             className="w-full h-14 rounded-2xl font-bold text-base transition-all active:scale-[0.96] flex items-center justify-center gap-2.5 disabled:opacity-50"
             style={{ background: T.grad || T.primary, color: '#fff', boxShadow: `0 6px 24px ${T.primary}35` }}>
             {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-            {saving ? 'שומר...' : offroadMode ? 'עדכן כלי שטח' : vesselMode ? 'עדכן כלי שייט' : 'שמור שינויים'}
+            {saving ? 'שומר...' : generatorMode ? 'עדכן גנרטור' : offroadMode ? 'עדכן כלי שטח' : vesselMode ? 'עדכן כלי שייט' : 'שמור שינויים'}
           </button>
         </form>
       </div>

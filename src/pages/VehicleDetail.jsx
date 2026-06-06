@@ -3,7 +3,7 @@ import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2, Search, Camera } from "lucide-react";
+import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2, Search, Camera, Zap } from "lucide-react";
 import useFileUpload from '@/hooks/useFileUpload';
 import { validateUploadFile } from '@/lib/securityUtils';
 import ShareVehicleDialog from "@/components/sharing/ShareVehicleDialog";
@@ -12,7 +12,7 @@ import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
 import SharingHelpButton from "@/components/sharing/SharingHelpButton";
 import { toast } from "sonner";
 import { toastError } from "@/lib/userErrorReport";
-import { C, getTheme, isVesselType, getVehicleCategory } from '@/lib/designTokens';
+import { C, getTheme, isVesselType, getVehicleCategory, isGeneratorType } from '@/lib/designTokens';
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -64,6 +64,7 @@ const VESSEL_DETAIL_TOUR_STEPS = [
   },
 ];
 import VehicleInfoSection from "../components/vehicle/VehicleInfoSection";
+import GeneratorInfoSection from "../components/vehicle/GeneratorInfoSection";
 import MaintenanceSection from "../components/vehicle/MaintenanceSection";
 import VesselIssuesSection from "../components/vehicle/VesselIssuesSection";
 import CorkBoard from "../components/vehicle/CorkBoard";
@@ -160,7 +161,7 @@ function DocumentsPreview({ vehicleId, documents, T }) {
 }
 
 //  Vehicle icon helper 
-const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car };
+const ICON_MAP = { vessel: Ship, motorcycle: Bike, truck: Truck, car: Car, generator: Zap };
 function getVehicleIcon(vehicleType, nickname, manufacturer) {
   return ICON_MAP[getVehicleCategory(vehicleType, nickname, manufacturer)] || Car;
 }
@@ -185,6 +186,7 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
   };
 
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
+  const isGenerator = isGeneratorType(vehicle.vehicle_type);
   // usesHours covers vessels, off-road toys (RZR / מיול), every CME
   // subtype (forklifts, excavators, loaders…) and tractors. Used for
   // the stats bar + reminders below so a forklift shows "שעות מנוע"
@@ -268,12 +270,16 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
           {[
             // Hours vs km — driven by usesHours() so the row reads correctly
             // for forklifts / excavators / rollers / tractors / RZRs / vessels.
-            { label: isHoursVehicle ? 'שעות מנוע' : 'קילומטראז\'',
+            // Generators meter "שעות עבודה" (work-hours) on the same column.
+            { label: isGenerator ? 'שעות עבודה' : isHoursVehicle ? 'שעות מנוע' : 'קילומטראז\'',
               value: isHoursVehicle
                 ? (vehicle.current_engine_hours ? Number(vehicle.current_engine_hours).toLocaleString() : '-')
                 : (vehicle.current_km ? Number(vehicle.current_km).toLocaleString() : '-') },
             { label: 'שנת ייצור', value: vehicle.year || '-' },
-            { label: isVessel ? 'כושר שייט' : 'טסט', value: testDays !== null ? daysLabel(testDays) : '-' },
+            // Generators have no טסט — show last-service date instead.
+            isGenerator
+              ? { label: 'טיפול אחרון', value: vehicle.last_service_date ? new Date(vehicle.last_service_date).toLocaleDateString('he-IL') : '-' }
+              : { label: isVessel ? 'כושר שייט' : 'טסט', value: testDays !== null ? daysLabel(testDays) : '-' },
           ].map((stat, i) => (
             <div key={i} className={`py-4 px-3 text-center ${i < 2 ? 'border-l' : ''}`}
               style={{ borderColor: T.border }}>
@@ -341,7 +347,9 @@ function GuestVehicleDetail({ vehicle, vehicleId }) {
       {/* Vehicle info */}
       <div className="px-4 space-y-4 pb-8">
         <SafeComponent label="VehicleInfoSection">
-          <VehicleInfoSection vehicle={vehicle} />
+          {isGenerator
+            ? <GeneratorInfoSection vehicle={vehicle} />
+            : <VehicleInfoSection vehicle={vehicle} />}
         </SafeComponent>
 
         {/* Inline reminders */}
@@ -729,8 +737,9 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
 
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
   const isVessel = isVesselType(vehicle.vehicle_type, vehicle.nickname);
+  const isGenerator = isGeneratorType(vehicle.vehicle_type);
   const VehicleIcon = getVehicleIcon(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
-  const name = vehicle.nickname || `${vehicle.manufacturer || ''} ${vehicle.model || ''}`.trim() || (isVessel ? 'כלי שייט' : 'רכב');
+  const name = vehicle.nickname || `${vehicle.manufacturer || ''} ${vehicle.model || ''}`.trim() || (isGenerator ? 'גנרטור' : isVessel ? 'כלי שייט' : 'רכב');
   const subtitle = [vehicle.manufacturer, vehicle.model, vehicle.year].filter(Boolean).join(' · ');
   const hasPhoto = hasVehiclePhoto(vehicle);
 
@@ -981,7 +990,9 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
       {/*  Vehicle info + maintenance  */}
       <div className="px-4 space-y-4 pb-8">
         <SafeComponent label="VehicleInfoSection">
-          <VehicleInfoSection vehicle={vehicle} />
+          {isGenerator
+            ? <GeneratorInfoSection vehicle={vehicle} />
+            : <VehicleInfoSection vehicle={vehicle} />}
         </SafeComponent>
 
         {/* Inline reminders */}

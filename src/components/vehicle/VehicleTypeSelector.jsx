@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronsUpDown, Check, Car, Truck, Ship, Star, Bike, Mountain, Wrench, Plane } from "lucide-react";
+import { ChevronsUpDown, Check, Car, Truck, Ship, Star, Bike, Mountain, Wrench, Plane, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { C, getTheme } from '@/lib/designTokens';
 
@@ -287,6 +287,21 @@ export const VEHICLE_CATEGORIES = [
     hasSubcategories: true,
   },
   {
+    // Generator (גנרטור) — added 2026-06. Not a road vehicle: no plate, no
+    // test, no scan/lookup → manual entry only. Single canonical dbName
+    // 'גנרטור'; the specific subtype (ביתי / חירום / תעשייתי …) is captured
+    // in the dedicated generator_type field on the form, NOT as a
+    // subcategory, so hasSubcategories stays false. Work-hours metered
+    // (reuses current_engine_hours). Sits before "מיוחדים" so the catch-all
+    // bucket stays last.
+    label: 'גנרטור',
+    icon: Zap,
+    keywords: ['גנרטור', 'generator'],
+    dbName: 'גנרטור',
+    usageMetric: 'שעות עבודה',
+    methods: ['manual'],
+  },
+  {
     // "מיוחדים" lives last on purpose — it's the catch-all bucket
     // for everything that didn't fit a primary category (collectors,
     // tractors, trailers, buses, plows, motor caravans). Keeping it
@@ -348,6 +363,8 @@ const LOCAL_VEHICLE_TYPES = [
   //  כלי טיס
   { id: 'vt-aircraft',  name: 'מטוס פרטי',       usage_metric: 'שעות מנוע',  scope: 'global' },
   { id: 'vt-drone',     name: 'רחפן',             usage_metric: 'שעות מנוע',  scope: 'global' },
+  //  גנרטור (work-hours metered)
+  { id: 'vt-generator', name: 'גנרטור',          usage_metric: 'שעות עבודה', scope: 'global' },
 ];
 
 // Find the best matching type for a category

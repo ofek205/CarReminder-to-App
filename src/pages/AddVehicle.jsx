@@ -43,6 +43,7 @@ import { lookupVehicleByPlate } from "../services/vehicleLookup";
 import { normalizePlate, isVintageVehicle, computeFallbackTestDate, getTestPolicy } from "../components/shared/DateStatusUtils";
 import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, CME_SUBCATEGORIES, AVIATION_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
+import GeneratorFields, { GENERATOR_DB_COLUMNS, GENERATOR_EMPTY_FIELDS } from "../components/vehicle/GeneratorFields";
 import { trackUserAction } from "../components/shared/ReviewManager";
 import VehicleScanWizard from "../components/vehicle/VehicleScanWizard";
 import { isAiScanEnabled } from '@/lib/aiScanGate';
@@ -128,6 +129,9 @@ const EMPTY_FORM = {
   // ReminderEngine + NotificationBell surface an expiry warning
   // alongside the test/insurance reminders.
   inspection_report_expiry_date: '',
+  // Generator (גנרטור) detail fields — all nullable on the vehicles row.
+  // Only used when the גנרטור category is selected; ignored otherwise.
+  ...GENERATOR_EMPTY_FIELDS,
 };
 
 // Autofill visual helper - renders "מולא אוטומטית" hint if field was autofilled.
@@ -305,6 +309,9 @@ export default function AddVehicle() {
   // manual entry like every other category.
   const isDroneSubcategory = selectedSubcategory?.label === 'רחפן';
   const isJeepOffroad = selectedSubcategory?.dbName === "ג'יפ שטח";
+  // Generator category — no plate / scan / lookup; opens a dedicated form
+  // (GeneratorFields). Like drone, it jumps straight to manual entry.
+  const isGeneratorCategory = selectedCategory?.label === 'גנרטור';
   // Two-wheelers (road motorcycle, scooter, off-road motorcycle) only
   // ever have 2 tires — showing the 1/2/3/4 selector for them was
   // confusing and let users pick "כל ה-4" by accident on an אופנוע.
@@ -316,7 +323,9 @@ export default function AddVehicle() {
   // רישוי, טסט שנתי וביטוח חובה. מוטוקרוס הוא היחיד שלא, כי הוא
   // מסלולי בלבד. שדות הרישוי בטופס וההשלמה האוטומטית מבסיס נתוני
   // התחבורה מוגנים על ידי הדגל הזה.
-  const hasRegistration = form.vehicle_type !== 'מוטוקרוס';
+  // Generators (like motocross) have no road registration — no plate, test,
+  // insurance, tires. The flag hides all those fields/validations.
+  const hasRegistration = form.vehicle_type !== 'מוטוקרוס' && !isGeneratorCategory;
   // Normalise tires_changed_count when the user lands on a two-wheeler
   // category — EMPTY_FORM defaults to 4, which is illegal for a
   // motorcycle. We don't override an explicit 1 the user already
@@ -811,10 +820,22 @@ export default function AddVehicle() {
               : 'מספר רישוי לא תקין (4-8 ספרות)'],
         }
       : { custom: [plateFormat, isAviationCategory ? aviationPlateMsg : 'מספר רישוי לא תקין'] };
-    if (!validate(form, {
-      vehicle_type: { custom: [v => v && v.trim() !== '', 'יש לבחור סוג כלי רכב'] },
-      license_plate: plateRule,
-    })) return;
+    // Generators validate their own required fields (name + type) instead of
+    // a license plate, which they don't have.
+    const validationRules = isGeneratorCategory
+      ? {
+          vehicle_type: { custom: [v => v && v.trim() !== '', 'יש לבחור סוג כלי רכב'] },
+          nickname: { required: 'יש להזין שם או כינוי לגנרטור' },
+          generator_type: { required: 'יש לבחור סוג גנרטור' },
+          ...(form.generator_type === 'אחר'
+            ? { generator_type_other: { required: 'יש לפרט את סוג הגנרטור' } }
+            : {}),
+        }
+      : {
+          vehicle_type: { custom: [v => v && v.trim() !== '', 'יש לבחור סוג כלי רכב'] },
+          license_plate: plateRule,
+        };
+    if (!validate(form, validationRules)) return;
 
     // Check for duplicate license plate. Empty normalized value = skip
     // (vessels with letter-only IDs, motocross without a plate, or
@@ -898,6 +919,9 @@ export default function AddVehicle() {
       km_baseline: hasKm ? Number(form.current_km) : undefined,
       current_engine_hours: hasHours ? Number(form.current_engine_hours) : undefined,
       engine_hours_baseline: hasHours ? Number(form.current_engine_hours) : undefined,
+      // Generator numeric fields → Number (empty stays undefined and is stripped)
+      power_value: form.power_value !== '' && form.power_value != null ? Number(form.power_value) : undefined,
+      work_hours_at_last_service: form.work_hours_at_last_service !== '' && form.work_hours_at_last_service != null ? Number(form.work_hours_at_last_service) : undefined,
       km_since_tire_change: form.km_since_tire_change ? Number(form.km_since_tire_change) : undefined,
       tires_changed_count: tireQuestion === 'yes' ? Number(form.tires_changed_count) || 4 : undefined,
       insurance_company: form.insurance_company === 'אחר' ? form.insurance_company_other : form.insurance_company,
@@ -958,7 +982,14 @@ export default function AddVehicle() {
         'inspection_report_expiry_date',
         'ownership_hand','ownership_history',
         'is_personal_import','personal_import_type',
-        'is_road_removed','road_removed_date'];
+        'is_road_removed','road_removed_date',
+        // Generator detail columns — included ONLY for generators. Gating this
+        // on the category keeps non-generator saves from ever sending these
+        // columns (e.g. critical_systems=[]), which would otherwise (a) write
+        // empty generator data to every car and (b) hard-fail with "column
+        // does not exist" on any environment where the SQL migration hasn't
+        // run yet. Generators require the migration first (Gate 5).
+        ...(isGeneratorCategory ? GENERATOR_DB_COLUMNS : [])];
       const cleanData = { account_id: accountId };
       DB_COLUMNS.forEach(k => { if (data[k] !== undefined && data[k] !== null && data[k] !== '') cleanData[k] = data[k]; });
 
@@ -1015,11 +1046,11 @@ export default function AddVehicle() {
   const categoryReady = selectedCategory !== null &&
     (!selectedCategory.hasSubcategories || selectedSubcategory !== null);
   useEffect(() => {
-    if (isDroneSubcategory && selectedMethod !== 'manual') {
+    if ((isDroneSubcategory || isGeneratorCategory) && selectedMethod !== 'manual') {
       setSelectedMethod('manual');
     }
-  }, [isDroneSubcategory, selectedMethod]);
-  const formVisible = categoryReady && (selectedMethod !== null || isDroneSubcategory);
+  }, [isDroneSubcategory, isGeneratorCategory, selectedMethod]);
+  const formVisible = categoryReady && (selectedMethod !== null || isDroneSubcategory || isGeneratorCategory);
 
   // Quick manufacturer list based on selected sub-category or category
   const quickManufacturers = selectedSubcategory
@@ -1198,12 +1229,14 @@ export default function AddVehicle() {
               <PartyPopper className="h-9 w-9 text-white" />
             </div>
             <h2 className="text-xl font-bold text-gray-900">
-              {isVesselCategory ? 'כלי השייט נוסף' : 'הרכב נוסף'}
+              {isGeneratorCategory ? 'הגנרטור נוסף' : isVesselCategory ? 'כלי השייט נוסף' : 'הרכב נוסף'}
             </h2>
             <p className="text-gray-500 text-sm leading-relaxed">
-              {isVesselCategory
-                ? 'עכשיו נעקוב יחד אחרי כושר שייט, ביטוח ימי וטיפולים.'
-                : 'עכשיו נעקוב יחד אחרי טסט, ביטוח וטיפולים.'}
+              {isGeneratorCategory
+                ? 'עכשיו נעקוב יחד אחרי טיפולים, בדיקות, שעות עבודה ומסמכים.'
+                : isVesselCategory
+                  ? 'עכשיו נעקוב יחד אחרי כושר שייט, ביטוח ימי וטיפולים.'
+                  : 'עכשיו נעקוב יחד אחרי טסט, ביטוח וטיפולים.'}
             </p>
             <div className="space-y-2 pt-2">
               <Button
@@ -1218,7 +1251,7 @@ export default function AddVehicle() {
                 variant="outline"
                 className="w-full h-11 border-gray-200"
               >
-                {isVesselCategory ? 'הוסף כלי שייט נוסף' : 'הוסף רכב נוסף'}
+                {isGeneratorCategory ? 'הוסף גנרטור נוסף' : isVesselCategory ? 'הוסף כלי שייט נוסף' : 'הוסף רכב נוסף'}
               </Button>
             </div>
           </div>
@@ -1449,7 +1482,10 @@ export default function AddVehicle() {
         )}
       </div>
 
-      {/*  Step 2: Method selection  */}
+      {/*  Step 2: Method selection. Hidden for generators, which are
+          manual-entry only (no plate lookup / no scan) and jump straight
+          to the form, so a single-option chooser would be dead UI.  */}
+      {!isGeneratorCategory && (
       <div className={`transition-all duration-300 ${categoryReady ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
       <h2 className="font-bold text-lg mb-4 text-center" style={{ color: C.text }}>איך תרצה להוסיף?</h2>
       <div className="space-y-3 mb-6" data-tour="av-methods">
@@ -1607,7 +1643,8 @@ export default function AddVehicle() {
           </div>
         </div>
       </div>
-      </div>{/* end step-2 wrapper */}
+      </div>
+      )}{/* end step-2 wrapper */}
 
       {/*  Vehicle form (revealed after method selection)  */}
       <div
@@ -1636,7 +1673,7 @@ export default function AddVehicle() {
             {/* Step header - premium */}
             <div className="flex items-center justify-between mb-4" dir="rtl">
               <div className="flex items-center gap-2">
-                <h2 className="font-bold text-xl" style={{ color: T.text }}>פרטי הרכב</h2>
+                <h2 className="font-bold text-xl" style={{ color: T.text }}>{isGeneratorCategory ? 'פרטי הגנרטור' : 'פרטי הרכב'}</h2>
                 {draft.showSaved && (
                   <span className="text-[10px] font-bold flex items-center gap-1 draft-saved"
                     style={{ color: '#059669' }}>
@@ -1694,6 +1731,9 @@ export default function AddVehicle() {
                 </div>
 
                 {/*  Form fields  */}
+                {isGeneratorCategory ? (
+                  <GeneratorFields form={form} handleChange={handleChange} errors={errors} clearError={clearError} />
+                ) : (
                 <div className="space-y-3" dir="rtl">
                   {/* כינוי + מספר רישוי - 2 columns */}
                   <div className="grid grid-cols-2 gap-3">
@@ -2130,10 +2170,12 @@ export default function AddVehicle() {
                     </div>
                   )}
                 </div>
+                )}
 
-                {/* Tire question — hidden for vessels (no road tires) and
-                    aviation (we don't manage aircraft tire reminders). */}
-                {selectedCategory?.label !== 'כלי שייט' && !isAviationCategory && (
+                {/* Tire question — hidden for vessels (no road tires),
+                    aviation (we don't manage aircraft tire reminders) and
+                    generators (no road tires). */}
+                {selectedCategory?.label !== 'כלי שייט' && !isAviationCategory && !isGeneratorCategory && (
                   <div className="rounded-2xl p-5 space-y-3"
                     style={{ background: T.light, border: `1.5px solid ${T.border}` }}>
                     <div className="flex items-center gap-3" dir="rtl">
@@ -2363,9 +2405,11 @@ export default function AddVehicle() {
                   {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="w-5 h-5" />}
                   {saving
                     ? 'שומר...'
-                    : selectedCategory?.label === 'כלי טיס'
-                      ? (isDroneSubcategory ? 'שמור רחפן' : 'שמור כלי טיס')
-                      : isVesselCategory ? 'שמור כלי שייט' : 'שמור רכב'}
+                    : isGeneratorCategory
+                      ? 'שמור גנרטור'
+                      : selectedCategory?.label === 'כלי טיס'
+                        ? (isDroneSubcategory ? 'שמור רחפן' : 'שמור כלי טיס')
+                        : isVesselCategory ? 'שמור כלי שייט' : 'שמור רכב'}
                 </button>
               </form>
             </div>

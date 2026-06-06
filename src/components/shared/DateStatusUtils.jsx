@@ -75,6 +75,16 @@ export function isOffroad(vehicleType) {
   return OFFROAD_TYPES.has(vehicleType);
 }
 
+/** Generator types. A single canonical vehicle_type ('גנרטור'); the specific
+ *  subtype lives in the generator_type column. Work-hours metered (engine
+ *  hours), no road registration, no test. */
+const GENERATOR_TYPES = new Set(['גנרטור']);
+
+/** Returns true if this vehicle type is a generator. */
+export function isGenerator(vehicleType) {
+  return GENERATOR_TYPES.has(vehicleType);
+}
+
 /** Vessel type names - used to identify boats/yachts/watercraft.
  *  Single source of truth for the whole app — AdminUserDrawer used to
  *  maintain its own local copy with three extra types ('יאכטה',
@@ -110,6 +120,7 @@ export function usesKm(vehicleOrType, nickname) {
   const vt = isObj ? vehicleOrType.vehicle_type : vehicleOrType;
   const nn = isObj ? vehicleOrType.nickname : nickname;
   if (isVessel(vt, nn)) return false;
+  if (GENERATOR_TYPES.has(vt)) return false;   // generators meter work-hours, not km
   if (OFFROAD_HOURS_TYPES.has(vt)) return false;
   if (OFFROAD_TOGGLE_TYPES.has(vt)) {
     // User picked hours (and hasn't filled km) → hide km field in
@@ -125,6 +136,7 @@ export function usesHours(vehicleOrType, nickname) {
   const vt = isObj ? vehicleOrType.vehicle_type : vehicleOrType;
   const nn = isObj ? vehicleOrType.nickname : nickname;
   if (isVessel(vt, nn)) return true;
+  if (GENERATOR_TYPES.has(vt)) return true;     // generators meter work-hours
   if (OFFROAD_HOURS_TYPES.has(vt)) return true; // RZR, מיול. always hours
   if (OFFROAD_TOGGLE_TYPES.has(vt)) {
     // Toggle-able off-road: show hours when the user populated hours and
@@ -346,6 +358,20 @@ export function getVehicleLabels(vehicleType, nickname) {
       testExpiredMsg: 'כושר השייט פג תוקף',
       insuranceWord:  'ביטוח ימי',     // replaces "ביטוח"
       vehicleFallback:'כלי שייט',      // fallback name when no nickname
+    };
+  }
+  if (isGenerator(vehicleType)) {
+    // Generators have no road test; usage is metered in work-hours.
+    // testWord is kept generic (unused — generators have no test_due_date)
+    // so any accidental reference degrades gracefully rather than crashing.
+    return {
+      vehicleWord:    'גנרטור',
+      testWord:       'בדיקה',
+      testDateLabel:  'תאריך בדיקה',
+      testNextLabel:  'בדיקה הבאה',
+      testExpiredMsg: 'הבדיקה עברה את תאריך התוקף',
+      insuranceWord:  'ביטוח',
+      vehicleFallback:'גנרטור',
     };
   }
   if (isCme(vehicleType)) {

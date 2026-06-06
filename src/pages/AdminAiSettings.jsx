@@ -54,7 +54,7 @@ const PROVIDERS = [
   { key: 'auto',   label: 'אוטומטי', hint: 'Gemini כברירת מחדל; אם הוא נופל או נגמרה המכסה — נפילה ל-Groq לטקסט' },
 ];
 
-export default function AdminAiSettings() {
+export default function AdminAiSettings({ embedded = false }) {
   const isAdmin = useIsAdmin();
   const navigate = useNavigate();
   const [settings, setSettings] = useState({}); // { feature: provider }
@@ -127,8 +127,9 @@ export default function AdminAiSettings() {
     toast.success(`${FEATURES.find(f => f.key === feature)?.title || feature} → ${PROVIDERS.find(p => p.key === provider)?.label || provider}`);
   };
 
-  if (isAdmin === null) return <div className="p-8 text-center text-sm text-gray-500">בודק הרשאות...</div>;
-  if (isAdmin === false) {
+  // Embedded inside the unified AdminAi tabs page → parent owns gate + header.
+  if (!embedded && isAdmin === null) return <div className="p-8 text-center text-sm text-gray-500">בודק הרשאות...</div>;
+  if (!embedded && isAdmin === false) {
     return (
       <div className="p-8 text-center" dir="rtl">
         <p className="text-sm text-gray-600 mb-4">דף זה פתוח לאדמינים בלבד.</p>
@@ -138,16 +139,18 @@ export default function AdminAiSettings() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-4 sm:p-6" dir="rtl">
-      <div className="flex items-center justify-between mb-6">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm font-bold text-[#2D5233]">
-          <ArrowRight className="w-4 h-4" /> חזרה
-        </button>
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-[#D97706]" />
-          <h1 className="text-xl sm:text-2xl font-bold text-[#1F2937]">הגדרות AI</h1>
+    <div className={embedded ? '' : 'max-w-3xl mx-auto p-4 sm:p-6'} dir="rtl">
+      {!embedded && (
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm font-bold text-[#2D5233]">
+            <ArrowRight className="w-4 h-4" /> חזרה
+          </button>
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-[#D97706]" />
+            <h1 className="text-xl sm:text-2xl font-bold text-[#1F2937]">הגדרות AI</h1>
+          </div>
         </div>
-      </div>
+      )}
 
       <p className="text-sm text-gray-600 mb-6 leading-relaxed">
         בחר את ספק ה-AI לכל פיצ׳ר. השינוי חל מיידית על הבקשות הבאות — אין צורך בפריסה מחדש.
