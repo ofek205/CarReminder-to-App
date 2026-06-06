@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
+import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { createPageUrl } from '@/utils';
@@ -114,7 +115,7 @@ export default function Fleet() {
 
   const enabled = !!accountId && canManageRoutes && isBusiness;
 
-  const { data: vehicles = [], isLoading } = useQuery({
+  const { data: vehicles = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['fleet-vehicles', accountId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -410,6 +411,9 @@ export default function Fleet() {
         <Card className="text-center py-8">
           <p className="text-xs" style={{ color: C.mutedAlt }}>טוען רכבים...</p>
         </Card>
+      ) : isError ? (
+        /* C2: load failure → retry banner, not a misleading empty fleet. */
+        <SystemErrorBanner message="טעינת הצי נכשלה. בדוק את החיבור ונסה שוב." onRetry={() => refetch()} />
       ) : filtered.length === 0 ? (
         <Card className="text-center py-12">
           <Truck className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />

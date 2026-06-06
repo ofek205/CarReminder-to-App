@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '../components/shared/GuestContext';
+import SystemErrorBanner from '../components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
 import { C } from '@/lib/designTokens';
 import { isVessel } from '../components/shared/DateStatusUtils';
@@ -110,7 +111,7 @@ export default function Community() {
     return () => { cancelled = true; };
   }, [debouncedSearch, domain]);
 
-  const { data: posts = [], isLoading } = useQuery({
+  const { data: posts = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['community_posts', domain],
     queryFn: async () => {
       try {
@@ -122,7 +123,7 @@ export default function Community() {
           .order('created_at', { ascending: false }).limit(50);
         if (error) throw error;
         return data || [];
-      } catch { return []; }
+      } catch (err) { throw err; } // C2: surface failures as isError, not a silent empty feed
     },
     staleTime: 30 * 1000,
   });
@@ -336,7 +337,9 @@ export default function Community() {
 
       {/*  Feed  */}
       <div className="px-3 pt-3 pb-28">
-        {isLoading ? <ListSkeleton count={4} variant="post" /> : filteredPosts.length === 0 ? (
+        {isLoading ? <ListSkeleton count={4} variant="post" /> : isError ? (
+          <SystemErrorBanner message="טעינת הקהילה נכשלה. בדוק את החיבור ונסה שוב." onRetry={() => refetch()} />
+        ) : filteredPosts.length === 0 ? (
           debouncedSearch ? (
             /* No search results. suggest posting */
             <div className="text-center py-16 px-6 card-animate">
