@@ -221,6 +221,17 @@ export const APP_NOTIF_CONFIG = {
     iconBg: C.primary,
     buildHref: () => '/AddVehicle',
   },
+  business_approved: {
+    // Admin approved the user's business-account request. Green/celebratory,
+    // briefcase icon. Routes to the fleet vehicles screen — by the time the
+    // user taps, the new business workspace is already active (the pending
+    // page auto-switches on approval; on a cold open the switcher shows it).
+    icon: Briefcase,
+    bg: C.light,
+    iconColor: C.primary,
+    iconBg: C.primary,
+    buildHref: () => '/Vehicles',
+  },
   account_invite_offered: {
     icon: UserPlus,
     bg: C.successSubtle,

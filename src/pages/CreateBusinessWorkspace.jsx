@@ -14,7 +14,8 @@
  * Server-side, create_business_workspace is (at the coordinated production
  * promotion) blocked for non-admins, so the request flow is the only path.
  */
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase, Loader2, ArrowRight, Clock, AlertTriangle,
@@ -24,6 +25,8 @@ import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { createPageUrl } from '@/utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import useUserProfile from '@/hooks/useUserProfile';
@@ -53,8 +56,13 @@ function isValidPhone(v) { const d = phoneDigits(v); return d.length >= 9 && d.l
 export default function CreateBusinessWorkspace() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { switchTo } = useWorkspace();
+  const prevStatusRef = useRef();
 
-  // Latest request from this user (RLS scopes to own rows).
+  // Latest request from this user (RLS scopes to own rows). Polls every 15s
+  // so a user waiting on the pending screen sees the approval the moment it
+  // lands (and the effect below auto-switches into the new workspace).
   const { data: latestRequest, isLoading: requestLoading } = useQuery({
     queryKey: ['my-latest-business-request', user?.id],
     queryFn: async () => {
@@ -70,7 +78,31 @@ export default function CreateBusinessWorkspace() {
     },
     enabled: !!user?.id && isAuthenticated,
     staleTime: 30 * 1000,
+    refetchInterval: 15 * 1000,
   });
+
+  // When the request the user is WAITING on flips pending → approved, open the
+  // new business workspace for them (switch + navigate). Guarded on the
+  // pending→approved transition so an old approved request on a later visit
+  // doesn't yank an unrelated session into the workspace.
+  useEffect(() => {
+    const st = latestRequest?.status;
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = st;
+    if (prev === 'pending' && st === 'approved' && latestRequest?.created_account_id) {
+      (async () => {
+        try {
+          await queryClient.invalidateQueries({ queryKey: ['user-workspaces'] });
+          await new Promise((r) => setTimeout(r, 50));
+          await switchTo(latestRequest.created_account_id);
+          toast.success('החשבון העסקי אושר ונפתח! 🎉');
+          navigate(createPageUrl('Vehicles'));
+        } catch {
+          toast.success('החשבון העסקי אושר! רענן/י את הדף כדי להיכנס.');
+        }
+      })();
+    }
+  }, [latestRequest?.status, latestRequest?.created_account_id, queryClient, switchTo, navigate]);
 
   // Every business account now goes through an admin-approved request —
   // there is no self-service "free create" path anymore.
