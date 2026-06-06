@@ -1482,7 +1482,10 @@ export default function AddVehicle() {
         )}
       </div>
 
-      {/*  Step 2: Method selection  */}
+      {/*  Step 2: Method selection. Hidden for generators, which are
+          manual-entry only (no plate lookup / no scan) and jump straight
+          to the form, so a single-option chooser would be dead UI.  */}
+      {!isGeneratorCategory && (
       <div className={`transition-all duration-300 ${categoryReady ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
       <h2 className="font-bold text-lg mb-4 text-center" style={{ color: C.text }}>איך תרצה להוסיף?</h2>
       <div className="space-y-3 mb-6" data-tour="av-methods">
@@ -1640,7 +1643,8 @@ export default function AddVehicle() {
           </div>
         </div>
       </div>
-      </div>{/* end step-2 wrapper */}
+      </div>
+      )}{/* end step-2 wrapper */}
 
       {/*  Vehicle form (revealed after method selection)  */}
       <div

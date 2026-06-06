@@ -5,7 +5,7 @@ import { formatDateHe } from '../shared/DateStatusUtils';
 import MileageUpdateWidget from './MileageUpdateWidget';
 
 /**
- * GeneratorInfoSection — the read-only detail block for a generator, shown on
+ * GeneratorInfoSection. The read-only detail block for a generator, shown on
  * VehicleDetail instead of the (car/vessel-centric) VehicleInfoSection.
  *
  * Pure presentational: renders the generator_* columns + reuses
@@ -76,7 +76,7 @@ export default function GeneratorInfoSection({ vehicle }) {
         )}
       </Card>
 
-      {/* Work-hours updater — reuses the shared widget (shows "שעות עבודה"
+      {/* Work-hours updater. Reuses the shared widget (shows "שעות עבודה"
           for generators) and writes to current_engine_hours. */}
       <MileageUpdateWidget vehicle={vehicle} />
 
@@ -99,7 +99,7 @@ export default function GeneratorInfoSection({ vehicle }) {
         </Card>
       )}
 
-      {/* Liability note (spec §11) — reminders are guidance only. */}
+      {/* Liability note (spec §11). Reminders are guidance only. */}
       <div className="rounded-xl border px-3 py-2.5 flex items-start gap-2 text-[11px] leading-relaxed"
         style={{ background: C.warnSubtle, borderColor: C.warnBorder, color: C.warnDark }}>
         <Info className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />

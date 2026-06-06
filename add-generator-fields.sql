@@ -5,7 +5,7 @@
 -- Adds nullable generator-specific columns to public.vehicles. The generator
 -- category reuses the existing vehicles table (consistent with how vessel /
 -- aviation / CME type-specific fields are stored) rather than a separate
--- generator_details table — so ReminderEngine, the detail page, documents,
+-- generator_details table, so ReminderEngine, the detail page, documents,
 -- and maintenance logs all keep operating on a single vehicle row with no JOIN.
 --
 -- SAFETY: every column is NULLABLE with no default → ZERO impact on existing
@@ -13,7 +13,7 @@
 -- No RLS change needed: these columns live on public.vehicles, already guarded
 -- by the per-account row-level security policies.
 --
--- Work-hours tracking is NOT a new column — generators reuse the existing
+-- Work-hours tracking is NOT a new column. Generators reuse the existing
 -- current_engine_hours / engine_hours_baseline / engine_hours_update_date.
 --
 -- Run on staging first, then production (staging + prod currently share one DB).
