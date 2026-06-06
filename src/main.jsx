@@ -1,6 +1,14 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
+// Self-hosted Rubik (bundled by Vite → same-origin, no font CSP needed).
+// The app declared 'Rubik' as its font but never loaded it; these imports
+// make the whole UI render in Rubik (Hebrew subset included per weight).
+import '@fontsource/rubik/400.css'
+import '@fontsource/rubik/500.css'
+import '@fontsource/rubik/600.css'
+import '@fontsource/rubik/700.css'
+import '@fontsource/rubik/800.css'
 import '@/index.css'
 import { isNative, isIOS, isAndroid, initStatusBar, initKeyboard, initBackButton, hideSplash, initSessionKeepAlive } from '@/lib/capacitor'
 import { reportError } from '@/lib/crashReporter';
