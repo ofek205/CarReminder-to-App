@@ -186,7 +186,7 @@ function isTypeMuted(type, settings) {
  * Returns an array of Date objects (one per firing, possibly multiple for
  * overdue repeats).
  */
-function computeScheduleTimes(reminder, settings) {
+function computeScheduleTimes(reminder, settings, pendingMarkers = []) {
   const now = Date.now();
   const hour = settings.daily_job_hour ?? 8;
 
@@ -272,7 +272,7 @@ function computeScheduleTimes(reminder, settings) {
     // First overdue OR cooldown expired — plant a fresh +1h immediate
     // and remember its fire time so the next recalc respects it.
     const immediateAt = now + 60 * 60 * 1000;
-    setMarker(OVERDUE_FIRE_AT_PREFIX, reminder.id, immediateAt);
+    pendingMarkers.push({ prefix: OVERDUE_FIRE_AT_PREFIX, key: reminder.id, value: immediateAt });
     return [new Date(immediateAt), ...futureTimes];
   }
 
@@ -317,7 +317,7 @@ function computeScheduleTimes(reminder, settings) {
   if (unfiredPast.length > 1) {
     const keep = Math.min(...unfiredPast);       // smallest = closest to due = most urgent
     for (const m of unfiredPast) {
-      if (m !== keep) setMarker(MILESTONE_FIRE_AT_PREFIX, msKey(m), 1); // 1 = "done long ago"
+      if (m !== keep) pendingMarkers.push({ prefix: MILESTONE_FIRE_AT_PREFIX, key: msKey(m), value: 1 }); // 1 = "done long ago"
     }
   }
 
@@ -330,7 +330,7 @@ function computeScheduleTimes(reminder, settings) {
     if (triggerInDays > MAX_SCHEDULE_HORIZON_DAYS) continue;            // too far; a closer pass plants it
     // Future milestone → its own trigger morning. Just-crossed (≤0) → tomorrow.
     const slot = triggerInDays > 0 ? morningSlot(triggerInDays) : morningSlot(1);
-    setMarker(MILESTONE_FIRE_AT_PREFIX, msKey(m), slot.getTime());
+    pendingMarkers.push({ prefix: MILESTONE_FIRE_AT_PREFIX, key: msKey(m), value: slot.getTime() });
     slots.push(slot);
   }
   return slots;
@@ -413,7 +413,8 @@ export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER
       } catch { /* storage unavailable — fall through to schedule */ }
     }
 
-    const times = computeScheduleTimes(reminder, settings);
+    const pendingMarkers = [];
+    const times = computeScheduleTimes(reminder, settings, pendingMarkers);
     if (times.length === 0) continue;
 
     const { title, body } = buildPayload(reminder);
@@ -428,17 +429,27 @@ export async function scheduleAllReminders(vehicles, settings = DEFAULT_REMINDER
       daysLeft: reminder.daysLeft,
     };
 
+    let anyScheduled = false;
     for (let i = 0; i < times.length; i++) {
       // Suffix the id per-firing so repeats don't collide.
       const firingId = i === 0 ? String(reminder.id) : `${reminder.id}-r${i}`;
-      await scheduleLocalNotification({
+      const res = await scheduleLocalNotification({
         id: firingId,
         title,
         body,
         scheduleAt: times[i],
         extra,
       });
-      scheduled++;
+      if (res !== null && res !== undefined) { anyScheduled = true; scheduled++; }
+    }
+    // H2: commit milestone/overdue markers ONLY after a confirmed schedule.
+    // A silent OS schedule failure must not mark a milestone "done" (that
+    // loses the reminder forever); leaving markers unset lets the next
+    // recalc retry. Committing on ≥1 success (not requiring all) avoids the
+    // opposite failure — re-firing already-scheduled slots, i.e. the
+    // app-open spam the dedup engine exists to prevent.
+    if (anyScheduled) {
+      for (const pm of pendingMarkers) setMarker(pm.prefix, pm.key, pm.value);
     }
   }
 
