@@ -380,6 +380,7 @@ export function GuestDataProvider({ children }) {
         'is_personal_import','personal_import_type'];
 
       let migrated = 0;
+      const idMap = {}; // guest vehicle id → new server id (C4: remap dependent data)
       for (const guestVehicle of toMigrate) {
         const cleanData = { account_id: accountId };
         DB_COLUMNS.forEach(k => {
@@ -398,7 +399,8 @@ export function GuestDataProvider({ children }) {
         }
 
         try {
-          await db.vehicles.create(cleanData);
+          const createdVehicle = await db.vehicles.create(cleanData);
+          if (createdVehicle?.id) idMap[guestVehicle.id] = createdVehicle.id;
           migrated++;
         } catch (err) {
           console.warn('Guest vehicle migration failed for one vehicle:', err?.message);
@@ -414,6 +416,38 @@ export function GuestDataProvider({ children }) {
             : `${migrated} כלי רכב הועברו בהצלחה לחשבון שלך!`
         );
       }
+
+      // C4: migrate the guest's DEPENDENT data too (documents, accidents,
+      // vessel issues, cork notes) — previously ONLY vehicles migrated, so the
+      // rest was silently lost on signup despite the "save permanently" promise.
+      // Each item's vehicle_id is remapped via idMap; per-item try/catch so one
+      // bad row never aborts or corrupts the batch; a key is cleared only after
+      // >=1 of its rows migrated. Guest files live inline (base64 in file_url /
+      // JSONB photos) and the viewers already handle file_url-only rows, so no
+      // Storage upload is needed here.
+      const migrateDependent = async (storageKey, entity, setter) => {
+        let items;
+        try { items = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return; }
+        if (!Array.isArray(items) || items.length === 0) return;
+        let n = 0;
+        for (const item of items) {
+          const mappedVehicleId = item.vehicle_id ? idMap[item.vehicle_id] : null;
+          if (item.vehicle_id && !mappedVehicleId) continue; // orphan: its vehicle wasn't migrated
+          const clean = { account_id: accountId };
+          for (const [k, v] of Object.entries(item)) {
+            if (['id', 'vehicle_id', 'account_id', 'created_date', 'created_at'].includes(k) || k.startsWith('_')) continue;
+            if (v !== undefined && v !== null) clean[k] = v;
+          }
+          if (mappedVehicleId) clean.vehicle_id = mappedVehicleId;
+          try { await db[entity].create(clean); n++; }
+          catch (e) { console.warn(`Guest ${entity} migration failed for one row:`, e?.message); }
+        }
+        if (n > 0) { try { localStorage.removeItem(storageKey); } catch {} setter([]); }
+      };
+      await migrateDependent(DOCS_KEY, 'documents', setGuestDocuments);
+      await migrateDependent(ACCIDENTS_KEY, 'accidents', setGuestAccidents);
+      await migrateDependent(VESSEL_ISSUES_KEY, 'vessel_issues', setGuestVesselIssues);
+      await migrateDependent(CORK_NOTES_KEY, 'cork_notes', setGuestCorkNotes);
     } catch (err) {
       console.error('Guest data migration error:', err);
     } finally {
