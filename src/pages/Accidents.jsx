@@ -8,6 +8,7 @@ import { Plus, AlertTriangle, ChevronLeft, Camera, Phone, Calendar, MapPin, Car,
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
+import SystemErrorBanner from '../components/shared/SystemErrorBanner';
 import { useAuth } from '../components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useMyVehicles from '@/hooks/useMyVehicles';
@@ -373,7 +374,7 @@ export default function Accidents() {
   const [reportAccident, setReportAccident] = useState(null);
   const [reportMode, setReportMode] = useState(null); // 'options' | 'preview' | null
 
-  const { data: accidents = [], isLoading: accidentsLoading } = useQuery({
+  const { data: accidents = [], isLoading: accidentsLoading, isError: accidentsError, refetch: refetchAccidents } = useQuery({
     queryKey: ['accidents', accountId],
     // List query loads ONLY the lightweight columns needed to render
     // the row. The `photos` column is a JSONB array of base64 data
@@ -515,6 +516,9 @@ export default function Accidents() {
       {/* Content */}
       {loading ? (
         <LoadingSpinner />
+      ) : (isAuthenticated && accidentsError) ? (
+        /* C2: load failure → retry banner, not a misleading "no accidents" empty state. */
+        <SystemErrorBanner message="טעינת התאונות נכשלה. בדוק את החיבור ונסה שוב." onRetry={() => refetchAccidents()} />
       ) : sortedAccidents.length === 0 ? (
         <EmptyState />
       ) : (
