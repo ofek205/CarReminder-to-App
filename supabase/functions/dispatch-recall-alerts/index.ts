@@ -194,10 +194,17 @@ serve(async (req) => {
 
     // 3) Already-notified (vehicle_id, recall_id) pairs — paginated so the
     // dedup set stays complete past 1000 rows (else we'd re-notify).
+    // Dedup on (user_id, recall_id) — a STABLE identity — not (vehicle_id,
+    // recall_id). vehicle_id is ephemeral: deleting and re-adding the same car
+    // mints a fresh id, so a vehicle_id-keyed set would re-notify the same
+    // owner about the same recall on every delete/re-add within the fresh
+    // window. user_id survives that. (Tradeoff: if one owner has two cars hit
+    // by the SAME recall campaign they get a single alert — rare, since
+    // recalls are plate/VIN-specific, and far better than re-spam.)
     let existing: any[] = [];
-    try { existing = await selectAll(supabase, 'vehicle_recall_alerts', 'vehicle_id, recall_id'); }
+    try { existing = await selectAll(supabase, 'vehicle_recall_alerts', 'user_id, recall_id'); }
     catch (eErr) { await reportEdgeError('load_dedup', eErr); }
-    const seen = new Set(existing.map((r: any) => `${r.vehicle_id}:${r.recall_id}`));
+    const seen = new Set(existing.map((r: any) => `${r.user_id}:${r.recall_id}`));
 
     // 4) Compute NEW matches. A match is notify-worthy only when it is BOTH
     //    (a) freshly opened (within RECALL_FRESH_DAYS) — old recalls are
@@ -214,8 +221,11 @@ serve(async (req) => {
       const userId = ownerByAccount.get(v.account_id);
       if (!userId) continue;
       for (const rec of recalls) {
-        if (seen.has(`${v.id}:${rec.recall_id}`)) continue;
+        if (seen.has(`${userId}:${rec.recall_id}`)) continue;
         if (!isFreshRecall(rec.openedDate)) { skippedStale++; continue; }
+        // Guard against two of this owner's cars sharing one recall campaign
+        // in the SAME run: mark seen as we go so we don't queue a duplicate.
+        seen.add(`${userId}:${rec.recall_id}`);
         newAlerts.push({ vehicle: v, userId, recall: rec });
       }
     }
