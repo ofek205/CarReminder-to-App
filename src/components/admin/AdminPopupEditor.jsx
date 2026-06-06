@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
+import { DateTimeInput } from '@/components/ui/datetime-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -325,13 +326,15 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
               </Field>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* Stacked (not 2-col) — each DateTimeInput is a date+time row,
+                too wide to sit two-per-row on mobile. */}
+            <div className="space-y-3">
               <Field label="תאריך התחלה (אופציונלי)">
-                <Input type="datetime-local" value={form.starts_at ? toLocalInput(form.starts_at) : ''}
+                <DateTimeInput value={form.starts_at ? toLocalInput(form.starts_at) : ''}
                   onChange={e => setForm(f => ({ ...f, starts_at: e.target.value ? new Date(e.target.value).toISOString() : null }))} />
               </Field>
               <Field label="תאריך סיום (אופציונלי)">
-                <Input type="datetime-local" value={form.ends_at ? toLocalInput(form.ends_at) : ''}
+                <DateTimeInput value={form.ends_at ? toLocalInput(form.ends_at) : ''}
                   onChange={e => setForm(f => ({ ...f, ends_at: e.target.value ? new Date(e.target.value).toISOString() : null }))} />
               </Field>
             </div>

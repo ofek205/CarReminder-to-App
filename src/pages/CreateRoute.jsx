@@ -36,6 +36,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { DateInput } from '@/components/ui/date-input';
+import { DateTimeInput } from '@/components/ui/datetime-input';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { createPageUrl } from '@/utils';
@@ -898,11 +899,9 @@ function StopCard({
             </select>
           </Field>
           <Field label="זמן מתוכנן">
-            <Input
-              type="datetime-local"
+            <DateTimeInput
               value={stop.planned_time}
               onChange={(e) => onChange('planned_time', e.target.value)}
-              className="h-10 rounded-xl text-sm"
             />
           </Field>
           <Field label="שם איש קשר בתחנה">
