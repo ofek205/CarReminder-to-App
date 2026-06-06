@@ -155,7 +155,10 @@ export default function AdminVersionTab() {
   };
 
   // ── Publish / clear the "what's new" announcement ─────────────────
-  const handlePublishAnnouncement = async () => {
+  // keepId=true → quiet edit: reuse the current announcement id so users who
+  // already dismissed it are NOT re-shown. keepId=false → publish/re-publish:
+  // fresh id, shows to everyone once.
+  const handlePublishAnnouncement = async (keepId = false) => {
     const body = announcement.body?.trim();
     if (!body) {
       toast.error('יש להזין טקסט להודעה');
@@ -167,9 +170,12 @@ export default function AdminVersionTab() {
         p_title: announcement.title?.trim() || '',
         p_body: body,
         p_clear: false,
+        p_keep_id: keepId,
       });
       if (error) throw error;
-      toast.success('ההודעה פורסמה — תופיע לכל משתמש פעם אחת בכניסה הבאה');
+      toast.success(keepId
+        ? 'ההודעה עודכנה בשקט — מי שכבר ראה אותה לא יראה שוב'
+        : 'ההודעה פורסמה — תופיע לכל משתמש פעם אחת בכניסה הבאה');
       await fetchConfig();
     } catch (err) {
       console.error('Publish announcement failed:', err);
@@ -437,16 +443,39 @@ export default function AdminVersionTab() {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2 pt-1">
-            <Button
-              onClick={handlePublishAnnouncement}
-              disabled={annBusy || !announcement.body.trim()}
-              className="flex-1 gap-2 text-xs font-bold h-10"
-              style={{ backgroundColor: annBusy ? undefined : C.primary, color: annBusy ? undefined : '#fff' }}
-            >
-              {annBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              {publishedAnn ? 'עדכן ופרסם מחדש' : 'פרסם הודעה'}
-            </Button>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {publishedAnn ? (
+              <>
+                <Button
+                  onClick={() => handlePublishAnnouncement(true)}
+                  disabled={annBusy || !announcement.body.trim()}
+                  className="flex-1 min-w-[120px] gap-2 text-xs font-bold h-10"
+                  style={{ backgroundColor: annBusy ? undefined : C.primary, color: annBusy ? undefined : '#fff' }}
+                >
+                  {annBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  ערוך בשקט
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handlePublishAnnouncement(false)}
+                  disabled={annBusy || !announcement.body.trim()}
+                  className="flex-1 min-w-[120px] gap-2 text-xs font-bold h-10"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  פרסם מחדש לכולם
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => handlePublishAnnouncement(false)}
+                disabled={annBusy || !announcement.body.trim()}
+                className="flex-1 gap-2 text-xs font-bold h-10"
+                style={{ backgroundColor: annBusy ? undefined : C.primary, color: annBusy ? undefined : '#fff' }}
+              >
+                {annBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                פרסם הודעה
+              </Button>
+            )}
             {publishedAnn && (
               <Button
                 variant="outline"
@@ -461,7 +490,7 @@ export default function AdminVersionTab() {
           </div>
 
           <p className="text-[10px] text-gray-400 leading-relaxed">
-            פרסום מחדש (עם טקסט חדש) יציג את הפופ-אפ שוב לכל המשתמשים, גם למי שכבר ראה את הקודם.
+            "ערוך בשקט" מעדכן את הטקסט בלי להציג שוב למי שכבר ראה. "פרסם מחדש לכולם" מציג את הפופ-אפ שוב לכל המשתמשים, גם למי שכבר ראה את הקודם.
           </p>
         </div>
       </div>
