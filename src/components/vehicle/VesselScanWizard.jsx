@@ -12,6 +12,7 @@ import { extractDataFromUploadedFile } from '@/lib/aiExtract';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Upload, Pencil, Anchor, AlertTriangle, Check, Camera, Info } from "lucide-react";
@@ -393,14 +394,25 @@ export default function VesselScanWizard({ open, onClose, onExtracted, accountId
                         {FIELD_LABELS[key] || key}
                       </span>
                       {editingField === key ? (
-                        <Input
-                          type={key === 'valid_until' ? 'date' : 'text'}
-                          value={value}
-                          onChange={e => handleFieldEdit(key, e.target.value)}
-                          autoFocus
-                          className="h-7 text-sm mt-0.5"
-                          onBlur={() => setEditingField(null)}
-                        />
+                        key === 'valid_until' ? (
+                          // In-app DateInput instead of bare <input type="date">
+                          // (full-screen native Android picker). No onBlur —
+                          // DateInput owns its own blur/commit handling.
+                          <DateInput
+                            value={value}
+                            onChange={e => handleFieldEdit(key, e.target.value)}
+                            className="mt-0.5"
+                          />
+                        ) : (
+                          <Input
+                            type="text"
+                            value={value}
+                            onChange={e => handleFieldEdit(key, e.target.value)}
+                            autoFocus
+                            className="h-7 text-sm mt-0.5"
+                            onBlur={() => setEditingField(null)}
+                          />
+                        )
                       ) : (
                         <span className="text-sm font-medium text-gray-800">
                           {key === 'valid_until' && value

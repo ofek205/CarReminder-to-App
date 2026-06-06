@@ -38,6 +38,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DateInput } from '@/components/ui/date-input';
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import {
   ArrowRight, Sparkles, AlertTriangle, Pencil, Check, FileText,
@@ -202,7 +203,10 @@ function FieldCard({ field, value, filled, editing, onStartEdit, onStopEdit, onC
   const Icon       = filled ? Sparkles : AlertTriangle;
   const iconColor  = filled ? C.primary : C.warn;
 
-  const inputType = field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text';
+  // Date fields are handled by the shared <DateInput> below — never a
+  // bare <input type="date"> (its full-screen native Android picker is
+  // what we're eliminating). So this only covers number vs text.
+  const inputType = field.type === 'number' ? 'number' : 'text';
   const inputDir  = field.dir || 'auto';
 
   return (
@@ -231,7 +235,18 @@ function FieldCard({ field, value, filled, editing, onStartEdit, onStopEdit, onC
         </div>
       </div>
 
-      {editing ? (
+      {field.type === 'date' ? (
+        // Date fields ALWAYS render the shared DateInput (typable
+        // DD/MM/YYYY + in-app calendar popover on Android/Web, native
+        // wheel on iOS) instead of the bare <input type="date"> whose
+        // full-screen green Android picker we're replacing. It's its own
+        // display + editor, so no view/edit toggle is needed here.
+        <DateInput
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder || 'DD/MM/YYYY'}
+        />
+      ) : editing ? (
         <input
           type={inputType}
           dir={inputDir}
