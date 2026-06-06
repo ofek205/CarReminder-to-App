@@ -280,6 +280,8 @@ export default function AdminAnalytics() {
             onSubtypeClick={(row)   => setDrillSegment({ type: 'vehicle_type', vehicle_type: row.vehicle_type })} />
         </ChartCard>
 
+        <VehicleCountChart />
+
         <ChartCard title="מסמכים שהועלו לשבוע" icon={FileText} color={BI.amber}>
           <MiniChart data={documents_weekly} dataKey="count" xKey="week_start" color={BI.amber} label="מסמכים"
             onPointClick={(row) => setDrillSegment({ type: 'docs_week', week_start: row.week_start })} />
@@ -676,6 +678,80 @@ function MiniChart({ data, dataKey, xKey, color, type = "bar", label, onPointCli
         }
       </ComposedChart>
     </ResponsiveContainer>
+  );
+}
+
+// Histogram: how many users own 0 / 1 / 2 / … vehicles. A "user" is a
+// personal account; the 0-bucket counts people who signed up but never added
+// a vehicle (an activation signal). Self-contained — own RPC + own query, so
+// it doesn't bloat the main admin_analytics_summary payload. The long tail
+// (>= 10 vehicles — rare fleets/collectors) is folded into a "10+" bucket so
+// the axis stays readable. X is categorical, so we do NOT date-format it
+// (which is why MiniChart, whose X axis is hardcoded to dates, isn't reused).
+function VehicleCountChart() {
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-vehicle-count-distribution"],
+    queryFn: async () => {
+      const { data: result, error } = await withTimeout(
+        supabase.rpc("admin_vehicle_count_distribution"),
+        "admin_vehicle_count_distribution"
+      );
+      if (error) throw error;
+      return Array.isArray(result) ? result : [];
+    },
+    retry: 1,
+    retryDelay: 500,
+    staleTime: 60_000,
+  });
+
+  const TAIL = 10;
+  const counts = [];
+  let tail = 0;
+  for (const r of rows) {
+    const vc = Number(r.vehicle_count);
+    const users = Number(r.user_count) || 0;
+    if (!Number.isFinite(vc)) continue;
+    if (vc >= TAIL) tail += users;
+    else counts[vc] = (counts[vc] || 0) + users;
+  }
+  const maxBucket = counts.length ? counts.length - 1 : 0;
+  const chartData = [];
+  for (let i = 0; i <= maxBucket; i++) chartData.push({ bucket: String(i), users: counts[i] || 0 });
+  if (tail > 0) chartData.push({ bucket: `${TAIL}+`, users: tail });
+  const totalUsers = chartData.reduce((s, d) => s + d.users, 0);
+
+  return (
+    <ChartCard title="התפלגות רכבים למשתמש" icon={Car} color={BI.teal}>
+      {isLoading ? (
+        <p className="text-xs text-gray-400 text-center py-10">טוען…</p>
+      ) : isError ? (
+        <div className="text-center py-8">
+          <p className="text-xs text-gray-400 mb-2">לא הצלחנו לטעון</p>
+          <Button size="sm" variant="outline" onClick={() => refetch()}>נסה שוב</Button>
+        </div>
+      ) : chartData.length === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-10">אין נתונים</p>
+      ) : (
+        <>
+          <p className="text-[10px] text-gray-400 mb-1">
+            לפי {totalUsers.toLocaleString("he-IL")} משתמשים (חשבון אישי). העמודה 0 = נרשמו ללא רכב.
+          </p>
+          <ResponsiveContainer width="100%" height={200}>
+            <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+              <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip
+                formatter={(v) => [v, "משתמשים"]}
+                labelFormatter={(l) => `${l} רכבים`}
+                contentStyle={{ fontSize: 12, direction: "rtl" }}
+              />
+              <Bar dataKey="users" fill={BI.teal} radius={[4, 4, 0, 0]} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </>
+      )}
+    </ChartCard>
   );
 }
 
