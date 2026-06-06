@@ -395,6 +395,7 @@ const SAFE_DEFAULT_AUTH = {
   guestDocuments: [],
   addGuestDocument: () => null,
   removeGuestDocument: () => {},
+  updateGuestDocument: () => {},
   getStoredGuestDocuments: () => [],
   // Accidents
   guestAccidents: [],

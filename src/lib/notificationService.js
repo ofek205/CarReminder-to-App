@@ -163,6 +163,8 @@ function daysBeforeFor(type, settings) {
     case 'document':    return settings.remind_document_days_before    ?? 14;
     case 'safety':      return settings.remind_safety_days_before      ?? settings.remind_document_days_before ?? 14;
     case 'maintenance': return settings.remind_maintenance_days_before ?? 7;
+    // תסקיר (CME) reuses the test window in-app; mirror it for push (C6).
+    case 'inspection':  return settings.remind_test_days_before        ?? 14;
     default:            return 7;
   }
 }
@@ -176,6 +178,8 @@ function isTypeMuted(type, settings) {
     maintenance: settings.notify_maintenance,
     document:    settings.notify_document,
     safety:      settings.notify_safety,
+    // תסקיר shares the test on/off toggle (it's the CME equivalent of טסט) (C6).
+    inspection:  settings.notify_test,
   };
   return map[type] === false;
 }

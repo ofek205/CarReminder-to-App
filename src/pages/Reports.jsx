@@ -38,6 +38,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
+import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import VehicleLabel, { vehicleDisplayText } from '@/components/shared/VehicleLabel';
@@ -138,7 +139,7 @@ export default function Reports() {
 
   // Pull the last 24 months of monthly summary regardless of filter —
   // we filter client-side so switching presets is instant.
-  const { data: monthlySummaries = [], isLoading: monthlyLoading } = useQuery({
+  const { data: monthlySummaries = [], isLoading: monthlyLoading, isError: monthlyError, refetch: refetchMonthly } = useQuery({
     queryKey: ['reports-monthly', accountId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -167,7 +168,7 @@ export default function Reports() {
   // wider than the active filter (no server-side period filter) so
   // switching presets is instant. Bounded by `limit` per source.
   const LINE_ITEM_LIMIT = 500;
-  const { data: lineItems = [], isLoading: linesLoading } = useQuery({
+  const { data: lineItems = [], isLoading: linesLoading, isError: linesError, refetch: refetchLines } = useQuery({
     queryKey: ['reports-line-items', accountId, vehicleIds.join(',')],
     queryFn: async () => {
       const [exp, rep, maint] = await Promise.all([
@@ -539,6 +540,8 @@ export default function Reports() {
   // -- render ---------------------------------------------------------
 
   const loading = monthlyLoading || linesLoading;
+  const isError = monthlyError || linesError; // C2
+  const retryReports = () => { refetchMonthly(); refetchLines(); };
 
   return (
     <PageShell
@@ -672,6 +675,8 @@ export default function Reports() {
         </div>
         {loading ? (
           <p className="text-center text-xs text-gray-400 py-12">טוען נתונים...</p>
+        ) : isError ? (
+          <SystemErrorBanner message="טעינת הדוחות נכשלה. בדוק את החיבור ונסה שוב." onRetry={retryReports} />
         ) : chartData.length === 0 ? (
           <Empty embedded text="אין נתונים בטווח שנבחר. נסה תקופה רחבה יותר." />
         ) : (
@@ -812,6 +817,8 @@ export default function Reports() {
         </div>
         {loading ? (
           <p className="text-center text-xs text-gray-400 py-6">טוען שורות...</p>
+        ) : isError ? (
+          <SystemErrorBanner message="טעינת השורות נכשלה. בדוק את החיבור ונסה שוב." onRetry={retryReports} />
         ) : filteredLines.length === 0 ? (
           <Empty embedded text="אין שורות תואמות. נסה להרחיב את התקופה או לבטל את סינון הרכב." />
         ) : (

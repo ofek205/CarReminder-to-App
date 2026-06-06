@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
+import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { Input } from '@/components/ui/input';
@@ -72,7 +73,7 @@ export default function Drivers() {
   const [filter, setFilter] = useState('all');
 
   // Member directory — names via the SECURITY DEFINER RPC.
-  const { data: members = [], isLoading: membersLoading } = useQuery({
+  const { data: members = [], isLoading: membersLoading, isError: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ['workspace-members-directory', accountId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('workspace_members_directory', {
@@ -87,7 +88,7 @@ export default function Drivers() {
 
   // External (non-account) drivers — roster entries that don't have
   // an auth.users row but the manager still wants to track + assign.
-  const { data: externalDrivers = [], isLoading: externalLoading } = useQuery({
+  const { data: externalDrivers = [], isLoading: externalLoading, isError: externalError, refetch: refetchExternal } = useQuery({
     queryKey: ['external-drivers', accountId],
     queryFn:  () => listExternalDrivers({ accountId, includeArchived: false }),
     enabled:  !!accountId && canManageRoutes && isBusiness,
@@ -191,6 +192,7 @@ export default function Drivers() {
   }, [members, externalDrivers, assignmentsByUserId, assignmentsByExternalId, filter]);
 
   const isLoading = membersLoading || externalLoading;
+  const isError = membersError || externalError; // C2
   const totalCount = members.length + externalDrivers.length;
 
   const openDriverDetail = (entry) => {
@@ -335,6 +337,9 @@ export default function Drivers() {
         <Card className="text-center py-8">
           <p className="text-xs" style={{ color: C.mutedAlt }}>טוען נהגים...</p>
         </Card>
+      ) : isError ? (
+        /* C2: load failure → retry banner, not a misleading empty roster. */
+        <SystemErrorBanner message="טעינת הנהגים נכשלה. בדוק את החיבור ונסה שוב." onRetry={() => { refetchMembers(); refetchExternal(); }} />
       ) : entries.length === 0 ? (
         <Card className="text-center py-12">
           <UserPlus className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
