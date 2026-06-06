@@ -15,7 +15,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ShieldAlert, CheckCircle2, XCircle, Loader2, Filter,
-  Briefcase, Mail, Clock, X, AlertTriangle,
+  Briefcase, Mail, Clock, X, AlertTriangle, Phone,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -172,8 +172,17 @@ function RequestCard({ req, onApprove, onDeny }) {
       </div>
 
       <div className="space-y-1.5 text-[11px] mt-2 pt-2 border-t border-gray-50">
+        {req.business_meta?.phone && (
+          <Detail label="טלפון" value={req.business_meta.phone} icon={<Phone className="h-3 w-3" />} />
+        )}
+        {req.business_meta?.vehicles_range && (
+          <Detail label="כמות רכבים" value={req.business_meta.vehicles_range} />
+        )}
+        {req.business_meta?.users_range && (
+          <Detail label="כמות משתמשים" value={req.business_meta.users_range} />
+        )}
         {req.reason && (
-          <Detail label="סיבה" value={req.reason} multiline />
+          <Detail label="הערות" value={req.reason} multiline />
         )}
         {req.business_meta?.business_id && (
           <Detail label="ח.פ." value={req.business_meta.business_id} />
