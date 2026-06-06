@@ -209,8 +209,41 @@ export function getTestPolicy(vehicle) {
 
   const age = getVehicleAge(v.year);
 
-  // רכב מיושן: 19+ years (including 30+ NOT registered as אספנות) → 6 months.
-  if (age !== null && age >= AGING_AGE_YEARS) {
+  // Bus (אוטובוס): public-transport regime. New buses test from the end of
+  // their first year (no 3-year exemption); a bus 15+ years old tests twice
+  // a year. Only the 15+ case is badged (the non-default situation).
+  if (type === 'אוטובוס') {
+    const sixMonthly = age !== null && age >= 15;
+    return {
+      category: 'bus',
+      frequencyMonths: sixMonthly ? 6 : 12,
+      requiredDocs: ['בדיקת רישוי'],
+      label: sixMonthly ? 'אוטובוס מעל 15 שנה' : '',
+    };
+  }
+
+  // Heavy truck (משאית): annual test from first registration. Trucks over
+  // 10,000 kg also need a mandatory winter inspection (November–March) with a
+  // yearly fitness certificate. total_weight is synced from gov.il, so the
+  // >10t case is detected automatically.
+  if (type === 'משאית') {
+    const over10t = Number(v.total_weight) > 10000;
+    return {
+      category: 'heavy',
+      frequencyMonths: 12,
+      requiredDocs: over10t
+        ? ['אישור תקינות שנתי ממוסך מורשה', 'בדיקת חורף (נובמבר עד מרץ)']
+        : ['בדיקת רישוי'],
+      label: over10t ? 'משאית מעל 10 טון' : '',
+      winterInspection: over10t,
+    };
+  }
+
+  // רכב מיושן: a PRIVATE car / motorcycle 19+ years old (including 30+ that
+  // was NOT registered as אספנות) → every 6 months. Gated to private types
+  // so CME (forklifts), trailers, aviation and off-road toys — which have
+  // their own cycles or rely on gov.il — are never mislabelled "רכב מיושן".
+  if (PRIVATE_TEST_TYPES.has(type) && age !== null && age >= AGING_AGE_YEARS) {
     return {
       category: 'aging',
       frequencyMonths: 6,

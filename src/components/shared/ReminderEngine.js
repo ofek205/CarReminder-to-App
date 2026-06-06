@@ -368,6 +368,24 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
       }
     }
 
+    // 7b. Winter inspection (בדיקת חורף) — heavy trucks > 10t must pass a
+    // mandatory inspection during Nov–Mar. Seasonal reminder: surface it from
+    // the start of October so the owner can book before the legal window.
+    if (testPolicy.winterInspection) {
+      const m = now.getMonth();              // 0=Jan … 9=Oct … 11=Dec
+      if (m >= 9 || m <= 2) {                // October → March
+        const inWindow = m >= 10 || m <= 2;  // November → March (legal window)
+        items.push({
+          id: `winter-${v.id}`, type: 'safety', emoji: '❄️',
+          typeName: 'בדיקת חורף', name: vName, vehicleId: v.id,
+          dueDate: null, daysLeft: inWindow ? 0 : 30,
+          status: inWindow ? 'warn' : 'upcoming',
+          label: 'נדרשת בדיקת חורף למשאית (נובמבר עד מרץ)',
+          linkTo: `VehicleDetail?id=${v.id}`,
+        });
+      }
+    }
+
     // 8. Mileage update (180+ days)
     const mDate = mileageDates[v.id] || v.km_update_date || v.engine_hours_update_date;
     if (mDate) {

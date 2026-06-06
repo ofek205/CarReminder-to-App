@@ -40,7 +40,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectWithClear } from "@/components/ui/select";
 import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft, Info } from "lucide-react";
 import { lookupVehicleByPlate } from "../services/vehicleLookup";
-import { normalizePlate, isVintageVehicle, isVessel, computeFallbackTestDate } from "../components/shared/DateStatusUtils";
+import { normalizePlate, isVintageVehicle, computeFallbackTestDate, getTestPolicy } from "../components/shared/DateStatusUtils";
 import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, CME_SUBCATEGORIES, AVIATION_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
 import { trackUserAction } from "../components/shared/ReviewManager";
@@ -1803,12 +1803,21 @@ export default function AddVehicle() {
                       </SelectContent>
                     </SelectWithClear>
                     <AutofillHint name="year" autofillFields={autofillFields} />
-                    {form.is_vintage && !isVessel(form.vehicle_type) && (
-                      <p className="text-xs text-purple-600 mt-1 flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3 shrink-0" />
-                        רכב אספנות, זוהה אוטומטית (טסט כל חצי שנה)
-                      </p>
-                    )}
+                    {(() => {
+                      // Category hint derived from getTestPolicy (single source
+                      // of truth) — never from is_vintage, which is age-based and
+                      // wrongly conflated "30+ car" with "collector / 6-monthly".
+                      const pol = getTestPolicy(form);
+                      if (!pol.label) return null;
+                      const freq = pol.frequencyMonths === 6 ? 'טסט כל חצי שנה'
+                        : pol.frequencyMonths === 12 ? 'טסט שנתי' : '';
+                      return (
+                        <p className="text-xs text-purple-600 mt-1 flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 shrink-0" />
+                          {pol.label}{freq ? `, ${freq}` : ''}
+                        </p>
+                      );
+                    })()}
                   </div>
                   <div>
                     {isVesselCategory ? (

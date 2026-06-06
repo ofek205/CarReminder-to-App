@@ -1029,8 +1029,14 @@ export default function VehicleInfoSection({ vehicle }) {
           badge that wrongly labelled every 30+ car "אספנות - חצי שנה". */}
       {!vesselMode && (() => {
         const testPolicy = getTestPolicy(vehicle);
-        if (testPolicy.category !== 'aging' && testPolicy.category !== 'collector') return null;
-        const freqText = testPolicy.frequencyMonths === 6 ? 'טסט כל חצי שנה' : 'טסט שנתי';
+        // Show the badge only for non-default situations: aging/collector
+        // cars, a 15+ bus, or a >10t truck needing winter inspection. These
+        // all carry a label (or the winterInspection flag); everything else
+        // returns an empty label and no badge.
+        const hasBadge = !!testPolicy.label || !!testPolicy.winterInspection;
+        if (!hasBadge) return null;
+        const freqText = testPolicy.frequencyMonths === 6 ? 'טסט כל חצי שנה'
+          : testPolicy.frequencyMonths === 12 ? 'טסט שנתי' : '';
         const docsText = testPolicy.requiredDocs.length > 0
           ? `. נדרש בטסט: ${testPolicy.requiredDocs.join(', ')}`
           : '';

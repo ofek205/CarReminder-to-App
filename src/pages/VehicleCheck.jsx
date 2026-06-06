@@ -913,6 +913,12 @@ function SpecsAccordion({ result }) {
 //                       same component the technical-spec page uses, so
 //                       the two views match exactly).
 const SPEC_ROWS_HIDDEN = {
+  // isVintage is a collector-only boolean kept for the save path; the
+  // human-readable category is shown via testCategoryLabel ("קטגוריית טסט"),
+  // so suppress the raw "אספנות: כן/לא" row to avoid a confusing duplicate.
+  general: new Set(['isVintage']),
+  registration: new Set(['isVintage']),
+  additional: new Set(['isVintage']),
   ownership: new Set(['history']),
 };
 
