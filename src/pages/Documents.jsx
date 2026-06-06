@@ -22,6 +22,7 @@ import { reportUserError } from "@/lib/crashReporter";
 import useFileUpload from "@/hooks/useFileUpload";
 import { getSignedUrl } from "@/hooks/useSignedUrl";
 import EmptyState from "../components/shared/EmptyState";
+import SystemErrorBanner from "../components/shared/SystemErrorBanner";
 import { formatDateHe, isVessel } from "../components/shared/DateStatusUtils";
 import { daysLabel, daysUntil } from "../components/shared/ReminderEngine";
 import { trackUserAction } from "../components/shared/ReviewManager";
@@ -1186,7 +1187,7 @@ function AuthDocuments({ vehicleIdParam }) {
     staleTime: 60 * 1000,
   });
 
-  const { data: documents = [], isLoading } = useQuery({
+  const { data: documents = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['documents', accountId, vehicleIdParam, restrictToDriverAssignments, driverAssignedVehicleIds?.join(',')],
     queryFn: async () => {
       try {
@@ -1204,8 +1205,14 @@ function AuthDocuments({ vehicleIdParam }) {
           return all.filter(d => d.vehicle_id && allowed.has(d.vehicle_id));
         }
         return all;
-      } catch { return []; }
+      } catch (err) {
+        // C2: propagate so isError fires and the page shows a retry banner —
+        // returning [] here turned a load failure into a misleading "no
+        // documents" empty state. (An empty result set is not an error.)
+        throw err;
+      }
     },
+    retry: 1,
     // For drivers we wait for assignments to resolve so the first
     // render isn't a flash of unfiltered manager-style data.
     enabled: !!accountId && (!restrictToDriverAssignments || driverAssignedVehicleIds !== null),
@@ -1399,6 +1406,18 @@ function AuthDocuments({ vehicleIdParam }) {
         <PageHeader title="מסמכים" subtitle="טוען מסמכים..." />
         <div className="px-3">
           <ListSkeleton count={5} variant="document" />
+        </div>
+      </div>
+    );
+  }
+
+  // C2: a load failure must show a retry banner, not a misleading empty state.
+  if (isError) {
+    return (
+      <div dir="rtl">
+        <PageHeader title="מסמכים" />
+        <div className="px-3 pt-3">
+          <SystemErrorBanner message="טעינת המסמכים נכשלה. בדוק את החיבור ונסה שוב." onRetry={() => refetch()} />
         </div>
       </div>
     );
