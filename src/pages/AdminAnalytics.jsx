@@ -282,6 +282,8 @@ export default function AdminAnalytics() {
 
         <VehicleCountChart />
 
+        <ZeroVehicleTrendChart />
+
         <ChartCard title="מסמכים שהועלו לשבוע" icon={FileText} color={BI.amber}>
           <MiniChart data={documents_weekly} dataKey="count" xKey="week_start" color={BI.amber} label="מסמכים"
             onPointClick={(row) => setDrillSegment({ type: 'docs_week', week_start: row.week_start })} />
@@ -764,6 +766,57 @@ function VehicleCountChart() {
               <Bar dataKey="users" fill={BI.teal} radius={[4, 4, 0, 0]} />
             </ComposedChart>
           </ResponsiveContainer>
+        </>
+      )}
+    </ChartCard>
+  );
+}
+
+// Cohort trend: for each signup WEEK, the share of users who still had 0
+// vehicles 7 days after THEIR signup. Time-normalised (every cohort measured
+// at the same maturity), so a falling line = onboarding is improving — unlike
+// the raw global %, which is dragged down by old inactive accounts. X is a
+// real date so MiniChart's date axis is reused as-is.
+function ZeroVehicleTrendChart() {
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-zero-vehicle-cohort"],
+    queryFn: async () => {
+      const { data: result, error } = await withTimeout(
+        supabase.rpc("admin_zero_vehicle_cohort_trend"),
+        "admin_zero_vehicle_cohort_trend"
+      );
+      if (error) throw error;
+      return Array.isArray(result) ? result : [];
+    },
+    retry: 1,
+    retryDelay: 500,
+    staleTime: 60_000,
+  });
+
+  // numeric() comes back as a string over JSON — coerce for the Y axis.
+  const chartData = rows.map((r) => ({
+    week_start: r.week_start,
+    zero_pct: Number(r.zero_pct) || 0,
+    cohort_size: Number(r.cohort_size) || 0,
+  }));
+
+  return (
+    <ChartCard title="% ללא רכב לפי שבוע הרשמה (7 ימים)" icon={TrendingUp} color={BI.red}>
+      {isLoading ? (
+        <p className="text-xs text-gray-400 text-center py-10">טוען…</p>
+      ) : isError ? (
+        <div className="text-center py-8">
+          <p className="text-xs text-gray-400 mb-2">לא הצלחנו לטעון</p>
+          <Button size="sm" variant="outline" onClick={() => refetch()}>נסה שוב</Button>
+        </div>
+      ) : chartData.length === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-10">אין נתונים</p>
+      ) : (
+        <>
+          <p className="text-[10px] text-gray-400 mb-1">
+            לכל קבוצת נרשמים: % שעדיין ללא רכב 7 ימים אחרי ההרשמה. קו יורד = אקטיבציה משתפרת. (קבוצות קטנות רועשות.)
+          </p>
+          <MiniChart data={chartData} dataKey="zero_pct" xKey="week_start" color={BI.red} type="line" label="% ללא רכב" />
         </>
       )}
     </ChartCard>
