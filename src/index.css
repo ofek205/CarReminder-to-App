@@ -92,6 +92,9 @@
 
   body {
     @apply bg-background text-foreground;
+    /* App-wide typography: Rubik (self-hosted via @fontsource, imported in
+       main.jsx). Falls back to the system Hebrew sans if Rubik fails to load. */
+    font-family: 'Rubik', system-ui, -apple-system, 'Segoe UI', 'Heebo', Arial, sans-serif;
   }
 }
 
