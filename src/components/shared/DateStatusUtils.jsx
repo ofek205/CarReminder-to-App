@@ -170,6 +170,22 @@ export const AGING_AGE_YEARS = 19;        // רכב מיושן threshold
 // for them we simply trust gov.il's date and show no Phase-1 frequency.
 const PRIVATE_TEST_TYPES = new Set(['רכב', 'אופנוע כביש', 'קטנוע']);
 
+// gov.il lookup results carry a `_detectedType` code (and a free-text
+// `_detectedTypeLabel` like "רכב מסחרי") rather than the app's saved
+// vehicle_type. Map the codes to the canonical app type so getTestPolicy
+// classifies a raw plate-check result identically to a saved vehicle.
+// Light commercial ('commercial') shares the private-car test regime, so it
+// maps to 'רכב'.
+const DETECTED_TYPE_TO_APP = {
+  car: 'רכב',
+  commercial: 'רכב',
+  motorcycle: 'אופנוע כביש',
+  truck: 'משאית',
+  bus: 'אוטובוס',
+  collector: 'רכב אספנות',
+  trailer: 'נגרר',
+};
+
 /** Vehicle age in whole years, or null when the year is missing/invalid. */
 export function getVehicleAge(year) {
   if (!year) return null;
@@ -189,7 +205,11 @@ export function getVehicleAge(year) {
  */
 export function getTestPolicy(vehicle) {
   const v = vehicle || {};
-  const type = v.vehicle_type;
+  // Resolve the effective app vehicle_type. A raw gov.il lookup's _detectedType
+  // code is the reliable signal (its free-text label may be "רכב מסחרי" etc.),
+  // so it wins; a saved vehicle has no _detectedType and falls back to its
+  // canonical vehicle_type.
+  const type = DETECTED_TYPE_TO_APP[v._detectedType] || v.vehicle_type || v._detectedTypeLabel || '';
 
   // Vessels follow their own seaworthiness cycle (כושר שייט) — excluded.
   if (isVessel(type, v.nickname)) {

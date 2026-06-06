@@ -87,11 +87,9 @@ function normalizeLookupResult(raw, plate) {
   // now means strictly "registered collector" (רכב אספנות) — NOT merely old:
   // a 30+ car that isn't a registered collector is "רכב מיושן" (tested every
   // 6 months), so it must not be flagged as אספנות on the check screen.
-  const testPolicy = getTestPolicy({
-    vehicle_type: source.vehicle_type || source._detectedTypeLabel,
-    year: source.year,
-    nickname: source.nickname,
-  });
+  // Pass the raw source: it carries _detectedType / year / total_weight, which
+  // getTestPolicy maps to the canonical type (e.g. 'commercial' → 'רכב').
+  const testPolicy = getTestPolicy(source);
   const isVintage = testPolicy.category === 'collector';
   const testCategoryLabel = testPolicy.label; // '' | 'רכב מיושן' | 'רכב אספנות'
   const normalized = {
