@@ -17,6 +17,8 @@
 //      'warning' for "ask the seller", 'info' for "know-your-purchase",
 //      'success' for genuinely positive surprises (rare).
 
+import { getTestPolicy } from '../components/shared/DateStatusUtils';
+
 function parseDate(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -98,6 +100,11 @@ function inactiveInsight(vehicle) {
 // duplicating the card on the check report.
 
 function testStatusInsight(vehicle) {
+  // Never assert a test status from a value we only estimated (e.g. a
+  // motorcycle with no official test date). Doing so would present a guess
+  // as a verified "טסט פג/מתחדש" fact — the exact thing we suppress in the
+  // report. A real inspection_report_expiry_date is still honoured below.
+  if (vehicle._test_due_estimated) return null;
   const days = daysUntil(vehicle.test_due_date || vehicle.inspection_report_expiry_date);
   if (days === null) return null;
   const label = testLabelFor(vehicle);
@@ -303,6 +310,54 @@ function cmeMissingCertInsight(vehicle) {
   );
 }
 
+// Regulatory test regime (רכב מיושן / אספנות / אוטובוס 15+ / משאית >10t).
+// Buyer value: a stricter cadence or a special certificate is a real,
+// recurring cost + hassle to price in before signing. Crosses age × type ×
+// the national rule, so it clears the "two data points" bar. Skipped for an
+// inactive plate (that danger flag dominates — no need to add noise).
+function testCategoryInsight(vehicle, age) {
+  if (vehicle._isInactive) return null;
+  const pol = getTestPolicy(vehicle);
+  const ageTxt = age !== null ? `בן ${age} ` : '';
+  if (pol.category === 'aging') {
+    return insight(
+      'test-aging',
+      'warning',
+      `רכב ${ageTxt}מוגדר "רכב מיושן"`,
+      'מגיל 19 הרכב חייב טסט כל חצי שנה, כפול מרכב רגיל, ובכל טסט צריך אישור בלמים והיגוי ממוסך מורשה. תמחר את כפל העלות והטרחה השנתית.',
+      'משטר טסט',
+    );
+  }
+  if (pol.category === 'collector') {
+    return insight(
+      'test-collector',
+      'info',
+      'רכב אספנות',
+      'הרכב רשום כאספנות: טסט שנתי בלבד, אך עם אישור תקינות שנתי ממוסך מורשה. ודא שהמוכר מציג אישור תקינות עדכני.',
+      'משטר טסט',
+    );
+  }
+  if (pol.category === 'bus' && pol.frequencyMonths === 6) {
+    return insight(
+      'test-bus',
+      'warning',
+      `אוטובוס ${ageTxt}מעל 15 שנה`,
+      'אוטובוס בן 15 שנה ומעלה חייב טסט פעמיים בשנה. תדירות כפולה שמשפיעה על עלות ותחזוקה שוטפת.',
+      'משטר טסט',
+    );
+  }
+  if (pol.winterInspection) {
+    return insight(
+      'test-winter',
+      'warning',
+      'משאית מעל 10 טון',
+      'מעל 10 טון חלה בדיקת חורף חובה בין נובמבר למרץ, בנוסף לטסט השנתי, במוסך מורשה. ודא שהמוכר עבר את בדיקת החורף האחרונה.',
+      'בדיקת חורף',
+    );
+  }
+  return null;
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // Orchestrator
 // ────────────────────────────────────────────────────────────────────────
@@ -316,6 +371,7 @@ export function generateVehicleInsights(vehicle = {}) {
     // open recalls are now surfaced via the dedicated <RecallCard /> (with
     // clickable importer phone + recall site), not as a dense text insight.
     testStatusInsight(vehicle),
+    testCategoryInsight(vehicle, age),
     cmeMissingCertInsight(vehicle),
     rapidHandoverInsight(vehicle, age),
     mileageVsFleetInsight(vehicle, age),
@@ -335,6 +391,10 @@ export function generateVehicleInsights(vehicle = {}) {
     'open-recalls':      98,
     'test-expired':      96,
     'cme-cert-missing':  90,
+    'test-winter':       86,
+    'test-aging':        84,
+    'test-bus':          84,
+    'test-collector':    50,
     'rapid-handover':    82,
     'mileage-high':      78,
     'past-fleet':        76,

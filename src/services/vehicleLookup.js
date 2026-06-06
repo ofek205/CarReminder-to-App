@@ -226,19 +226,14 @@ function mapRecord(r) {
     if (d) fields.test_due_date = d;
   }
 
-  // Fallback: if no tokef_dt (new cars). use first_registration + 4 years
-  // (Israeli law: first test at 4 years old, then annually)
+  // No tokef_dt published (brand-new car, or a gap in the registry). We do
+  // NOT fabricate a test date from "first_registration + N years": a computed
+  // guess presented as a real test date can mask reality (and the legal
+  // exemption window is owned by the shared computeFallbackTestDate rule, not
+  // duplicated here). Flag the absence so the "בדוק רכב" report shows the
+  // verified "עלייה לכביש" date + a note instead of a fabricated test date.
   if (!fields.test_due_date && r.moed_aliya_lakvish) {
-    const raw = String(r.moed_aliya_lakvish);
-    // Format can be "YYYY-MM" or "YYYY-MM-DD"
-    const match = raw.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
-    if (match) {
-      const [, yr, mo, dy] = match;
-      const d = new Date(Number(yr) + 4, Number(mo) - 1, Number(dy || 1));
-      if (!isNaN(d.getTime())) {
-        fields.test_due_date = d.toISOString().split('T')[0];
-      }
-    }
+    fields._test_due_estimated = true;
   }
 
   // Registration fields
@@ -282,21 +277,15 @@ function mapMotoRecord(r) {
   if (r.misgeret)      fields.vin           = safeStr(r.misgeret, 30);
   if (r.moed_aliya_lakvish) {
     fields.first_registration_date = safeDate(r.moed_aliya_lakvish);
-    // For motorcycles, the test month is the same as registration month every year
-    // e.g., "2023-3" means test is due in March. Calculate next test date.
-    const parts = String(r.moed_aliya_lakvish).split('-');
-    if (parts.length >= 2) {
-      const regMonth = parseInt(parts[1], 10);
-      if (regMonth >= 1 && regMonth <= 12) {
-        const now = new Date();
-        const thisYear = now.getFullYear();
-        const thisMonth = now.getMonth() + 1;
-        // If test month already passed this year, next test is next year
-        const testYear = (regMonth < thisMonth) ? thisYear + 1 : thisYear;
-        const lastDay = new Date(testYear, regMonth, 0).getDate(); // last day of the month
-        fields.test_due_date = `${testYear}-${String(regMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      }
-    }
+    // The motorcycle dataset carries NO official test/validity date (unlike
+    // the private-car dataset's tokef_dt). We deliberately DO NOT fabricate
+    // one: the only option is to project the annual test onto the
+    // registration month, and once that month has passed this year the
+    // projection rolls forward — silently presenting a SKIPPED test as if it
+    // were done. Instead we flag the absence; the "בדוק רכב" report shows the
+    // verified "עלייה לכביש" date + a note, and AddVehicle relies on the
+    // shared computeFallbackTestDate rule rather than a guess.
+    fields._test_due_estimated = true;
   }
   if (r.mida_zmig_kidmi)  fields.front_tire = safeStr(r.mida_zmig_kidmi, 40);
   if (r.mida_zmig_ahori)  fields.rear_tire  = safeStr(r.mida_zmig_ahori, 40);
@@ -507,12 +496,14 @@ async function fetchCmeApi(plateDigits) {
  *   - CME registry: `sug_tzama_nm` text contains a Hebrew vintage
  *     keyword (אספנות / וטרן / וינטג). Rare — most CME records are
  *     real construction equipment.
- *   - Inactive-no-model registry: age. Israeli MoT convention + our
- *     in-app `isVintageVehicle` rule both treat ≥ 30 years as classic.
+ *   - Inactive-no-model registry: no reliable collector signal. Age alone
+ *     is NOT collector status (a 30+ car is "רכב מיושן" unless the owner
+ *     registered it as אספנות), so these are classified as a regular car
+ *     and getTestPolicy derives the מיושן category from the age.
  *
  * Returns the appropriate detectedType for the source:
  *   - CME:               'collector' or 'cme'
- *   - inactive_classic:  'collector' or 'car'
+ *   - inactive_classic:  'car'
  *   - other sources:     null (caller picks via its own logic)
  *
  * Centralises the regex + age threshold so future tweaks (e.g. adding
@@ -524,9 +515,14 @@ function detectCollectorType(record, source) {
     return /אספנות|וטרן|וינטג/.test(subtypeText) ? 'collector' : 'cme';
   }
   if (source === 'inactive_classic') {
-    const yr = Number(record?.shnat_yitzur || 0);
-    const ageYears = yr ? new Date().getFullYear() - yr : 0;
-    return ageYears >= 30 ? 'collector' : 'car';
+    // Age alone does NOT make a car "רכב אספנות". Collector status is a
+    // deliberate Ministry registration, not merely being old — a 30+ car
+    // that the owner did NOT register as אספנות is "רכב מיושן" and tests
+    // every 6 months, not annually. So we classify these as a regular car
+    // and let getTestPolicy derive the category (מיושן) from the age.
+    // Only an explicit gov.il collector signal (the CME keyword path above)
+    // still yields 'collector'.
+    return 'car';
   }
   return null;
 }

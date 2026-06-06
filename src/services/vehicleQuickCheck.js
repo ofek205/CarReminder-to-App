@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { lookupVehicleByPlate, isAircraftPlate } from '@/services/vehicleLookup';
 import { generateVehicleInsights } from '@/lib/vehicleInsights';
+import { getTestPolicy } from '@/components/shared/DateStatusUtils';
 
 export const QUICK_CHECK_USED_KEY = 'vehicle_quick_check_used';
 export const QUICK_CHECK_LAST_RESULT_KEY = 'vehicle_quick_check_last_result';
@@ -82,8 +83,15 @@ function compact(obj) {
 function normalizeLookupResult(raw, plate) {
   const source = raw || {};
   const displayName = [source.manufacturer, source.model, source.year].filter(Boolean).join(' ');
-  const age = source.year ? new Date().getFullYear() - Number(source.year) : null;
-  const isVintage = !!source.is_vintage || source.vehicle_type === 'רכב אספנות' || (Number.isFinite(age) && age >= 30);
+  // Test category via getTestPolicy, the single source of truth. isVintage
+  // now means strictly "registered collector" (רכב אספנות) — NOT merely old:
+  // a 30+ car that isn't a registered collector is "רכב מיושן" (tested every
+  // 6 months), so it must not be flagged as אספנות on the check screen.
+  // Pass the raw source: it carries _detectedType / year / total_weight, which
+  // getTestPolicy maps to the canonical type (e.g. 'commercial' → 'רכב').
+  const testPolicy = getTestPolicy(source);
+  const isVintage = testPolicy.category === 'collector';
+  const testCategoryLabel = testPolicy.label; // '' | 'רכב מיושן' | 'רכב אספנות'
   const normalized = {
     plate,
     fetchedAt: new Date().toISOString(),
@@ -105,12 +113,21 @@ function normalizeLookupResult(raw, plate) {
         ? 'מורד מהכביש'
         : (source._isInactive ? 'לא פעיל' : 'פעיל'),
       isVintage,
+      testCategoryLabel,
       displayName: displayName || source.license_plate || plate,
     }),
     registration: compact({
       firstRegistrationDate: source.first_registration_date,
       lastTestDate: source.last_test_date,
-      testDueDate: source.test_due_date || source.inspection_report_expiry_date,
+      // Only surface a test-validity date that the Ministry of Transport
+      // actually publishes. For vehicles whose test date we merely ESTIMATED
+      // (e.g. motorcycles — see mapMotoRecord), we suppress the guess so the
+      // report never presents it as a real test date that could hide a
+      // skipped test. The real "עלייה לכביש" date is shown instead.
+      testDueDate: source._test_due_estimated
+        ? (source.inspection_report_expiry_date || undefined)
+        : (source.test_due_date || source.inspection_report_expiry_date),
+      testDueEstimated: !!source._test_due_estimated,
       inspectionReportExpiryDate: source.inspection_report_expiry_date,
       cancellationDate: source._cancellationDate,
       currentKm: source.current_km,

@@ -98,7 +98,7 @@ export default function EmailCenter() {
         <StatsStrip />
 
         <Tabs defaultValue="notifications" dir="rtl" className="w-full">
-          <TabsList className="mb-4 w-full justify-start rounded-2xl bg-white border p-1 h-auto">
+          <TabsList className="mb-4 w-full flex flex-wrap justify-start gap-1 rounded-2xl bg-white border p-1 h-auto">
             <TabsTrigger value="notifications" className="gap-2 rounded-xl">
               <FileText className="w-4 h-4" /> תבניות
             </TabsTrigger>

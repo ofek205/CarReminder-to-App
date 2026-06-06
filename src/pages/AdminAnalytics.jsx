@@ -17,7 +17,7 @@ import {
 import {
   AlertCircle, RefreshCw, Users, Car, FileText,
   Mail, Bug, TrendingUp, Cake, Download, Loader2,
-  Target, Zap, Star, Flame,
+  Target, Zap, Star, Flame, Phone,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { C } from '@/lib/designTokens';
@@ -279,6 +279,12 @@ export default function AdminAnalytics() {
             onFamilyClick={(family) => setDrillSegment({ type: 'vehicle_family', family })}
             onSubtypeClick={(row)   => setDrillSegment({ type: 'vehicle_type', vehicle_type: row.vehicle_type })} />
         </ChartCard>
+
+        <VehicleCountChart />
+
+        <ZeroVehicleTrendChart />
+
+        <PhoneCoverageChart />
 
         <ChartCard title="מסמכים שהועלו לשבוע" icon={FileText} color={BI.amber}>
           <MiniChart data={documents_weekly} dataKey="count" xKey="week_start" color={BI.amber} label="מסמכים"
@@ -676,6 +682,213 @@ function MiniChart({ data, dataKey, xKey, color, type = "bar", label, onPointCli
         }
       </ComposedChart>
     </ResponsiveContainer>
+  );
+}
+
+// Histogram: how many users own 0 / 1 / 2 / … vehicles. A "user" is a
+// personal account; the 0-bucket counts people who signed up but never added
+// a vehicle (an activation signal). Self-contained — own RPC + own query, so
+// it doesn't bloat the main admin_analytics_summary payload. The long tail
+// (>= 10 vehicles — rare fleets/collectors) is folded into a "10+" bucket so
+// the axis stays readable. X is categorical, so we do NOT date-format it
+// (which is why MiniChart, whose X axis is hardcoded to dates, isn't reused).
+function VehicleCountChart() {
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-vehicle-count-distribution"],
+    queryFn: async () => {
+      const { data: result, error } = await withTimeout(
+        supabase.rpc("admin_vehicle_count_distribution"),
+        "admin_vehicle_count_distribution"
+      );
+      if (error) throw error;
+      return Array.isArray(result) ? result : [];
+    },
+    retry: 1,
+    retryDelay: 500,
+    staleTime: 60_000,
+  });
+
+  const TAIL = 10;
+  const counts = [];
+  let tail = 0;
+  for (const r of rows) {
+    const vc = Number(r.vehicle_count);
+    const users = Number(r.user_count) || 0;
+    if (!Number.isFinite(vc)) continue;
+    if (vc >= TAIL) tail += users;
+    else counts[vc] = (counts[vc] || 0) + users;
+  }
+  const maxBucket = counts.length ? counts.length - 1 : 0;
+  const chartData = [];
+  for (let i = 0; i <= maxBucket; i++) chartData.push({ bucket: String(i), users: counts[i] || 0 });
+  if (tail > 0) chartData.push({ bucket: `${TAIL}+`, users: tail });
+  const totalUsers = chartData.reduce((s, d) => s + d.users, 0);
+
+  return (
+    <ChartCard title="התפלגות רכבים למשתמש" icon={Car} color={BI.teal}>
+      {isLoading ? (
+        <p className="text-xs text-gray-400 text-center py-10">טוען…</p>
+      ) : isError ? (
+        <div className="text-center py-8">
+          <p className="text-xs text-gray-400 mb-2">לא הצלחנו לטעון</p>
+          <Button size="sm" variant="outline" onClick={() => refetch()}>נסה שוב</Button>
+        </div>
+      ) : chartData.length === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-10">אין נתונים</p>
+      ) : (
+        <>
+          {(() => {
+            const zeroUsers = chartData.find((d) => d.bucket === "0")?.users || 0;
+            const zeroPct = totalUsers ? Math.round((zeroUsers / totalUsers) * 100) : 0;
+            return (
+              <div className="flex items-baseline gap-2 mb-0.5">
+                <span className="text-2xl font-bold leading-none" dir="ltr"
+                  style={{ color: zeroPct >= 40 ? BI.red : zeroPct >= 25 ? BI.amber : BI.green }}>
+                  {zeroPct}%
+                </span>
+                <span className="text-[11px] text-gray-500">
+                  ללא רכב ({zeroUsers.toLocaleString("he-IL")} מתוך {totalUsers.toLocaleString("he-IL")})
+                </span>
+              </div>
+            );
+          })()}
+          <p className="text-[10px] text-gray-400 mb-1">
+            לפי משתמשים עם חשבון אישי. העמודה 0 = נרשמו ללא רכב — שאיפה: שהאחוז ירד עם הזמן.
+          </p>
+          <ResponsiveContainer width="100%" height={200}>
+            <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+              <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip
+                formatter={(v) => [v, "משתמשים"]}
+                labelFormatter={(l) => `${l} רכבים`}
+                contentStyle={{ fontSize: 12, direction: "rtl" }}
+              />
+              <Bar dataKey="users" fill={BI.teal} radius={[4, 4, 0, 0]} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </>
+      )}
+    </ChartCard>
+  );
+}
+
+// Cohort trend: for each signup WEEK, the share of users who still had 0
+// vehicles 7 days after THEIR signup. Time-normalised (every cohort measured
+// at the same maturity), so a falling line = onboarding is improving — unlike
+// the raw global %, which is dragged down by old inactive accounts. X is a
+// real date so MiniChart's date axis is reused as-is.
+function ZeroVehicleTrendChart() {
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-zero-vehicle-cohort"],
+    queryFn: async () => {
+      const { data: result, error } = await withTimeout(
+        supabase.rpc("admin_zero_vehicle_cohort_trend"),
+        "admin_zero_vehicle_cohort_trend"
+      );
+      if (error) throw error;
+      return Array.isArray(result) ? result : [];
+    },
+    retry: 1,
+    retryDelay: 500,
+    staleTime: 60_000,
+  });
+
+  // numeric() comes back as a string over JSON — coerce for the Y axis.
+  const chartData = rows.map((r) => ({
+    week_start: r.week_start,
+    zero_pct: Number(r.zero_pct) || 0,
+    cohort_size: Number(r.cohort_size) || 0,
+  }));
+
+  return (
+    <ChartCard title="% ללא רכב לפי שבוע הרשמה (7 ימים)" icon={TrendingUp} color={BI.red}>
+      {isLoading ? (
+        <p className="text-xs text-gray-400 text-center py-10">טוען…</p>
+      ) : isError ? (
+        <div className="text-center py-8">
+          <p className="text-xs text-gray-400 mb-2">לא הצלחנו לטעון</p>
+          <Button size="sm" variant="outline" onClick={() => refetch()}>נסה שוב</Button>
+        </div>
+      ) : chartData.length === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-10">אין נתונים</p>
+      ) : (
+        <>
+          <p className="text-[10px] text-gray-400 mb-1">
+            לכל קבוצת נרשמים: % שעדיין ללא רכב 7 ימים אחרי ההרשמה. קו יורד = אקטיבציה משתפרת. (קבוצות קטנות רועשות.)
+          </p>
+          <MiniChart data={chartData} dataKey="zero_pct" xKey="week_start" color={BI.red} type="line" label="% ללא רכב" />
+        </>
+      )}
+    </ChartCard>
+  );
+}
+
+// Phone-number coverage: how many users have a phone on file vs not. A clean
+// binary split — two big counts + a single ratio bar (no pie; a 2-slice pie
+// reads worse than a bar for "X% vs Y%"). Same population as the vehicle chart
+// (personal accounts) so the two widgets are comparable.
+function PhoneCoverageChart() {
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ["admin-phone-coverage"],
+    queryFn: async () => {
+      const { data: result, error } = await withTimeout(
+        supabase.rpc("admin_phone_coverage"),
+        "admin_phone_coverage"
+      );
+      if (error) throw error;
+      return Array.isArray(result) ? result[0] : result;
+    },
+    retry: 1,
+    retryDelay: 500,
+    staleTime: 60_000,
+  });
+
+  const withPhone = Number(data?.with_phone) || 0;
+  const without = Number(data?.without_phone) || 0;
+  const total = Number(data?.total) || withPhone + without;
+  const withPct = total ? Math.round((withPhone / total) * 100) : 0;
+  const withoutPct = total ? 100 - withPct : 0;
+
+  return (
+    <ChartCard title="מספר טלפון במערכת" icon={Phone} color={BI.blue}>
+      {isLoading ? (
+        <p className="text-xs text-gray-400 text-center py-10">טוען…</p>
+      ) : isError ? (
+        <div className="text-center py-8">
+          <p className="text-xs text-gray-400 mb-2">לא הצלחנו לטעון</p>
+          <Button size="sm" variant="outline" onClick={() => refetch()}>נסה שוב</Button>
+        </div>
+      ) : total === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-10">אין נתונים</p>
+      ) : (
+        <>
+          <div className="flex gap-3 mb-3">
+            <div className="flex-1 rounded-xl p-3 bg-emerald-50">
+              <p className="text-2xl font-bold leading-none" dir="ltr" style={{ color: BI.green }}>
+                {withPhone.toLocaleString("he-IL")}
+              </p>
+              <p className="text-[11px] text-gray-500 mt-1">עם טלפון · {withPct}%</p>
+            </div>
+            <div className="flex-1 rounded-xl p-3 bg-slate-100">
+              <p className="text-2xl font-bold leading-none" dir="ltr" style={{ color: BI.slate }}>
+                {without.toLocaleString("he-IL")}
+              </p>
+              <p className="text-[11px] text-gray-500 mt-1">ללא טלפון · {withoutPct}%</p>
+            </div>
+          </div>
+          {/* Single ratio bar — green = share with a phone, fills from the
+              start (dir=ltr so the width maps to the % intuitively). */}
+          <div className="h-2.5 w-full rounded-full overflow-hidden bg-slate-200" dir="ltr">
+            <div className="h-full" style={{ width: `${withPct}%`, background: BI.green }} />
+          </div>
+          <p className="text-[10px] text-gray-400 mt-2">
+            לפי {total.toLocaleString("he-IL")} משתמשים (חשבון אישי).
+          </p>
+        </>
+      )}
+    </ChartCard>
   );
 }
 

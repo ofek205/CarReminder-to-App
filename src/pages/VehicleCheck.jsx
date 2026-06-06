@@ -527,7 +527,7 @@ function SummaryCard({ result }) {
     { label: 'יד', value: ownership.hand ? `יד ${ownership.hand}` : '' },
     { label: 'בעלות', value: ownership.current },
     { label: 'סוג', value: b.detectedTypeLabel || b.vehicleType },
-    { label: 'אספנות', value: b.isVintage ? 'כן' : '' },
+    { label: 'קטגוריית טסט', value: b.testCategoryLabel || '' },
   ].filter(item => hasDisplayValue(item.value));
   const typeLine = formatUniqueList([b.vehicleType, b.detectedTypeLabel]);
 
@@ -832,7 +832,13 @@ function KeyInfoGrid({ result }) {
     { icon: Wrench, label: 'סוג דלק', value: t.fuelType },
     { icon: ShieldCheck, label: 'תיבת הילוכים', value: t.transmission },
     { icon: BadgeCheck, label: 'סוג בעלות', value: o.current },
-    { icon: CalendarDays, label: 'עלייה לכביש', value: r.firstRegistrationDate },
+    {
+      icon: CalendarDays, label: 'עלייה לכביש', value: r.firstRegistrationDate,
+      // When there's no OFFICIAL test date (motorcycles have none in the
+      // registry; some records simply lack tokef_dt) explain why "תוקף
+      // בדיקה" is absent instead of showing a fabricated guess.
+      source: r.testDueEstimated ? 'אין תוקף טסט מאומת במאגר משרד התחבורה — בדוק ברישיון הרכב' : null,
+    },
     { icon: CalendarDays, label: 'תוקף בדיקה', value: r.testDueDate || r.inspectionReportExpiryDate },
   ].filter(item => hasDisplayValue(item.value));
   if (!items.length) return null;
@@ -907,6 +913,12 @@ function SpecsAccordion({ result }) {
 //                       same component the technical-spec page uses, so
 //                       the two views match exactly).
 const SPEC_ROWS_HIDDEN = {
+  // isVintage is a collector-only boolean kept for the save path; the
+  // human-readable category is shown via testCategoryLabel ("קטגוריית טסט"),
+  // so suppress the raw "אספנות: כן/לא" row to avoid a confusing duplicate.
+  general: new Set(['isVintage']),
+  registration: new Set(['isVintage']),
+  additional: new Set(['isVintage']),
   ownership: new Set(['history']),
 };
 
@@ -1655,6 +1667,7 @@ function labelFor(key) {
     detectedType: 'סוג מאגר',
     status: 'סטטוס',
     isVintage: 'אספנות',
+    testCategoryLabel: 'קטגוריית טסט',
     firstRegistrationDate: 'עלייה לכביש',
     lastTestDate: 'טסט אחרון',
     testDueDate: 'תוקף טסט',
