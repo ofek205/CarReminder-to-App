@@ -8,6 +8,7 @@ import { OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES } from "../vehicle/VehicleTypeSe
 import { COUNTRIES } from "../vehicle/CountryFlagSelect";
 import { Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Cog, ExternalLink, Camera, Loader2, Upload, AlertTriangle, Zap, Leaf, Hash, Paperclip, ArrowRight, Sparkles, Info } from "lucide-react";
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { db } from '@/lib/supabaseEntities';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -360,10 +361,10 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
               <label className="block text-sm font-bold mb-1.5" style={{ color: T.primary }}>
                 תוקף חדש <span className="text-red-500">*</span>
               </label>
-              <Input type="date" dir="ltr"
+              <DateInput
                 value={manualForm.expiry_date}
                 onChange={e => setManualForm(f => ({ ...f, expiry_date: e.target.value }))}
-                className="h-12 text-base font-bold tabular-nums" />
+                className="text-base font-bold" />
               {!isNewer && manualForm.expiry_date && (
                 <div className="flex items-center gap-1.5 mt-1.5">
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0" style={{ color: C.warn }} />
@@ -442,7 +443,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
               )}
               <div className="flex justify-between text-xs">
                 <span style={{ color: T.muted }}>תוקף</span>
-                <Input type="date" dir="ltr" className="w-36 h-7 text-xs"
+                <DateInput className="w-44"
                   value={aiResult.expiry_date}
                   onChange={e => setAiResult(r => ({ ...r, expiry_date: e.target.value }))} />
               </div>

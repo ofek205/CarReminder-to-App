@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Calendar, Bell } from 'lucide-react';
+import { DateInput } from '@/components/ui/date-input';
+import { Bell } from 'lucide-react';
 import { C, getTheme } from '@/lib/designTokens';
 
 const M = getTheme('כלי שייט');
@@ -181,14 +182,13 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
               />
             </div>
             {form.has_reminder && (
-              <div className="flex items-center gap-2 mt-2">
-                <Calendar className="w-4 h-4 shrink-0" style={{ color: M.primary }} />
-                <input
-                  type="date"
+              <div className="mt-2">
+                {/* Shared DateInput (in-app calendar) — replaces the bare
+                    <input type="date"> that opened the full-screen native
+                    Android picker. DateInput has its own calendar icon. */}
+                <DateInput
                   value={form.target_date}
                   onChange={e => setForm(f => ({ ...f, target_date: e.target.value }))}
-                  className="flex-1 rounded-lg border px-3 py-2 text-sm"
-                  style={{ borderColor: '#B2EBF2' }}
                 />
               </div>
             )}

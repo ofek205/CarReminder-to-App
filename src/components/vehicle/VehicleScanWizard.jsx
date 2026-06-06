@@ -572,7 +572,14 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
                     <div className="flex-1 min-w-0">
                       <span className="text-xs text-gray-500">{FIELD_LABELS[field] || field}: </span>
                       {editingField === field ? (
-                        <Input type={field.includes('date') ? 'date' : 'text'} value={value} onChange={e => handleFieldEdit(field, e.target.value)} autoFocus className="h-7 text-sm inline-block w-auto" onBlur={() => setEditingField(null)} />
+                        field.includes('date') ? (
+                          // Date fields use the shared in-app DateInput, not a
+                          // bare <input type="date"> (full-screen native Android
+                          // picker). No onBlur — DateInput owns its blur/commit.
+                          <DateInput value={value} onChange={e => handleFieldEdit(field, e.target.value)} className="inline-block w-auto" />
+                        ) : (
+                          <Input type="text" value={value} onChange={e => handleFieldEdit(field, e.target.value)} autoFocus className="h-7 text-sm inline-block w-auto" onBlur={() => setEditingField(null)} />
+                        )
                       ) : (
                         <span className="text-sm font-medium text-gray-800">{value}</span>
                       )}
