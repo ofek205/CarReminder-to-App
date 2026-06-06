@@ -298,7 +298,13 @@ function computeScheduleTimes(reminder, settings) {
     : [daysBefore]
   ).sort((a, b) => b - a);                       // descending, e.g. [14, 3]
 
-  const msKey = (m) => `${reminder.id}_${m}`;
+  // Key milestones on the DUE DATE too. The old `${id}_${m}` key was stable
+  // across due-date edits, so once a milestone "fired" its marker stayed
+  // "done" forever — renewing the test (pushing the deadline out) left the
+  // NEW deadline with no 14d/3d reminder. Folding the due date into the key
+  // means a changed deadline yields fresh (marker==0) milestones that re-arm.
+  const dueTag = reminder.dueDate || 'nd';
+  const msKey = (m) => `${reminder.id}_${dueTag}_${m}`;
 
   // First-pass guard: if MORE THAN ONE milestone is already behind us with
   // no marker (e.g. a vehicle added when its test is 2 days out — both the
