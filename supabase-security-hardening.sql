@@ -336,20 +336,20 @@ do $$ begin
 end $$;
 
 -- ──────────────────────────────────────────────────────────────────────
--- Clean up hardcoded admin email fallback in is_current_user_admin.
+-- SECURITY (audit M3, 2026-06-06): the previous body trusted client-writable
+-- raw_user_meta_data->>'role'='admin' — any user could self-elevate to admin
+-- via auth.updateUser({data:{role:'admin'}}) and reach the admin RLS-bypass
+-- policies. Delegate to the server-side email-allow-list public.is_admin() so
+-- this can NEVER grant admin from client-settable data. DO NOT revert.
 -- ──────────────────────────────────────────────────────────────────────
 create or replace function public.is_current_user_admin()
 returns boolean
 language sql
 security definer
-set search_path = public, auth
+set search_path = public
 stable
 as $$
-  select exists (
-    select 1 from auth.users
-    where id = auth.uid()
-      and (raw_user_meta_data->>'role') = 'admin'
-  );
+  select public.is_admin();
 $$;
 
 grant execute on function public.is_current_user_admin() to authenticated;
