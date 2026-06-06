@@ -526,7 +526,7 @@ function FilterBar({ filters, updateFilter, resetFilters, availableVehicleTypes,
   };
 
   return (
-    <Card className="p-3 mb-4 sticky top-2 z-20 bg-white/95 backdrop-blur shadow-sm">
+    <Card className="p-3 mb-4 sticky top-[calc(56px+var(--inset-top,env(safe-area-inset-top,0px)))] lg:top-2 z-20 bg-white/95 backdrop-blur shadow-sm">
       <div className="flex flex-wrap items-center gap-3">
         {/* Date range — segmented pill */}
         <div className="flex flex-col gap-1">
@@ -656,16 +656,19 @@ function ChartCard({ title, icon: Icon, color, children }) {
   );
 }
 
-function MiniChart({ data, dataKey, xKey, color, type = "bar", label, onPointClick }) {
+function MiniChart({ data, dataKey, xKey, color, type = "bar", label, onPointClick, clickableZero = false }) {
   if (!data.length) return <p className="text-xs text-gray-400 text-center py-10">אין נתונים</p>;
 
   // recharts onClick on the chart itself bubbles per-element clicks via
   // `activePayload`. For both Bar and Line charts the payload index is
   // most reliable — recharts hands us the data row directly.
+  // For count bars a 0 means "nothing to drill", so it's unclickable. For
+  // rate/percentage charts (clickableZero) 0% is a real value (100% activated)
+  // and must stay clickable — don't conflate 0 with missing.
   const handleClick = onPointClick
     ? (state) => {
         const row = state?.activePayload?.[0]?.payload;
-        if (row && (row[dataKey] || 0) > 0) onPointClick(row);
+        if (row && (clickableZero ? row[dataKey] != null : (row[dataKey] || 0) > 0)) onPointClick(row);
       }
     : undefined;
 
