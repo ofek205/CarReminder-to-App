@@ -733,8 +733,23 @@ function VehicleCountChart() {
         <p className="text-xs text-gray-400 text-center py-10">אין נתונים</p>
       ) : (
         <>
+          {(() => {
+            const zeroUsers = chartData.find((d) => d.bucket === "0")?.users || 0;
+            const zeroPct = totalUsers ? Math.round((zeroUsers / totalUsers) * 100) : 0;
+            return (
+              <div className="flex items-baseline gap-2 mb-0.5">
+                <span className="text-2xl font-bold leading-none" dir="ltr"
+                  style={{ color: zeroPct >= 40 ? BI.red : zeroPct >= 25 ? BI.amber : BI.green }}>
+                  {zeroPct}%
+                </span>
+                <span className="text-[11px] text-gray-500">
+                  ללא רכב ({zeroUsers.toLocaleString("he-IL")} מתוך {totalUsers.toLocaleString("he-IL")})
+                </span>
+              </div>
+            );
+          })()}
           <p className="text-[10px] text-gray-400 mb-1">
-            לפי {totalUsers.toLocaleString("he-IL")} משתמשים (חשבון אישי). העמודה 0 = נרשמו ללא רכב.
+            לפי משתמשים עם חשבון אישי. העמודה 0 = נרשמו ללא רכב — שאיפה: שהאחוז ירד עם הזמן.
           </p>
           <ResponsiveContainer width="100%" height={200}>
             <ComposedChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
