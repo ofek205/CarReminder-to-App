@@ -426,7 +426,6 @@ export default function VehicleCompletionSheet({
                     value={form.insurance_due_date}
                     onChange={(e) => handleChange('insurance_due_date', e?.target?.value || '')}
                     placeholder="בחר תאריך"
-                    native
                   />
                 </div>
                 <div>
@@ -497,7 +496,6 @@ export default function VehicleCompletionSheet({
                 value={form.last_tire_change_date}
                 onChange={(e) => handleChange('last_tire_change_date', e?.target?.value || '')}
                 placeholder="בחר תאריך"
-                native
               />
             </div>
           )}
