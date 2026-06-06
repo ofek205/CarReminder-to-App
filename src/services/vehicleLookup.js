@@ -514,12 +514,14 @@ async function fetchCmeApi(plateDigits) {
  *   - CME registry: `sug_tzama_nm` text contains a Hebrew vintage
  *     keyword (אספנות / וטרן / וינטג). Rare — most CME records are
  *     real construction equipment.
- *   - Inactive-no-model registry: age. Israeli MoT convention + our
- *     in-app `isVintageVehicle` rule both treat ≥ 30 years as classic.
+ *   - Inactive-no-model registry: no reliable collector signal. Age alone
+ *     is NOT collector status (a 30+ car is "רכב מיושן" unless the owner
+ *     registered it as אספנות), so these are classified as a regular car
+ *     and getTestPolicy derives the מיושן category from the age.
  *
  * Returns the appropriate detectedType for the source:
  *   - CME:               'collector' or 'cme'
- *   - inactive_classic:  'collector' or 'car'
+ *   - inactive_classic:  'car'
  *   - other sources:     null (caller picks via its own logic)
  *
  * Centralises the regex + age threshold so future tweaks (e.g. adding
@@ -531,9 +533,14 @@ function detectCollectorType(record, source) {
     return /אספנות|וטרן|וינטג/.test(subtypeText) ? 'collector' : 'cme';
   }
   if (source === 'inactive_classic') {
-    const yr = Number(record?.shnat_yitzur || 0);
-    const ageYears = yr ? new Date().getFullYear() - yr : 0;
-    return ageYears >= 30 ? 'collector' : 'car';
+    // Age alone does NOT make a car "רכב אספנות". Collector status is a
+    // deliberate Ministry registration, not merely being old — a 30+ car
+    // that the owner did NOT register as אספנות is "רכב מיושן" and tests
+    // every 6 months, not annually. So we classify these as a regular car
+    // and let getTestPolicy derive the category (מיושן) from the age.
+    // Only an explicit gov.il collector signal (the CME keyword path above)
+    // still yields 'collector'.
+    return 'car';
   }
   return null;
 }

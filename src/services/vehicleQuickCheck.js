@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { lookupVehicleByPlate, isAircraftPlate } from '@/services/vehicleLookup';
 import { generateVehicleInsights } from '@/lib/vehicleInsights';
+import { getTestPolicy } from '@/components/shared/DateStatusUtils';
 
 export const QUICK_CHECK_USED_KEY = 'vehicle_quick_check_used';
 export const QUICK_CHECK_LAST_RESULT_KEY = 'vehicle_quick_check_last_result';
@@ -82,8 +83,17 @@ function compact(obj) {
 function normalizeLookupResult(raw, plate) {
   const source = raw || {};
   const displayName = [source.manufacturer, source.model, source.year].filter(Boolean).join(' ');
-  const age = source.year ? new Date().getFullYear() - Number(source.year) : null;
-  const isVintage = !!source.is_vintage || source.vehicle_type === 'רכב אספנות' || (Number.isFinite(age) && age >= 30);
+  // Test category via getTestPolicy, the single source of truth. isVintage
+  // now means strictly "registered collector" (רכב אספנות) — NOT merely old:
+  // a 30+ car that isn't a registered collector is "רכב מיושן" (tested every
+  // 6 months), so it must not be flagged as אספנות on the check screen.
+  const testPolicy = getTestPolicy({
+    vehicle_type: source.vehicle_type || source._detectedTypeLabel,
+    year: source.year,
+    nickname: source.nickname,
+  });
+  const isVintage = testPolicy.category === 'collector';
+  const testCategoryLabel = testPolicy.label; // '' | 'רכב מיושן' | 'רכב אספנות'
   const normalized = {
     plate,
     fetchedAt: new Date().toISOString(),
@@ -105,6 +115,7 @@ function normalizeLookupResult(raw, plate) {
         ? 'מורד מהכביש'
         : (source._isInactive ? 'לא פעיל' : 'פעיל'),
       isVintage,
+      testCategoryLabel,
       displayName: displayName || source.license_plate || plate,
     }),
     registration: compact({

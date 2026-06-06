@@ -527,7 +527,7 @@ function SummaryCard({ result }) {
     { label: 'יד', value: ownership.hand ? `יד ${ownership.hand}` : '' },
     { label: 'בעלות', value: ownership.current },
     { label: 'סוג', value: b.detectedTypeLabel || b.vehicleType },
-    { label: 'אספנות', value: b.isVintage ? 'כן' : '' },
+    { label: 'קטגוריית טסט', value: b.testCategoryLabel || '' },
   ].filter(item => hasDisplayValue(item.value));
   const typeLine = formatUniqueList([b.vehicleType, b.detectedTypeLabel]);
 
@@ -1660,6 +1660,7 @@ function labelFor(key) {
     detectedType: 'סוג מאגר',
     status: 'סטטוס',
     isVintage: 'אספנות',
+    testCategoryLabel: 'קטגוריית טסט',
     firstRegistrationDate: 'עלייה לכביש',
     lastTestDate: 'טסט אחרון',
     testDueDate: 'תוקף טסט',
