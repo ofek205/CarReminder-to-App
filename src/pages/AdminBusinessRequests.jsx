@@ -235,6 +235,30 @@ function Detail({ label, value, multiline, icon }) {
 
 // ----------------------------------------------------------------------
 
+// Branded RTL approval email. Kept inline (small, one-off) rather than added
+// to the shared template registry. Values are interpolated as plain text into
+// fixed markup — `name` comes from our own DB, not user-controlled HTML.
+function buildApprovalEmail(name) {
+  const safe = String(name || 'החשבון העסקי').slice(0, 120);
+  return `
+  <div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;background:#F4F7F3;padding:24px">
+    <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #E5EBE6">
+      <div style="background:linear-gradient(135deg,#1C3620,#2D5233);padding:24px;color:#fff;text-align:center">
+        <div style="font-size:12px;letter-spacing:.2em;opacity:.85">CARREMINDER</div>
+        <h1 style="margin:8px 0 0;font-size:22px">החשבון העסקי אושר ✓</h1>
+      </div>
+      <div style="padding:24px;color:#1C2E20;font-size:15px;line-height:1.7">
+        <p style="margin:0 0 12px">שלום,</p>
+        <p style="margin:0 0 12px">בקשתך לפתיחת חשבון עסקי עבור <b>${safe}</b> אושרה. החשבון מוכן לשימוש — בכניסה הבאה לאפליקציה אפשר לעבור אליו ממחליף הסביבות ולנהל צי רכבים, נהגים, משימות ויומן נסיעות.</p>
+        <p style="margin:20px 0 0">
+          <a href="https://car-reminder.app" style="background:#16A34A;color:#fff;text-decoration:none;padding:12px 22px;border-radius:12px;font-weight:bold;display:inline-block">כניסה לאפליקציה</a>
+        </p>
+        <p style="color:#8B9C8E;font-size:12px;margin:24px 0 0">אם לא ביקשת זאת, אפשר להתעלם מהודעה זו.</p>
+      </div>
+    </div>
+  </div>`;
+}
+
 function ResolveDialog({ request, mode, onClose, onResolved }) {
   const isApprove = mode === 'approve';
   const [note, setNote]             = useState('');
@@ -254,6 +278,18 @@ function ResolveDialog({ request, mode, onClose, onResolved }) {
           p_review_note: note.trim() || null,
         });
         if (error) throw error;
+        // Approval email to the requester. Best-effort — the in-app + push
+        // notification (fired server-side by the RPC) is the reliable channel;
+        // a failed email must never block or undo the approval.
+        if (request.email) {
+          supabase.functions.invoke('send-email', {
+            body: {
+              to: request.email,
+              subject: 'בקשתך לחשבון עסקי אושרה ✓',
+              html: buildApprovalEmail(request.requested_name),
+            },
+          }).catch(() => {});
+        }
         toast.success(`החשבון "${request.requested_name}" נפתח עבור ${request.display_name}`);
       } else {
         const { error } = await supabase.rpc('deny_business_workspace_request', {
