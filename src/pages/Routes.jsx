@@ -22,6 +22,7 @@ import {
 // MapIcon is still used by the manager "מפת משימות" entry — keep the import.
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
+import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { createPageUrl } from '@/utils';
@@ -73,7 +74,7 @@ export default function Routes() {
   const useManagerPaginated = enabled && !driverOnly;
 
   const {
-    data: routePages, isLoading: managerLoading,
+    data: routePages, isLoading: managerLoading, isError: managerError, refetch: refetchManager,
     hasNextPage, fetchNextPage, isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: ['routes-paged', accountId],
@@ -97,7 +98,7 @@ export default function Routes() {
   });
 
   // Driver view — unbounded, RLS-scoped fetch.
-  const { data: driverRoutes = [], isLoading: driverLoading } = useQuery({
+  const { data: driverRoutes = [], isLoading: driverLoading, isError: driverError, refetch: refetchDriver } = useQuery({
     queryKey: ['routes-driver', accountId],
     enabled: enabled && driverOnly,
     queryFn: async () => {
@@ -118,6 +119,7 @@ export default function Routes() {
     ? driverRoutes
     : (routePages?.pages || []).flat();
   const isLoading = driverOnly ? driverLoading : managerLoading;
+  const isError = driverOnly ? driverError : managerError; // C2
 
   // Driver view shows progress per route, so we fetch stops too.
   // Done client-side to avoid yet another database view migration.
@@ -225,6 +227,8 @@ export default function Routes() {
       <DriverView
         routes={routes}
         isLoading={isLoading}
+        isError={isError}
+        onRetry={() => refetchDriver()}
         stopsByRoute={stopsByRoute}
         vehicleLabel={vehicleLabel}
       />
@@ -298,6 +302,8 @@ export default function Routes() {
         <Card className="text-center py-8">
           <p className="text-xs" style={{ color: C.mutedAlt }}>טוען משימות...</p>
         </Card>
+      ) : isError ? (
+        <SystemErrorBanner message="טעינת המשימות נכשלה. בדוק את החיבור ונסה שוב." onRetry={() => refetchManager()} />
       ) : routes.length === 0 ? (
         <Card className="text-center py-12">
           <Truck className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
@@ -401,7 +407,7 @@ function ManagerRouteCard({ route, stats, vehicleLabel }) {
 
 // ---------- driver view -----------------------------------------------
 
-function DriverView({ routes, isLoading, stopsByRoute, vehicleLabel }) {
+function DriverView({ routes, isLoading, isError, onRetry, stopsByRoute, vehicleLabel }) {
   const today = todayISO();
   const weekAgo = oneWeekAgoISO();
 
@@ -427,6 +433,15 @@ function DriverView({ routes, isLoading, stopsByRoute, vehicleLabel }) {
         <Card className="text-center py-8">
           <p className="text-xs" style={{ color: C.mutedAlt }}>טוען את המשימות שלך...</p>
         </Card>
+      </PageShell>
+    );
+  }
+
+  if (isError) {
+    // C2: load failure → retry banner, not a misleading "no routes" empty state.
+    return (
+      <PageShell title="המשימות שלי">
+        <SystemErrorBanner message="טעינת המשימות נכשלה. בדוק את החיבור ונסה שוב." onRetry={onRetry} />
       </PageShell>
     );
   }
