@@ -803,7 +803,10 @@ begin
   -- Allow this from anyone with read access; the inserts are governed
   -- by their own loop.
 
-  select v.account_id, am.user_id into v_owner_id
+  -- C8 (audit): was `select v.account_id, am.user_id into v_owner_id` — two
+  -- columns into one scalar assigns account_id (the first) to v_owner_id, so
+  -- owner notifications targeted a bogus user_id. Select user_id only.
+  select am.user_id into v_owner_id
     from public.vehicles v
     join public.account_members am
       on am.account_id = v.account_id and am.role = 'בעלים' and am.status = 'פעיל'
