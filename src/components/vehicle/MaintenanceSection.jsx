@@ -1,4 +1,4 @@
-import { toastError } from '@/lib/userErrorReport';
+import { toastError, toast } from '@/lib/userErrorReport';
 import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -340,7 +340,7 @@ export default function MaintenanceSection({ vehicle }) {
   };
 
   const handleSave = async () => {
-    if (!form.title.trim()) { toastError('יש להזין כותרת', { action: 'maint_title_required' }); return; }
+    if (!form.title.trim()) { toast.error(dialogType === 'תיקון' ? 'יש להזין כותרת' : 'בחר מה בוצע או הזן תיאור'); return; }
     setSaving(true);
     try {
       const { supabase } = await import('@/lib/supabase');
@@ -691,7 +691,7 @@ export default function MaintenanceSection({ vehicle }) {
             )}
 
             <div>
-              <Label>{dialogType === 'טיפול' ? 'תיאור (או הוסף ידנית)' : 'כותרת *'}</Label>
+              <Label>{dialogType === 'טיפול' ? 'תיאור הטיפול *' : 'כותרת *'}</Label>
               <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                 placeholder={dialogType === 'תיקון' ? 'למשל: החלפת בלמים' : 'טיפול שלא קיים ברשימה...'} />
             </div>
@@ -892,7 +892,7 @@ export default function MaintenanceSection({ vehicle }) {
               );
             })()}
 
-            <Button onClick={handleSave} disabled={saving || receiptUploading} className="w-full h-11 rounded-2xl font-bold"
+            <Button onClick={handleSave} disabled={saving || receiptUploading || !form.title.trim()} className="w-full h-11 rounded-2xl font-bold"
               style={{ background: dialogType === 'תיקון' ? C.error : T.primary, color: '#fff' }}>
               {receiptUploading ? 'מעלה קבלה...' : saving ? 'שומר...' : dialogType === 'תיקון' ? 'שמור תיקון' : 'שמור טיפול'}
             </Button>

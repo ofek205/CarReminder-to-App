@@ -436,8 +436,8 @@ function VehicleEventDialog({ vehicle, kind, onClose, onDone }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!title.trim()) { toastError('יש להזין כותרת', { action: 'log_event_validate' }); return; }
-    if (cost && Number.isNaN(Number(cost))) { toastError('עלות לא תקינה', { action: 'log_event_cost_invalid' }); return; }
+    if (!title.trim()) { toast.error('יש להזין כותרת'); return; }
+    if (cost && Number.isNaN(Number(cost))) { toast.error('עלות לא תקינה'); return; }
 
     setSubmitting(true);
     try {
