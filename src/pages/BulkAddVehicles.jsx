@@ -18,7 +18,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Upload, FileSpreadsheet, ClipboardList, ArrowLeft, ArrowRight, Loader2,
-  CheckCircle2, AlertTriangle, X, Copy, FileWarning, Briefcase,
+  CheckCircle2, AlertTriangle, X, Copy, FileWarning, Briefcase, HelpCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
@@ -33,6 +33,7 @@ import { createPageUrl } from '@/utils';
 import { PageShell, Card } from '@/components/business/system';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import MultipleMatchDialog from '@/components/vehicle/MultipleMatchDialog';
 import { C } from '@/lib/designTokens';
 
 const LOOKUP_CONCURRENCY = 5;
@@ -130,14 +131,15 @@ async function lookupAll(plates, onProgress) {
       chunk.map(async (plate) => {
         try {
           const raw = await lookupVehicleByPlate(plate);
-          // Dual-registry collision in bulk import → no UI to choose,
-          // so default to the FIRST candidate (the classic-car tier wins
-          // over CME by the lookup ordering). User can edit per-row
-          // after the bulk preview if the wrong vehicle was picked.
-          const data = raw && raw._multipleMatches ? raw.matches[0]?.fields || null : raw;
-          return { plate, data, error: null };
+          // Dual-registry collision (same plate in two MoT registries).
+          // Do NOT auto-pick — carry the candidates so the user resolves
+          // them per-row in the review step, exactly like the private flow.
+          if (raw && raw._multipleMatches) {
+            return { plate, data: null, matches: raw.matches, error: null };
+          }
+          return { plate, data: raw, matches: null, error: null };
         } catch (err) {
-          return { plate, data: null, error: err?.message || 'lookup_failed' };
+          return { plate, data: null, matches: null, error: err?.message || 'lookup_failed' };
         } finally {
           done++;
           onProgress(done, plates.length);
@@ -220,9 +222,10 @@ export default function BulkAddVehicles() {
     const enriched = results.map(r => {
       let status;
       if (existingPlates.has(r.plate)) status = 'duplicate';
-      else if (r.error) status = 'error';
-      else if (!r.data)  status = 'not_found';
-      else               status = 'found';
+      else if (r.error)    status = 'error';
+      else if (r.matches)  status = 'needs_choice';
+      else if (!r.data)    status = 'not_found';
+      else                 status = 'found';
       return { ...r, status, included: status === 'found' };
     });
 
@@ -523,11 +526,16 @@ function TabBtn({ active, children, onClick }) {
 
 // ---------- Step 2: Review ------------------------------------------
 
-function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNickname, onChangeKm, onSubmit, onBack }) {
-  const found     = rows.filter(r => r.status === 'found');
-  const duplicate = rows.filter(r => r.status === 'duplicate');
-  const notFound  = rows.filter(r => r.status === 'not_found');
-  const errored   = rows.filter(r => r.status === 'error');
+function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNickname, onChangeKm, onResolveMatch, onSubmit, onBack }) {
+  const found       = rows.filter(r => r.status === 'found');
+  const needsChoice = rows.filter(r => r.status === 'needs_choice');
+  const duplicate   = rows.filter(r => r.status === 'duplicate');
+  const notFound    = rows.filter(r => r.status === 'not_found');
+  const errored     = rows.filter(r => r.status === 'error');
+
+  // Which needs_choice row is currently open in the multi-match dialog.
+  const [choosingPlate, setChoosingPlate] = useState(null);
+  const choosingRow = rows.find(r => r.plate === choosingPlate) || null;
 
   const isLookingUp = progress.total > 0 && progress.done < progress.total;
   const includedCount = found.filter(r => r.included).length;
@@ -540,10 +548,26 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
       ) : (
         <SummaryCounts
           found={found.length}
+          needsChoice={needsChoice.length}
           duplicate={duplicate.length}
           notFound={notFound.length}
           errored={errored.length}
         />
+      )}
+
+      {!isLookingUp && needsChoice.length > 0 && (
+        <Group
+          tone="orange"
+          icon={<HelpCircle className="h-4 w-4 text-orange-600" />}
+          title={`דרושה בחירה (${needsChoice.length})`}
+          subtitle="המספרים האלה רשומים במשרד התחבורה כיותר מרכב אחד. בחר את הרכב הנכון כדי לכלול אותו בייבוא — מה שלא ייבחר לא ייובא."
+        >
+          <ul className="space-y-1.5">
+            {needsChoice.map(r => (
+              <NeedsChoiceRow key={r.plate} row={r} onChoose={() => setChoosingPlate(r.plate)} />
+            ))}
+          </ul>
+        </Group>
       )}
 
       {!isLookingUp && found.length > 0 && (
@@ -620,6 +644,21 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
         </Group>
       )}
 
+      <MultipleMatchDialog
+        open={!!choosingRow}
+        plate={choosingRow?.plate}
+        matches={choosingRow?.matches || []}
+        questionCopy="איזה מהם הרכב שברצונך להוסיף לצי?"
+        cancelCopy="סגור — אבחר אחר כך"
+        titleId="bulk-multimatch-title"
+        onChoose={(idx) => {
+          const fields = choosingRow?.matches?.[idx]?.fields || null;
+          if (choosingRow) onResolveMatch(choosingRow.plate, fields);
+          setChoosingPlate(null);
+        }}
+        onCancel={() => setChoosingPlate(null)}
+      />
+
       {/* Footer actions */}
       <div className="flex items-center justify-between pt-2">
         <button
@@ -672,13 +711,14 @@ function ProgressCard({ done, total }) {
   );
 }
 
-function SummaryCounts({ found, duplicate, notFound, errored }) {
+function SummaryCounts({ found, needsChoice, duplicate, notFound, errored }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-      <Stat color="green"  value={found}     label="נמצאו" />
-      <Stat color="gray"   value={duplicate} label="כפילויות" />
-      <Stat color="yellow" value={notFound}  label="לא במאגר" />
-      <Stat color="red"    value={errored}   label="שגיאות" />
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <Stat color="green"  value={found}      label="נמצאו" />
+      <Stat color="orange" value={needsChoice} label="דרושה בחירה" />
+      <Stat color="gray"   value={duplicate}  label="כפילויות" />
+      <Stat color="yellow" value={notFound}   label="לא במאגר" />
+      <Stat color="red"    value={errored}    label="שגיאות" />
     </div>
   );
 }
@@ -686,6 +726,7 @@ function SummaryCounts({ found, duplicate, notFound, errored }) {
 function Stat({ color, value, label }) {
   const cls = {
     green:  'text-green-700 bg-green-50',
+    orange: 'text-orange-700 bg-orange-50',
     gray:   'text-gray-700 bg-gray-100',
     yellow: 'text-yellow-700 bg-yellow-50',
     red:    'text-red-700 bg-red-50',
@@ -701,6 +742,7 @@ function Stat({ color, value, label }) {
 function Group({ tone, icon, title, subtitle, children }) {
   const borderCls = {
     green:  'border-green-100',
+    orange: 'border-orange-200',
     gray:   'border-gray-100',
     yellow: 'border-yellow-100',
     red:    'border-red-100',
@@ -780,6 +822,30 @@ function SimpleRow({ plate, note, action }) {
   );
 }
 
+// A plate whose number resolved to MORE than one MoT vehicle. We do not
+// auto-pick — the manager taps "בחר" to open MultipleMatchDialog and
+// choose the right one. Until chosen, the row is excluded from import.
+function NeedsChoiceRow({ row, onChoose }) {
+  const count = row.matches?.length || 0;
+  return (
+    <li className="flex flex-wrap items-center gap-2 py-2 border-b border-gray-50 last:border-0">
+      <span className="text-[11px] font-mono px-2 py-0.5 bg-gray-50 rounded shrink-0">{row.plate}</span>
+      <p className="flex-1 min-w-[130px] text-[11px] font-medium text-orange-700">
+        נמצאו {count} רכבים עם מספר זה — בחר
+      </p>
+      <button
+        type="button"
+        onClick={onChoose}
+        className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-[11px] font-bold text-orange-800 bg-orange-100 active:scale-[0.97] transition-transform"
+        aria-label={`בחר את הרכב הנכון עבור ${row.plate}`}
+      >
+        <HelpCircle className="h-3.5 w-3.5" />
+        בחר
+      </button>
+    </li>
+  );
+}
+
 function CopyPlatesButton({ plates }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
@@ -811,7 +877,7 @@ function ResultStep({ result, onDone, onRestart }) {
   // without an extra click.
   const [showErrors, setShowErrors] = useState(true);
   if (!result) return null;
-  const { added_count = 0, skipped_count = 0, error_count = 0, errors = [], notFoundPlates = [] } = result;
+  const { added_count = 0, skipped_count = 0, error_count = 0, errors = [], notFoundPlates = [], needsChoicePlates = [] } = result;
 
   return (
     <section className="space-y-4">
@@ -821,10 +887,16 @@ function ResultStep({ result, onDone, onRestart }) {
         <p className="text-sm text-gray-600">רכבים נוספו לצי</p>
       </div>
 
-      {(skipped_count > 0 || error_count > 0 || notFoundPlates.length > 0) && (
+      {(skipped_count > 0 || error_count > 0 || notFoundPlates.length > 0 || needsChoicePlates.length > 0) && (
         <div className="bg-white border border-gray-100 rounded-2xl p-4">
           <h3 className="text-sm font-bold text-gray-900 mb-3">מה לא נכנס</h3>
           <ul className="space-y-2 text-xs">
+            {needsChoicePlates.length > 0 && (
+              <li className="flex items-start gap-2">
+                <HelpCircle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                <span><span className="font-bold">{needsChoicePlates.length}</span> דרשו בחירה ולא נבחרו, לכן לא יובאו. אפשר לייבא שוב ולבחור את הרכב הנכון.</span>
+              </li>
+            )}
             {skipped_count > 0 && (
               <li className="flex items-start gap-2">
                 <FileWarning className="h-4 w-4 text-gray-500 shrink-0 mt-0.5" />
