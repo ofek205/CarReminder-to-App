@@ -331,6 +331,11 @@ export default function BulkAddVehicles() {
           onChangeKm={(plate, km) => {
             setRows(prev => prev.map(r => r.plate === plate ? { ...r, current_km: km } : r));
           }}
+          onResolveMatch={(plate, chosenFields) => {
+            setRows(prev => prev.map(r => r.plate === plate
+              ? { ...r, data: chosenFields, matches: null, status: 'found', included: true }
+              : r));
+          }}
           onSubmit={submitImport}
           onBack={() => { setStep('input'); setRows([]); }}
         />
