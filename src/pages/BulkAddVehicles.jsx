@@ -833,19 +833,27 @@ function SimpleRow({ plate, note, action }) {
 function NeedsChoiceRow({ row, onChoose }) {
   const count = row.matches?.length || 0;
   return (
-    <li className="flex flex-wrap items-center gap-2 py-2 border-b border-gray-50 last:border-0">
-      <span className="text-[11px] font-mono px-2 py-0.5 bg-gray-50 rounded shrink-0">{row.plate}</span>
-      <p className="flex-1 min-w-[130px] text-[11px] font-medium text-orange-700">
-        נמצאו {count} רכבים עם מספר זה — בחר
-      </p>
+    <li className="border-b border-gray-50 last:border-0 py-1">
+      {/* The WHOLE row is the tap target — big, obvious, thumb-friendly.
+          A solid orange CTA on the leading (left/RTL-forward) edge makes
+          "this is the action" unmissable, vs the old pale help-pill. */}
       <button
         type="button"
         onClick={onChoose}
-        className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-[11px] font-bold text-orange-800 bg-orange-100 active:scale-[0.97] transition-transform"
-        aria-label={`בחר את הרכב הנכון עבור ${row.plate}`}
+        aria-label={`בחר את הרכב הנכון עבור ${row.plate} — נמצאו ${count} רכבים`}
+        className="w-full flex items-center gap-3 px-2 py-2.5 -mx-2 rounded-xl text-right transition-colors hover:bg-orange-50 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-orange-400"
       >
-        <HelpCircle className="h-3.5 w-3.5" />
-        בחר
+        <span dir="ltr" className="text-[11px] font-mono px-2 py-0.5 bg-orange-50 text-orange-900 rounded shrink-0">{row.plate}</span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-[13px] font-bold text-orange-900">
+            נמצאו {count} רכבים עם מספר זה
+          </span>
+          <span className="block text-[11px] text-orange-700/80">לחץ לבחירת הרכב הנכון</span>
+        </span>
+        <span className="shrink-0 flex items-center gap-1 px-3.5 py-2 rounded-lg text-[13px] font-bold text-white bg-orange-600 shadow-sm">
+          בחר רכב
+          <ArrowLeft className="h-4 w-4" />
+        </span>
       </button>
     </li>
   );
