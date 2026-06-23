@@ -87,8 +87,14 @@ export default function CompleteProfileScreen({ user, onDone }) {
         await db.user_profiles.create(profileData);
       }
     } catch (err) {
+      // Previously the error was swallowed and we still closed the popup and
+      // marked "completed" — so a failed write (RLS / network) lost the
+      // user's data silently AND the popup kept re-appearing. Now we surface
+      // it and keep the popup open so the user can retry.
       console.error('Profile save error:', err);
-      // Don't block - save what we can
+      toastError('לא הצלחנו לשמור את הפרטים. בדוק את החיבור ונסה שוב.', { action: 'complete_profile_save', err });
+      setSaving(false);
+      return;
     }
     // Bust the shared useUserProfile cache so Bell / Dashboard / Notifications
     // immediately see the updated profile without waiting for staleTime expiry.
