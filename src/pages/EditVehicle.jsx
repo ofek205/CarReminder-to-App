@@ -10,6 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
+import LeasingCompanyField from '@/components/vehicle/LeasingCompanyField';
+import { isLeasingOwnership } from '@/constants/leasingCompanies';
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine } from "lucide-react";
@@ -98,6 +100,7 @@ export default function EditVehicle() {
     insurance_due_date: v.insurance_due_date || '',
     insurance_company: v.insurance_company || '',
     insurance_company_other: v.insurance_company === 'אחר' ? (v.insurance_company_text || '') : '',
+    leasing_company: v.leasing_company || '',
     current_km: v.current_km || '',
     current_engine_hours: v.current_engine_hours || '',
     // 2026-05-17 gov.il auto-sync infrastructure:
@@ -361,7 +364,7 @@ export default function EditVehicle() {
 
     // Only send columns that exist in Supabase
     const DB_COLUMNS = ['vehicle_type','manufacturer','model','year',
-      'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
+      'nickname','license_plate','test_due_date','insurance_due_date','insurance_company','leasing_company',
       'current_km','current_engine_hours','vehicle_photo','vehicle_photo_storage_path','fuel_type',
       'last_tire_change_date','km_since_tire_change','tires_changed_count',
       'flag_country','marina','marina_abroad','engine_manufacturer',
@@ -804,6 +807,14 @@ export default function EditVehicle() {
               </div>
             )}
           </div>
+
+          {hasRegistration && (
+            <LeasingCompanyField
+              value={form.leasing_company}
+              onChange={(v) => handleChange('leasing_company', v)}
+              highlight={isLeasingOwnership(form.ownership)}
+            />
+          )}
 
           {/* 2026-05-17: gov.il auto-sync per-vehicle toggle. Shown only
               for vehicles that have a license plate (hasRegistration —

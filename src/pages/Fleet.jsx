@@ -110,6 +110,7 @@ export default function Fleet() {
   const [statusFilter, setStatusFilter] = useState('');
   const [driverFilter, setDriverFilter] = useState('');
   const [typeFilter, setTypeFilter]     = useState('');
+  const [leasingFilter, setLeasingFilter] = useState('');
   const [sort, setSort]                 = useState('status');
   const [page, setPage]                 = useState(0);
 
@@ -120,7 +121,7 @@ export default function Fleet() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('id, nickname, manufacturer, model, year, license_plate, vehicle_type, test_due_date, insurance_due_date')
+        .select('id, nickname, manufacturer, model, year, license_plate, vehicle_type, test_due_date, insurance_due_date, leasing_company')
         .eq('account_id', accountId);
       if (error) throw error;
       return data || [];
@@ -187,6 +188,13 @@ export default function Fleet() {
     return Array.from(s).sort();
   }, [vehicles]);
 
+  // Distinct leasing companies currently in fleet (for the leasing filter).
+  const leasingOptions = useMemo(() => {
+    const s = new Set();
+    for (const v of vehicles) if (v.leasing_company) s.add(v.leasing_company);
+    return Array.from(s).sort();
+  }, [vehicles]);
+
   // Counts per status, plus unassigned count.
   const counts = useMemo(() => {
     const c = { overdue: 0, soon: 0, ok: 0, unassigned: 0 };
@@ -224,6 +232,10 @@ export default function Fleet() {
       rows = rows.filter(v => v.vehicle_type === typeFilter);
     }
 
+    if (leasingFilter) {
+      rows = rows.filter(v => v.leasing_company === leasingFilter);
+    }
+
     return [...rows].sort((a, b) => {
       switch (sort) {
         case 'plate':     return (a.license_plate || '').localeCompare(b.license_plate || '');
@@ -235,7 +247,7 @@ export default function Fleet() {
           return STATUS_PRIORITY[vehicleStatus(a).key] - STATUS_PRIORITY[vehicleStatus(b).key];
       }
     });
-  }, [vehicles, search, statusFilter, driverFilter, typeFilter, sort, driversByVehicle]);
+  }, [vehicles, search, statusFilter, driverFilter, typeFilter, leasingFilter, sort, driversByVehicle]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pagedRows = useMemo(
@@ -244,7 +256,7 @@ export default function Fleet() {
   );
 
   // Reset page when filters change so the user doesn't land on an empty page.
-  useEffect(() => { setPage(0); }, [search, statusFilter, driverFilter, typeFilter, sort]);
+  useEffect(() => { setPage(0); }, [search, statusFilter, driverFilter, typeFilter, leasingFilter, sort]);
 
   // ---------- guards ----------------------------------------------------
 
@@ -275,7 +287,7 @@ export default function Fleet() {
 
   // ---------- render ---------------------------------------------------
 
-  const hasFilters = search || statusFilter || driverFilter || typeFilter;
+  const hasFilters = search || statusFilter || driverFilter || typeFilter || leasingFilter;
 
   return (
     <PageShell
@@ -396,6 +408,17 @@ export default function Fleet() {
             {types.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
+        {leasingOptions.length > 0 && (
+          <Select value={leasingFilter || 'all-leasing'} onValueChange={(v) => setLeasingFilter(v === 'all-leasing' ? '' : v)}>
+            <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+              <SelectValue placeholder="כל חברות הליסינג" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all-leasing">כל חברות הליסינג</SelectItem>
+              {leasingOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={sort} onValueChange={setSort}>
           <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
             <SelectValue />

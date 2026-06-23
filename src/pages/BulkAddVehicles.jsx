@@ -27,6 +27,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { lookupVehicleByPlate } from '@/services/vehicleLookup';
+import { LEASING_COMPANIES, canonicalizeLeasingCompany } from '@/constants/leasingCompanies';
 import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { createPageUrl } from '@/utils';
 // Living Dashboard system - shared with all B2B pages.
@@ -41,7 +42,13 @@ const LOOKUP_CONCURRENCY = 5;
 // ---------- helpers ---------------------------------------------------
 
 function normalizePlate(raw) {
-  const digits = String(raw || '').replace(/\D/g, '');
+  const s = String(raw ?? '').trim();
+  // A plate is digits with optional spaces / dashes — nothing else.
+  // Reject URLs ("…/browse/GR-669"), codes, and free text so a pasted link
+  // or sentence isn't mistaken for a plate just because a 4-8 digit run
+  // happens to sit somewhere inside it.
+  if (!s || !/^[\d\s-]+$/.test(s)) return null;
+  const digits = s.replace(/\D/g, '');
   if (digits.length < 4 || digits.length > 8) return null;
   return digits;
 }
@@ -99,7 +106,7 @@ const _plateStrength = (v) => {
 // column order doesn't matter. Also flags a leading header row (first
 // row with no valid plate in any cell).
 function detectColumns(matrix) {
-  const empty = { plateCol: 0, nicknameCol: -1, kmCol: -1, hasHeader: false };
+  const empty = { plateCol: 0, nicknameCol: -1, kmCol: -1, leasingCol: -1, hasHeader: false };
   if (!matrix || matrix.length === 0) return empty;
   const ncols = Math.max(...matrix.map(r => r.length));
   const firstRowHasPlate = matrix[0].some(c => normalizePlate(c));
@@ -119,6 +126,7 @@ function detectColumns(matrix) {
       plateR: vals.filter(v => normalizePlate(v)).length / n,
       num:   vals.filter(_isNumericCell).length / n,
       text:  vals.filter(_hasText).length / n,
+      lease: vals.filter(v => LEASING_COMPANIES.includes(canonicalizeLeasingCompany(v))).length / n,
     });
   }
   const anyPlates = score.some(s => s.plateR >= 0.5);
@@ -126,19 +134,25 @@ function detectColumns(matrix) {
   const plateCol = anyPlates ? byPlate[0].c : (score[0]?.c ?? 0);
 
   const rest = score.filter(s => s.c !== plateCol);
-  const byText = [...rest].sort((a, b) => b.text - a.text || a.c - b.c);
+  // Leasing first (most specific — values that match known company names).
+  // A column filled with "אחר" companies not in the list won't auto-detect;
+  // the user remaps it via the mapping banner.
+  const byLease = [...rest].sort((a, b) => b.lease - a.lease || a.c - b.c);
+  const leasingCol = byLease[0] && byLease[0].lease >= 0.3 ? byLease[0].c : -1;
+
+  const byText = rest.filter(s => s.c !== leasingCol).sort((a, b) => b.text - a.text || a.c - b.c);
   const nicknameCol = byText[0] && byText[0].text >= 0.5 ? byText[0].c : -1;
 
-  const byNum = rest.filter(s => s.c !== nicknameCol).sort((a, b) => b.num - a.num || a.c - b.c);
+  const byNum = rest.filter(s => s.c !== nicknameCol && s.c !== leasingCol).sort((a, b) => b.num - a.num || a.c - b.c);
   const kmCol = byNum[0] && byNum[0].num >= 0.5 ? byNum[0].c : -1;
 
-  return { plateCol, nicknameCol, kmCol, hasHeader };
+  return { plateCol, nicknameCol, kmCol, leasingCol, hasHeader };
 }
 
 // Build typed, de-duplicated rows from the matrix + a column mapping.
 function rowsFromMatrix(matrix, mapping) {
   if (!matrix || !mapping) return [];
-  const { plateCol, nicknameCol, kmCol, hasHeader } = mapping;
+  const { plateCol, nicknameCol, kmCol, leasingCol, hasHeader } = mapping;
   const dataRows = hasHeader ? matrix.slice(1) : matrix;
   const seen = new Set();
   const rows = [];
@@ -148,7 +162,8 @@ function rowsFromMatrix(matrix, mapping) {
     seen.add(plate);
     const nickname = nicknameCol >= 0 ? String(r[nicknameCol] || '').trim().slice(0, 60) : '';
     const km = kmCol >= 0 ? parseKm(r[kmCol]) : null;
-    rows.push({ plate, nickname, km });
+    const leasing = leasingCol >= 0 ? canonicalizeLeasingCompany(r[leasingCol]).slice(0, 60) : '';
+    rows.push({ plate, nickname, km, leasing });
   }
   return rows;
 }
@@ -341,6 +356,7 @@ export default function BulkAddVehicles() {
         included: status === 'found',
         nickname: r.nickname || '',
         current_km: (km === null || km === undefined) ? '' : km,
+        leasing_company: r.leasing || '',
       };
     });
 
@@ -370,6 +386,7 @@ export default function BulkAddVehicles() {
           // (registry rarely sets one anyway). Empty string is dropped.
           ...(nick ? { nickname: nick.slice(0, 60) } : {}),
           ...(kmValid ? { current_km: kmNum } : {}),
+          ...((r.leasing_company || '').trim() ? { leasing_company: (r.leasing_company || '').trim().slice(0, 60) } : {}),
         };
       });
 
@@ -642,7 +659,9 @@ function InputStep({ onMatrixParsed, onMappingChange, onContinue, matrix, mappin
       <div className="flex items-center justify-between mt-4 px-1">
         <p className="text-xs text-gray-600">
           {inputRows.length === 0
-            ? 'עוד לא הוזנו מספרי רישוי'
+            ? (matrix && matrix.length > 0
+                ? 'לא זוהו מספרי רישוי תקינים — נדרשות 4-8 ספרות (ללא אותיות או קישורים)'
+                : 'עוד לא הוזנו מספרי רישוי')
             : (<>
                 <span className="font-bold text-gray-900">{inputRows.length}</span> רכבים זוהו
                 {inputRows.filter(r => r.nickname).length > 0 && <> · {inputRows.filter(r => r.nickname).length} עם כינוי</>}
@@ -677,6 +696,7 @@ function roleOfColumn(mapping, c) {
   if (mapping.plateCol === c)    return 'plate';
   if (mapping.nicknameCol === c) return 'nickname';
   if (mapping.kmCol === c)       return 'km';
+  if (mapping.leasingCol === c)  return 'leasing';
   return 'ignore';
 }
 
@@ -686,10 +706,12 @@ function setColumnRole(mapping, col, role) {
   if (m.plateCol === col)    m.plateCol = -1;
   if (m.nicknameCol === col) m.nicknameCol = -1;
   if (m.kmCol === col)       m.kmCol = -1;
+  if (m.leasingCol === col)  m.leasingCol = -1;
   // Assign the new role (each role field holds a single column → uniqueness).
   if (role === 'plate')    m.plateCol = col;
   else if (role === 'nickname') m.nicknameCol = col;
   else if (role === 'km')  m.kmCol = col;
+  else if (role === 'leasing') m.leasingCol = col;
   return m;
 }
 
@@ -704,22 +726,48 @@ function ColumnMappingBanner({ matrix, mapping, onChange }) {
         <p className="text-[12px] font-bold text-blue-900">זיהינו את העמודות כך — אפשר לשנות</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {Array.from({ length: ncols }).map((_, c) => (
-          <div key={c} className="flex flex-col gap-1 bg-white rounded-lg border border-blue-100 px-2 py-1.5 min-w-[108px]">
-            <span dir="ltr" className="text-[10px] font-mono text-gray-500 truncate text-left">{sampleRow[c] || '—'}</span>
-            <select
-              value={roleOfColumn(mapping, c)}
-              onChange={(e) => onChange(setColumnRole(mapping, c, e.target.value))}
-              className="text-[11px] font-bold rounded-md border border-gray-200 px-1 py-1 bg-white"
-              aria-label={`תפקיד עמודה ${c + 1}`}
-            >
-              <option value="plate">מספר רישוי</option>
-              <option value="nickname">כינוי</option>
-              <option value="km">ק״מ</option>
-              <option value="ignore">התעלם</option>
-            </select>
-          </div>
-        ))}
+        {Array.from({ length: ncols }).map((_, c) => {
+          const role = roleOfColumn(mapping, c);
+          const ignored = role === 'ignore';
+          return (
+            <div key={c} className={`relative flex flex-col gap-1 rounded-lg border px-2 py-1.5 min-w-[108px] ${ignored ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-blue-100'}`}>
+              {/* Inclusion is a separate action from role: ✕ drops the column,
+                  "כלול" brings it back. Keeps the role dropdown purely semantic. */}
+              {!ignored && (
+                <button
+                  type="button"
+                  onClick={() => onChange(setColumnRole(mapping, c, 'ignore'))}
+                  aria-label={`אל תייבא עמודה ${c + 1}`}
+                  className="absolute -top-1.5 -left-1.5 h-5 w-5 rounded-full bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 flex items-center justify-center shadow-sm"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              <span dir="ltr" className="text-[10px] font-mono text-gray-500 truncate text-left">{sampleRow[c] || '—'}</span>
+              {ignored ? (
+                <button
+                  type="button"
+                  onClick={() => onChange(setColumnRole(mapping, c, 'nickname'))}
+                  className="text-[11px] font-bold text-blue-700 hover:underline py-1 text-right"
+                >
+                  + כלול עמודה
+                </button>
+              ) : (
+                <select
+                  value={role}
+                  onChange={(e) => onChange(setColumnRole(mapping, c, e.target.value))}
+                  className="text-[11px] font-bold rounded-md border border-gray-200 px-1 py-1 bg-white"
+                  aria-label={`תפקיד עמודה ${c + 1}`}
+                >
+                  <option value="plate">מספר רישוי</option>
+                  <option value="nickname">כינוי</option>
+                  <option value="km">ק״מ</option>
+                  <option value="leasing">חברת ליסינג</option>
+                </select>
+              )}
+            </div>
+          );
+        })}
       </div>
       {noPlate && (
         <p className="text-[11px] text-red-600 font-medium mt-2">בחר עמודה אחת בתור "מספר רישוי" — זו עמודת חובה.</p>
@@ -733,7 +781,7 @@ function GuideWhy() {
   return (
     <div className="rounded-lg bg-[#2D5233]/5 border border-[#2D5233]/10 p-2.5">
       <p className="text-[12px] font-bold text-[#2D5233] mb-0.5">למה כדאי?</p>
-      <p className="text-[12px] text-gray-600 leading-relaxed">כינוי וק״מ שתכלול ייכנסו אוטומטית — פחות הקלדה. והק״מ שלך גובר על מה שרשום במשרד התחבורה.</p>
+      <p className="text-[12px] text-gray-600 leading-relaxed">כינוי, ק״מ וחברת ליסינג שתכלול ייכנסו אוטומטית — פחות הקלדה. והק״מ שלך גובר על מה שרשום במשרד התחבורה.</p>
     </div>
   );
 }
@@ -766,11 +814,11 @@ function FormatGuideModal({ open, onClose }) {
             <ul className="space-y-1.5 list-disc pr-4">
               <li>שורה אחת לכל רכב.</li>
               <li>אפשר להעתיק ישר מאקסל — העמודות יישמרו.</li>
-              <li>עד 3 עמודות: <b>מספר רישוי</b> (חובה), <b>כינוי</b>, <b>ק״מ</b> — בכל סדר, נזהה לבד.</li>
+              <li>עד 4 עמודות: <b>מספר רישוי</b> (חובה), <b>כינוי</b>, <b>ק״מ</b>, <b>חברת ליסינג</b> — בכל סדר, נזהה לבד.</li>
             </ul>
             <div className="rounded-lg bg-gray-50 border border-gray-100 p-2.5 font-mono text-[11px] text-gray-700 space-y-0.5">
-              <div><span dir="ltr">12-345-67</span> · יוסי כהן · <span dir="ltr">84000</span></div>
-              <div><span dir="ltr">7654321</span> · רכב מכירות · <span dir="ltr">51200</span></div>
+              <div><span dir="ltr">12-345-67</span> · יוסי כהן · <span dir="ltr">84000</span> · שלמה SIXT</div>
+              <div><span dir="ltr">7654321</span> · רכב מכירות · <span dir="ltr">51200</span> · אלבר</div>
             </div>
             <GuideWhy />
           </div>
@@ -778,7 +826,7 @@ function FormatGuideModal({ open, onClose }) {
           <div className="space-y-3 text-[13px] text-gray-700">
             <ul className="space-y-1.5 list-disc pr-4">
               <li>קובץ <span dir="ltr" className="font-mono">xlsx</span> או <span dir="ltr" className="font-mono">csv</span>, עד 5MB.</li>
-              <li>3 עמודות: <b>מספר רישוי</b> (חובה), <b>כינוי</b>, <b>ק״מ</b>.</li>
+              <li>עד 4 עמודות: <b>מספר רישוי</b> (חובה), <b>כינוי</b>, <b>ק״מ</b>, <b>חברת ליסינג</b>.</li>
               <li>יש שורת כותרת? אין בעיה — נדלג עליה.</li>
               <li>הסדר גמיש — נזהה כל עמודה לפי התוכן.</li>
             </ul>

@@ -40,6 +40,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectWithClear } from "@/components/ui/select";
 import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft, Info } from "lucide-react";
 import { lookupVehicleByPlate } from "../services/vehicleLookup";
+import LeasingCompanyField from '@/components/vehicle/LeasingCompanyField';
+import { isLeasingOwnership } from '@/constants/leasingCompanies';
 import { normalizePlate, isVintageVehicle, computeFallbackTestDate, getTestPolicy } from "../components/shared/DateStatusUtils";
 import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, CME_SUBCATEGORIES, AVIATION_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
@@ -77,6 +79,7 @@ const EMPTY_FORM = {
   insurance_due_date: '',
   insurance_company: '',
   insurance_company_other: '',
+  leasing_company: '',
   current_km: '',
   current_engine_hours: '',
   vehicle_photo: '',
@@ -986,7 +989,7 @@ export default function AddVehicle() {
 
       // Only keep known DB columns - strip everything else
       const DB_COLUMNS = ['account_id','vehicle_type','manufacturer','model','year',
-        'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
+        'nickname','license_plate','test_due_date','insurance_due_date','insurance_company','leasing_company',
         'current_km','current_engine_hours','vehicle_photo','vehicle_photo_storage_path','fuel_type','is_vintage',
         'last_tire_change_date','km_since_tire_change','tires_changed_count',
         'flag_country','marina','marina_abroad','engine_manufacturer','pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
@@ -2074,6 +2077,14 @@ export default function AddVehicle() {
                       </div>
                     )}
                   </div>{/* end grid ק"מ+ביטוח */}
+
+                  {hasRegistration && (
+                    <LeasingCompanyField
+                      value={form.leasing_company}
+                      onChange={(v) => handleChange('leasing_company', v)}
+                      highlight={isLeasingOwnership(form.ownership)}
+                    />
+                  )}
 
                   {/* דגל + מרינה - vessels only */}
                   {isVesselCategory && (
