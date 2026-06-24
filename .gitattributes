@@ -1,0 +1,6 @@
+# Git hooks are shell scripts — they MUST stay LF, even on Windows clones.
+# A CRLF here makes the kernel/shell read the shebang as "/bin/sh\r" and fail
+# with "bad interpreter" / "No such file or directory". eol=lf overrides any
+# core.autocrlf=true so GitHub Desktop on Windows can run them.
+.githooks/* text eol=lf
+*.sh text eol=lf
