@@ -22,7 +22,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search, Plus, ChevronLeft, Truck, Briefcase, X, Upload,
-  Trash2, CheckSquare, Square, Loader2, ListChecks, SlidersHorizontal,
+  Trash2, CheckSquare, Square, Loader2, ListChecks, SlidersHorizontal, ArrowUpDown,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -496,48 +496,64 @@ export default function Fleet() {
         </button>
       </div>
 
-      {/* Collapsible: driver / type / leasing / sort */}
+      {/* Collapsible. Two DISTINCT concepts, visually separated:
+          "סינון" narrows WHICH vehicles show; "מיון" reorders the same set.
+          Keeping them in one undifferentiated grid made sort look like just
+          another filter — so each gets its own labeled section + divider. */}
       {filtersOpen && (
-        <div id="fleet-filters" className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
-          <Select value={driverFilter || 'all-drivers'} onValueChange={(v) => setDriverFilter(v === 'all-drivers' ? '' : v)}>
-            <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
-              <SelectValue placeholder="כל הנהגים" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all-drivers">כל הנהגים</SelectItem>
-            {members.map(m => (
-                <SelectItem key={m.user_id} value={m.user_id}>{m.display_name}</SelectItem>
-            ))}
-            </SelectContent>
-          </Select>
-          <Select value={typeFilter || 'all-types'} onValueChange={(v) => setTypeFilter(v === 'all-types' ? '' : v)}>
-            <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
-              <SelectValue placeholder="כל הסוגים" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all-types">כל הסוגים</SelectItem>
-              {types.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {leasingOptions.length > 0 && (
-            <Select value={leasingFilter || 'all-leasing'} onValueChange={(v) => setLeasingFilter(v === 'all-leasing' ? '' : v)}>
+        <div id="fleet-filters" className="mb-5 rounded-xl p-3" style={{ background: '#FFFFFF', border: `1px solid ${C.successLight}` }}>
+          {/* Filter group */}
+          <p className="text-[11px] font-bold mb-2" style={{ color: C.mutedAlt }}>סינון</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <Select value={driverFilter || 'all-drivers'} onValueChange={(v) => setDriverFilter(v === 'all-drivers' ? '' : v)}>
               <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
-                <SelectValue placeholder="כל חברות הליסינג" />
+                <SelectValue placeholder="כל הנהגים" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all-leasing">כל חברות הליסינג</SelectItem>
-                {leasingOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                <SelectItem value="all-drivers">כל הנהגים</SelectItem>
+              {members.map(m => (
+                  <SelectItem key={m.user_id} value={m.user_id}>{m.display_name}</SelectItem>
+              ))}
               </SelectContent>
             </Select>
-          )}
-          <Select value={sort} onValueChange={setSort}>
-            <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SORT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>מיון: {o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+            <Select value={typeFilter || 'all-types'} onValueChange={(v) => setTypeFilter(v === 'all-types' ? '' : v)}>
+              <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                <SelectValue placeholder="כל הסוגים" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all-types">כל הסוגים</SelectItem>
+                {types.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {leasingOptions.length > 0 && (
+              <Select value={leasingFilter || 'all-leasing'} onValueChange={(v) => setLeasingFilter(v === 'all-leasing' ? '' : v)}>
+                <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                  <SelectValue placeholder="כל חברות הליסינג" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all-leasing">כל חברות הליסינג</SelectItem>
+                  {leasingOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {/* Sort group — separated: reorders the list, not a filter. */}
+          <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.gray100}` }}>
+            <p className="text-[11px] font-bold mb-2 flex items-center gap-1" style={{ color: C.mutedAlt }}>
+              <ArrowUpDown className="h-3 w-3" /> מיון
+            </p>
+            <div className="sm:max-w-[220px]">
+              <Select value={sort} onValueChange={setSort}>
+                <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       )}
 
