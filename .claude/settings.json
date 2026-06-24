@@ -31,5 +31,33 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git push)",
+      "PowerShell(git push:*)",
+      "PowerShell(git push)",
+      "Bash(gh:*)",
+      "PowerShell(gh:*)",
+      "Bash(git remote add:*)",
+      "Bash(git remote set-url:*)",
+      "PowerShell(git remote add:*)",
+      "PowerShell(git remote set-url:*)",
+      "Bash(npx cap:*)",
+      "PowerShell(npx cap:*)",
+      "Bash(vercel:*)",
+      "Bash(npx vercel:*)",
+      "PowerShell(vercel:*)",
+      "PowerShell(npx vercel:*)",
+      "Bash(npm publish:*)",
+      "PowerShell(npm publish:*)",
+      "Bash(gradlew:*)",
+      "Bash(./gradlew:*)",
+      "PowerShell(gradlew:*)",
+      "PowerShell(.\\gradlew:*)",
+      "Bash(xcodebuild:*)",
+      "PowerShell(xcodebuild:*)"
+    ]
   }
 }
