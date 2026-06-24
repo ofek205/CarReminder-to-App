@@ -37,7 +37,26 @@ import { Textarea } from '@/components/ui/textarea';
 import MultipleMatchDialog from '@/components/vehicle/MultipleMatchDialog';
 import { C } from '@/lib/designTokens';
 
-const LOOKUP_CONCURRENCY = 5;
+const LOOKUP_CONCURRENCY = 3;   // gentler on gov.il — each plate fans out to several registry queries
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// One plate, retried on TRANSIENT failures only. lookupVehicleByPlate
+// THROWS on fetch error / timeout (which we retry) but returns null for
+// "not found" (a real result — never retried). Exponential backoff +
+// jitter spreads retries so we don't immediately re-burst the server.
+async function lookupOne(plate, attempts = 3) {
+  let lastErr;
+  for (let a = 0; a < attempts; a++) {
+    try {
+      return await lookupVehicleByPlate(plate);
+    } catch (err) {
+      lastErr = err;
+      if (a < attempts - 1) await sleep(400 * 2 ** a + Math.floor(Math.random() * 250));
+    }
+  }
+  throw lastErr;
+}
 
 // ---------- helpers ---------------------------------------------------
 
@@ -237,17 +256,18 @@ async function parseXlsxFile(file) {
   return matrix;
 }
 
-async function lookupAll(inputRows, onProgress) {
+async function lookupAll(inputRows, onProgress, opts = {}) {
+  const { concurrency = LOOKUP_CONCURRENCY, delayMs = 200, attempts = 3 } = opts;
   const results = [];
   let done = 0;
-  for (let i = 0; i < inputRows.length; i += LOOKUP_CONCURRENCY) {
-    const chunk = inputRows.slice(i, i + LOOKUP_CONCURRENCY);
+  for (let i = 0; i < inputRows.length; i += concurrency) {
+    const chunk = inputRows.slice(i, i + concurrency);
     const chunkResults = await Promise.all(
       chunk.map(async (item) => {
         // item = { plate, nickname, km } from the parsed input — carried
         // through so the review can pre-fill nickname + km per row.
         try {
-          const raw = await lookupVehicleByPlate(item.plate);
+          const raw = await lookupOne(item.plate, attempts);
           // Dual-registry collision (same plate in two MoT registries).
           // Do NOT auto-pick — carry the candidates so the user resolves
           // them per-row in the review step, exactly like the private flow.
@@ -264,6 +284,7 @@ async function lookupAll(inputRows, onProgress) {
       })
     );
     results.push(...chunkResults);
+    if (i + concurrency < inputRows.length && delayMs) await sleep(delayMs);
   }
   return results;
 }
@@ -336,9 +357,29 @@ export default function BulkAddVehicles() {
   const startReview = async () => {
     if (inputRows.length === 0) { toastError('הוסף לפחות מספר רישוי אחד', { action: 'bulk_add_no_plates' }); return; }
     setStep('review');
-    setProgress({ done: 0, total: inputRows.length });
+    setProgress({ done: 0, total: inputRows.length, phase: 'lookup' });
 
-    const results = await lookupAll(inputRows, (done, total) => setProgress({ done, total }));
+    let results = await lookupAll(
+      inputRows,
+      (done, total) => setProgress({ done, total, phase: 'lookup' }),
+      { concurrency: 3, delayMs: 200, attempts: 3 },
+    );
+
+    // Auto-sweep transient failures (Failed to fetch / timeout). "Not found"
+    // rows carry error:null and are never swept. Up to 2 extra passes with
+    // lower concurrency + longer delay so the gov server has room to recover.
+    for (let sweep = 0; sweep < 2; sweep++) {
+      const failed = results.filter(r => r.error);
+      if (failed.length === 0) break;
+      await sleep(800);
+      const retried = await lookupAll(
+        failed,
+        (done, total) => setProgress({ done, total, phase: 'retry' }),
+        { concurrency: 2, delayMs: 400, attempts: 2 },
+      );
+      const byPlate = new Map(retried.map(r => [r.plate, r]));
+      results = results.map(r => (r.error && byPlate.has(r.plate)) ? byPlate.get(r.plate) : r);
+    }
 
     const enriched = results.map(r => {
       let status;
@@ -874,7 +915,7 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
     <section className="space-y-4">
 
       {isLookingUp ? (
-        <ProgressCard done={progress.done} total={progress.total} />
+        <ProgressCard done={progress.done} total={progress.total} phase={progress.phase} />
       ) : (
         <SummaryCounts
           found={found.length}
@@ -1019,12 +1060,12 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
   );
 }
 
-function ProgressCard({ done, total }) {
+function ProgressCard({ done, total, phase }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
     <Card accent="emerald">
       <div className="flex items-center justify-between mb-2 text-xs">
-        <span className="font-bold" style={{ color: C.primaryDark }}>בודק את המספרים מול משרד התחבורה</span>
+        <span className="font-bold" style={{ color: C.primaryDark }}>{phase === 'retry' ? 'מנסה שוב את מי שלא נענה' : 'בודק את המספרים מול משרד התחבורה'}</span>
         <span className="tabular-nums" style={{ color: C.textAlt }} dir="ltr">{done} מתוך {total}</span>
       </div>
       <div className="h-2 rounded-full overflow-hidden" style={{ background: C.bgSubtle }}>
