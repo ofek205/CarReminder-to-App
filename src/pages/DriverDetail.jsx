@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
+import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -113,7 +115,7 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
   const [archiving, setArchiving] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(null); // assignment_id | null
 
-  const { data: driver, isLoading } = useQuery({
+  const { data: driver, isLoading, isError: driverError, refetch: refetchDriver } = useQuery({
     queryKey: ['external-driver', externalDriverId],
     queryFn:  () => getExternalDriver(externalDriverId),
     enabled:  !!externalDriverId,
@@ -131,10 +133,10 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
   const { data: vehicles = [] } = useQuery({
     queryKey: ['drivers-vehicle-list', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('vehicles')
         .select('id, nickname, manufacturer, model, year, license_plate, vehicle_type')
-        .eq('account_id', accountId);
+        .eq('account_id', accountId), 'driver_detail_vehicles_ext');
       if (error) throw error;
       return data || [];
     },
@@ -154,6 +156,11 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
   const historyAssignments = assignments.filter(a => a.status !== 'active').slice(0, 10);
 
   if (isLoading) return <Centered text="טוען..." />;
+  if (driverError) return (
+    <div dir="rtl" className="max-w-md mx-auto py-10 px-4">
+      <SystemErrorBanner message="טעינת פרטי הנהג נכשלה. בדוק את החיבור ונסה שוב." onRetry={() => refetchDriver()} />
+    </div>
+  );
   if (!driver)   return <Centered text="הנהג לא נמצא" />;
 
   const expStatus = expiryStatus(driver.license_expiry_date);
@@ -541,12 +548,12 @@ function RegisteredDriverDetail({ userId, accountId, navigate }) {
   const [confirmEnd, setConfirmEnd] = useState(null);
 
   // Get the member from workspace_members_directory.
-  const { data: member, isLoading } = useQuery({
+  const { data: member, isLoading, isError: memberError, refetch: refetchMember } = useQuery({
     queryKey: ['workspace-member', accountId, userId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('workspace_members_directory', {
+      const { data, error } = await withTimeout(supabase.rpc('workspace_members_directory', {
         p_account_id: accountId,
-      });
+      }), 'driver_detail_member');
       if (error) throw error;
       return (data || []).find(m => m.user_id === userId) || null;
     },
@@ -557,12 +564,12 @@ function RegisteredDriverDetail({ userId, accountId, navigate }) {
   const { data: assignments = [] } = useQuery({
     queryKey: ['user-driver-assignments', accountId, userId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('driver_assignments')
         .select('id, vehicle_id, valid_from, valid_to, status, created_at')
         .eq('account_id', accountId)
         .eq('driver_user_id', userId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }), 'driver_detail_assignments');
       if (error) throw error;
       return data || [];
     },
@@ -573,10 +580,10 @@ function RegisteredDriverDetail({ userId, accountId, navigate }) {
   const { data: vehicles = [] } = useQuery({
     queryKey: ['drivers-vehicle-list', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('vehicles')
         .select('id, nickname, manufacturer, model, year, license_plate')
-        .eq('account_id', accountId);
+        .eq('account_id', accountId), 'driver_detail_vehicles');
       if (error) throw error;
       return data || [];
     },
@@ -610,6 +617,11 @@ function RegisteredDriverDetail({ userId, accountId, navigate }) {
   };
 
   if (isLoading) return <Centered text="טוען..." />;
+  if (memberError) return (
+    <div dir="rtl" className="max-w-md mx-auto py-10 px-4">
+      <SystemErrorBanner message="טעינת פרטי המשתמש נכשלה. בדוק את החיבור ונסה שוב." onRetry={() => refetchMember()} />
+    </div>
+  );
   if (!member)   return <Centered text="המשתמש לא נמצא" />;
 
   const meta = ROLE_META[member.role] || { label: member.role, icon: UserIcon, cls: 'text-gray-700 bg-gray-100' };
