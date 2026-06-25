@@ -281,6 +281,19 @@ export default function Reports() {
   );
   const vehicleLabel = (id) => vehicleDisplayText(vehicleById[id]);
 
+  // -- derived: filtered line items ----------------------------------
+  // Declared before chartData because the per-vehicle chart branch derives
+  // from these (referencing it the other way around is a TDZ error).
+
+  const filteredLines = useMemo(() => {
+    return lineItems.filter(r => {
+      if (periodFrom && r.date < periodFrom) return false;
+      if (periodTo   && r.date > periodTo)   return false;
+      if (filterVehicle && r.vehicle_id !== filterVehicle) return false;
+      return true;
+    });
+  }, [lineItems, periodFrom, periodTo, filterVehicle]);
+
   // -- derived: chart data (monthly) ---------------------------------
   // FIX: month-overlap test instead of naive "month >= periodFrom"
   // string compare. A month overlaps the period iff its END is on/after
@@ -288,6 +301,29 @@ export default function Reports() {
   // months whose 1st falls outside the period get dropped from the
   // chart even when they have data inside the window.
   const chartData = useMemo(() => {
+    // When a vehicle filter is active the account-level monthly view can't be
+    // scoped per-vehicle — derive the chart from the already vehicle+period
+    // filtered line items so the chart matches the KPIs and table for the same
+    // screen instead of silently showing fleet-wide spend (audit ג-12).
+    if (filterVehicle) {
+      const byMonth = {};
+      for (const r of filteredLines) {
+        const key = (r.date || '').slice(0, 7);          // 'YYYY-MM'
+        if (key.length !== 7) continue;
+        const monthIso = `${key}-01`;
+        const m = byMonth[monthIso] || (byMonth[monthIso] = { repair: 0, insurance: 0, other: 0 });
+        const cat = r.category === 'insurance' ? 'insurance' : r.category === 'other' ? 'other' : 'repair';
+        m[cat] += Number(r.amount) || 0;
+      }
+      return Object.keys(byMonth).sort().map(monthIso => ({
+        monthIso,
+        month:     fmtMonthLabel(monthIso),
+        repair:    byMonth[monthIso].repair,
+        insurance: byMonth[monthIso].insurance,
+        other:     byMonth[monthIso].other,
+        total:     byMonth[monthIso].repair + byMonth[monthIso].insurance + byMonth[monthIso].other,
+      }));
+    }
     return monthlySummaries
       .filter(r => {
         const mEnd = monthEndISO(r.month);
@@ -304,18 +340,7 @@ export default function Reports() {
         // total intentionally excludes fuel here — sum of the three keys.
         total:     (Number(r.by_repair) || 0) + (Number(r.by_insurance) || 0) + (Number(r.by_other) || 0),
       }));
-  }, [monthlySummaries, periodFrom, periodTo]);
-
-  // -- derived: filtered line items ----------------------------------
-
-  const filteredLines = useMemo(() => {
-    return lineItems.filter(r => {
-      if (periodFrom && r.date < periodFrom) return false;
-      if (periodTo   && r.date > periodTo)   return false;
-      if (filterVehicle && r.vehicle_id !== filterVehicle) return false;
-      return true;
-    });
-  }, [lineItems, periodFrom, periodTo, filterVehicle]);
+  }, [monthlySummaries, periodFrom, periodTo, filterVehicle, filteredLines]);
 
   // FIX: issue counts derived in useMemo so changing the period
   // recalculates; the previous version captured periodFrom/periodTo
