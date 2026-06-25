@@ -183,7 +183,12 @@ function makeEntity(table) {
 
     /** Create a new row. Returns the created row. */
     async create(row) {
-      const { data, error } = await supabase.from(table).insert(sanitizeRow(row)).select().single();
+      // withTimeout so a wedged connection surfaces as an error the caller can
+      // toast + reset, instead of pinning the form on 'שומר...' forever (ב-29).
+      const { data, error } = await withTimeout(
+        supabase.from(table).insert(sanitizeRow(row)).select().single(),
+        `${table}.create`,
+      );
       if (error) throw error;
       return data;
     },
@@ -191,7 +196,10 @@ function makeEntity(table) {
     /** Update a row by id. Returns the updated row. */
     async update(id, changes) {
       if (!id) throw new Error('Update requires an id');
-      const { data, error } = await supabase.from(table).update(sanitizeRow(changes)).eq('id', id).select().single();
+      const { data, error } = await withTimeout(
+        supabase.from(table).update(sanitizeRow(changes)).eq('id', id).select().single(),
+        `${table}.update`,
+      );
       if (error) throw error;
       return data;
     },
@@ -199,7 +207,10 @@ function makeEntity(table) {
     /** Delete a row by id. */
     async delete(id) {
       if (!id) throw new Error('Delete requires an id');
-      const { error } = await supabase.from(table).delete().eq('id', id);
+      const { error } = await withTimeout(
+        supabase.from(table).delete().eq('id', id),
+        `${table}.delete`,
+      );
       if (error) throw error;
     },
 
