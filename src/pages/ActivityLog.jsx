@@ -108,7 +108,10 @@ export default function ActivityLog() {
         .from('vehicles')
         .select('id, nickname, license_plate, manufacturer, model')
         .eq('account_id', accountId)
-        .order('created_date', { ascending: false })
+        // Order by a column that is actually selected/exists — 'created_date'
+        // is not a column on vehicles, so PostgREST errored and the filter
+        // dropdown silently failed to populate (audit ב-25).
+        .order('nickname', { ascending: true })
         .limit(500), 'activity_filter_vehicles');
       if (error) throw error;
       return data || [];
@@ -147,7 +150,11 @@ export default function ActivityLog() {
         .eq('account_id', accountId)
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE);
-      if (pageParam) q = q.lt('created_at', pageParam);
+      // lte (not lt) so rows sharing the cursor's created_at — multiple audit
+      // rows are written with the SAME created_at in one transaction — are NOT
+      // skipped at the page boundary. The overlap is removed by de-duping on
+      // id in allLogs below (audit ג-15).
+      if (pageParam) q = q.lte('created_at', pageParam);
       if (filterUser)    q = q.eq('actor_user_id', filterUser);
       if (filterVehicle) q = q.eq('vehicle_id',    filterVehicle);
       if (filterRoute)   q = q.eq('route_id',      filterRoute);
@@ -181,7 +188,18 @@ export default function ActivityLog() {
     return <Empty text="התפקיד שלך בחשבון הזה לא כולל גישה ליומן הפעילות." />;
   }
 
-  const allLogs = (data?.pages || []).flat();
+  // De-dupe by id: lte pagination re-includes the boundary created_at group,
+  // so the same row can land on two pages (audit ג-15).
+  const seenLogIds = new Set();
+  const allLogs = (data?.pages || []).flat().filter(r => {
+    if (seenLogIds.has(r.id)) return false;
+    seenLogIds.add(r.id);
+    return true;
+  });
+  // Real actor names: v_activity_log only carries actor_label (an id
+  // fragment), so map actor_user_id → display_name from the member directory
+  // (audit ג-14). The driver view has no members query → falls back to label.
+  const memberById = Object.fromEntries((members || []).map(m => [m.user_id, m]));
   const hasFilters = filterUser || filterVehicle || filterRoute || filterDate;
 
   const clearFilters = () => {
@@ -306,7 +324,7 @@ export default function ActivityLog() {
       ) : (
         <>
           <ol className="space-y-2">
-            {allLogs.map(log => <LogRow key={log.id} log={log} />)}
+            {allLogs.map(log => <LogRow key={log.id} log={log} memberById={memberById} />)}
           </ol>
           {hasNextPage && (
             <button
@@ -332,9 +350,13 @@ export default function ActivityLog() {
   );
 }
 
-function LogRow({ log }) {
+function LogRow({ log, memberById }) {
   const meta = metaFor(log.action);
   const Icon = meta.icon;
+  // Prefer the real display name from the directory; fall back to the
+  // view's actor_label (an id fragment) when the name isn't available
+  // (e.g. driver view, or an actor who has left the workspace).
+  const actorName = memberById?.[log.actor_user_id]?.display_name || log.actor_label;
   return (
     <li>
       <Card accent={meta.accent} padding="p-3.5">
@@ -345,7 +367,7 @@ function LogRow({ log }) {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold" style={{ color: C.primaryDark }}>{meta.label}</p>
             <p className="text-[11px] truncate" style={{ color: C.mutedAlt }}>
-              {log.actor_label} · {fmtTime(log.created_at)}
+              {actorName} · {fmtTime(log.created_at)}
             </p>
             {log.note && (
               <p
