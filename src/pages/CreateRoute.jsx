@@ -387,6 +387,7 @@ export default function CreateRoute() {
 
   return (
     <PageShell
+      backTo="Routes"
       title="תכנון משימה לצי"
       subtitle="קבע יעד, רכב ונהג. אם המשימה כוללת מסלול עם כמה תחנות, תוכל להוסיף אותן בהמשך."
     >

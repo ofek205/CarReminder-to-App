@@ -196,6 +196,7 @@ export default function Expenses() {
 
   return (
     <PageShell
+      backTo="BusinessDashboard"
       title="הוצאות תפעול"
       subtitle="דלק, ביטוח ועלויות תפעוליות נוספות של הצי"
       actions={(

@@ -365,6 +365,7 @@ export default function FleetMap() {
 
   return (
     <PageShell
+      backTo="BusinessDashboard"
       title="מפת משימות"
       subtitle="תצוגה גיאוגרפית של תחנות הצי לפי מסננים. ברירת מחדל: משימות פעילות להיום."
       actions={(

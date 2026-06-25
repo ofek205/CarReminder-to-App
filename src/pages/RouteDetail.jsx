@@ -177,6 +177,7 @@ export default function RouteDetail() {
 
   return (
     <PageShell
+      backTo="Routes"
       title={route.title}
       subtitle={route.scheduled_for
         ? `מתוזמן ל-${new Date(route.scheduled_for).toLocaleDateString('he-IL')}`

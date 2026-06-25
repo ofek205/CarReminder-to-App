@@ -222,6 +222,7 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
 
   return (
     <PageShell
+      backTo="Drivers"
       title={driver.full_name}
       subtitle="נהג בצי, ללא יוזר באפליקציה"
       actions={!isArchived && (
@@ -635,6 +636,7 @@ function RegisteredDriverDetail({ userId, accountId, navigate }) {
 
   return (
     <PageShell
+      backTo="Drivers"
       title={member.display_name}
       subtitle={member.email}
     >
