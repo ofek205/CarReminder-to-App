@@ -37,6 +37,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
@@ -117,7 +118,7 @@ export default function Expenses() {
         .order('created_at',   { ascending: false })
         .limit(PAGE_SIZE);
       if (pageParam) q = q.lt('created_at', pageParam);
-      const { data, error } = await q;
+      const { data, error } = await withTimeout(q, 'vehicle_expenses_page');
       if (error) throw error;
       return data || [];
     },

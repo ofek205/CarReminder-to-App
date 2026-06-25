@@ -37,8 +37,15 @@ const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
 
 const SUPABASE_CALL_PATTERNS = [
-  /\bsupabase\.from\s*\(/,
-  /\bsupabase\.rpc\s*\(/,
+  // Allow whitespace/newlines around the dots so the very common
+  // multi-line builder style is still detected:
+  //   const { data } = await supabase
+  //     .from('table')
+  //     .select('*');
+  // Previously `supabase\.from` required the two to be adjacent, so the
+  // multi-line form silently evaded the gate (audit finding ג-1/ב-3).
+  /\bsupabase\s*\.\s*from\s*\(/,
+  /\bsupabase\s*\.\s*rpc\s*\(/,
   // db.* entity layer calls are no longer flagged because
   // supabaseEntities.js wraps filter() and list() with withTimeout
   // internally. See commit that added this comment for context.
@@ -58,49 +65,88 @@ function walk(dir, files = []) {
   return files;
 }
 
-// Returns the full `{...}` body that follows `useQuery(` at index `start`.
-// Uses brace counting; treats strings and comments naively but the
-// patterns we look for are not ambiguous in practice in this codebase.
+// Returns the full `{...}` body that follows the query hook at index `start`.
+// A naive brace counter desyncs on braces that live inside strings, comments,
+// or template-literal text/interpolations — e.g. FleetMap's `${...}` literals
+// swallowed three of its four useQuery blocks (audit finding ג-1). This is a
+// small tokenizer that skips strings/comments and tracks template literals and
+// their `${...}` interpolations, so only real object braces are counted.
 function extractUseQueryBody(content, start) {
   const open = content.indexOf('{', start);
   if (open === -1) return null;
-  let depth = 1, i = open + 1;
-  while (i < content.length && depth > 0) {
+  const stack = []; // 'brace' = object/code block, 'tmpl' = template text, 'interp' = ${...}
+  let i = open;
+  let inS = false, inD = false, inLine = false, inBlock = false;
+  while (i < content.length) {
     const ch = content[i];
-    if (ch === '{') depth++;
-    else if (ch === '}') depth--;
+    const next = content[i + 1];
+
+    if (inLine) { if (ch === '\n') inLine = false; i++; continue; }
+    if (inBlock) { if (ch === '*' && next === '/') { inBlock = false; i += 2; continue; } i++; continue; }
+    if (inS) { if (ch === '\\') { i += 2; continue; } if (ch === "'") inS = false; i++; continue; }
+    if (inD) { if (ch === '\\') { i += 2; continue; } if (ch === '"') inD = false; i++; continue; }
+
+    // Inside template-literal TEXT: ignore braces; only `\``, `${` and escapes matter.
+    if (stack[stack.length - 1] === 'tmpl') {
+      if (ch === '\\') { i += 2; continue; }
+      if (ch === '`') { stack.pop(); i++; continue; }
+      if (ch === '$' && next === '{') { stack.push('interp'); i += 2; continue; }
+      i++; continue;
+    }
+
+    // Code context (top-level object, a nested block, or a ${...} interpolation).
+    if (ch === '/' && next === '/') { inLine = true; i += 2; continue; }
+    if (ch === '/' && next === '*') { inBlock = true; i += 2; continue; }
+    if (ch === "'") { inS = true; i++; continue; }
+    if (ch === '"') { inD = true; i++; continue; }
+    if (ch === '`') { stack.push('tmpl'); i++; continue; }
+    if (ch === '{') { stack.push('brace'); i++; continue; }
+    if (ch === '}') {
+      const popped = stack.pop();
+      i++;
+      if (popped === 'brace' && stack.length === 0) {
+        return { open, close: i, body: content.slice(open, i) };
+      }
+      continue;
+    }
     i++;
   }
-  if (depth !== 0) return null;
-  return { open, close: i, body: content.slice(open, i) };
+  return null; // unbalanced
 }
 
 function lineNumberAt(content, index) {
   return content.slice(0, index).split('\n').length;
 }
 
+// Both useQuery and useInfiniteQuery hold a queryFn that can hang the same way.
+// 'useQuery(' is not a substring of 'useInfiniteQuery(' so scanning each token
+// independently never double-counts the same block (audit finding ק-1).
+const QUERY_HOOKS = ['useQuery(', 'useInfiniteQuery('];
+
 function checkFile(file) {
   const content = fs.readFileSync(file, 'utf8');
   const violations = [];
-  let cursor = 0;
-  while (true) {
-    const m = content.indexOf('useQuery(', cursor);
-    if (m === -1) break;
-    const block = extractUseQueryBody(content, m);
-    if (!block) { cursor = m + 9; continue; }
-    const body = block.body;
-    const hasSupabaseCall = SUPABASE_CALL_PATTERNS.some(rx => rx.test(body));
-    if (hasSupabaseCall) {
-      const hasTimeout = TIMEOUT_PATTERNS.some(rx => rx.test(body));
-      if (!hasTimeout) {
-        violations.push({
-          file: path.relative(ROOT, file),
-          line: lineNumberAt(content, m),
-          snippet: body.split('\n').slice(0, 4).join('\n').trim().slice(0, 200),
-        });
+  for (const hook of QUERY_HOOKS) {
+    let cursor = 0;
+    while (true) {
+      const m = content.indexOf(hook, cursor);
+      if (m === -1) break;
+      const block = extractUseQueryBody(content, m);
+      if (!block) { cursor = m + hook.length; continue; }
+      const body = block.body;
+      const hasSupabaseCall = SUPABASE_CALL_PATTERNS.some(rx => rx.test(body));
+      if (hasSupabaseCall) {
+        const hasTimeout = TIMEOUT_PATTERNS.some(rx => rx.test(body));
+        if (!hasTimeout) {
+          violations.push({
+            file: path.relative(ROOT, file),
+            line: lineNumberAt(content, m),
+            snippet: body.split('\n').slice(0, 4).join('\n').trim().slice(0, 200),
+          });
+        }
       }
+      cursor = block.close;
     }
-    cursor = block.close;
   }
   return violations;
 }

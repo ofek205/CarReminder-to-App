@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
@@ -142,11 +143,11 @@ export default function Reports() {
   const { data: monthlySummaries = [], isLoading: monthlyLoading, isError: monthlyError, refetch: refetchMonthly } = useQuery({
     queryKey: ['reports-monthly', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('v_monthly_expense_summary')
         .select('*')
         .eq('account_id', accountId)
-        .order('month', { ascending: true });
+        .order('month', { ascending: true }), 'reports_monthly');
       if (error) throw error;
       return data || [];
     },
@@ -172,32 +173,32 @@ export default function Reports() {
     queryKey: ['reports-line-items', accountId, vehicleIds.join(',')],
     queryFn: async () => {
       const [exp, rep, maint] = await Promise.all([
-        supabase
+        withTimeout(supabase
           .from('vehicle_expenses')
           .select('id, vehicle_id, amount, category, expense_date, note, currency')
           .eq('account_id', accountId)
           .neq('category', 'fuel')
           .order('expense_date', { ascending: false })
-          .limit(LINE_ITEM_LIMIT),
-        supabase
+          .limit(LINE_ITEM_LIMIT), 'reports_line_expenses'),
+        withTimeout(supabase
           .from('repair_logs')
           .select('id, vehicle_id, occurred_at, title, cost, garage_name, is_accident, description')
           .eq('account_id', accountId)
           .gt('cost', 0)
           .order('occurred_at', { ascending: false })
-          .limit(LINE_ITEM_LIMIT),
+          .limit(LINE_ITEM_LIMIT), 'reports_line_repairs'),
         // maintenance_logs has no account_id column — scope by the
         // workspace's vehicle IDs (RLS double-checks). Skip the round
         // trip entirely when the workspace has no vehicles yet.
         vehicleIds.length === 0
           ? Promise.resolve({ data: [], error: null })
-          : supabase
+          : withTimeout(supabase
               .from('maintenance_logs')
               .select('id, vehicle_id, date, title, cost, garage_name, notes, type')
               .in('vehicle_id', vehicleIds)
               .gt('cost', 0)
               .order('date', { ascending: false })
-              .limit(LINE_ITEM_LIMIT),
+              .limit(LINE_ITEM_LIMIT), 'reports_line_maintenance'),
       ]);
       const errs = [exp.error, rep.error, maint.error].filter(Boolean);
       if (errs.length) throw errs[0];
@@ -255,12 +256,12 @@ export default function Reports() {
   const { data: rawIssues = [] } = useQuery({
     queryKey: ['reports-raw-issues', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('repair_logs')
         .select('vehicle_id, occurred_at')
         .eq('account_id', accountId)
         .order('occurred_at', { ascending: false })
-        .limit(1000);
+        .limit(1000), 'reports_raw_issues');
       if (error) throw error;
       return data || [];
     },
