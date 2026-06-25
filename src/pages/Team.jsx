@@ -14,6 +14,7 @@ import {
   Users, Crown, Shield, Eye, Truck, Phone, Mail, Briefcase,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
@@ -46,12 +47,12 @@ export default function Team() {
   const { activeWorkspace } = useWorkspace();
   const enabled = !!accountId && isAuthenticated && isBusiness;
 
-  const { data: team = [], isLoading, error: teamError } = useQuery({
+  const { data: team = [], isLoading, error: teamError, refetch: refetchTeam } = useQuery({
     queryKey: ['workspace-team', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('workspace_team_directory', {
+      const { data, error } = await withTimeout(supabase.rpc('workspace_team_directory', {
         p_account_id: accountId,
-      });
+      }), 'workspace_team');
       if (error) throw error;
       return data || [];
     },
@@ -147,9 +148,17 @@ export default function Team() {
         <Card className="text-center py-12">
           <Users className="h-10 w-10 mx-auto mb-3" style={{ color: '#FCA5A5' }} />
           <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>לא הצלחנו לטעון את הצוות</p>
-          <p className="text-xs leading-relaxed" style={{ color: C.mutedAlt }}>
+          <p className="text-xs leading-relaxed mb-4" style={{ color: C.mutedAlt }}>
             בדוק את החיבור לאינטרנט ונסה שוב. אם הבעיה נמשכת, צור קשר עם מנהל הצי.
           </p>
+          <button
+            type="button"
+            onClick={() => refetchTeam()}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+            style={{ background: '#FFFFFF', color: C.successBright, border: `1.5px solid ${C.successLight}` }}
+          >
+            נסה שוב
+          </button>
         </Card>
       ) : team.length === 0 ? (
         <Card className="text-center py-12">

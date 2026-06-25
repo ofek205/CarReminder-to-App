@@ -15,6 +15,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -69,10 +70,10 @@ export default function VehicleAccessModal({
 
   // Owners get the list of all sharees. Sharees don't query the list —
   // RLS would block it anyway (list_vehicle_shares checks ownership).
-  const { data: shares = [], isLoading } = useQuery({
+  const { data: shares = [], isLoading, isError: sharesError, refetch: refetchShares } = useQuery({
     queryKey: ['vehicle-shares', vehicle?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('list_vehicle_shares', { p_vehicle_id: vehicle.id });
+      const { data, error } = await withTimeout(supabase.rpc('list_vehicle_shares', { p_vehicle_id: vehicle.id }), 'list_vehicle_shares');
       if (error) throw error;
       return data || [];
     },
@@ -89,7 +90,7 @@ export default function VehicleAccessModal({
   const { data: ownerName = null } = useQuery({
     queryKey: ['vehicle-owner-name', vehicle?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_vehicle_owner_name', { p_vehicle_id: vehicle.id });
+      const { data, error } = await withTimeout(supabase.rpc('get_vehicle_owner_name', { p_vehicle_id: vehicle.id }), 'get_vehicle_owner_name');
       if (error) return null;
       return data || null;
     },
@@ -208,6 +209,18 @@ export default function VehicleAccessModal({
               {isLoading ? (
                 <div className="py-10 flex justify-center">
                   <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : sharesError ? (
+                <div className="py-8 text-center rounded-2xl" style={{ background: C.gray50 }}>
+                  <p className="text-sm font-bold text-gray-600 mb-3">לא הצלחנו לטעון את רשימת השיתופים</p>
+                  <button
+                    type="button"
+                    onClick={() => refetchShares()}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold"
+                    style={{ background: '#FFFFFF', color: C.successBright, border: `1.5px solid ${C.successLight}` }}
+                  >
+                    נסה שוב
+                  </button>
                 </div>
               ) : shares.length === 0 ? (
                 <div className="py-8 text-center rounded-2xl" style={{ background: C.gray50 }}>

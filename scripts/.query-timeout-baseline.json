@@ -1,7 +1,6 @@
 {
   "src/components/community/BlockedUsersList.jsx": 1,
   "src/components/community/CommentSection.jsx": 1,
-  "src/components/sharing/VehicleAccessModal.jsx": 2,
   "src/components/vehicle/MaintenanceSection.jsx": 1,
   "src/components/vehicle/TasksSection.jsx": 1,
   "src/contexts/WorkspaceContext.jsx": 1,
@@ -10,10 +9,7 @@
   "src/pages/AdminReviews.jsx": 1,
   "src/pages/BulkAddVehicles.jsx": 1,
   "src/pages/Community.jsx": 3,
-  "src/pages/CreateBusinessWorkspace.jsx": 1,
-  "src/pages/CreateRoute.jsx": 2,
   "src/pages/Documents.jsx": 1,
   "src/pages/MaintenanceTemplates.jsx": 2,
-  "src/pages/Team.jsx": 1,
   "src/pages/VehicleDetail.jsx": 1
 }
