@@ -23,6 +23,8 @@ import {
   Image as ImageIcon, Filter, X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
+import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
@@ -89,9 +91,9 @@ export default function ActivityLog() {
   const { data: members = [] } = useQuery({
     queryKey: ['activity-filter-members', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('workspace_members_directory', {
+      const { data, error } = await withTimeout(supabase.rpc('workspace_members_directory', {
         p_account_id: accountId,
-      });
+      }), 'activity_filter_members');
       if (error) throw error;
       return data || [];
     },
@@ -102,12 +104,12 @@ export default function ActivityLog() {
   const { data: vehicles = [] } = useQuery({
     queryKey: ['activity-filter-vehicles', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('vehicles')
         .select('id, nickname, license_plate, manufacturer, model')
         .eq('account_id', accountId)
         .order('created_date', { ascending: false })
-        .limit(500);
+        .limit(500), 'activity_filter_vehicles');
       if (error) throw error;
       return data || [];
     },
@@ -118,10 +120,10 @@ export default function ActivityLog() {
   const { data: routes = [] } = useQuery({
     queryKey: ['activity-filter-routes', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('routes').select('id, title, scheduled_for')
         .eq('account_id', accountId)
-        .order('created_at', { ascending: false }).limit(100);
+        .order('created_at', { ascending: false }).limit(100), 'activity_filter_routes');
       if (error) throw error;
       return data || [];
     },
@@ -133,6 +135,7 @@ export default function ActivityLog() {
   const filterKey = JSON.stringify({ filterUser, filterVehicle, filterRoute, filterDate });
   const {
     data, fetchNextPage, hasNextPage, isFetching, isFetchingNextPage, isLoading,
+    isError: logError, refetch: refetchLog,
   } = useInfiniteQuery({
     queryKey: ['activity-log', accountId, filterKey],
     enabled: !!accountId && (canManageRoutes || canDriveRoutes),
@@ -153,7 +156,7 @@ export default function ActivityLog() {
         const end   = new Date(filterDate + 'T23:59:59.999').toISOString();
         q = q.gte('created_at', start).lte('created_at', end);
       }
-      const { data: rows, error } = await q;
+      const { data: rows, error } = await withTimeout(q, 'activity_log');
       if (error) throw error;
       return rows || [];
     },
@@ -286,6 +289,8 @@ export default function ActivityLog() {
         <Card className="text-center py-8">
           <p className="text-xs" style={{ color: C.mutedAlt }}>טוען יומן...</p>
         </Card>
+      ) : logError ? (
+        <SystemErrorBanner message="טעינת היומן נכשלה. בדוק את החיבור ונסה שוב." onRetry={() => refetchLog()} />
       ) : allLogs.length === 0 ? (
         <Card className="text-center py-12">
           <Calendar className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />

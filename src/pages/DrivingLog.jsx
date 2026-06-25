@@ -19,6 +19,8 @@ import {
   AlertCircle, FileText,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
+import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -67,16 +69,16 @@ export default function DrivingLog() {
   // and filter client-side; for very large fleets we'd switch to
   // keyset pagination but the manager use case is mostly "what
   // happened this month / quarter".
-  const { data: routes = [], isLoading: routesLoading } = useQuery({
+  const { data: routes = [], isLoading: routesLoading, isError: routesError, refetch: refetchRoutes } = useQuery({
     queryKey: ['driving-log-routes', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('routes')
         .select('id, title, status, scheduled_for, vehicle_id, assigned_driver_user_id, created_at, updated_at')
         .eq('account_id', accountId)
         .order('scheduled_for', { ascending: false, nullsFirst: false })
         .order('created_at',   { ascending: false })
-        .limit(500);
+        .limit(500), 'driving_log_routes');
       if (error) throw error;
       return data || [];
     },
@@ -88,9 +90,9 @@ export default function DrivingLog() {
   const { data: team = [] } = useQuery({
     queryKey: ['driving-log-team', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('workspace_team_directory', {
+      const { data, error } = await withTimeout(supabase.rpc('workspace_team_directory', {
         p_account_id: accountId,
-      });
+      }), 'driving_log_team');
       if (error) throw error;
       return data || [];
     },
@@ -254,6 +256,8 @@ export default function DrivingLog() {
         <Card className="text-center py-8">
           <p className="text-xs" style={{ color: C.mutedAlt }}>טוען נסיעות...</p>
         </Card>
+      ) : routesError ? (
+        <SystemErrorBanner message="טעינת הנסיעות נכשלה. בדוק את החיבור ונסה שוב." onRetry={() => refetchRoutes()} />
       ) : filtered.length === 0 ? (
         <Card className="text-center py-12">
           <FileText className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
