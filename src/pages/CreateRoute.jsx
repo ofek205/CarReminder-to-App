@@ -341,7 +341,15 @@ export default function CreateRoute() {
       if (error) throw error;
       if (!newRouteId) throw new Error('no_id_returned');
 
-      await queryClient.invalidateQueries({ queryKey: ['routes'] });
+      // The Routes list keys are ['routes-paged'|'routes-driver'|'routes-stops', …];
+      // 'routes' is not a prefix of those (React Query matches element-wise), so
+      // the old ['routes'] key never refetched and a new task didn't appear until
+      // staleTime elapsed (audit ב-16). Invalidate the real keys.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['routes-paged'] }),
+        queryClient.invalidateQueries({ queryKey: ['routes-driver'] }),
+        queryClient.invalidateQueries({ queryKey: ['routes-stops'] }),
+      ]);
 
       if (failedCount > 0) {
         const phrase = failedCount > 1

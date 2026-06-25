@@ -133,7 +133,9 @@ export default function Fleet() {
     queryFn: async () => {
       const { data, error } = await withTimeout(supabase
         .from('vehicles')
-        .select('id, nickname, manufacturer, model, year, license_plate, vehicle_type, test_due_date, insurance_due_date, leasing_company')
+        // created_at/updated_at are needed by the 'עדכון אחרון' sort option —
+        // without them that sort was a no-op (sorted on undefined) (audit ב-4).
+        .select('id, nickname, manufacturer, model, year, license_plate, vehicle_type, test_due_date, insurance_due_date, leasing_company, created_at, updated_at')
         .eq('account_id', accountId), 'fleet_vehicles');
       if (error) throw error;
       return data || [];
@@ -269,6 +271,24 @@ export default function Fleet() {
 
   // Reset page when filters change so the user doesn't land on an empty page.
   useEffect(() => { setPage(0); }, [search, statusFilter, driverFilter, typeFilter, leasingFilter, sort]);
+
+  // Clamp the page if the result set shrinks (e.g. after a bulk delete) so we
+  // never sit on a page past the end with an empty list and no way back (ב-7).
+  useEffect(() => {
+    if (page > totalPages - 1) setPage(totalPages - 1);
+  }, [page, totalPages]);
+
+  // Prune the bulk-select set to what's currently visible under the active
+  // filter, so "select … then change filter … then delete" can't delete
+  // vehicles the user can no longer see (audit ב-5).
+  useEffect(() => {
+    setSelectedIds(prev => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(filtered.map(v => v.id));
+      const next = new Set([...prev].filter(id => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filtered]);
 
   // ---------- guards ----------------------------------------------------
 
