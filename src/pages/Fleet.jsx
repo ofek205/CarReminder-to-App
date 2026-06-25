@@ -25,6 +25,7 @@ import {
   Trash2, CheckSquare, Square, Loader2, ListChecks, SlidersHorizontal, ArrowUpDown,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -130,10 +131,10 @@ export default function Fleet() {
   const { data: vehicles = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['fleet-vehicles', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('vehicles')
         .select('id, nickname, manufacturer, model, year, license_plate, vehicle_type, test_due_date, insurance_due_date, leasing_company')
-        .eq('account_id', accountId);
+        .eq('account_id', accountId), 'fleet_vehicles');
       if (error) throw error;
       return data || [];
     },
@@ -141,14 +142,14 @@ export default function Fleet() {
     staleTime: 60 * 1000,
   });
 
-  const { data: assignments = [] } = useQuery({
+  const { data: assignments = [], isError: assignmentsError, refetch: refetchAssignments } = useQuery({
     queryKey: ['driver-assignments', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('driver_assignments')
         .select('id, driver_user_id, vehicle_id, status')
         .eq('account_id', accountId)
-        .eq('status', 'active');
+        .eq('status', 'active'), 'fleet_driver_assignments');
       if (error) throw error;
       return data || [];
     },
@@ -159,9 +160,9 @@ export default function Fleet() {
   const { data: members = [] } = useQuery({
     queryKey: ['workspace-members-directory', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('workspace_members_directory', {
+      const { data, error } = await withTimeout(supabase.rpc('workspace_members_directory', {
         p_account_id: accountId,
-      });
+      }), 'fleet_members_directory');
       if (error) throw error;
       return data || [];
     },
@@ -554,6 +555,17 @@ export default function Fleet() {
               </Select>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Driver data failed but the fleet loaded — warn instead of silently
+          showing every vehicle as "ללא נהג" and inflating that count (audit ב-6). */}
+      {assignmentsError && !isError && (
+        <div className="mb-3">
+          <SystemErrorBanner
+            message="נתוני הנהגים לא נטענו. השיוך לנהגים עשוי להיות חסר."
+            onRetry={() => refetchAssignments()}
+          />
         </div>
       )}
 

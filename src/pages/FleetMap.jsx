@@ -30,6 +30,8 @@ import {
   ChevronLeft, AlertCircle, Briefcase, AlertTriangle, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
+import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
@@ -118,7 +120,7 @@ export default function FleetMap() {
 
   // ---------- routes query (date + status server-side) -------------------
   const {
-    data: routes = [], isLoading: routesLoading,
+    data: routes = [], isLoading: routesLoading, isError: routesError, refetch: refetchRoutes,
   } = useQuery({
     queryKey: ['fleet-map-routes', accountId, start, end, statusFilter.join(',')],
     queryFn: async () => {
@@ -132,7 +134,7 @@ export default function FleetMap() {
         .order('created_at', { ascending: false })
         .limit(200);
       if (statusFilter.length > 0) q = q.in('status', statusFilter);
-      const { data, error } = await q;
+      const { data, error } = await withTimeout(q, 'fleet_map_routes');
       if (error) throw error;
       return data || [];
     },
@@ -156,16 +158,16 @@ export default function FleetMap() {
 
   // ---------- stops query (only for filtered routes) ---------------------
   const {
-    data: stops = [], isLoading: stopsLoading,
+    data: stops = [], isLoading: stopsLoading, isError: stopsError, refetch: refetchStops,
   } = useQuery({
     queryKey: ['fleet-map-stops', accountId, routeIds.join(',')],
     queryFn: async () => {
       if (routeIds.length === 0) return [];
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('route_stops')
         .select('id, route_id, sequence, title, address_text, latitude, longitude, status, planned_time, stop_type')
         .in('route_id', routeIds)
-        .order('sequence', { ascending: true });
+        .order('sequence', { ascending: true }), 'fleet_map_stops');
       if (error) throw error;
       return data || [];
     },
@@ -186,10 +188,10 @@ export default function FleetMap() {
   const { data: vehicles = [] } = useQuery({
     queryKey: ['fleet-map-vehicles', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('vehicles')
         .select('id, nickname, manufacturer, model, license_plate')
-        .eq('account_id', accountId);
+        .eq('account_id', accountId), 'fleet_map_vehicles');
       if (error) throw error;
       return data || [];
     },
@@ -210,9 +212,9 @@ export default function FleetMap() {
   const { data: team = [] } = useQuery({
     queryKey: ['fleet-map-team', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('workspace_team_directory', {
+      const { data, error } = await withTimeout(supabase.rpc('workspace_team_directory', {
         p_account_id: accountId,
-      });
+      }), 'fleet_map_team');
       if (error) throw error;
       return data || [];
     },
@@ -336,6 +338,10 @@ export default function FleetMap() {
 
   // ---------- render ----------------------------------------------------
   const isLoading = routesLoading || stopsLoading;
+  // A failed routes/stops fetch must not render as "no tasks today" (audit
+  // ג-3) — surface a retry instead of the misleading empty state.
+  const hasError = routesError || stopsError;
+  const retryData = () => { refetchRoutes(); refetchStops(); };
   const totalStops    = filteredStops.length;
   const mappableStops = mapMarkers.length;
   const missingCoords = totalStops - mappableStops;
@@ -383,6 +389,14 @@ export default function FleetMap() {
         </button>
       )}
     >
+      {hasError && (
+        <div className="mb-3">
+          <SystemErrorBanner
+            message="טעינת המשימות נכשלה. ייתכן שהמפה אינה מציגה את כל הנתונים."
+            onRetry={retryData}
+          />
+        </div>
+      )}
       <div className={`md:block ${filtersOpen ? 'block' : 'hidden'} mb-3`}>
         <FilterBar
           dateMode={dateMode} setDateMode={setDateMode}

@@ -131,7 +131,7 @@ export default function Reports() {
 
   // -- workspace data ------------------------------------------------
 
-  const { data: vehicles = [] } = useQuery({
+  const { data: vehicles = [], isError: vehiclesError, refetch: refetchVehicles } = useQuery({
     queryKey: ['reports-vehicles', accountId],
     queryFn: () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled: !!accountId && canRead && isBusiness,
@@ -541,8 +541,11 @@ export default function Reports() {
   // -- render ---------------------------------------------------------
 
   const loading = monthlyLoading || linesLoading;
-  const isError = monthlyError || linesError; // C2
-  const retryReports = () => { refetchMonthly(); refetchLines(); };
+  // Include the vehicles query: if it fails, maintenance_logs is skipped and
+  // every row is labelled "רכב לא ידוע" — surface the error, don't show
+  // silently-reduced totals as if correct (audit ב-18).
+  const isError = monthlyError || linesError || vehiclesError; // C2
+  const retryReports = () => { refetchMonthly(); refetchLines(); refetchVehicles(); };
 
   return (
     <PageShell

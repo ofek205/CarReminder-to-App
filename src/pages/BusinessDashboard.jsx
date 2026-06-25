@@ -17,8 +17,10 @@ import {
   CheckCircle2, TrendingUp, ArrowLeft, Plus, Users,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
+import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -147,28 +149,28 @@ export default function BusinessDashboard() {
     enabled, staleTime: 60 * 1000,
   });
 
-  const { data: activeRoutes = [] } = useQuery({
+  const { data: activeRoutes = [], isError: routesError, refetch: refetchRoutes } = useQuery({
     queryKey: ['biz-dash-active-routes', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('routes')
         .select('id, status, title, scheduled_for, vehicle_id')
         .eq('account_id', accountId)
-        .in('status', ['pending', 'in_progress']);
+        .in('status', ['pending', 'in_progress']), 'biz_dash_routes');
       if (error) throw error;
       return data || [];
     },
     enabled, staleTime: 60 * 1000,
   });
 
-  const { data: openIssues = [] } = useQuery({
+  const { data: openIssues = [], isError: issuesError, refetch: refetchIssues } = useQuery({
     queryKey: ['biz-dash-open-issues', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('route_stops')
         .select('id, route_id, title, completion_note, route:routes!inner(status, title)')
         .eq('account_id', accountId)
-        .eq('status', 'issue');
+        .eq('status', 'issue'), 'biz_dash_issues');
       if (error) throw error;
       return (data || []).filter((s) => {
         const routeRow = Array.isArray(s.route) ? s.route[0] : s.route;
@@ -178,30 +180,30 @@ export default function BusinessDashboard() {
     enabled, staleTime: 60 * 1000,
   });
 
-  const { data: monthly = [] } = useQuery({
+  const { data: monthly = [], isError: monthlyError, refetch: refetchMonthly } = useQuery({
     queryKey: ['biz-dash-monthly', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('v_monthly_expense_summary')
         .select('month, total')
         .eq('account_id', accountId)
         .order('month', { ascending: false })
-        .limit(12);
+        .limit(12), 'biz_dash_monthly');
       if (error) throw error;
       return data || [];
     },
     enabled, staleTime: 60 * 1000,
   });
 
-  const { data: recentLogs = [] } = useQuery({
+  const { data: recentLogs = [], isError: logsError, refetch: refetchLogs } = useQuery({
     queryKey: ['biz-dash-activity', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('v_activity_log')
         .select('id, action, actor_user_id, actor_label, note, created_at')
         .eq('account_id', accountId)
         .order('created_at', { ascending: false })
-        .limit(6);
+        .limit(6), 'biz_dash_activity');
       if (error) throw error;
       return data || [];
     },
@@ -209,12 +211,12 @@ export default function BusinessDashboard() {
   });
 
   // Workspace member directory: real names for the activity feed.
-  const { data: directory = [] } = useQuery({
+  const { data: directory = [], isError: dirError, refetch: refetchDir } = useQuery({
     queryKey: ['biz-dash-directory', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('workspace_members_directory', {
+      const { data, error } = await withTimeout(supabase.rpc('workspace_members_directory', {
         p_account_id: accountId,
-      });
+      }), 'biz_dash_directory');
       if (error) throw error;
       return data || [];
     },
@@ -224,23 +226,32 @@ export default function BusinessDashboard() {
   // External-driver licenses about to expire (≤ 30 days) or already
   // expired. Drives the attention list. Only pulls fields we actually
   // surface so the network roundtrip stays small.
-  const { data: licenseAlerts = [] } = useQuery({
+  const { data: licenseAlerts = [], isError: alertsError, refetch: refetchAlerts } = useQuery({
     queryKey: ['biz-dash-license-alerts', accountId],
     queryFn: async () => {
       const today = new Date();
       const cutoff = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('external_drivers')
         .select('id, full_name, license_expiry_date')
         .eq('account_id', accountId)
         .eq('status', 'active')
         .not('license_expiry_date', 'is', null)
-        .lte('license_expiry_date', cutoff.toISOString().slice(0, 10));
+        .lte('license_expiry_date', cutoff.toISOString().slice(0, 10)), 'biz_dash_license_alerts');
       if (error) throw error;
       return data || [];
     },
     enabled, staleTime: 5 * 60 * 1000,
   });
+
+  // Aggregate query health. A failed/timed-out fetch must NOT silently
+  // render as zeros + a false "fleet healthy" banner (audit ג-4) — surface
+  // a retry instead. vehicles uses the db.* layer (already withTimeout'd).
+  const hasDataError = routesError || issuesError || monthlyError || logsError || dirError || alertsError;
+  const retryAll = () => {
+    refetchRoutes(); refetchIssues(); refetchMonthly();
+    refetchLogs(); refetchDir(); refetchAlerts();
+  };
 
   // Split licenses into expired vs expiring-soon.
   const licenseExpired = useMemo(() => {
@@ -352,7 +363,9 @@ export default function BusinessDashboard() {
     licenseExpiredCount: licenseExpired.length,
     licenseSoonCount:    licenseSoon.length,
   });
-  const fleetHealthy = overdueCount === 0 && openIssues.length === 0;
+  // Only claim "fleet healthy" when the queries actually succeeded — a
+  // failed openIssues/overdue fetch must not masquerade as all-clear.
+  const fleetHealthy = !hasDataError && overdueCount === 0 && openIssues.length === 0;
 
   // ── Render — "Living Dashboard" ───────────────────────────────────
   // Vibrant, breathing aesthetic. Mint-tinted background, gradient
@@ -419,6 +432,17 @@ export default function BusinessDashboard() {
           {greeting}{userFirstName ? `, ${userFirstName}` : ''} 👋
         </p>
       </header>
+
+      {/* Data-load error: some metrics failed to fetch. Surface a retry
+          rather than silently showing zeros + a false "fleet healthy". */}
+      {hasDataError && (
+        <div className="mb-4">
+          <SystemErrorBanner
+            message="חלק מהנתונים לא נטענו. ייתכן שהמספרים אינם מעודכנים."
+            onRetry={retryAll}
+          />
+        </div>
+      )}
 
       {/* ── B. Hero Card — gradient emerald ─────────────────────── */}
       <section className="mb-4">
