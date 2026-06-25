@@ -80,10 +80,17 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
   const [data, setData]     = useState(null);
   const [loading, setLoad]  = useState(false);
   const [error, setError]   = useState(null);
+  // Admin control center (Phase 1): switch between ALL of the user's accounts
+  // (personal + business), not just the one the row was opened with.
+  const [activeAccountId, setActiveAccountId] = useState(account?.id || null);
+  const [accountList, setAccountList] = useState(null);
   const qc = useQueryClient();
 
+  // Reset to the opened account whenever a different row opens the drawer.
+  useEffect(() => { setActiveAccountId(account?.id || null); setAccountList(null); }, [account?.id]);
+
   useEffect(() => {
-    if (!account?.id) {
+    if (!activeAccountId) {
       setData(null);
       return;
     }
@@ -91,7 +98,7 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
     setLoad(true);
     setError(null);
     setData(null);
-    supabase.rpc('admin_account_details', { p_account_id: account.id })
+    supabase.rpc('admin_account_details', { p_account_id: activeAccountId })
       .then(({ data: payload, error: rpcErr }) => {
         if (cancelled) return;
         if (rpcErr) {
@@ -102,7 +109,18 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
       })
       .finally(() => { if (!cancelled) setLoad(false); });
     return () => { cancelled = true; };
-  }, [account?.id]);
+  }, [activeAccountId]);
+
+  // Load all of the user''s accounts (personal + business) for the switcher,
+  // once owner identity is known. Keyed on owner id (stable across accounts).
+  useEffect(() => {
+    const uid = data?.owner?.id;
+    if (!uid) return;
+    let cancelled = false;
+    supabase.rpc('admin_user_accounts', { p_user_id: uid })
+      .then(({ data: rows, error: e }) => { if (!cancelled && !e) setAccountList(rows || []); });
+    return () => { cancelled = true; };
+  }, [data?.owner?.id]);
 
   // ESC closes the drawer.
   useEffect(() => {
@@ -208,6 +226,9 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
         </div>
 
         <div className="p-4 space-y-4 pb-12">
+          {accountList && accountList.length > 1 && (
+            <AccountSwitcher accounts={accountList} activeId={activeAccountId} onSwitch={setActiveAccountId} />
+          )}
           {loading && <DrawerSkeleton />}
           {error && <DrawerError message={error} />}
           {!loading && !error && data && (
@@ -223,6 +244,41 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
           to   { transform: translateX(0);     opacity: 1; }
         }
       `}</style>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Account switcher — chips for every account the user belongs to, so an
+// admin can jump from the personal account to the business one (and back).
+// ────────────────────────────────────────────────────────────────────
+function AccountSwitcher({ accounts, activeId, onSwitch }) {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {accounts.map((a) => {
+        const active = a.account_id === activeId;
+        const isBiz = a.type === 'business';
+        return (
+          <button
+            key={a.account_id}
+            type="button"
+            onClick={() => onSwitch(a.account_id)}
+            className="shrink-0 px-3 py-2 rounded-xl text-right transition min-h-[44px]"
+            style={{
+              background: active ? C.primaryDark : '#FFFFFF',
+              color: active ? '#FFFFFF' : C.textAlt,
+              border: '1px solid ' + (active ? C.primaryDark : C.borderAlt),
+            }}
+          >
+            <span className="block text-[12px] font-bold truncate" style={{ maxWidth: 150 }}>
+              {(isBiz ? 'עסקי · ' : 'פרטי · ') + (a.name || '')}
+            </span>
+            <span className="block text-[10px]" dir="ltr" style={{ opacity: 0.8 }}>
+              {a.vehicles} רכבים
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }
