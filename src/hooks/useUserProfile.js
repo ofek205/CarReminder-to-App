@@ -9,7 +9,7 @@
  * re-ran without caching. With ~30 slow-query alerts in 15 min, this was
  * the single biggest source of user_profiles.filter traffic.
  *
- * staleTime is 2 min — profile changes are rare (user edits phone/license
+ * staleTime is 10 min — profile changes are rare (user edits phone/license
  * once), so aggressive caching is safe. On profile save, callers should
  * invalidate the query key to get immediate updates:
  *
@@ -40,7 +40,7 @@ export default function useUserProfile() {
       return profiles.length > 0 ? profiles[0] : null;
     },
     enabled,
-    staleTime: 2 * 60 * 1000,        // 2 min — profile rarely changes
+    staleTime: 10 * 60 * 1000,       // 10 min — profile rarely changes; all edit paths (UserProfile, CompleteProfileScreen) invalidate this key, so the user's own changes still show instantly
     refetchOnMount: true,
     refetchOnWindowFocus: true,
     retry: 1,

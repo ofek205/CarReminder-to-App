@@ -16,6 +16,7 @@
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { Check } from 'lucide-react';
 import Sparkline from './Sparkline';
 import { C } from '@/lib/designTokens';
 
@@ -62,6 +63,18 @@ const TONES = {
   },
 };
 
+// Neutral surface for a disabled tile (e.g. a clickable status filter whose
+// count is 0). Strips the tone color so a healthy "דחוף 0" doesn't shout,
+// and signals "nothing to filter here" instead of a dead-end click.
+const NEUTRAL = {
+  surface: '#F9FAFB',
+  border:  '#E5E7EB',
+  label:   '#9CA3AF',
+  value:   '#6B7280',
+  shadow:  'none',
+  hover:   'none',
+};
+
 export default function KpiTile({
   label,
   value,
@@ -70,8 +83,16 @@ export default function KpiTile({
   tone = 'emerald',
   spark = null,
   to,
+  // Interactive mode — when `onClick` is set the tile renders as a real
+  // <button> with aria-pressed, so it can act as a filter toggle.
+  onClick,
+  active = false,
+  disabled = false,
+  // Optional label style override (lets a screen tune density without
+  // changing the shared default uppercase look used elsewhere).
+  labelClassName = 'text-[10px] uppercase tracking-[0.12em] font-bold mb-1.5',
 }) {
-  const t = TONES[tone] || TONES.emerald;
+  const t = disabled ? NEUTRAL : (TONES[tone] || TONES.emerald);
 
   const subColor = {
     neutral: t.label,
@@ -79,19 +100,34 @@ export default function KpiTile({
     green:   '#047857',
   }[subTone] || t.label;
 
+  // Active = ring in the tone's own value color (NOT a green wash, which
+  // would repaint a "דחוף" tile green and break color=meaning). The ring
+  // stacks on top of the tone shadow.
+  const ring = active ? `, 0 0 0 2px ${t.value}` : '';
+  const canHover = !disabled;
+
   const inner = (
     <div
-      className="rounded-2xl p-3.5 transition-all hover:scale-[1.02] active:scale-[0.99] border h-full"
+      className={`relative rounded-2xl p-3.5 transition-all border h-full ${canHover ? 'hover:scale-[1.02] active:scale-[0.99]' : 'opacity-70'}`}
       style={{
         background: t.surface,
-        borderColor: t.border,
-        boxShadow: t.shadow,
+        borderColor: active ? t.value : t.border,
+        boxShadow: `${t.shadow}${ring}`,
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = t.hover; }}
-      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = t.shadow; }}
+      onMouseEnter={canHover ? (e) => { e.currentTarget.style.boxShadow = `${t.hover}${ring}`; } : undefined}
+      onMouseLeave={canHover ? (e) => { e.currentTarget.style.boxShadow = `${t.shadow}${ring}`; } : undefined}
     >
+      {active && (
+        <span
+          className="absolute top-2.5 left-2.5 flex items-center justify-center h-4 w-4 rounded-full"
+          style={{ background: t.value }}
+          aria-hidden="true"
+        >
+          <Check className="h-2.5 w-2.5" strokeWidth={3} style={{ color: '#FFFFFF' }} />
+        </span>
+      )}
       <p
-        className="text-[10px] uppercase tracking-[0.12em] font-bold mb-1.5"
+        className={labelClassName}
         style={{ color: t.label }}
       >
         {label}
@@ -120,5 +156,20 @@ export default function KpiTile({
       )}
     </div>
   );
-  return to ? <Link to={to} className="block">{inner}</Link> : inner;
+
+  if (to) return <Link to={to} className="block">{inner}</Link>;
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
+        aria-pressed={active}
+        className="block w-full text-right rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-900 disabled:cursor-default"
+      >
+        {inner}
+      </button>
+    );
+  }
+  return inner;
 }

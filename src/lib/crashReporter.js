@@ -165,6 +165,17 @@ export function reportError(type, error, extra) {
   const msg = error?.message || String(error);
   if (NOISE_RE.test(msg)) return;
 
+  // Developer-only routes (/dev/*, e.g. the /dev/components style guide) are
+  // NOT real user flows. A stale cached bundle there can throw ReferenceErrors
+  // for symbols since removed from the code (e.g. AnimatedCount / SlidersHorizontal
+  // after a deploy) — noise that paged the admin as 'critical user errors'
+  // (error_storm Telegram alerts) for a single dev session. Skip reporting
+  // entirely for /dev/* routes; they self-heal on reload and carry no signal.
+  try {
+    const _devPath = typeof window !== 'undefined' ? window.location.pathname : '';
+    if (_devPath.startsWith('/dev/')) return;
+  } catch { /* never let the guard itself throw */ }
+
   // Pull dedicated columns out of extra so the table is queryable, leave
   // the rest as the free-form jsonb. Default severity: crashes/promises
   // are 'error', React renders are 'critical', everything else 'error'.

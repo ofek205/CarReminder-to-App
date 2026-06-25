@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -76,9 +77,9 @@ export default function Drivers() {
   const { data: members = [], isLoading: membersLoading, isError: membersError, refetch: refetchMembers } = useQuery({
     queryKey: ['workspace-members-directory', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('workspace_members_directory', {
+      const { data, error } = await withTimeout(supabase.rpc('workspace_members_directory', {
         p_account_id: accountId,
-      });
+      }), 'drivers_members_directory');
       if (error) throw error;
       return data || [];
     },
@@ -100,11 +101,11 @@ export default function Drivers() {
   const { data: assignments = [] } = useQuery({
     queryKey: ['driver-assignments', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('driver_assignments')
         .select('id, driver_user_id, external_driver_id, vehicle_id, valid_from, valid_to, status')
         .eq('account_id', accountId)
-        .eq('status', 'active');
+        .eq('status', 'active'), 'drivers_assignments');
       if (error) throw error;
       return data || [];
     },
@@ -117,10 +118,10 @@ export default function Drivers() {
   const { data: vehicles = [] } = useQuery({
     queryKey: ['drivers-vehicle-list', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('vehicles')
         .select('id, nickname, manufacturer, model, year, license_plate')
-        .eq('account_id', accountId);
+        .eq('account_id', accountId), 'drivers_vehicle_list');
       if (error) throw error;
       return data || [];
     },
@@ -406,7 +407,11 @@ export default function Drivers() {
           accountId={accountId}
           onClose={() => setAdding(false)}
           onAdded={async (added) => {
-            await queryClient.invalidateQueries({ queryKey: ['workspace-members'] });
+            // Must match the directory query key exactly — React Query matches
+            // keys element-wise from the start, and 'workspace-members' is NOT a
+            // prefix of 'workspace-members-directory', so the old key never
+            // refetched and a freshly-added member stayed hidden (audit ג-7).
+            await queryClient.invalidateQueries({ queryKey: ['workspace-members-directory'] });
             setAdding(false);
             if (added?.role === 'driver' && added?.user_id) {
               setAssigning({

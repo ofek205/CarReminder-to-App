@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 // MapIcon is still used by the manager "מפת משימות" entry — keep the import.
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -88,7 +89,7 @@ export default function Routes() {
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE);
       if (pageParam) q = q.lt('created_at', pageParam);
-      const { data, error } = await q;
+      const { data, error } = await withTimeout(q, 'routes_paged');
       if (error) throw error;
       return data || [];
     },
@@ -102,13 +103,13 @@ export default function Routes() {
     queryKey: ['routes-driver', accountId],
     enabled: enabled && driverOnly,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('routes')
         .select('id, title, status, scheduled_for, vehicle_id, assigned_driver_user_id, created_at')
         .eq('account_id', accountId)
         .order('scheduled_for', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(100), 'routes_driver');
       if (error) throw error;
       return data || [];
     },
@@ -131,12 +132,12 @@ export default function Routes() {
     queryKey: ['routes-stops', accountId, routeIds.join(',')],
     queryFn: async () => {
       if (routeIds.length === 0) return [];
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('route_stops')
         .select('id, route_id, status, sequence, title, address_text, latitude, longitude')
         .eq('account_id', accountId)
         .in('route_id', routeIds)
-        .order('sequence', { ascending: true });
+        .order('sequence', { ascending: true }), 'routes_stops');
       if (error) throw error;
       return data || [];
     },
@@ -148,10 +149,10 @@ export default function Routes() {
   const { data: vehicles = [] } = useQuery({
     queryKey: ['routes-vehicles', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('vehicles')
         .select('id, nickname, manufacturer, model, license_plate')
-        .eq('account_id', accountId);
+        .eq('account_id', accountId), 'routes_vehicles');
       if (error) throw error;
       return data || [];
     },

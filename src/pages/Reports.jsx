@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
@@ -130,7 +131,7 @@ export default function Reports() {
 
   // -- workspace data ------------------------------------------------
 
-  const { data: vehicles = [] } = useQuery({
+  const { data: vehicles = [], isError: vehiclesError, refetch: refetchVehicles } = useQuery({
     queryKey: ['reports-vehicles', accountId],
     queryFn: () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled: !!accountId && canRead && isBusiness,
@@ -142,11 +143,11 @@ export default function Reports() {
   const { data: monthlySummaries = [], isLoading: monthlyLoading, isError: monthlyError, refetch: refetchMonthly } = useQuery({
     queryKey: ['reports-monthly', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('v_monthly_expense_summary')
         .select('*')
         .eq('account_id', accountId)
-        .order('month', { ascending: true });
+        .order('month', { ascending: true }), 'reports_monthly');
       if (error) throw error;
       return data || [];
     },
@@ -172,32 +173,32 @@ export default function Reports() {
     queryKey: ['reports-line-items', accountId, vehicleIds.join(',')],
     queryFn: async () => {
       const [exp, rep, maint] = await Promise.all([
-        supabase
+        withTimeout(supabase
           .from('vehicle_expenses')
           .select('id, vehicle_id, amount, category, expense_date, note, currency')
           .eq('account_id', accountId)
           .neq('category', 'fuel')
           .order('expense_date', { ascending: false })
-          .limit(LINE_ITEM_LIMIT),
-        supabase
+          .limit(LINE_ITEM_LIMIT), 'reports_line_expenses'),
+        withTimeout(supabase
           .from('repair_logs')
           .select('id, vehicle_id, occurred_at, title, cost, garage_name, is_accident, description')
           .eq('account_id', accountId)
           .gt('cost', 0)
           .order('occurred_at', { ascending: false })
-          .limit(LINE_ITEM_LIMIT),
+          .limit(LINE_ITEM_LIMIT), 'reports_line_repairs'),
         // maintenance_logs has no account_id column — scope by the
         // workspace's vehicle IDs (RLS double-checks). Skip the round
         // trip entirely when the workspace has no vehicles yet.
         vehicleIds.length === 0
           ? Promise.resolve({ data: [], error: null })
-          : supabase
+          : withTimeout(supabase
               .from('maintenance_logs')
               .select('id, vehicle_id, date, title, cost, garage_name, notes, type')
               .in('vehicle_id', vehicleIds)
               .gt('cost', 0)
               .order('date', { ascending: false })
-              .limit(LINE_ITEM_LIMIT),
+              .limit(LINE_ITEM_LIMIT), 'reports_line_maintenance'),
       ]);
       const errs = [exp.error, rep.error, maint.error].filter(Boolean);
       if (errs.length) throw errs[0];
@@ -255,12 +256,12 @@ export default function Reports() {
   const { data: rawIssues = [] } = useQuery({
     queryKey: ['reports-raw-issues', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('repair_logs')
         .select('vehicle_id, occurred_at')
         .eq('account_id', accountId)
         .order('occurred_at', { ascending: false })
-        .limit(1000);
+        .limit(1000), 'reports_raw_issues');
       if (error) throw error;
       return data || [];
     },
@@ -280,6 +281,19 @@ export default function Reports() {
   );
   const vehicleLabel = (id) => vehicleDisplayText(vehicleById[id]);
 
+  // -- derived: filtered line items ----------------------------------
+  // Declared before chartData because the per-vehicle chart branch derives
+  // from these (referencing it the other way around is a TDZ error).
+
+  const filteredLines = useMemo(() => {
+    return lineItems.filter(r => {
+      if (periodFrom && r.date < periodFrom) return false;
+      if (periodTo   && r.date > periodTo)   return false;
+      if (filterVehicle && r.vehicle_id !== filterVehicle) return false;
+      return true;
+    });
+  }, [lineItems, periodFrom, periodTo, filterVehicle]);
+
   // -- derived: chart data (monthly) ---------------------------------
   // FIX: month-overlap test instead of naive "month >= periodFrom"
   // string compare. A month overlaps the period iff its END is on/after
@@ -287,6 +301,29 @@ export default function Reports() {
   // months whose 1st falls outside the period get dropped from the
   // chart even when they have data inside the window.
   const chartData = useMemo(() => {
+    // When a vehicle filter is active the account-level monthly view can't be
+    // scoped per-vehicle — derive the chart from the already vehicle+period
+    // filtered line items so the chart matches the KPIs and table for the same
+    // screen instead of silently showing fleet-wide spend (audit ג-12).
+    if (filterVehicle) {
+      const byMonth = {};
+      for (const r of filteredLines) {
+        const key = (r.date || '').slice(0, 7);          // 'YYYY-MM'
+        if (key.length !== 7) continue;
+        const monthIso = `${key}-01`;
+        const m = byMonth[monthIso] || (byMonth[monthIso] = { repair: 0, insurance: 0, other: 0 });
+        const cat = r.category === 'insurance' ? 'insurance' : r.category === 'other' ? 'other' : 'repair';
+        m[cat] += Number(r.amount) || 0;
+      }
+      return Object.keys(byMonth).sort().map(monthIso => ({
+        monthIso,
+        month:     fmtMonthLabel(monthIso),
+        repair:    byMonth[monthIso].repair,
+        insurance: byMonth[monthIso].insurance,
+        other:     byMonth[monthIso].other,
+        total:     byMonth[monthIso].repair + byMonth[monthIso].insurance + byMonth[monthIso].other,
+      }));
+    }
     return monthlySummaries
       .filter(r => {
         const mEnd = monthEndISO(r.month);
@@ -303,18 +340,7 @@ export default function Reports() {
         // total intentionally excludes fuel here — sum of the three keys.
         total:     (Number(r.by_repair) || 0) + (Number(r.by_insurance) || 0) + (Number(r.by_other) || 0),
       }));
-  }, [monthlySummaries, periodFrom, periodTo]);
-
-  // -- derived: filtered line items ----------------------------------
-
-  const filteredLines = useMemo(() => {
-    return lineItems.filter(r => {
-      if (periodFrom && r.date < periodFrom) return false;
-      if (periodTo   && r.date > periodTo)   return false;
-      if (filterVehicle && r.vehicle_id !== filterVehicle) return false;
-      return true;
-    });
-  }, [lineItems, periodFrom, periodTo, filterVehicle]);
+  }, [monthlySummaries, periodFrom, periodTo, filterVehicle, filteredLines]);
 
   // FIX: issue counts derived in useMemo so changing the period
   // recalculates; the previous version captured periodFrom/periodTo
@@ -540,8 +566,11 @@ export default function Reports() {
   // -- render ---------------------------------------------------------
 
   const loading = monthlyLoading || linesLoading;
-  const isError = monthlyError || linesError; // C2
-  const retryReports = () => { refetchMonthly(); refetchLines(); };
+  // Include the vehicles query: if it fails, maintenance_logs is skipped and
+  // every row is labelled "רכב לא ידוע" — surface the error, don't show
+  // silently-reduced totals as if correct (audit ב-18).
+  const isError = monthlyError || linesError || vehiclesError; // C2
+  const retryReports = () => { refetchMonthly(); refetchLines(); refetchVehicles(); };
 
   return (
     <PageShell

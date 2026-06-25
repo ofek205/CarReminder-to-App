@@ -40,6 +40,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectWithClear } from "@/components/ui/select";
 import { Camera, Loader2, FileText, PenLine, Search, CheckCircle2, AlertCircle, X, PartyPopper, Check, Plus, ChevronLeft, Info } from "lucide-react";
 import { lookupVehicleByPlate } from "../services/vehicleLookup";
+import LeasingCompanyField from '@/components/vehicle/LeasingCompanyField';
+import { isLeasingOwnership } from '@/constants/leasingCompanies';
 import { normalizePlate, isVintageVehicle, computeFallbackTestDate, getTestPolicy } from "../components/shared/DateStatusUtils";
 import VehicleTypeSelector, { VEHICLE_CATEGORIES, SPECIAL_SUBCATEGORIES, MOTO_SUBCATEGORIES, BOAT_SUBCATEGORIES, OFFROAD_SUBCATEGORIES, CME_SUBCATEGORIES, AVIATION_SUBCATEGORIES, OFFROAD_EQUIPMENT, OFFROAD_USAGE_TYPES, MANUFACTURERS_BY_SUBCATEGORY } from "../components/vehicle/VehicleTypeSelector";
 import ManufacturerSelector from "../components/vehicle/ManufacturerSelector";
@@ -77,6 +79,7 @@ const EMPTY_FORM = {
   insurance_due_date: '',
   insurance_company: '',
   insurance_company_other: '',
+  leasing_company: '',
   current_km: '',
   current_engine_hours: '',
   vehicle_photo: '',
@@ -234,6 +237,10 @@ export default function AddVehicle() {
   // resolves first; AFTER the user picks, the type-mismatch flow may
   // fire if the chosen vehicle doesn't match the selected category.
   const [multipleMatches, setMultipleMatches] = useState(null);
+  // Remembers the resolved multi-match per plate so the save-time enrichment
+  // never silently auto-picks: { plate, fields } when the user chose a
+  // candidate, { plate, declined: true } when they said "none of these".
+  const chosenMatchRef = useRef(null);
 
   // Draft auto-save. The `extras` bag persists the three UI selectors
   // (category / subcategory / method) alongside the form data. Without
@@ -743,15 +750,21 @@ export default function AddVehicle() {
   const chooseMultiMatch = (idx) => {
     if (!multipleMatches) return;
     const chosen = multipleMatches.matches[idx];
+    const plate = multipleMatches.plate;
     setMultipleMatches(null);
     if (chosen?.fields) {
+      chosenMatchRef.current = { plate, fields: chosen.fields };
       applyLookupResult(chosen.fields);
     }
   };
 
   const cancelMultiMatch = () => {
+    const plate = multipleMatches?.plate;
     setMultipleMatches(null);
     setLookupStatus('idle');
+    // "None of these" → save with what the user typed, no auto-enrichment,
+    // and don't re-prompt for this same plate on submit.
+    if (plate) chosenMatchRef.current = { plate, declined: true };
   };
 
   const handleLookup = async () => {
@@ -862,18 +875,25 @@ export default function AddVehicle() {
     if (form.license_plate && !isVesselCategory && hasRegistration) {
       try {
         const govRaw = await lookupVehicleByPlate(form.license_plate);
-        // Dual-registry collision on save-time enrichment. Pick the
-        // candidate whose detectedType matches the category the user
-        // selected; fall back to the first match. The user already
-        // chose at form-fill time via the multi-match dialog, so this
-        // is just topping up technical specs — no second dialog here.
+        // Dual-registry collision (same plate in two MoT registries).
+        // Never silently pick one. If the user already resolved THIS plate
+        // (via the search dialog or a prior save attempt) honour their
+        // choice; otherwise open the multi-match dialog and abort the save
+        // so they choose — same behaviour as the search flow. The outer
+        // finally clears the spinner + submit lock on this early return.
         let govData = govRaw;
         if (govRaw && govRaw._multipleMatches) {
-          const want = selectedCategory?.label === 'כלי צמ"ה' ? 'cme' : null;
-          const pick = want
-            ? govRaw.matches.find((m) => m.fields?._detectedType === want)
-            : null;
-          govData = (pick || govRaw.matches[0])?.fields || null;
+          const resolved = chosenMatchRef.current;
+          const samePlate = resolved && resolved.plate === govRaw.plate;
+          if (samePlate && resolved.fields) {
+            govData = resolved.fields;   // user picked this candidate
+          } else if (samePlate && resolved.declined) {
+            govData = null;              // user said "none" — keep typed data
+          } else {
+            setMultipleMatches(govRaw);
+            hapticFeedback('medium');
+            return;
+          }
         }
         if (govData) {
           // Only fill fields that are currently empty - don't overwrite user input
@@ -969,7 +989,7 @@ export default function AddVehicle() {
 
       // Only keep known DB columns - strip everything else
       const DB_COLUMNS = ['account_id','vehicle_type','manufacturer','model','year',
-        'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
+        'nickname','license_plate','test_due_date','insurance_due_date','insurance_company','leasing_company',
         'current_km','current_engine_hours','vehicle_photo','vehicle_photo_storage_path','fuel_type','is_vintage',
         'last_tire_change_date','km_since_tire_change','tires_changed_count',
         'flag_country','marina','marina_abroad','engine_manufacturer','pyrotechnics_expiry_date','fire_extinguisher_expiry_date','fire_extinguishers',
@@ -2057,6 +2077,14 @@ export default function AddVehicle() {
                       </div>
                     )}
                   </div>{/* end grid ק"מ+ביטוח */}
+
+                  {hasRegistration && (
+                    <LeasingCompanyField
+                      value={form.leasing_company}
+                      onChange={(v) => handleChange('leasing_company', v)}
+                      highlight={isLeasingOwnership(form.ownership)}
+                    />
+                  )}
 
                   {/* דגל + מרינה - vessels only */}
                   {isVesselCategory && (

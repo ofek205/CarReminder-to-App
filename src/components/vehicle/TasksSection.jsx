@@ -1,4 +1,4 @@
-import { toastError } from '@/lib/userErrorReport';
+import { toastError, toast } from '@/lib/userErrorReport';
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -146,7 +146,7 @@ export default function TasksSection({ vehicle }) {
   };
 
   const handleSave = async () => {
-    if (!form.title.trim()) { toastError('יש להזין כותרת', { action: 'task_title_required' }); return; }
+    if (!form.title.trim()) { toast.error('יש להזין כותרת'); return; }
     // cork_notes table only has: vehicle_id, title, content, color, due_date, is_done, rotation
     // category and priority are kept in-memory / guest mode only (not DB columns yet)
     const dbTask = {

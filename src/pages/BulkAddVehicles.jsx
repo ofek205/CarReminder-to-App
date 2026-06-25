@@ -13,12 +13,12 @@
  * set on insert (via bulk_add_vehicles RPC). This guarantees imported
  * vehicles are byte-equivalent to manually-added ones.
  */
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Upload, FileSpreadsheet, ClipboardList, ArrowLeft, ArrowRight, Loader2,
-  CheckCircle2, AlertTriangle, X, Copy, FileWarning, Briefcase,
+  CheckCircle2, AlertTriangle, X, Copy, FileWarning, Briefcase, HelpCircle, Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
@@ -27,32 +27,164 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { lookupVehicleByPlate } from '@/services/vehicleLookup';
+import { LEASING_COMPANIES, canonicalizeLeasingCompany } from '@/constants/leasingCompanies';
 import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { createPageUrl } from '@/utils';
 // Living Dashboard system - shared with all B2B pages.
 import { PageShell, Card } from '@/components/business/system';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import MultipleMatchDialog from '@/components/vehicle/MultipleMatchDialog';
 import { C } from '@/lib/designTokens';
 
-const LOOKUP_CONCURRENCY = 5;
+const LOOKUP_CONCURRENCY = 3;   // gentler on gov.il — each plate fans out to several registry queries
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// One plate, retried on TRANSIENT failures only. lookupVehicleByPlate
+// THROWS on fetch error / timeout (which we retry) but returns null for
+// "not found" (a real result — never retried). Exponential backoff +
+// jitter spreads retries so we don't immediately re-burst the server.
+async function lookupOne(plate, attempts = 3) {
+  let lastErr;
+  for (let a = 0; a < attempts; a++) {
+    try {
+      return await lookupVehicleByPlate(plate);
+    } catch (err) {
+      lastErr = err;
+      if (a < attempts - 1) await sleep(400 * 2 ** a + Math.floor(Math.random() * 250));
+    }
+  }
+  throw lastErr;
+}
 
 // ---------- helpers ---------------------------------------------------
 
 function normalizePlate(raw) {
-  const digits = String(raw || '').replace(/\D/g, '');
+  const s = String(raw ?? '').trim();
+  // A plate is digits with optional spaces / dashes — nothing else.
+  // Reject URLs ("…/browse/GR-669"), codes, and free text so a pasted link
+  // or sentence isn't mistaken for a plate just because a 4-8 digit run
+  // happens to sit somewhere inside it.
+  if (!s || !/^[\d\s-]+$/.test(s)) return null;
+  const digits = s.replace(/\D/g, '');
   if (digits.length < 4 || digits.length > 8) return null;
   return digits;
 }
 
-function parsePastedText(text) {
-  return Array.from(new Set(
-    text
-      .split(/[\r\n]+/)
-      .map(line => line.split(/[\t,;]/)[0])
-      .map(normalizePlate)
-      .filter(Boolean)
-  ));
+// ── Multi-column parsing ────────────────────────────────────────────
+// Input may carry up to 3 columns: license plate (required), nickname,
+// and current km — in ANY order. We parse to a raw matrix of trimmed
+// string cells, auto-detect which column is which (detectColumns), and
+// derive typed rows (rowsFromMatrix). The detected mapping is shown to
+// the user and can be overridden manually.
+
+// Split one pasted/CSV line into cells. Tab and comma/semicolon are the
+// only separators — SPACE never is (Hebrew names like "ישראל ישראלי"
+// and "רכב מכירות" contain spaces). When a tab exists we split on tab
+// only (Excel copy uses tabs) so a name containing a comma survives.
+function splitCells(line) {
+  const sep = line.includes('\t') ? /\t/ : /[,;]/;
+  return line.split(sep).map(c => c.trim());
+}
+
+function parsePastedMatrix(text) {
+  return String(text || '')
+    .split(/[\r\n]+/)
+    .filter(line => line.trim() !== '')
+    .map(splitCells);
+}
+
+// Lenient km parser: strips thousands separators / units ("84,000",
+// "84000 ק\"מ"), floors decimals, rejects out-of-range. Returns a
+// number or null.
+function parseKm(raw) {
+  if (raw == null) return null;
+  let s = String(raw).trim().replace(/[,\s]/g, '');
+  s = s.replace(/[^\d.].*$/, '');            // cut at first non-digit (drops units)
+  if (!s) return null;
+  const n = Math.floor(Number(s));
+  if (!Number.isFinite(n) || n < 0 || n > 9999999) return null;
+  return n;
+}
+
+const _hasText      = (v) => /[^\d.,\s]/.test(String(v || ''));
+const _isNumericCell = (v) => /^\s*\d[\d.,\s]*$/.test(String(v || ''));
+// How plate-like a value is, by digit length. Canonical IL plates are
+// 7-8 digits; 4-6 digits are CME/vintage but ALSO the typical km range,
+// so they score lower. This disambiguates a numeric plate column from a
+// km column when both pass the 4-8 digit plate check.
+const _plateStrength = (v) => {
+  const d = String(v ?? '').replace(/\D/g, '');
+  if (d.length === 7 || d.length === 8) return 1;
+  if (d.length >= 4 && d.length <= 6)   return 0.35;
+  return 0;
+};
+
+// Decide which column is plate / nickname / km purely from CONTENT so
+// column order doesn't matter. Also flags a leading header row (first
+// row with no valid plate in any cell).
+function detectColumns(matrix) {
+  const empty = { plateCol: 0, nicknameCol: -1, kmCol: -1, leasingCol: -1, hasHeader: false };
+  if (!matrix || matrix.length === 0) return empty;
+  const ncols = Math.max(...matrix.map(r => r.length));
+  const firstRowHasPlate = matrix[0].some(c => normalizePlate(c));
+  const hasHeader = !firstRowHasPlate && matrix.length > 1;
+  const dataRows = hasHeader ? matrix.slice(1) : matrix;
+
+  const score = [];
+  for (let c = 0; c < ncols; c++) {
+    const vals = dataRows.map(r => (r[c] ?? '').trim()).filter(Boolean);
+    const n = vals.length || 1;
+    score.push({
+      c,
+      // Weighted plate-likeness: canonical 7-8 digit plates beat a 4-6
+      // digit numeric column (usually km, even though it also passes the
+      // 4-8 digit plate check). Disambiguates the common plate+km pair.
+      plateW: vals.reduce((s, v) => s + _plateStrength(v), 0) / n,
+      plateR: vals.filter(v => normalizePlate(v)).length / n,
+      num:   vals.filter(_isNumericCell).length / n,
+      text:  vals.filter(_hasText).length / n,
+      lease: vals.filter(v => LEASING_COMPANIES.includes(canonicalizeLeasingCompany(v))).length / n,
+    });
+  }
+  const anyPlates = score.some(s => s.plateR >= 0.5);
+  const byPlate = [...score].sort((a, b) => b.plateW - a.plateW || b.plateR - a.plateR || a.c - b.c);
+  const plateCol = anyPlates ? byPlate[0].c : (score[0]?.c ?? 0);
+
+  const rest = score.filter(s => s.c !== plateCol);
+  // Leasing first (most specific — values that match known company names).
+  // A column filled with "אחר" companies not in the list won't auto-detect;
+  // the user remaps it via the mapping banner.
+  const byLease = [...rest].sort((a, b) => b.lease - a.lease || a.c - b.c);
+  const leasingCol = byLease[0] && byLease[0].lease >= 0.3 ? byLease[0].c : -1;
+
+  const byText = rest.filter(s => s.c !== leasingCol).sort((a, b) => b.text - a.text || a.c - b.c);
+  const nicknameCol = byText[0] && byText[0].text >= 0.5 ? byText[0].c : -1;
+
+  const byNum = rest.filter(s => s.c !== nicknameCol && s.c !== leasingCol).sort((a, b) => b.num - a.num || a.c - b.c);
+  const kmCol = byNum[0] && byNum[0].num >= 0.5 ? byNum[0].c : -1;
+
+  return { plateCol, nicknameCol, kmCol, leasingCol, hasHeader };
+}
+
+// Build typed, de-duplicated rows from the matrix + a column mapping.
+function rowsFromMatrix(matrix, mapping) {
+  if (!matrix || !mapping) return [];
+  const { plateCol, nicknameCol, kmCol, leasingCol, hasHeader } = mapping;
+  const dataRows = hasHeader ? matrix.slice(1) : matrix;
+  const seen = new Set();
+  const rows = [];
+  for (const r of dataRows) {
+    const plate = normalizePlate(r[plateCol]);
+    if (!plate || seen.has(plate)) continue;
+    seen.add(plate);
+    const nickname = nicknameCol >= 0 ? String(r[nicknameCol] || '').trim().slice(0, 60) : '';
+    const km = kmCol >= 0 ? parseKm(r[kmCol]) : null;
+    const leasing = leasingCol >= 0 ? canonicalizeLeasingCompany(r[leasingCol]).slice(0, 60) : '';
+    rows.push({ plate, nickname, km, leasing });
+  }
+  return rows;
 }
 
 // Defense-in-depth wrappers around spreadsheet parsing.
@@ -74,14 +206,8 @@ const PARSE_TIMEOUT_MS = 10_000;
 const ALLOWED_EXTS     = new Set(['xlsx', 'csv', 'xlsm']);
 
 function _parseCsvBuffer(buffer) {
-  const text = new TextDecoder().decode(buffer);
-  return Array.from(new Set(
-    text
-      .split(/[\r\n]+/)
-      .map(line => line.split(/[,;\t]/)[0])
-      .map(normalizePlate)
-      .filter(Boolean)
-  ));
+  const text = new TextDecoder('utf-8').decode(buffer);
+  return parsePastedMatrix(text);
 }
 
 async function parseXlsxFile(file) {
@@ -111,40 +237,54 @@ async function parseXlsxFile(file) {
   const sheet = workbook.worksheets[0];
   if (!sheet) return [];
 
-  const plates = [];
+  const matrix = [];
   sheet.eachRow((row) => {
-    // row.values is 1-indexed — first column is at index 1.
-    const val = row.values[1];
-    const plate = normalizePlate(val);
-    if (plate) plates.push(plate);
+    // row.values is 1-indexed (index 0 is undefined). Collect every cell
+    // as a trimmed string, unwrapping exceljs rich-text / formula objects.
+    const cells = [];
+    for (let i = 1; i < row.values.length; i++) {
+      const v = row.values[i];
+      let s = '';
+      if (v != null) {
+        if (typeof v === 'object') s = v.text ?? v.result ?? v.hyperlink ?? '';
+        else s = v;
+      }
+      cells.push(String(s).trim());
+    }
+    if (cells.some(c => c !== '')) matrix.push(cells);
   });
-  return Array.from(new Set(plates));
+  return matrix;
 }
 
-async function lookupAll(plates, onProgress) {
+async function lookupAll(inputRows, onProgress, opts = {}) {
+  const { concurrency = LOOKUP_CONCURRENCY, delayMs = 200, attempts = 3 } = opts;
   const results = [];
   let done = 0;
-  for (let i = 0; i < plates.length; i += LOOKUP_CONCURRENCY) {
-    const chunk = plates.slice(i, i + LOOKUP_CONCURRENCY);
+  for (let i = 0; i < inputRows.length; i += concurrency) {
+    const chunk = inputRows.slice(i, i + concurrency);
     const chunkResults = await Promise.all(
-      chunk.map(async (plate) => {
+      chunk.map(async (item) => {
+        // item = { plate, nickname, km } from the parsed input — carried
+        // through so the review can pre-fill nickname + km per row.
         try {
-          const raw = await lookupVehicleByPlate(plate);
-          // Dual-registry collision in bulk import → no UI to choose,
-          // so default to the FIRST candidate (the classic-car tier wins
-          // over CME by the lookup ordering). User can edit per-row
-          // after the bulk preview if the wrong vehicle was picked.
-          const data = raw && raw._multipleMatches ? raw.matches[0]?.fields || null : raw;
-          return { plate, data, error: null };
+          const raw = await lookupOne(item.plate, attempts);
+          // Dual-registry collision (same plate in two MoT registries).
+          // Do NOT auto-pick — carry the candidates so the user resolves
+          // them per-row in the review step, exactly like the private flow.
+          if (raw && raw._multipleMatches) {
+            return { ...item, data: null, matches: raw.matches, error: null };
+          }
+          return { ...item, data: raw, matches: null, error: null };
         } catch (err) {
-          return { plate, data: null, error: err?.message || 'lookup_failed' };
+          return { ...item, data: null, matches: null, error: err?.message || 'lookup_failed' };
         } finally {
           done++;
-          onProgress(done, plates.length);
+          onProgress(done, inputRows.length);
         }
       })
     );
     results.push(...chunkResults);
+    if (i + concurrency < inputRows.length && delayMs) await sleep(delayMs);
   }
   return results;
 }
@@ -158,9 +298,13 @@ export default function BulkAddVehicles() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [step, setStep]     = useState('input'); // 'input' | 'review' | 'result'
-  const [plates, setPlates] = useState([]);      // array of normalized plate strings
-  const [rows, setRows]     = useState([]);      // [{plate, data, error, status, included}]
+  const [step, setStep]       = useState('input'); // 'input' | 'review' | 'result'
+  const [matrix, setMatrix]   = useState([]);      // raw parsed cells (rows × columns)
+  const [mapping, setMapping] = useState(null);    // { plateCol, nicknameCol, kmCol, hasHeader }
+  const [rows, setRows]       = useState([]);      // [{plate, nickname, current_km, data, status, included, ...}]
+  // Typed input rows derived from the matrix + current column mapping.
+  // Recomputed when the user pastes/uploads or remaps columns.
+  const inputRows = useMemo(() => rowsFromMatrix(matrix, mapping), [matrix, mapping]);
   const [progress, setProgress]     = useState({ done: 0, total: 0 });
   const [importResult, setImportResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -211,19 +355,50 @@ export default function BulkAddVehicles() {
   // ---------- handlers ----------------------------------------------
 
   const startReview = async () => {
-    if (plates.length === 0) { toastError('הוסף לפחות מספר רישוי אחד', { action: 'bulk_add_no_plates' }); return; }
+    if (inputRows.length === 0) { toastError('הוסף לפחות מספר רישוי אחד', { action: 'bulk_add_no_plates' }); return; }
     setStep('review');
-    setProgress({ done: 0, total: plates.length });
+    setProgress({ done: 0, total: inputRows.length, phase: 'lookup' });
 
-    const results = await lookupAll(plates, (done, total) => setProgress({ done, total }));
+    let results = await lookupAll(
+      inputRows,
+      (done, total) => setProgress({ done, total, phase: 'lookup' }),
+      { concurrency: 3, delayMs: 200, attempts: 3 },
+    );
+
+    // Auto-sweep transient failures (Failed to fetch / timeout). "Not found"
+    // rows carry error:null and are never swept. Up to 2 extra passes with
+    // lower concurrency + longer delay so the gov server has room to recover.
+    for (let sweep = 0; sweep < 2; sweep++) {
+      const failed = results.filter(r => r.error);
+      if (failed.length === 0) break;
+      await sleep(800);
+      const retried = await lookupAll(
+        failed,
+        (done, total) => setProgress({ done, total, phase: 'retry' }),
+        { concurrency: 2, delayMs: 400, attempts: 2 },
+      );
+      const byPlate = new Map(retried.map(r => [r.plate, r]));
+      results = results.map(r => (r.error && byPlate.has(r.plate)) ? byPlate.get(r.plate) : r);
+    }
 
     const enriched = results.map(r => {
       let status;
       if (existingPlates.has(r.plate)) status = 'duplicate';
-      else if (r.error) status = 'error';
-      else if (!r.data)  status = 'not_found';
-      else               status = 'found';
-      return { ...r, status, included: status === 'found' };
+      else if (r.error)    status = 'error';
+      else if (r.matches)  status = 'needs_choice';
+      else if (!r.data)    status = 'not_found';
+      else                 status = 'found';
+      // KM precedence: the manager's input km → MoT last-test odometer
+      // (data.current_km, best-effort) → empty for manual entry.
+      const km = r.km != null ? r.km : (r.data?.current_km ?? '');
+      return {
+        ...r,
+        status,
+        included: status === 'found',
+        nickname: r.nickname || '',
+        current_km: (km === null || km === undefined) ? '' : km,
+        leasing_company: r.leasing || '',
+      };
     });
 
     setRows(enriched);
@@ -252,6 +427,7 @@ export default function BulkAddVehicles() {
           // (registry rarely sets one anyway). Empty string is dropped.
           ...(nick ? { nickname: nick.slice(0, 60) } : {}),
           ...(kmValid ? { current_km: kmNum } : {}),
+          ...((r.leasing_company || '').trim() ? { leasing_company: (r.leasing_company || '').trim().slice(0, 60) } : {}),
         };
       });
 
@@ -291,7 +467,8 @@ export default function BulkAddVehicles() {
 
   const reset = () => {
     setStep('input');
-    setPlates([]);
+    setMatrix([]);
+    setMapping(null);
     setRows([]);
     setProgress({ done: 0, total: 0 });
     setImportResult(null);
@@ -308,9 +485,12 @@ export default function BulkAddVehicles() {
 
       {step === 'input' && (
         <InputStep
-          onPlatesParsed={(p) => setPlates(p)}
+          onMatrixParsed={(m) => { setMatrix(m); setMapping(detectColumns(m)); }}
+          onMappingChange={setMapping}
           onContinue={startReview}
-          plates={plates}
+          matrix={matrix}
+          mapping={mapping}
+          inputRows={inputRows}
         />
       )}
 
@@ -327,6 +507,20 @@ export default function BulkAddVehicles() {
           }}
           onChangeKm={(plate, km) => {
             setRows(prev => prev.map(r => r.plate === plate ? { ...r, current_km: km } : r));
+          }}
+          onResolveMatch={(plate, chosenFields) => {
+            setRows(prev => prev.map(r => {
+              if (r.plate !== plate) return r;
+              // Keep the km already on the row (from input); otherwise adopt
+              // the chosen candidate's MoT odometer if it has one.
+              const km = (r.current_km !== '' && r.current_km != null)
+                ? r.current_km
+                : (chosenFields?.current_km ?? '');
+              return {
+                ...r, data: chosenFields, matches: null, status: 'found', included: true,
+                current_km: (km === null || km === undefined) ? '' : km,
+              };
+            }));
           }}
           onSubmit={submitImport}
           onBack={() => { setStep('input'); setRows([]); }}
@@ -387,16 +581,17 @@ function Stepper({ current }) {
 
 // ---------- Step 1: Input --------------------------------------------
 
-function InputStep({ onPlatesParsed, onContinue, plates }) {
+function InputStep({ onMatrixParsed, onMappingChange, onContinue, matrix, mapping, inputRows }) {
   const [mode, setMode]   = useState('paste');
   const [text, setText]   = useState('');
   const [fileName, setFileName] = useState('');
   const [parsing, setParsing]   = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const fileRef = useRef(null);
 
   const handleTextChange = (v) => {
     setText(v);
-    onPlatesParsed(parsePastedText(v));
+    onMatrixParsed(parsePastedMatrix(v));
   };
 
   const handleFile = async (file) => {
@@ -405,7 +600,7 @@ function InputStep({ onPlatesParsed, onContinue, plates }) {
     setParsing(true);
     try {
       const parsed = await parseXlsxFile(file);
-      onPlatesParsed(parsed);
+      onMatrixParsed(parsed);
       if (parsed.length === 0) toastError('לא נמצאו מספרי רישוי תקינים בקובץ', { action: 'bulk_add_no_plates_in_file' });
     } catch (err) {
        
@@ -418,30 +613,43 @@ function InputStep({ onPlatesParsed, onContinue, plates }) {
 
   return (
     <section>
-      {/* Mode tabs */}
-      <div className="flex gap-1 mb-4 bg-gray-50 rounded-xl p-1">
-        <TabBtn active={mode === 'paste'} onClick={() => setMode('paste')}>
-          <ClipboardList className="h-3.5 w-3.5" /> הדבק רשימה
-        </TabBtn>
-        <TabBtn active={mode === 'file'}  onClick={() => setMode('file')}>
-          <FileSpreadsheet className="h-3.5 w-3.5" /> העלה קובץ אקסל
-        </TabBtn>
+      {/* Mode tabs + format guide */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex gap-1 flex-1 bg-gray-50 rounded-xl p-1">
+          <TabBtn active={mode === 'paste'} onClick={() => setMode('paste')}>
+            <ClipboardList className="h-3.5 w-3.5" /> הדבק רשימה
+          </TabBtn>
+          <TabBtn active={mode === 'file'}  onClick={() => setMode('file')}>
+            <FileSpreadsheet className="h-3.5 w-3.5" /> העלה קובץ אקסל
+          </TabBtn>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowGuide(true)}
+          className="shrink-0 flex items-center gap-1 px-3 h-9 rounded-xl text-xs font-bold text-[#2D5233] bg-[#2D5233]/10 hover:bg-[#2D5233]/20 transition-colors"
+          aria-label="מדריך: איך מכינים את הרשימה"
+        >
+          <HelpCircle className="h-4 w-4" />
+          מדריך
+        </button>
       </div>
 
       {mode === 'paste' && (
         <div className="bg-white border border-gray-100 rounded-2xl p-4">
           <label className="block text-xs font-bold text-gray-700 mb-1.5">
-            רשימת מספרי רישוי
+            רשימת רכבים
           </label>
           <Textarea
             value={text}
             onChange={(e) => handleTextChange(e.target.value)}
             rows={10}
-            placeholder={'לדוגמה:\n1234567\n89-012-34\n5566778\n\nאפשר גם להעתיק עמודה ישירות מאקסל. מספר רישוי בעמודה הראשונה.'}
+            placeholder={'לדוגמה (אפשר להעתיק ישר מאקסל):\n12-345-67\tיוסי כהן\t84000\n7654321\tרכב מכירות\t51200'}
             className="rounded-xl text-sm font-mono"
+            dir="rtl"
           />
           <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
-            שורה אחת לכל רכב. ספרות בלבד. אם יש טאבים או פסיקים, רק העמודה הראשונה תיקח. הסטטוסים שנמצאו במאגר משרד התחבורה יציגו בשלב הבא.
+            שורה לכל רכב. אפשר להדביק כמה עמודות — מספר רישוי, כינוי וק״מ — ונזהה כל אחת.{' '}
+            <button type="button" onClick={() => setShowGuide(true)} className="font-bold text-[#2D5233] underline">צריך עזרה עם הפורמט?</button>
           </p>
         </div>
       )}
@@ -476,22 +684,35 @@ function InputStep({ onPlatesParsed, onContinue, plates }) {
             </p>
           )}
           <p className="text-[11px] text-gray-500 mt-3 leading-relaxed">
-            המערכת קוראת את העמודה הראשונה בגיליון הראשון. ספרות בלבד יחשבו כמספר רישוי.
+            עד 3 עמודות: מספר רישוי (חובה), כינוי וק״מ — בכל סדר. שורת כותרת? נדלג עליה.{' '}
+            <button type="button" onClick={() => setShowGuide(true)} className="font-bold text-[#2D5233] underline">מדריך הפורמט</button>
           </p>
         </div>
+      )}
+
+      {/* Column mapping — appears once something is parsed, so the user can
+          correct detection if it guessed wrong (the "many options" safety net). */}
+      {matrix.length > 0 && mapping && (
+        <ColumnMappingBanner matrix={matrix} mapping={mapping} onChange={onMappingChange} />
       )}
 
       {/* Summary + continue */}
       <div className="flex items-center justify-between mt-4 px-1">
         <p className="text-xs text-gray-600">
-          {plates.length === 0
-            ? 'עוד לא הוזנו מספרי רישוי'
-            : <><span className="font-bold text-gray-900">{plates.length}</span> מספרי רישוי תקינים זוהו</>}
+          {inputRows.length === 0
+            ? (matrix && matrix.length > 0
+                ? 'לא זוהו מספרי רישוי תקינים — נדרשות 4-8 ספרות (ללא אותיות או קישורים)'
+                : 'עוד לא הוזנו מספרי רישוי')
+            : (<>
+                <span className="font-bold text-gray-900">{inputRows.length}</span> רכבים זוהו
+                {inputRows.filter(r => r.nickname).length > 0 && <> · {inputRows.filter(r => r.nickname).length} עם כינוי</>}
+                {inputRows.filter(r => r.km != null).length > 0 && <> · {inputRows.filter(r => r.km != null).length} עם ק״מ</>}
+              </>)}
         </p>
         <button
           type="button"
           onClick={onContinue}
-          disabled={plates.length === 0}
+          disabled={inputRows.length === 0}
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
           style={{
             background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
@@ -503,7 +724,160 @@ function InputStep({ onPlatesParsed, onContinue, plates }) {
           <ArrowLeft className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      <FormatGuideModal open={showGuide} onClose={() => setShowGuide(false)} />
     </section>
+  );
+}
+
+// ── Column mapping banner ───────────────────────────────────────────
+// Shows the auto-detected role of each column with a dropdown to change
+// it — the user's escape hatch when detection guesses wrong.
+function roleOfColumn(mapping, c) {
+  if (mapping.plateCol === c)    return 'plate';
+  if (mapping.nicknameCol === c) return 'nickname';
+  if (mapping.kmCol === c)       return 'km';
+  if (mapping.leasingCol === c)  return 'leasing';
+  return 'ignore';
+}
+
+function setColumnRole(mapping, col, role) {
+  const m = { ...mapping };
+  // Drop col from whatever role it currently holds.
+  if (m.plateCol === col)    m.plateCol = -1;
+  if (m.nicknameCol === col) m.nicknameCol = -1;
+  if (m.kmCol === col)       m.kmCol = -1;
+  if (m.leasingCol === col)  m.leasingCol = -1;
+  // Assign the new role (each role field holds a single column → uniqueness).
+  if (role === 'plate')    m.plateCol = col;
+  else if (role === 'nickname') m.nicknameCol = col;
+  else if (role === 'km')  m.kmCol = col;
+  else if (role === 'leasing') m.leasingCol = col;
+  return m;
+}
+
+function ColumnMappingBanner({ matrix, mapping, onChange }) {
+  const ncols = Math.max(...matrix.map(r => r.length), 0);
+  const sampleRow = (mapping.hasHeader ? matrix[1] : matrix[0]) || [];
+  const noPlate = mapping.plateCol == null || mapping.plateCol < 0;
+  return (
+    <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+      <div className="flex items-center gap-1.5 mb-2">
+        <Info className="h-4 w-4 text-blue-600 shrink-0" />
+        <p className="text-[12px] font-bold text-blue-900">זיהינו את העמודות כך — אפשר לשנות</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {Array.from({ length: ncols }).map((_, c) => {
+          const role = roleOfColumn(mapping, c);
+          const ignored = role === 'ignore';
+          return (
+            <div key={c} className={`relative flex flex-col gap-1 rounded-lg border px-2 py-1.5 min-w-[108px] ${ignored ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-blue-100'}`}>
+              {/* Inclusion is a separate action from role: ✕ drops the column,
+                  "כלול" brings it back. Keeps the role dropdown purely semantic. */}
+              {!ignored && (
+                <button
+                  type="button"
+                  onClick={() => onChange(setColumnRole(mapping, c, 'ignore'))}
+                  aria-label={`אל תייבא עמודה ${c + 1}`}
+                  className="absolute -top-1.5 -left-1.5 h-5 w-5 rounded-full bg-white border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 flex items-center justify-center shadow-sm"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+              <span dir="ltr" className="text-[10px] font-mono text-gray-500 truncate text-left">{sampleRow[c] || '—'}</span>
+              {ignored ? (
+                <button
+                  type="button"
+                  onClick={() => onChange(setColumnRole(mapping, c, 'nickname'))}
+                  className="text-[11px] font-bold text-blue-700 hover:underline py-1 text-right"
+                >
+                  + כלול עמודה
+                </button>
+              ) : (
+                <select
+                  value={role}
+                  onChange={(e) => onChange(setColumnRole(mapping, c, e.target.value))}
+                  className="text-[11px] font-bold rounded-md border border-gray-200 px-1 py-1 bg-white"
+                  aria-label={`תפקיד עמודה ${c + 1}`}
+                >
+                  <option value="plate">מספר רישוי</option>
+                  <option value="nickname">כינוי</option>
+                  <option value="km">ק״מ</option>
+                  <option value="leasing">חברת ליסינג</option>
+                </select>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {noPlate && (
+        <p className="text-[11px] text-red-600 font-medium mt-2">בחר עמודה אחת בתור "מספר רישוי" — זו עמודת חובה.</p>
+      )}
+    </div>
+  );
+}
+
+// ── Format guide modal ──────────────────────────────────────────────
+function GuideWhy() {
+  return (
+    <div className="rounded-lg bg-[#2D5233]/5 border border-[#2D5233]/10 p-2.5">
+      <p className="text-[12px] font-bold text-[#2D5233] mb-0.5">למה כדאי?</p>
+      <p className="text-[12px] text-gray-600 leading-relaxed">כינוי, ק״מ וחברת ליסינג שתכלול ייכנסו אוטומטית — פחות הקלדה. והק״מ שלך גובר על מה שרשום במשרד התחבורה.</p>
+    </div>
+  );
+}
+
+function FormatGuideModal({ open, onClose }) {
+  const [tab, setTab] = useState('paste');
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-3"
+      dir="rtl"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto p-5 shadow-2xl">
+        <div className="flex items-start justify-between mb-1">
+          <h2 className="text-lg font-bold text-gray-900">איך מכינים את הרשימה?</h2>
+          <button onClick={onClose} aria-label="סגור" className="p-1 -m-1 text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">כדי שהשמות והק״מ ייכנסו אוטומטית — בלי להקליד כל רכב ביד.</p>
+
+        <div className="flex gap-1 mb-4 bg-gray-50 rounded-xl p-1">
+          <button type="button" onClick={() => setTab('paste')} className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${tab === 'paste' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>הדבקה</button>
+          <button type="button" onClick={() => setTab('file')}  className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${tab === 'file'  ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>אקסל</button>
+        </div>
+
+        {tab === 'paste' ? (
+          <div className="space-y-3 text-[13px] text-gray-700">
+            <ul className="space-y-1.5 list-disc pr-4">
+              <li>שורה אחת לכל רכב.</li>
+              <li>אפשר להעתיק ישר מאקסל — העמודות יישמרו.</li>
+              <li>עד 4 עמודות: <b>מספר רישוי</b> (חובה), <b>כינוי</b>, <b>ק״מ</b>, <b>חברת ליסינג</b> — בכל סדר, נזהה לבד.</li>
+            </ul>
+            <div className="rounded-lg bg-gray-50 border border-gray-100 p-2.5 font-mono text-[11px] text-gray-700 space-y-0.5">
+              <div><span dir="ltr">12-345-67</span> · יוסי כהן · <span dir="ltr">84000</span> · שלמה SIXT</div>
+              <div><span dir="ltr">7654321</span> · רכב מכירות · <span dir="ltr">51200</span> · אלבר</div>
+            </div>
+            <GuideWhy />
+          </div>
+        ) : (
+          <div className="space-y-3 text-[13px] text-gray-700">
+            <ul className="space-y-1.5 list-disc pr-4">
+              <li>קובץ <span dir="ltr" className="font-mono">xlsx</span> או <span dir="ltr" className="font-mono">csv</span>, עד 5MB.</li>
+              <li>עד 4 עמודות: <b>מספר רישוי</b> (חובה), <b>כינוי</b>, <b>ק״מ</b>, <b>חברת ליסינג</b>.</li>
+              <li>יש שורת כותרת? אין בעיה — נדלג עליה.</li>
+              <li>הסדר גמיש — נזהה כל עמודה לפי התוכן.</li>
+            </ul>
+            <GuideWhy />
+          </div>
+        )}
+
+        <button type="button" onClick={onClose} className="w-full mt-5 py-2.5 rounded-xl bg-[#2D5233] text-white text-sm font-bold">הבנתי</button>
+      </div>
+    </div>
   );
 }
 
@@ -523,11 +897,16 @@ function TabBtn({ active, children, onClick }) {
 
 // ---------- Step 2: Review ------------------------------------------
 
-function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNickname, onChangeKm, onSubmit, onBack }) {
-  const found     = rows.filter(r => r.status === 'found');
-  const duplicate = rows.filter(r => r.status === 'duplicate');
-  const notFound  = rows.filter(r => r.status === 'not_found');
-  const errored   = rows.filter(r => r.status === 'error');
+function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNickname, onChangeKm, onResolveMatch, onSubmit, onBack }) {
+  const found       = rows.filter(r => r.status === 'found');
+  const needsChoice = rows.filter(r => r.status === 'needs_choice');
+  const duplicate   = rows.filter(r => r.status === 'duplicate');
+  const notFound    = rows.filter(r => r.status === 'not_found');
+  const errored     = rows.filter(r => r.status === 'error');
+
+  // Which needs_choice row is currently open in the multi-match dialog.
+  const [choosingPlate, setChoosingPlate] = useState(null);
+  const choosingRow = rows.find(r => r.plate === choosingPlate) || null;
 
   const isLookingUp = progress.total > 0 && progress.done < progress.total;
   const includedCount = found.filter(r => r.included).length;
@@ -536,14 +915,30 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
     <section className="space-y-4">
 
       {isLookingUp ? (
-        <ProgressCard done={progress.done} total={progress.total} />
+        <ProgressCard done={progress.done} total={progress.total} phase={progress.phase} />
       ) : (
         <SummaryCounts
           found={found.length}
+          needsChoice={needsChoice.length}
           duplicate={duplicate.length}
           notFound={notFound.length}
           errored={errored.length}
         />
+      )}
+
+      {!isLookingUp && needsChoice.length > 0 && (
+        <Group
+          tone="orange"
+          icon={<HelpCircle className="h-4 w-4 text-orange-600" />}
+          title={`דרושה בחירה (${needsChoice.length})`}
+          subtitle="המספרים האלה רשומים במשרד התחבורה כיותר מרכב אחד. בחר את הרכב הנכון כדי לכלול אותו בייבוא — מה שלא ייבחר לא ייובא."
+        >
+          <ul className="space-y-1.5">
+            {needsChoice.map(r => (
+              <NeedsChoiceRow key={r.plate} row={r} onChoose={() => setChoosingPlate(r.plate)} />
+            ))}
+          </ul>
+        </Group>
       )}
 
       {!isLookingUp && found.length > 0 && (
@@ -620,6 +1015,21 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
         </Group>
       )}
 
+      <MultipleMatchDialog
+        open={!!choosingRow}
+        plate={choosingRow?.plate}
+        matches={choosingRow?.matches || []}
+        questionCopy="איזה מהם הרכב שברצונך להוסיף לצי?"
+        cancelCopy="סגור — אבחר אחר כך"
+        titleId="bulk-multimatch-title"
+        onChoose={(idx) => {
+          const fields = choosingRow?.matches?.[idx]?.fields || null;
+          if (choosingRow) onResolveMatch(choosingRow.plate, fields);
+          setChoosingPlate(null);
+        }}
+        onCancel={() => setChoosingPlate(null)}
+      />
+
       {/* Footer actions */}
       <div className="flex items-center justify-between pt-2">
         <button
@@ -650,12 +1060,12 @@ function ReviewStep({ rows, progress, submitting, onChangeIncluded, onChangeNick
   );
 }
 
-function ProgressCard({ done, total }) {
+function ProgressCard({ done, total, phase }) {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return (
     <Card accent="emerald">
       <div className="flex items-center justify-between mb-2 text-xs">
-        <span className="font-bold" style={{ color: C.primaryDark }}>בודק את המספרים מול משרד התחבורה</span>
+        <span className="font-bold" style={{ color: C.primaryDark }}>{phase === 'retry' ? 'מנסה שוב את מי שלא נענה' : 'בודק את המספרים מול משרד התחבורה'}</span>
         <span className="tabular-nums" style={{ color: C.textAlt }} dir="ltr">{done} מתוך {total}</span>
       </div>
       <div className="h-2 rounded-full overflow-hidden" style={{ background: C.bgSubtle }}>
@@ -672,13 +1082,14 @@ function ProgressCard({ done, total }) {
   );
 }
 
-function SummaryCounts({ found, duplicate, notFound, errored }) {
+function SummaryCounts({ found, needsChoice, duplicate, notFound, errored }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-      <Stat color="green"  value={found}     label="נמצאו" />
-      <Stat color="gray"   value={duplicate} label="כפילויות" />
-      <Stat color="yellow" value={notFound}  label="לא במאגר" />
-      <Stat color="red"    value={errored}   label="שגיאות" />
+    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <Stat color="green"  value={found}      label="נמצאו" />
+      <Stat color="orange" value={needsChoice} label="דרושה בחירה" />
+      <Stat color="gray"   value={duplicate}  label="כפילויות" />
+      <Stat color="yellow" value={notFound}   label="לא במאגר" />
+      <Stat color="red"    value={errored}    label="שגיאות" />
     </div>
   );
 }
@@ -686,6 +1097,7 @@ function SummaryCounts({ found, duplicate, notFound, errored }) {
 function Stat({ color, value, label }) {
   const cls = {
     green:  'text-green-700 bg-green-50',
+    orange: 'text-orange-700 bg-orange-50',
     gray:   'text-gray-700 bg-gray-100',
     yellow: 'text-yellow-700 bg-yellow-50',
     red:    'text-red-700 bg-red-50',
@@ -701,6 +1113,7 @@ function Stat({ color, value, label }) {
 function Group({ tone, icon, title, subtitle, children }) {
   const borderCls = {
     green:  'border-green-100',
+    orange: 'border-orange-200',
     gray:   'border-gray-100',
     yellow: 'border-yellow-100',
     red:    'border-red-100',
@@ -780,6 +1193,38 @@ function SimpleRow({ plate, note, action }) {
   );
 }
 
+// A plate whose number resolved to MORE than one MoT vehicle. We do not
+// auto-pick — the manager taps "בחר" to open MultipleMatchDialog and
+// choose the right one. Until chosen, the row is excluded from import.
+function NeedsChoiceRow({ row, onChoose }) {
+  const count = row.matches?.length || 0;
+  return (
+    <li className="border-b border-gray-50 last:border-0 py-1">
+      {/* The WHOLE row is the tap target — big, obvious, thumb-friendly.
+          A solid orange CTA on the leading (left/RTL-forward) edge makes
+          "this is the action" unmissable, vs the old pale help-pill. */}
+      <button
+        type="button"
+        onClick={onChoose}
+        aria-label={`בחר את הרכב הנכון עבור ${row.plate} — נמצאו ${count} רכבים`}
+        className="w-full flex items-center gap-3 px-2 py-2.5 -mx-2 rounded-xl text-right transition-colors hover:bg-orange-50 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-orange-400"
+      >
+        <span dir="ltr" className="text-[11px] font-mono px-2 py-0.5 bg-orange-50 text-orange-900 rounded shrink-0">{row.plate}</span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-[13px] font-bold text-orange-900">
+            נמצאו {count} רכבים עם מספר זה
+          </span>
+          <span className="block text-[11px] text-orange-700/80">לחץ לבחירת הרכב הנכון</span>
+        </span>
+        <span className="shrink-0 flex items-center gap-1 px-3.5 py-2 rounded-lg text-[13px] font-bold text-white bg-orange-600 shadow-sm">
+          בחר רכב
+          <ArrowLeft className="h-4 w-4" />
+        </span>
+      </button>
+    </li>
+  );
+}
+
 function CopyPlatesButton({ plates }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
@@ -811,7 +1256,7 @@ function ResultStep({ result, onDone, onRestart }) {
   // without an extra click.
   const [showErrors, setShowErrors] = useState(true);
   if (!result) return null;
-  const { added_count = 0, skipped_count = 0, error_count = 0, errors = [], notFoundPlates = [] } = result;
+  const { added_count = 0, skipped_count = 0, error_count = 0, errors = [], notFoundPlates = [], needsChoicePlates = [] } = result;
 
   return (
     <section className="space-y-4">
@@ -821,10 +1266,16 @@ function ResultStep({ result, onDone, onRestart }) {
         <p className="text-sm text-gray-600">רכבים נוספו לצי</p>
       </div>
 
-      {(skipped_count > 0 || error_count > 0 || notFoundPlates.length > 0) && (
+      {(skipped_count > 0 || error_count > 0 || notFoundPlates.length > 0 || needsChoicePlates.length > 0) && (
         <div className="bg-white border border-gray-100 rounded-2xl p-4">
           <h3 className="text-sm font-bold text-gray-900 mb-3">מה לא נכנס</h3>
           <ul className="space-y-2 text-xs">
+            {needsChoicePlates.length > 0 && (
+              <li className="flex items-start gap-2">
+                <HelpCircle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                <span><span className="font-bold">{needsChoicePlates.length}</span> דרשו בחירה ולא נבחרו, לכן לא יובאו. אפשר לייבא שוב ולבחור את הרכב הנכון.</span>
+              </li>
+            )}
             {skipped_count > 0 && (
               <li className="flex items-start gap-2">
                 <FileWarning className="h-4 w-4 text-gray-500 shrink-0 mt-0.5" />
@@ -950,6 +1401,15 @@ function sanitizeFromMoT(data) {
     if (Array.isArray(v)) continue;
     if (typeof v === 'object') continue;
     out[k] = v;
+  }
+  // Preserve off-road / cancelled status, matching the manual AddVehicle flow
+  // (audit ג-11). _cancellationDate is an underscore-prefixed marker on the
+  // lookup result (dropped by the whitelist above), so derive the real columns
+  // here. Only a FINAL cancellation (ביטול סופי) sets is_road_removed — a
+  // merely lapsed test does not, exactly like the manual sanitiser.
+  if (data._cancellationDate) {
+    out.is_road_removed = true;
+    out.road_removed_date = data._cancellationDate;
   }
   return out;
 }

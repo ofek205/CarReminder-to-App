@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
@@ -75,13 +76,13 @@ export default function CreateBusinessWorkspace() {
   const { data: latestRequest, isLoading: requestLoading } = useQuery({
     queryKey: ['my-latest-business-request', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('business_workspace_requests')
         .select('*')
         .eq('requesting_user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle();
+        .maybeSingle(), 'latest_business_request');
       if (error) throw error;
       return data;
     },

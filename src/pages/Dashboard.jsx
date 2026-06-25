@@ -847,7 +847,7 @@ export default function Dashboard() {
   const navigateRef = useNavigate();
   const { activeWorkspace, activeWorkspaceId } = useWorkspace();
   const { isDriver, canManageRoutes } = useWorkspaceRole();
-  const { profile: cachedProfile } = useUserProfile();
+  const { profile: cachedProfile, isLoading: profileLoading } = useUserProfile();
   useEffect(() => {
     if (isGuest) return;
     if (activeWorkspace?.account_type !== 'business') return;
@@ -1061,16 +1061,22 @@ export default function Dashboard() {
   // (staleTime 2 min) deduplicates the fetch across Bell, Notifications,
   // and Dashboard.
   useEffect(() => {
-    if (cachedProfile === undefined) return; // hook still loading
+    // Wait for the real profile to load. useUserProfile returns null BOTH
+    // while loading AND when there's no row, so we must gate on isLoading —
+    // not `cachedProfile === undefined` (which was never true, so the popup
+    // fired on the initial null and showed even for users who already have
+    // a phone, then never auto-hid once the profile loaded).
+    if (profileLoading) return;
     const hasPhone = !!cachedProfile?.phone;
     if (hasPhone) {
       localStorage.setItem('profile_completed', '1');
+      setShowCompleteProfile(false); // already complete → ensure it's hidden
     } else if (!isProfileSkipActive()) {
       setShowCompleteProfile(true);
     } else {
       setProfileMissing(true);
     }
-  }, [cachedProfile]);
+  }, [cachedProfile, profileLoading]);
 
   // my_vehicles_v = owned ∪ accepted-shared rows. The legacy
   // account-scoped filter excluded vehicles shared with the user via

@@ -71,7 +71,7 @@ export default function MultipleMatchDialog({
       aria-labelledby={titleId}
       onClick={(e) => { if (e.target === e.currentTarget) onCancel?.(); }}
     >
-      <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
+      <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div
           className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto"
           style={{ background: C.infoBg }}

@@ -10,6 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
+import LeasingCompanyField from '@/components/vehicle/LeasingCompanyField';
+import { isLeasingOwnership } from '@/constants/leasingCompanies';
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Camera, Loader2, CheckCircle2, Car, Ship, PenLine } from "lucide-react";
@@ -60,6 +62,8 @@ export default function EditVehicle() {
   // bad-id render and break React's hook ordering invariant.
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [form, setForm] = useState(null);
   const [accountId, setAccountId] = useState(null);
@@ -98,6 +102,7 @@ export default function EditVehicle() {
     insurance_due_date: v.insurance_due_date || '',
     insurance_company: v.insurance_company || '',
     insurance_company_other: v.insurance_company === 'אחר' ? (v.insurance_company_text || '') : '',
+    leasing_company: v.leasing_company || '',
     current_km: v.current_km || '',
     current_engine_hours: v.current_engine_hours || '',
     // 2026-05-17 gov.il auto-sync infrastructure:
@@ -188,6 +193,8 @@ export default function EditVehicle() {
     if (!vehicleId) { setLoading(false); return; }
     async function load() {
       try {
+      setLoadError(false);
+      setLoading(true);
       // Guest vehicle - load from local state
       if (isGuestVehicle) {
         const v = guestVehicles.find(v => v.id === vehicleId);
@@ -236,11 +243,12 @@ export default function EditVehicle() {
       } catch (err) {
         console.error('EditVehicle load error:', err);
         toastError('שגיאה בטעינת פרטי הרכב', { action: 'vehicle_load', err });
+        setLoadError(true);
         setLoading(false);
       }
     }
     load();
-  }, [vehicleId, isGuestVehicle]);
+  }, [vehicleId, isGuestVehicle, reloadKey]);
 
   // Scroll to & highlight the target field when navigated with ?field=xxx
   useEffect(() => {
@@ -361,7 +369,7 @@ export default function EditVehicle() {
 
     // Only send columns that exist in Supabase
     const DB_COLUMNS = ['vehicle_type','manufacturer','model','year',
-      'nickname','license_plate','test_due_date','insurance_due_date','insurance_company',
+      'nickname','license_plate','test_due_date','insurance_due_date','insurance_company','leasing_company',
       'current_km','current_engine_hours','vehicle_photo','vehicle_photo_storage_path','fuel_type',
       'last_tire_change_date','km_since_tire_change','tires_changed_count',
       'flag_country','marina','marina_abroad','engine_manufacturer',
@@ -555,7 +563,44 @@ export default function EditVehicle() {
     );
   }
 
-  if (loading || !form) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner />;
+  // Load failed (network/timeout) — offer retry instead of a permanent spinner.
+  if (loadError) {
+    return (
+      <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
+        <div className="max-w-sm w-full text-center">
+          <h1 className="text-lg font-bold mb-2" style={{ color: C.text }}>טעינת הרכב נכשלה</h1>
+          <p className="text-sm mb-6" style={{ color: C.gray500 }}>בדוק את החיבור ונסה שוב.</p>
+          <button
+            onClick={() => setReloadKey(k => k + 1)}
+            className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+            style={{ background: `linear-gradient(135deg, ${C.primary} 0%, #4B7A53 100%)`, color: '#fff' }}>
+            נסה שוב
+          </button>
+        </div>
+      </div>
+    );
+  }
+  // Query succeeded but no row — invalid / inaccessible / deleted vehicle id.
+  if (!form) {
+    return (
+      <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
+        <div className="max-w-sm w-full text-center">
+          <div className="text-7xl mb-4" role="img" aria-hidden="true">🔍</div>
+          <h1 className="text-xl font-bold mb-2" style={{ color: C.text }}>הרכב לא נמצא</h1>
+          <p className="text-sm mb-6" style={{ color: C.gray500 }}>
+            ייתכן שהרכב נמחק או שאין לך הרשאה לערוך אותו.
+          </p>
+          <button
+            onClick={() => navigate('/Vehicles')}
+            className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+            style={{ background: `linear-gradient(135deg, ${C.primary} 0%, #4B7A53 100%)`, color: '#fff' }}>
+            חזרה לרשימת הרכבים
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!isGuestRole && isViewOnly(role)) {
     return (
@@ -804,6 +849,14 @@ export default function EditVehicle() {
               </div>
             )}
           </div>
+
+          {hasRegistration && (
+            <LeasingCompanyField
+              value={form.leasing_company}
+              onChange={(v) => handleChange('leasing_company', v)}
+              highlight={isLeasingOwnership(form.ownership)}
+            />
+          )}
 
           {/* 2026-05-17: gov.il auto-sync per-vehicle toggle. Shown only
               for vehicles that have a license plate (hasRegistration —

@@ -24,6 +24,15 @@ export function useAnimatedNumber(target, duration = 1100) {
   const rafRef   = useRef(null);
 
   useEffect(() => {
+    // Respect reduced-motion: jump straight to the target, no count-up.
+    const reduce = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      setValue(target);
+      return;
+    }
+
     fromRef.current = value;
     startRef.current = null;
 

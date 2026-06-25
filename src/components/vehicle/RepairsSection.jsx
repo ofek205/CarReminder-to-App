@@ -114,11 +114,11 @@ export default function RepairsSection({ vehicle }) {
 
   const handleSaveRepair = async () => {
     if (!repairForm.title?.trim()) {
-      toastError('יש להזין כותרת', { action: 'repair_title_required' });
+      toast.error('יש להזין כותרת');
       return;
     }
     if (!repairForm.occurred_at) {
-      toastError('יש להזין תאריך אירוע', { action: 'repair_date_required' });
+      toast.error('יש להזין תאריך אירוע');
       return;
     }
 

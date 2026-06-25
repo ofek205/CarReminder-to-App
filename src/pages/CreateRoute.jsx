@@ -31,6 +31,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -132,9 +133,9 @@ export default function CreateRoute() {
   const { data: team = [] } = useQuery({
     queryKey: ['routes-team-picker', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('workspace_team_directory', {
+      const { data, error } = await withTimeout(supabase.rpc('workspace_team_directory', {
         p_account_id: accountId,
-      });
+      }), 'create_route_team');
       if (error) throw error;
       return data || [];
     },
@@ -148,11 +149,11 @@ export default function CreateRoute() {
   const { data: assignments = [] } = useQuery({
     queryKey: ['routes-driver-assignments', accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('driver_assignments')
         .select('vehicle_id, driver_user_id, valid_to, status')
         .eq('account_id', accountId)
-        .eq('status', 'active');
+        .eq('status', 'active'), 'create_route_assignments');
       if (error) throw error;
       return data || [];
     },
@@ -340,7 +341,15 @@ export default function CreateRoute() {
       if (error) throw error;
       if (!newRouteId) throw new Error('no_id_returned');
 
-      await queryClient.invalidateQueries({ queryKey: ['routes'] });
+      // The Routes list keys are ['routes-paged'|'routes-driver'|'routes-stops', …];
+      // 'routes' is not a prefix of those (React Query matches element-wise), so
+      // the old ['routes'] key never refetched and a new task didn't appear until
+      // staleTime elapsed (audit ב-16). Invalidate the real keys.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['routes-paged'] }),
+        queryClient.invalidateQueries({ queryKey: ['routes-driver'] }),
+        queryClient.invalidateQueries({ queryKey: ['routes-stops'] }),
+      ]);
 
       if (failedCount > 0) {
         const phrase = failedCount > 1
