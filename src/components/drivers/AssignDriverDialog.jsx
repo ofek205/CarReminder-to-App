@@ -60,11 +60,16 @@ export default function AssignDriverDialog({
     if (kind === 'temporary' && !validTo)    { toastError('בחר תאריך סיום', { action: 'assign_driver_end_date_required' }); return; }
     if (kind === 'future'    && !validFrom)  { toastError('בחר תאריך התחלה', { action: 'assign_driver_start_date_required' }); return; }
 
+    // Parse the date inputs in LOCAL time. new Date('YYYY-MM-DD') parses as
+    // UTC midnight — in Israel (UTC+2/+3) that's ~02:00 local, so a 'future'
+    // start dated today landed in the PAST and a 'temporary' end dated today
+    // expired at 02:00 instead of end-of-day (ב-12). Anchor start to the
+    // beginning of the local day and end to the end of the local day.
     const valid_from_iso = kind === 'future'
-      ? new Date(validFrom).toISOString()
+      ? new Date(validFrom + 'T00:00:00').toISOString()
       : new Date().toISOString();
     const valid_to_iso = kind === 'temporary'
-      ? new Date(validTo).toISOString()
+      ? new Date(validTo + 'T23:59:59.999').toISOString()
       : null;
 
     setSubmitting(true);

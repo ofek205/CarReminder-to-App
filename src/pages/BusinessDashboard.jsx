@@ -65,8 +65,11 @@ const fmtTimeShort = (ts) => {
 };
 
 const monthStartISO = () => {
-  const d = new Date(); d.setDate(1);
-  return d.toISOString().slice(0, 10);
+  // Build the key in LOCAL time. toISOString() converts to UTC, which in
+  // Israel (UTC+2/+3) can roll the date back to the previous month in the
+  // early hours — making 'הוצאות החודש' read 0 and skewing the delta (ב-2).
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 };
 
 function greetingFor(date = new Date()) {

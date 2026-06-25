@@ -64,7 +64,13 @@ const MapCore = lazy(() => import('@/components/map/MapCore'));
 
 // ---------- date helpers --------------------------------------------------
 
-function isoDate(d) { return d.toISOString().slice(0, 10); }
+// LOCAL date string (not UTC). toISOString() shifts to UTC, so between
+// local midnight and ~03:00 in Israel (UTC+2/+3) "today" resolved to the
+// previous calendar day and the map loaded yesterday's tasks (ב-17). All the
+// today/tomorrow/week helpers below flow through here, so this fixes them all.
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function todayISO()    { return isoDate(new Date()); }
 function tomorrowISO() {
   const d = new Date(); d.setDate(d.getDate() + 1); return isoDate(d);
