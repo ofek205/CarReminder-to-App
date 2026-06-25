@@ -133,9 +133,10 @@ export default function Fleet() {
     queryFn: async () => {
       const { data, error } = await withTimeout(supabase
         .from('vehicles')
-        // created_at/updated_at are needed by the 'עדכון אחרון' sort option —
-        // without them that sort was a no-op (sorted on undefined) (audit ב-4).
-        .select('id, nickname, manufacturer, model, year, license_plate, vehicle_type, test_due_date, insurance_due_date, leasing_company, created_at, updated_at')
+        // created_at exists; updated_at does NOT (verified vs DB) — selecting
+        // the non-existent column broke the whole query (prod 'load failed').
+        // The 'עדכון אחרון' sort uses created_at.
+        .select('id, nickname, manufacturer, model, year, license_plate, vehicle_type, test_due_date, insurance_due_date, leasing_company, created_at')
         .eq('account_id', accountId), 'fleet_vehicles');
       if (error) throw error;
       return data || [];
@@ -255,7 +256,7 @@ export default function Fleet() {
         case 'plate':     return (a.license_plate || '').localeCompare(b.license_plate || '');
         case 'nickname':  return (a.nickname || '').localeCompare(b.nickname || '');
         case 'year_desc': return (b.year || 0) - (a.year || 0);
-        case 'recent':    return new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
+        case 'recent':    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
         case 'status':
         default:
           return STATUS_PRIORITY[vehicleStatus(a).key] - STATUS_PRIORITY[vehicleStatus(b).key];

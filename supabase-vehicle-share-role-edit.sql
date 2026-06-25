@@ -33,8 +33,12 @@ begin
   if v_caller is null then
     raise exception 'unauthenticated' using errcode = '42501';
   end if;
-  if p_role not in ('בעלים', 'מנהל', 'שותף') then
-    raise exception 'invalid_role: must be בעלים / מנהל / שותף' using errcode = '22023';
+  -- vehicle_shares.role is CHECK (role in ('viewer','editor')) and the RLS
+  -- policies + client all speak viewer/editor. This RPC previously validated
+  -- against the ACCOUNT-member vocabulary (בעלים/מנהל/שותף), so any role edit
+  -- either threw invalid_role or violated the column CHECK on UPDATE (ג-13).
+  if p_role not in ('viewer', 'editor') then
+    raise exception 'invalid_role: must be viewer / editor' using errcode = '22023';
   end if;
 
   -- Pull the share + verify ownership.
@@ -92,8 +96,8 @@ begin
       coalesce(v_owner_name, 'משתמש') || ' עדכן/ה את ההרשאה שלך',
       'ההרשאה שלך על ' || coalesce(v_vehicle_label, 'הרכב') || ' עודכנה ל' ||
         case p_role
-          when 'מנהל' then 'שותף עורך (יכול לערוך)'
-          when 'שותף' then 'שותף צופה (תצוגה בלבד)'
+          when 'editor' then 'עורך (יכול לערוך הכל חוץ ממחיקה)'
+          when 'viewer' then 'צופה (תצוגה בלבד)'
           else p_role
         end || '.',
       jsonb_build_object(
@@ -148,7 +152,11 @@ begin
   if v_caller is null then
     raise exception 'unauthenticated' using errcode = '42501';
   end if;
-  if p_role not in ('מנהל', 'שותף') then
+  -- Roles match the column CHECK / RLS / client: viewer (read-only) or editor
+  -- (everything except delete + re-share). This redefinition previously used
+  -- the account-member vocabulary (מנהל/שותף), which the client never sends
+  -- and the CHECK rejects — breaking sharing end-to-end if deployed (ג-13).
+  if p_role not in ('viewer', 'editor') then
     raise exception 'invalid_role' using errcode = '22023';
   end if;
   if v_normalized is null or v_normalized = '' or position('@' in v_normalized) = 0 then
