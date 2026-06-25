@@ -27,6 +27,8 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
+import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -76,28 +78,28 @@ export default function RouteDetail() {
   const params = new URLSearchParams(location.search);
   const routeId = params.get('id');
 
-  const { data: route, isLoading: routeLoading } = useQuery({
+  const { data: route, isLoading: routeLoading, isError: routeError, refetch: refetchRoute } = useQuery({
     queryKey: ['route', routeId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('routes')
         .select('*')
         .eq('id', routeId)
-        .maybeSingle();
+        .maybeSingle(), 'route_detail');
       if (error) throw error;
       return data;
     },
     enabled: !!routeId,
   });
 
-  const { data: stops = [], isLoading: stopsLoading } = useQuery({
+  const { data: stops = [], isLoading: stopsLoading, isError: stopsError, refetch: refetchStops } = useQuery({
     queryKey: ['route-stops', routeId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('route_stops')
         .select('*')
         .eq('route_id', routeId)
-        .order('sequence', { ascending: true });
+        .order('sequence', { ascending: true }), 'route_detail_stops');
       if (error) throw error;
       return data || [];
     },
@@ -107,9 +109,9 @@ export default function RouteDetail() {
   const { data: team = [] } = useQuery({
     queryKey: ['route-team-directory', route?.account_id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('workspace_team_directory', {
+      const { data, error } = await withTimeout(supabase.rpc('workspace_team_directory', {
         p_account_id: route.account_id,
-      });
+      }), 'route_detail_team');
       if (error) throw error;
       return data || [];
     },
@@ -126,6 +128,17 @@ export default function RouteDetail() {
   }
   if (routeLoading || stopsLoading) {
     return <div dir="rtl" className="text-center py-16 text-xs text-gray-400">טוען משימה...</div>;
+  }
+  // A load error must not be mistaken for "route not found" — offer retry.
+  if (routeError || stopsError) {
+    return (
+      <div dir="rtl" className="max-w-md mx-auto py-10 px-4">
+        <SystemErrorBanner
+          message="טעינת המשימה נכשלה. בדוק את החיבור ונסה שוב."
+          onRetry={() => { refetchRoute(); refetchStops(); }}
+        />
+      </div>
+    );
   }
   if (!route) {
     return <Empty text="המשימה לא נמצאה, או שאין לך הרשאה לצפות בה." />;
