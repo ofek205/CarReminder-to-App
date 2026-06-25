@@ -62,6 +62,8 @@ export default function EditVehicle() {
   // bad-id render and break React's hook ordering invariant.
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [form, setForm] = useState(null);
   const [accountId, setAccountId] = useState(null);
@@ -191,6 +193,8 @@ export default function EditVehicle() {
     if (!vehicleId) { setLoading(false); return; }
     async function load() {
       try {
+      setLoadError(false);
+      setLoading(true);
       // Guest vehicle - load from local state
       if (isGuestVehicle) {
         const v = guestVehicles.find(v => v.id === vehicleId);
@@ -239,11 +243,12 @@ export default function EditVehicle() {
       } catch (err) {
         console.error('EditVehicle load error:', err);
         toastError('שגיאה בטעינת פרטי הרכב', { action: 'vehicle_load', err });
+        setLoadError(true);
         setLoading(false);
       }
     }
     load();
-  }, [vehicleId, isGuestVehicle]);
+  }, [vehicleId, isGuestVehicle, reloadKey]);
 
   // Scroll to & highlight the target field when navigated with ?field=xxx
   useEffect(() => {
@@ -558,7 +563,44 @@ export default function EditVehicle() {
     );
   }
 
-  if (loading || !form) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner />;
+  // Load failed (network/timeout) — offer retry instead of a permanent spinner.
+  if (loadError) {
+    return (
+      <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
+        <div className="max-w-sm w-full text-center">
+          <h1 className="text-lg font-bold mb-2" style={{ color: C.text }}>טעינת הרכב נכשלה</h1>
+          <p className="text-sm mb-6" style={{ color: C.gray500 }}>בדוק את החיבור ונסה שוב.</p>
+          <button
+            onClick={() => setReloadKey(k => k + 1)}
+            className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+            style={{ background: `linear-gradient(135deg, ${C.primary} 0%, #4B7A53 100%)`, color: '#fff' }}>
+            נסה שוב
+          </button>
+        </div>
+      </div>
+    );
+  }
+  // Query succeeded but no row — invalid / inaccessible / deleted vehicle id.
+  if (!form) {
+    return (
+      <div dir="rtl" className="min-h-[60vh] flex items-center justify-center p-6">
+        <div className="max-w-sm w-full text-center">
+          <div className="text-7xl mb-4" role="img" aria-hidden="true">🔍</div>
+          <h1 className="text-xl font-bold mb-2" style={{ color: C.text }}>הרכב לא נמצא</h1>
+          <p className="text-sm mb-6" style={{ color: C.gray500 }}>
+            ייתכן שהרכב נמחק או שאין לך הרשאה לערוך אותו.
+          </p>
+          <button
+            onClick={() => navigate('/Vehicles')}
+            className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+            style={{ background: `linear-gradient(135deg, ${C.primary} 0%, #4B7A53 100%)`, color: '#fff' }}>
+            חזרה לרשימת הרכבים
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!isGuestRole && isViewOnly(role)) {
     return (
