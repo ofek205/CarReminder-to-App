@@ -382,6 +382,7 @@ export default function Fleet() {
   return (
     <PageShell
       title="צי הרכבים"
+      backTo="BusinessDashboard"
       subtitle={(
         <span>
           <span dir="ltr" className="tabular-nums font-bold" style={{ color: C.primaryDark }}>
