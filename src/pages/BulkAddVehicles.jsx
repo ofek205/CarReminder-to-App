@@ -1402,6 +1402,15 @@ function sanitizeFromMoT(data) {
     if (typeof v === 'object') continue;
     out[k] = v;
   }
+  // Preserve off-road / cancelled status, matching the manual AddVehicle flow
+  // (audit ג-11). _cancellationDate is an underscore-prefixed marker on the
+  // lookup result (dropped by the whitelist above), so derive the real columns
+  // here. Only a FINAL cancellation (ביטול סופי) sets is_road_removed — a
+  // merely lapsed test does not, exactly like the manual sanitiser.
+  if (data._cancellationDate) {
+    out.is_road_removed = true;
+    out.road_removed_date = data._cancellationDate;
+  }
   return out;
 }
 
