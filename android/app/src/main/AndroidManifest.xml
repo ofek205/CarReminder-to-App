@@ -49,6 +49,27 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- TripGuard (child-in-car reminder): receives the car's Bluetooth
+             connect/disconnect. ACL_CONNECTED / ACL_DISCONNECTED are exempt
+             from implicit-broadcast restrictions, so this manifest receiver
+             fires even when the app is killed — no foreground service needed.
+             exported="true" because the broadcasts originate from the system. -->
+        <receiver
+            android:name=".tripguard.TripGuardReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Handles the safety-alert notification's action buttons + the
+             escalation alarm. Internal only (all PendingIntents are created
+             in-app), so exported=false. -->
+        <receiver
+            android:name=".tripguard.TripGuardActionReceiver"
+            android:exported="false" />
     </application>
 
     <!-- Hardware feature declarations.
@@ -73,6 +94,11 @@
     <uses-feature android:name="android.hardware.location.network"  android:required="false" />
     <uses-feature android:name="android.hardware.telephony"         android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen"       android:required="false" />
+    <!-- TripGuard (child-in-car reminder) detects the car's Bluetooth
+         connect/disconnect. required="false" so Play doesn't exclude
+         devices without Bluetooth (the feature just stays inactive there). -->
+    <uses-feature android:name="android.hardware.bluetooth"         android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth_le"      android:required="false" />
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -122,6 +148,12 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
         tools:node="remove" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- TripGuard: BLUETOOTH_CONNECT (Android 12+) is needed to read the
+         user's bonded devices and to receive ACL connect/disconnect for the
+         paired car. Requested at runtime from the SafetyReminder screen.
+         The legacy BLUETOOTH permission covers Android 11 and below. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- NOTE: We previously also declared USE_EXACT_ALARM as a "backup"
          for SCHEDULE_EXACT_ALARM. Google Play rejects that declaration

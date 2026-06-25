@@ -9,6 +9,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import com.getcapacitor.BridgeActivity;
+import com.carreminder.app.tripguard.TripGuardPlugin;
 
 /**
  * Edge-to-edge layout, single source of truth for insets.
@@ -36,6 +37,11 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Capacitor requires app-local plugins to be registered BEFORE
+        // super.onCreate() (which builds the bridge). TripGuard is the
+        // child-in-car safety reminder plugin (see tripguard/).
+        registerPlugin(TripGuardPlugin.class);
+
         super.onCreate(savedInstanceState);
 
         // Belt-and-suspenders white window background.
