@@ -57,7 +57,7 @@ const ERROR_COPY = {
   already_member:     'המשתמש כבר חבר בחשבון או שיש הזמנה ממתינה',
 };
 
-export default function InviteAccountMemberDialog({ open, onOpenChange, accountId, vehicles = [] }) {
+export default function InviteAccountMemberDialog({ open, onOpenChange, accountId, vehicles = [], businessMode = false }) {
   const { user } = useAuth();
   const [role, setRole] = useState('שותף');
   const [email, setEmail] = useState('');
@@ -115,6 +115,9 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
         p_email: cleanEmail,
         p_role: role,
         p_vehicle_ids: shareAll ? null : selectedVehicleIds,
+        // Explicit account (the active workspace) — ends the non-deterministic
+        // LIMIT 1 server-side resolve for users who belong to several accounts.
+        p_account_id: accountId,
       });
       if (error) {
         const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
@@ -162,7 +165,9 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
 
   const openWhatsApp = () => {
     const roleLabel = role === 'מנהל' ? 'מנהל' : 'צופה';
-    const text = `הצטרף/י לחשבון הרכבים שלי ב-CarReminder כ${roleLabel}. לחץ להצטרפות:\n${inviteLink}`;
+    const text = businessMode
+      ? `הצטרף/י לצוות שלי ב-CarReminder כ${roleLabel}. לחץ להצטרפות:\n${inviteLink}`
+      : `הצטרף/י לחשבון הרכבים שלי ב-CarReminder כ${roleLabel}. לחץ להצטרפות:\n${inviteLink}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -199,7 +204,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <UserPlus className="w-5 h-5" style={{ color: C.primary }} />
-            הזמנת חבר לחשבון
+            {businessMode ? 'הזמנת איש צוות' : 'הזמנת חבר לחשבון'}
           </DialogTitle>
         </DialogHeader>
 

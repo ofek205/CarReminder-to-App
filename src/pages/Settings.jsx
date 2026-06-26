@@ -33,6 +33,7 @@ import { PageShell, Card } from '@/components/business/system';
 import UserProfilePage from './UserProfile';
 import AccountSettings from './AccountSettings';
 import ReminderSettingsPage from './ReminderSettingsPage';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { C } from '@/lib/designTokens';
 
 const TABS = [
@@ -45,6 +46,18 @@ export default function Settings() {
   const [params, setParams] = useSearchParams();
   const initial = TABS.find(t => t.key === params.get('tab'))?.key || 'profile';
   const [active, setActive] = useState(initial);
+  const { isBusiness } = useWorkspaceRole();
+
+  // When the active workspace is a business account, member management lives
+  // in the dedicated business surface (ניהול הצוות), NOT the personal
+  // "חשבון משותף" screen — enforce the separation by hiding that tab here.
+  const tabs = isBusiness ? TABS.filter(t => t.key !== 'account') : TABS;
+
+  // A deep link to ?tab=account inside a business workspace falls back to
+  // the profile tab (the account tab no longer exists in this context).
+  useEffect(() => {
+    if (isBusiness && active === 'account') setActive('profile');
+  }, [isBusiness, active]);
 
   // Keep the URL in sync so refresh / deep-links land on the same tab.
   useEffect(() => {
@@ -53,10 +66,10 @@ export default function Settings() {
       next.set('tab', active);
       setParams(next, { replace: true });
     }
-     
+
   }, [active]);
 
-  const current = TABS.find(t => t.key === active) || TABS[0];
+  const current = tabs.find(t => t.key === active) || tabs[0];
 
   return (
     <PageShell
@@ -73,7 +86,7 @@ export default function Settings() {
           aria-label="הגדרות"
           className="flex items-center gap-1 overflow-x-auto"
         >
-          {TABS.map(tab => {
+          {tabs.map(tab => {
             const isActive = tab.key === active;
             const Icon = tab.icon;
             return (
@@ -109,7 +122,7 @@ export default function Settings() {
           Cards / sections; this wrapper just hosts them. */}
       <Suspense fallback={<div className="flex justify-center py-16"><LoadingSpinner /></div>}>
         {active === 'profile' && <UserProfilePage embedded />}
-        {active === 'account' && <AccountSettings embedded />}
+        {active === 'account' && !isBusiness && <AccountSettings embedded />}
         {active === 'alerts'  && <ReminderSettingsPage embedded />}
       </Suspense>
 

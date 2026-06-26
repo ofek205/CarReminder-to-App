@@ -116,9 +116,9 @@ export default function Team() {
           its bucket below are visually linked. */}
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         <KpiTile
-          label="סה״כ חברים"
+          label="סה״כ אנשי צוות"
           value={<AnimatedCount value={counts.total} />}
-          sub={counts.total === 1 ? 'חבר אחד בחשבון' : 'אנשים בחשבון'}
+          sub={counts.total === 1 ? 'איש צוות אחד' : 'אנשי צוות בחשבון'}
           tone="emerald"
         />
         <KpiTile
@@ -164,9 +164,9 @@ export default function Team() {
       ) : team.length === 0 ? (
         <Card className="text-center py-12">
           <Users className="h-10 w-10 mx-auto mb-3" style={{ color: C.successLighter }} />
-          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>אין חברים בצוות</p>
+          <p className="text-sm font-bold mb-1" style={{ color: C.primaryDark }}>אין עדיין אנשי צוות</p>
           <p className="text-xs leading-relaxed" style={{ color: C.mutedAlt }}>
-            כשמנהל יוסיף חברים לחשבון, הם יופיעו כאן עם פרטי קשר.
+            כשמנהל יוסיף אנשי צוות לחשבון, הם יופיעו כאן עם פרטי קשר.
           </p>
         </Card>
       ) : (

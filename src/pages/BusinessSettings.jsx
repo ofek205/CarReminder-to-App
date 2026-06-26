@@ -26,6 +26,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { Input } from '@/components/ui/input';
 // Living Dashboard system - shared with all B2B pages.
 import { PageShell, Card } from '@/components/business/system';
+import TransferOwnershipDialog from '@/components/business/TransferOwnershipDialog';
 import { C } from '@/lib/designTokens';
 
 const MAX_NAME = 120;
@@ -44,6 +45,7 @@ export default function BusinessSettings() {
   const [hideAi, setHideAi]               = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [dirty, setDirty]           = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   // Hydrate form from active workspace metadata.
   useEffect(() => {
@@ -272,6 +274,34 @@ export default function BusinessSettings() {
           </button>
         </div>
       </form>
+
+      {/* Ownership — the whole page is already owner-gated, so this is
+          owner-only. Transfer hands the account to another active member;
+          the previous owner becomes 'מנהל'. */}
+      <div className="mt-4">
+        <Section
+          accent="purple"
+          title="בעלות החשבון"
+          subtitle="העברת הבעלות על החשבון לאיש צוות אחר. אתה תרד לתפקיד מנהל."
+        >
+          <button
+            type="button"
+            onClick={() => setTransferOpen(true)}
+            className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            style={{ background: '#FFFFFF', color: '#7C3AED', border: '1.5px solid #E9D5FF' }}
+          >
+            <Briefcase className="h-4 w-4" />
+            העבר בעלות
+          </button>
+        </Section>
+      </div>
+
+      <TransferOwnershipDialog
+        open={transferOpen}
+        onOpenChange={setTransferOpen}
+        accountId={accountId}
+        accountName={activeWorkspace?.account_name || name}
+      />
     </PageShell>
   );
 }

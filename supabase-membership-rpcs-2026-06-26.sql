@@ -373,7 +373,14 @@ grant execute on function public.leave_account(uuid) to authenticated;
 -- ── 5. cancel_pending_invite ──────────────────────────────────────────────
 -- Owner/manager cancels a still-pending (registered) invite. Deletes the
 -- 'ממתין' row so the unique index frees up and the person can be re-invited.
-create or replace function public.cancel_pending_invite(p_member_id uuid)
+-- Keyed by (account_id, member_user_id) for consistency with the other RPCs
+-- (the team directory exposes user_id, not the membership row id).
+drop function if exists public.cancel_pending_invite(uuid);
+
+create or replace function public.cancel_pending_invite(
+  p_account_id     uuid,
+  p_member_user_id uuid
+)
 returns boolean
 language plpgsql
 security definer
@@ -381,7 +388,6 @@ set search_path = public
 as $$
 declare
   uid uuid := auth.uid();
-  v_account_id uuid;
   v_status text;
   v_caller_role text;
 begin
@@ -389,8 +395,10 @@ begin
     raise exception 'not_authenticated';
   end if;
 
-  select account_id, status into v_account_id, v_status
-    from public.account_members where id = p_member_id for update;
+  select status into v_status
+    from public.account_members
+   where account_id = p_account_id and user_id = p_member_user_id
+   for update;
   if not found then
     raise exception 'invite_not_found';
   end if;
@@ -400,18 +408,19 @@ begin
 
   select role into v_caller_role
     from public.account_members
-   where account_id = v_account_id and user_id = uid and status = 'פעיל'
+   where account_id = p_account_id and user_id = uid and status = 'פעיל'
      and role in ('בעלים', 'מנהל');
   if v_caller_role is null then
     raise exception 'not_authorized';
   end if;
 
-  delete from public.account_members where id = p_member_id;
+  delete from public.account_members
+   where account_id = p_account_id and user_id = p_member_user_id and status = 'ממתין';
   return true;
 end $$;
 
-revoke all on function public.cancel_pending_invite(uuid) from public;
-grant execute on function public.cancel_pending_invite(uuid) to authenticated;
+revoke all on function public.cancel_pending_invite(uuid, uuid) from public;
+grant execute on function public.cancel_pending_invite(uuid, uuid) to authenticated;
 
 
 -- ── 6. invite_account_member_by_email — +p_account_id, allow 'driver' ───────

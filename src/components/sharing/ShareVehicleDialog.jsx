@@ -25,7 +25,7 @@ import { supabase } from '@/lib/supabase';
 import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Copy, Check, Eye, Edit, Share2, Clock, UserPlus, Mail, Shield, Users } from 'lucide-react';
+import { Loader2, Copy, Check, Eye, Edit, Share2, Clock, UserPlus, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
@@ -59,25 +59,6 @@ const VEHICLE_ROLES = [
   },
 ];
 
-const ACCOUNT_ROLES = [
-  {
-    value: 'מנהל',
-    label: 'שותף עורך',
-    description: 'מוסיף ועורך הכל, חוץ ממחיקת רכבים וניהול חברים',
-    icon: Shield,
-    color: '#2563EB',
-    bg: C.infoBg,
-  },
-  {
-    value: 'שותף',
-    label: 'שותף צופה',
-    description: 'צפייה בלבד, ללא עריכה או מחיקה',
-    icon: Eye,
-    color: C.gray500,
-    bg: C.gray100,
-  },
-];
-
 // Errors raised by share_vehicle_with_email — translate to Hebrew so we
 // don't dump raw codes in the UI. Anything not on the list falls back
 // to a generic message; we still surface the raw error in DEV console.
@@ -91,18 +72,8 @@ const VEHICLE_ERROR_COPY = {
   invalid_role:         'הרשאה לא תקינה',
 };
 
-const ACCOUNT_ERROR_COPY = {
-  not_authenticated:  'צריך להתחבר כדי להזמין',
-  not_authorized:     'רק בעלים או מנהלים יכולים להזמין',
-  invalid_role:       'תפקיד לא תקין',
-  invalid_email:      'כתובת מייל לא תקינה',
-  cannot_invite_self: 'לא ניתן להזמין את עצמך',
-  already_member:     'המשתמש כבר חבר בחשבון או שיש הזמנה ממתינה',
-};
-
 export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
   const { user } = useAuth();
-  const [mode, setMode] = useState('vehicle'); // 'vehicle' | 'account'
   const [role, setRole] = useState('editor');
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -110,8 +81,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
   const [copied, setCopied] = useState(false);
   const [recents, setRecents] = useState([]);
 
-  const isAccountMode = mode === 'account';
-  const roles = isAccountMode ? ACCOUNT_ROLES : VEHICLE_ROLES;
+  const roles = VEHICLE_ROLES;
 
   useEffect(() => {
     if (open) setRecents(getRecentShareEmails(user?.id));
@@ -124,17 +94,11 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
   }, [recents, email]);
 
   const reset = () => {
-    setMode('vehicle');
     setRole('editor');
     setEmail('');
     setSubmitting(false);
     setShareResult(null);
     setCopied(false);
-  };
-
-  const switchMode = (newMode) => {
-    setMode(newMode);
-    setRole(newMode === 'account' ? 'שותף' : 'editor');
   };
 
   const handleClose = (next) => {
@@ -151,53 +115,28 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
 
     setSubmitting(true);
     try {
-      if (isAccountMode) {
-        const { data, error } = await supabase.rpc('invite_account_member_by_email', {
-          p_email: cleanEmail,
-          p_role: role,
-        });
-        if (error) {
-          const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
-          const msg = ACCOUNT_ERROR_COPY[code] || `שגיאה בהזמנה: ${error.message}`;
-          toastError(msg, { action: 'share_account_invite', err: error });
-          if (import.meta.env.DEV) console.warn('invite_account_member_by_email error:', error);
-          setSubmitting(false);
-          return;
-        }
-        setShareResult(data);
-        rememberShareEmail(user?.id, cleanEmail);
-        if (data?.recipient_existing_user) {
-          toast.success('ההזמנה נשלחה — ממתין לאישור');
-        } else {
-          toast.success('קישור הזמנה נוצר');
-          if (data?.invite_token) {
-            sendShareEmail(cleanEmail, data.invite_token).catch(() => {});
-          }
-        }
-      } else {
-        if (!vehicle?.id) {
-          toastError('רכב לא נמצא', { action: 'share_vehicle_not_found' });
-          setSubmitting(false);
-          return;
-        }
-        const { data, error } = await supabase.rpc('share_vehicle_with_email', {
-          p_vehicle_id: vehicle.id,
-          p_email:      cleanEmail,
-          p_role:       role,
-        });
-        if (error) {
-          const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
-          const msg = VEHICLE_ERROR_COPY[code] || `שגיאה בשיתוף: ${error.message}`;
-          toastError(msg, { action: 'share_vehicle_send', err: error });
-          if (import.meta.env.DEV) console.warn('share_vehicle_with_email error:', error);
-          setSubmitting(false);
-          return;
-        }
-        setShareResult(data);
-        rememberShareEmail(user?.id, cleanEmail);
-        toast.success('ההזמנה נשלחה');
-        sendShareEmail(cleanEmail, data?.invite_token).catch(() => {});
+      if (!vehicle?.id) {
+        toastError('רכב לא נמצא', { action: 'share_vehicle_not_found' });
+        setSubmitting(false);
+        return;
       }
+      const { data, error } = await supabase.rpc('share_vehicle_with_email', {
+        p_vehicle_id: vehicle.id,
+        p_email:      cleanEmail,
+        p_role:       role,
+      });
+      if (error) {
+        const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
+        const msg = VEHICLE_ERROR_COPY[code] || `שגיאה בשיתוף: ${error.message}`;
+        toastError(msg, { action: 'share_vehicle_send', err: error });
+        if (import.meta.env.DEV) console.warn('share_vehicle_with_email error:', error);
+        setSubmitting(false);
+        return;
+      }
+      setShareResult(data);
+      rememberShareEmail(user?.id, cleanEmail);
+      toast.success('ההזמנה נשלחה');
+      sendShareEmail(cleanEmail, data?.invite_token).catch(() => {});
     } catch (e) {
       toastError(`שגיאה בשיתוף: ${e?.message || 'נסה שוב'}`, { action: 'share_vehicle_exception', err: e });
       reportUserError('share_vehicle', e);
@@ -208,9 +147,8 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
   };
 
   const PUBLIC_DOMAIN = import.meta.env.VITE_PUBLIC_APP_URL || 'https://car-reminder.app';
-  const linkType = isAccountMode ? 'account' : 'vehicle';
   const inviteLink = shareResult?.invite_token
-    ? `${PUBLIC_DOMAIN}/JoinInvite?token=${shareResult.invite_token}&type=${linkType}`
+    ? `${PUBLIC_DOMAIN}/JoinInvite?token=${shareResult.invite_token}&type=vehicle`
     : '';
 
   const vehicleName = vehicle?.nickname
@@ -230,9 +168,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
   };
 
   const openWhatsApp = () => {
-    const text = isAccountMode
-      ? `הצטרף/י לחשבון הרכבים שלי ב-CarReminder. לחץ להצטרפות:\n${inviteLink}`
-      : `שיתפתי איתך את ${vehicleName}. אשר/י את השיתוף בקישור:\n${inviteLink}`;
+    const text = `שיתפתי איתך את ${vehicleName}. אשר/י את השיתוף בקישור:\n${inviteLink}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -252,40 +188,12 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
       >
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
-            {isAccountMode
-              ? <><Users className="w-5 h-5" style={{ color: C.primary }} /> הזמנה לחשבון</>
-              : <><Share2 className="w-5 h-5" style={{ color: C.primary }} /> שיתוף הרכב {vehicleName}</>}
+            <Share2 className="w-5 h-5" style={{ color: C.primary }} /> שיתוף הרכב {vehicleName}
           </DialogTitle>
         </DialogHeader>
 
         {!shareResult ? (
           <div className="space-y-5 pt-2">
-            {/* Mode toggle */}
-            <div className="flex rounded-2xl p-1" style={{ background: C.gray100 }}>
-              <button type="button"
-                onClick={() => switchMode('vehicle')}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all"
-                style={{
-                  background: !isAccountMode ? 'white' : 'transparent',
-                  color: !isAccountMode ? C.primary : C.gray500,
-                  boxShadow: !isAccountMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                }}>
-                <Share2 className="w-4 h-4" />
-                שתף רכב
-              </button>
-              <button type="button"
-                onClick={() => switchMode('account')}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold transition-all"
-                style={{
-                  background: isAccountMode ? 'white' : 'transparent',
-                  color: isAccountMode ? C.primary : C.gray500,
-                  boxShadow: isAccountMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                }}>
-                <Users className="w-4 h-4" />
-                שתף חשבון שלם
-              </button>
-            </div>
-
             {/* Role picker */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-2">סוג הרשאה</label>
@@ -381,7 +289,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
               style={{ background: C.grad, color: 'white', opacity: !email.trim() ? 0.5 : 1 }}>
               {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                 <>
-                  {isAccountMode ? <UserPlus className="h-5 w-5" /> : <Share2 className="h-5 w-5" />}
+                  <Share2 className="h-5 w-5" />
                   שליחת הזמנה
                 </>
               )}
@@ -412,9 +320,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
                       : 'ההזמנה נשלחה'}
                   </p>
                   <p className="text-xs mt-0.5 leading-relaxed" style={{ color: '#2E7D32' }}>
-                    {isAccountMode
-                      ? 'ההתראה תופיע בפעמון שלו באפליקציה. ההזמנה ממתינה לאישור.'
-                      : 'מייל נשלח אוטומטית. ההתראה תופיע גם בפעמון שלו באפליקציה.'}
+                    מייל נשלח אוטומטית. ההתראה תופיע גם בפעמון שלו באפליקציה.
                   </p>
                 </div>
               </div>
