@@ -20,6 +20,7 @@ import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { getRecentShareEmails, rememberShareEmail } from '@/lib/recentShareEmails';
+import { sendAccountInviteEmail } from '@/lib/inviteEmail';
 import { isNative } from '@/lib/capacitor';
 import VehicleImage, { hasVehiclePhoto } from '@/components/shared/VehicleImage';
 
@@ -135,7 +136,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
       } else {
         toast.success('קישור הזמנה נוצר');
         if (data?.invite_token) {
-          sendInviteEmail(cleanEmail, data.invite_token).catch(() => {});
+          sendAccountInviteEmail(cleanEmail, data.invite_token).catch(() => {});
         }
       }
     } catch (e) {
@@ -471,24 +472,3 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
   );
 }
 
-async function sendInviteEmail(toEmail, inviteToken) {
-  if (!toEmail || !inviteToken) return;
-  try {
-    const { sendEmail, sendTemplatedEmail } = await import('@/lib/sendEmail');
-    const PUBLIC_DOMAIN = import.meta.env.VITE_PUBLIC_APP_URL || 'https://car-reminder.app';
-    const link = `${PUBLIC_DOMAIN}/JoinInvite?token=${inviteToken}&type=account`;
-    try {
-      await sendTemplatedEmail('invite', {
-        to: toEmail,
-        vars: { inviterName: 'משתמש CarReminder', roleLabel: 'חבר', inviteLink: link },
-      });
-    } catch (e) {
-      if (e.name === 'EmailsPausedError') throw e;
-      const { buildInviteEmail, buildInviteText } = await import('@/lib/emailTemplates');
-      const subject = 'הוזמנת להצטרף לחשבון ב-CarReminder';
-      const html = buildInviteEmail({ inviterName: 'משתמש', roleLabel: 'חבר', inviteLink: link });
-      const text = buildInviteText({ inviterName: 'משתמש', roleLabel: 'חבר', inviteLink: link });
-      await sendEmail({ to: toEmail, subject, html, text, notificationKey: 'invite' });
-    }
-  } catch { /* best-effort */ }
-}
