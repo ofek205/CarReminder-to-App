@@ -89,6 +89,15 @@ const ASSET_OPTIONS = [
   { value: "shared_only",  label: "שותפים בלבד"         },
 ];
 
+// Account-type lens — mirrors the visible "עסקי" tag. has_business is true
+// when the user belongs to any business workspace (owner OR member/driver);
+// "private" means they have no business workspace at all, only personal.
+const ACCOUNT_TYPE_OPTIONS = [
+  { value: "all",      label: "כל סוגי החשבון" },
+  { value: "business", label: "עם חשבון עסקי"   },
+  { value: "private",  label: "פרטי בלבד"        },
+];
+
 const SIGNUP_OPTIONS = [
   { value: "all",  label: "כל התאריכים"  },
   { value: "1d",   label: "מהיום"        },
@@ -188,6 +197,7 @@ export default function AdminUsers() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterAsset,  setFilterAsset]  = useState("all");
   const [filterSignup, setFilterSignup] = useState("all");
+  const [filterAccountType, setFilterAccountType] = useState("all");
 
   const [sortKey, setSortKey] = useState("signup_at");
   const [sortDir, setSortDir] = useState("desc");
@@ -265,11 +275,14 @@ export default function AdminUsers() {
       if (filterAsset === "no_vehicles"  && (u.vehicles_owned + u.vehicles_shared) > 0) return false;
       if (filterAsset === "shared_only"  && (u.vehicles_owned > 0 || u.vehicles_shared === 0)) return false;
 
+      if (filterAccountType === "business" && !u.has_business) return false;
+      if (filterAccountType === "private"  && u.has_business)  return false;
+
       if (signupCutoff && new Date(u.signup_at).getTime() < signupCutoff) return false;
 
       return true;
     });
-  }, [users, debouncedSearch, filterStatus, filterAsset, filterSignup]);
+  }, [users, debouncedSearch, filterStatus, filterAsset, filterSignup, filterAccountType]);
 
   //  Sort
   const sorted = useMemo(() => {
@@ -292,7 +305,7 @@ export default function AdminUsers() {
   const paged = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   //  Reset to page 1 when filters change
-  useEffect(() => { setPage(1); }, [debouncedSearch, filterStatus, filterAsset, filterSignup]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, filterStatus, filterAsset, filterSignup, filterAccountType]);
 
   const toggleSort = useCallback((key) => {
     if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -301,6 +314,7 @@ export default function AdminUsers() {
 
   const clearFilters = () => {
     setSearch(""); setFilterStatus("all"); setFilterAsset("all"); setFilterSignup("all");
+    setFilterAccountType("all");
   };
 
   const handleRowClick = (user) => {
@@ -422,6 +436,12 @@ export default function AdminUsers() {
             <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
               {ASSET_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterAccountType} onValueChange={setFilterAccountType}>
+            <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {ACCOUNT_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterSignup} onValueChange={setFilterSignup}>

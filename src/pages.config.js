@@ -85,9 +85,11 @@ const BusinessSettings      = React.lazy(() => import('./pages/BusinessSettings'
 const MyVehicles            = React.lazy(() => import('./pages/MyVehicles'));
 const BulkAddVehicles       = React.lazy(() => import('./pages/BulkAddVehicles'));
 const Team                  = React.lazy(() => import('./pages/Team'));
+const TeamManagement        = React.lazy(() => import('./pages/TeamManagement'));
 const DrivingLog            = React.lazy(() => import('./pages/DrivingLog'));
 const VehicleCheck          = React.lazy(() => import('./pages/VehicleCheck'));
 const SafetyReminder        = React.lazy(() => import('./pages/SafetyReminder'));
+const Forms                 = React.lazy(() => import('./pages/Forms'));
 // /dev/components — design system style guide. No auth, no chrome.
 // Only loaded in DEV builds. In production we replace the lazy chunk
 // with a tiny 404 stub so visiting /dev/components on the live site
@@ -161,9 +163,11 @@ export const PAGES = {
     "MyVehicles":   MyVehicles,
     "BulkAddVehicles": BulkAddVehicles,
     "Team":         Team,
+    "TeamManagement": TeamManagement,
     "DrivingLog":   DrivingLog,
     "vehicle-check": VehicleCheck,
     "SafetyReminder": SafetyReminder,
+    "Forms":        Forms,
     // Design system style guide. URL is /dev/components.
     // The slash in the path is fine here because the route entry is
     // wrapped in `/${path}` by App.jsx, and react-router accepts /a/b

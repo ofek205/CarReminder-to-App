@@ -122,7 +122,7 @@ public final class TripGuardNotifier {
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
         NotificationChannel ch = new NotificationChannel(
-            CHANNEL_ID, "תזכורת בטיחות", NotificationManager.IMPORTANCE_HIGH);
+            CHANNEL_ID, "בטיחות ילדים", NotificationManager.IMPORTANCE_HIGH);
         ch.setDescription("התראה לבדוק שלא נשכח ילד ברכב בסוף נסיעה");
         ch.enableVibration(true);
         ch.setVibrationPattern(VIBRATION);

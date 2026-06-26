@@ -14,7 +14,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Truck, Briefcase, AlertTriangle, Receipt,
-  CheckCircle2, TrendingUp, ArrowLeft, Plus, Users,
+  CheckCircle2, TrendingUp, ArrowLeft, Plus, Users, UserCog,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
@@ -674,10 +674,11 @@ export default function BusinessDashboard() {
       <section className="mb-6">
         <h2 className="text-sm font-bold mb-2.5" style={{ color: C.primaryDark }}>פעולות מהירות</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <ActionTile to={createPageUrl('CreateRoute')} icon={Plus}    label="צור משימה" primary />
-          <ActionTile to={createPageUrl('AddVehicle')}  icon={Truck}   label="הוסף רכב" />
-          <ActionTile to={createPageUrl('Drivers')}     icon={Users}   label="נהל נהגים" />
-          <ActionTile to={createPageUrl('Expenses')}    icon={Receipt} label="הוסף הוצאה" />
+          <ActionTile to={createPageUrl('CreateRoute')}     icon={Plus}    label="צור משימה" primary />
+          <ActionTile to={createPageUrl('AddVehicle')}      icon={Truck}   label="הוסף רכב" />
+          <ActionTile to={createPageUrl('TeamManagement')}  icon={UserCog} label="ניהול הצוות" />
+          <ActionTile to={createPageUrl('Drivers')}         icon={Users}   label="נהל נהגים" />
+          <ActionTile to={createPageUrl('Expenses')}        icon={Receipt} label="הוסף הוצאה" />
         </div>
       </section>
 

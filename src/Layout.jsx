@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -124,17 +124,12 @@ const navItems = [
   // business workspace context.
   { name: 'MyExpenses',         label: 'מחשבון הוצאות', icon: Wallet,    guestAllowed: false, personalOnly: true },
   { name: 'Documents',          label: 'מסמכים',  icon: FileText,        guestAllowed: true },
+  { name: 'Forms',              label: 'טפסים',   icon: FileSignature,   guestAllowed: false },
   { name: 'Accidents',          label: 'תאונות',  icon: AlertTriangle,   guestAllowed: true },
   { name: 'FindGarage',         label: 'מצא מוסך', icon: MapPin,         guestAllowed: true },
-  // TripGuard (תזכורת שכחת ילדים ברכב). TEMP GATE: adminOnly until the
-  // native Android plugin lands AND is field-tested. The web build runs a
-  // MOCK with no real Bluetooth detection — showing "ההגנה פעילה" to a real
-  // user would be dangerous false security. When native ships + passes the
-  // device matrix, flip to { guestAllowed: true } and DROP adminOnly (keep
-  // personalOnly) + make isTripGuardSupported() require native on web.
-  // personalOnly: this is a PRIVATE/parent feature — hidden in business
-  // workspaces (a fleet manager doesn't need it).
-  { name: 'SafetyReminder',     label: 'תזכורת בטיחות', icon: Shield,    guestAllowed: false, personalOnly: true, adminOnly: true },
+  // NOTE: "בטיחות ילדים" (TripGuard) is intentionally NOT a top-level nav
+  // item — its home is inside Settings → התראות (see Settings.jsx). Kept out
+  // of the side menu per product decision (set-once safety feature).
 
   // ====================================================================
   // קהילה — Community + Expert AI. Both are private-flow surfaces with

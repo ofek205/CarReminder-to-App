@@ -19,12 +19,13 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase, Loader2, ArrowRight, Clock, AlertTriangle,
-  Truck, Users, Map, NotebookPen, Receipt, FileSpreadsheet, RefreshCw,
+  Truck, Users, Map, NotebookPen, Receipt, FileSpreadsheet, RefreshCw, Plus, X, HelpCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
+import { sendAccountInviteEmail } from '@/lib/inviteEmail';
 import { useAuth } from '@/components/shared/GuestContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
@@ -62,6 +63,38 @@ const fmtDate = (d) => d ? new Date(d).toLocaleString('he-IL', { hour12: false }
 // Lenient Israeli phone check: 9-10 digits after stripping separators.
 function phoneDigits(v) { return String(v || '').replace(/\D/g, ''); }
 function isValidPhone(v) { const d = phoneDigits(v); return d.length >= 9 && d.length <= 10; }
+
+// Team members the requester can pre-attach to the business account. Roles
+// match invite_account_member_by_email's whitelist; labels are the canonical
+// account vocabulary (מנהל/צופה) + the driver operational layer.
+const INVITEE_ROLES = [
+  { value: 'מנהל',   label: 'מנהל' },
+  { value: 'שותף',   label: 'צופה' },
+  { value: 'driver', label: 'נהג' },
+];
+const inviteeRoleLabel = (r) => INVITEE_ROLES.find(o => o.value === r)?.label || r;
+
+// Fire the pre-attached invites once the account exists (the requester is now
+// its owner). Reuses the normal invite RPC: registered → pending + bell;
+// unregistered → token + email. Best-effort per invitee — one bad row never
+// blocks the others or the workspace entry.
+async function autoInviteOnApproval(accountId, invitees) {
+  if (!accountId || !Array.isArray(invitees) || invitees.length === 0) return;
+  for (const inv of invitees) {
+    const email = (inv?.email || '').trim();
+    const role  = inv?.role;
+    if (!email || !email.includes('@') || !['מנהל', 'שותף', 'driver'].includes(role)) continue;
+    try {
+      const { data, error } = await supabase.rpc('invite_account_member_by_email', {
+        p_email: email, p_role: role, p_vehicle_ids: null, p_account_id: accountId,
+      });
+      if (error) continue;  // already_member / transient — skip, keep going
+      if (data && !data.recipient_existing_user && data.invite_token) {
+        sendAccountInviteEmail(email, data.invite_token, inviteeRoleLabel(role)).catch(() => {});
+      }
+    } catch { /* best-effort per invitee */ }
+  }
+}
 
 export default function CreateBusinessWorkspace() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -105,6 +138,9 @@ export default function CreateBusinessWorkspace() {
           await queryClient.invalidateQueries({ queryKey: ['user-workspaces'] });
           await new Promise((r) => setTimeout(r, 50));
           await switchTo(latestRequest.created_account_id);
+          // Fire the pre-attached team invites now that the account exists and
+          // the requester is its owner. Best-effort — never blocks entry.
+          await autoInviteOnApproval(latestRequest.created_account_id, latestRequest.business_meta?.invitees);
           toast.success('החשבון העסקי אושר ונפתח! 🎉');
           navigate(createPageUrl('Vehicles'));
         } catch {
@@ -167,6 +203,11 @@ function RequestForm({ mode, latestRequest, onRequested }) {
   const [contactEmail, setContactEmail] = useState('');
   const [notes, setNotes]             = useState('');
   const [submitting, setSubmitting]   = useState(false);
+  const [invitees, setInvitees]       = useState([]);  // [{ email, role }]
+  const [showHelp, setShowHelp]       = useState(false);
+  const addInvitee    = () => setInvitees((p) => [...p, { email: '', role: 'שותף' }]);
+  const updateInvitee = (i, patch) => setInvitees((p) => p.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
+  const removeInvitee = (i) => setInvitees((p) => p.filter((_, idx) => idx !== i));
 
   // Prefill the phone from the saved profile (only while the user hasn't
   // typed their own). If the profile has none, the field stays required.
@@ -207,6 +248,19 @@ function RequestForm({ mode, latestRequest, onRequested }) {
       };
       if (businessId.trim())   meta.business_id   = businessId.trim();
       if (contactEmail.trim()) meta.contact_email = contactEmail.trim();
+
+      // Pre-attached team invitees ride inside business_meta; they are fired
+      // automatically when the account is approved (autoInviteOnApproval).
+      const seen = new Set();
+      const cleanInvitees = [];
+      for (const v of invitees) {
+        const em = (v.email || '').trim().toLowerCase();
+        if (!em || !em.includes('@') || seen.has(em)) continue;
+        if (!['מנהל', 'שותף', 'driver'].includes(v.role)) continue;
+        seen.add(em);
+        cleanInvitees.push({ email: em, role: v.role });
+      }
+      if (cleanInvitees.length) meta.invitees = cleanInvitees.slice(0, 25);
 
       const { error } = await supabase.rpc('request_business_workspace', {
         p_name:          cleanName,
@@ -381,6 +435,104 @@ function RequestForm({ mode, latestRequest, onRequested }) {
             </Field>
           </div>
 
+          {/* Team invitees — optional. Stored in business_meta.invitees and
+              fired automatically (invite → pending/bell, or link+email) the
+              moment the account is approved and the requester enters it. */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <label className="block text-xs font-bold" style={{ color: C.primaryDark }}>
+                הזמנת אנשי צוות (לא חובה)
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowHelp((h) => !h)}
+                aria-label="איך זה עובד"
+                aria-expanded={showHelp}
+                className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: showHelp ? C.successLight : C.bgSubtle, color: C.successDark }}
+              >
+                <HelpCircle className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {showHelp && (
+              <div
+                className="rounded-xl p-3 mb-2 text-[11px] leading-relaxed space-y-2"
+                style={{ background: '#F6FAF7', border: `1px solid ${C.successLight}`, color: C.textAlt }}
+              >
+                <p>
+                  <strong style={{ color: C.primaryDark }}>איך זה עובד?</strong>{' '}
+                  הזן/י את המייל של מי שתרצה/י לשתף בחשבון. אם כבר יש לו משתמש אצלנו — תישלח אליו הזמנה,
+                  וברגע שיאשר הוא יצורף לחשבון. אם עדיין אין לו משתמש — יישלח אליו מייל עם קישור לפתיחת
+                  חשבון אצלנו, ואחרי שייפתח ויאשר, הוא יצורף.
+                </p>
+                <div>
+                  <p className="font-bold mb-1" style={{ color: C.primaryDark }}>מה כל הרשאה נותנת:</p>
+                  <ul className="space-y-1 pr-1">
+                    <li><strong>מנהל</strong> — מוסיף ועורך רכבים, מסמכים ומשימות, ומזמין אנשי צוות. לא מוחק רכבים ולא מנהל בעלות.</li>
+                    <li><strong>צופה</strong> — רואה את כל החשבון בקריאה בלבד, בלי אפשרות לערוך.</li>
+                    <li><strong>נהג</strong> — רואה רק את הרכבים והמשימות שמשויכים אליו. שיוך הרכב נעשה אחרי פתיחת החשבון, במסך "נהגים".</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {invitees.map((inv, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl p-2.5 space-y-2"
+                  style={{ background: '#FFFFFF', border: `1px solid ${C.successLight}` }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="email" inputMode="email" dir="ltr"
+                      value={inv.email}
+                      onChange={(e) => updateInvitee(i, { email: e.target.value })}
+                      placeholder="name@example.com"
+                      className="h-10 rounded-lg flex-1"
+                      style={{ background: '#FFFFFF', borderColor: C.successLight }}
+                    />
+                    <button
+                      type="button" onClick={() => removeInvitee(i)} aria-label="הסר איש צוות"
+                      className="shrink-0 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                      style={{ color: C.error }}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {INVITEE_ROLES.map((r) => {
+                      const on = inv.role === r.value;
+                      return (
+                        <button
+                          key={r.value} type="button"
+                          onClick={() => updateInvitee(i, { role: r.value })}
+                          className="flex-1 h-9 rounded-lg text-xs font-bold border transition-all active:scale-[0.97]"
+                          style={on
+                            ? { background: C.light, borderColor: C.successBright, color: C.successDark }
+                            : { background: '#FFFFFF', borderColor: C.border, color: C.text }}
+                        >
+                          {r.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button" onClick={addInvitee}
+                className="w-full h-10 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+                style={{ background: '#F6FAF7', border: `1px dashed ${C.successLight}`, color: C.successDark }}
+              >
+                <Plus className="h-4 w-4" /> הוסף איש צוות
+              </button>
+            </div>
+            <p className="text-[10px] mt-1.5" style={{ color: C.muted }}>
+              יישלחו הזמנות אוטומטית כשהחשבון יאושר. תמיד אפשר להוסיף גם אחר כך ב"ניהול הצוות".
+            </p>
+          </div>
+
           <Field label="הערות">
             <Textarea
               value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
@@ -503,6 +655,13 @@ function PendingState({ request }) {
           <Detail label="אימייל ליצירת קשר" value={request.business_meta.contact_email} />
         )}
         {request.reason && <Detail label="הערות" value={request.reason} multiline />}
+        {Array.isArray(request.business_meta?.invitees) && request.business_meta.invitees.length > 0 && (
+          <Detail
+            label="אנשי צוות שיוזמנו עם האישור"
+            multiline
+            value={request.business_meta.invitees.map(v => `${v.email} · ${inviteeRoleLabel(v.role)}`).join('\n')}
+          />
+        )}
         <Detail label="הוגשה" value={fmtDate(request.created_at)} />
       </Card>
     </PageShell>

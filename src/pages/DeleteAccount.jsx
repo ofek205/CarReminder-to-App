@@ -12,6 +12,9 @@ export default function DeleteAccount() {
   const [step, setStep] = useState('choose'); // choose | confirm | deleting | done
   const [mode, setMode] = useState(null); // 'account' | 'data'
   const [error, setError] = useState('');
+  // Set when the server blocks deletion because the user owns a business
+  // account with other active members — drives the "transfer ownership" CTA.
+  const [ownershipBlocked, setOwnershipBlocked] = useState(false);
   // Re-auth state. Mandatory before any destructive operation so a
   // hijacked session can't delete the user's data without the password.
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -34,6 +37,7 @@ export default function DeleteAccount() {
 
   const handleDelete = async () => {
     setError('');
+    setOwnershipBlocked(false);
     // Require a fresh password check. If the user opened this page from a
     // stale or stolen session we still force them to prove possession of the
     // password before anything is deleted.
@@ -97,7 +101,17 @@ export default function DeleteAccount() {
       setStep('done');
     } catch (err) {
       console.error('Delete error:', err);
-      setError('אירעה שגיאה. נסה שוב או פנה לתמיכה.');
+      const msg = err?.message || '';
+      if (msg.includes('must_transfer_ownership')) {
+        // The user owns a business account that still has other active
+        // members. Deleting would orphan/destroy a shared fleet, so the
+        // server blocks it. They must transfer ownership (or remove the
+        // members) first — surface a CTA straight to the transfer screen.
+        setError('אתה הבעלים של חשבון עסקי עם אנשי צוות פעילים. כדי למחוק או לעזוב, יש קודם להעביר את הבעלות לאיש צוות אחר או להסיר את אנשי הצוות מהחשבון.');
+        setOwnershipBlocked(true);
+      } else {
+        setError('אירעה שגיאה. נסה שוב או פנה לתמיכה.');
+      }
       setStep('confirm');
     }
   };
@@ -174,6 +188,18 @@ export default function DeleteAccount() {
             <div className="p-3 rounded-xl text-center text-sm font-bold" style={{ background: C.errorBg, color: C.error }}>
               {error}
             </div>
+          )}
+
+          {ownershipBlocked && (
+            <button
+              type="button"
+              onClick={() => navigate(createPageUrl('BusinessSettings'))}
+              className="w-full py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              style={{ background: '#7C3AED', color: '#fff' }}
+            >
+              <ArrowRight className="w-4 h-4" />
+              להעברת בעלות
+            </button>
           )}
 
           {/* Re-auth gate. Deletion is destructive and irreversible; require

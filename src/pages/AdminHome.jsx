@@ -55,6 +55,7 @@ const PROBE_LABEL = {
   pg_cron:        "cron",
   storage:        "אחסון",
   unack_alerts:   "התראות",
+  gov_sync:       "משרד התחבורה",
 };
 
 const STATUS_DOT = {

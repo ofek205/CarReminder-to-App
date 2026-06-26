@@ -173,6 +173,12 @@ function TriggerRow({ row }) {
   const lastRun = row.last_run_at ? new Date(row.last_run_at) : null;
   const stats = row.last_run_stats || {};
 
+  // Block enabling a trigger whose notification type has no working dispatch
+  // path. reminder_license / reminder_maintenance have no clause in
+  // email_dispatch_candidates() — enabling them sends nothing, silently
+  // (matched=0, "successful" run). Lock the toggle until they're built.
+  const notImplemented = row.notification && row.notification.is_implemented === false;
+
   return (
     <div dir="rtl" className="rounded-2xl p-4"
       style={{ background: '#FFFFFF', border: `1.5px solid ${C.gray200}` }}>
@@ -188,8 +194,19 @@ function TriggerRow({ row }) {
           <p className="text-[11px] text-gray-500 font-mono" dir="ltr">{row.notification_key}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {notImplemented && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ background: C.warnBg, color: C.warnDark }}>
+              לא ממומש למייל
+            </span>
+          )}
           <span className="text-xs text-gray-600">{draft.enabled ? 'פעיל' : 'כבוי'}</span>
-          <Switch checked={draft.enabled} onCheckedChange={(v) => setDraft(d => ({ ...d, enabled: v }))} />
+          <Switch
+            checked={draft.enabled}
+            disabled={notImplemented}
+            onCheckedChange={(v) => setDraft(d => ({ ...d, enabled: v }))}
+            title={notImplemented ? 'סוג זה עדיין לא ממומש לשליחת מייל' : undefined}
+          />
         </div>
       </div>
 

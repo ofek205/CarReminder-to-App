@@ -18,8 +18,9 @@
  * continue to use the old URLs.
  */
 import React, { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { User, Users, Bell } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { User, Users, Bell, Shield, ChevronLeft } from 'lucide-react';
+import { createPageUrl } from '@/utils';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 // Living Dashboard system - same family used across the B2B pages.
 // Settings is technically a personal-area page, but it sits alongside
@@ -33,6 +34,8 @@ import { PageShell, Card } from '@/components/business/system';
 import UserProfilePage from './UserProfile';
 import AccountSettings from './AccountSettings';
 import ReminderSettingsPage from './ReminderSettingsPage';
+import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import useIsAdmin from '@/hooks/useIsAdmin';
 import { C } from '@/lib/designTokens';
 
 const TABS = [
@@ -45,6 +48,22 @@ export default function Settings() {
   const [params, setParams] = useSearchParams();
   const initial = TABS.find(t => t.key === params.get('tab'))?.key || 'profile';
   const [active, setActive] = useState(initial);
+  const { isBusiness } = useWorkspaceRole();
+  const isAdmin = useIsAdmin() === true;
+  // "בטיחות ילדים" (TripGuard) home lives in the התראות tab — a personal/
+  // parent feature. Admin-gated during rollout (matches the page's own gate).
+  const showSafetyEntry = !isBusiness && isAdmin;
+
+  // When the active workspace is a business account, member management lives
+  // in the dedicated business surface (ניהול הצוות), NOT the personal
+  // "חשבון משותף" screen — enforce the separation by hiding that tab here.
+  const tabs = isBusiness ? TABS.filter(t => t.key !== 'account') : TABS;
+
+  // A deep link to ?tab=account inside a business workspace falls back to
+  // the profile tab (the account tab no longer exists in this context).
+  useEffect(() => {
+    if (isBusiness && active === 'account') setActive('profile');
+  }, [isBusiness, active]);
 
   // Keep the URL in sync so refresh / deep-links land on the same tab.
   useEffect(() => {
@@ -53,10 +72,10 @@ export default function Settings() {
       next.set('tab', active);
       setParams(next, { replace: true });
     }
-     
+
   }, [active]);
 
-  const current = TABS.find(t => t.key === active) || TABS[0];
+  const current = tabs.find(t => t.key === active) || tabs[0];
 
   return (
     <PageShell
@@ -73,7 +92,7 @@ export default function Settings() {
           aria-label="הגדרות"
           className="flex items-center gap-1 overflow-x-auto"
         >
-          {TABS.map(tab => {
+          {tabs.map(tab => {
             const isActive = tab.key === active;
             const Icon = tab.icon;
             return (
@@ -109,8 +128,26 @@ export default function Settings() {
           Cards / sections; this wrapper just hosts them. */}
       <Suspense fallback={<div className="flex justify-center py-16"><LoadingSpinner /></div>}>
         {active === 'profile' && <UserProfilePage embedded />}
-        {active === 'account' && <AccountSettings embedded />}
-        {active === 'alerts'  && <ReminderSettingsPage embedded />}
+        {active === 'account' && !isBusiness && <AccountSettings embedded />}
+        {active === 'alerts' && (
+          <>
+            {showSafetyEntry && (
+              <Card className="mb-4">
+                <Link to={createPageUrl('SafetyReminder')} className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: C.light }}>
+                    <Shield className="h-5 w-5" style={{ color: C.primary }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold" style={{ color: C.text }}>בטיחות ילדים</p>
+                    <p className="text-xs" style={{ color: C.muted }}>תזכורת שלא לשכוח ילד ברכב בסוף נסיעה</p>
+                  </div>
+                  <ChevronLeft className="h-5 w-5 shrink-0" style={{ color: C.muted }} />
+                </Link>
+              </Card>
+            )}
+            <ReminderSettingsPage embedded />
+          </>
+        )}
       </Suspense>
 
       {/* Version footer — lives at the page level so it shows for every

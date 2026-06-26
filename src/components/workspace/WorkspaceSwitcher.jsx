@@ -16,7 +16,7 @@ import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
 import { isActiveMember } from '@/lib/enums';
 
-const PERSONAL_LABEL = 'החשבון שלי';
+const PERSONAL_LABEL = 'החשבון הפרטי שלי';
 
 function workspaceLabel(m) {
   if (m.account_type === 'business') {

@@ -163,12 +163,14 @@ begin
   -- Build the notification copy. The vehicle reference uses the
   -- nickname when set (most users have one), otherwise the plate so
   -- the user can still tell which car we mean.
-  v_title := '✅ הטסט עודכן בהצלחה';
-  v_body  := 'זיהינו שביצעת טסט ל'
-          || coalesce(nullif(v_nickname, ''), v_license_plate, 'רכב')
-          || '. תאריך הטסט הבא עודכן ל-'
+  -- Personal + reassuring, consistent with gov_sync_detector copy: title
+  -- names the vehicle, body acknowledges + reassures it's automatic + softly
+  -- nudges uploading the renewed license.
+  v_title := '✅ עדכנו את הטסט של '
+          || coalesce(nullif(v_nickname, ''), v_license_plate, 'רכב');
+  v_body  := 'ראינו שביצעת טסט ועדכנו עבורך את התוקף ל-'
           || to_char(p_new_test_due_date, 'DD/MM/YYYY')
-          || '.';
+          || ', אוטומטית. כדאי להעלות גם את רישיון הרכב המעודכן כדי שהכול יהיה מסודר במקום אחד.';
 
   -- Insert the bell + push notification row. The realtime channel on
   -- app_notifications fires the bell refresh + the LocalNotification

@@ -20,6 +20,7 @@ import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { getRecentShareEmails, rememberShareEmail } from '@/lib/recentShareEmails';
+import { sendAccountInviteEmail } from '@/lib/inviteEmail';
 import { isNative } from '@/lib/capacitor';
 import VehicleImage, { hasVehiclePhoto } from '@/components/shared/VehicleImage';
 
@@ -32,7 +33,7 @@ const WhatsAppIcon = ({ size = 16 }) => (
 const ROLES = [
   {
     value: 'מנהל',
-    label: 'שותף עורך',
+    label: 'מנהל',
     description: 'מוסיף ועורך הכל, חוץ ממחיקת רכבים וניהול חברים',
     icon: Shield,
     color: '#2563EB',
@@ -40,7 +41,7 @@ const ROLES = [
   },
   {
     value: 'שותף',
-    label: 'שותף צופה',
+    label: 'צופה',
     description: 'צפייה בלבד, ללא עריכה או מחיקה',
     icon: Eye,
     color: C.gray500,
@@ -57,7 +58,7 @@ const ERROR_COPY = {
   already_member:     'המשתמש כבר חבר בחשבון או שיש הזמנה ממתינה',
 };
 
-export default function InviteAccountMemberDialog({ open, onOpenChange, accountId, vehicles = [] }) {
+export default function InviteAccountMemberDialog({ open, onOpenChange, accountId, vehicles = [], businessMode = false }) {
   const { user } = useAuth();
   const [role, setRole] = useState('שותף');
   const [email, setEmail] = useState('');
@@ -115,6 +116,9 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
         p_email: cleanEmail,
         p_role: role,
         p_vehicle_ids: shareAll ? null : selectedVehicleIds,
+        // Explicit account (the active workspace) — ends the non-deterministic
+        // LIMIT 1 server-side resolve for users who belong to several accounts.
+        p_account_id: accountId,
       });
       if (error) {
         const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
@@ -132,7 +136,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
       } else {
         toast.success('קישור הזמנה נוצר');
         if (data?.invite_token) {
-          sendInviteEmail(cleanEmail, data.invite_token).catch(() => {});
+          sendAccountInviteEmail(cleanEmail, data.invite_token).catch(() => {});
         }
       }
     } catch (e) {
@@ -161,8 +165,10 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
   };
 
   const openWhatsApp = () => {
-    const roleLabel = role === 'מנהל' ? 'שותף עורך' : 'שותף צופה';
-    const text = `הצטרף/י לחשבון הרכבים שלי ב-CarReminder כ${roleLabel}. לחץ להצטרפות:\n${inviteLink}`;
+    const roleLabel = role === 'מנהל' ? 'מנהל' : 'צופה';
+    const text = businessMode
+      ? `הצטרף/י לצוות שלי ב-CarReminder כ${roleLabel}. לחץ להצטרפות:\n${inviteLink}`
+      : `הצטרף/י לחשבון הרכבים שלי ב-CarReminder כ${roleLabel}. לחץ להצטרפות:\n${inviteLink}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -199,7 +205,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <UserPlus className="w-5 h-5" style={{ color: C.primary }} />
-            הזמנת חבר לחשבון
+            {businessMode ? 'הזמנת איש צוות' : 'הזמנת חבר לחשבון'}
           </DialogTitle>
         </DialogHeader>
 
@@ -466,24 +472,3 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
   );
 }
 
-async function sendInviteEmail(toEmail, inviteToken) {
-  if (!toEmail || !inviteToken) return;
-  try {
-    const { sendEmail, sendTemplatedEmail } = await import('@/lib/sendEmail');
-    const PUBLIC_DOMAIN = import.meta.env.VITE_PUBLIC_APP_URL || 'https://car-reminder.app';
-    const link = `${PUBLIC_DOMAIN}/JoinInvite?token=${inviteToken}&type=account`;
-    try {
-      await sendTemplatedEmail('invite', {
-        to: toEmail,
-        vars: { inviterName: 'משתמש CarReminder', roleLabel: 'חבר', inviteLink: link },
-      });
-    } catch (e) {
-      if (e.name === 'EmailsPausedError') throw e;
-      const { buildInviteEmail, buildInviteText } = await import('@/lib/emailTemplates');
-      const subject = 'הוזמנת להצטרף לחשבון ב-CarReminder';
-      const html = buildInviteEmail({ inviterName: 'משתמש', roleLabel: 'חבר', inviteLink: link });
-      const text = buildInviteText({ inviterName: 'משתמש', roleLabel: 'חבר', inviteLink: link });
-      await sendEmail({ to: toEmail, subject, html, text, notificationKey: 'invite' });
-    }
-  } catch { /* best-effort */ }
-}

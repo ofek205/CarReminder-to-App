@@ -83,12 +83,17 @@ export default function NotificationTypeRow({ notification, onEditTemplate, onSe
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
             <span className="text-xs text-gray-600">
-              {notification.enabled ? 'פעיל' : 'כבוי'}
+              {!notification.is_implemented ? 'לא ממומש' : notification.enabled ? 'פעיל' : 'כבוי'}
             </span>
+            {/* Block enabling a type with no working dispatch path (e.g.
+                reminder_license / reminder_maintenance have no candidate
+                clause — enabling them would send nothing, silently). The
+                "לא מיושם עדיין" badge above explains why it's locked. */}
             <Switch
               checked={notification.enabled}
               onCheckedChange={handleToggle}
-              disabled={pending}
+              disabled={pending || !notification.is_implemented}
+              title={!notification.is_implemented ? 'סוג זה עדיין לא ממומש לשליחה' : undefined}
             />
           </div>
           <Button
