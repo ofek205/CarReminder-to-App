@@ -44,7 +44,6 @@ function IdField({ label, value, onChange, error, required = true }) {
         maxLength={9}
         value={value}
         onChange={(e) => onChange(normalizeId(e.target.value))}
-        placeholder="123456782"
         className="text-left tabular-nums"
       />
       {error && <p className="text-[11px] mt-1" style={{ color: C.error }}>{error}</p>}
@@ -300,7 +299,6 @@ export default function PowerOfAttorneyForm() {
                 inputMode="numeric"
                 value={manualPlate}
                 onChange={(e) => setManualPlate(e.target.value)}
-                placeholder="12-345-67"
                 className="text-left tabular-nums"
               />
               <p className="text-[11px] mt-1" style={{ color: C.muted }}>
@@ -321,14 +319,14 @@ export default function PowerOfAttorneyForm() {
                 <Label className="text-right block mb-1.5 text-sm">
                   שם התאגיד<span className="mr-1" style={{ color: C.error }}>*</span>
                 </Label>
-                <Input value={corpName} onChange={(e) => setCorpName(e.target.value)} dir="rtl" placeholder="שם החברה" />
+                <Input value={corpName} onChange={(e) => setCorpName(e.target.value)} dir="rtl" />
               </div>
               <div>
                 <Label className="text-right block mb-1.5 text-sm">
                   מספר התאגיד (ח.פ){' '}<span className="mr-1" style={{ color: C.error }}>*</span>
                 </Label>
                 <Input value={corpNumber} onChange={(e) => setCorpNumber(normalizeId(e.target.value))}
-                  dir="ltr" inputMode="numeric" maxLength={9} className="text-left tabular-nums" placeholder="514999996" />
+                  dir="ltr" inputMode="numeric" maxLength={9} className="text-left tabular-nums" />
               </div>
             </SectionCard>
 
@@ -343,8 +341,7 @@ export default function PowerOfAttorneyForm() {
                     value={signatories[i]?.name || ''}
                     onChange={(e) => setSignatories((arr) => arr.map((s, idx) => (idx === i ? { name: e.target.value } : s)))}
                     dir="rtl"
-                    placeholder="שם משפחה ופרטי"
-                  />
+                                     />
                 </div>
               ))}
             </SectionCard>
@@ -373,7 +370,7 @@ export default function PowerOfAttorneyForm() {
                     שם מלא{i === 0 && <span className="mr-1" style={{ color: C.error }}>*</span>}
                   </Label>
                   <Input value={o.name} onChange={(e) => updateOwner(i, { name: e.target.value })}
-                    dir="rtl" placeholder="שם משפחה ופרטי" />
+                    dir="rtl" />
                   {ownerRequired && submitAttempted && !o.name.trim() && (
                     <p className="text-[11px] mt-1" style={{ color: C.error }}>יש להזין שם</p>
                   )}
@@ -410,7 +407,7 @@ export default function PowerOfAttorneyForm() {
               שם מלא<span className="mr-1" style={{ color: C.error }}>*</span>
             </Label>
             <Input value={rep.name} onChange={(e) => setRep((r) => ({ ...r, name: e.target.value }))}
-              dir="rtl" placeholder="שם משפחה ופרטי" />
+              dir="rtl" />
             {submitAttempted && !rep.name.trim() && (
               <p className="text-[11px] mt-1" style={{ color: C.error }}>יש להזין שם</p>
             )}
@@ -441,12 +438,12 @@ export default function PowerOfAttorneyForm() {
             <div>
               <Label className="text-right block mb-1.5 text-sm">שם עורך הדין</Label>
               <Input value={lawyer.name} onChange={(e) => setLawyer((l) => ({ ...l, name: e.target.value }))}
-                dir="rtl" placeholder="שם משפחה ופרטי" />
+                dir="rtl" />
             </div>
             <div>
               <Label className="text-right block mb-1.5 text-sm">כתובת המשרד</Label>
               <Input value={lawyer.address} onChange={(e) => setLawyer((l) => ({ ...l, address: e.target.value }))}
-                dir="rtl" placeholder="רחוב, עיר" />
+                dir="rtl" />
             </div>
             <div>
               <Label className="text-right block mb-1.5 text-sm">בתוקף עד</Label>

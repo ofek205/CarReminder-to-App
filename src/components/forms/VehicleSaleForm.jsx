@@ -201,21 +201,21 @@ export default function VehicleSaleForm() {
             <Field label="מספר רישוי" required error={submitAttempted && !vehicle.plate.trim() ? 'שדה חובה' : ''}>
               <Input dir="ltr" inputMode="numeric" value={vehicle.plate}
                 onChange={(e) => setVehicle((v) => ({ ...v, plate: e.target.value }))}
-                className="text-left tabular-nums" placeholder="12-345-67" />
+                className="text-left tabular-nums" />
             </Field>
             <Field label="שנת ייצור">
               <Input dir="ltr" inputMode="numeric" maxLength={4} value={vehicle.year}
                 onChange={(e) => setVehicle((v) => ({ ...v, year: onlyDigits(e.target.value) }))}
-                className="text-left tabular-nums" placeholder="2020" />
+                className="text-left tabular-nums" />
             </Field>
             <Field label="תוצרת">
-              <Input dir="rtl" value={vehicle.manufacturer} onChange={(e) => setVehicle((v) => ({ ...v, manufacturer: e.target.value }))} placeholder="יצרן" />
+              <Input dir="rtl" value={vehicle.manufacturer} onChange={(e) => setVehicle((v) => ({ ...v, manufacturer: e.target.value }))} />
             </Field>
             <Field label="דגם">
-              <Input dir="rtl" value={vehicle.model} onChange={(e) => setVehicle((v) => ({ ...v, model: e.target.value }))} placeholder="דגם" />
+              <Input dir="rtl" value={vehicle.model} onChange={(e) => setVehicle((v) => ({ ...v, model: e.target.value }))} />
             </Field>
             <Field label="סוג הרכב">
-              <Input dir="rtl" value={vehicle.type} onChange={(e) => setVehicle((v) => ({ ...v, type: e.target.value }))} placeholder="פרטי / מסחרי…" />
+              <Input dir="rtl" value={vehicle.type} onChange={(e) => setVehicle((v) => ({ ...v, type: e.target.value }))} />
             </Field>
           </div>
         </SectionCard>
@@ -223,48 +223,48 @@ export default function VehicleSaleForm() {
         {/* Seller */}
         <SectionCard title="המוכר" hint="הפרטים שלך — מולאו מראש.">
           <Field label="שם מלא" required error={submitAttempted && !seller.name.trim() ? 'יש להזין שם' : ''}>
-            <Input dir="rtl" value={seller.name} onChange={(e) => setSeller((s) => ({ ...s, name: e.target.value }))} placeholder="שם משפחה ופרטי" />
+            <Input dir="rtl" value={seller.name} onChange={(e) => setSeller((s) => ({ ...s, name: e.target.value }))} />
           </Field>
           <Field label="ת.ז" required error={idDisp(seller.id)}>
             <Input dir="ltr" inputMode="numeric" maxLength={9} value={seller.id}
-              onChange={(e) => setSeller((s) => ({ ...s, id: normalizeId(e.target.value) }))} className="text-left tabular-nums" placeholder="123456782" />
+              onChange={(e) => setSeller((s) => ({ ...s, id: normalizeId(e.target.value) }))} className="text-left tabular-nums" />
           </Field>
           <label className="flex items-center gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
             <input type="checkbox" checked={saveMyId} onChange={(e) => setSaveMyId(e.target.checked)} />
             שמור את ה-ת.ז שלי במכשיר לפעם הבאה
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="כתובת"><Input dir="rtl" value={seller.address} onChange={(e) => setSeller((s) => ({ ...s, address: e.target.value }))} placeholder="רחוב, עיר" /></Field>
-            <Field label="טלפון"><Input dir="ltr" inputMode="tel" value={seller.phone} onChange={(e) => setSeller((s) => ({ ...s, phone: e.target.value }))} className="text-left" placeholder="050-0000000" /></Field>
+            <Field label="כתובת"><Input dir="rtl" value={seller.address} onChange={(e) => setSeller((s) => ({ ...s, address: e.target.value }))} /></Field>
+            <Field label="טלפון"><Input dir="ltr" inputMode="tel" value={seller.phone} onChange={(e) => setSeller((s) => ({ ...s, phone: e.target.value }))} className="text-left" /></Field>
           </div>
         </SectionCard>
 
         {/* Buyer */}
         <SectionCard title="הקונה" hint="פרטי רוכש הרכב.">
           <Field label="שם מלא" required error={submitAttempted && !buyer.name.trim() ? 'יש להזין שם' : ''}>
-            <Input dir="rtl" value={buyer.name} onChange={(e) => setBuyer((b) => ({ ...b, name: e.target.value }))} placeholder="שם משפחה ופרטי" />
+            <Input dir="rtl" value={buyer.name} onChange={(e) => setBuyer((b) => ({ ...b, name: e.target.value }))} />
           </Field>
           <Field label="ת.ז" required error={idDisp(buyer.id)}>
             <Input dir="ltr" inputMode="numeric" maxLength={9} value={buyer.id}
-              onChange={(e) => setBuyer((b) => ({ ...b, id: normalizeId(e.target.value) }))} className="text-left tabular-nums" placeholder="123456782" />
+              onChange={(e) => setBuyer((b) => ({ ...b, id: normalizeId(e.target.value) }))} className="text-left tabular-nums" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="כתובת"><Input dir="rtl" value={buyer.address} onChange={(e) => setBuyer((b) => ({ ...b, address: e.target.value }))} placeholder="רחוב, עיר" /></Field>
-            <Field label="טלפון"><Input dir="ltr" inputMode="tel" value={buyer.phone} onChange={(e) => setBuyer((b) => ({ ...b, phone: e.target.value }))} className="text-left" placeholder="050-0000000" /></Field>
+            <Field label="כתובת"><Input dir="rtl" value={buyer.address} onChange={(e) => setBuyer((b) => ({ ...b, address: e.target.value }))} /></Field>
+            <Field label="טלפון"><Input dir="ltr" inputMode="tel" value={buyer.phone} onChange={(e) => setBuyer((b) => ({ ...b, phone: e.target.value }))} className="text-left" /></Field>
           </div>
         </SectionCard>
 
         {/* Price & payment */}
         <SectionCard title="מחיר ותשלום" hint="הסכום במילים מתמלא אוטומטית — ניתן לתקן.">
           <Field label="מחיר כולל (₪)" required error={submitAttempted && !(totalN > 0) ? 'יש להזין מחיר' : ''}>
-            <Input dir="ltr" inputMode="numeric" value={price.total} onChange={(e) => setTotal(e.target.value)} className="text-left tabular-nums" placeholder="50000" />
+            <Input dir="ltr" inputMode="numeric" value={price.total} onChange={(e) => setTotal(e.target.value)} className="text-left tabular-nums" />
           </Field>
           <Field label="מחיר במילים">
-            <Input dir="rtl" value={price.totalWords} onChange={(e) => setPrice((p) => ({ ...p, totalWords: e.target.value }))} placeholder="חמישים אלף" />
+            <Input dir="rtl" value={price.totalWords} onChange={(e) => setPrice((p) => ({ ...p, totalWords: e.target.value }))} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="מקדמה בחתימה (₪)">
-              <Input dir="ltr" inputMode="numeric" value={price.down} onChange={(e) => setDown(e.target.value)} className="text-left tabular-nums" placeholder="0" />
+              <Input dir="ltr" inputMode="numeric" value={price.down} onChange={(e) => setDown(e.target.value)} className="text-left tabular-nums" />
             </Field>
             <Field label="תאריך תשלום היתרה">
               <DateInput value={price.balanceDate} onChange={(e) => setPrice((p) => ({ ...p, balanceDate: e.target.value }))} />
@@ -280,14 +280,14 @@ export default function VehicleSaleForm() {
         <SectionCard title="מצב הרכב" hint="מולא מנתוני הרכב — ניתן לעדכן.">
           <div className="grid grid-cols-2 gap-3">
             <Field label="קילומטראז' (ק״מ)">
-              <Input dir="ltr" inputMode="numeric" value={condition.km} onChange={(e) => setCondition((c) => ({ ...c, km: onlyDigits(e.target.value) }))} className="text-left tabular-nums" placeholder="85000" />
+              <Input dir="ltr" inputMode="numeric" value={condition.km} onChange={(e) => setCondition((c) => ({ ...c, km: onlyDigits(e.target.value) }))} className="text-left tabular-nums" />
             </Field>
             <Field label="מספר ידיים">
-              <Input dir="ltr" inputMode="numeric" maxLength={2} value={condition.hands} onChange={(e) => setCondition((c) => ({ ...c, hands: onlyDigits(e.target.value) }))} className="text-left tabular-nums" placeholder="2" />
+              <Input dir="ltr" inputMode="numeric" maxLength={2} value={condition.hands} onChange={(e) => setCondition((c) => ({ ...c, hands: onlyDigits(e.target.value) }))} className="text-left tabular-nums" />
             </Field>
           </div>
           <Field label="סוג בעלות">
-            <Input dir="rtl" value={condition.ownership} onChange={(e) => setCondition((c) => ({ ...c, ownership: e.target.value }))} placeholder="פרטית / חברת השכרה / ליסינג / חברה" />
+            <Input dir="rtl" value={condition.ownership} onChange={(e) => setCondition((c) => ({ ...c, ownership: e.target.value }))} />
           </Field>
           <label className="flex items-center gap-2 text-[13px] cursor-pointer" style={{ color: C.text }}>
             <input type="checkbox" checked={condition.hadAccident} onChange={(e) => setCondition((c) => ({ ...c, hadAccident: e.target.checked }))} />
