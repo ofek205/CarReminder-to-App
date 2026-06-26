@@ -4,7 +4,6 @@ import {
   Plus, Trash2, Download, FileText, Share2, Loader2, X, Info, AlertTriangle,
 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
-import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
@@ -119,14 +118,11 @@ export default function PowerOfAttorneyForm() {
     refetch: refetchVehicles,
   } = useQuery({
     queryKey: ['poa-vehicles', accountId],
-    queryFn: async () => {
-      const { data, error } = await withTimeout(
-        db.vehicles.filter({ account_id: accountId }, { light: true }),
-        'poa_vehicles',
-      );
-      if (error) throw error;
-      return data || [];
-    },
+    // db.vehicles.filter already applies withTimeout internally and returns
+    // the rows array (throwing on error). Call it directly — wrapping it in
+    // withTimeout again and destructuring { data, error } made `data`
+    // undefined, so the picker always saw 0 vehicles.
+    queryFn: () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled: !!accountId,
     retry: 1,
     retryDelay: 500,

@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Info, Loader2 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
-import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import { C } from '@/lib/designTokens';
@@ -55,14 +54,9 @@ export default function VehicleSaleForm() {
     refetch: refetchVehicles,
   } = useQuery({
     queryKey: ['sale-vehicles', accountId],
-    queryFn: async () => {
-      const { data, error } = await withTimeout(
-        db.vehicles.filter({ account_id: accountId }, { light: true }),
-        'sale_vehicles',
-      );
-      if (error) throw error;
-      return data || [];
-    },
+    // db.vehicles.filter already applies withTimeout internally and returns
+    // the rows array (throwing on error) — call it directly.
+    queryFn: () => db.vehicles.filter({ account_id: accountId }, { light: true }),
     enabled: !!accountId,
     retry: 1,
     retryDelay: 500,
