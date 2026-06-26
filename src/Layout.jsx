@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -124,6 +124,7 @@ const navItems = [
   // business workspace context.
   { name: 'MyExpenses',         label: 'מחשבון הוצאות', icon: Wallet,    guestAllowed: false, personalOnly: true },
   { name: 'Documents',          label: 'מסמכים',  icon: FileText,        guestAllowed: true },
+  { name: 'Forms',              label: 'טפסים',   icon: FileSignature,   guestAllowed: false },
   { name: 'Accidents',          label: 'תאונות',  icon: AlertTriangle,   guestAllowed: true },
   { name: 'FindGarage',         label: 'מצא מוסך', icon: MapPin,         guestAllowed: true },
   // TripGuard (תזכורת שכחת ילדים ברכב). TEMP GATE: adminOnly until the
