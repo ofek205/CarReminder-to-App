@@ -506,6 +506,10 @@ export async function initDeepLinks(navigate) {
           if (kind === 'vehicle' && id) path = `/VehicleDetail?id=${encodeURIComponent(id)}`;
           else if (kind === 'document' && id) path = `/Documents?id=${encodeURIComponent(id)}`;
           else if (kind === 'accident' && id) path = `/Accidents?id=${encodeURIComponent(id)}`;
+          // TripGuard safety alert tap (carreminder://trip-check) → open the
+          // safety screen. The URL parser lowercases the host, so we match
+          // 'trip-check' explicitly and map to the real PascalCase route.
+          else if (u.hostname === 'trip-check') path = '/SafetyReminder';
           else path = u.hostname ? `/${u.hostname}${u.pathname}` : '/';
         }
         if (typeof navigate === 'function') navigate(path);

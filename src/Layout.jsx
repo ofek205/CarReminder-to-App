@@ -126,6 +126,15 @@ const navItems = [
   { name: 'Documents',          label: 'מסמכים',  icon: FileText,        guestAllowed: true },
   { name: 'Accidents',          label: 'תאונות',  icon: AlertTriangle,   guestAllowed: true },
   { name: 'FindGarage',         label: 'מצא מוסך', icon: MapPin,         guestAllowed: true },
+  // TripGuard (תזכורת שכחת ילדים ברכב). TEMP GATE: adminOnly until the
+  // native Android plugin lands AND is field-tested. The web build runs a
+  // MOCK with no real Bluetooth detection — showing "ההגנה פעילה" to a real
+  // user would be dangerous false security. When native ships + passes the
+  // device matrix, flip to { guestAllowed: true } and DROP adminOnly (keep
+  // personalOnly) + make isTripGuardSupported() require native on web.
+  // personalOnly: this is a PRIVATE/parent feature — hidden in business
+  // workspaces (a fleet manager doesn't need it).
+  { name: 'SafetyReminder',     label: 'תזכורת בטיחות', icon: Shield,    guestAllowed: false, personalOnly: true, adminOnly: true },
 
   // ====================================================================
   // קהילה — Community + Expert AI. Both are private-flow surfaces with

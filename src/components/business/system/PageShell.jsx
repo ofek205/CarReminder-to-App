@@ -26,6 +26,11 @@ export default function PageShell({
   live = false,
   actions = null,
   children,
+  // Explicit "back" destination (page name or URL). When omitted the back
+  // button falls back to history navigate(-1), which on pages reached via a
+  // redirect chain (e.g. admin → AdminHome → here) lands on a redirect entry
+  // and jumps somewhere illogical. Pass a page name for deterministic back.
+  backTo = null,
 }) {
   return (
     <div
@@ -41,7 +46,7 @@ export default function PageShell({
         minHeight: '100vh',
       }}
     >
-      <MobileBackButton />
+      <MobileBackButton to={backTo} />
 
       <header className="mb-5 flex items-end gap-3 flex-wrap">
         <div className="flex-1 min-w-0">

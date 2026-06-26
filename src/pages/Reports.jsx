@@ -574,6 +574,7 @@ export default function Reports() {
 
   return (
     <PageShell
+      backTo="BusinessDashboard"
       title="דוחות וניתוחים"
       subtitle="סקירה כספית של תחזוקת הצי. הדלק לא נכלל — ראה /הוצאות."
       actions={(

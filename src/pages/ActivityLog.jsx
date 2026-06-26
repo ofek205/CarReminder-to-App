@@ -208,6 +208,7 @@ export default function ActivityLog() {
 
   return (
     <PageShell
+      backTo="BusinessDashboard"
       title="יומן פעילות"
       subtitle={canManageRoutes
         ? 'תיעוד כרונולוגי של כל הפעולות בחשבון. שורה לכל אירוע.'

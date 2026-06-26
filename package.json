@@ -20,6 +20,7 @@
     "ios:verify": "bash ./scripts/ios-verify-build.sh",
     "ios:sim": "bash ./scripts/ios-release-simulator.sh",
     "test:startup": "node ./scripts/test-startup-logic.cjs",
+    "test:trip-window": "node ./scripts/test-trip-window.cjs",
     "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "dependencies": {

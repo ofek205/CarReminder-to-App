@@ -80,10 +80,18 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
   const [data, setData]     = useState(null);
   const [loading, setLoad]  = useState(false);
   const [error, setError]   = useState(null);
+  // Admin control center (Phase 1): switch between ALL of the user's accounts
+  // (personal + business), not just the one the row was opened with.
+  const [activeAccountId, setActiveAccountId] = useState(account?.id || null);
+  const [accountList, setAccountList] = useState(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const qc = useQueryClient();
 
+  // Reset to the opened account whenever a different row opens the drawer.
+  useEffect(() => { setActiveAccountId(account?.id || null); setAccountList(null); }, [account?.id]);
+
   useEffect(() => {
-    if (!account?.id) {
+    if (!activeAccountId) {
       setData(null);
       return;
     }
@@ -91,7 +99,7 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
     setLoad(true);
     setError(null);
     setData(null);
-    supabase.rpc('admin_account_details', { p_account_id: account.id })
+    supabase.rpc('admin_account_details', { p_account_id: activeAccountId })
       .then(({ data: payload, error: rpcErr }) => {
         if (cancelled) return;
         if (rpcErr) {
@@ -102,7 +110,18 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
       })
       .finally(() => { if (!cancelled) setLoad(false); });
     return () => { cancelled = true; };
-  }, [account?.id]);
+  }, [activeAccountId, reloadNonce]);
+
+  // Load all of the user''s accounts (personal + business) for the switcher,
+  // once owner identity is known. Keyed on owner id (stable across accounts).
+  useEffect(() => {
+    const uid = data?.owner?.id;
+    if (!uid) return;
+    let cancelled = false;
+    supabase.rpc('admin_user_accounts', { p_user_id: uid })
+      .then(({ data: rows, error: e }) => { if (!cancelled && !e) setAccountList(rows || []); });
+    return () => { cancelled = true; };
+  }, [data?.owner?.id]);
 
   // ESC closes the drawer.
   useEffect(() => {
@@ -208,10 +227,13 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
         </div>
 
         <div className="p-4 space-y-4 pb-12">
+          {accountList && accountList.length > 1 && (
+            <AccountSwitcher accounts={accountList} activeId={activeAccountId} onSwitch={setActiveAccountId} />
+          )}
           {loading && <DrawerSkeleton />}
           {error && <DrawerError message={error} />}
           {!loading && !error && data && (
-            <DrawerContent data={data} account={account} onClose={onClose} onAccountDeleted={onAccountDeleted} qc={qc} />
+            <DrawerContent data={data} account={account} onClose={onClose} onAccountDeleted={onAccountDeleted} onChanged={() => setReloadNonce((n) => n + 1)} qc={qc} />
           )}
         </div>
       </aside>
@@ -228,10 +250,45 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
 }
 
 // ────────────────────────────────────────────────────────────────────
+// Account switcher — chips for every account the user belongs to, so an
+// admin can jump from the personal account to the business one (and back).
+// ────────────────────────────────────────────────────────────────────
+function AccountSwitcher({ accounts, activeId, onSwitch }) {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {accounts.map((a) => {
+        const active = a.account_id === activeId;
+        const isBiz = a.type === 'business';
+        return (
+          <button
+            key={a.account_id}
+            type="button"
+            onClick={() => onSwitch(a.account_id)}
+            className="shrink-0 px-3 py-2 rounded-xl text-right transition min-h-[44px]"
+            style={{
+              background: active ? C.primaryDark : '#FFFFFF',
+              color: active ? '#FFFFFF' : C.textAlt,
+              border: '1px solid ' + (active ? C.primaryDark : C.borderAlt),
+            }}
+          >
+            <span className="block text-[12px] font-bold truncate" style={{ maxWidth: 150 }}>
+              {(isBiz ? 'עסקי · ' : 'פרטי · ') + (a.name || '')}
+            </span>
+            <span className="block text-[10px]" dir="ltr" style={{ opacity: 0.8 }}>
+              {a.vehicles} רכבים
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────
 // Drawer content — split out so the loading/error states stay clean.
 // ────────────────────────────────────────────────────────────────────
 
-function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, qc }) {
+function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, onChanged, qc }) {
   const { account, owner, vehicles, vehicles_by_type: vehiclesByType,
           documents, documents_by_category: docsByCat,
           expiring_docs_30d: expiringDocs,
@@ -249,6 +306,43 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
     const ms = Date.now() - new Date(owner.last_sign_in_at).getTime();
     return Math.floor(ms / (1000 * 60 * 60 * 24));
   }, [owner]);
+
+  // Admin vehicle delete (Phase 1b) — goes through admin_delete_vehicle RPC
+  // (RLS blocks cross-account writes). On success, ask the parent to reload.
+  const [deleteVehicle, setDeleteVehicle] = useState(null);
+  const [vehicleBusy, setVehicleBusy] = useState(false);
+  const doDeleteVehicle = async () => {
+    if (!deleteVehicle) return;
+    setVehicleBusy(true);
+    try {
+      const { error } = await supabase.rpc('admin_delete_vehicle', { p_vehicle_id: deleteVehicle.id });
+      if (error) throw error;
+      toast.success('הרכב נמחק');
+      setDeleteVehicle(null);
+      onChanged?.();
+    } catch (e) {
+      toast.error('מחיקת הרכב נכשלה: ' + (e?.message || 'שגיאה'));
+    } finally {
+      setVehicleBusy(false);
+    }
+  };
+
+  const [editVehicle, setEditVehicle] = useState(null);
+  const saveEditVehicle = async (patch) => {
+    if (!editVehicle) return;
+    setVehicleBusy(true);
+    try {
+      const { error } = await supabase.rpc('admin_update_vehicle', { p_vehicle_id: editVehicle.id, p_patch: patch });
+      if (error) throw error;
+      toast.success('הרכב עודכן');
+      setEditVehicle(null);
+      onChanged?.();
+    } catch (e) {
+      toast.error('עדכון הרכב נכשל: ' + (e?.message || 'שגיאה'));
+    } finally {
+      setVehicleBusy(false);
+    }
+  };
 
   return (
     <>
@@ -393,7 +487,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
             {/* List of vehicles */}
             <ul className="space-y-1.5 mt-3">
               {vehicles.slice(0, 12).map(v => (
-                <VehicleRow key={v.id} vehicle={v} />
+                <VehicleRow key={v.id} vehicle={v} onDelete={setDeleteVehicle} onEdit={setEditVehicle} />
               ))}
               {vehicles.length > 12 && (
                 <li className="text-center text-[11px] py-1.5" style={{ color: C.borderAlt }}>
@@ -404,6 +498,24 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
           </>
         )}
       </Card>
+
+      {deleteVehicle && (
+        <VehicleDeleteConfirm
+          vehicle={deleteVehicle}
+          busy={vehicleBusy}
+          onConfirm={doDeleteVehicle}
+          onClose={() => { if (!vehicleBusy) setDeleteVehicle(null); }}
+        />
+      )}
+
+      {editVehicle && (
+        <VehicleEditDialog
+          vehicle={editVehicle}
+          busy={vehicleBusy}
+          onSave={saveEditVehicle}
+          onClose={() => { if (!vehicleBusy) setEditVehicle(null); }}
+        />
+      )}
 
       {/* DOCUMENTS BREAKDOWN ───────────────────────────────────────── */}
       <Card accent={expiringDocs > 0 ? 'amber' : 'blue'}>
@@ -715,7 +827,7 @@ function SpendByCategoryBars({ byCat, total }) {
   );
 }
 
-function VehicleRow({ vehicle: v }) {
+function VehicleRow({ vehicle: v, onDelete, onEdit }) {
   const label = v.nickname
     || `${v.manufacturer || ''} ${v.model || ''}`.trim()
     || v.license_plate
@@ -766,7 +878,137 @@ function VehicleRow({ vehicle: v }) {
           {[v.year, v.vehicle_type].filter(Boolean).join(' · ') || '—'}
         </p>
       </div>
+      {onEdit && (
+        <button
+          type="button"
+          onClick={() => onEdit(v)}
+          aria-label="ערוך רכב"
+          className="p-2 rounded-lg shrink-0 transition hover:bg-emerald-50"
+          style={{ color: C.mutedAlt }}
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+      )}
+      {onDelete && (
+        <button
+          type="button"
+          onClick={() => onDelete(v)}
+          aria-label="מחק רכב"
+          className="p-2 rounded-lg shrink-0 transition hover:bg-red-50"
+          style={{ color: C.errorDark }}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
     </li>
+  );
+}
+
+function DrawerField({ label, value, onChange, type = 'text' }) {
+  return (
+    <label className="block">
+      <span className="text-[11px] font-bold" style={{ color: C.textAlt }}>{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        dir={type === 'date' ? 'ltr' : 'rtl'}
+        className="w-full mt-0.5 px-2.5 py-2 rounded-lg text-[13px] outline-none"
+        style={{ border: '1px solid ' + C.borderAlt, background: '#FFFFFF', color: C.primaryDark }}
+      />
+    </label>
+  );
+}
+
+function VehicleEditDialog({ vehicle, busy, onSave, onClose }) {
+  const [f, setF] = useState({
+    manufacturer: vehicle.manufacturer || '',
+    model: vehicle.model || '',
+    year: vehicle.year ?? '',
+    nickname: vehicle.nickname || '',
+    current_km: vehicle.current_km ?? '',
+    test_due_date: vehicle.test_due_date || '',
+    insurance_due_date: vehicle.insurance_due_date || '',
+    vehicle_type: vehicle.vehicle_type || '',
+    notes: vehicle.notes || '',
+  });
+  const upd = (k) => (val) => setF((p) => ({ ...p, [k]: val }));
+  const submit = () => {
+    const patch = {};
+    Object.entries(f).forEach(([k, val]) => { if (val !== '' && val !== null && val !== undefined) patch[k] = val; });
+    onSave(patch);
+  };
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4" dir="rtl"
+      onClick={() => { if (!busy) onClose(); }}>
+      <div className="absolute inset-0" style={{ background: 'rgba(11,41,18,0.5)' }} />
+      <div className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 bg-white max-h-[88vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()} style={{ boxShadow: '0 20px 50px rgba(11,41,18,0.3)' }}>
+        <div className="flex items-center gap-2 mb-3">
+          <Pencil className="w-4 h-4" style={{ color: C.primaryDark }} />
+          <p className="text-sm font-black" style={{ color: C.primaryDark }}>עריכת רכב</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <DrawerField label="יצרן" value={f.manufacturer} onChange={upd('manufacturer')} />
+          <DrawerField label="דגם" value={f.model} onChange={upd('model')} />
+          <DrawerField label="שנה" value={f.year} onChange={upd('year')} type="number" />
+          <DrawerField label="כינוי" value={f.nickname} onChange={upd('nickname')} />
+          <DrawerField label="קילומטרים" value={f.current_km} onChange={upd('current_km')} type="number" />
+          <DrawerField label="סוג רכב" value={f.vehicle_type} onChange={upd('vehicle_type')} />
+          <DrawerField label="תאריך טסט" value={f.test_due_date} onChange={upd('test_due_date')} type="date" />
+          <DrawerField label="תאריך ביטוח" value={f.insurance_due_date} onChange={upd('insurance_due_date')} type="date" />
+          <div className="col-span-2">
+            <DrawerField label="הערות" value={f.notes} onChange={upd('notes')} />
+          </div>
+        </div>
+        <div className="flex gap-2 justify-start mt-4">
+          <button type="button" disabled={busy} onClick={submit}
+            className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-60"
+            style={{ background: C.primaryDark }}>
+            {busy ? 'שומר…' : 'שמור'}
+          </button>
+          <button type="button" disabled={busy} onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-[13px] font-bold disabled:opacity-60"
+            style={{ background: C.bgSubtle, color: C.textAlt }}>
+            ביטול
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VehicleDeleteConfirm({ vehicle, busy, onConfirm, onClose }) {
+  const v = vehicle;
+  const label = v.nickname || `${v.manufacturer || ''} ${v.model || ''}`.trim() || v.license_plate || 'רכב';
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" dir="rtl"
+      onClick={() => { if (!busy) onClose(); }}>
+      <div className="absolute inset-0" style={{ background: 'rgba(11,41,18,0.5)' }} />
+      <div className="relative w-full max-w-sm rounded-2xl p-5 bg-white" onClick={(e) => e.stopPropagation()}
+        style={{ boxShadow: '0 20px 50px rgba(11,41,18,0.3)' }}>
+        <div className="flex items-center gap-2 mb-2">
+          <AlertTriangle className="w-5 h-5" style={{ color: C.errorDark }} />
+          <p className="text-sm font-black" style={{ color: C.errorDark }}>מחיקת רכב</p>
+        </div>
+        <p className="text-[13px] mb-1" style={{ color: C.textAlt }}>
+          למחוק את <b>{label}</b>{v.license_plate ? <span dir="ltr"> ({v.license_plate})</span> : null}?
+        </p>
+        <p className="text-[12px] mb-4" style={{ color: C.mutedAlt }}>פעולה זו בלתי-הפיכה.</p>
+        <div className="flex gap-2 justify-start">
+          <button type="button" disabled={busy} onClick={onConfirm}
+            className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-60"
+            style={{ background: C.errorDark }}>
+            {busy ? 'מוחק…' : 'מחק'}
+          </button>
+          <button type="button" disabled={busy} onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-[13px] font-bold disabled:opacity-60"
+            style={{ background: C.bgSubtle, color: C.textAlt }}>
+            ביטול
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

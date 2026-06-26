@@ -107,6 +107,7 @@ export default function Team() {
 
   return (
     <PageShell
+      backTo="BusinessDashboard"
       title="הצוות שלי"
       subtitle={workspaceName}
     >

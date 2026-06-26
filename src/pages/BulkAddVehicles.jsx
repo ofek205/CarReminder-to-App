@@ -478,6 +478,7 @@ export default function BulkAddVehicles() {
 
   return (
     <PageShell
+      backTo="Fleet"
       title="ייבוא מרובה רכבים"
       subtitle="העלה קובץ אקסל או הדבק רשימת מספרי רישוי. המערכת תאתר את הרכבים אצל משרד התחבורה ותוסיף אותם אוטומטית."
     >

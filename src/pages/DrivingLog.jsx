@@ -179,6 +179,7 @@ export default function DrivingLog() {
 
   return (
     <PageShell
+      backTo="BusinessDashboard"
       title="יומן נסיעות"
       subtitle="תיעוד מלא של מי נהג, איפה ומתי"
     >

@@ -1,0 +1,26 @@
+{
+  "_comment": "SINGLE SOURCE OF TRUTH for TripGuard window/duration parity. Read by BOTH scripts/test-trip-window.cjs (JS, src/lib/tripWindow.js) AND android/.../TripGuardWindowTest.java (Java, TripGuardWindow.java). Dates use components (y, mo=1-12, d, h, mi) so they are timezone-safe (each runner builds a LOCAL date from components). 2026-06-23 is a Tuesday (getDay/Calendar dow-1 == 2).",
+  "window": [
+    { "name": "default all-day, Tue noon", "config": { "activeDays": [0,1,2,3,4,5,6] }, "y": 2026, "mo": 6, "d": 23, "h": 12, "mi": 0, "expected": true },
+    { "name": "day included [2=Tue]", "config": { "activeDays": [2] }, "y": 2026, "mo": 6, "d": 23, "h": 12, "mi": 0, "expected": true },
+    { "name": "day excluded [3,4]", "config": { "activeDays": [3,4] }, "y": 2026, "mo": 6, "d": 23, "h": 12, "mi": 0, "expected": false },
+    { "name": "empty days -> none", "config": { "activeDays": [] }, "y": 2026, "mo": 6, "d": 23, "h": 12, "mi": 0, "expected": false },
+    { "name": "hours 08-18 @ 12:00", "config": { "activeDays": [0,1,2,3,4,5,6], "activeHours": { "start": "08:00", "end": "18:00" } }, "y": 2026, "mo": 6, "d": 23, "h": 12, "mi": 0, "expected": true },
+    { "name": "hours 08-18 @ 20:00", "config": { "activeDays": [0,1,2,3,4,5,6], "activeHours": { "start": "08:00", "end": "18:00" } }, "y": 2026, "mo": 6, "d": 23, "h": 20, "mi": 0, "expected": false },
+    { "name": "hours 08-18 @ exactly 18:00 (end exclusive)", "config": { "activeDays": [0,1,2,3,4,5,6], "activeHours": { "start": "08:00", "end": "18:00" } }, "y": 2026, "mo": 6, "d": 23, "h": 18, "mi": 0, "expected": false },
+    { "name": "overnight 22-06 @ 23:00", "config": { "activeDays": [0,1,2,3,4,5,6], "activeHours": { "start": "22:00", "end": "06:00" } }, "y": 2026, "mo": 6, "d": 23, "h": 23, "mi": 0, "expected": true },
+    { "name": "overnight 22-06 @ 05:00", "config": { "activeDays": [0,1,2,3,4,5,6], "activeHours": { "start": "22:00", "end": "06:00" } }, "y": 2026, "mo": 6, "d": 23, "h": 5, "mi": 0, "expected": true },
+    { "name": "overnight 22-06 @ 12:00", "config": { "activeDays": [0,1,2,3,4,5,6], "activeHours": { "start": "22:00", "end": "06:00" } }, "y": 2026, "mo": 6, "d": 23, "h": 12, "mi": 0, "expected": false },
+    { "name": "season May-Sep in June", "config": { "activeDays": [0,1,2,3,4,5,6], "activeSeason": { "startMonth": 5, "endMonth": 9 } }, "y": 2026, "mo": 6, "d": 15, "h": 12, "mi": 0, "expected": true },
+    { "name": "season May-Sep in January", "config": { "activeDays": [0,1,2,3,4,5,6], "activeSeason": { "startMonth": 5, "endMonth": 9 } }, "y": 2026, "mo": 1, "d": 15, "h": 12, "mi": 0, "expected": false },
+    { "name": "season wrap Nov-Feb in January", "config": { "activeDays": [0,1,2,3,4,5,6], "activeSeason": { "startMonth": 11, "endMonth": 2 } }, "y": 2026, "mo": 1, "d": 15, "h": 12, "mi": 0, "expected": true },
+    { "name": "season wrap Nov-Feb in June", "config": { "activeDays": [0,1,2,3,4,5,6], "activeSeason": { "startMonth": 11, "endMonth": 2 } }, "y": 2026, "mo": 6, "d": 15, "h": 12, "mi": 0, "expected": false },
+    { "name": "combined: day ok, hour fails", "config": { "activeDays": [2], "activeHours": { "start": "06:00", "end": "10:00" } }, "y": 2026, "mo": 6, "d": 23, "h": 12, "mi": 0, "expected": false }
+  ],
+  "duration": [
+    { "name": "3 min >= 2 min", "startElapsed": 1000, "nowElapsed": 181000, "minMinutes": 2, "expected": true },
+    { "name": "1 min < 2 min", "startElapsed": 1000, "nowElapsed": 61000, "minMinutes": 2, "expected": false },
+    { "name": "exactly 2 min", "startElapsed": 1000, "nowElapsed": 121000, "minMinutes": 2, "expected": true },
+    { "name": "zero threshold always meets", "startElapsed": 1000, "nowElapsed": 1000, "minMinutes": 0, "expected": true }
+  ]
+}
