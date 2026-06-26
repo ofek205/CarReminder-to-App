@@ -1135,6 +1135,7 @@ export default function VehicleInfoSection({ vehicle }) {
             vehicle.country_of_origin && { label: 'ארץ ייצור', value: vehicle.country_of_origin },
             vehicle.body_type && { label: 'סוג מרכב', value: vehicle.body_type },
             vehicle.color && { label: 'צבע', value: vehicle.color },
+            vehicle.technician_name && { label: 'גורם מטפל', value: vehicle.technician_name },
             vehicle.trim_level && { label: 'רמת גימור', value: vehicle.trim_level },
             vehicle.ownership && { label: 'בעלות', value: vehicle.ownership, pill: true },
             // "יד" — sourced from gov.il's ownership-history dataset.
