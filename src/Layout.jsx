@@ -147,8 +147,11 @@ const navItems = [
   // deep-links still work, they just aren't surfaced in the drawer.
   // ====================================================================
   { divider: true, title: 'חשבון' },
+  // One settings entry only. Business settings (company details, drivers,
+  // ownership) + team management now live INSIDE the Settings hub under a
+  // clearly-separated "עסקי" group — no more confusing second "הגדרות עסקיות"
+  // line. /BusinessSettings stays a valid route, reached from the hub.
   { name: 'Settings',           label: 'הגדרות',         icon: Settings,        guestAllowed: true },
-  { name: 'BusinessSettings',   label: 'הגדרות עסקיות', icon: Briefcase,       guestAllowed: false, businessOnly: true, ownerOnly: true },
   { name: 'AdminReviews',       label: 'חוות דעת',       icon: Star,            guestAllowed: true },
   { name: 'Contact',            label: 'צור קשר',        icon: MessageSquare,   guestAllowed: true },
 
