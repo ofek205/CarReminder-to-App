@@ -18,6 +18,7 @@ import {
   X, Mail, Phone, Calendar, Truck, FileText, Users,
   Activity, Wrench, Shield, AlertTriangle, Briefcase,
   Copy, Anchor, TrendingUp, Trash2, UserCog, Pencil, Send,
+  CheckSquare, Square, ListChecks, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -344,6 +345,45 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
     }
   };
 
+  // Vehicle list view controls — "הצג הכל" expansion + multi-select bulk delete.
+  // Selection is keyed by vehicle id (a Set), so it survives collapsing the
+  // list back to the first 12 — a vehicle selected while expanded stays
+  // selected and counted even when scrolled out of the collapsed view.
+  const VEHICLE_PREVIEW = 12;
+  const [showAllVehicles, setShowAllVehicles] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+
+  const toggleSelect = (id) => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+  const allSelected = vehicles.length > 0 && selectedIds.size === vehicles.length;
+  const toggleSelectAll = () => setSelectedIds(allSelected ? new Set() : new Set(vehicles.map(v => v.id)));
+
+  const doBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setVehicleBusy(true);
+    try {
+      const { error } = await supabase.rpc('admin_delete_vehicles', { p_vehicle_ids: ids });
+      if (error) throw error;
+      toast.success(`${ids.length} כלי תחבורה נמחקו`);
+      setBulkConfirm(false);
+      exitSelectMode();
+      onChanged?.();
+    } catch (e) {
+      toast.error('מחיקה מרובה נכשלה: ' + (e?.message || 'שגיאה'));
+    } finally {
+      setVehicleBusy(false);
+    }
+  };
+
+  const shownVehicles = showAllVehicles ? vehicles : vehicles.slice(0, VEHICLE_PREVIEW);
+
   return (
     <>
       {/* IDENTITY HERO ─────────────────────────────────────────────── */}
@@ -472,9 +512,30 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
           icon={Truck}
           title="כלי תחבורה"
           right={vehicles.length > 0 && (
-            <span className="text-[11px] tabular-nums" style={{ color: C.mutedAlt }} dir="ltr">
-              {vehicles.length}
-            </span>
+            <div className="flex items-center gap-2">
+              {!selectMode ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectMode(true)}
+                  className="flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg transition hover:bg-emerald-50"
+                  style={{ color: C.successDark }}
+                >
+                  <ListChecks className="w-3.5 h-3.5" /> בחירה מרובה
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={exitSelectMode}
+                  className="text-[11px] font-bold px-2 py-1 rounded-lg transition hover:bg-emerald-50"
+                  style={{ color: C.mutedAlt }}
+                >
+                  בטל בחירה
+                </button>
+              )}
+              <span className="text-[11px] tabular-nums" style={{ color: C.mutedAlt }} dir="ltr">
+                {vehicles.length}
+              </span>
+            </div>
           )}
         />
         {vehicles.length === 0 ? (
@@ -484,17 +545,65 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
             {/* Breakdown by type — bar chart, sorted desc. */}
             <BreakdownBars data={vehiclesByType} total={vehicles.length} tone="emerald" />
 
+            {/* Multi-select action bar */}
+            {selectMode && (
+              <div
+                className="flex items-center justify-between gap-2 mt-3 px-2.5 py-2 rounded-lg"
+                style={{ background: C.bgSubtle, border: `1px solid ${C.bgSage}` }}
+              >
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  className="text-[11px] font-bold transition"
+                  style={{ color: C.successDark }}
+                >
+                  {allSelected ? 'נקה בחירה' : 'בחר הכל'}
+                </button>
+                <span className="text-[11px] tabular-nums" style={{ color: C.mutedAlt }}>
+                  נבחרו {selectedIds.size}
+                </span>
+                <button
+                  type="button"
+                  disabled={selectedIds.size === 0 || vehicleBusy}
+                  onClick={() => setBulkConfirm(true)}
+                  className="flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-lg text-white transition disabled:opacity-40"
+                  style={{ background: C.errorDark }}
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> מחק ({selectedIds.size})
+                </button>
+              </div>
+            )}
+
             {/* List of vehicles */}
             <ul className="space-y-1.5 mt-3">
-              {vehicles.slice(0, 12).map(v => (
-                <VehicleRow key={v.id} vehicle={v} onDelete={setDeleteVehicle} onEdit={setEditVehicle} />
+              {shownVehicles.map(v => (
+                <VehicleRow
+                  key={v.id}
+                  vehicle={v}
+                  onDelete={setDeleteVehicle}
+                  onEdit={setEditVehicle}
+                  selectMode={selectMode}
+                  selected={selectedIds.has(v.id)}
+                  onToggleSelect={toggleSelect}
+                />
               ))}
-              {vehicles.length > 12 && (
-                <li className="text-center text-[11px] py-1.5" style={{ color: C.borderAlt }}>
-                  ועוד {vehicles.length - 12} כלי תחבורה
-                </li>
-              )}
             </ul>
+
+            {/* Show all / show less toggle */}
+            {vehicles.length > VEHICLE_PREVIEW && (
+              <button
+                type="button"
+                onClick={() => setShowAllVehicles(v => !v)}
+                className="w-full flex items-center justify-center gap-1 text-[11px] font-bold py-2 mt-1.5 rounded-lg transition hover:bg-emerald-50"
+                style={{ color: C.successDark }}
+              >
+                {showAllVehicles ? (
+                  <><ChevronUp className="w-3.5 h-3.5" /> הצג פחות</>
+                ) : (
+                  <><ChevronDown className="w-3.5 h-3.5" /> הצג הכל ({vehicles.length})</>
+                )}
+              </button>
+            )}
           </>
         )}
       </Card>
@@ -514,6 +623,15 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
           busy={vehicleBusy}
           onSave={saveEditVehicle}
           onClose={() => { if (!vehicleBusy) setEditVehicle(null); }}
+        />
+      )}
+
+      {bulkConfirm && (
+        <BulkDeleteConfirm
+          count={selectedIds.size}
+          busy={vehicleBusy}
+          onConfirm={doBulkDelete}
+          onClose={() => { if (!vehicleBusy) setBulkConfirm(false); }}
         />
       )}
 
@@ -827,7 +945,7 @@ function SpendByCategoryBars({ byCat, total }) {
   );
 }
 
-function VehicleRow({ vehicle: v, onDelete, onEdit }) {
+function VehicleRow({ vehicle: v, onDelete, onEdit, selectMode = false, selected = false, onToggleSelect }) {
   const label = v.nickname
     || `${v.manufacturer || ''} ${v.model || ''}`.trim()
     || v.license_plate
@@ -849,9 +967,18 @@ function VehicleRow({ vehicle: v, onDelete, onEdit }) {
 
   return (
     <li
-      className="flex items-center gap-2 px-2.5 py-2 rounded-lg"
-      style={{ background: '#FFFFFF', border: `1px solid ${C.bgSage}` }}
+      onClick={selectMode ? () => onToggleSelect?.(v.id) : undefined}
+      className={`flex items-center gap-2 px-2.5 py-2 rounded-lg ${selectMode ? 'cursor-pointer' : ''}`}
+      style={{
+        background: selected ? C.successSubtle : '#FFFFFF',
+        border: `1px solid ${selected ? C.successLighter : C.bgSage}`,
+      }}
     >
+      {selectMode && (
+        selected
+          ? <CheckSquare className="w-4 h-4 shrink-0" style={{ color: C.successBright }} />
+          : <Square className="w-4 h-4 shrink-0" style={{ color: C.borderAlt }} />
+      )}
       <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: C.successBright }} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -878,7 +1005,7 @@ function VehicleRow({ vehicle: v, onDelete, onEdit }) {
           {[v.year, v.vehicle_type].filter(Boolean).join(' · ') || '—'}
         </p>
       </div>
-      {onEdit && (
+      {!selectMode && onEdit && (
         <button
           type="button"
           onClick={() => onEdit(v)}
@@ -889,7 +1016,7 @@ function VehicleRow({ vehicle: v, onDelete, onEdit }) {
           <Pencil className="w-3.5 h-3.5" />
         </button>
       )}
-      {onDelete && (
+      {!selectMode && onDelete && (
         <button
           type="button"
           onClick={() => onDelete(v)}
@@ -1000,6 +1127,38 @@ function VehicleDeleteConfirm({ vehicle, busy, onConfirm, onClose }) {
             className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-60"
             style={{ background: C.errorDark }}>
             {busy ? 'מוחק…' : 'מחק'}
+          </button>
+          <button type="button" disabled={busy} onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-[13px] font-bold disabled:opacity-60"
+            style={{ background: C.bgSubtle, color: C.textAlt }}>
+            ביטול
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BulkDeleteConfirm({ count, busy, onConfirm, onClose }) {
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" dir="rtl"
+      onClick={() => { if (!busy) onClose(); }}>
+      <div className="absolute inset-0" style={{ background: 'rgba(11,41,18,0.5)' }} />
+      <div className="relative w-full max-w-sm rounded-2xl p-5 bg-white" onClick={(e) => e.stopPropagation()}
+        style={{ boxShadow: '0 20px 50px rgba(11,41,18,0.3)' }}>
+        <div className="flex items-center gap-2 mb-2">
+          <AlertTriangle className="w-5 h-5" style={{ color: C.errorDark }} />
+          <p className="text-sm font-black" style={{ color: C.errorDark }}>מחיקת {count} כלי תחבורה</p>
+        </div>
+        <p className="text-[13px] mb-1" style={{ color: C.textAlt }}>
+          למחוק <b>{count}</b> כלי תחבורה שנבחרו?
+        </p>
+        <p className="text-[12px] mb-4" style={{ color: C.mutedAlt }}>פעולה זו בלתי-הפיכה.</p>
+        <div className="flex gap-2 justify-start">
+          <button type="button" disabled={busy} onClick={onConfirm}
+            className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-60"
+            style={{ background: C.errorDark }}>
+            {busy ? 'מוחק…' : `מחק ${count}`}
           </button>
           <button type="button" disabled={busy} onClick={onClose}
             className="px-4 py-2.5 rounded-xl text-[13px] font-bold disabled:opacity-60"
