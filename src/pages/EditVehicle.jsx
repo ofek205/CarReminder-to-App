@@ -369,7 +369,7 @@ export default function EditVehicle() {
 
     // Only send columns that exist in Supabase
     const DB_COLUMNS = ['vehicle_type','manufacturer','model','year',
-      'nickname','license_plate','test_due_date','insurance_due_date','insurance_company','leasing_company',
+      'nickname','license_plate','test_due_date','insurance_due_date','insurance_company','leasing_company','technician_name',
       'current_km','current_engine_hours','vehicle_photo','vehicle_photo_storage_path','fuel_type',
       'last_tire_change_date','km_since_tire_change','tires_changed_count',
       'flag_country','marina','marina_abroad','engine_manufacturer',
@@ -857,6 +857,16 @@ export default function EditVehicle() {
               highlight={isLeasingOwnership(form.ownership)}
             />
           )}
+
+          {/* גורם מטפל — מוסך / טכנאי / ספק שירות. אופציונלי, לכל סוגי הרכב והחשבונות. */}
+          <div>
+            <Label>גורם מטפל (אופציונלי)</Label>
+            <Input
+              value={form.technician_name || ''}
+              onChange={e => handleChange('technician_name', e.target.value)}
+              placeholder="מוסך / טכנאי / ספק שירות"
+            />
+          </div>
 
           {/* 2026-05-17: gov.il auto-sync per-vehicle toggle. Shown only
               for vehicles that have a license plate (hasRegistration —
