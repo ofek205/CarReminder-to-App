@@ -15,6 +15,8 @@ import { numberToHebrewWords } from '@/lib/forms/hebrewNumber';
 import { readSavedId, writeSavedId } from '@/lib/forms/savedId';
 import FormPreviewModal from './FormPreviewModal';
 import VehicleSaleDocument from './VehicleSaleDocument';
+import SignaturePad from './SignaturePad';
+import { shortFingerprint, canonicalize } from '@/lib/forms/docHash';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -74,6 +76,9 @@ export default function VehicleSaleForm() {
   const [saveMyId, setSaveMyId] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [signatures, setSignatures] = useState({ seller: null, buyer: null });
+  const [signingParty, setSigningParty] = useState(null);
+  const [signConsent, setSignConsent] = useState(false);
 
   // Prefill the seller (the user is selling their own vehicle by default).
   const prefilledRef = useRef(false);
@@ -153,7 +158,24 @@ export default function VehicleSaleForm() {
     price: { ...price, balance, balanceWords },
     condition,
     date,
-  }), [vehicle, seller, buyer, price, balance, balanceWords, condition, date]);
+    signatures,
+  }), [vehicle, seller, buyer, price, balance, balanceWords, condition, date, signatures]);
+
+  // Capture an electronic signature for a party. We stamp the moment of
+  // signing + a content fingerprint (hash over the document minus the
+  // signatures) so the signature is tied to exactly what was on the page.
+  const captureSignature = async (dataUrl) => {
+    const party = signingParty;
+    if (!party) return;
+    const who = party === 'seller' ? seller : buyer;
+    let hash = '';
+    try { hash = await shortFingerprint(canonicalize(docData)); } catch { /* fingerprint is best-effort */ }
+    setSignatures((s) => ({
+      ...s,
+      [party]: { dataUrl, name: who.name, id: who.id, ts: new Date().toISOString(), hash },
+    }));
+    setSigningParty(null);
+  };
 
   const handleSubmit = () => {
     if (!valid) {
@@ -302,6 +324,35 @@ export default function VehicleSaleForm() {
             <DateInput value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
         </SectionCard>
+
+        {/* Digital signature (optional) */}
+        <SectionCard title="חתימה דיגיטלית (אופציונלי)"
+          hint="חתימה אלקטרונית רגילה — מתאימה להסכם בין הצדדים. אינה חתימה מאושרת/ממשלתית.">
+          <label className="flex items-start gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
+            <input type="checkbox" checked={signConsent} onChange={(e) => setSignConsent(e.target.checked)} className="mt-0.5" />
+            אני מאשר/ת שחתימה אלקטרונית שאוסיף מהווה את חתימתי המחייבת על המסמך.
+          </label>
+          {[{ key: 'seller', label: 'חתימת המוכר', who: seller }, { key: 'buyer', label: 'חתימת הקונה', who: buyer }].map((p) => (
+            <div key={p.key} className="flex items-center justify-between gap-3 rounded-2xl border p-3" style={{ borderColor: C.border }}>
+              <div className="min-w-0">
+                <p className="text-sm font-bold" style={{ color: C.text }}>{p.label}</p>
+                <p className="text-[11px] truncate" style={{ color: C.muted }}>{p.who.name.trim() || '— יש למלא שם —'}</p>
+              </div>
+              {signatures[p.key] ? (
+                <div className="flex items-center gap-2 shrink-0">
+                  <img src={signatures[p.key].dataUrl} alt="חתימה" style={{ height: '32px' }} />
+                  <button type="button" onClick={() => setSigningParty(p.key)} disabled={!signConsent}
+                    className="text-[12px] font-bold disabled:opacity-50" style={{ color: C.primary }}>החלף</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setSigningParty(p.key)} disabled={!signConsent || !p.who.name.trim()}
+                  className="h-9 px-4 rounded-xl font-bold text-white text-sm disabled:opacity-50 shrink-0" style={{ background: C.primary }}>
+                  חתום
+                </button>
+              )}
+            </div>
+          ))}
+        </SectionCard>
       </div>
 
       {/* Sticky action bar */}
@@ -332,6 +383,14 @@ export default function VehicleSaleForm() {
         >
           <VehicleSaleDocument data={docData} />
         </FormPreviewModal>
+      )}
+
+      {signingParty && (
+        <SignaturePad
+          title={signingParty === 'seller' ? 'חתימת המוכר' : 'חתימת הקונה'}
+          onSave={captureSignature}
+          onClose={() => setSigningParty(null)}
+        />
       )}
     </div>
   );
