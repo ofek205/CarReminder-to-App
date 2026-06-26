@@ -49,17 +49,20 @@ export function isViewOnly(role) {
 
 /** Role display info.
  *  DB keys are the Hebrew strings 'בעלים' / 'מנהל' / 'שותף' — kept
- *  unchanged so existing rows + RLS predicates still match. The
- *  `label` field is the user-facing copy and was renamed per
- *  product feedback to make permission-level explicit at a glance:
- *    'מנהל' → 'שותף עורך'   (can edit, can't delete the vehicle)
- *    'שותף' → 'שותף צופה'   (read-only)
- *  These align with the per-vehicle share dialog ("עורך" / "צופה")
- *  so users see the same vocabulary across the account-level and
- *  vehicle-level sharing surfaces.
+ *  unchanged so existing rows + RLS predicates still match. Only the
+ *  user-facing `label` changes.
+ *
+ *  Canonical account-role vocabulary (spec §5): בעלים / מנהל / צופה —
+ *  three visually-distinct words, each distinct in its FIRST word (critical
+ *  in RTL). The earlier labels 'שותף עורך' / 'שותף צופה' collided on the
+ *  word "שותף" (both the viewer role key AND a shared prefix of both):
+ *    'מנהל' → 'מנהל'   (edit/add + invite members; no delete, no ownership)
+ *    'שותף' → 'צופה'   (read-only)
+ *  Note: per-vehicle SHARING keeps its own vocabulary (עורך / צופה) — that
+ *  is a separate surface from account membership.
  */
 export const ROLE_INFO = {
-  'בעלים': { label: 'בעלים',     description: 'שליטה מלאה: ניהול, עריכה ומחיקה',  color: C.warn, bg: C.warnBg, icon: 'Crown' },
-  'מנהל':  { label: 'שותף עורך', description: 'מוסיף ועורך הכל, חוץ ממחיקת רכבים', color: '#2563EB', bg: C.infoBg, icon: 'Shield' },
-  'שותף':  { label: 'שותף צופה', description: 'צפייה בלבד, ללא עריכה או מחיקה',    color: C.gray500, bg: C.gray100, icon: 'User' },
+  'בעלים': { label: 'בעלים', description: 'שליטה מלאה: ניהול, עריכה ומחיקה',  color: C.warn, bg: C.warnBg, icon: 'Crown' },
+  'מנהל':  { label: 'מנהל',  description: 'מוסיף ועורך הכל, חוץ ממחיקת רכבים', color: '#2563EB', bg: C.infoBg, icon: 'Shield' },
+  'שותף':  { label: 'צופה',  description: 'צפייה בלבד, ללא עריכה או מחיקה',    color: C.gray500, bg: C.gray100, icon: 'User' },
 };

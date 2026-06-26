@@ -115,7 +115,7 @@ function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChang
                     borderColor: active ? rInfo.color : C.gray200,
                     opacity: changingRole ? 0.5 : 1,
                   }}>
-                  {r === 'מנהל' ? 'שותף עורך' : 'שותף צופה'}
+                  {rInfo.label}
                 </button>
               );
             })}
@@ -221,20 +221,50 @@ function AuthAccountSettings({ embedded = false }) {
     enabled: !!accountId && canManage(myRole),
   });
 
+  // Member mutations go through SECURITY DEFINER RPCs (not direct
+  // db.account_members.update). The RPCs enforce authz server-side, protect
+  // the owner row, and — for removal — cancel the member's active
+  // driver_assignments in the same transaction. Wrapped in withTimeout so a
+  // hung call surfaces an error toast instead of a silent stall.
   const removeMember = async (member) => {
-    await db.account_members.update(member.id, { status: MEMBER_STATUS.REMOVED });
-    queryClient.invalidateQueries({ queryKey: ['account-members'] });
-    toast.success('המשתמש הוסר מהחשבון');
+    try {
+      const { error } = await withTimeout(
+        supabase.rpc('remove_member', {
+          p_account_id: accountId,
+          p_member_user_id: member.user_id,
+        }),
+        'remove_member'
+      );
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['account-members'] });
+      toast.success('המשתמש הוסר מהחשבון');
+    } catch (e) {
+      const msg = e?.message || '';
+      if (msg.includes('cannot_remove_owner')) toast.error('אי אפשר להסיר את בעל החשבון');
+      else if (msg.includes('not_authorized')) toast.error('אין לך הרשאה להסיר את החבר הזה');
+      else toast.error('שגיאה בהסרת החבר');
+    }
   };
 
   const changeRole = async (member, newRole) => {
     try {
-      await db.account_members.update(member.id, { role: newRole });
+      const { error } = await withTimeout(
+        supabase.rpc('change_member_role', {
+          p_account_id: accountId,
+          p_member_user_id: member.user_id,
+          p_new_role: newRole,
+        }),
+        'change_member_role'
+      );
+      if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['account-members'] });
       const roleLabel = ROLE_INFO[newRole]?.label || newRole;
       toast.success(`התפקיד שונה ל${roleLabel}`);
     } catch (e) {
-      toast.error('שגיאה בשינוי התפקיד');
+      const msg = e?.message || '';
+      if (msg.includes('cannot_change_owner_role')) toast.error('אי אפשר לשנות את תפקיד הבעלים');
+      else if (msg.includes('not_authorized')) toast.error('אין לך הרשאה לשנות את התפקיד הזה');
+      else toast.error('שגיאה בשינוי התפקיד');
     }
   };
 

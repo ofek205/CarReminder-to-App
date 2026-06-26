@@ -97,7 +97,16 @@ export default function DeleteAccount() {
       setStep('done');
     } catch (err) {
       console.error('Delete error:', err);
-      setError('אירעה שגיאה. נסה שוב או פנה לתמיכה.');
+      const msg = err?.message || '';
+      if (msg.includes('must_transfer_ownership')) {
+        // The user owns a business account that still has other active
+        // members. Deleting would orphan/destroy a shared fleet, so the
+        // server blocks it. They must transfer ownership (or remove the
+        // members) first. (Transfer UI ships in a later wave.)
+        setError('אתה הבעלים של חשבון עסקי עם חברים פעילים. כדי למחוק או לעזוב, יש קודם להעביר את הבעלות לחבר אחר או להסיר את החברים מהחשבון.');
+      } else {
+        setError('אירעה שגיאה. נסה שוב או פנה לתמיכה.');
+      }
       setStep('confirm');
     }
   };

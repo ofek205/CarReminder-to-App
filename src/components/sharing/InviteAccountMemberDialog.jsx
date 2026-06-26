@@ -32,7 +32,7 @@ const WhatsAppIcon = ({ size = 16 }) => (
 const ROLES = [
   {
     value: 'מנהל',
-    label: 'שותף עורך',
+    label: 'מנהל',
     description: 'מוסיף ועורך הכל, חוץ ממחיקת רכבים וניהול חברים',
     icon: Shield,
     color: '#2563EB',
@@ -40,7 +40,7 @@ const ROLES = [
   },
   {
     value: 'שותף',
-    label: 'שותף צופה',
+    label: 'צופה',
     description: 'צפייה בלבד, ללא עריכה או מחיקה',
     icon: Eye,
     color: C.gray500,
@@ -161,7 +161,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
   };
 
   const openWhatsApp = () => {
-    const roleLabel = role === 'מנהל' ? 'שותף עורך' : 'שותף צופה';
+    const roleLabel = role === 'מנהל' ? 'מנהל' : 'צופה';
     const text = `הצטרף/י לחשבון הרכבים שלי ב-CarReminder כ${roleLabel}. לחץ להצטרפות:\n${inviteLink}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
