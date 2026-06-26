@@ -196,12 +196,15 @@ function AuthReminderSettings({ embedded = false }) {
     init();
   }, [user?.id]);
 
-  // Columns that actually exist in the 'reminder_settings' table today.
-  // The `notify_*` booleans and `device_notifications_enabled` are UI-level
-  // toggles that we persist locally until a DB migration adds them. that
-  // way saving doesn't 500 on an unknown column.
-  // TODO: after running supabase-add-reminder-notify-columns.sql, this list
-  // can be expanded to include the notify_* + device_notifications_enabled fields.
+  // Columns persisted to the 'reminder_settings' table.
+  // notify_* + device_notifications_enabled were localStorage-only until
+  // supabase-add-reminder-notify-columns.sql added them (default true). They
+  // now persist to the DB so BOTH channels honor them server-side: the email
+  // dispatcher (email_dispatch_candidates reads notify_test / notify_insurance
+  // + the per-user remind_*_days_before window) and the local scheduler
+  // (useNotificationScheduler loads the full row).
+  // ⚠ The add-columns migration MUST be applied before this code ships, or
+  // saving 500s on the unknown columns.
   const DB_COLUMNS = [
     'remind_test_days_before',
     'remind_insurance_days_before',
@@ -211,6 +214,12 @@ function AuthReminderSettings({ embedded = false }) {
     'daily_job_hour',
     'email_enabled',
     'whatsapp_enabled',
+    'notify_test',
+    'notify_insurance',
+    'notify_maintenance',
+    'notify_document',
+    'notify_safety',
+    'device_notifications_enabled',
   ];
   const LOCAL_ONLY_KEY = 'reminder_settings_local';
 
