@@ -143,6 +143,9 @@ export default function PowerOfAttorneyForm() {
   const [corpNumber, setCorpNumber] = useState('');
   const [signatories, setSignatories] = useState([{ name: '' }, { name: '' }]);
   const [lawyer, setLawyer] = useState({ name: '', address: '', validUntil: '' });
+  // Section 4 (lawyer certification) is optional — the official corporate
+  // form requires it, so it's included by default, but the user can drop it.
+  const [includeLawyer, setIncludeLawyer] = useState(true);
 
   const [showPreview, setShowPreview] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -214,9 +217,9 @@ export default function PowerOfAttorneyForm() {
 
   const docData = useMemo(() => (
     isBusiness
-      ? { purpose, plate, corpName, corpNumber, signatories, representative: rep, lawyer }
+      ? { purpose, plate, corpName, corpNumber, signatories, representative: rep, lawyer, includeLawyer }
       : { purpose, plate, owners, representative: rep, validUntil }
-  ), [isBusiness, purpose, plate, corpName, corpNumber, signatories, rep, lawyer, owners, validUntil]);
+  ), [isBusiness, purpose, plate, corpName, corpNumber, signatories, rep, lawyer, includeLawyer, owners, validUntil]);
 
   // ── Owners list helpers (personal, up to 3) ──────────────────────────
   const updateOwner = (i, patch) =>
@@ -422,29 +425,38 @@ export default function PowerOfAttorneyForm() {
           )}
         </SectionCard>
 
-        {/* Lawyer (business only) */}
+        {/* Lawyer (business only) — optional section 4 */}
         {isBusiness && (
-          <SectionCard title="אישור עורך דין (סעיף 4)"
-            hint="ניתן להשלים כאן או להשאיר לעורך הדין. החתימה והחותמת נוספות ידנית.">
-            <div className="rounded-2xl p-3 flex items-start gap-2 text-[12px]"
-              style={{ background: C.warnBg, color: C.warnDark }}>
-              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>הטופס לתאגיד מחייב אישור, חתימה וחותמת של עורך דין על נכונות מורשי החתימה.</span>
-            </div>
-            <div>
-              <Label className="text-right block mb-1.5 text-sm">שם עורך הדין</Label>
-              <Input value={lawyer.name} onChange={(e) => setLawyer((l) => ({ ...l, name: e.target.value }))}
-                dir="rtl" />
-            </div>
-            <div>
-              <Label className="text-right block mb-1.5 text-sm">כתובת המשרד</Label>
-              <Input value={lawyer.address} onChange={(e) => setLawyer((l) => ({ ...l, address: e.target.value }))}
-                dir="rtl" />
-            </div>
-            <div>
-              <Label className="text-right block mb-1.5 text-sm">בתוקף עד</Label>
-              <DateInput value={lawyer.validUntil} onChange={(e) => setLawyer((l) => ({ ...l, validUntil: e.target.value }))} />
-            </div>
+          <SectionCard title="אישור עורך דין (סעיף 4)" hint="אופציונלי — אפשר לכלול את סעיף עורך הדין במסמך או להשמיט אותו.">
+            <label className="flex items-center gap-2 text-[13px] cursor-pointer" style={{ color: C.text }}>
+              <input type="checkbox" checked={includeLawyer} onChange={(e) => setIncludeLawyer(e.target.checked)} />
+              כלול במסמך את סעיף אישור עורך הדין
+            </label>
+            {includeLawyer ? (
+              <>
+                <div className="rounded-2xl p-3 flex items-start gap-2 text-[12px]"
+                  style={{ background: C.warnBg, color: C.warnDark }}>
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>הטופס הרשמי לתאגיד מחייב אישור, חתימה וחותמת של עורך דין על נכונות מורשי החתימה.</span>
+                </div>
+                <div>
+                  <Label className="text-right block mb-1.5 text-sm">שם עורך הדין</Label>
+                  <Input value={lawyer.name} onChange={(e) => setLawyer((l) => ({ ...l, name: e.target.value }))} dir="rtl" />
+                </div>
+                <div>
+                  <Label className="text-right block mb-1.5 text-sm">כתובת המשרד</Label>
+                  <Input value={lawyer.address} onChange={(e) => setLawyer((l) => ({ ...l, address: e.target.value }))} dir="rtl" />
+                </div>
+                <div>
+                  <Label className="text-right block mb-1.5 text-sm">בתוקף עד</Label>
+                  <DateInput value={lawyer.validUntil} onChange={(e) => setLawyer((l) => ({ ...l, validUntil: e.target.value }))} />
+                </div>
+              </>
+            ) : (
+              <p className="text-[12px]" style={{ color: C.muted }}>
+                סעיף אישור עורך הדין לא ייכלל במסמך. שים לב: ייתכן שמשרד הרישוי ידרוש אותו בעת ההגשה.
+              </p>
+            )}
           </SectionCard>
         )}
       </div>

@@ -87,6 +87,7 @@ export default function PowerOfAttorneyDocument({ data = {}, variant = 'personal
     corpNumber = '',
     signatories = [],
     lawyer = {},
+    includeLawyer = true,
   } = data;
 
   const title = isBusiness ? 'ייפוי כוח – של תאגיד' : 'ייפוי כוח – של אדם פרטי';
@@ -174,7 +175,8 @@ export default function PowerOfAttorneyDocument({ data = {}, variant = 'personal
             </div>
           </section>
 
-          {/* ── 4. Lawyer certification ────────────────────────────── */}
+          {/* ── 4. Lawyer certification (optional) ──────────────────── */}
+          {includeLawyer && (
           <section className="poa-section">
             <p className="poa-section-title">4. אישור עורך דין</p>
             <p className="poa-section-note">
@@ -190,6 +192,7 @@ export default function PowerOfAttorneyDocument({ data = {}, variant = 'personal
               </div>
             </div>
           </section>
+          )}
         </>
       ) : (
         <>
@@ -236,7 +239,7 @@ export default function PowerOfAttorneyDocument({ data = {}, variant = 'personal
       <footer className="poa-disclaimer">
         מסמך זה הופק באמצעות CarReminder על בסיס טופס משרד התחבורה. יש לבדוק את נכונות הפרטים, להדפיס ולחתום ביד.
         ייתכן שיידרשו חתימות וחותמות מקוריות במעמד ההגשה.
-        {isBusiness && ' סעיף 4 מחייב אישור, חתימה וחותמת של עורך דין.'}
+        {isBusiness && includeLawyer && ' סעיף 4 מחייב אישור, חתימה וחותמת של עורך דין.'}
       </footer>
     </article>
   );

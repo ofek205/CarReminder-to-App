@@ -258,32 +258,30 @@ begin
   if (v_should_update_km or v_should_update_test or v_should_update_test_due)
      and v_owner_user_id is not null then
 
-    v_title := '✅ עדכון אוטומטי ממשרד התחבורה';
-
+    -- Personal, reassuring copy: the title names the vehicle, the body
+    -- acknowledges ("we noticed"), reassures it's automatic, and softly
+    -- nudges uploading the renewed license (only on the test variants —
+    -- a pure km refresh doesn't produce a new license document).
     if v_should_update_km and v_should_update_test_due then
-      v_body := 'זיהינו שביצעת טסט ל'
-             || v_vehicle_label
-             || '. הקילומטראז׳ עודכן ל-'
+      v_title := '✅ עדכנו את הטסט של ' || v_vehicle_label;
+      v_body := 'ראינו שביצעת טסט — עדכנו עבורך את הקילומטראז׳ ל-'
              || to_char(p_gov_km, 'FM999G999G999')
-             || ' ק״מ ותוקף הטסט הבא ל-'
+             || ' ק״מ ואת תוקף הטסט ל-'
              || to_char(p_gov_test_due_date, 'DD/MM/YYYY')
-             || '.';
+             || ', אוטומטית. כדאי להעלות גם את רישיון הרכב המעודכן כדי שהכול יהיה מסודר במקום אחד.';
     elsif v_should_update_km then
-      v_body := 'הקילומטראז׳ של '
-             || v_vehicle_label
-             || ' עודכן ל-'
+      v_title := '✅ עדכנו את הקילומטראז׳ של ' || v_vehicle_label;
+      v_body := 'לפי נתוני משרד התחבורה, עדכנו את הקילומטראז׳ ל-'
              || to_char(p_gov_km, 'FM999G999G999')
-             || ' ק״מ לפי נתוני משרד התחבורה.';
+             || ' ק״מ — אוטומטית, בלי לעשות כלום.';
     elsif v_should_update_test_due then
-      v_body := 'תוקף הטסט של '
-             || v_vehicle_label
-             || ' עודכן ל-'
+      v_title := '✅ עדכנו את הטסט של ' || v_vehicle_label;
+      v_body := 'ראינו שביצעת טסט ועדכנו עבורך את התוקף ל-'
              || to_char(p_gov_test_due_date, 'DD/MM/YYYY')
-             || '.';
+             || ', אוטומטית. כדאי להעלות גם את רישיון הרכב המעודכן כדי שהכול יהיה מסודר במקום אחד.';
     else
-      v_body := 'תאריך הטסט של '
-             || v_vehicle_label
-             || ' עודכן לפי נתוני משרד התחבורה.';
+      v_title := '✅ עדכנו את הטסט של ' || v_vehicle_label;
+      v_body := 'ראינו שביצעת טסט ועדכנו עבורך את הנתונים לפי משרד התחבורה. כדאי להעלות גם את רישיון הרכב המעודכן.';
     end if;
 
     insert into public.app_notifications (user_id, type, title, body, data)
