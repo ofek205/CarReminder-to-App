@@ -79,6 +79,7 @@ const EMPTY_FORM = {
   insurance_due_date: '',
   insurance_company: '',
   insurance_company_other: '',
+  technician_name: '',
   leasing_company: '',
   current_km: '',
   current_engine_hours: '',
@@ -1003,6 +1004,7 @@ export default function AddVehicle() {
         'ownership_hand','ownership_history',
         'is_personal_import','personal_import_type',
         'is_road_removed','road_removed_date',
+        'technician_name',
         // Generator detail columns — included ONLY for generators. Gating this
         // on the category keeps non-generator saves from ever sending these
         // columns (e.g. critical_systems=[]), which would otherwise (a) write
@@ -2085,6 +2087,16 @@ export default function AddVehicle() {
                       highlight={isLeasingOwnership(form.ownership)}
                     />
                   )}
+
+                  {/* גורם מטפל — מוסך / טכנאי / ספק שירות. אופציונלי, לכל סוגי הרכב והחשבונות. */}
+                  <div>
+                    <Label>גורם מטפל (אופציונלי)</Label>
+                    <Input
+                      value={form.technician_name || ''}
+                      onChange={e => handleChange('technician_name', e.target.value)}
+                      placeholder="מוסך / טכנאי / ספק שירות"
+                    />
+                  </div>
 
                   {/* דגל + מרינה - vessels only */}
                   {isVesselCategory && (
