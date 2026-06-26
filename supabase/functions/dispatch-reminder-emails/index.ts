@@ -111,6 +111,17 @@ function escapeHtml(s: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
+// Format a postgres date (YYYY-MM-DD or Date) as DD/MM/YYYY WITHOUT the JS
+// Date/timezone machinery — `new Date('YYYY-MM-DD')` parses as UTC midnight
+// and toLocaleDateString can then shift the displayed day. A deadline email
+// must never show the wrong date.
+function fmtDateDMY(d: unknown): string {
+  if (!d) return '';
+  const s = String(d).slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
+}
+
 // The brand shell — mirrors src/lib/emailTemplates.js buildEmailHtml but
 // lives in Deno because the Edge Function can't import the React/Vite
 // source. Keep in sync manually if we ever change the shell.
@@ -126,23 +137,23 @@ function buildShell(opts: {
 <meta name="supported-color-schemes" content="light">
 <title>${escapeHtml(opts.title)}</title>
 </head>
-<body style="margin:0;padding:0;background:#F4F7F3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#1F2937;direction:rtl">
+<body style="margin:0;padding:0;background:#F4F5F7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#1F2937;direction:rtl">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px">
     ${escapeHtml(opts.preheader)}&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;
   </div>
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#F4F7F3;padding:32px 16px">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#F4F5F7;padding:32px 16px">
     <tr><td align="center">
       <table role="presentation" width="560" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:560px;background:#FFFFFF;border-radius:24px;box-shadow:0 6px 28px rgba(17,34,22,0.06);overflow:hidden">
         <tr><td align="center" style="padding:36px 28px 8px">
-          <img src="https://car-reminder.app/icons/email-logo.png" alt="CarReminder" width="72" height="72" style="display:block;width:72px;height:72px;border-radius:22px;margin:0 auto;box-shadow:0 6px 18px rgba(45,82,51,0.18)">
+          <img src="https://car-reminder.app/icons/email-logo.png" alt="CarReminder" width="72" height="72" style="display:block;width:72px;height:72px;border-radius:22px;margin:0 auto;background:#2D5233;box-shadow:0 6px 18px rgba(45,82,51,0.18)">
           <h1 style="font-size:24px;font-weight:900;color:#1C3620;margin:20px 0 6px">${escapeHtml(opts.title)}</h1>
           <p style="font-size:14px;color:#6B7280;margin:0">${escapeHtml(opts.subtitle)}</p>
         </td></tr>
         <tr><td style="padding:24px 28px 8px;font-size:15px;line-height:1.75;color:#1F2937;direction:rtl;text-align:right">${opts.body}</td></tr>
         <tr><td style="padding:8px 28px 32px">
           <hr style="border:none;border-top:1px solid #E5E7EB;margin:20px 0">
-          ${opts.footer ? `<p style="font-size:12px;color:#9CA3AF;text-align:center;margin:0 0 12px;line-height:1.7">${opts.footer}</p>` : ''}
-          <p style="font-size:11px;color:#9CA3AF;text-align:center;margin:0;line-height:1.7">
+          ${opts.footer ? `<p style="font-size:12px;color:#6B7280;text-align:center;margin:0 0 12px;line-height:1.7">${opts.footer}</p>` : ''}
+          <p style="font-size:11px;color:#6B7280;text-align:center;margin:0;line-height:1.7">
             CarReminder &middot; ניהול חכם של כלי רכב<br>
             <a href="mailto:support@car-reminder.app" style="color:#6B7280;text-decoration:underline">support@car-reminder.app</a>
             &nbsp;&middot;&nbsp;
@@ -175,7 +186,7 @@ function renderTemplate(template: any, rawVars: Record<string, unknown>) {
   const footerNote = renderPlaceholders(template.footer_note || '', htmlVars);
 
   const ctaBlock = (ctaLabel && ctaUrl)
-    ? `<div style="margin:24px 0 16px"><table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto"><tr><td align="center" bgcolor="#2D5233" style="border-radius:14px;background:linear-gradient(135deg,#2D5233 0%,#3A6B42 100%);padding:16px 40px;mso-padding-alt:16px 40px;box-shadow:0 8px 20px rgba(45,82,51,0.25)"><a href="${ctaUrl}" target="_blank" style="color:#FFFFFF;font-size:16px;font-weight:800;text-decoration:none;line-height:1.2">${ctaLabel}&nbsp;&#8592;</a></td></tr></table></div><p style="font-size:12px;color:#9CA3AF;text-align:center;margin:22px 0 4px">או העתק/י את הקישור לדפדפן:</p><p style="font-size:12px;word-break:break-all;text-align:center;margin:0 0 8px;color:#6B7280"><a href="${ctaUrl}" style="color:#2D5233;text-decoration:underline">${ctaUrl}</a></p>`
+    ? `<div style="margin:24px 0 16px"><table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto"><tr><td align="center" bgcolor="#2D5233" style="border-radius:14px;background:linear-gradient(135deg,#2D5233 0%,#3A6B42 100%);padding:16px 40px;mso-padding-alt:16px 40px;box-shadow:0 8px 20px rgba(45,82,51,0.25)"><a href="${ctaUrl}" target="_blank" style="color:#FFFFFF;font-size:16px;font-weight:800;text-decoration:none;line-height:1.2">${ctaLabel}&nbsp;&#8592;</a></td></tr></table></div><p style="font-size:12px;color:#6B7280;text-align:center;margin:22px 0 4px">או העתק/י את הקישור לדפדפן:</p><p style="font-size:12px;word-break:break-all;text-align:center;margin:0 0 8px;color:#6B7280"><a href="${ctaUrl}" style="color:#2D5233;text-decoration:underline">${ctaUrl}</a></p>`
     : '';
 
   const html = buildShell({
@@ -290,11 +301,30 @@ async function processTrigger(
         stats.skipped++;
         continue;
       }
+      // days_left drives Hebrew grammar (singular/plural + "today") and a
+      // deadline urgency tier (green > 14d · amber 4-14d · red <= 3d). The
+      // test body template reads {{heroTop/Big/Sub}}, {{heroBg/Fg/Num}},
+      // {{pillBorder}}, {{daysPhrase}}; other templates ignore the extras.
+      const dl = Number(c.days_left ?? 0);
+      // Per-type noun so the shared hero reads naturally ("ימים לטסט" vs
+      // "ימים לביטוח"). Only test + insurance are live reminder types.
+      const heroNoun    = notificationKey === 'reminder_insurance' ? 'ביטוח' : 'טסט';
+      const heroNounDef = notificationKey === 'reminder_insurance' ? 'הביטוח' : 'הטסט';
+      const heroTop = dl <= 0 ? `${heroNounDef} פג` : dl === 1 ? 'נשאר' : 'נשארו';
+      const heroBig = dl <= 0 ? 'היום' : String(dl);
+      const heroSub = dl <= 0 ? '' : dl === 1 ? `יום ל${heroNoun}` : `ימים ל${heroNoun}`;
+      const daysPhrase = dl <= 0 ? 'היום' : dl === 1 ? 'בעוד יום' : `בעוד ${dl} ימים`;
+      let heroBg = '#EAF3EC', heroFg = '#3A6B42', heroNum = '#2D5233', pillBorder = '#C9E0CE';
+      if (dl <= 3)       { heroBg = '#FDECEA'; heroFg = '#B23120'; heroNum = '#C0341D'; pillBorder = '#F1C2BA'; }
+      else if (dl <= 14) { heroBg = '#FFF7E8'; heroFg = '#9A5708'; heroNum = '#B25E09'; pillBorder = '#F0D6A0'; }
       const vars = {
         vehicleName:  c.vehicle_name || 'רכב',
         licensePlate: c.license_plate || '',
-        daysLeft:     String(c.days_left ?? ''),
-        expiryDate:   c.reference_date ? new Date(c.reference_date).toLocaleDateString('he-IL') : '',
+        daysLeft:     String(dl),
+        daysPhrase,
+        heroTop, heroBig, heroSub,
+        heroBg, heroFg, heroNum, pillBorder,
+        expiryDate:   fmtDateDMY(c.reference_date),
         vehicleId:    c.vehicle_id || '',
       };
 
