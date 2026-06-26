@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ShieldCheck, ShieldAlert, Wrench, Car, Headphones,
   CalendarDays, Clock, Timer, AlertTriangle, Check, Play, Loader2, BatteryWarning, History,
+  Smartphone, Bell,
 } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Switch } from '@/components/ui/switch';
 import useIsAdmin from '@/hooks/useIsAdmin';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import { isNative } from '@/lib/capacitor';
 import { C } from '@/lib/designTokens';
 import {
   isTripGuardSupported,
@@ -208,6 +210,24 @@ export default function SafetyReminder() {
     );
   }
 
+  // ── Mobile app only: a desktop/web browser can't run the background
+  // Bluetooth detection or fire these notifications. Show a clear message
+  // instead of the misleading mock. (DEV keeps the mock for in-browser dev.)
+  if (!isNative && !import.meta.env.DEV) {
+    return (
+      <div className="max-w-xl mx-auto p-4" dir="rtl">
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
+          <Smartphone className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
+          <p className="font-bold text-base" style={{ color: C.text }}>זמין רק באפליקציית המובייל</p>
+          <p className="text-sm mt-1" style={{ color: C.muted }}>
+            ההגנה פועלת ברקע בטלפון, ולכן אינה זמינה במחשב. פתח את אפליקציית CarReminder בטלפון כדי להפעיל אותה.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // ── iOS: not supported yet (spike pending) ──
   if (!supported) {
     return (
@@ -240,6 +260,13 @@ export default function SafetyReminder() {
             כשתסיים נסיעה והטלפון יתנתק מה-Bluetooth של הרכב, נשלח לך תזכורת רוטטת
             לבדוק שכל הילדים ירדו מהרכב.
           </p>
+
+          <div className="rounded-2xl p-3 mb-4 border flex items-start gap-2" style={{ background: C.infoSubtle, borderColor: C.border }}>
+            <Bell className="h-4 w-4 shrink-0 mt-0.5" style={{ color: C.info }} />
+            <p className="text-xs leading-relaxed" style={{ color: C.textAlt }}>
+              עובד רק באפליקציית המובייל. השאר את הרשאת ההתראות וה-Bluetooth פתוחות — בלעדיהן לא נוכל להתריע.
+            </p>
+          </div>
 
           <div className="rounded-2xl p-4 mb-4 border" style={{ background: C.warnSubtle, borderColor: C.warnBorder }}>
             <div className="flex items-start gap-2">
