@@ -22,7 +22,7 @@ import { shareContent } from '@/lib/capacitor';
  *   onClose     close handler
  *   children    the rendered document element
  */
-export default function FormPreviewModal({ fileBase, disclaimer, shareTitle, shareText, onClose, children }) {
+export default function FormPreviewModal({ fileBase, disclaimer, shareTitle, shareText, onClose, children, title = 'תצוגה מקדימה', subtitle = 'בדוק את הפרטים לפני ההפקה' }) {
   const previewRef = useRef(null);
   const [busy, setBusy] = useState(false);
   // Keep Hebrew letters/digits/dashes, drop anything a filesystem dislikes.
@@ -71,8 +71,8 @@ export default function FormPreviewModal({ fileBase, disclaimer, shareTitle, sha
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-auto max-h-[calc(100dvh-32px)] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b px-4 py-3 shrink-0" style={{ borderColor: C.border }}>
           <div className="min-w-0">
-            <p className="text-base font-bold" style={{ color: C.text }}>תצוגה מקדימה</p>
-            <p className="text-xs" style={{ color: C.muted }}>בדוק את הפרטים לפני ההפקה</p>
+            <p className="text-base font-bold" style={{ color: C.text }}>{title}</p>
+            <p className="text-xs" style={{ color: C.muted }}>{subtitle}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="סגור"
             className="w-9 h-9 rounded-full border flex items-center justify-center shrink-0" style={{ borderColor: C.border }}>

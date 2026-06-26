@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Plus, Trash2, Download, FileText, Share2, Loader2, X, Info, AlertTriangle,
+  Plus, Trash2, Download, FileText, Share2, Loader2, X, Info, AlertTriangle, Eye,
 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -153,6 +153,7 @@ export default function PowerOfAttorneyForm() {
   const [includeLawyer, setIncludeLawyer] = useState(true);
 
   const [showPreview, setShowPreview] = useState(false);
+  const [showSample, setShowSample] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [signatures, setSignatures] = useState({});
   const [signingKey, setSigningKey] = useState(null);
@@ -278,6 +279,11 @@ export default function PowerOfAttorneyForm() {
           {isBusiness ? 'חשבון עסקי · טופס תאגיד' : 'חשבון פרטי · טופס אדם פרטי'}
         </span>
       </div>
+
+      <button type="button" onClick={() => setShowSample(true)}
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold" style={{ color: C.primary }}>
+        <Eye className="h-4 w-4" /> צפה בדוגמה ריקה של הטופס
+      </button>
 
       <div className="space-y-4">
         {/* Purpose */}
@@ -555,6 +561,17 @@ export default function PowerOfAttorneyForm() {
         />
       )}
 
+      {showSample && (
+        <PreviewModal
+          docData={{}}
+          variant={isBusiness ? 'business' : 'personal'}
+          plate=""
+          title="דוגמה לטופס"
+          subtitle="כך נראה הטופס — מלא את הפרטים והפק את המסמך שלך"
+          onClose={() => setShowSample(false)}
+        />
+      )}
+
       {signingKey && (
         <SignaturePad title="חתימה דיגיטלית" onSave={captureSignature} onClose={() => setSigningKey(null)} />
       )}
@@ -566,7 +583,7 @@ export default function PowerOfAttorneyForm() {
 // Mirrors AccidentReportModal's proven full-screen pattern: visible
 // rendered document (required by html2canvas) + sticky export bar with
 // safe-area padding.
-function PreviewModal({ docData, variant, plate, onClose }) {
+function PreviewModal({ docData, variant, plate, onClose, title = 'תצוגה מקדימה', subtitle = 'בדוק את הפרטים לפני ההפקה' }) {
   const previewRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const fileBase = `יפוי-כוח-${(plate || 'רכב').replace(/[^\w֐-׿-]/g, '')}`;
@@ -617,8 +634,8 @@ function PreviewModal({ docData, variant, plate, onClose }) {
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-auto max-h-[calc(100dvh-32px)] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b px-4 py-3 shrink-0" style={{ borderColor: C.border }}>
           <div className="min-w-0">
-            <p className="text-base font-bold" style={{ color: C.text }}>תצוגה מקדימה</p>
-            <p className="text-xs" style={{ color: C.muted }}>בדוק את הפרטים לפני ההפקה</p>
+            <p className="text-base font-bold" style={{ color: C.text }}>{title}</p>
+            <p className="text-xs" style={{ color: C.muted }}>{subtitle}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="סגור"
             className="w-9 h-9 rounded-full border flex items-center justify-center shrink-0"

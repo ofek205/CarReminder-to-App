@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Info, Loader2 } from 'lucide-react';
+import { Info, Loader2, Eye } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -76,6 +76,7 @@ export default function VehicleSaleForm() {
   const [saveMyId, setSaveMyId] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showSample, setShowSample] = useState(false);
   const [signatures, setSignatures] = useState({ seller: null, buyer: null });
   const [signingParty, setSigningParty] = useState(null);
   const [signConsent, setSignConsent] = useState(false);
@@ -191,9 +192,14 @@ export default function VehicleSaleForm() {
 
   return (
     <div className="pb-28">
-      <p className="text-[12px] mb-4 rounded-2xl p-3" style={{ background: C.light, color: C.primary }}>
+      <p className="text-[12px] mb-3 rounded-2xl p-3" style={{ background: C.light, color: C.primary }}>
         ברירת מחדל: אתה המוכר. הפרטים שלך ושל הרכב מולאו מראש — ניתן לערוך הכל.
       </p>
+
+      <button type="button" onClick={() => setShowSample(true)}
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold" style={{ color: C.primary }}>
+        <Eye className="h-4 w-4" /> צפה בדוגמה ריקה של הטופס
+      </button>
 
       <div className="space-y-4">
         {/* Vehicle */}
@@ -382,6 +388,20 @@ export default function VehicleSaleForm() {
           onClose={() => setShowPreview(false)}
         >
           <VehicleSaleDocument data={docData} />
+        </FormPreviewModal>
+      )}
+
+      {showSample && (
+        <FormPreviewModal
+          title="דוגמה לטופס"
+          subtitle="כך נראה הטופס — מלא את הפרטים והפק את המסמך שלך"
+          fileBase="דוגמה-זכרון-דברים"
+          disclaimer="זוהי דוגמה ריקה. מלא את הפרטים בטופס כדי להפיק מסמך מלא."
+          shareTitle="דוגמה — זכרון דברים"
+          shareText="דוגמה לטופס זכרון דברים — CarReminder."
+          onClose={() => setShowSample(false)}
+        >
+          <VehicleSaleDocument data={{}} />
         </FormPreviewModal>
       )}
 

@@ -32,8 +32,27 @@ function fmtNum(n) {
 }
 
 // Inline filled value sitting on an underline (the "blank" look).
-function B({ value, w = 90 }) {
-  return <span className="sale-blank" style={{ minWidth: w }}>{value || ' '}</span>;
+function B({ value }) {
+  return <span className="sale-blank">{value || ' '}</span>;
+}
+
+// Manually-numbered clause / sub-clause. We avoid <ol> markers because
+// html2canvas + RTL render them unreliably (showed Arabic-Indic digits).
+function Clause({ n, children }) {
+  return (
+    <div className="sale-clause">
+      <span className="sale-clause-n">{n}.</span>
+      <div className="sale-clause-body">{children}</div>
+    </div>
+  );
+}
+function SubClause({ n, children }) {
+  return (
+    <div className="sale-subclause">
+      <span className="sale-subclause-n">{n}.</span>
+      <div className="sale-clause-body">{children}</div>
+    </div>
+  );
 }
 
 function fmtDateTime(iso) {
@@ -92,42 +111,36 @@ export default function VehicleSaleDocument({ data = {} }) {
         <p className="sale-lead">לפיכך הוסכם, הוצהר והותנה בין הצדדים כדלקמן:</p>
       </section>
 
-      {/* Clauses */}
-      <ol className="sale-clauses">
-        <li>המוכר מוכר בזאת לקונה את הרכב, והקונה רוכש אותו, בהתאם לתנאי זכרון דברים זה.</li>
-        <li>
-          מחיר הרכב הכולל והמוסכם הוא <B value={fmtNum(price.total)} /> ₪ (במילים: <B value={price.totalWords} w={180} /> ש״ח), אשר ישולם כך:
-          <ol className="sale-sub">
-            <li>
-              סך של <B value={fmtNum(price.down)} /> ₪ (במילים: <B value={price.downWords} w={150} /> ש״ח) שולם במעמד חתימת זכרון דברים זה,
-              והמוכר מאשר את קבלתו.
-            </li>
-            <li>
-              היתרה בסך <B value={fmtNum(price.balance)} /> ₪ (במילים: <B value={price.balanceWords} w={150} /> ש״ח) תשולם בשיק בנקאי
-              או במזומן ביום <B value={he(price.balanceDate)} w={100} />, במעמד העברת הבעלות על שם הקונה ומסירת הרכב.
-            </li>
-          </ol>
-        </li>
-        <li>
-          המוכר מתחייב להעביר לקונה את הבעלות ברכב כשהיא נקייה מכל חוב, שעבוד, עיקול או הגבלה, ולשאת בכל המסים
-          והאגרות החלים על הרכב עד למועד העברת הבעלות.
-        </li>
-        <li>
-          המוכר מצהיר כי קריאת מונה הקילומטרים של הרכב היא <B value={fmtNum(condition.km)} /> ק״מ, סוג הבעלות הוא{' '}
-          <B value={condition.ownership} /> ומספר הידיים ברכב הוא <B value={condition.hands} w={50} />.
-        </li>
-        <li>
+      {/* Clauses — manually numbered (see Clause helper) */}
+      <div className="sale-clauses">
+        <Clause n="1">המוכר מוכר בזאת לקונה את הרכב, והקונה רוכש אותו, בהתאם לתנאי זכרון דברים זה.</Clause>
+        <Clause n="2">
+          מחיר הרכב הכולל והמוסכם הוא <B value={fmtNum(price.total)} /> ₪ (במילים: <B value={price.totalWords} /> ש״ח), אשר ישולם כך:
+          <div className="sale-sub">
+            <SubClause n="א">
+              סך של <B value={fmtNum(price.down)} /> ₪ (במילים: <B value={price.downWords} /> ש״ח) שולם במעמד חתימת זכרון דברים זה, והמוכר מאשר את קבלתו.
+            </SubClause>
+            <SubClause n="ב">
+              היתרה בסך <B value={fmtNum(price.balance)} /> ₪ (במילים: <B value={price.balanceWords} /> ש״ח) תשולם בשיק בנקאי או במזומן ביום <B value={he(price.balanceDate)} />, במעמד העברת הבעלות על שם הקונה ומסירת הרכב.
+            </SubClause>
+          </div>
+        </Clause>
+        <Clause n="3">המוכר מתחייב להעביר לקונה את הבעלות ברכב כשהיא נקייה מכל חוב, שעבוד, עיקול או הגבלה, ולשאת בכל המסים והאגרות החלים על הרכב עד למועד העברת הבעלות.</Clause>
+        <Clause n="4">
+          המוכר מצהיר כי קריאת מונה הקילומטרים של הרכב היא <B value={fmtNum(condition.km)} /> ק״מ, סוג הבעלות הוא <B value={condition.ownership} /> ומספר הידיים ברכב הוא <B value={condition.hands} />.
+        </Clause>
+        <Clause n="5">
           {condition.hadAccident
             ? 'המוכר מצהיר כי הרכב היה מעורב בתאונה, וכי גילה זאת לקונה.'
             : 'המוכר מצהיר כי למיטב ידיעתו הרכב לא היה מעורב בתאונה שגרמה לירידת ערך מסחרית.'}
-        </li>
-        <li>המוכר מצהיר כי גילה לקונה את כל הפגמים והליקויים המהותיים הידועים לו ברכב.</li>
-        <li>הקונה מצהיר כי ראה ובדק את הרכב, התרשם ממצבו ומצא אותו מתאים לצרכיו, והוא רוכש אותו במצבו הנוכחי (AS-IS).</li>
-        <li>הפרה יסודית של זכרון דברים זה תזכה את הצד הנפגע בכל הסעדים העומדים לרשותו על פי דין.</li>
-        <li>כל שינוי בזכרון דברים זה ייעשה בכתב ובחתימת שני הצדדים.</li>
-        <li>ידוע לקונה כי ממועד העברת הבעלות, ביטוח הרכב והאחריות עליו עוברים אליו ועל שמו.</li>
-        <li>הצדדים מצהירים כי קראו והבינו את זכרון דברים זה, כי הוא משקף את המוסכם ביניהם, וחתמו עליו מרצונם החופשי.</li>
-      </ol>
+        </Clause>
+        <Clause n="6">המוכר מצהיר כי גילה לקונה את כל הפגמים והליקויים המהותיים הידועים לו ברכב.</Clause>
+        <Clause n="7">הקונה מצהיר כי ראה ובדק את הרכב, התרשם ממצבו ומצא אותו מתאים לצרכיו, והוא רוכש אותו במצבו הנוכחי (AS-IS).</Clause>
+        <Clause n="8">הפרה יסודית של זכרון דברים זה תזכה את הצד הנפגע בכל הסעדים העומדים לרשותו על פי דין.</Clause>
+        <Clause n="9">כל שינוי בזכרון דברים זה ייעשה בכתב ובחתימת שני הצדדים.</Clause>
+        <Clause n="10">ידוע לקונה כי ממועד העברת הבעלות, ביטוח הרכב והאחריות עליו עוברים אליו ועל שמו.</Clause>
+        <Clause n="11">הצדדים מצהירים כי קראו והבינו את זכרון דברים זה, כי הוא משקף את המוסכם ביניהם, וחתמו עליו מרצונם החופשי.</Clause>
+      </div>
 
       <p className="sale-date-line">ולראיה באו הצדדים על החתום ביום <B value={he(date)} w={100} />:</p>
 
@@ -185,13 +198,16 @@ export function VehicleSaleStyles() {
       .sale-lead { font-weight: 800; margin-top: 10px !important; }
       .sale-blank {
         display: inline-block; border-bottom: 1px solid #111;
-        padding: 0 6px; min-height: 16px; font-weight: 700; text-align: center;
-        line-height: 1.4;
+        min-width: 56px; padding: 0 6px; min-height: 16px; font-weight: 700;
+        text-align: center; line-height: 1.4;
       }
-      .sale-clauses { margin: 12px 0; padding-inline-start: 20px; }
-      .sale-clauses > li { margin: 7px 0; padding-inline-start: 4px; }
-      .sale-sub { margin: 6px 0; padding-inline-start: 22px; list-style: hebrew; }
-      .sale-sub > li { margin: 4px 0; }
+      .sale-clauses { margin: 12px 0; }
+      .sale-clause { display: flex; gap: 6px; margin: 7px 0; align-items: baseline; }
+      .sale-clause-n { font-weight: 800; flex-shrink: 0; min-width: 16px; }
+      .sale-clause-body { flex: 1; }
+      .sale-sub { margin: 6px 0; }
+      .sale-subclause { display: flex; gap: 6px; margin: 4px 0; padding-inline-start: 16px; align-items: baseline; }
+      .sale-subclause-n { font-weight: 700; flex-shrink: 0; }
       .sale-date-line { font-weight: 700; margin: 16px 0 8px; }
       .sale-signs { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 6px; }
       .sale-sign-col { border: 1px solid #111; border-radius: 8px; padding: 10px 12px; }
