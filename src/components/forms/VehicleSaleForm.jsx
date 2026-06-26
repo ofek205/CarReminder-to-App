@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { DateInput } from '@/components/ui/date-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { idFieldError, normalizeId } from '@/lib/forms/israeliId';
+import { isValidIsraeliId, normalizeId } from '@/lib/forms/israeliId';
 import { numberToHebrewWords } from '@/lib/forms/hebrewNumber';
 import { readSavedId, writeSavedId } from '@/lib/forms/savedId';
 import FormPreviewModal from './FormPreviewModal';
@@ -31,14 +31,16 @@ function SectionCard({ title, hint, children }) {
   );
 }
 
-function Field({ label, required, children, error }) {
+function Field({ label, required, children, error, warning }) {
   return (
     <div>
       <Label className="text-right block mb-1.5 text-sm">
         {label}{required && <span className="mr-1" style={{ color: C.error }}>*</span>}
       </Label>
       {children}
-      {error && <p className="text-[11px] mt-1" style={{ color: C.error }}>{error}</p>}
+      {error
+        ? <p className="text-[11px] mt-1" style={{ color: C.error }}>{error}</p>
+        : warning ? <p className="text-[11px] mt-1" style={{ color: C.warn }}>{warning}</p> : null}
     </div>
   );
 }
@@ -117,27 +119,32 @@ export default function VehicleSaleForm() {
     setPrice((p) => ({ ...p, down: v, downWords: numberToHebrewWords(v) }));
   };
 
-  const sellerIdErr = idFieldError(seller.id);
-  const buyerIdErr = idFieldError(buyer.id);
+  // ת.ז policy: empty (required) ID blocks; a filled-in ID that fails the
+  // checksum only WARNS (self-fill document — flag a likely typo without
+  // blocking generation).
+  const idEmpty = (raw) => normalizeId(raw).length === 0;
+  const idBlockError = (raw, required) =>
+    (required && submitAttempted && idEmpty(raw)) ? 'יש להזין מספר ת.ז' : '';
+  const idWarn = (raw) => {
+    const d = normalizeId(raw);
+    if (d.length === 0) return '';
+    if (d.length < 9) return 'מספר ת.ז קצר מ-9 ספרות — בדוק';
+    if (!isValidIsraeliId(d)) return 'מספר ת.ז אינו תקין — בדוק את הספרות';
+    return '';
+  };
 
   const problems = useMemo(() => {
     const p = [];
     if (!vehicle.plate.trim()) p.push('מספר רישוי');
     if (!seller.name.trim()) p.push('שם המוכר');
-    if (sellerIdErr) p.push('ת.ז המוכר');
+    if (idEmpty(seller.id)) p.push('ת.ז המוכר');
     if (!buyer.name.trim()) p.push('שם הקונה');
-    if (buyerIdErr) p.push('ת.ז הקונה');
+    if (idEmpty(buyer.id)) p.push('ת.ז הקונה');
     if (!(totalN > 0)) p.push('מחיר הרכב');
     if (!date) p.push('תאריך החוזה');
     return p;
-  }, [vehicle.plate, seller.name, sellerIdErr, buyer.name, buyerIdErr, totalN, date]);
+  }, [vehicle.plate, seller.name, seller.id, buyer.name, buyer.id, totalN, date]);
   const valid = problems.length === 0;
-
-  const idDisp = (raw) => {
-    const d = normalizeId(raw);
-    if (d.length === 0) return submitAttempted ? 'יש להזין מספר ת.ז' : '';
-    return idFieldError(raw, { required: false });
-  };
 
   const docData = useMemo(() => ({
     vehicle,
@@ -154,7 +161,7 @@ export default function VehicleSaleForm() {
       toast.error('חסר למילוי: ' + problems.join(', '));
       return;
     }
-    if (user) writeSavedId(user.id, saveMyId && !sellerIdErr ? normalizeId(seller.id) : '');
+    if (user) writeSavedId(user.id, saveMyId && isValidIsraeliId(seller.id) ? normalizeId(seller.id) : '');
     setShowPreview(true);
   };
 
@@ -219,7 +226,7 @@ export default function VehicleSaleForm() {
           <Field label="שם מלא" required error={submitAttempted && !seller.name.trim() ? 'יש להזין שם' : ''}>
             <Input dir="rtl" value={seller.name} onChange={(e) => setSeller((s) => ({ ...s, name: e.target.value }))} />
           </Field>
-          <Field label="ת.ז" required error={idDisp(seller.id)}>
+          <Field label="ת.ז" required error={idBlockError(seller.id, true)} warning={idWarn(seller.id)}>
             <Input dir="ltr" inputMode="numeric" maxLength={9} value={seller.id}
               onChange={(e) => setSeller((s) => ({ ...s, id: normalizeId(e.target.value) }))} className="text-left tabular-nums" />
           </Field>
@@ -238,7 +245,7 @@ export default function VehicleSaleForm() {
           <Field label="שם מלא" required error={submitAttempted && !buyer.name.trim() ? 'יש להזין שם' : ''}>
             <Input dir="rtl" value={buyer.name} onChange={(e) => setBuyer((b) => ({ ...b, name: e.target.value }))} />
           </Field>
-          <Field label="ת.ז" required error={idDisp(buyer.id)}>
+          <Field label="ת.ז" required error={idBlockError(buyer.id, true)} warning={idWarn(buyer.id)}>
             <Input dir="ltr" inputMode="numeric" maxLength={9} value={buyer.id}
               onChange={(e) => setBuyer((b) => ({ ...b, id: normalizeId(e.target.value) }))} className="text-left tabular-nums" />
           </Field>

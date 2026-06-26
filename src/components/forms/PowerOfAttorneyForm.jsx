@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { shareContent } from '@/lib/capacitor';
-import { idFieldError, normalizeId } from '@/lib/forms/israeliId';
+import { isValidIsraeliId, normalizeId } from '@/lib/forms/israeliId';
 import PowerOfAttorneyDocument from './PowerOfAttorneyDocument';
 
 const MY_ID_KEY = (uid) => `cr_poa_my_id:${uid || 'anon'}`;
@@ -30,8 +30,9 @@ function writeSavedId(uid, id) {
   } catch { /* quota / private mode — non-fatal */ }
 }
 
-// Small ת.ז field: numeric, max 9 digits, inline validation message.
-function IdField({ label, value, onChange, error, required = true }) {
+// Small ת.ז field: numeric, max 9 digits. `error` (red) blocks; `warning`
+// (amber) is advisory only — see the ת.ז policy note in the component.
+function IdField({ label, value, onChange, error, warning, required = true }) {
   return (
     <div>
       <Label className="text-right block mb-1.5 text-sm">
@@ -45,7 +46,9 @@ function IdField({ label, value, onChange, error, required = true }) {
         onChange={(e) => onChange(normalizeId(e.target.value))}
         className="text-left tabular-nums"
       />
-      {error && <p className="text-[11px] mt-1" style={{ color: C.error }}>{error}</p>}
+      {error
+        ? <p className="text-[11px] mt-1" style={{ color: C.error }}>{error}</p>
+        : warning ? <p className="text-[11px] mt-1" style={{ color: C.warn }}>{warning}</p> : null}
     </div>
   );
 }
@@ -175,12 +178,24 @@ export default function PowerOfAttorneyForm() {
   const hasVehicles = vehicles.length > 0;
 
   // ── Validation ──────────────────────────────────────────────────────
-  const repIdErr = idFieldError(rep.id);
-  const owner0IdErr = idFieldError(owners[0]?.id);
+  // ת.ז policy: a missing (empty) ID for a required party BLOCKS export,
+  // but a filled-in ID that fails the checksum only WARNS — these are
+  // self-fill documents, so we flag a likely typo without preventing the
+  // user from generating (e.g. a foreign ID, or an intentional draft).
+  const idEmpty = (raw) => normalizeId(raw).length === 0;
+  const idBlockError = (raw, required) =>
+    (required && submitAttempted && idEmpty(raw)) ? 'יש להזין מספר ת.ז' : '';
+  const idWarn = (raw) => {
+    const d = normalizeId(raw);
+    if (d.length === 0) return '';
+    if (d.length < 9) return 'מספר ת.ז קצר מ-9 ספרות — בדוק';
+    if (!isValidIsraeliId(d)) return 'מספר ת.ז אינו תקין — בדוק את הספרות';
+    return '';
+  };
 
   // A human-readable list of what still blocks export. Shown to the user
-  // so the primary button is never a silent dead end ("filled everything,
-  // nothing happens"). Order matches the on-screen field order.
+  // so the primary button is never a silent dead end. Invalid (but filled)
+  // ת.ז does NOT block — it only warns.
   const problems = useMemo(() => {
     const p = [];
     if (!plate) p.push('מספר רישוי');
@@ -190,30 +205,17 @@ export default function PowerOfAttorneyForm() {
       if (!signatories[0]?.name.trim()) p.push('מורשה חתימה');
     } else {
       if (!owners[0]?.name.trim()) p.push('שם בעל הרכב');
-      if (owner0IdErr) p.push('ת.ז של בעל הרכב');
-      // A started-but-incomplete extra owner (name OR id typed) must be
-      // valid — otherwise the printed form would carry a half-filled owner.
-      const extraInvalid = owners.slice(1).some((o) => {
-        const hasData = o.name.trim() || normalizeId(o.id);
-        return hasData && (!o.name.trim() || idFieldError(o.id));
-      });
-      if (extraInvalid) p.push('פרטי בעלים נוסף');
+      if (idEmpty(owners[0]?.id)) p.push('ת.ז של בעל הרכב');
+      // An extra owner with an id typed but no name is incomplete.
+      const extraIncomplete = owners.slice(1).some((o) => normalizeId(o.id) && !o.name.trim());
+      if (extraIncomplete) p.push('שם בעלים נוסף');
       if (!validUntil) p.push('תאריך בתוקף עד');
     }
     if (!rep.name.trim()) p.push('שם מיופה הכוח');
-    if (repIdErr) p.push('ת.ז של מיופה הכוח');
+    if (idEmpty(rep.id)) p.push('ת.ז של מיופה הכוח');
     return p;
-  }, [plate, rep, repIdErr, isBusiness, corpName, corpNumber, signatories, owners, owner0IdErr, validUntil]);
+  }, [plate, rep, isBusiness, corpName, corpNumber, signatories, owners, validUntil]);
   const valid = problems.length === 0;
-
-  // Display gating for ת.ז fields: format errors (too short / bad checksum)
-  // show as the user types, but the "required / empty" error only after a
-  // submit attempt — so the form doesn't open covered in red.
-  const idDisplayError = (raw, required) => {
-    const d = normalizeId(raw);
-    if (d.length === 0) return required && submitAttempted ? 'יש להזין מספר ת.ז' : '';
-    return idFieldError(raw, { required: false });
-  };
 
   const docData = useMemo(() => (
     isBusiness
@@ -238,7 +240,7 @@ export default function PowerOfAttorneyForm() {
     // Persist the user's ת.ז for next time, if they opted in (personal only,
     // device-local — never leaves the device, no DB column / PII on server).
     if (!isBusiness && user) {
-      writeSavedId(user.id, saveMyId && !owner0IdErr ? normalizeId(owners[0].id) : '');
+      writeSavedId(user.id, saveMyId && isValidIsraeliId(owners[0].id) ? normalizeId(owners[0].id) : '');
     }
     setShowPreview(true);
   };
@@ -379,7 +381,8 @@ export default function PowerOfAttorneyForm() {
                   required={i === 0}
                   value={o.id}
                   onChange={(v) => updateOwner(i, { id: v })}
-                  error={idDisplayError(o.id, ownerRequired)}
+                  error={idBlockError(o.id, ownerRequired)}
+                  warning={idWarn(o.id)}
                 />
                 {i === 0 && (
                   <label className="flex items-center gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
@@ -411,7 +414,7 @@ export default function PowerOfAttorneyForm() {
               <p className="text-[11px] mt-1" style={{ color: C.error }}>יש להזין שם</p>
             )}
           </div>
-          <IdField label="ת.ז" value={rep.id} onChange={(v) => setRep((r) => ({ ...r, id: v }))} error={idDisplayError(rep.id, true)} />
+          <IdField label="ת.ז" value={rep.id} onChange={(v) => setRep((r) => ({ ...r, id: v }))} error={idBlockError(rep.id, true)} warning={idWarn(rep.id)} />
           {!isBusiness && (
             <div>
               <Label className="text-right block mb-1.5 text-sm">
