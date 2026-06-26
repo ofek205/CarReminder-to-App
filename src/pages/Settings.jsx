@@ -18,8 +18,9 @@
  * continue to use the old URLs.
  */
 import React, { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { User, Users, Bell } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { User, Users, Bell, Shield, ChevronLeft } from 'lucide-react';
+import { createPageUrl } from '@/utils';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 // Living Dashboard system - same family used across the B2B pages.
 // Settings is technically a personal-area page, but it sits alongside
@@ -34,6 +35,7 @@ import UserProfilePage from './UserProfile';
 import AccountSettings from './AccountSettings';
 import ReminderSettingsPage from './ReminderSettingsPage';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import useIsAdmin from '@/hooks/useIsAdmin';
 import { C } from '@/lib/designTokens';
 
 const TABS = [
@@ -47,6 +49,10 @@ export default function Settings() {
   const initial = TABS.find(t => t.key === params.get('tab'))?.key || 'profile';
   const [active, setActive] = useState(initial);
   const { isBusiness } = useWorkspaceRole();
+  const isAdmin = useIsAdmin() === true;
+  // "בטיחות ילדים" (TripGuard) home lives in the התראות tab — a personal/
+  // parent feature. Admin-gated during rollout (matches the page's own gate).
+  const showSafetyEntry = !isBusiness && isAdmin;
 
   // When the active workspace is a business account, member management lives
   // in the dedicated business surface (ניהול הצוות), NOT the personal
@@ -123,7 +129,25 @@ export default function Settings() {
       <Suspense fallback={<div className="flex justify-center py-16"><LoadingSpinner /></div>}>
         {active === 'profile' && <UserProfilePage embedded />}
         {active === 'account' && !isBusiness && <AccountSettings embedded />}
-        {active === 'alerts'  && <ReminderSettingsPage embedded />}
+        {active === 'alerts' && (
+          <>
+            {showSafetyEntry && (
+              <Card className="mb-4">
+                <Link to={createPageUrl('SafetyReminder')} className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: C.light }}>
+                    <Shield className="h-5 w-5" style={{ color: C.primary }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold" style={{ color: C.text }}>בטיחות ילדים</p>
+                    <p className="text-xs" style={{ color: C.muted }}>תזכורת שלא לשכוח ילד ברכב בסוף נסיעה</p>
+                  </div>
+                  <ChevronLeft className="h-5 w-5 shrink-0" style={{ color: C.muted }} />
+                </Link>
+              </Card>
+            )}
+            <ReminderSettingsPage embedded />
+          </>
+        )}
       </Suspense>
 
       {/* Version footer — lives at the page level so it shows for every
