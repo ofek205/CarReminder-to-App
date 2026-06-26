@@ -40,6 +40,14 @@ function formatHe(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function fmtDateTime(iso) {
+  if (!iso || typeof iso !== 'string') return '';
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return iso;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(dt.getDate())}/${p(dt.getMonth() + 1)}/${dt.getFullYear()} ${p(dt.getHours())}:${p(dt.getMinutes())}`;
+}
+
 // A fixed row of digit cells (right-to-left visually, digits read LTR).
 // Empty positions render as blank cells so the form looks authentic even
 // when no value is entered yet.
@@ -88,6 +96,7 @@ export default function PowerOfAttorneyDocument({ data = {}, variant = 'personal
     signatories = [],
     lawyer = {},
     includeLawyer = true,
+    signatures = {},
   } = data;
 
   const title = isBusiness ? 'ייפוי כוח – של תאגיד' : 'ייפוי כוח – של אדם פרטי';
@@ -156,10 +165,17 @@ export default function PowerOfAttorneyDocument({ data = {}, variant = 'personal
               {[0, 1].map((i) => (
                 <div className="poa-signer" key={i}>
                   <FilledLine label="שם משפחה ופרטי" value={signatories[i]?.name} />
-                  <div className="poa-sign-blank">
-                    <span className="poa-sign-rule" />
-                    <span className="poa-line-label">חתימה</span>
-                  </div>
+                  {signatures[`sig${i}`] ? (
+                    <div className="poa-sign-mark">
+                      <img className="poa-sign-img" src={signatures[`sig${i}`].dataUrl} alt="חתימה" />
+                      <span className="poa-line-label">נחתם דיגיטלית</span>
+                    </div>
+                  ) : (
+                    <div className="poa-sign-blank">
+                      <span className="poa-sign-rule" />
+                      <span className="poa-line-label">חתימה</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -215,7 +231,11 @@ export default function PowerOfAttorneyDocument({ data = {}, variant = 'personal
                   <tr key={i}>
                     <td className="poa-td-name">{o.name || ' '}</td>
                     <td className="poa-td-id"><DigitCells value={o.id} count={9} /></td>
-                    <td className="poa-td-sign">&nbsp;</td>
+                    <td className="poa-td-sign">
+                      {signatures[`owner${i}`]
+                        ? <img className="poa-td-sign-img" src={signatures[`owner${i}`].dataUrl} alt="חתימה" />
+                        : ' '}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -233,6 +253,23 @@ export default function PowerOfAttorneyDocument({ data = {}, variant = 'personal
             <FilledLine label="תאריך האישור בתוקף עד" value={formatHe(validUntil)} />
           </section>
         </>
+      )}
+
+      {Object.keys(signatures).length > 0 && (
+        <section className="poa-cert">
+          <p className="poa-cert-title">אימות חתימה אלקטרונית</p>
+          {Object.entries(signatures).map(([key, s]) => (
+            <p className="poa-cert-row" key={key}>
+              <strong>{s.name || ''}</strong>
+              {s.id ? <> (ת.ז <span dir="ltr">{s.id}</span>)</> : null}
+              {' '}חתם/ה אלקטרונית בתאריך {fmtDateTime(s.ts)}
+              {s.hash ? <> · טביעת אצבע <span dir="ltr">{s.hash}</span></> : null}
+            </p>
+          ))}
+          <p className="poa-cert-note">
+            חתימות אלקטרוניות שנעשו במכשיר בהסכמת החותמים. טביעת האצבע מזהה את תוכן המסמך בעת החתימה.
+          </p>
+        </section>
       )}
 
       {/* ── App-generated disclaimer ───────────────────────────────── */}
@@ -389,6 +426,13 @@ export function PowerOfAttorneyStyles() {
       .poa-td-name { font-weight: 700; height: 34px; text-align: right; }
       .poa-td-id { padding: 6px 4px; }
       .poa-td-sign { height: 34px; }
+      .poa-td-sign-img { max-height: 30px; max-width: 95%; display: block; margin: 0 auto; }
+      .poa-sign-mark { display: flex; flex-direction: column-reverse; margin: 8px 0; align-items: center; }
+      .poa-sign-img { max-height: 44px; max-width: 90%; display: block; margin: 0 auto 2px; }
+      .poa-cert { margin-top: 12px; border: 1.2px solid #111; border-radius: 10px; padding: 8px 14px; }
+      .poa-cert-title { font-size: 12px; font-weight: 800; margin: 0 0 5px; }
+      .poa-cert-row { font-size: 10.5px; margin: 2px 0; color: #222; }
+      .poa-cert-note { font-size: 9.5px; color: #555; margin: 6px 0 0; }
 
       /* Disclaimer */
       .poa-disclaimer {

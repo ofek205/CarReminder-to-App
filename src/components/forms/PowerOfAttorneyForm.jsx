@@ -18,6 +18,8 @@ import { toastError } from '@/lib/userErrorReport';
 import { shareContent } from '@/lib/capacitor';
 import { isValidIsraeliId, normalizeId } from '@/lib/forms/israeliId';
 import PowerOfAttorneyDocument from './PowerOfAttorneyDocument';
+import SignaturePad from './SignaturePad';
+import { shortFingerprint, canonicalize } from '@/lib/forms/docHash';
 
 const MY_ID_KEY = (uid) => `cr_poa_my_id:${uid || 'anon'}`;
 function readSavedId(uid) {
@@ -152,6 +154,9 @@ export default function PowerOfAttorneyForm() {
 
   const [showPreview, setShowPreview] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [signatures, setSignatures] = useState({});
+  const [signingKey, setSigningKey] = useState(null);
+  const [signConsent, setSignConsent] = useState(false);
 
   // Prefill once the identity/account data is known. Runs when the
   // building blocks change; guarded so it doesn't clobber user edits.
@@ -219,9 +224,26 @@ export default function PowerOfAttorneyForm() {
 
   const docData = useMemo(() => (
     isBusiness
-      ? { purpose, plate, corpName, corpNumber, signatories, representative: rep, lawyer, includeLawyer }
-      : { purpose, plate, owners, representative: rep, validUntil }
-  ), [isBusiness, purpose, plate, corpName, corpNumber, signatories, rep, lawyer, includeLawyer, owners, validUntil]);
+      ? { purpose, plate, corpName, corpNumber, signatories, representative: rep, lawyer, includeLawyer, signatures }
+      : { purpose, plate, owners, representative: rep, validUntil, signatures }
+  ), [isBusiness, purpose, plate, corpName, corpNumber, signatories, rep, lawyer, includeLawyer, owners, validUntil, signatures]);
+
+  // Electronic signature: resolve the signer's identity for a slot key,
+  // then stamp the signature with name/ת.ז/time + a content fingerprint.
+  const signerFor = (key) => {
+    if (key.startsWith('owner')) { const o = owners[+key.slice(5)] || {}; return { name: o.name || '', id: o.id || '' }; }
+    if (key.startsWith('sig')) { const s = signatories[+key.slice(3)] || {}; return { name: s.name || '', id: '' }; }
+    return { name: '', id: '' };
+  };
+  const captureSignature = async (dataUrl) => {
+    const key = signingKey;
+    if (!key) return;
+    const who = signerFor(key);
+    let hash = '';
+    try { hash = await shortFingerprint(canonicalize(docData)); } catch { /* fingerprint is best-effort */ }
+    setSignatures((s) => ({ ...s, [key]: { dataUrl, name: who.name, id: who.id, ts: new Date().toISOString(), hash } }));
+    setSigningKey(null);
+  };
 
   // ── Owners list helpers (personal, up to 3) ──────────────────────────
   const updateOwner = (i, patch) =>
@@ -462,6 +484,42 @@ export default function PowerOfAttorneyForm() {
             )}
           </SectionCard>
         )}
+
+        {/* Digital signature (optional) */}
+        <SectionCard title="חתימה דיגיטלית (אופציונלי)"
+          hint="חתימה אלקטרונית רגילה — אינה חתימה מאושרת/ממשלתית. ייתכן שמשרד הרישוי ידרוש חתימה ידנית מקורית.">
+          <label className="flex items-start gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
+            <input type="checkbox" checked={signConsent} onChange={(e) => setSignConsent(e.target.checked)} className="mt-0.5" />
+            אני מאשר/ת שחתימה אלקטרונית שאוסיף מהווה את חתימתי המחייבת על המסמך.
+          </label>
+          {(() => {
+            const parties = isBusiness
+              ? signatories.map((s, i) => ({ key: `sig${i}`, label: `חתימת מורשה חתימה ${i + 1}`, name: s.name }))
+              : owners.map((o, i) => ({ key: `owner${i}`, label: `חתימת בעלים ${i + 1}`, name: o.name }));
+            const named = parties.filter((p) => p.name.trim());
+            if (named.length === 0) {
+              return <p className="text-[12px]" style={{ color: C.muted }}>מלא שמות {isBusiness ? 'מורשי חתימה' : 'בעלים'} כדי לאפשר חתימה דיגיטלית.</p>;
+            }
+            return named.map((p) => (
+              <div key={p.key} className="flex items-center justify-between gap-3 rounded-2xl border p-3" style={{ borderColor: C.border }}>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold" style={{ color: C.text }}>{p.label}</p>
+                  <p className="text-[11px] truncate" style={{ color: C.muted }}>{p.name}</p>
+                </div>
+                {signatures[p.key] ? (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <img src={signatures[p.key].dataUrl} alt="חתימה" style={{ height: '32px' }} />
+                    <button type="button" onClick={() => setSigningKey(p.key)} disabled={!signConsent}
+                      className="text-[12px] font-bold disabled:opacity-50" style={{ color: C.primary }}>החלף</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setSigningKey(p.key)} disabled={!signConsent}
+                    className="h-9 px-4 rounded-xl font-bold text-white text-sm disabled:opacity-50 shrink-0" style={{ background: C.primary }}>חתום</button>
+                )}
+              </div>
+            ));
+          })()}
+        </SectionCard>
       </div>
 
       {/* Sticky action bar */}
@@ -495,6 +553,10 @@ export default function PowerOfAttorneyForm() {
           plate={plate}
           onClose={() => setShowPreview(false)}
         />
+      )}
+
+      {signingKey && (
+        <SignaturePad title="חתימה דיגיטלית" onSave={captureSignature} onClose={() => setSigningKey(null)} />
       )}
     </div>
   );
