@@ -198,15 +198,20 @@ function renderTemplate(template: any, rawVars: Record<string, unknown>) {
 // ── Core dispatch ──────────────────────────────────────────────────────────
 
 // Map email trigger notification_key → reminder_snoozes.reminder_type.
-// Example: "test_due_14d" → "test", "insurance_overdue_3d" → "insurance".
+// The live trigger keys are `reminder_test`, `reminder_insurance`, etc.
+// (NOT `test_due_14d`); the old `startsWith('test_')` checks never matched
+// those, so snooze filtering was silently skipped for every email reminder.
+// Strip the `reminder_` prefix first, then map — and keep the legacy
+// `<type>_...` form working too, for safety.
 function notifKeyToReminderType(key: string): string | null {
-  if (key.startsWith('test_')) return 'test';
-  if (key.startsWith('insurance_')) return 'insurance';
-  if (key.startsWith('inspection_')) return 'inspection';
-  if (key.startsWith('document_')) return 'document';
-  if (key.startsWith('maintenance_')) return 'maintenance';
-  if (key.startsWith('safety_')) return 'safety';
-  if (key.startsWith('mileage_')) return 'mileage';
+  const k = key.startsWith('reminder_') ? key.slice('reminder_'.length) : key;
+  if (k.startsWith('test')) return 'test';
+  if (k.startsWith('insurance')) return 'insurance';
+  if (k.startsWith('inspection')) return 'inspection';
+  if (k.startsWith('license') || k.startsWith('document')) return 'document';
+  if (k.startsWith('maintenance')) return 'maintenance';
+  if (k.startsWith('safety')) return 'safety';
+  if (k.startsWith('mileage')) return 'mileage';
   return null;
 }
 
