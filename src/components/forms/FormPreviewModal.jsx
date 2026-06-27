@@ -90,12 +90,12 @@ export default function FormPreviewModal({ fileBase, disclaimer, shareTitle, sha
           )}
           <div className="flex flex-col sm:flex-row gap-2">
             <button type="button" onClick={() => exportAs('pdf')} disabled={busy}
-              className="flex-1 h-11 rounded-2xl font-bold text-white inline-flex items-center justify-center gap-2 disabled:opacity-60"
+              className="h-11 sm:flex-1 rounded-2xl font-bold text-white inline-flex items-center justify-center gap-2 disabled:opacity-60"
               style={{ background: C.primary }}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} PDF
             </button>
             <button type="button" onClick={() => exportAs('word')} disabled={busy}
-              className="flex-1 h-11 rounded-2xl font-bold inline-flex items-center justify-center gap-2 border disabled:opacity-60"
+              className="h-11 sm:flex-1 rounded-2xl font-bold inline-flex items-center justify-center gap-2 border disabled:opacity-60"
               style={{ borderColor: C.primary, color: C.primary, background: C.card }}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} Word
             </button>

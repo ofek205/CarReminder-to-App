@@ -358,7 +358,7 @@ export default function VehicleSaleForm() {
                 </div>
               ) : (
                 <button type="button" onClick={() => setSigningParty(p.key)} disabled={!signConsent || !p.who.name.trim()}
-                  className="h-9 px-4 rounded-xl font-bold text-white text-sm disabled:opacity-50 shrink-0" style={{ background: C.primary }}>
+                  className="h-11 px-4 rounded-xl font-bold text-white text-sm disabled:opacity-50 shrink-0" style={{ background: C.primary }}>
                   חתום
                 </button>
               )}

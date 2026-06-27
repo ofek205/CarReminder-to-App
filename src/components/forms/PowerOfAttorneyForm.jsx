@@ -546,7 +546,7 @@ export default function PowerOfAttorneyForm() {
                   </div>
                 ) : (
                   <button type="button" onClick={() => setSigningKey(p.key)} disabled={!signConsent}
-                    className="h-9 px-4 rounded-xl font-bold text-white text-sm disabled:opacity-50 shrink-0" style={{ background: C.primary }}>חתום</button>
+                    className="h-11 px-4 rounded-xl font-bold text-white text-sm disabled:opacity-50 shrink-0" style={{ background: C.primary }}>חתום</button>
                 )}
               </div>
             ));
