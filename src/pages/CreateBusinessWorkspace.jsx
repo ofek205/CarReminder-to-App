@@ -83,10 +83,11 @@ async function autoInviteOnApproval(accountId, invitees) {
   for (const inv of invitees) {
     const email = (inv?.email || '').trim();
     const role  = inv?.role;
+    const nm    = (inv?.name || '').trim() || null;
     if (!email || !email.includes('@') || !['מנהל', 'שותף', 'driver'].includes(role)) continue;
     try {
       const { data, error } = await supabase.rpc('invite_account_member_by_email', {
-        p_email: email, p_role: role, p_vehicle_ids: null, p_account_id: accountId,
+        p_email: email, p_role: role, p_vehicle_ids: null, p_account_id: accountId, p_name: nm,
       });
       if (error) continue;  // already_member / transient — skip, keep going
       if (data && !data.recipient_existing_user && data.invite_token) {
@@ -205,7 +206,7 @@ function RequestForm({ mode, latestRequest, onRequested }) {
   const [submitting, setSubmitting]   = useState(false);
   const [invitees, setInvitees]       = useState([]);  // [{ email, role }]
   const [showHelp, setShowHelp]       = useState(false);
-  const addInvitee    = () => setInvitees((p) => [...p, { email: '', role: 'שותף' }]);
+  const addInvitee    = () => setInvitees((p) => [...p, { email: '', role: 'שותף', name: '' }]);
   const updateInvitee = (i, patch) => setInvitees((p) => p.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
   const removeInvitee = (i) => setInvitees((p) => p.filter((_, idx) => idx !== i));
 
@@ -258,7 +259,7 @@ function RequestForm({ mode, latestRequest, onRequested }) {
         if (!em || !em.includes('@') || seen.has(em)) continue;
         if (!['מנהל', 'שותף', 'driver'].includes(v.role)) continue;
         seen.add(em);
-        cleanInvitees.push({ email: em, role: v.role });
+        cleanInvitees.push({ email: em, role: v.role, name: (v.name || '').trim() });
       }
       if (cleanInvitees.length) meta.invitees = cleanInvitees.slice(0, 25);
 
@@ -484,6 +485,14 @@ function RequestForm({ mode, latestRequest, onRequested }) {
                   className="rounded-xl p-2.5 space-y-2"
                   style={{ background: '#FFFFFF', border: `1px solid ${C.successLight}` }}
                 >
+                  <Input
+                    type="text" dir="rtl"
+                    value={inv.name || ''}
+                    onChange={(e) => updateInvitee(i, { name: e.target.value })}
+                    placeholder="שם (לא חובה)"
+                    className="h-10 rounded-lg w-full"
+                    style={{ background: '#FFFFFF', borderColor: C.successLight }}
+                  />
                   <div className="flex items-center gap-2">
                     <Input
                       type="email" inputMode="email" dir="ltr"
@@ -659,7 +668,7 @@ function PendingState({ request }) {
           <Detail
             label="אנשי צוות שיוזמנו עם האישור"
             multiline
-            value={request.business_meta.invitees.map(v => `${v.email} · ${inviteeRoleLabel(v.role)}`).join('\n')}
+            value={request.business_meta.invitees.map(v => `${v.name ? v.name + ' · ' : ''}${v.email} · ${inviteeRoleLabel(v.role)}`).join('\n')}
           />
         )}
         <Detail label="הוגשה" value={fmtDate(request.created_at)} />
