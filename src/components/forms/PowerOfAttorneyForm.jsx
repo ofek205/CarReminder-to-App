@@ -442,7 +442,8 @@ export default function PowerOfAttorneyForm() {
               <p className="text-[11px] mt-1" style={{ color: C.error }}>יש להזין שם</p>
             )}
           </div>
-          <IdField label="ת.ז" value={rep.id} onChange={(v) => setRep((r) => ({ ...r, id: v }))} error={idBlockError(rep.id, true)} warning={idWarn(rep.id)} />
+          <IdField label="ת.ז" value={rep.id} onChange={(v) => setRep((r) => ({ ...r, id: v }))} error={idBlockError(rep.id, true)}
+            warning={idWarn(rep.id) || (!isBusiness && normalizeId(rep.id) && owners.some((o) => normalizeId(o.id) === normalizeId(rep.id)) ? 'ת.ז מיופה הכוח זהה לבעל הרכב — בדוק' : '')} />
           {!isBusiness && (
             <div>
               <Label className="text-right block mb-1.5 text-sm">

@@ -115,6 +115,9 @@ export default function VehicleSaleForm() {
   const downN = Number(onlyDigits(price.down)) || 0;
   const balance = Math.max(0, totalN - downN);
   const balanceWords = numberToHebrewWords(balance);
+  // Safety warnings (non-blocking): same ID on both parties, down > total.
+  const samePartyId = !!(normalizeId(seller.id) && normalizeId(seller.id) === normalizeId(buyer.id));
+  const downExceeds = totalN > 0 && downN > totalN;
 
   const setTotal = (raw) => {
     const v = onlyDigits(raw);
@@ -273,7 +276,7 @@ export default function VehicleSaleForm() {
           <Field label="שם מלא" required error={submitAttempted && !buyer.name.trim() ? 'יש להזין שם' : ''}>
             <Input dir="rtl" value={buyer.name} onChange={(e) => setBuyer((b) => ({ ...b, name: e.target.value }))} />
           </Field>
-          <Field label="ת.ז" required error={idBlockError(buyer.id, true)} warning={idWarn(buyer.id)}>
+          <Field label="ת.ז" required error={idBlockError(buyer.id, true)} warning={idWarn(buyer.id) || (samePartyId ? 'ת.ז המוכר והקונה זהים — בדוק' : '')}>
             <Input dir="ltr" inputMode="numeric" maxLength={9} value={buyer.id}
               onChange={(e) => setBuyer((b) => ({ ...b, id: normalizeId(e.target.value) }))} className="text-left tabular-nums" />
           </Field>
@@ -303,6 +306,9 @@ export default function VehicleSaleForm() {
             יתרה לתשלום: <strong>{balance.toLocaleString('en-US')} ₪</strong>
             {balanceWords ? ` (${balanceWords} ש״ח)` : ''}
           </div>
+          {downExceeds && (
+            <p className="text-[11px]" style={{ color: C.warn }}>המקדמה גדולה מהמחיר הכולל — בדוק את הסכומים</p>
+          )}
         </SectionCard>
 
         {/* Condition */}
