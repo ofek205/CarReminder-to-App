@@ -174,7 +174,12 @@ export default function PowerOfAttorneyForm() {
     if (!user) return;
     if (prefilledForRef.current === isBusiness) return;
     if (isBusiness && !activeWorkspace) return; // wait for business data on first load
+    const firstRun = prefilledForRef.current === null;
     prefilledForRef.current = isBusiness;
+    // Switching variant invalidates any captured signatures (corporate
+    // signatory slots vs personal owner slots) — clear them so a signature
+    // from one variant can't leak into the other variant's document/cert.
+    if (!firstRun) setSignatures({});
     if (isBusiness) {
       setCorpName(activeWorkspace?.account_name || activeWorkspace?.name || '');
       setCorpNumber(normalizeId(businessMeta?.business_id || ''));
