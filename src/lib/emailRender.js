@@ -59,7 +59,11 @@ function plainVars(vars = {}) {
 // preview/test render identically instead of showing literal {{placeholders}}.
 // KEEP IN SYNC with the dispatcher's vars block.
 function deriveReminderHeroVars(daysLeftRaw, notificationKey) {
-  const dl = Number(daysLeftRaw ?? 0);
+  // Guard junk/missing input (e.g. the test dialog before daysLeft is set) so
+  // the preview shows a representative tier instead of NaN. The dispatcher
+  // always passes a real integer, so this default never triggers there.
+  let dl = Number(daysLeftRaw);
+  if (!Number.isFinite(dl)) dl = 14;
   const noun    = notificationKey === 'reminder_insurance' ? 'ביטוח' : 'טסט';
   const nounDef = notificationKey === 'reminder_insurance' ? 'הביטוח' : 'הטסט';
   let heroBg = '#EAF3EC', heroFg = '#3A6B42', heroNum = '#2D5233', pillBorder = '#C9E0CE';
@@ -113,10 +117,12 @@ export function renderFromTemplateObject(template, vars = {}, options = {}) {
   // Reminder templates reference hero/urgency/grammar placeholders the
   // dispatcher injects on real sends. Derive them here too so the admin
   // preview/test renders the same (otherwise {{heroBg}} etc. show literally).
-  // Caller-supplied vars win; derived values only fill the gaps.
+  // Derived values WIN here: these are system-computed, never admin-entered,
+  // and the test dialog otherwise stubs them with junk (the var name).
+  // Caller still controls the real inputs (daysLeft, vehicleName, ...).
   let effectiveVars = vars;
   if (template.notification_key && String(template.notification_key).startsWith('reminder_')) {
-    effectiveVars = { ...deriveReminderHeroVars(vars.daysLeft, template.notification_key), ...vars };
+    effectiveVars = { ...vars, ...deriveReminderHeroVars(vars.daysLeft, template.notification_key) };
   }
 
   const htmlVars = escapeValuesForHtml(effectiveVars, rawVars);

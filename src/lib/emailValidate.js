@@ -59,7 +59,7 @@ const CONTENT_FIELDS = [
 // preview/test. They are NOT admin-entered, so they don't need to be declared
 // in template.variables (and shouldn't clutter that list). Reminder
 // hero/urgency/grammar vars. KEEP IN SYNC with the reminder derivation.
-const SYSTEM_PROVIDED = new Set([
+export const SYSTEM_PROVIDED = new Set([
   'heroBg', 'heroFg', 'heroNum', 'heroTop', 'heroBig', 'heroSub',
   'pillBorder', 'daysPhrase',
 ]);
