@@ -182,7 +182,7 @@ export default function SafetyReminder() {
   if (!isAdmin) {
     return (
       <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
         <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
           <ShieldCheck className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
           <p className="font-bold text-base" style={{ color: C.text }}>בקרוב</p>
@@ -198,7 +198,7 @@ export default function SafetyReminder() {
   if (isBusiness) {
     return (
       <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
         <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
           <ShieldCheck className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
           <p className="font-bold text-base" style={{ color: C.text }}>תכונה אישית</p>
@@ -216,7 +216,7 @@ export default function SafetyReminder() {
   if (!isNative && !import.meta.env.DEV) {
     return (
       <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
         <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
           <Smartphone className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
           <p className="font-bold text-base" style={{ color: C.text }}>זמין רק באפליקציית המובייל</p>
@@ -232,7 +232,7 @@ export default function SafetyReminder() {
   if (!supported) {
     return (
       <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
         <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
           <ShieldCheck className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
           <p className="font-bold text-base" style={{ color: C.text }}>בקרוב גם ב-iPhone</p>
@@ -248,7 +248,7 @@ export default function SafetyReminder() {
   if (!accepted) {
     return (
       <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
         <div className="rounded-3xl p-5 border" style={{ background: C.card, borderColor: C.border, boxShadow: '0 2px 12px rgba(45,82,51,0.08)' }}>
           <div className="flex items-center gap-2.5 mb-3">
             <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: C.light }}>
@@ -318,7 +318,7 @@ export default function SafetyReminder() {
   if (loading) {
     return (
       <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: C.primary }} />
         </div>
@@ -332,7 +332,7 @@ export default function SafetyReminder() {
 
   return (
     <div className="max-w-xl mx-auto p-4 pb-24" dir="rtl">
-      <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+      <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
 
       {/* ── FR5 status indicator — the trust hero (centered) ── */}
       <div

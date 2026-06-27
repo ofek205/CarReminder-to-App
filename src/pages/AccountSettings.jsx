@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Users, UserPlus, Trash2, Crown, Shield, User, Eye, Car, ChevronDown, ChevronUp, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import PageHeader from "../components/shared/PageHeader";
+import MobileBackButton from "../components/shared/MobileBackButton";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import InviteAccountMemberDialog from "@/components/sharing/InviteAccountMemberDialog";
 import { useAuth } from "../components/shared/GuestContext";
@@ -130,7 +131,7 @@ function MemberCard({ member, memberEmail, memberName, isMe, canRemove, canChang
 function GuestAccountSettings({ embedded = false }) {
   return (
     <div className="px-4 pb-20" dir="rtl">
-      {!embedded && <PageHeader title="חשבון משותף" />}
+      {!embedded && <PageHeader title="חשבון משותף" backPage="Settings" />}
       <div className="rounded-3xl p-8 text-center space-y-5"
         style={{ background: C.light, border: `1.5px solid ${C.border}` }}>
         <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto"
@@ -272,6 +273,7 @@ function AuthAccountSettings({ embedded = false }) {
 
   return (
     <div className="px-4 pb-20" dir="rtl">
+      {!embedded && <MobileBackButton to="Settings" />}
       {/* Header. skip when embedded inside the Settings hub (its tab bar
           already identifies the section). We still show the primary action
           (הזמן משתמש חדש) below the stats row so it doesn't disappear. */}
