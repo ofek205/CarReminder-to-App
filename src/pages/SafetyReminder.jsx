@@ -166,10 +166,16 @@ export default function SafetyReminder() {
   };
 
   const simulate = async () => {
-    const res = await __tripGuardPluginRaw.__simulateTripEnd({ tripMinutes: 5 });
-    setSimResult(res && res.willAlert ? 'alert' : 'silent');
-    if (simTimerRef.current) clearTimeout(simTimerRef.current);
-    simTimerRef.current = setTimeout(() => setSimResult(null), 4000);
+    // Dev-only preview. __simulateTripEnd exists only in the web mock, so on a
+    // DEV native build it rejects — guard it so the button never throws.
+    try {
+      const res = await __tripGuardPluginRaw.__simulateTripEnd({ tripMinutes: 5 });
+      setSimResult(res && res.willAlert ? 'alert' : 'silent');
+      if (simTimerRef.current) clearTimeout(simTimerRef.current);
+      simTimerRef.current = setTimeout(() => setSimResult(null), 4000);
+    } catch (e) {
+      console.warn('[tripGuard] simulate unavailable on this platform:', e);
+    }
   };
 
   // Clear the dev-preview toast timer on unmount.
