@@ -112,8 +112,15 @@ function SectionCard({ title, hint, children }) {
 export default function PowerOfAttorneyForm() {
   const { user } = useAuth();
   const { accountId } = useAccountRole();
-  const { isBusiness, businessMeta } = useWorkspaceRole();
+  const { isBusiness: accountIsBusiness, businessMeta } = useWorkspaceRole();
   const { activeWorkspace } = useWorkspace();
+  // Business accounts can also issue a PRIVATE power-of-attorney (sometimes
+  // a business needs one for an individually-owned vehicle). The effective
+  // variant defaults to the account type; the user overrides via the
+  // form-type selector. `isBusiness` below is the EFFECTIVE variant, so all
+  // downstream logic (sections, prefill, document, signatures) follows it.
+  const [formTypeOverride, setFormTypeOverride] = useState(null);
+  const isBusiness = formTypeOverride ? formTypeOverride === 'business' : accountIsBusiness;
 
   // ── Vehicles for the picker (account-scoped, timeout-guarded) ──────
   const {
@@ -159,20 +166,22 @@ export default function PowerOfAttorneyForm() {
   const [signingKey, setSigningKey] = useState(null);
   const [signConsent, setSignConsent] = useState(false);
 
-  // Prefill once the identity/account data is known. Runs when the
-  // building blocks change; guarded so it doesn't clobber user edits.
-  const prefilledRef = useRef(false);
+  // Prefill the active variant's fields. Re-runs when the chosen form type
+  // flips (business <-> private) so switching gives a fresh prefill; the ref
+  // stores the last-prefilled variant so it doesn't clobber edits otherwise.
+  const prefilledForRef = useRef(null);
   useEffect(() => {
-    if (prefilledRef.current) return;
+    if (!user) return;
+    if (prefilledForRef.current === isBusiness) return;
+    if (isBusiness && !activeWorkspace) return; // wait for business data on first load
+    prefilledForRef.current = isBusiness;
     if (isBusiness) {
       setCorpName(activeWorkspace?.account_name || activeWorkspace?.name || '');
       setCorpNumber(normalizeId(businessMeta?.business_id || ''));
-      prefilledRef.current = true;
-    } else if (user) {
+    } else {
       const savedId = readSavedId(user.id);
       setOwners([{ name: user.full_name || '', id: savedId }]);
       if (savedId) setSaveMyId(true);
-      prefilledRef.current = true;
     }
   }, [isBusiness, user, activeWorkspace, businessMeta]);
 
@@ -270,15 +279,37 @@ export default function PowerOfAttorneyForm() {
 
   return (
     <div className="pb-28">
-      {/* Account-type chip */}
-      <div className="flex items-center gap-2 mb-4">
-        <span
-          className="text-[11px] font-bold px-2.5 py-1 rounded-full"
-          style={{ background: C.light, color: C.primary }}
-        >
-          {isBusiness ? 'חשבון עסקי · טופס תאגיד' : 'חשבון פרטי · טופס אדם פרטי'}
-        </span>
-      </div>
+      {/* Form type — business accounts can switch to the private form too */}
+      {accountIsBusiness ? (
+        <div className="mb-4">
+          <p className="text-[12px] font-bold mb-2" style={{ color: C.text }}>סוג הטופס</p>
+          <div className="flex gap-2" role="radiogroup" aria-label="סוג הטופס">
+            {[{ k: 'business', label: 'תאגיד' }, { k: 'personal', label: 'אדם פרטי' }].map((o) => {
+              const on = (o.k === 'business') === isBusiness;
+              return (
+                <button key={o.k} type="button" role="radio" aria-checked={on}
+                  onClick={() => setFormTypeOverride(o.k)}
+                  className="flex-1 h-10 rounded-2xl text-sm font-bold border transition-colors"
+                  style={{ background: on ? C.primary : C.card, color: on ? '#FFFFFF' : C.text, borderColor: on ? C.primary : C.border }}>
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] mt-1.5" style={{ color: C.muted }}>
+            {isBusiness
+              ? 'טופס תאגיד — מטעם החברה (ח.פ ומורשי חתימה).'
+              : 'טופס אדם פרטי — מטעם אדם פרטי. גם עסק יכול להזדקק לו (למשל לרכב שרשום על אדם).'}
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+            style={{ background: C.light, color: C.primary }}>
+            חשבון פרטי · טופס אדם פרטי
+          </span>
+        </div>
+      )}
 
       <button type="button" onClick={() => setShowSample(true)}
         className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold" style={{ color: C.primary }}>
