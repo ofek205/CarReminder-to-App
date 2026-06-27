@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Plus, Trash2, Download, FileText, Share2, Loader2, X, Info, AlertTriangle, Eye,
+  Plus, Trash2, Loader2, Info, AlertTriangle, Eye,
 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -14,23 +14,12 @@ import { Label } from '@/components/ui/label';
 import { DateInput } from '@/components/ui/date-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { toastError } from '@/lib/userErrorReport';
-import { shareContent } from '@/lib/capacitor';
 import { isValidIsraeliId, normalizeId } from '@/lib/forms/israeliId';
 import PowerOfAttorneyDocument from './PowerOfAttorneyDocument';
 import SignaturePad from './SignaturePad';
+import FormPreviewModal from './FormPreviewModal';
 import { shortFingerprint, canonicalize } from '@/lib/forms/docHash';
-
-const MY_ID_KEY = (uid) => `cr_poa_my_id:${uid || 'anon'}`;
-function readSavedId(uid) {
-  try { return localStorage.getItem(MY_ID_KEY(uid)) || ''; } catch { return ''; }
-}
-function writeSavedId(uid, id) {
-  try {
-    if (id) localStorage.setItem(MY_ID_KEY(uid), id);
-    else localStorage.removeItem(MY_ID_KEY(uid));
-  } catch { /* quota / private mode — non-fatal */ }
-}
+import { readSavedId, writeSavedId } from '@/lib/forms/savedId';
 
 // Small ת.ז field: numeric, max 9 digits. `error` (red) blocks; `warning`
 // (amber) is advisory only — see the ת.ז policy note in the component.
@@ -590,23 +579,29 @@ export default function PowerOfAttorneyForm() {
       </div>
 
       {showPreview && (
-        <PreviewModal
-          docData={docData}
-          variant={isBusiness ? 'business' : 'personal'}
-          plate={plate}
+        <FormPreviewModal
+          fileBase={`יפוי-כוח-${plate || 'רכב'}`}
+          disclaimer="המסמך מבוסס על טופס משרד התחבורה. יש לבדוק, להדפיס ולחתום ביד."
+          shareTitle="ייפוי כוח"
+          shareText={`ייפוי כוח לרכב ${plate || ''} — הופק ב-CarReminder.`}
           onClose={() => setShowPreview(false)}
-        />
+        >
+          <PowerOfAttorneyDocument data={docData} variant={isBusiness ? 'business' : 'personal'} />
+        </FormPreviewModal>
       )}
 
       {showSample && (
-        <PreviewModal
-          docData={{}}
-          variant={isBusiness ? 'business' : 'personal'}
-          plate=""
+        <FormPreviewModal
           title="דוגמה לטופס"
           subtitle="כך נראה הטופס — מלא את הפרטים והפק את המסמך שלך"
+          fileBase="דוגמה-יפוי-כוח"
+          disclaimer="זוהי דוגמה ריקה. מלא את הפרטים בטופס כדי להפיק מסמך מלא."
+          shareTitle="דוגמה — ייפוי כוח"
+          shareText="דוגמה לטופס ייפוי כוח — CarReminder."
           onClose={() => setShowSample(false)}
-        />
+        >
+          <PowerOfAttorneyDocument data={{}} variant={isBusiness ? 'business' : 'personal'} />
+        </FormPreviewModal>
       )}
 
       {signingKey && (
@@ -616,100 +611,3 @@ export default function PowerOfAttorneyForm() {
   );
 }
 
-// ── Preview + export modal ────────────────────────────────────────────
-// Mirrors AccidentReportModal's proven full-screen pattern: visible
-// rendered document (required by html2canvas) + sticky export bar with
-// safe-area padding.
-function PreviewModal({ docData, variant, plate, onClose, title = 'תצוגה מקדימה', subtitle = 'בדוק את הפרטים לפני ההפקה' }) {
-  const previewRef = useRef(null);
-  const [busy, setBusy] = useState(false);
-  const fileBase = `יפוי-כוח-${(plate || 'רכב').replace(/[^\w֐-׿-]/g, '')}`;
-
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const exportAs = async (kind) => {
-    if (busy || !previewRef.current) return;
-    setBusy(true);
-    try {
-      const mod = await import('@/lib/pdfExport');
-      const fn = kind === 'word' ? mod.exportElementToWord : mod.exportElementToPdf;
-      const ok = await fn(previewRef.current, fileBase);
-      if (ok) toast.success(kind === 'word' ? 'מסמך Word נוצר' : 'מסמך PDF נוצר');
-      else toastError(`שגיאה ביצירת קובץ ה-${kind === 'word' ? 'Word' : 'PDF'}`, { action: `poa_${kind}_export` });
-    } catch (e) {
-      toastError(`שגיאה ביצירת המסמך`, { action: `poa_${kind}_export`, err: e });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleShare = async () => {
-    const ok = await shareContent({
-      title: 'ייפוי כוח',
-      text: `ייפוי כוח לרכב ${plate || ''} — הופק ב-CarReminder.`,
-    });
-    if (!ok) toastError('השיתוף בוטל', { action: 'poa_share_cancel' });
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45"
-      dir="rtl"
-      role="dialog"
-      aria-modal="true"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{
-        paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
-        paddingInline: '12px',
-      }}
-    >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-auto max-h-[calc(100dvh-32px)] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between gap-3 border-b px-4 py-3 shrink-0" style={{ borderColor: C.border }}>
-          <div className="min-w-0">
-            <p className="text-base font-bold" style={{ color: C.text }}>{title}</p>
-            <p className="text-xs" style={{ color: C.muted }}>{subtitle}</p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="סגור"
-            className="w-9 h-9 rounded-full border flex items-center justify-center shrink-0"
-            style={{ borderColor: C.border }}>
-            <X className="h-4 w-4" style={{ color: C.muted }} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-auto p-3 sm:p-5" style={{ background: C.gray100 }}>
-          <div ref={previewRef}>
-            <PowerOfAttorneyDocument data={docData} variant={variant} />
-          </div>
-        </div>
-
-        <div className="border-t p-3 shrink-0" style={{ borderColor: C.border, background: C.card }}>
-          <p className="text-[11px] text-center mb-2" style={{ color: C.muted }}>
-            המסמך מבוסס על טופס משרד התחבורה. יש לבדוק, להדפיס ולחתום ביד.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button type="button" onClick={() => exportAs('pdf')} disabled={busy}
-              className="flex-1 h-11 rounded-2xl font-bold text-white inline-flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: C.primary }}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} PDF
-            </button>
-            <button type="button" onClick={() => exportAs('word')} disabled={busy}
-              className="flex-1 h-11 rounded-2xl font-bold inline-flex items-center justify-center gap-2 border disabled:opacity-60"
-              style={{ borderColor: C.primary, color: C.primary, background: C.card }}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} Word
-            </button>
-            <button type="button" onClick={handleShare}
-              className="h-11 rounded-2xl font-bold inline-flex items-center justify-center gap-2 border px-4"
-              style={{ borderColor: C.border, color: C.text, background: C.card }}>
-              <Share2 className="h-4 w-4" /> שתף
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
