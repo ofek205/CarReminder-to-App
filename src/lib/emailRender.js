@@ -51,7 +51,30 @@ function plainVars(vars = {}) {
   return out;
 }
 
-//  Public API 
+// Mirror of the urgency/grammar derivation in the dispatcher
+// (supabase/functions/dispatch-reminder-emails/index.ts). Reminder template
+// bodies reference {{heroBg}}, {{heroTop}}, {{heroBig}}, {{heroSub}},
+// {{daysPhrase}}, {{heroFg}}, {{heroNum}}, {{pillBorder}} — the dispatcher
+// computes them per real send; this client copy lets the EmailCenter
+// preview/test render identically instead of showing literal {{placeholders}}.
+// KEEP IN SYNC with the dispatcher's vars block.
+function deriveReminderHeroVars(daysLeftRaw, notificationKey) {
+  const dl = Number(daysLeftRaw ?? 0);
+  const noun    = notificationKey === 'reminder_insurance' ? 'ביטוח' : 'טסט';
+  const nounDef = notificationKey === 'reminder_insurance' ? 'הביטוח' : 'הטסט';
+  let heroBg = '#EAF3EC', heroFg = '#3A6B42', heroNum = '#2D5233', pillBorder = '#C9E0CE';
+  if (dl <= 3)       { heroBg = '#FDECEA'; heroFg = '#B23120'; heroNum = '#C0341D'; pillBorder = '#F1C2BA'; }
+  else if (dl <= 14) { heroBg = '#FFF7E8'; heroFg = '#9A5708'; heroNum = '#B25E09'; pillBorder = '#F0D6A0'; }
+  return {
+    heroTop:    dl <= 0 ? `${nounDef} פג` : dl === 1 ? 'נשאר' : 'נשארו',
+    heroBig:    dl <= 0 ? 'היום' : String(dl),
+    heroSub:    dl <= 0 ? '' : dl === 1 ? `יום ל${noun}` : `ימים ל${noun}`,
+    daysPhrase: dl <= 0 ? 'היום' : dl === 1 ? 'בעוד יום' : `בעוד ${dl} ימים`,
+    heroBg, heroFg, heroNum, pillBorder,
+  };
+}
+
+//  Public API
 
 /**
  * Fetch a template row by notification key. Uses the SECURITY DEFINER
@@ -87,8 +110,17 @@ export function renderFromTemplateObject(template, vars = {}, options = {}) {
   if (!template) throw new Error('renderFromTemplateObject: template is required');
   const { rawVars = {}, subtitle } = options;
 
-  const htmlVars = escapeValuesForHtml(vars, rawVars);
-  const txtVars  = plainVars(vars);
+  // Reminder templates reference hero/urgency/grammar placeholders the
+  // dispatcher injects on real sends. Derive them here too so the admin
+  // preview/test renders the same (otherwise {{heroBg}} etc. show literally).
+  // Caller-supplied vars win; derived values only fill the gaps.
+  let effectiveVars = vars;
+  if (template.notification_key && String(template.notification_key).startsWith('reminder_')) {
+    effectiveVars = { ...deriveReminderHeroVars(vars.daysLeft, template.notification_key), ...vars };
+  }
+
+  const htmlVars = escapeValuesForHtml(effectiveVars, rawVars);
+  const txtVars  = plainVars(effectiveVars);
 
   const subject     = renderPlaceholders(template.subject || '', txtVars);
   const preheader   = renderPlaceholders(template.preheader || '', txtVars);
