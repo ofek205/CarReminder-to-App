@@ -34,8 +34,14 @@ name: Android Play Release
 on:
   workflow_dispatch:
     inputs:
+      publish:
+        description: 'artifact_only = just build a signed AAB to download + upload to Play yourself. upload_to_play = also push it to Play via the API (needs GOOGLE_PLAY_SERVICE_ACCOUNT_JSON).'
+        required: true
+        type: choice
+        default: artifact_only
+        options: [artifact_only, upload_to_play]
       track:
-        description: 'Play track to release to'
+        description: 'Play track (only used when publish = upload_to_play)'
         required: true
         type: choice
         default: internal
@@ -147,6 +153,7 @@ jobs:
           retention-days: 90
 
       - name: Upload to Google Play
+        if: ${{ github.event.inputs.publish == 'upload_to_play' }}
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
