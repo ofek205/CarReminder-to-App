@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
 import useIsAdmin from '@/hooks/useIsAdmin';
+import { BUSINESS_WELCOME_FEATURES } from '@/lib/businessWelcome';
 
 const STATUS_META = {
   pending:  { label: 'ממתינה',   cls: 'bg-yellow-100 text-yellow-800' },
@@ -235,25 +236,44 @@ function Detail({ label, value, multiline, icon }) {
 
 // ----------------------------------------------------------------------
 
-// Branded RTL approval email. Kept inline (small, one-off) rather than added
-// to the shared template registry. Values are interpolated as plain text into
-// fixed markup — `name` comes from our own DB, not user-controlled HTML.
+// Branded RTL "welcome to your business account" email. Sent once, when an
+// admin approves a business-workspace request. Kept inline (one-off) rather
+// than in the shared DB template registry. `name` is the business name from
+// our own DB (not user-controlled HTML). No em-dashes per house style.
+// Premium numbered-editorial layout (gold numbers on white). The feature list
+// itself lives in @/lib/businessWelcome — shared with the request-sent modal
+// in CreateBusinessWorkspace so the two never drift.
 function buildApprovalEmail(name) {
-  const safe = String(name || 'החשבון העסקי').slice(0, 120);
+  const safe = String(name || 'העסק שלך').slice(0, 120);
+  const last = BUSINESS_WELCOME_FEATURES.length - 1;
+  const rows = BUSINESS_WELCOME_FEATURES.map(([title, desc], i) => {
+    const num = String(i + 1).padStart(2, '0');
+    const border = i === last ? '' : 'border-bottom:1px solid #EEF1EE;';
+    return `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="${border}"><tr>
+          <td style="width:46px;vertical-align:top;padding:15px 0 15px 14px">
+            <div dir="ltr" style="font-size:26px;font-weight:bold;color:#B5872E;line-height:1">${num}</div>
+          </td>
+          <td style="vertical-align:top;padding:15px 0">
+            <div style="font-weight:bold;color:#1C3620;font-size:16px;line-height:1.3">${title}</div>
+            <div style="color:#4B5563;font-size:13px;line-height:1.65;margin-top:3px">${desc}</div>
+          </td>
+        </tr></table>`;
+  }).join('');
   return `
-  <div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;background:#F4F7F3;padding:24px">
-    <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #E5EBE6">
-      <div style="background:linear-gradient(135deg,#1C3620,#2D5233);padding:24px;color:#fff;text-align:center">
-        <div style="font-size:12px;letter-spacing:.2em;opacity:.85">CARREMINDER</div>
-        <h1 style="margin:8px 0 0;font-size:22px">החשבון העסקי אושר ✓</h1>
+  <div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;background:#F4F5F7;padding:24px">
+    <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:20px;overflow:hidden;border:1px solid #E5EBE6">
+      <div style="background:linear-gradient(135deg,#122A19,#1F3D26);padding:36px 26px;color:#fff;text-align:center">
+        <div style="font-size:12.5px;font-weight:bold;letter-spacing:.02em;color:#D9B85C">CarReminder &middot; חשבון עסקי</div>
+        <h1 style="margin:14px 0 8px;font-size:28px;line-height:1.2;color:#fff">כל הצי שלך, בשליטה אחת.</h1>
+        <p style="margin:0;font-size:14px;line-height:1.6;color:rgba(255,255,255,.85)"><span style="color:#D9B85C;font-weight:bold">ממכונית ועד גנרטור.</span> החשבון של <b>${safe}</b> פעיל ומוכן.</p>
       </div>
-      <div style="padding:24px;color:#1C2E20;font-size:15px;line-height:1.7">
-        <p style="margin:0 0 12px">שלום,</p>
-        <p style="margin:0 0 12px">בקשתך לפתיחת חשבון עסקי עבור <b>${safe}</b> אושרה. החשבון מוכן לשימוש — בכניסה הבאה לאפליקציה אפשר לעבור אליו ממחליף הסביבות ולנהל צי רכבים, נהגים, משימות ויומן נסיעות.</p>
-        <p style="margin:20px 0 0">
-          <a href="https://car-reminder.app" style="background:#16A34A;color:#fff;text-decoration:none;padding:12px 22px;border-radius:12px;font-weight:bold;display:inline-block">כניסה לאפליקציה</a>
-        </p>
-        <p style="color:#8B9C8E;font-size:12px;margin:24px 0 0">אם לא ביקשת זאת, אפשר להתעלם מהודעה זו.</p>
+      <div style="padding:8px 26px 26px">
+        ${rows}
+        <div style="text-align:center;margin:26px 0 6px;border-top:1px solid #EEF1EE;padding-top:24px">
+          <a href="https://car-reminder.app" style="background:#2D5233;color:#fff;text-decoration:none;padding:15px 36px;border-radius:14px;font-weight:bold;font-size:16px;display:inline-block">כניסה לחשבון העסקי</a>
+        </div>
+        <p style="color:#6B7280;font-size:12px;margin:12px 0 0;text-align:center;line-height:1.7">אפשר לעבור לחשבון ממחליף הסביבות. צריך עזרה? אנחנו כאן ב-support@car-reminder.app</p>
       </div>
     </div>
   </div>`;
@@ -285,8 +305,9 @@ function ResolveDialog({ request, mode, onClose, onResolved }) {
           supabase.functions.invoke('send-email', {
             body: {
               to: request.email,
-              subject: 'בקשתך לחשבון עסקי אושרה ✓',
+              subject: 'ברוכים הבאים לחשבון העסקי ב-CarReminder 🎉',
               html: buildApprovalEmail(request.requested_name),
+              notification_key: 'welcome_business',
             },
           }).catch(() => {});
         }

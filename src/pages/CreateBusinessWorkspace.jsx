@@ -35,6 +35,7 @@ import useUserProfile from '@/hooks/useUserProfile';
 // Living Dashboard system - shared with all B2B pages.
 import { PageShell, Card } from '@/components/business/system';
 import { C } from '@/lib/designTokens';
+import { BUSINESS_WELCOME_FEATURES, BUSINESS_WELCOME_THEME } from '@/lib/businessWelcome';
 
 const MAX_NAME = 120;
 const VEHICLE_RANGES = ['1-5', '6-20', '21-50', '50+'];
@@ -206,6 +207,11 @@ function RequestForm({ mode, latestRequest, onRequested }) {
   const [submitting, setSubmitting]   = useState(false);
   const [invitees, setInvitees]       = useState([]);  // [{ email, role }]
   const [showHelp, setShowHelp]       = useState(false);
+  const [sentOpen, setSentOpen]       = useState(false);
+  // After a successful submit we celebrate with a premium "request sent +
+  // here's what's coming" modal, THEN run onRequested (which flips the page to
+  // its pending state) once the user dismisses it.
+  const closeSent = () => { setSentOpen(false); onRequested?.(); };
   const addInvitee    = () => setInvitees((p) => [...p, { email: '', role: 'שותף', name: '' }]);
   const updateInvitee = (i, patch) => setInvitees((p) => p.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
   const removeInvitee = (i) => setInvitees((p) => p.filter((_, idx) => idx !== i));
@@ -269,7 +275,7 @@ function RequestForm({ mode, latestRequest, onRequested }) {
         p_reason:        notes.trim() || null,
       });
       if (error) throw error;
-      onRequested?.();
+      setSentOpen(true);
     } catch (err) {
       const code = err?.message || err?.code || '';
       if      (code.includes('name_required'))         toastError('שם החברה חובה', { action: 'biz_req_name_required_srv', err });
@@ -569,6 +575,58 @@ function RequestForm({ mode, latestRequest, onRequested }) {
           <p className="text-[10px] text-center" style={{ color: C.muted }}>נחזור אליך בטלפון או בהתראה.</p>
         </form>
       </Card>
+
+      {/* Request-sent celebration — premium modal matching the welcome email.
+          Shows on submit success; closing it runs onRequested (→ pending state). */}
+      {sentOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(10,20,12,0.55)' }}
+          dir="rtl"
+          role="dialog"
+          aria-modal="true"
+          aria-label="הבקשה נשלחה"
+          onClick={closeSent}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl overflow-hidden bg-white shadow-2xl"
+            style={{ maxHeight: '92vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-7 text-center" style={{ background: BUSINESS_WELCOME_THEME.heroBg, color: '#fff' }}>
+              <div className="text-[11px] font-bold" style={{ color: BUSINESS_WELCOME_THEME.goldSoft, letterSpacing: '.2em' }}>בקשה התקבלה</div>
+              <h2 className="text-2xl font-extrabold mt-2">בקשתך בדרך! 🎉</h2>
+              <p className="text-sm mt-1.5" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                <span style={{ color: BUSINESS_WELCOME_THEME.goldSoft, fontWeight: 700 }}>ממכונית ועד גנרטור.</span> נבדוק ונאשר בקרוב, והנה מה שמחכה לך:
+              </p>
+            </div>
+            <div className="px-5 pt-2 pb-5">
+              {BUSINESS_WELCOME_FEATURES.map(([title, desc], i) => (
+                <div
+                  key={i}
+                  className="flex gap-3 py-3"
+                  style={{ borderBottom: i < BUSINESS_WELCOME_FEATURES.length - 1 ? `1px solid ${BUSINESS_WELCOME_THEME.hairline}` : 'none' }}
+                >
+                  <div className="shrink-0 w-8 text-2xl font-extrabold leading-none" dir="ltr" style={{ color: BUSINESS_WELCOME_THEME.gold }}>
+                    {String(i + 1).padStart(2, '0')}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-[15px]" style={{ color: BUSINESS_WELCOME_THEME.title }}>{title}</div>
+                    <div className="text-xs leading-relaxed mt-0.5" style={{ color: BUSINESS_WELCOME_THEME.body }}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={closeSent}
+                className="w-full h-12 rounded-2xl font-bold text-sm mt-4 transition-all active:scale-[0.98]"
+                style={{ background: BUSINESS_WELCOME_THEME.cta, color: '#fff' }}
+              >
+                מצוין, הבנתי
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageShell>
   );
 }
