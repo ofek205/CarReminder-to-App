@@ -306,17 +306,29 @@ async function processTrigger(
       // test body template reads {{heroTop/Big/Sub}}, {{heroBg/Fg/Num}},
       // {{pillBorder}}, {{daysPhrase}}; other templates ignore the extras.
       const dl = Number(c.days_left ?? 0);
-      // Per-type noun so the shared hero reads naturally ("ימים לטסט" vs
-      // "ימים לביטוח"). Only test + insurance are live reminder types.
-      const heroNoun    = notificationKey === 'reminder_insurance' ? 'ביטוח' : 'טסט';
-      const heroNounDef = notificationKey === 'reminder_insurance' ? 'הביטוח' : 'הטסט';
-      const heroTop = dl <= 0 ? `${heroNounDef} פג` : dl === 1 ? 'נשאר' : 'נשארו';
-      const heroBig = dl <= 0 ? 'היום' : String(dl);
-      const heroSub = dl <= 0 ? '' : dl === 1 ? `יום ל${heroNoun}` : `ימים ל${heroNoun}`;
-      const daysPhrase = dl <= 0 ? 'היום' : dl === 1 ? 'בעוד יום' : `בעוד ${dl} ימים`;
+      // Per-type noun (handles the *_overdue keys too via includes()).
+      const heroNoun    = notificationKey.includes('insurance') ? 'ביטוח' : 'טסט';
+      const heroNounDef = notificationKey.includes('insurance') ? 'הביטוח' : 'הטסט';
+      let heroTop, heroBig, heroSub, daysPhrase;
       let heroBg = '#EAF3EC', heroFg = '#3A6B42', heroNum = '#2D5233', pillBorder = '#C9E0CE';
-      if (dl <= 3)       { heroBg = '#FDECEA'; heroFg = '#B23120'; heroNum = '#C0341D'; pillBorder = '#F1C2BA'; }
-      else if (dl <= 14) { heroBg = '#FFF7E8'; heroFg = '#9A5708'; heroNum = '#B25E09'; pillBorder = '#F0D6A0'; }
+      if (dl < 0) {
+        // OVERDUE (the reminder_*_overdue keys): due date already passed.
+        // Always red/urgent; hero counts days SINCE expiry.
+        const od = Math.abs(dl);
+        heroTop = 'באיחור';
+        heroBig = String(od);
+        heroSub = od === 1 ? 'יום מאז הפקיעה' : 'ימים מאז הפקיעה';
+        daysPhrase = od === 1 ? 'באיחור של יום' : `באיחור של ${od} ימים`;
+        heroBg = '#FDECEA'; heroFg = '#B23120'; heroNum = '#C0341D'; pillBorder = '#F1C2BA';
+      } else {
+        // UPCOMING: urgency tier by days-left (green > 14d · amber 4-14d · red <= 3d).
+        heroTop = dl === 0 ? `${heroNounDef} פג` : dl === 1 ? 'נשאר' : 'נשארו';
+        heroBig = dl === 0 ? 'היום' : String(dl);
+        heroSub = dl === 0 ? '' : dl === 1 ? `יום ל${heroNoun}` : `ימים ל${heroNoun}`;
+        daysPhrase = dl === 0 ? 'היום' : dl === 1 ? 'בעוד יום' : `בעוד ${dl} ימים`;
+        if (dl <= 3)       { heroBg = '#FDECEA'; heroFg = '#B23120'; heroNum = '#C0341D'; pillBorder = '#F1C2BA'; }
+        else if (dl <= 14) { heroBg = '#FFF7E8'; heroFg = '#9A5708'; heroNum = '#B25E09'; pillBorder = '#F0D6A0'; }
+      }
       const vars = {
         vehicleName:  c.vehicle_name || 'רכב',
         licensePlate: c.license_plate || '',

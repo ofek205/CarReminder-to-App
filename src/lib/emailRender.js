@@ -59,21 +59,37 @@ function plainVars(vars = {}) {
 // preview/test render identically instead of showing literal {{placeholders}}.
 // KEEP IN SYNC with the dispatcher's vars block.
 function deriveReminderHeroVars(daysLeftRaw, notificationKey) {
-  // Guard junk/missing input (e.g. the test dialog before daysLeft is set) so
-  // the preview shows a representative tier instead of NaN. The dispatcher
-  // always passes a real integer, so this default never triggers there.
+  const key = String(notificationKey || '');
+  const overdue = key.includes('_overdue');
+  // Guard junk/missing input (the test dialog stubs daysLeft) so the preview
+  // shows a representative value, not NaN. The dispatcher passes a real integer
+  // (negative for overdue keys), so these defaults don't trigger there.
   let dl = Number(daysLeftRaw);
-  if (!Number.isFinite(dl)) dl = 14;
-  const noun    = notificationKey === 'reminder_insurance' ? 'ביטוח' : 'טסט';
-  const nounDef = notificationKey === 'reminder_insurance' ? 'הביטוח' : 'הטסט';
+  if (!Number.isFinite(dl)) dl = overdue ? -7 : 14;
+  // Overdue templates always render the past-due (red) hero; the test dialog
+  // stubs a positive daysLeft, so coerce it negative for these keys.
+  if (overdue && dl >= 0) dl = -(dl || 7);
+  const noun    = key.includes('insurance') ? 'ביטוח' : 'טסט';
+  const nounDef = key.includes('insurance') ? 'הביטוח' : 'הטסט';
   let heroBg = '#EAF3EC', heroFg = '#3A6B42', heroNum = '#2D5233', pillBorder = '#C9E0CE';
+  if (dl < 0) {
+    // OVERDUE — always red; hero counts days SINCE expiry.
+    const od = Math.abs(dl);
+    return {
+      heroTop: 'באיחור',
+      heroBig: String(od),
+      heroSub: od === 1 ? 'יום מאז הפקיעה' : 'ימים מאז הפקיעה',
+      daysPhrase: od === 1 ? 'באיחור של יום' : `באיחור של ${od} ימים`,
+      heroBg: '#FDECEA', heroFg: '#B23120', heroNum: '#C0341D', pillBorder: '#F1C2BA',
+    };
+  }
   if (dl <= 3)       { heroBg = '#FDECEA'; heroFg = '#B23120'; heroNum = '#C0341D'; pillBorder = '#F1C2BA'; }
   else if (dl <= 14) { heroBg = '#FFF7E8'; heroFg = '#9A5708'; heroNum = '#B25E09'; pillBorder = '#F0D6A0'; }
   return {
-    heroTop:    dl <= 0 ? `${nounDef} פג` : dl === 1 ? 'נשאר' : 'נשארו',
-    heroBig:    dl <= 0 ? 'היום' : String(dl),
-    heroSub:    dl <= 0 ? '' : dl === 1 ? `יום ל${noun}` : `ימים ל${noun}`,
-    daysPhrase: dl <= 0 ? 'היום' : dl === 1 ? 'בעוד יום' : `בעוד ${dl} ימים`,
+    heroTop:    dl === 0 ? `${nounDef} פג` : dl === 1 ? 'נשאר' : 'נשארו',
+    heroBig:    dl === 0 ? 'היום' : String(dl),
+    heroSub:    dl === 0 ? '' : dl === 1 ? `יום ל${noun}` : `ימים ל${noun}`,
+    daysPhrase: dl === 0 ? 'היום' : dl === 1 ? 'בעוד יום' : `בעוד ${dl} ימים`,
     heroBg, heroFg, heroNum, pillBorder,
   };
 }
