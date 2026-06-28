@@ -283,7 +283,7 @@ export default function PowerOfAttorneyForm() {
               return (
                 <button key={o.k} type="button" role="radio" aria-checked={on}
                   onClick={() => setFormTypeOverride(o.k)}
-                  className="flex-1 h-10 rounded-2xl text-sm font-bold border transition-colors"
+                  className="flex-1 h-11 rounded-2xl text-sm font-bold border transition-colors"
                   style={{ background: on ? C.primary : C.card, color: on ? '#FFFFFF' : C.text, borderColor: on ? C.primary : C.border }}>
                   {o.label}
                 </button>
@@ -306,7 +306,7 @@ export default function PowerOfAttorneyForm() {
       )}
 
       <button type="button" onClick={() => setShowSample(true)}
-        className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold" style={{ color: C.primary }}>
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold py-2" style={{ color: C.primary }}>
         <Eye className="h-4 w-4" /> צפה בדוגמה ריקה של הטופס
       </button>
 
@@ -327,7 +327,7 @@ export default function PowerOfAttorneyForm() {
               style={{ background: C.errorBg, color: C.errorDark }}>
               <span>שגיאה בטעינת הרכבים</span>
               <button type="button" onClick={() => refetchVehicles()}
-                className="font-bold underline">נסה שוב</button>
+                className="font-bold underline py-2 px-2">נסה שוב</button>
             </div>
           ) : hasVehicles ? (
             <Select value={vehicleId} onValueChange={setVehicleId}>
@@ -414,7 +414,7 @@ export default function PowerOfAttorneyForm() {
                   <span className="text-[12px] font-bold" style={{ color: C.muted }}>בעלים {i + 1}</span>
                   {owners.length > 1 && (
                     <button type="button" onClick={() => removeOwner(i)} aria-label="הסר בעלים"
-                      className="p-1 rounded-lg" style={{ color: C.error }}>
+                      className="p-2.5 rounded-lg" style={{ color: C.error }}>
                       <Trash2 className="h-4 w-4" />
                     </button>
                   )}
@@ -439,7 +439,7 @@ export default function PowerOfAttorneyForm() {
                 />
                 {i === 0 && (
                   <label className="flex items-center gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
-                    <input type="checkbox" checked={saveMyId} onChange={(e) => setSaveMyId(e.target.checked)} />
+                    <input type="checkbox" className="h-5 w-5 shrink-0" checked={saveMyId} onChange={(e) => setSaveMyId(e.target.checked)} />
                     שמור את ה-ת.ז שלי במכשיר לפעם הבאה
                   </label>
                 )}
@@ -448,7 +448,7 @@ export default function PowerOfAttorneyForm() {
             })}
             {owners.length < 3 && (
               <button type="button" onClick={addOwner}
-                className="flex items-center gap-1.5 text-sm font-bold" style={{ color: C.primary }}>
+                className="flex items-center gap-1.5 text-sm font-bold py-2" style={{ color: C.primary }}>
                 <Plus className="h-4 w-4" /> הוסף בעלים
               </button>
             )}
@@ -486,7 +486,7 @@ export default function PowerOfAttorneyForm() {
         {isBusiness && (
           <SectionCard title="אישור עורך דין (סעיף 4)" hint="אופציונלי — אפשר לכלול את סעיף עורך הדין במסמך או להשמיט אותו.">
             <label className="flex items-center gap-2 text-[13px] cursor-pointer" style={{ color: C.text }}>
-              <input type="checkbox" checked={includeLawyer} onChange={(e) => setIncludeLawyer(e.target.checked)} />
+              <input type="checkbox" className="h-5 w-5 shrink-0" checked={includeLawyer} onChange={(e) => setIncludeLawyer(e.target.checked)} />
               כלול במסמך את סעיף אישור עורך הדין
             </label>
             {includeLawyer ? (
@@ -521,7 +521,7 @@ export default function PowerOfAttorneyForm() {
         <SectionCard title="חתימה דיגיטלית (אופציונלי)"
           hint="חתימה אלקטרונית רגילה — אינה חתימה מאושרת/ממשלתית. ייתכן שמשרד הרישוי ידרוש חתימה ידנית מקורית.">
           <label className="flex items-start gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
-            <input type="checkbox" checked={signConsent} onChange={(e) => setSignConsent(e.target.checked)} className="mt-0.5" />
+            <input type="checkbox" checked={signConsent} onChange={(e) => setSignConsent(e.target.checked)} className="h-5 w-5 shrink-0 mt-0.5" />
             אני מאשר/ת שחתימה אלקטרונית שאוסיף מהווה את חתימתי המחייבת על המסמך.
           </label>
           {(() => {
@@ -540,9 +540,9 @@ export default function PowerOfAttorneyForm() {
                 </div>
                 {signatures[p.key] ? (
                   <div className="flex items-center gap-2 shrink-0">
-                    <img src={signatures[p.key].dataUrl} alt="חתימה" style={{ height: '32px' }} />
+                    <img src={signatures[p.key].dataUrl} alt="חתימה" style={{ height: '32px', maxWidth: '110px' }} />
                     <button type="button" onClick={() => setSigningKey(p.key)} disabled={!signConsent}
-                      className="text-[12px] font-bold disabled:opacity-50" style={{ color: C.primary }}>החלף</button>
+                      className="text-[12px] font-bold disabled:opacity-50 py-2 px-2" style={{ color: C.primary }}>החלף</button>
                   </div>
                 ) : (
                   <button type="button" onClick={() => setSigningKey(p.key)} disabled={!signConsent}

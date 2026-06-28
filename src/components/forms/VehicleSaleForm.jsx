@@ -200,7 +200,7 @@ export default function VehicleSaleForm() {
       </p>
 
       <button type="button" onClick={() => setShowSample(true)}
-        className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold" style={{ color: C.primary }}>
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold py-2" style={{ color: C.primary }}>
         <Eye className="h-4 w-4" /> צפה בדוגמה ריקה של הטופס
       </button>
 
@@ -214,7 +214,7 @@ export default function VehicleSaleForm() {
           ) : vehiclesError ? (
             <div className="rounded-2xl p-3 text-sm flex items-center justify-between" style={{ background: C.errorBg, color: C.errorDark }}>
               <span>שגיאה בטעינת הרכבים</span>
-              <button type="button" onClick={() => refetchVehicles()} className="font-bold underline">נסה שוב</button>
+              <button type="button" onClick={() => refetchVehicles()} className="font-bold underline py-2 px-2">נסה שוב</button>
             </div>
           ) : hasVehicles ? (
             <Select value={vehicleId} onValueChange={onPickVehicle}>
@@ -262,7 +262,7 @@ export default function VehicleSaleForm() {
               onChange={(e) => setSeller((s) => ({ ...s, id: normalizeId(e.target.value) }))} className="text-left tabular-nums" />
           </Field>
           <label className="flex items-center gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
-            <input type="checkbox" checked={saveMyId} onChange={(e) => setSaveMyId(e.target.checked)} />
+            <input type="checkbox" className="h-5 w-5 shrink-0" checked={saveMyId} onChange={(e) => setSaveMyId(e.target.checked)} />
             שמור את ה-ת.ז שלי במכשיר לפעם הבאה
           </label>
           <div className="grid grid-cols-2 gap-3">
@@ -325,7 +325,7 @@ export default function VehicleSaleForm() {
             <Input dir="rtl" value={condition.ownership} onChange={(e) => setCondition((c) => ({ ...c, ownership: e.target.value }))} />
           </Field>
           <label className="flex items-center gap-2 text-[13px] cursor-pointer" style={{ color: C.text }}>
-            <input type="checkbox" checked={condition.hadAccident} onChange={(e) => setCondition((c) => ({ ...c, hadAccident: e.target.checked }))} />
+            <input type="checkbox" className="h-5 w-5 shrink-0" checked={condition.hadAccident} onChange={(e) => setCondition((c) => ({ ...c, hadAccident: e.target.checked }))} />
             הרכב היה מעורב בתאונה שגרמה לירידת ערך
           </label>
         </SectionCard>
@@ -341,7 +341,7 @@ export default function VehicleSaleForm() {
         <SectionCard title="חתימה דיגיטלית (אופציונלי)"
           hint="חתימה אלקטרונית רגילה — מתאימה להסכם בין הצדדים. אינה חתימה מאושרת/ממשלתית.">
           <label className="flex items-start gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
-            <input type="checkbox" checked={signConsent} onChange={(e) => setSignConsent(e.target.checked)} className="mt-0.5" />
+            <input type="checkbox" checked={signConsent} onChange={(e) => setSignConsent(e.target.checked)} className="h-5 w-5 shrink-0 mt-0.5" />
             אני מאשר/ת שחתימה אלקטרונית שאוסיף מהווה את חתימתי המחייבת על המסמך.
           </label>
           {[{ key: 'seller', label: 'חתימת המוכר', who: seller }, { key: 'buyer', label: 'חתימת הקונה', who: buyer }].map((p) => (
@@ -352,9 +352,9 @@ export default function VehicleSaleForm() {
               </div>
               {signatures[p.key] ? (
                 <div className="flex items-center gap-2 shrink-0">
-                  <img src={signatures[p.key].dataUrl} alt="חתימה" style={{ height: '32px' }} />
+                  <img src={signatures[p.key].dataUrl} alt="חתימה" style={{ height: '32px', maxWidth: '110px' }} />
                   <button type="button" onClick={() => setSigningParty(p.key)} disabled={!signConsent}
-                    className="text-[12px] font-bold disabled:opacity-50" style={{ color: C.primary }}>החלף</button>
+                    className="text-[12px] font-bold disabled:opacity-50 py-2 px-2" style={{ color: C.primary }}>החלף</button>
                 </div>
               ) : (
                 <button type="button" onClick={() => setSigningParty(p.key)} disabled={!signConsent || !p.who.name.trim()}

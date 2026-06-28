@@ -444,6 +444,17 @@ export function PowerOfAttorneyStyles() {
         padding-top: 8px;
         border-top: 1px dashed #999;
       }
+
+      /* Mobile: shrink fixed bits so the document fits a ~360px screen
+         (digit-cell rows + 2-col grids would otherwise overflow). */
+      @media (max-width: 430px) {
+        .poa-doc { padding: 14px 12px; font-size: 12px; }
+        .poa-digit-cell { width: 15px; height: 20px; font-size: 10px; }
+        .poa-top, .poa-signers, .poa-row-2 { grid-template-columns: 1fr; }
+        .poa-table th, .poa-table td { padding: 4px 3px; font-size: 11px; }
+        .poa-id-line { flex-wrap: wrap; }
+        .poa-plate-box { min-width: 100px; }
+      }
     `}</style>
   );
 }

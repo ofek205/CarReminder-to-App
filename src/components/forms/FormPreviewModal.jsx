@@ -75,7 +75,7 @@ export default function FormPreviewModal({ fileBase, disclaimer, shareTitle, sha
             <p className="text-xs" style={{ color: C.muted }}>{subtitle}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="סגור"
-            className="w-9 h-9 rounded-full border flex items-center justify-center shrink-0" style={{ borderColor: C.border }}>
+            className="w-11 h-11 rounded-full border flex items-center justify-center shrink-0" style={{ borderColor: C.border }}>
             <X className="h-4 w-4" style={{ color: C.muted }} />
           </button>
         </div>

@@ -227,6 +227,13 @@ export function VehicleSaleStyles() {
         font-size: 9.5px; line-height: 1.5; color: #555; text-align: center;
         margin-top: 14px; padding-top: 8px; border-top: 1px dashed #999;
       }
+
+      /* Mobile: tighten padding + stack 2-col blocks so it fits ~360px. */
+      @media (max-width: 430px) {
+        .sale-doc { padding: 14px 12px; font-size: 12px; }
+        .sale-signs { grid-template-columns: 1fr; }
+        .sale-sign-row { grid-template-columns: 46px 1fr; }
+      }
     `}</style>
   );
 }
