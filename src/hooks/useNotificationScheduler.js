@@ -13,6 +13,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import { scheduleAllReminders, DEFAULT_REMINDER_SETTINGS } from '@/lib/notificationService';
 import { getUnreadCount } from '@/lib/notificationChannels';
 import { db } from '@/lib/supabaseEntities';
+import { isViewAs } from '@/lib/viewAsState';
 
 export default function useNotificationScheduler(vehicles = [], accountId = null) {
   const { user, isGuest } = useAuth();
@@ -24,6 +25,11 @@ export default function useNotificationScheduler(vehicles = [], accountId = null
 
   useEffect(() => {
     if (isGuest || !user?.id) return;
+    // During admin view-as, the loaded vehicles belong to the TARGET account
+    // but the device + reminder settings are the ADMIN's. Scheduling here would
+    // put the target's reminders on the admin's phone and pollute non-user-keyed
+    // localStorage markers. Hard-skip — never schedule while viewing-as.
+    if (isViewAs()) return;
     if (!vehicles.length) return;
 
     // Stable fingerprint of vehicles. id + every date/odometer field that
@@ -102,6 +108,8 @@ export default function useNotificationScheduler(vehicles = [], accountId = null
   // the latest count via the snapshot ref + setState.
   useEffect(() => {
     if (isGuest || !user?.id) return;
+    // Don't poll/show the admin's own unread count on the target's dashboard.
+    if (isViewAs()) return;
 
     const cleanup = subscribeUnreadCount(user.id, setUnreadCount);
     return cleanup;

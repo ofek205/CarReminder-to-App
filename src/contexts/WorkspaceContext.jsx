@@ -32,8 +32,14 @@ import React, {
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import useWorkspaces from '@/hooks/useWorkspaces';
+import useViewAs from '@/hooks/useViewAs';
+import useIsAdmin from '@/hooks/useIsAdmin';
+import { setViewAs, clearViewAs } from '@/lib/viewAsState';
+import { clearSignedUrlCache } from '@/hooks/useSignedUrl';
+import { clearBreadcrumbs } from '@/lib/breadcrumbs';
 import { MEMBER_STATUS, isActiveMember } from '@/lib/enums';
 
 const WorkspaceContext = createContext(null);
@@ -126,6 +132,8 @@ export function WorkspaceProvider({ children }) {
   const { user, isGuest, authState } = useAuth();
   const { memberships, isLoading: membershipsLoading } = useWorkspaces();
   const queryClient = useQueryClient();
+  const viewAs = useViewAs();
+  const isAdmin = useIsAdmin();
 
   // Saved hint from user_preferences. Read once when the user is known;
   // refreshes if user changes (sign out / sign in).
@@ -148,6 +156,30 @@ export function WorkspaceProvider({ children }) {
     staleTime: 60 * 60 * 1000,
   });
 
+  // During view-as, load the TARGET user's accounts so the WorkspaceSwitcher
+  // lists THEM (personal + business) instead of the admin's. Switching between
+  // them re-targets the view session (see `switchTo` override in `value`).
+  // admin_user_accounts already exists — it powers the AdminUserDrawer switcher.
+  const { data: viewAsAccounts = [] } = useQuery({
+    queryKey: ['view-as-accounts', viewAs?.targetUserId],
+    queryFn: async () => {
+      const { data, error } = await withTimeout(
+        supabase.rpc('admin_user_accounts', { p_user_id: viewAs.targetUserId }),
+        'admin_user_accounts'
+      );
+      if (error) return [];
+      return (data || []).map(a => ({
+        account_id:   a.account_id,
+        account_type: a.type,
+        account_name: a.name,
+        role:         'בעלים',
+        status:       MEMBER_STATUS.ACTIVE,
+      }));
+    },
+    enabled: !!viewAs?.targetUserId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Active workspace state. Seed from localStorage so warm boots paint
   // immediately — without this seed, the home + vehicles pages spin
   // through the entire useWorkspaces round-trip every refresh, and any
@@ -156,6 +188,7 @@ export function WorkspaceProvider({ children }) {
   // resolution effect below replaces it.
   const [activeId, setActiveId] = useState(() => readCachedWorkspace(user?.id));
   const initializedRef = useRef(false);
+  const viewHydratedRef = useRef(false);
 
   // Re-seed whenever the auth user identity changes (sign in / sign out
   // / account switch). Without this the seed sticks across users and a
@@ -163,6 +196,10 @@ export function WorkspaceProvider({ children }) {
   useEffect(() => {
     setActiveId(readCachedWorkspace(user?.id));
     initializedRef.current = false;
+    // A change of identity (sign in/out/switch) ends any view-as session
+    // and allows boot re-hydration for the new identity.
+    viewHydratedRef.current = false;
+    clearViewAs();
   }, [user?.id]);
 
   // Initial resolution + revalidation when the active workspace
@@ -204,10 +241,74 @@ export function WorkspaceProvider({ children }) {
     })();
   }, [user?.id, isGuest, membershipsLoading, memberships, queryClient]);
 
+  // View-as (admin impersonation) — boot hydration from the server, which
+  // is the source of truth. Only admins can have a session; for everyone
+  // else this no-ops. Runs once per identity.
+  useEffect(() => {
+    if (isGuest || !user?.id) return;
+    if (isAdmin !== true) return;
+    if (viewHydratedRef.current) return;
+    viewHydratedRef.current = true;
+    (async () => {
+      try {
+        const { data } = await supabase.rpc('admin_current_view');
+        if (data && data.target_account_id) {
+          setViewAs({
+            targetAccountId: data.target_account_id,
+            targetUserId:    data.target_user_id,
+            targetName:      data.target_name,
+            targetType:      data.target_type,
+            expiresAt:       data.expires_at,
+          });
+        }
+      } catch { /* no active session — stay in normal mode */ }
+    })();
+  }, [isGuest, user?.id, isAdmin]);
+
+  // enterViewAs — admin-only. Opens a server-side view session and points
+  // the whole app at the target account. RLS (is_viewing) is what actually
+  // grants the access; this only drives the client.
+  const enterViewAs = useMemo(() => async (targetAccountId, reason) => {
+    if (!targetAccountId) return false;
+    const { data, error } = await supabase.rpc('admin_start_view', {
+      p_account_id: targetAccountId,
+      p_reason: reason ?? null,
+    });
+    if (error) throw error;
+    setViewAs({
+      targetAccountId: data.target_account_id,
+      targetUserId:    data.target_user_id,
+      targetName:      data.target_name,
+      targetType:      data.target_type,
+      ownerEmail:      data.owner_email,
+      expiresAt:       data.expires_at,
+    });
+    // Hard-clear the cache (not just invalidate): any query the admin ran
+    // under their own context — including results cached BEFORE the server
+    // session existed — must not be served stale. Every screen then refetches
+    // fresh, scoped to the target account.
+    queryClient.clear();
+    return data;
+  }, [queryClient]);
+
+  // exitViewAs — close the server session and drop every cached scrap of
+  // the target's data so nothing bleeds back into the admin's own view.
+  const exitViewAs = useMemo(() => async () => {
+    try { await supabase.rpc('admin_end_view'); } catch { /* best effort */ }
+    clearViewAs();
+    // Drop every cached scrap of the target's data so nothing bleeds back
+    // into the admin's own view: React Query cache, the signed-URL cache
+    // (file URLs valid for days), and the breadcrumb ring buffer.
+    queryClient.clear();
+    try { clearSignedUrlCache(); } catch { /* noop */ }
+    try { clearBreadcrumbs(); } catch { /* noop */ }
+  }, [queryClient]);
+
   // switchTo — the only public mutation. Validates target, updates
   // local state, persists hint, then invalidates all queries so every
   // page refetches scoped to the new account.
   const switchTo = useMemo(() => async (targetAccountId) => {
+    if (viewAs) return false;   // workspace switching is disabled during view-as
     if (!targetAccountId) return false;
     const target = memberships?.find(m => m.account_id === targetAccountId);
     if (!target) return false;
@@ -240,26 +341,55 @@ export function WorkspaceProvider({ children }) {
     });
 
     return true;
-  }, [memberships, activeId, user?.id, queryClient]);
+  }, [memberships, activeId, user?.id, queryClient, viewAs]);
 
-  const activeWorkspace = useMemo(
+  const realActiveWorkspace = useMemo(
     () => memberships?.find(m => m.account_id === activeId) ?? null,
     [memberships, activeId]
   );
 
-  const value = useMemo(() => ({
-    memberships:        memberships ?? [],
-    activeWorkspaceId:  activeId,
-    activeWorkspace,
-    switchTo,
-    // If we have a seeded activeId (from localStorage), expose
-    // isLoading=false so consumers like useAccountRole return the
-    // cached id immediately. The membership query keeps running in
-    // the background; once it lands the resolution effect either
-    // confirms or replaces the seed.
-    isLoading: membershipsLoading && !activeId,
-    isGuest:   !!isGuest || authState === 'guest',
-  }), [memberships, activeId, activeWorkspace, switchTo, membershipsLoading, isGuest, authState]);
+  const value = useMemo(() => {
+    const impersonating = !!viewAs;
+    // When viewing-as, the admin is NOT a real member of the target, so we
+    // synthesize a membership-shaped object with the OWNER perspective. This
+    // is what makes business-vs-personal UI (account_type) and edit
+    // affordances (role) resolve correctly downstream — every consumer reads
+    // activeWorkspace, so the override propagates with no per-screen change.
+    const exposedWorkspace = impersonating
+      ? {
+          account_id:    viewAs.targetAccountId,
+          account_name:  viewAs.targetName,
+          account_type:  viewAs.targetType,
+          role:          'בעלים',
+          owner_user_id: viewAs.targetUserId,
+          status:        MEMBER_STATUS.ACTIVE,
+        }
+      : realActiveWorkspace;
+    // The WorkspaceSwitcher reads `memberships`. In view-as we feed it the
+    // TARGET user's accounts so the admin can move between the target's
+    // personal/business workspaces; switching re-targets the session
+    // (switchTo → enterViewAs) instead of jumping to the admin's own account.
+    const exposedMemberships = impersonating
+      ? (viewAsAccounts.length > 0 ? viewAsAccounts : [exposedWorkspace])
+      : (memberships ?? []);
+    return {
+      memberships:        exposedMemberships,
+      activeWorkspaceId:  impersonating ? viewAs.targetAccountId : activeId,
+      activeWorkspace:    exposedWorkspace,
+      switchTo:           impersonating ? enterViewAs : switchTo,
+      enterViewAs,
+      exitViewAs,
+      viewAs,
+      isViewAs:           impersonating,
+      // If we have a seeded activeId (from localStorage), expose
+      // isLoading=false so consumers like useAccountRole return the
+      // cached id immediately. The membership query keeps running in
+      // the background; once it lands the resolution effect either
+      // confirms or replaces the seed. During view-as we always have an id.
+      isLoading: membershipsLoading && !activeId && !impersonating,
+      isGuest:   !!isGuest || authState === 'guest',
+    };
+  }, [memberships, viewAsAccounts, activeId, realActiveWorkspace, switchTo, enterViewAs, exitViewAs, viewAs, membershipsLoading, isGuest, authState]);
 
   return (
     <WorkspaceContext.Provider value={value}>
@@ -281,6 +411,10 @@ export function useWorkspace() {
       activeWorkspaceId: null,
       activeWorkspace: null,
       switchTo: async () => false,
+      enterViewAs: async () => false,
+      exitViewAs: async () => {},
+      viewAs: null,
+      isViewAs: false,
       isLoading: false,
       isGuest: false,
     };

@@ -29,6 +29,8 @@ import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
 import StagingBanner from "@/components/shared/StagingBanner";
 import useIsAdmin from "@/hooks/useIsAdmin";
+import useViewAs from "@/hooks/useViewAs";
+import ViewAsBanner from "@/components/admin/ViewAsBanner";
 import useSharedVehicleRealtime from "@/hooks/useSharedVehicleRealtime";
 import { useQuery } from "@tanstack/react-query";
 import { withTimeout } from "@/lib/supabaseQuery";
@@ -309,7 +311,11 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   // could drift from the RPC's allow-list, making the sidebar link visible
   // for users the page would block, or vice-versa.
   const adminCheck = useIsAdmin();
-  const isAdmin = adminCheck === true;
+  // While viewing-as a customer account, hide the admin nav entirely so the
+  // admin can't wander into admin tools (which act on explicit ids) while the
+  // client is pointed at someone else's account. Exit first, then administer.
+  const isViewAs = useViewAs() !== null;
+  const isAdmin = adminCheck === true && !isViewAs;
 
   // Unacknowledged admin alerts — drives the red dot on the "התראות" nav
   // item (Stream 7). Refreshes every 60s alongside the AdminAlerts page so
@@ -1123,6 +1129,7 @@ function LayoutInner({ children }) {
         body-level overflow-x:hidden still catches horizontal bleed.
       */}
       <main className={`flex-1 min-w-0 lg:mr-64 ${isGuest ? 'pt-24 lg:pt-10' : 'pt-14 lg:pt-0'} pb-0`}>
+        <ViewAsBanner />
         <div className="max-w-5xl mx-auto p-4 lg:p-8 min-w-0">
           {children}
         </div>
