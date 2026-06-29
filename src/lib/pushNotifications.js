@@ -81,6 +81,10 @@ export async function initPushNotifications(userId) {
       const h1 = await PushNotifications.addListener('registration', async (token) => {
         try {
           await registerDeviceToken(userId, token.value);
+          // Server push is live on this device → the in-app bell must skip its
+          // fallback local-fire (dispatch-push already delivers each
+          // app_notification; firing locally too = a duplicate banner).
+          try { localStorage.setItem('cr_push_active', '1'); } catch {}
         } catch (e) {
           if (DEBUG) console.warn('[push] registerDeviceToken failed:', e?.message);
         }
@@ -133,6 +137,9 @@ export async function teardownPushNotifications() {
     }
     listenersAttached = false;
     initialized = false;
+    // Drop the "push live" flag so the next account (which may not have push)
+    // gets the bell's local-fire fallback again.
+    try { localStorage.removeItem('cr_push_active'); } catch {}
   } catch {}
 }
 

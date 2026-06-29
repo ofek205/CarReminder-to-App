@@ -316,13 +316,15 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
       // reached the 3-year urgent threshold a day later than expected.
       const tireYears = differenceInYears(now, new Date(v.last_tire_change_date));
       const rawStored = Number(v.km_since_tire_change);
-      // Data-integrity guard: the field stores the odometer AT the change,
-      // so a value > current_km is impossible (the car can't have been
-      // driven "backwards"). Treat that as corrupted input and fall back
-      // to 0 rather than emitting a massive negative kmSinceTire that
-      // would flap the 90k/100k thresholds into the wrong direction.
-      const valid = Number.isFinite(rawStored) && rawStored >= 0 && rawStored <= v.current_km;
-      const kmSinceTire = valid ? (v.current_km - rawStored) : 0;
+      // `km_since_tire_change` stores the ODOMETER AT the change (form label:
+      // "קילומטראז׳ בעת ההחלפה") and is OPTIONAL. Require a POSITIVE reading
+      // before using the km path: a missing / 0 / corrupt value means "no km
+      // baseline" (you don't change tires at 0 km), NOT "changed at 0 km".
+      // Without this, a blank km on a high-mileage car made kmSinceTire = the
+      // FULL odometer → a false "replace tires now". With no baseline we fall
+      // back to the age (tireYears) check only.
+      const hasKmBaseline = Number.isFinite(rawStored) && rawStored > 0 && rawStored <= v.current_km;
+      const kmSinceTire = hasKmBaseline ? (v.current_km - rawStored) : 0;
       if (kmSinceTire >= 90000 || tireYears >= 2.75) {
         const urgent = kmSinceTire >= 100000 || tireYears >= 3;
         items.push({
@@ -336,10 +338,17 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
       }
     }
 
-    // 5. Periodic service (15K km)
-    if (!isV && v.current_km) {
-      const lastServiceKm = v.km_baseline || 0;
-      const kmSince = v.current_km - lastServiceKm;
+    // 5. Periodic service (15K km) — needs a real odometer baseline
+    // (km_baseline = odometer at last service). A NULL baseline means "no
+    // data": skip it. Treating null as 0 (the old `|| 0`) made kmSince = the
+    // FULL odometer → a false "service overdue (140K ק"מ)" on every
+    // high-mileage car without a baseline. A stored 0 is allowed (car tracked
+    // from new); a corrupt value > current_km falls back to no-fire.
+    if (!isV && v.current_km && v.km_baseline != null) {
+      const lastServiceKm = Number(v.km_baseline);
+      const kmSince = (Number.isFinite(lastServiceKm) && lastServiceKm <= v.current_km)
+        ? v.current_km - lastServiceKm
+        : 0;
       if (kmSince >= 13500) {
         const urgent = kmSince >= 15000;
         items.push({
