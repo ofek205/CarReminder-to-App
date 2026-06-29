@@ -133,7 +133,7 @@ export default function AdminHome() {
   //  Action queues — each tile taps through to its page, pre-scoped.
   const queues = [
     { key: "biz",   label: "בקשות עסקים",   count: inbox?.business_requests_pending ?? 0, icon: Briefcase,     to: "/AdminBusinessRequests",      tone: "amber" },
-    { key: "msg",   label: "הודעות חדשות",  count: inbox?.messages_new            ?? 0, icon: MessageSquare, to: "/AdminDashboard?tab=messages", tone: "amber" },
+    { key: "msg",   label: "הודעות חדשות",  count: inbox?.messages_new            ?? 0, icon: MessageSquare, to: "/EmailCenter?tab=messages", tone: "amber" },
     { key: "alert", label: "התראות פתוחות", count: inbox?.alerts_unack            ?? 0, icon: Bell,          to: "/AdminAlerts",                tone: "red"   },
     { key: "bug",   label: "באגים פתוחים",  count: inbox?.bugs_open               ?? 0, icon: Bug,           to: "/AdminDashboard?tab=bugs",    tone: "yellow" },
   ];
