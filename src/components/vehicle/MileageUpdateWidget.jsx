@@ -6,7 +6,7 @@ import { toastError } from '@/lib/userErrorReport';
 import { usesKm, usesHours, isGenerator } from '../shared/DateStatusUtils';
 import { useAuth } from '../shared/GuestContext';
 import { C, getTheme } from '@/lib/designTokens';
-import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 
 export default function MileageUpdateWidget({ vehicle, onUpdated }) {
   const [open, setOpen] = useState(false);
@@ -49,9 +49,9 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
       if (isGuest) {
         updateGuestVehicle(vehicle.id, { ...coreUpdate, ...dateUpdate });
       } else {
-        await db.vehicles.update(vehicle.id, coreUpdate);
+        await dal.run('vehicle.update', { id: vehicle.id, ...coreUpdate });
         // Try saving update date (column may not exist yet in DB)
-        try { await db.vehicles.update(vehicle.id, dateUpdate); } catch {}
+        try { await dal.run('vehicle.update', { id: vehicle.id, ...dateUpdate }); } catch {}
         queryClient.invalidateQueries({ queryKey: ['vehicle', vehicle.id] });
       }
       // Save to localStorage so the quick-update button on Vehicles list hides for 30 days
