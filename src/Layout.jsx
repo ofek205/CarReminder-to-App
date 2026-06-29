@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield, Eye } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -191,6 +191,7 @@ const navItems = [
   { name: 'AdminHealth',        label: 'בריאות מערכת',  icon: HeartPulse,    guestAllowed: false, adminOnly: true },
   { name: 'AdminAlerts',        label: 'התראות',        icon: Bell,          guestAllowed: false, adminOnly: true },
   { name: 'AdminAuditLog',      label: 'יומן פעולות',   icon: ClipboardList, guestAllowed: false, adminOnly: true },
+  { name: 'AdminViewSessions',  label: 'צפייה בחשבונות', icon: Eye,          guestAllowed: false, adminOnly: true },
   { name: 'AdminDashboard?tab=bugs',     label: 'באגים',   icon: Bug,         guestAllowed: false, adminOnly: true },
   { name: 'AdminDashboard?tab=versions', label: 'גרסאות', icon: Smartphone,  guestAllowed: false, adminOnly: true },
   { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase,    guestAllowed: false, adminOnly: true },
