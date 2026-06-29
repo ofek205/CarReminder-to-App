@@ -16,6 +16,7 @@ import { runCommand } from './run';
 
 // --- command registrations (side-effect imports) ---------------------------
 import './commands/expenses';
+import './commands/corkNotes';
 
 export const dal = {
   run: runCommand,

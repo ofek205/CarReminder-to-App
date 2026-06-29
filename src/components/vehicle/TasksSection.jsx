@@ -2,6 +2,7 @@ import { toastError, toast } from '@/lib/userErrorReport';
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
+import { dal } from '@/lib/dal';
 import { C, getTheme } from '@/lib/designTokens';
 import { isVessel, isOffroad } from '../shared/DateStatusUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -166,8 +167,7 @@ export default function TasksSection({ vehicle }) {
       addGuestCorkNote({ ...task, id: `task_${Date.now()}`, created_date: new Date().toISOString() });
     } else {
       try {
-        const { supabase } = await import('@/lib/supabase');
-        await supabase.from('cork_notes').insert(dbTask);
+        await dal.run('task.create', dbTask);
         queryClient.invalidateQueries({ queryKey: ['tasks-v2', vehicle.id] });
         const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
         notifyVehicleChange(vehicle.id, 'task_added', `נוספה משימה: ${dbTask.title}`);
@@ -181,8 +181,7 @@ export default function TasksSection({ vehicle }) {
       updateGuestCorkNote(id, { is_done: done });
     } else {
       try {
-        const { supabase } = await import('@/lib/supabase');
-        await supabase.from('cork_notes').update({ is_done: done }).eq('id', id);
+        await dal.run('task.toggleDone', { id, is_done: done });
         queryClient.invalidateQueries({ queryKey: ['tasks-v2', vehicle.id] });
         const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
         notifyVehicleChange(vehicle.id, done ? 'task_completed' : 'task_reopened',
@@ -196,8 +195,7 @@ export default function TasksSection({ vehicle }) {
       removeGuestCorkNote(id);
     } else {
       try {
-        const { supabase } = await import('@/lib/supabase');
-        await supabase.from('cork_notes').delete().eq('id', id);
+        await dal.run('task.delete', { id });
         queryClient.invalidateQueries({ queryKey: ['tasks-v2', vehicle.id] });
       } catch {}
     }

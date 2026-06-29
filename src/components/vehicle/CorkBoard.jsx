@@ -2,6 +2,7 @@ import { toastError } from '@/lib/userErrorReport';
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
 import { C, getTheme, isVesselType } from '@/lib/designTokens';
@@ -402,9 +403,9 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
     } else {
       try {
         if (noteData.id) {
-          await db.cork_notes.update(noteData.id, dbFields);
+          await dal.run('corkNote.update', { id: noteData.id, ...dbFields });
         } else {
-          await db.cork_notes.create({
+          await dal.run('corkNote.create', {
             vehicle_id: vehicle.id,
             ...dbFields,
             rotation: randomRotation(),
@@ -429,7 +430,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
       removeGuestCorkNote(noteId);
     } else {
       try {
-        await db.cork_notes.delete(noteId);
+        await dal.run('corkNote.delete', { id: noteId });
         queryClient.invalidateQueries({ queryKey: ['cork-notes', vehicle.id] });
         const { notifyVehicleChange } = await import('@/lib/notifyVehicleChange');
         notifyVehicleChange(vehicle.id, 'note_deleted', 'נמחק פתק מלוח הפתקים');
