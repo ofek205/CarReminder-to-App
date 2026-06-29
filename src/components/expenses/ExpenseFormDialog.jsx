@@ -14,12 +14,8 @@ import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { Loader2, Upload, Trash2, Camera, Receipt } from 'lucide-react';
 import { C } from '@/lib/designTokens';
-import {
-  MANUAL_EXPENSE_CATEGORIES,
-  createManualExpense,
-  updateManualExpense,
-  deleteManualExpense,
-} from '@/services/expenses';
+import { MANUAL_EXPENSE_CATEGORIES } from '@/services/expenses';
+import { dal } from '@/lib/dal';
 import { uploadScanFile, deleteFile, refreshSignedUrl } from '@/lib/supabaseStorage';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
 import { validateUploadFile } from '@/lib/securityUtils';
@@ -461,7 +457,8 @@ export default function ExpenseFormDialog({
     setSubmitting(true);
     try {
       if (isEdit) {
-        await updateManualExpense(initial.id, {
+        await dal.run('expense.update', {
+          id: initial.id,
           amount: amt,
           category,
           expenseDate: date,
@@ -474,7 +471,7 @@ export default function ExpenseFormDialog({
         });
         toast.success('ההוצאה עודכנה');
       } else {
-        await createManualExpense({
+        await dal.run('expense.create', {
           accountId,
           vehicleId: targetVehicleId,
           amount: amt,
@@ -514,7 +511,7 @@ export default function ExpenseFormDialog({
     if (!isEdit) return;
     setSubmitting(true);
     try {
-      await deleteManualExpense(initial.id);
+      await dal.run('expense.delete', { id: initial.id });
       // Best-effort cleanup of the receipt blob.
       if (initial.receipt_storage_path) {
         deleteFile(initial.receipt_storage_path).catch(() => {});
