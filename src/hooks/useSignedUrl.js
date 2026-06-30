@@ -37,12 +37,6 @@ const urlCache = new Map();
 // 6 days in ms — 24h shy of the actual signed-URL TTL.
 const CACHE_TTL_MS = 6 * 24 * 60 * 60 * 1000;
 
-// Drop every cached signed URL. Called on admin view-as exit so a customer's
-// file URLs (valid for days) don't linger in memory after the admin leaves.
-export function clearSignedUrlCache() {
-  urlCache.clear();
-}
-
 function getCachedUrl(path) {
   const entry = urlCache.get(path);
   if (!entry) return null;

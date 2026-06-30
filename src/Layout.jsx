@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield, Eye } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -29,8 +29,6 @@ import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
 import StagingBanner from "@/components/shared/StagingBanner";
 import useIsAdmin from "@/hooks/useIsAdmin";
-import useViewAs from "@/hooks/useViewAs";
-import ViewAsBanner from "@/components/admin/ViewAsBanner";
 import useSharedVehicleRealtime from "@/hooks/useSharedVehicleRealtime";
 import { useQuery } from "@tanstack/react-query";
 import { withTimeout } from "@/lib/supabaseQuery";
@@ -191,7 +189,6 @@ const navItems = [
   { name: 'AdminHealth',        label: 'בריאות מערכת',  icon: HeartPulse,    guestAllowed: false, adminOnly: true },
   { name: 'AdminAlerts',        label: 'התראות',        icon: Bell,          guestAllowed: false, adminOnly: true },
   { name: 'AdminAuditLog',      label: 'יומן פעולות',   icon: ClipboardList, guestAllowed: false, adminOnly: true },
-  { name: 'AdminViewSessions',  label: 'צפייה בחשבונות', icon: Eye,          guestAllowed: false, adminOnly: true },
   { name: 'AdminDashboard?tab=bugs',     label: 'באגים',   icon: Bug,         guestAllowed: false, adminOnly: true },
   { name: 'AdminDashboard?tab=versions', label: 'גרסאות', icon: Smartphone,  guestAllowed: false, adminOnly: true },
   { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase,    guestAllowed: false, adminOnly: true },
@@ -312,11 +309,7 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   // could drift from the RPC's allow-list, making the sidebar link visible
   // for users the page would block, or vice-versa.
   const adminCheck = useIsAdmin();
-  // While viewing-as a customer account, hide the admin nav entirely so the
-  // admin can't wander into admin tools (which act on explicit ids) while the
-  // client is pointed at someone else's account. Exit first, then administer.
-  const isViewAs = useViewAs() !== null;
-  const isAdmin = adminCheck === true && !isViewAs;
+  const isAdmin = adminCheck === true;
 
   // Unacknowledged admin alerts — drives the red dot on the "התראות" nav
   // item (Stream 7). Refreshes every 60s alongside the AdminAlerts page so
@@ -1130,7 +1123,6 @@ function LayoutInner({ children }) {
         body-level overflow-x:hidden still catches horizontal bleed.
       */}
       <main className={`flex-1 min-w-0 lg:mr-64 ${isGuest ? 'pt-24 lg:pt-10' : 'pt-14 lg:pt-0'} pb-0`}>
-        <ViewAsBanner />
         <div className="max-w-5xl mx-auto p-4 lg:p-8 min-w-0">
           {children}
         </div>

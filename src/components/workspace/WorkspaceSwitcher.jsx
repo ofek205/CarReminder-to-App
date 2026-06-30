@@ -26,7 +26,7 @@ function workspaceLabel(m) {
 }
 
 export default function WorkspaceSwitcher() {
-  const { memberships, activeWorkspaceId, activeWorkspace, switchTo, isGuest, isViewAs } = useWorkspace();
+  const { memberships, activeWorkspaceId, activeWorkspace, switchTo, isGuest } = useWorkspace();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -127,7 +127,6 @@ export default function WorkspaceSwitcher() {
                 })}
             </>
           )}
-          {!isViewAs && (
           <Link
             to={createPageUrl('CreateBusinessWorkspace')}
             onClick={() => setOpen(false)}
@@ -136,7 +135,6 @@ export default function WorkspaceSwitcher() {
             <Plus className="h-4 w-4 shrink-0" />
             <span className="flex-1 text-xs font-bold">צור חשבון עסקי</span>
           </Link>
-          )}
         </div>
       )}
     </div>

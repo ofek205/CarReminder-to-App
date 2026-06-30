@@ -18,15 +18,12 @@ import {
   X, Mail, Phone, Calendar, Truck, FileText, Users,
   Activity, Wrench, Shield, AlertTriangle, Briefcase,
   Copy, Anchor, TrendingUp, Trash2, UserCog, Pencil, Send,
-  CheckSquare, Square, ListChecks, ChevronDown, ChevronUp, LogIn,
+  CheckSquare, Square, ListChecks, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/business/system';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
-import { createPageUrl } from '@/utils';
 import { buildEmailHtml, escapeHtml } from '@/lib/emailTemplates';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 import { C } from '@/lib/designTokens';
@@ -90,25 +87,6 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
   const [accountList, setAccountList] = useState(null);
   const [reloadNonce, setReloadNonce] = useState(0);
   const qc = useQueryClient();
-  const navigate = useNavigate();
-  const { enterViewAs } = useWorkspace();
-  const [entering, setEntering] = useState(false);
-
-  // Enter read-only "view-as" for the currently-selected account, then jump
-  // into the user-facing app. RLS (is_viewing) is what grants the access;
-  // this just opens the audited session + points the client at the account.
-  const handleEnterView = async () => {
-    if (!activeAccountId || entering) return;
-    setEntering(true);
-    try {
-      await enterViewAs(activeAccountId);
-      onClose?.();
-      navigate(createPageUrl('Dashboard'));
-    } catch (err) {
-      toast.error('שגיאה בכניסה לחשבון', { description: err?.message });
-      setEntering(false);
-    }
-  };
 
   // Reset to the opened account whenever a different row opens the drawer.
   useEffect(() => { setActiveAccountId(account?.id || null); setAccountList(null); }, [account?.id]);
@@ -252,25 +230,6 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
         <div className="p-4 space-y-4 pb-12">
           {accountList && accountList.length > 1 && (
             <AccountSwitcher accounts={accountList} activeId={activeAccountId} onSwitch={setActiveAccountId} />
-          )}
-          {activeAccountId && (
-            <button
-              type="button"
-              onClick={handleEnterView}
-              disabled={entering}
-              className="w-full flex items-center gap-2.5 px-3 py-3 rounded-xl text-right transition hover:bg-emerald-50 min-h-[44px] disabled:opacity-60"
-              style={{ border: `1px solid ${C.primaryDark}`, background: '#FFFFFF' }}
-            >
-              <LogIn className="w-4 h-4 shrink-0" style={{ color: C.primaryDark }} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-bold" style={{ color: C.primaryDark }}>
-                  {entering ? 'נכנס…' : 'צפה בחשבון'}
-                </p>
-                <p className="text-[10px]" style={{ color: C.mutedAlt }}>
-                  ראה את האפליקציה כפי שהמשתמש רואה · הפעולה מתועדת
-                </p>
-              </div>
-            </button>
           )}
           {loading && <DrawerSkeleton />}
           {error && <DrawerError message={error} />}

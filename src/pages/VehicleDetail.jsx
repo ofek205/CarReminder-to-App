@@ -15,7 +15,6 @@ import { toastError } from "@/lib/userErrorReport";
 import { C, getTheme, isVesselType, getVehicleCategory, isGeneratorType } from '@/lib/designTokens';
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import useViewAs from '@/hooks/useViewAs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import VehicleImage, { hasVehiclePhoto } from "../components/shared/VehicleImage";
@@ -458,7 +457,6 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   // action cluster + delete button + edit affordances below.
   const driverReadOnly = isBusiness && isDriver && !canManageRoutes;
   const [accountIds, setAccountIds] = useState([]);
-  const viewAs = useViewAs();
 
   useEffect(() => {
     if (!user) return;
@@ -589,10 +587,6 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   }, [vehicle?.id, enrichDone]);
 
   const vehicleIsOwned = vehicle && accountIds.length > 0 && accountIds.includes(vehicle.account_id);
-  // Admin view-as: my_vehicles_v only returns this row when a view session is
-  // active (server-enforced via is_viewing), so trusting it here is safe. This
-  // lets the admin open the target's vehicle without being a member of it.
-  const canViewAsTarget = !!viewAs && vehicle && vehicle.account_id === viewAs.targetAccountId;
 
   // Sharing state — driven by `vehicle_shares` rows for THIS vehicle.
   // shareCount = accepted shares the owner has granted (drives the
@@ -732,7 +726,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   // RLS already enforces this server-side; the client check is a faster
   // fail-fast and a friendlier error than rendering an empty page when
   // the underlying queries return null.
-  if (!vehicle || (!vehicleIsOwned && !isSharedWithMe && !canViewAsTarget)) {
+  if (!vehicle || (!vehicleIsOwned && !isSharedWithMe)) {
     return (
       <div className="text-center py-20 text-gray-500" dir="rtl">
         <p className="text-lg font-medium">הרכב לא נמצא</p>
