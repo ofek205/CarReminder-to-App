@@ -1,167 +1,109 @@
 /**
- * Settings. unified hub for personal/account/notifications.
+ * Settings — unified hub (grouped navigation list, drill-down).
  *
- * Replaces three separate sidebar entries (אזור אישי / שיתוף חשבון /
- * הגדרות תזכורות) with one entry point + tab navigation. Each tab
- * renders the existing page in `embedded` mode so we don't duplicate
- * their internal headers.
+ * ONE settings entry for the whole app. The hub is a grouped index that
+ * adapts to the active workspace (WorkspaceSwitcher):
+ *   - "אישי"  : profile, shared account (personal only), alerts, child-safety
+ *   - "עסקי"  : team, business settings — shown only in a business workspace,
+ *               labelled with the business name, gated by role.
+ * Each row drills into its existing screen. This replaces the old tab hub and
+ * the separate "הגדרות עסקיות" side-menu line, so personal vs business is
+ * unmistakable and there's never a confusing second settings entry.
  *
- * URL support:
- *   /Settings              → Profile tab (default)
- *   /Settings?tab=profile  → Profile
- *   /Settings?tab=account  → Account + sharing
- *   /Settings?tab=alerts   → Notifications + reminders
- *
- * The old standalone routes (/UserProfile, /AccountSettings,
- * /ReminderSettingsPage) still work for back-compat. The side menu
- * points at /Settings now, but push-notification deep links etc. can
- * continue to use the old URLs.
+ * Old deep-links (/UserProfile, /AccountSettings, /ReminderSettingsPage,
+ * /BusinessSettings, ?tab=…) still resolve — the hub just links to them.
  */
-import React, { useState, useEffect, Suspense } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
-import { User, Users, Bell, Shield, ChevronLeft } from 'lucide-react';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { User, Users, Bell, Shield, ChevronLeft, UserCog, Briefcase } from 'lucide-react';
 import { createPageUrl } from '@/utils';
-import LoadingSpinner from '../components/shared/LoadingSpinner';
-// Living Dashboard system - same family used across the B2B pages.
-// Settings is technically a personal-area page, but it sits alongside
-// the business pages in the side menu (managers reach BusinessSettings
-// from the same nav cluster), so applying the family treatment keeps
-// the chrome consistent.
 import { PageShell, Card } from '@/components/business/system';
-
-// Reuse existing pages, not lazy. user will browse between tabs, so
-// loading all three up front is cheaper than Suspense-flashing on each click.
-import UserProfilePage from './UserProfile';
-import AccountSettings from './AccountSettings';
-import ReminderSettingsPage from './ReminderSettingsPage';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import useIsAdmin from '@/hooks/useIsAdmin';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { C } from '@/lib/designTokens';
 
-const TABS = [
-  { key: 'profile', label: 'פרופיל',   icon: User,  subtitle: 'פרטים אישיים ורישיון נהיגה' },
-  { key: 'account', label: 'חשבון משותף', icon: Users, subtitle: 'חברים, רכבים משותפים והזמנות' },
-  { key: 'alerts',  label: 'התראות',   icon: Bell,  subtitle: 'מה ומתי לקבל תזכורות' },
-];
-
 export default function Settings() {
-  const [params, setParams] = useSearchParams();
-  const initial = TABS.find(t => t.key === params.get('tab'))?.key || 'profile';
-  const [active, setActive] = useState(initial);
-  const { isBusiness } = useWorkspaceRole();
+  const { isBusiness, isOwner, isManager } = useWorkspaceRole();
+  const { activeWorkspace } = useWorkspace();
   const isAdmin = useIsAdmin() === true;
-  // "בטיחות ילדים" (TripGuard) home lives in the התראות tab — a personal/
-  // parent feature. Admin-gated during rollout (matches the page's own gate).
+
+  const businessName = activeWorkspace?.account_name || 'העסק';
+  // "בטיחות ילדים" (TripGuard) — personal/parent feature, admin-gated during
+  // rollout (matches the page's own gate). Hidden in a business workspace.
   const showSafetyEntry = !isBusiness && isAdmin;
 
-  // When the active workspace is a business account, member management lives
-  // in the dedicated business surface (ניהול הצוות), NOT the personal
-  // "חשבון משותף" screen — enforce the separation by hiding that tab here.
-  const tabs = isBusiness ? TABS.filter(t => t.key !== 'account') : TABS;
+  const personalRows = [
+    { to: 'UserProfile', icon: User, label: 'פרופיל ורישיון', sub: 'פרטים אישיים ורישיון נהיגה' },
+    !isBusiness && { to: 'AccountSettings', icon: Users, label: 'חשבון משותף', sub: 'שיתוף רכבים עם בני משפחה' },
+    { to: 'ReminderSettingsPage', icon: Bell, label: 'התראות ותזכורות', sub: 'מה ומתי לקבל תזכורות' },
+    showSafetyEntry && { to: 'SafetyReminder', icon: Shield, label: 'בטיחות ילדים', sub: 'תזכורת שלא לשכוח ילד ברכב בסוף נסיעה' },
+  ].filter(Boolean);
 
-  // A deep link to ?tab=account inside a business workspace falls back to
-  // the profile tab (the account tab no longer exists in this context).
-  useEffect(() => {
-    if (isBusiness && active === 'account') setActive('profile');
-  }, [isBusiness, active]);
+  // Business group — only in a business workspace, gated by role.
+  // הצוות: owner+manager · הגדרות העסק (company/drivers/ownership): owner only.
+  const businessRows = isBusiness ? [
+    isManager && { to: 'TeamManagement', icon: UserCog, label: 'הצוות', sub: 'הזמנה, תפקידים והסרת חברים' },
+    isOwner   && { to: 'BusinessSettings', icon: Briefcase, label: 'הגדרות העסק', sub: 'פרטי החברה, נהגים ובעלות' },
+  ].filter(Boolean) : [];
 
-  // Keep the URL in sync so refresh / deep-links land on the same tab.
-  useEffect(() => {
-    const next = new URLSearchParams(params);
-    if (active !== next.get('tab')) {
-      next.set('tab', active);
-      setParams(next, { replace: true });
-    }
-
-  }, [active]);
-
-  const current = tabs.find(t => t.key === active) || tabs[0];
+  const showGroupHeaders = businessRows.length > 0;
 
   return (
     <PageShell
       title="הגדרות"
-      subtitle={current.subtitle}
+      subtitle={isBusiness ? businessName : 'ניהול החשבון וההעדפות שלך'}
     >
-      {/* Tab bar — wrapped in a system Card so the surface matches every
-          other section in the page below. Active tab uses the system's
-          emerald gradient. The "control" container itself sits on a
-          mint backdrop to differentiate from the white-card content. */}
-      <Card padding="p-1.5" className="mb-4">
-        <div
-          role="tablist"
-          aria-label="הגדרות"
-          className="flex items-center gap-1 overflow-x-auto"
-        >
-          {tabs.map(tab => {
-            const isActive = tab.key === active;
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.key}
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => setActive(tab.key)}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl whitespace-nowrap transition-all hover:scale-[1.01] active:scale-[0.98]"
-                style={{
-                  background: isActive
-                    ? `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`
-                    : 'transparent',
-                  color: isActive ? '#FFFFFF' : C.textAlt,
-                  boxShadow: isActive
-                    ? '0 4px 12px rgba(16,185,129,0.25)'
-                    : 'none',
-                  // font-weight kept stable to avoid browser snapping
-                  // between loaded faces — visual state is carried by
-                  // the gradient + color, not by weight.
-                  fontWeight: 700,
-                  transition: 'background 180ms cubic-bezier(0.4,0,0.2,1), color 180ms cubic-bezier(0.4,0,0.2,1), box-shadow 180ms cubic-bezier(0.4,0,0.2,1)',
-                }}>
-                <Icon className="w-4 h-4" strokeWidth={isActive ? 2.4 : 1.8} />
-                <span className="text-xs">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </Card>
+      <SettingsGroup title={showGroupHeaders ? 'אישי' : null} rows={personalRows} />
 
-      {/* Active tab content. The embedded sub-pages render their own
-          Cards / sections; this wrapper just hosts them. */}
-      <Suspense fallback={<div className="flex justify-center py-16"><LoadingSpinner /></div>}>
-        {active === 'profile' && <UserProfilePage embedded />}
-        {active === 'account' && !isBusiness && <AccountSettings embedded />}
-        {active === 'alerts' && (
-          <>
-            {showSafetyEntry && (
-              <Card className="mb-4">
-                <Link to={createPageUrl('SafetyReminder')} className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: C.light }}>
-                    <Shield className="h-5 w-5" style={{ color: C.primary }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold" style={{ color: C.text }}>בטיחות ילדים</p>
-                    <p className="text-xs" style={{ color: C.muted }}>תזכורת שלא לשכוח ילד ברכב בסוף נסיעה</p>
-                  </div>
-                  <ChevronLeft className="h-5 w-5 shrink-0" style={{ color: C.muted }} />
-                </Link>
-              </Card>
-            )}
-            <ReminderSettingsPage embedded />
-          </>
-        )}
-      </Suspense>
+      {businessRows.length > 0 && (
+        <SettingsGroup title={`עסקי · ${businessName}`} rows={businessRows} accent />
+      )}
 
-      {/* Version footer — lives at the page level so it shows for every
-          tab AND every user, including guests (the embedded UserProfile
-          renders a "register to manage" gate for guests instead of the
-          full profile, which previously hid the version line at the
-          bottom of that page). Critical for support triage: "what build
-          is this user on?" is the first question we ask, especially
-          right after a Play Store rollout when half the install base
-          is on the new version and half isn't. Sourced from
-          package.json via the __APP_VERSION__ Vite define. */}
+      {/* Version footer — shown for every user (support triage). */}
       <p className="text-center text-[11px] mt-6 mb-2" style={{ color: C.gray400 }}>
         CarReminder &middot; גרסה {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—'}
       </p>
     </PageShell>
+  );
+}
+
+function SettingsGroup({ title, rows, accent }) {
+  return (
+    <section className="mb-5">
+      {title && (
+        <h2
+          className="flex items-center gap-2 mb-2 text-sm font-bold pr-2.5 border-r-2"
+          style={{ color: C.primaryDark, borderRightColor: accent ? C.successBright : C.gray300 }}
+        >
+          {title}
+        </h2>
+      )}
+      <Card padding="p-1.5">
+        {rows.map((r, i) => {
+          const Icon = r.icon;
+          return (
+            <Link
+              key={r.to}
+              to={createPageUrl(r.to)}
+              className="flex items-center gap-3 p-2.5 rounded-xl transition-colors hover:bg-gray-50 active:scale-[0.99]"
+              style={i > 0 ? { borderTop: `1px solid ${C.gray100}` } : undefined}
+            >
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: accent ? C.successLight : C.light }}
+              >
+                <Icon className="h-5 w-5" style={{ color: accent ? C.successDark : C.primary }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold truncate" style={{ color: C.text }}>{r.label}</p>
+                <p className="text-xs truncate" style={{ color: C.muted }}>{r.sub}</p>
+              </div>
+              <ChevronLeft className="h-5 w-5 shrink-0" style={{ color: C.gray400 }} />
+            </Link>
+          );
+        })}
+      </Card>
+    </section>
   );
 }

@@ -21,8 +21,12 @@
  *      sign into. Old tokens for the same device naturally fall out
  *      because FCM/APNs rotate them and we always upsert latest.
  *   4. Foreground notifications fire the `pushNotificationReceived`
- *      listener, which forwards them to the existing LocalNotifications
- *      surface so the user sees a banner even with the app open.
+ *      listener. On Android we surface the banner via LocalNotifications
+ *      (the OS does not auto-present a foreground `notification` message);
+ *      on iOS the OS presents it itself via `presentationOptions`, so we
+ *      do NOT forward — that would double the banner. OS push is the sole
+ *      owner of the device banner; the bell + Realtime listener never fire
+ *      local notifications for an app_notifications row.
  *   5. Notification taps fire `pushNotificationActionPerformed`, which
  *      dispatches a `cr:push-tapped` window event the router listens
  *      for to deep-link to the right screen.
@@ -137,21 +141,58 @@ export async function teardownPushNotifications() {
 }
 
 /**
- * Upsert a device token in supabase. Keyed by (user_id, token) so the
- * same physical device that signs into a different account gets its own
- * row, and the same user across devices accumulates one row per device.
- * Tokens FCM/APNs rotate are upserted afresh — old rows go stale and
- * get pruned by the cleanup logic in dispatch-push (any send that
- * returns "not-registered" causes the row to be deleted).
+ * Stable per-install identifier, persisted in localStorage. This is the KEY
+ * that makes "one physical device = one device_tokens row" possible.
+ *
+ * Why it exists: FCM/APNs rotate a device's push token periodically. When the
+ * table was keyed on (user_id, token), a rotation inserted a SECOND row and the
+ * stale row lingered until a failed send pruned it — and in the window where
+ * both tokens were still deliverable, ONE notification fanned out to the SAME
+ * device twice. Keying on a per-install id instead lets the upsert UPDATE the
+ * single row in place on rotation, so there is never a second row to duplicate.
+ *
+ * It survives app launches (localStorage on native persists), and regenerates
+ * only on reinstall / app-data-clear — which is genuinely a new install; the
+ * old row's token goes stale and is pruned on the next failed send.
+ */
+function getInstallId() {
+  try {
+    let id = localStorage.getItem('cr_install_id');
+    if (!id) {
+      id = (globalThis.crypto?.randomUUID?.())
+        || `inst-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem('cr_install_id', id);
+    }
+    return id;
+  } catch {
+    // localStorage unavailable — volatile id (degrades to old per-token rows).
+    return (globalThis.crypto?.randomUUID?.()) || `inst-${Date.now()}`;
+  }
+}
+
+/**
+ * Upsert a device token in supabase. Keyed by (user_id, device_id) so the same
+ * physical device keeps ONE row even as its push token rotates — a rotation
+ * UPDATES the row (new token, same row) instead of inserting a duplicate. A
+ * user across multiple devices still gets one row per device (distinct
+ * device_id), and a device that signs into a different account gets its own
+ * row (distinct user_id). Stale rows (after reinstall) are pruned by
+ * dispatch-push when a send returns "not-registered".
+ *
+ * Deploy order: the (user_id, device_id) unique index must exist on the DB
+ * (supabase-device-tokens-device-id-dedup-2026-06-29.sql) before a native
+ * build shipping this onConflict reaches users — otherwise the upsert has no
+ * matching constraint and throws (caught below; push registration stalls).
  */
 async function registerDeviceToken(userId, token) {
   if (!userId || !token) return;
   const platform = await detectPlatform();
+  const deviceId = getInstallId();
   const { error } = await supabase
     .from('device_tokens')
     .upsert(
-      { user_id: userId, token, platform, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,token' }
+      { user_id: userId, token, platform, device_id: deviceId, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,device_id' }
     );
   if (error) throw error;
   if (DEBUG) console.log(`[push] device token registered (${platform})`);
@@ -168,37 +209,30 @@ async function detectPlatform() {
 }
 
 /**
- * When a push arrives while the app is in the foreground, FCM by
- * default delivers it silently. Mirror it through LocalNotifications so
- * the user still sees the banner / hears the sound.
+ * Foreground push presentation — ANDROID ONLY.
  *
- * Dedup with the Realtime mirror (useSharedVehicleRealtime) and the
- * NotificationBell first-fetch mirror via the shared localStorage flag
- *   `app_push_fired_<app_notifications.id>`
- * The dispatch-push trigger now includes the row id under
- * `data.app_notif_id` precisely so this path can apply the same flag.
- * Without it a foregrounded user would see two banners per event —
- * one from this handler and one from the Realtime mirror that fires
- * 1500ms later for the same INSERT.
+ * Each platform owns foreground presentation natively, and we forward only
+ * where the OS leaves a gap:
+ *   - iOS: capacitor.config `presentationOptions: ['badge','sound','alert']`
+ *     tells the OS to present the banner itself while the app is foregrounded.
+ *     Forwarding here too would show TWO banners — so we return early on iOS.
+ *   - Android: a foreground FCM `notification` message is delivered to this
+ *     listener and is NOT auto-presented by the system, so the app must
+ *     surface it. That's this function's only job.
  *
- * If app_notif_id is missing (legacy trigger, system-test pushes, …)
- * we skip the dedup check and forward anyway — better to show a
- * possibly-duplicate banner than to swallow a legitimate push.
+ * No cross-path dedup flags: OS push is the SOLE owner of the device banner
+ * for an app_notifications row. The in-app bell and the Realtime listener no
+ * longer fire local notifications, so there is nothing left to coordinate
+ * against — one push delivered foreground = exactly one banner (here, Android).
  */
 async function forwardForegroundToLocal(notif) {
   try {
+    const platform = await detectPlatform();
+    if (platform !== 'android') return;
+
     const title = notif?.title || notif?.data?.title || 'CarReminder';
     const body  = notif?.body  || notif?.data?.body  || '';
     if (!title && !body) return;
-
-    const appNotifId = notif?.data?.app_notif_id;
-    if (appNotifId) {
-      try {
-        const dedupKey = `app_push_fired_${appNotifId}`;
-        if (localStorage.getItem(dedupKey)) return; // Realtime already fired
-        localStorage.setItem(dedupKey, '1');
-      } catch { /* storage unavailable — fall through to schedule */ }
-    }
 
     const { scheduleLocalNotification } = await import('./notificationChannels');
     await scheduleLocalNotification({

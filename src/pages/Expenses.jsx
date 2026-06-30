@@ -39,6 +39,7 @@ import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -168,8 +169,7 @@ export default function Expenses() {
     setPendingDelete(null);
     if (!e) return;
     try {
-      const { error } = await supabase.rpc('delete_vehicle_expense', { p_id: e.id });
-      if (error) throw error;
+      await dal.run('expense.delete', { id: e.id });
       if (e.receipt_storage_path) deleteFile(e.receipt_storage_path).catch(() => {});
       toast.success('ההוצאה נמחקה');
       await queryClient.invalidateQueries({ queryKey: ['expenses'] });
@@ -598,17 +598,16 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
     setSubmitting(true);
     try {
       if (isEdit) {
-        const { error } = await supabase.rpc('update_vehicle_expense', {
-          p_id:                   row.id,
-          p_amount:               amt,
-          p_category:             category,
-          p_expense_date:         date,
-          p_note:                 note,
-          p_receipt_url:          didChangeReceipt ? (receiptUrl || null) : null,
-          p_receipt_storage_path: didChangeReceipt ? (receiptPath || null) : null,
-          p_clear_receipt:        didChangeReceipt && !receiptPath,
+        await dal.run('expense.update', {
+          id: row.id,
+          amount: amt,
+          category,
+          expenseDate: date,
+          note,
+          receiptUrl: didChangeReceipt ? (receiptUrl || null) : null,
+          receiptStoragePath: didChangeReceipt ? (receiptPath || null) : null,
+          clearReceipt: didChangeReceipt && !receiptPath,
         });
-        if (error) throw error;
         // If we replaced an existing receipt, the OLD blob is now
         // orphaned — nuke it.
         if (didChangeReceipt && row.receipt_storage_path
@@ -617,18 +616,16 @@ function ExpenseDialog({ row, vehicles, accountId, onClose, onSaved }) {
         }
         toast.success('ההוצאה עודכנה');
       } else {
-        const { error } = await supabase.rpc('add_vehicle_expense', {
-          p_account_id:           accountId,
-          p_vehicle_id:           vehicleId,
-          p_amount:               amt,
-          p_category:             category,
-          p_expense_date:         date,
-          p_note:                 note || null,
-          p_currency:             'ILS',
-          p_receipt_url:          receiptUrl || null,
-          p_receipt_storage_path: receiptPath || null,
+        await dal.run('expense.create', {
+          accountId,
+          vehicleId,
+          amount: amt,
+          category,
+          expenseDate: date,
+          note: note || null,
+          receiptUrl: receiptUrl || null,
+          receiptStoragePath: receiptPath || null,
         });
-        if (error) throw error;
         toast.success('ההוצאה נוספה');
       }
       savedRef.current = true;

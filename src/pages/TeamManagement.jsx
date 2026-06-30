@@ -178,7 +178,6 @@ export default function TeamManagement() {
 
   return (
     <PageShell
-      backTo="BusinessDashboard"
       title="ניהול הצוות"
       subtitle={activeWorkspace?.account_name || 'חשבון עסקי'}
       actions={(

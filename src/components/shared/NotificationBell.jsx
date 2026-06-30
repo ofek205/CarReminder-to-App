@@ -443,7 +443,11 @@ export default function NotificationBell() {
             // even if the bell reloads multiple times. No-op on web.
             try {
               const { isNative: native } = await import('@/lib/capacitor');
-              if (native) {
+              // Skip the local-fire fallback when server push is live on this
+              // device (cr_push_active, set on push registration) — dispatch-push
+              // already delivers each app_notification, so firing locally too
+              // would double-notify ("pops once when sent, again on app open").
+              if (native && !localStorage.getItem('cr_push_active')) {
                 const { scheduleLocalNotification, requestNotificationPermission, checkNotificationPermission, createNotificationChannel } = await import('@/lib/notificationChannels');
                 let granted = await checkNotificationPermission();
                 if (!granted) granted = await requestNotificationPermission();

@@ -182,7 +182,7 @@ export default function UserProfilePage({ embedded = false }) {
   if (isGuest) {
     return (
       <div dir="rtl">
-        {!embedded && <PageHeader title="אזור אישי" subtitle="פרטים אישיים ורישיון נהיגה" />}
+        {!embedded && <PageHeader title="אזור אישי" subtitle="פרטים אישיים ורישיון נהיגה" backPage="Settings" />}
         <Card accent="emerald" className="text-center space-y-4 py-8">
           <div
             className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto"
@@ -376,7 +376,7 @@ function AuthUserProfile({ embedded = false }) {
 
   return (
     <div dir="rtl">
-      {!embedded && <PageHeader title="אזור אישי" subtitle="פרטים אישיים ורישיון נהיגה" />}
+      {!embedded && <PageHeader title="אזור אישי" subtitle="פרטים אישיים ורישיון נהיגה" backPage="Settings" />}
 
       <DriverLicenseScanDialog
         open={showScan}

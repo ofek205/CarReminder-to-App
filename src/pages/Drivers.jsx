@@ -38,7 +38,7 @@ import {
   KpiTile,
   AnimatedCount,
 } from '@/components/business/system';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { sendAccountInviteEmail } from '@/lib/inviteEmail';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { listExternalDrivers, categoryShortLabel } from '@/services/drivers';
 import ExternalDriverFormDialog from '@/components/drivers/ExternalDriverFormDialog';
@@ -264,9 +264,9 @@ export default function Drivers() {
             >
               <Mail className="h-4 w-4 mt-0.5 text-[#2D5233]" />
               <div className="min-w-0">
-                <p className="text-sm font-bold text-gray-900">הזמן נהג עם חשבון</p>
+                <p className="text-sm font-bold text-gray-900">הזמן נהג במייל</p>
                 <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
-                  משתמש שכבר רשום באפליקציה. הוא יקבל גישה לרכב המשובץ ולמשימות.
+                  תישלח הזמנה; הנהג יצטרף אחרי אישור. אם אין לו חשבון — יקבל קישור להרשמה.
                 </p>
               </div>
             </button>
@@ -407,20 +407,12 @@ export default function Drivers() {
         <AddMemberDialog
           accountId={accountId}
           onClose={() => setAdding(false)}
-          onAdded={async (added) => {
-            // Must match the directory query key exactly — React Query matches
-            // keys element-wise from the start, and 'workspace-members' is NOT a
-            // prefix of 'workspace-members-directory', so the old key never
-            // refetched and a freshly-added member stayed hidden (audit ג-7).
+          onAdded={async () => {
+            // The driver is invited as PENDING (must accept). They appear under
+            // הגדרות ← הצוות until they accept; once active they show here and
+            // can be assigned a vehicle. So there's no immediate assign-chain.
             await queryClient.invalidateQueries({ queryKey: ['workspace-members-directory'] });
             setAdding(false);
-            if (added?.role === 'driver' && added?.user_id) {
-              setAssigning({
-                kind: 'registered',
-                id: added.user_id,
-                displayName: added.display_name || added.email,
-              });
-            }
           }}
         />
       )}
@@ -494,49 +486,47 @@ function FilterChip({ active, onClick, children, tone }) {
 
 function AddMemberDialog({ accountId, onClose, onAdded }) {
   const [email, setEmail] = useState('');
-  const [role,  setRole]  = useState('driver');
+  const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
     const cleanEmail = email.trim();
-    if (!cleanEmail) { toastError('יש להזין אימייל', { action: 'driver_invite_email_required' }); return; }
-
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      toastError('יש להזין אימייל תקין', { action: 'driver_invite_email_required' });
+      return;
+    }
     setSubmitting(true);
     try {
-      const { error } = await supabase.rpc('add_workspace_member_by_email', {
+      // Unified invite flow: a driver joins as PENDING and gets a bell prompt
+      // (registered) or a join link by email (unregistered) — same accept flow
+      // as every other member. Replaces the legacy immediate-add
+      // (add_workspace_member_by_email). Role is fixed to 'driver'; other roles
+      // are managed in הגדרות → הצוות.
+      const { data, error } = await withTimeout(supabase.rpc('invite_account_member_by_email', {
+        p_email: cleanEmail,
+        p_role: 'driver',
+        p_vehicle_ids: null,
         p_account_id: accountId,
-        p_email:      cleanEmail,
-        p_role:       role,
-      });
+        p_name: name.trim() || null,
+      }), 'invite_driver');
       if (error) throw error;
-      // Refetch the directory and look up the user_id we just added by
-      // email. The RPC only returns the membership row id; the parent
-      // dialog needs user_id + display_name to chain into the
-      // assign-vehicle step. Doing the lookup here keeps the contract
-      // for onAdded simple — caller gets either everything or nothing.
-      let added = { role, email: cleanEmail };
-      try {
-        const { data: dir } = await supabase.rpc('workspace_members_directory', {
-          p_account_id: accountId,
-        });
-        const match = (dir || []).find(m => (m.email || '').toLowerCase() === cleanEmail.toLowerCase());
-        if (match) {
-          added = { ...added, user_id: match.user_id, display_name: match.display_name };
-        }
-      } catch { /* fall through with email only */ }
-      toast.success('החבר נוסף לחשבון בהצלחה');
-      onAdded?.(added);
+      if (data?.recipient_existing_user) {
+        toast.success('ההזמנה נשלחה — ממתין לאישור הנהג');
+      } else {
+        toast.success('קישור הזמנה נוצר ונשלח במייל');
+        if (data?.invite_token) sendAccountInviteEmail(cleanEmail, data.invite_token, 'נהג').catch(() => {});
+      }
+      onAdded?.();
     } catch (err) {
       const msg = err?.message || '';
-      if      (msg.includes('forbidden_not_manager')) toastError('אין לך הרשאת מנהל', { action: 'driver_invite_forbidden', err });
-      else if (msg.includes('email_required'))        toastError('יש להזין אימייל', { action: 'driver_invite_email_required', err });
-      else if (msg.includes('user_not_registered'))   toastError('אין משתמש רשום עם האימייל הזה. שלח לו קישור להרשמה לאפליקציה ונסה שוב.', { action: 'driver_invite_not_registered', err });
-      else if (msg.includes('already_member'))        toastError('המשתמש כבר חבר בחשבון הזה', { action: 'driver_invite_already_member', err });
-      else if (msg.includes('invalid_role'))          toastError('תפקיד לא תקין', { action: 'driver_invite_invalid_role', err });
-      else                                             toastError('הוספת החבר נכשלה. נסה שוב.', { action: 'driver_invite', err });
-       
-      console.error('add_workspace_member_by_email failed:', err);
+      if      (msg.includes('not_authorized'))     toastError('אין לך הרשאה להזמין נהגים', { action: 'driver_invite_forbidden', err });
+      else if (msg.includes('already_member'))     toastError('המשתמש כבר חבר בחשבון או שיש הזמנה ממתינה', { action: 'driver_invite_already_member', err });
+      else if (msg.includes('cannot_invite_self')) toastError('אי אפשר להזמין את עצמך', { action: 'driver_invite_self', err });
+      else if (msg.includes('invalid_email'))      toastError('כתובת מייל לא תקינה', { action: 'driver_invite_invalid_email', err });
+      else                                          toastError('שליחת ההזמנה נכשלה. נסה שוב.', { action: 'driver_invite', err });
+
+      console.error('invite driver failed:', err);
     } finally {
       setSubmitting(false);
     }
@@ -546,19 +536,31 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
     <div dir="rtl" className="fixed inset-0 z-[10000] bg-black/40 flex items-end sm:items-center justify-center p-3" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-bold text-gray-900">הוסף חבר לצוות</h2>
+          <h2 className="text-lg font-bold text-gray-900">הזמן נהג</h2>
           <button onClick={onClose} aria-label="סגור" className="p-1.5 hover:bg-gray-100 rounded-lg">
             <X className="h-4 w-4 text-gray-500" />
           </button>
         </div>
         <p className="text-xs text-gray-500 mb-4">
-          המשתמש חייב להיות רשום באפליקציה. בקש ממנו להירשם דרך CarReminder ואז הזן כאן את האימייל.
+          תישלח הזמנה לנהג. אם כבר יש לו משתמש — הוא יאשר וייכנס לחשבון; אם לא — יקבל מייל עם קישור לפתיחת חשבון. אחרי שיאשר תוכל/י לשייך לו רכב.
         </p>
 
         <form onSubmit={submit} className="space-y-3">
           <div>
             <label className="block text-xs font-bold text-gray-700 mb-1">
-              אימייל המשתמש <span className="text-red-500">*</span>
+              שם <span className="font-normal text-gray-400">(לא חובה)</span>
+            </label>
+            <Input
+              type="text" dir="rtl" value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="שם הנהג"
+              className="h-10 rounded-xl text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">
+              אימייל הנהג <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <Mail className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -573,24 +575,8 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1">
-              תפקיד <span className="text-red-500">*</span>
-            </label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger className="h-10 rounded-xl text-sm">
-                <SelectValue placeholder="בחר תפקיד" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="driver">נהג. רואה את הרכב שלו ואת המשימות שלו בלבד</SelectItem>
-                <SelectItem value="שותף">צופה. רואה הכל בקריאה בלבד</SelectItem>
-                <SelectItem value="מנהל">מנהל. אחראי על צי, נהגים ומשימות</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-2.5 text-[11px] text-blue-900 leading-relaxed">
-            לאחר ההוספה, המשתמש יראה את החשבון העסקי במחליף הסביבות שלו בכניסה הבאה לאפליקציה.
+            הנהג יתווסף כ"ממתין" עד שיאשר. לניהול תפקידים אחרים (מנהל / צופה) — הגדרות ← הצוות.
           </div>
 
           <button
@@ -599,8 +585,8 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
             className="w-full py-2.5 rounded-xl font-bold text-sm bg-[#2D5233] text-white flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60"
           >
             {submitting
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> מוסיף...</>
-              : <><UserPlus className="h-4 w-4" /> הוסף לצוות</>}
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> שולח...</>
+              : <><UserPlus className="h-4 w-4" /> שלח הזמנה</>}
           </button>
         </form>
       </div>

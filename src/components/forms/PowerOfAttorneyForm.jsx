@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Plus, Trash2, Download, FileText, Share2, Loader2, X, Info, AlertTriangle,
+  Plus, Trash2, Loader2, Info, AlertTriangle, Eye,
 } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -14,23 +14,12 @@ import { Label } from '@/components/ui/label';
 import { DateInput } from '@/components/ui/date-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { toastError } from '@/lib/userErrorReport';
-import { shareContent } from '@/lib/capacitor';
 import { isValidIsraeliId, normalizeId } from '@/lib/forms/israeliId';
 import PowerOfAttorneyDocument from './PowerOfAttorneyDocument';
 import SignaturePad from './SignaturePad';
+import FormPreviewModal from './FormPreviewModal';
 import { shortFingerprint, canonicalize } from '@/lib/forms/docHash';
-
-const MY_ID_KEY = (uid) => `cr_poa_my_id:${uid || 'anon'}`;
-function readSavedId(uid) {
-  try { return localStorage.getItem(MY_ID_KEY(uid)) || ''; } catch { return ''; }
-}
-function writeSavedId(uid, id) {
-  try {
-    if (id) localStorage.setItem(MY_ID_KEY(uid), id);
-    else localStorage.removeItem(MY_ID_KEY(uid));
-  } catch { /* quota / private mode — non-fatal */ }
-}
+import { readSavedId, writeSavedId } from '@/lib/forms/savedId';
 
 // Small ת.ז field: numeric, max 9 digits. `error` (red) blocks; `warning`
 // (amber) is advisory only — see the ת.ז policy note in the component.
@@ -112,8 +101,15 @@ function SectionCard({ title, hint, children }) {
 export default function PowerOfAttorneyForm() {
   const { user } = useAuth();
   const { accountId } = useAccountRole();
-  const { isBusiness, businessMeta } = useWorkspaceRole();
+  const { isBusiness: accountIsBusiness, businessMeta } = useWorkspaceRole();
   const { activeWorkspace } = useWorkspace();
+  // Business accounts can also issue a PRIVATE power-of-attorney (sometimes
+  // a business needs one for an individually-owned vehicle). The effective
+  // variant defaults to the account type; the user overrides via the
+  // form-type selector. `isBusiness` below is the EFFECTIVE variant, so all
+  // downstream logic (sections, prefill, document, signatures) follows it.
+  const [formTypeOverride, setFormTypeOverride] = useState(null);
+  const isBusiness = formTypeOverride ? formTypeOverride === 'business' : accountIsBusiness;
 
   // ── Vehicles for the picker (account-scoped, timeout-guarded) ──────
   const {
@@ -153,25 +149,33 @@ export default function PowerOfAttorneyForm() {
   const [includeLawyer, setIncludeLawyer] = useState(true);
 
   const [showPreview, setShowPreview] = useState(false);
+  const [showSample, setShowSample] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [signatures, setSignatures] = useState({});
   const [signingKey, setSigningKey] = useState(null);
   const [signConsent, setSignConsent] = useState(false);
 
-  // Prefill once the identity/account data is known. Runs when the
-  // building blocks change; guarded so it doesn't clobber user edits.
-  const prefilledRef = useRef(false);
+  // Prefill the active variant's fields. Re-runs when the chosen form type
+  // flips (business <-> private) so switching gives a fresh prefill; the ref
+  // stores the last-prefilled variant so it doesn't clobber edits otherwise.
+  const prefilledForRef = useRef(null);
   useEffect(() => {
-    if (prefilledRef.current) return;
+    if (!user) return;
+    if (prefilledForRef.current === isBusiness) return;
+    if (isBusiness && !activeWorkspace) return; // wait for business data on first load
+    const firstRun = prefilledForRef.current === null;
+    prefilledForRef.current = isBusiness;
+    // Switching variant invalidates any captured signatures (corporate
+    // signatory slots vs personal owner slots) — clear them so a signature
+    // from one variant can't leak into the other variant's document/cert.
+    if (!firstRun) setSignatures({});
     if (isBusiness) {
       setCorpName(activeWorkspace?.account_name || activeWorkspace?.name || '');
       setCorpNumber(normalizeId(businessMeta?.business_id || ''));
-      prefilledRef.current = true;
-    } else if (user) {
+    } else {
       const savedId = readSavedId(user.id);
       setOwners([{ name: user.full_name || '', id: savedId }]);
       if (savedId) setSaveMyId(true);
-      prefilledRef.current = true;
     }
   }, [isBusiness, user, activeWorkspace, businessMeta]);
 
@@ -269,15 +273,42 @@ export default function PowerOfAttorneyForm() {
 
   return (
     <div className="pb-28">
-      {/* Account-type chip */}
-      <div className="flex items-center gap-2 mb-4">
-        <span
-          className="text-[11px] font-bold px-2.5 py-1 rounded-full"
-          style={{ background: C.light, color: C.primary }}
-        >
-          {isBusiness ? 'חשבון עסקי · טופס תאגיד' : 'חשבון פרטי · טופס אדם פרטי'}
-        </span>
-      </div>
+      {/* Form type — business accounts can switch to the private form too */}
+      {accountIsBusiness ? (
+        <div className="mb-4">
+          <p className="text-[12px] font-bold mb-2" style={{ color: C.text }}>סוג הטופס</p>
+          <div className="flex gap-2" role="radiogroup" aria-label="סוג הטופס">
+            {[{ k: 'business', label: 'תאגיד' }, { k: 'personal', label: 'אדם פרטי' }].map((o) => {
+              const on = (o.k === 'business') === isBusiness;
+              return (
+                <button key={o.k} type="button" role="radio" aria-checked={on}
+                  onClick={() => setFormTypeOverride(o.k)}
+                  className="flex-1 h-11 rounded-2xl text-sm font-bold border transition-colors"
+                  style={{ background: on ? C.primary : C.card, color: on ? '#FFFFFF' : C.text, borderColor: on ? C.primary : C.border }}>
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] mt-1.5" style={{ color: C.muted }}>
+            {isBusiness
+              ? 'טופס תאגיד — מטעם החברה (ח.פ ומורשי חתימה).'
+              : 'טופס אדם פרטי — מטעם אדם פרטי. גם עסק יכול להזדקק לו (למשל לרכב שרשום על אדם).'}
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full"
+            style={{ background: C.light, color: C.primary }}>
+            חשבון פרטי · טופס אדם פרטי
+          </span>
+        </div>
+      )}
+
+      <button type="button" onClick={() => setShowSample(true)}
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold py-2" style={{ color: C.primary }}>
+        <Eye className="h-4 w-4" /> צפה בדוגמה ריקה של הטופס
+      </button>
 
       <div className="space-y-4">
         {/* Purpose */}
@@ -296,7 +327,7 @@ export default function PowerOfAttorneyForm() {
               style={{ background: C.errorBg, color: C.errorDark }}>
               <span>שגיאה בטעינת הרכבים</span>
               <button type="button" onClick={() => refetchVehicles()}
-                className="font-bold underline">נסה שוב</button>
+                className="font-bold underline py-2 px-2">נסה שוב</button>
             </div>
           ) : hasVehicles ? (
             <Select value={vehicleId} onValueChange={setVehicleId}>
@@ -383,7 +414,7 @@ export default function PowerOfAttorneyForm() {
                   <span className="text-[12px] font-bold" style={{ color: C.muted }}>בעלים {i + 1}</span>
                   {owners.length > 1 && (
                     <button type="button" onClick={() => removeOwner(i)} aria-label="הסר בעלים"
-                      className="p-1 rounded-lg" style={{ color: C.error }}>
+                      className="p-2.5 rounded-lg" style={{ color: C.error }}>
                       <Trash2 className="h-4 w-4" />
                     </button>
                   )}
@@ -408,7 +439,7 @@ export default function PowerOfAttorneyForm() {
                 />
                 {i === 0 && (
                   <label className="flex items-center gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
-                    <input type="checkbox" checked={saveMyId} onChange={(e) => setSaveMyId(e.target.checked)} />
+                    <input type="checkbox" className="h-5 w-5 shrink-0" checked={saveMyId} onChange={(e) => setSaveMyId(e.target.checked)} />
                     שמור את ה-ת.ז שלי במכשיר לפעם הבאה
                   </label>
                 )}
@@ -417,7 +448,7 @@ export default function PowerOfAttorneyForm() {
             })}
             {owners.length < 3 && (
               <button type="button" onClick={addOwner}
-                className="flex items-center gap-1.5 text-sm font-bold" style={{ color: C.primary }}>
+                className="flex items-center gap-1.5 text-sm font-bold py-2" style={{ color: C.primary }}>
                 <Plus className="h-4 w-4" /> הוסף בעלים
               </button>
             )}
@@ -436,7 +467,8 @@ export default function PowerOfAttorneyForm() {
               <p className="text-[11px] mt-1" style={{ color: C.error }}>יש להזין שם</p>
             )}
           </div>
-          <IdField label="ת.ז" value={rep.id} onChange={(v) => setRep((r) => ({ ...r, id: v }))} error={idBlockError(rep.id, true)} warning={idWarn(rep.id)} />
+          <IdField label="ת.ז" value={rep.id} onChange={(v) => setRep((r) => ({ ...r, id: v }))} error={idBlockError(rep.id, true)}
+            warning={idWarn(rep.id) || (!isBusiness && normalizeId(rep.id) && owners.some((o) => normalizeId(o.id) === normalizeId(rep.id)) ? 'ת.ז מיופה הכוח זהה לבעל הרכב — בדוק' : '')} />
           {!isBusiness && (
             <div>
               <Label className="text-right block mb-1.5 text-sm">
@@ -454,7 +486,7 @@ export default function PowerOfAttorneyForm() {
         {isBusiness && (
           <SectionCard title="אישור עורך דין (סעיף 4)" hint="אופציונלי — אפשר לכלול את סעיף עורך הדין במסמך או להשמיט אותו.">
             <label className="flex items-center gap-2 text-[13px] cursor-pointer" style={{ color: C.text }}>
-              <input type="checkbox" checked={includeLawyer} onChange={(e) => setIncludeLawyer(e.target.checked)} />
+              <input type="checkbox" className="h-5 w-5 shrink-0" checked={includeLawyer} onChange={(e) => setIncludeLawyer(e.target.checked)} />
               כלול במסמך את סעיף אישור עורך הדין
             </label>
             {includeLawyer ? (
@@ -489,7 +521,7 @@ export default function PowerOfAttorneyForm() {
         <SectionCard title="חתימה דיגיטלית (אופציונלי)"
           hint="חתימה אלקטרונית רגילה — אינה חתימה מאושרת/ממשלתית. ייתכן שמשרד הרישוי ידרוש חתימה ידנית מקורית.">
           <label className="flex items-start gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
-            <input type="checkbox" checked={signConsent} onChange={(e) => setSignConsent(e.target.checked)} className="mt-0.5" />
+            <input type="checkbox" checked={signConsent} onChange={(e) => setSignConsent(e.target.checked)} className="h-5 w-5 shrink-0 mt-0.5" />
             אני מאשר/ת שחתימה אלקטרונית שאוסיף מהווה את חתימתי המחייבת על המסמך.
           </label>
           {(() => {
@@ -508,13 +540,13 @@ export default function PowerOfAttorneyForm() {
                 </div>
                 {signatures[p.key] ? (
                   <div className="flex items-center gap-2 shrink-0">
-                    <img src={signatures[p.key].dataUrl} alt="חתימה" style={{ height: '32px' }} />
+                    <img src={signatures[p.key].dataUrl} alt="חתימה" style={{ height: '32px', maxWidth: '110px' }} />
                     <button type="button" onClick={() => setSigningKey(p.key)} disabled={!signConsent}
-                      className="text-[12px] font-bold disabled:opacity-50" style={{ color: C.primary }}>החלף</button>
+                      className="text-[12px] font-bold disabled:opacity-50 py-2 px-2" style={{ color: C.primary }}>החלף</button>
                   </div>
                 ) : (
                   <button type="button" onClick={() => setSigningKey(p.key)} disabled={!signConsent}
-                    className="h-9 px-4 rounded-xl font-bold text-white text-sm disabled:opacity-50 shrink-0" style={{ background: C.primary }}>חתום</button>
+                    className="h-11 px-4 rounded-xl font-bold text-white text-sm disabled:opacity-50 shrink-0" style={{ background: C.primary }}>חתום</button>
                 )}
               </div>
             ));
@@ -547,12 +579,29 @@ export default function PowerOfAttorneyForm() {
       </div>
 
       {showPreview && (
-        <PreviewModal
-          docData={docData}
-          variant={isBusiness ? 'business' : 'personal'}
-          plate={plate}
+        <FormPreviewModal
+          fileBase={`יפוי-כוח-${plate || 'רכב'}`}
+          disclaimer="המסמך מבוסס על טופס משרד התחבורה. יש לבדוק, להדפיס ולחתום ביד."
+          shareTitle="ייפוי כוח"
+          shareText={`ייפוי כוח לרכב ${plate || ''} — הופק ב-CarReminder.`}
           onClose={() => setShowPreview(false)}
-        />
+        >
+          <PowerOfAttorneyDocument data={docData} variant={isBusiness ? 'business' : 'personal'} />
+        </FormPreviewModal>
+      )}
+
+      {showSample && (
+        <FormPreviewModal
+          title="דוגמה לטופס"
+          subtitle="כך נראה הטופס — מלא את הפרטים והפק את המסמך שלך"
+          fileBase="דוגמה-יפוי-כוח"
+          disclaimer="זוהי דוגמה ריקה. מלא את הפרטים בטופס כדי להפיק מסמך מלא."
+          shareTitle="דוגמה — ייפוי כוח"
+          shareText="דוגמה לטופס ייפוי כוח — CarReminder."
+          onClose={() => setShowSample(false)}
+        >
+          <PowerOfAttorneyDocument data={{}} variant={isBusiness ? 'business' : 'personal'} />
+        </FormPreviewModal>
       )}
 
       {signingKey && (
@@ -562,100 +611,3 @@ export default function PowerOfAttorneyForm() {
   );
 }
 
-// ── Preview + export modal ────────────────────────────────────────────
-// Mirrors AccidentReportModal's proven full-screen pattern: visible
-// rendered document (required by html2canvas) + sticky export bar with
-// safe-area padding.
-function PreviewModal({ docData, variant, plate, onClose }) {
-  const previewRef = useRef(null);
-  const [busy, setBusy] = useState(false);
-  const fileBase = `יפוי-כוח-${(plate || 'רכב').replace(/[^\w֐-׿-]/g, '')}`;
-
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const exportAs = async (kind) => {
-    if (busy || !previewRef.current) return;
-    setBusy(true);
-    try {
-      const mod = await import('@/lib/pdfExport');
-      const fn = kind === 'word' ? mod.exportElementToWord : mod.exportElementToPdf;
-      const ok = await fn(previewRef.current, fileBase);
-      if (ok) toast.success(kind === 'word' ? 'מסמך Word נוצר' : 'מסמך PDF נוצר');
-      else toastError(`שגיאה ביצירת קובץ ה-${kind === 'word' ? 'Word' : 'PDF'}`, { action: `poa_${kind}_export` });
-    } catch (e) {
-      toastError(`שגיאה ביצירת המסמך`, { action: `poa_${kind}_export`, err: e });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleShare = async () => {
-    const ok = await shareContent({
-      title: 'ייפוי כוח',
-      text: `ייפוי כוח לרכב ${plate || ''} — הופק ב-CarReminder.`,
-    });
-    if (!ok) toastError('השיתוף בוטל', { action: 'poa_share_cancel' });
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45"
-      dir="rtl"
-      role="dialog"
-      aria-modal="true"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{
-        paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))',
-        paddingInline: '12px',
-      }}
-    >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-auto max-h-[calc(100dvh-32px)] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between gap-3 border-b px-4 py-3 shrink-0" style={{ borderColor: C.border }}>
-          <div className="min-w-0">
-            <p className="text-base font-bold" style={{ color: C.text }}>תצוגה מקדימה</p>
-            <p className="text-xs" style={{ color: C.muted }}>בדוק את הפרטים לפני ההפקה</p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="סגור"
-            className="w-9 h-9 rounded-full border flex items-center justify-center shrink-0"
-            style={{ borderColor: C.border }}>
-            <X className="h-4 w-4" style={{ color: C.muted }} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-auto p-3 sm:p-5" style={{ background: C.gray100 }}>
-          <div ref={previewRef}>
-            <PowerOfAttorneyDocument data={docData} variant={variant} />
-          </div>
-        </div>
-
-        <div className="border-t p-3 shrink-0" style={{ borderColor: C.border, background: C.card }}>
-          <p className="text-[11px] text-center mb-2" style={{ color: C.muted }}>
-            המסמך מבוסס על טופס משרד התחבורה. יש לבדוק, להדפיס ולחתום ביד.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button type="button" onClick={() => exportAs('pdf')} disabled={busy}
-              className="flex-1 h-11 rounded-2xl font-bold text-white inline-flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: C.primary }}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} PDF
-            </button>
-            <button type="button" onClick={() => exportAs('word')} disabled={busy}
-              className="flex-1 h-11 rounded-2xl font-bold inline-flex items-center justify-center gap-2 border disabled:opacity-60"
-              style={{ borderColor: C.primary, color: C.primary, background: C.card }}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} Word
-            </button>
-            <button type="button" onClick={handleShare}
-              className="h-11 rounded-2xl font-bold inline-flex items-center justify-center gap-2 border px-4"
-              style={{ borderColor: C.border, color: C.text, background: C.card }}>
-              <Share2 className="h-4 w-4" /> שתף
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}

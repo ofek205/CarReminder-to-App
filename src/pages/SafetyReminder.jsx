@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ShieldCheck, ShieldAlert, Wrench, Car, Headphones,
   CalendarDays, Clock, Timer, AlertTriangle, Check, Play, Loader2, BatteryWarning, History,
+  Smartphone, Bell,
 } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Switch } from '@/components/ui/switch';
 import useIsAdmin from '@/hooks/useIsAdmin';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import { isNative } from '@/lib/capacitor';
 import { C } from '@/lib/designTokens';
 import {
   isTripGuardSupported,
@@ -164,10 +166,16 @@ export default function SafetyReminder() {
   };
 
   const simulate = async () => {
-    const res = await __tripGuardPluginRaw.__simulateTripEnd({ tripMinutes: 5 });
-    setSimResult(res && res.willAlert ? 'alert' : 'silent');
-    if (simTimerRef.current) clearTimeout(simTimerRef.current);
-    simTimerRef.current = setTimeout(() => setSimResult(null), 4000);
+    // Dev-only preview. __simulateTripEnd exists only in the web mock, so on a
+    // DEV native build it rejects — guard it so the button never throws.
+    try {
+      const res = await __tripGuardPluginRaw.__simulateTripEnd({ tripMinutes: 5 });
+      setSimResult(res && res.willAlert ? 'alert' : 'silent');
+      if (simTimerRef.current) clearTimeout(simTimerRef.current);
+      simTimerRef.current = setTimeout(() => setSimResult(null), 4000);
+    } catch (e) {
+      console.warn('[tripGuard] simulate unavailable on this platform:', e);
+    }
   };
 
   // Clear the dev-preview toast timer on unmount.
@@ -180,7 +188,7 @@ export default function SafetyReminder() {
   if (!isAdmin) {
     return (
       <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
         <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
           <ShieldCheck className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
           <p className="font-bold text-base" style={{ color: C.text }}>בקרוב</p>
@@ -196,7 +204,7 @@ export default function SafetyReminder() {
   if (isBusiness) {
     return (
       <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
         <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
           <ShieldCheck className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
           <p className="font-bold text-base" style={{ color: C.text }}>תכונה אישית</p>
@@ -208,11 +216,29 @@ export default function SafetyReminder() {
     );
   }
 
+  // ── Mobile app only: a desktop/web browser can't run the background
+  // Bluetooth detection or fire these notifications. Show a clear message
+  // instead of the misleading mock. (DEV keeps the mock for in-browser dev.)
+  if (!isNative && !import.meta.env.DEV) {
+    return (
+      <div className="max-w-xl mx-auto p-4" dir="rtl">
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
+        <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
+          <Smartphone className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
+          <p className="font-bold text-base" style={{ color: C.text }}>זמין רק באפליקציית המובייל</p>
+          <p className="text-sm mt-1" style={{ color: C.muted }}>
+            ההגנה פועלת ברקע בטלפון, ולכן אינה זמינה במחשב. פתח את אפליקציית CarReminder בטלפון כדי להפעיל אותה.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // ── iOS: not supported yet (spike pending) ──
   if (!supported) {
     return (
       <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
         <div className="rounded-3xl p-6 text-center border" style={{ background: C.infoSubtle, borderColor: C.border }}>
           <ShieldCheck className="h-10 w-10 mx-auto mb-3" style={{ color: C.info }} />
           <p className="font-bold text-base" style={{ color: C.text }}>בקרוב גם ב-iPhone</p>
@@ -228,7 +254,7 @@ export default function SafetyReminder() {
   if (!accepted) {
     return (
       <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
         <div className="rounded-3xl p-5 border" style={{ background: C.card, borderColor: C.border, boxShadow: '0 2px 12px rgba(45,82,51,0.08)' }}>
           <div className="flex items-center gap-2.5 mb-3">
             <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: C.light }}>
@@ -240,6 +266,13 @@ export default function SafetyReminder() {
             כשתסיים נסיעה והטלפון יתנתק מה-Bluetooth של הרכב, נשלח לך תזכורת רוטטת
             לבדוק שכל הילדים ירדו מהרכב.
           </p>
+
+          <div className="rounded-2xl p-3 mb-4 border flex items-start gap-2" style={{ background: C.infoSubtle, borderColor: C.border }}>
+            <Bell className="h-4 w-4 shrink-0 mt-0.5" style={{ color: C.info }} />
+            <p className="text-xs leading-relaxed" style={{ color: C.textAlt }}>
+              עובד רק באפליקציית המובייל. השאר את הרשאת ההתראות וה-Bluetooth פתוחות — בלעדיהן לא נוכל להתריע.
+            </p>
+          </div>
 
           <div className="rounded-2xl p-4 mb-4 border" style={{ background: C.warnSubtle, borderColor: C.warnBorder }}>
             <div className="flex items-start gap-2">
@@ -291,7 +324,7 @@ export default function SafetyReminder() {
   if (loading) {
     return (
       <div className="max-w-xl mx-auto p-4" dir="rtl">
-        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+        <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: C.primary }} />
         </div>
@@ -305,7 +338,7 @@ export default function SafetyReminder() {
 
   return (
     <div className="max-w-xl mx-auto p-4 pb-24" dir="rtl">
-      <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} />
+      <PageHeader title="בטיחות ילדים" subtitle="אל תשכח ילד ברכב" icon={ShieldCheck} backPage="Settings" />
 
       {/* ── FR5 status indicator — the trust hero (centered) ── */}
       <div

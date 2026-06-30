@@ -135,7 +135,6 @@ export default function BusinessSettings() {
 
   return (
     <PageShell
-      backTo="BusinessDashboard"
       title="הגדרות החשבון העסקי"
       subtitle="פרטי החשבון, אנשי קשר וכלים שמותר לנהגים לראות"
     >

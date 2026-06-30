@@ -264,7 +264,7 @@ begin
     -- a pure km refresh doesn't produce a new license document).
     if v_should_update_km and v_should_update_test_due then
       v_title := '✅ עדכנו את הטסט של ' || v_vehicle_label;
-      v_body := 'ראינו שביצעת טסט — עדכנו עבורך את הקילומטראז׳ ל-'
+      v_body := 'ראינו שביצעת טסט ועדכנו עבורך את הקילומטראז׳ ל-'
              || to_char(p_gov_km, 'FM999G999G999')
              || ' ק״מ ואת תוקף הטסט ל-'
              || to_char(p_gov_test_due_date, 'DD/MM/YYYY')

@@ -54,6 +54,16 @@ const CONTENT_FIELDS = [
   'footer_note',
 ];
 
+// Placeholders the SEND PIPELINE injects automatically — the dispatcher for
+// real cron sends, and emailRender.deriveReminderHeroVars for the EmailCenter
+// preview/test. They are NOT admin-entered, so they don't need to be declared
+// in template.variables (and shouldn't clutter that list). Reminder
+// hero/urgency/grammar vars. KEEP IN SYNC with the reminder derivation.
+export const SYSTEM_PROVIDED = new Set([
+  'heroBg', 'heroFg', 'heroNum', 'heroTop', 'heroBig', 'heroSub',
+  'pillBorder', 'daysPhrase',
+]);
+
 /**
  * validateTemplate(template)
  *
@@ -93,7 +103,7 @@ export function validateTemplate(template) {
 
   const declaredSet = new Set(declared);
   for (const name of found) {
-    if (!declaredSet.has(name)) {
+    if (!declaredSet.has(name) && !SYSTEM_PROVIDED.has(name)) {
       errors.push(
         `המשתנה {{${name}}} מופיע בתבנית אבל לא מוצהר ברשימת המשתנים. הוסף אותו או הסר אותו מהתוכן.`
       );

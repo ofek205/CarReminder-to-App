@@ -22,7 +22,7 @@ import { shareContent } from '@/lib/capacitor';
  *   onClose     close handler
  *   children    the rendered document element
  */
-export default function FormPreviewModal({ fileBase, disclaimer, shareTitle, shareText, onClose, children }) {
+export default function FormPreviewModal({ fileBase, disclaimer, shareTitle, shareText, onClose, children, title = 'תצוגה מקדימה', subtitle = 'בדוק את הפרטים לפני ההפקה' }) {
   const previewRef = useRef(null);
   const [busy, setBusy] = useState(false);
   // Keep Hebrew letters/digits/dashes, drop anything a filesystem dislikes.
@@ -71,11 +71,11 @@ export default function FormPreviewModal({ fileBase, disclaimer, shareTitle, sha
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl my-auto max-h-[calc(100dvh-32px)] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b px-4 py-3 shrink-0" style={{ borderColor: C.border }}>
           <div className="min-w-0">
-            <p className="text-base font-bold" style={{ color: C.text }}>תצוגה מקדימה</p>
-            <p className="text-xs" style={{ color: C.muted }}>בדוק את הפרטים לפני ההפקה</p>
+            <p className="text-base font-bold" style={{ color: C.text }}>{title}</p>
+            <p className="text-xs" style={{ color: C.muted }}>{subtitle}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="סגור"
-            className="w-9 h-9 rounded-full border flex items-center justify-center shrink-0" style={{ borderColor: C.border }}>
+            className="w-11 h-11 rounded-full border flex items-center justify-center shrink-0" style={{ borderColor: C.border }}>
             <X className="h-4 w-4" style={{ color: C.muted }} />
           </button>
         </div>
@@ -90,12 +90,12 @@ export default function FormPreviewModal({ fileBase, disclaimer, shareTitle, sha
           )}
           <div className="flex flex-col sm:flex-row gap-2">
             <button type="button" onClick={() => exportAs('pdf')} disabled={busy}
-              className="flex-1 h-11 rounded-2xl font-bold text-white inline-flex items-center justify-center gap-2 disabled:opacity-60"
+              className="h-11 sm:flex-1 rounded-2xl font-bold text-white inline-flex items-center justify-center gap-2 disabled:opacity-60"
               style={{ background: C.primary }}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} PDF
             </button>
             <button type="button" onClick={() => exportAs('word')} disabled={busy}
-              className="flex-1 h-11 rounded-2xl font-bold inline-flex items-center justify-center gap-2 border disabled:opacity-60"
+              className="h-11 sm:flex-1 rounded-2xl font-bold inline-flex items-center justify-center gap-2 border disabled:opacity-60"
               style={{ borderColor: C.primary, color: C.primary, background: C.card }}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} Word
             </button>

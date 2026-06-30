@@ -61,6 +61,7 @@ const ERROR_COPY = {
 export default function InviteAccountMemberDialog({ open, onOpenChange, accountId, vehicles = [], businessMode = false }) {
   const { user } = useAuth();
   const [role, setRole] = useState('שותף');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
@@ -81,6 +82,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
 
   const reset = () => {
     setRole('שותף');
+    setName('');
     setEmail('');
     setSubmitting(false);
     setResult(null);
@@ -119,6 +121,7 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
         // Explicit account (the active workspace) — ends the non-deterministic
         // LIMIT 1 server-side resolve for users who belong to several accounts.
         p_account_id: accountId,
+        p_name: name.trim() || null,
       });
       if (error) {
         const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
@@ -331,6 +334,23 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
                 )}
               </div>
             )}
+
+            {/* Name (optional) — helps identify a pending/unregistered invitee */}
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">
+                שם <span className="font-normal text-gray-400">(לא חובה)</span>
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="איך קוראים לו/לה?"
+                dir="rtl"
+                className="w-full h-11 px-3 rounded-xl border text-sm font-medium outline-none transition-all focus:ring-2"
+                style={{ background: '#fff', borderColor: C.gray200, color: C.gray800, '--tw-ring-color': C.primary }}
+              />
+              <p className="text-[11px] text-gray-400 mt-1.5">עוזר לזהות מי הוזמן ברשימת הממתינים.</p>
+            </div>
 
             {/* Email */}
             <div>

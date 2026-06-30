@@ -970,48 +970,22 @@ export default function Dashboard() {
             : null;
           finalAccountId = (activeMatch || members[0]).account_id;
         } else {
-          // Check if this user has a migrated account from Base44
-          let migratedAccount = null;
+          // No usable membership yet. First try to claim a pre-migrated Base44
+          // account mapped to this email (SECURITY DEFINER RPC — direct
+          // membership inserts are RLS-locked; the RPC links the owner
+          // membership, marks the mapping claimed, and pre-fills the profile).
+          // If there's no migration, ensure_user_account creates a fresh
+          // personal account + owner membership atomically (avoids the orphan-
+          // account storm the old client-side double-write caused).
+          let claimedId = null;
           try {
-            const email = user.email?.toLowerCase().trim();
-            if (email) {
-              const { data: mapRows } = await supabase.from('migration_email_map')
-                .select('*').eq('email', email).is('claimed_by_user_id', null).limit(1);
-              if (mapRows?.length > 0) migratedAccount = mapRows[0];
-            }
-          } catch {} // Table may not exist yet
+            const { data: cid } = await supabase.rpc('claim_migrated_account');
+            claimedId = cid || null;
+          } catch { /* no migration / table absent → fall through */ }
 
-          if (migratedAccount) {
-            // Link user to existing migrated account
-            await db.account_members.create({
-              account_id: migratedAccount.account_id, user_id: user.id, role: 'בעלים', status: MEMBER_STATUS.ACTIVE,
-            });
-            finalAccountId = migratedAccount.account_id;
-            // Mark migration as claimed
-            try {
-              await supabase.from('migration_email_map').update({
-                claimed_by_user_id: user.id, claimed_at: new Date().toISOString(),
-              }).eq('email', migratedAccount.email);
-            } catch {}
-            // Pre-fill profile from migration data if available
-            try {
-              if (migratedAccount.phone || migratedAccount.birth_date || migratedAccount.driver_license_number) {
-                const profileData = { user_id: user.id };
-                if (migratedAccount.phone) profileData.phone = migratedAccount.phone;
-                if (migratedAccount.birth_date) profileData.birth_date = migratedAccount.birth_date;
-                if (migratedAccount.driver_license_number) profileData.driver_license_number = migratedAccount.driver_license_number;
-                if (migratedAccount.license_expiration_date) profileData.license_expiration_date = migratedAccount.license_expiration_date;
-                const existing = await db.user_profiles.filter({ user_id: user.id });
-                if (existing.length === 0) await db.user_profiles.create(profileData);
-              }
-            } catch {}
+          if (claimedId) {
+            finalAccountId = claimedId;
           } else {
-            // No migration → call the SECURITY DEFINER RPC that creates
-            // account + membership atomically. The old flow did the same
-            // two writes from the client, but the `members_insert_weak`
-            // RLS policy rejects role='בעלים' on direct INSERT, so the
-            // membership write silently failed and the next login created
-            // yet another orphan account (we discovered one user had 69).
             const { data: ensuredId, error: ensureErr } = await supabase.rpc('ensure_user_account');
             if (ensureErr) throw ensureErr;
             finalAccountId = ensuredId;

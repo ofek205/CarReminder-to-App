@@ -276,7 +276,7 @@ function AlertCard({ alert, onAcknowledge, isAcknowledging }) {
         preheader: replySubject.trim(),
         title: replySubject.trim(),
         bodyHtml,
-        footerNote: 'הודעה זו נשלחה אליך מצוות Car Reminder בתגובה לפנייתך',
+        footerNote: 'הודעה זו נשלחה אליך מצוות CarReminder בתגובה לפנייתך',
       });
       const { error } = await supabase.functions.invoke('send-email', {
         body: {

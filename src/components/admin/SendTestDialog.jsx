@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Send, CheckCircle2, XCircle } from 'lucide-react';
 import { useEmailTemplate } from '@/hooks/useEmailAdmin';
 import { renderFromTemplateObject } from '@/lib/emailRender';
-import { extractPlaceholders } from '@/lib/emailValidate';
+import { extractPlaceholders, SYSTEM_PROVIDED } from '@/lib/emailValidate';
 import { sendEmail } from '@/lib/sendEmail';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -92,7 +92,12 @@ export default function SendTestDialog({ notification, open, onClose }) {
       ...extractPlaceholders(template.cta_url),
     ]);
     const stub = {};
-    for (const name of used) stub[name] = buildSmartStub(name, adminCtx);
+    for (const name of used) {
+      // System-derived vars (hero/urgency/grammar) are computed at render time,
+      // not admin-entered — don't stub them with the junk default (the var name).
+      if (SYSTEM_PROVIDED.has(name)) continue;
+      stub[name] = buildSmartStub(name, adminCtx);
+    }
     setVarsJson(JSON.stringify(stub, null, 2));
   }, [template, adminCtx]);
 

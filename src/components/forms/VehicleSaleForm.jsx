@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Info, Loader2 } from 'lucide-react';
+import { Info, Loader2, Eye } from 'lucide-react';
 import { db } from '@/lib/supabaseEntities';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -76,6 +76,7 @@ export default function VehicleSaleForm() {
   const [saveMyId, setSaveMyId] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showSample, setShowSample] = useState(false);
   const [signatures, setSignatures] = useState({ seller: null, buyer: null });
   const [signingParty, setSigningParty] = useState(null);
   const [signConsent, setSignConsent] = useState(false);
@@ -114,6 +115,9 @@ export default function VehicleSaleForm() {
   const downN = Number(onlyDigits(price.down)) || 0;
   const balance = Math.max(0, totalN - downN);
   const balanceWords = numberToHebrewWords(balance);
+  // Safety warnings (non-blocking): same ID on both parties, down > total.
+  const samePartyId = !!(normalizeId(seller.id) && normalizeId(seller.id) === normalizeId(buyer.id));
+  const downExceeds = totalN > 0 && downN > totalN;
 
   const setTotal = (raw) => {
     const v = onlyDigits(raw);
@@ -191,9 +195,14 @@ export default function VehicleSaleForm() {
 
   return (
     <div className="pb-28">
-      <p className="text-[12px] mb-4 rounded-2xl p-3" style={{ background: C.light, color: C.primary }}>
+      <p className="text-[12px] mb-3 rounded-2xl p-3" style={{ background: C.light, color: C.primary }}>
         ברירת מחדל: אתה המוכר. הפרטים שלך ושל הרכב מולאו מראש — ניתן לערוך הכל.
       </p>
+
+      <button type="button" onClick={() => setShowSample(true)}
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-bold py-2" style={{ color: C.primary }}>
+        <Eye className="h-4 w-4" /> צפה בדוגמה ריקה של הטופס
+      </button>
 
       <div className="space-y-4">
         {/* Vehicle */}
@@ -205,7 +214,7 @@ export default function VehicleSaleForm() {
           ) : vehiclesError ? (
             <div className="rounded-2xl p-3 text-sm flex items-center justify-between" style={{ background: C.errorBg, color: C.errorDark }}>
               <span>שגיאה בטעינת הרכבים</span>
-              <button type="button" onClick={() => refetchVehicles()} className="font-bold underline">נסה שוב</button>
+              <button type="button" onClick={() => refetchVehicles()} className="font-bold underline py-2 px-2">נסה שוב</button>
             </div>
           ) : hasVehicles ? (
             <Select value={vehicleId} onValueChange={onPickVehicle}>
@@ -253,7 +262,7 @@ export default function VehicleSaleForm() {
               onChange={(e) => setSeller((s) => ({ ...s, id: normalizeId(e.target.value) }))} className="text-left tabular-nums" />
           </Field>
           <label className="flex items-center gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
-            <input type="checkbox" checked={saveMyId} onChange={(e) => setSaveMyId(e.target.checked)} />
+            <input type="checkbox" className="h-5 w-5 shrink-0" checked={saveMyId} onChange={(e) => setSaveMyId(e.target.checked)} />
             שמור את ה-ת.ז שלי במכשיר לפעם הבאה
           </label>
           <div className="grid grid-cols-2 gap-3">
@@ -267,7 +276,7 @@ export default function VehicleSaleForm() {
           <Field label="שם מלא" required error={submitAttempted && !buyer.name.trim() ? 'יש להזין שם' : ''}>
             <Input dir="rtl" value={buyer.name} onChange={(e) => setBuyer((b) => ({ ...b, name: e.target.value }))} />
           </Field>
-          <Field label="ת.ז" required error={idBlockError(buyer.id, true)} warning={idWarn(buyer.id)}>
+          <Field label="ת.ז" required error={idBlockError(buyer.id, true)} warning={idWarn(buyer.id) || (samePartyId ? 'ת.ז המוכר והקונה זהים — בדוק' : '')}>
             <Input dir="ltr" inputMode="numeric" maxLength={9} value={buyer.id}
               onChange={(e) => setBuyer((b) => ({ ...b, id: normalizeId(e.target.value) }))} className="text-left tabular-nums" />
           </Field>
@@ -297,6 +306,9 @@ export default function VehicleSaleForm() {
             יתרה לתשלום: <strong>{balance.toLocaleString('en-US')} ₪</strong>
             {balanceWords ? ` (${balanceWords} ש״ח)` : ''}
           </div>
+          {downExceeds && (
+            <p className="text-[11px]" style={{ color: C.warn }}>המקדמה גדולה מהמחיר הכולל — בדוק את הסכומים</p>
+          )}
         </SectionCard>
 
         {/* Condition */}
@@ -313,7 +325,7 @@ export default function VehicleSaleForm() {
             <Input dir="rtl" value={condition.ownership} onChange={(e) => setCondition((c) => ({ ...c, ownership: e.target.value }))} />
           </Field>
           <label className="flex items-center gap-2 text-[13px] cursor-pointer" style={{ color: C.text }}>
-            <input type="checkbox" checked={condition.hadAccident} onChange={(e) => setCondition((c) => ({ ...c, hadAccident: e.target.checked }))} />
+            <input type="checkbox" className="h-5 w-5 shrink-0" checked={condition.hadAccident} onChange={(e) => setCondition((c) => ({ ...c, hadAccident: e.target.checked }))} />
             הרכב היה מעורב בתאונה שגרמה לירידת ערך
           </label>
         </SectionCard>
@@ -329,7 +341,7 @@ export default function VehicleSaleForm() {
         <SectionCard title="חתימה דיגיטלית (אופציונלי)"
           hint="חתימה אלקטרונית רגילה — מתאימה להסכם בין הצדדים. אינה חתימה מאושרת/ממשלתית.">
           <label className="flex items-start gap-2 text-[12px] cursor-pointer" style={{ color: C.text }}>
-            <input type="checkbox" checked={signConsent} onChange={(e) => setSignConsent(e.target.checked)} className="mt-0.5" />
+            <input type="checkbox" checked={signConsent} onChange={(e) => setSignConsent(e.target.checked)} className="h-5 w-5 shrink-0 mt-0.5" />
             אני מאשר/ת שחתימה אלקטרונית שאוסיף מהווה את חתימתי המחייבת על המסמך.
           </label>
           {[{ key: 'seller', label: 'חתימת המוכר', who: seller }, { key: 'buyer', label: 'חתימת הקונה', who: buyer }].map((p) => (
@@ -340,13 +352,13 @@ export default function VehicleSaleForm() {
               </div>
               {signatures[p.key] ? (
                 <div className="flex items-center gap-2 shrink-0">
-                  <img src={signatures[p.key].dataUrl} alt="חתימה" style={{ height: '32px' }} />
+                  <img src={signatures[p.key].dataUrl} alt="חתימה" style={{ height: '32px', maxWidth: '110px' }} />
                   <button type="button" onClick={() => setSigningParty(p.key)} disabled={!signConsent}
-                    className="text-[12px] font-bold disabled:opacity-50" style={{ color: C.primary }}>החלף</button>
+                    className="text-[12px] font-bold disabled:opacity-50 py-2 px-2" style={{ color: C.primary }}>החלף</button>
                 </div>
               ) : (
                 <button type="button" onClick={() => setSigningParty(p.key)} disabled={!signConsent || !p.who.name.trim()}
-                  className="h-9 px-4 rounded-xl font-bold text-white text-sm disabled:opacity-50 shrink-0" style={{ background: C.primary }}>
+                  className="h-11 px-4 rounded-xl font-bold text-white text-sm disabled:opacity-50 shrink-0" style={{ background: C.primary }}>
                   חתום
                 </button>
               )}
@@ -382,6 +394,20 @@ export default function VehicleSaleForm() {
           onClose={() => setShowPreview(false)}
         >
           <VehicleSaleDocument data={docData} />
+        </FormPreviewModal>
+      )}
+
+      {showSample && (
+        <FormPreviewModal
+          title="דוגמה לטופס"
+          subtitle="כך נראה הטופס — מלא את הפרטים והפק את המסמך שלך"
+          fileBase="דוגמה-זכרון-דברים"
+          disclaimer="זוהי דוגמה ריקה. מלא את הפרטים בטופס כדי להפיק מסמך מלא."
+          shareTitle="דוגמה — זכרון דברים"
+          shareText="דוגמה לטופס זכרון דברים — CarReminder."
+          onClose={() => setShowSample(false)}
+        >
+          <VehicleSaleDocument data={{}} />
         </FormPreviewModal>
       )}
 

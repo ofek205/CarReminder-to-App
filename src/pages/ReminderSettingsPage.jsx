@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Save, Mail, Bell, Smartphone, MessageCircle, Send } from "lucide-react";
 import { sendTestNotification } from "@/lib/notificationService";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
+import MobileBackButton from "../components/shared/MobileBackButton";
 import { toast } from "sonner";
 import { toastError } from "@/lib/userErrorReport";
 import { useAuth } from "../components/shared/GuestContext";
@@ -293,6 +294,7 @@ function SettingsUI({ form, setForm, onSave, saving, isGuest, embedded = false }
 
   return (
     <>
+      {!embedded && <MobileBackButton to="Settings" />}
       {/* Header. skip when embedded inside the Settings hub. */}
       {!embedded && (
         <div className="rounded-3xl p-5 mb-6 relative overflow-hidden"

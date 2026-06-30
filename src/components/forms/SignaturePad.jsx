@@ -80,7 +80,7 @@ export default function SignaturePad({ title = 'חתימה דיגיטלית', on
         <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: C.border }}>
           <p className="font-bold" style={{ color: C.text }}>{title}</p>
           <button type="button" onClick={onClose} aria-label="סגור"
-            className="w-8 h-8 rounded-full border flex items-center justify-center" style={{ borderColor: C.border }}>
+            className="w-11 h-11 rounded-full border flex items-center justify-center" style={{ borderColor: C.border }}>
             <X className="h-4 w-4" style={{ color: C.muted }} />
           </button>
         </div>

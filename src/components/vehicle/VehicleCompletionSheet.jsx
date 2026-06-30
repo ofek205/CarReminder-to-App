@@ -58,8 +58,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Image as ImageIcon, X as XIcon, Loader2 } from 'lucide-react';
 import useFileUpload from '@/hooks/useFileUpload';
-import { db } from '@/lib/supabaseEntities';
-import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { compressImage } from '@/lib/imageCompress';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { C } from '@/lib/designTokens';
@@ -117,10 +116,7 @@ function computeMissingFields(result, savedVehicle) {
 async function stampPrompted(vehicleId) {
   if (!vehicleId) return;
   try {
-    await supabase
-      .from('vehicles')
-      .update({ completion_prompted_at: new Date().toISOString() })
-      .eq('id', vehicleId);
+    await dal.run('vehicle.update', { id: vehicleId, completion_prompted_at: new Date().toISOString() });
   } catch {
     // Worst case: user gets one extra prompt on their next visit. No
     // user-visible error.
@@ -269,7 +265,7 @@ export default function VehicleCompletionSheet({
           : form.insurance_company;
       }
       if (form.last_tire_change_date) patch.last_tire_change_date = form.last_tire_change_date;
-      await db.vehicles.update(vehicleId, patch);
+      await dal.run('vehicle.update', { id: vehicleId, ...patch });
       toast.success('הפרטים נשמרו');
       onSaved?.();
     } catch (err) {

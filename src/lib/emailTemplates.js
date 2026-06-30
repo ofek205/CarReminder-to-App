@@ -21,7 +21,7 @@ export const EMAIL_BRAND = {
   primary:    C.primary,
   accent:     C.accent,
   gradient:   `linear-gradient(135deg,${C.primary} 0%,${C.accent} 100%)`,
-  softBg:     '#F4F7F3',        // page background tone
+  softBg:     '#F4F5F7',        // page background tone (neutral, lets brand green pop)
   card:       '#FFFFFF',
   infoBg:     '#F0FDF4',
   infoBorder: '#BBF7D0',
@@ -155,7 +155,7 @@ export function buildEmailHtml({
           <!-- Header -->
           <tr>
             <td align="center" style="padding:36px 28px 8px">
-              <img src="${EMAIL_BRAND.logoUrl}" alt="CarReminder" width="72" height="72" style="display:block;width:72px;height:72px;border-radius:22px;margin:0 auto;box-shadow:0 6px 18px rgba(45,82,51,0.18)">
+              <img src="${EMAIL_BRAND.logoUrl}" alt="CarReminder" width="72" height="72" style="display:block;width:72px;height:72px;border-radius:22px;margin:0 auto;background:${EMAIL_BRAND.primary};box-shadow:0 6px 18px rgba(45,82,51,0.18)">
               <h1 style="font-size:24px;font-weight:900;color:${EMAIL_BRAND.codeText};margin:20px 0 6px">
                 ${safeTitle}
               </h1>
@@ -176,8 +176,8 @@ export function buildEmailHtml({
           <tr>
             <td style="padding:8px 28px 32px">
               <hr style="border:none;border-top:1px solid ${EMAIL_BRAND.hr};margin:20px 0">
-              ${safeFooterNote ? `<p style="font-size:12px;color:${EMAIL_BRAND.textMute};text-align:center;margin:0 0 12px;line-height:1.7">${safeFooterNote}</p>` : ''}
-              <p style="font-size:11px;color:${EMAIL_BRAND.textMute};text-align:center;margin:0;line-height:1.7">
+              ${safeFooterNote ? `<p style="font-size:12px;color:${EMAIL_BRAND.textDim};text-align:center;margin:0 0 12px;line-height:1.7">${safeFooterNote}</p>` : ''}
+              <p style="font-size:11px;color:${EMAIL_BRAND.textDim};text-align:center;margin:0;line-height:1.7">
                 ${EMAIL_BRAND.appName} &middot; ${EMAIL_BRAND.tagline}<br>
                 נשלח מ-<a href="mailto:${EMAIL_BRAND.supportMail}" style="color:${EMAIL_BRAND.textDim};text-decoration:underline">${EMAIL_BRAND.supportMail}</a>
                 &nbsp;&middot;&nbsp;

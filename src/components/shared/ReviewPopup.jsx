@@ -166,8 +166,8 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
           </div>
 
           <p className="text-center mt-3 text-[11px] font-bold relative z-10"
-            style={{ letterSpacing: '0.25em', color: 'rgba(255,255,255,0.85)' }}>
-            CARREMINDER
+            style={{ letterSpacing: '0.04em', color: 'rgba(255,255,255,0.85)' }}>
+            CarReminder
           </p>
 
           <h2 className="text-center mt-1.5 text-xl font-bold text-white leading-tight relative z-10">
