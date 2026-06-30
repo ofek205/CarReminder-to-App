@@ -71,6 +71,7 @@ ios/App/App/public/
 .claude/shell-snapshots/
 .claude/todos/
 .claude/projects/
+.claude/worktrees/
 
 # Supabase CLI local state (linked-project.json, version pins, etc.)
 supabase/.temp/
