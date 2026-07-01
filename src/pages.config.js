@@ -77,6 +77,7 @@ const AdminBusinessRequests = React.lazy(() => import('./pages/AdminBusinessRequ
 const AdminAlerts           = React.lazy(() => import('./pages/AdminAlerts'));
 const AdminUsers            = React.lazy(() => import('./pages/AdminUsers'));
 const AdminAuditLog         = React.lazy(() => import('./pages/AdminAuditLog'));
+const AdminViewSessions     = React.lazy(() => import('./pages/AdminViewSessions'));
 const AdminHealth           = React.lazy(() => import('./pages/AdminHealth'));
 const AdminAnalytics        = React.lazy(() => import('./pages/AdminAnalytics'));
 const Fleet                 = React.lazy(() => import('./pages/Fleet'));
@@ -155,6 +156,7 @@ export const PAGES = {
     "AdminAlerts": AdminAlerts,
     "AdminUsers": AdminUsers,
     "AdminAuditLog": AdminAuditLog,
+    "AdminViewSessions": AdminViewSessions,
     "AdminHealth": AdminHealth,
     "AdminAnalytics": AdminAnalytics,
     "Fleet":        Fleet,
