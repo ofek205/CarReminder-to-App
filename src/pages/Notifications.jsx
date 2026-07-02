@@ -20,6 +20,8 @@ import { C } from '@/lib/designTokens';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '../components/ui/drawer';
 import useReminderSnooze, { SNOOZE_OPTIONS } from '../hooks/useReminderSnooze';
 import useUserProfile from '@/hooks/useUserProfile';
+import useViewAs from '@/hooks/useViewAs';
+import useEffectiveUserId from '@/hooks/useEffectiveUserId';
 
 const TYPE_CONFIG = {
   'טסט':        { icon: Calendar,      bg: C.yellowSoft, color: C.warn,     border: C.warnBorder },
@@ -443,6 +445,12 @@ function AuthNotifications() {
   const { user } = useAuth();
   const { activeWorkspaceId } = useWorkspace();
   const queryClient = useQueryClient();
+  // View-as: user-scoped reads (settings, app_notifications, snoozes) use the
+  // TARGET's user_id; account reads use the target account directly. Writes to
+  // the target's notifications are suppressed (read-only) — see guards below.
+  const viewAs = useViewAs();
+  const isViewingAs = !!viewAs;
+  const effectiveUserId = useEffectiveUserId();
   // useNavigate was missing here — the app-notification onClick below
   // called navigate(href) against undefined, throwing a silent
   // ReferenceError inside the handler. Result: clicking a share /
@@ -461,8 +469,15 @@ function AuthNotifications() {
   // Once the workspace resolves, the queryKey changes and the data
   // refetches with the correct scope.
   const { data: accountData, isError: accountError, refetch: refetchAccount } = useQuery({
-    queryKey: ['auth-notif-account', user?.id, activeWorkspaceId],
+    queryKey: ['auth-notif-account', user?.id, activeWorkspaceId, isViewingAs],
     queryFn: async () => {
+      // View-as: read the target account's vehicles directly (RLS is_viewing
+      // grants it); the admin has no membership row for it.
+      if (isViewingAs) {
+        if (!activeWorkspaceId) return { accountId: null, vehicles: [] };
+        const vehicles = await db.vehicles.filter({ account_id: activeWorkspaceId }, { light: true });
+        return { accountId: activeWorkspaceId, vehicles };
+      }
       const members = await db.account_members.filter({ user_id: user.id, status: MEMBER_STATUS.ACTIVE });
       if (members.length === 0) return { accountId: null, vehicles: [] };
       // While activeWorkspaceId is null (zero-membership user mid heal,
@@ -507,14 +522,14 @@ function AuthNotifications() {
 
   // Fetch reminder settings
   const { data: settings } = useQuery({
-    queryKey: ['reminder-settings', user?.id],
+    queryKey: ['reminder-settings', effectiveUserId],
     queryFn: async () => {
       try {
-        const rows = await db.reminder_settings.filter({ user_id: user.id });
+        const rows = await db.reminder_settings.filter({ user_id: effectiveUserId });
         return rows.length > 0 ? rows[0] : null;
       } catch { return null; }
     },
-    enabled: !!user?.id,
+    enabled: !!effectiveUserId,
   });
 
   const vehicles = accountData?.vehicles || [];
@@ -549,13 +564,13 @@ function AuthNotifications() {
   // Fetched from app_notifications — always show unread, plus the most
   // recent 20 read items so users can still see history.
   const { data: appNotifs = [], isError: appNotifsError, refetch: refetchAppNotifs } = useQuery({
-    queryKey: ['app-notifs', user?.id],
+    queryKey: ['app-notifs', effectiveUserId],
     queryFn: async () => {
       const { data, error } = await withTimeout(
         supabase
           .from('app_notifications')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', effectiveUserId)
           .order('created_at', { ascending: false })
           .limit(30),
         'app_notifications'
@@ -563,14 +578,16 @@ function AuthNotifications() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.id,
+    enabled: !!effectiveUserId,
     retry: 1,
     retryDelay: 500,
   });
 
   const markAppNotifRead = async (id, nextRead = true) => {
+    // Read-only in view-as: never mutate the target's notification state.
+    if (isViewingAs) return;
     await supabase.from('app_notifications').update({ is_read: nextRead }).eq('id', id);
-    queryClient.invalidateQueries({ queryKey: ['app-notifs', user?.id] });
+    queryClient.invalidateQueries({ queryKey: ['app-notifs', effectiveUserId] });
     try { window.dispatchEvent(new CustomEvent('cr:notifications-changed')); } catch {}
   };
 
@@ -582,10 +599,11 @@ function AuthNotifications() {
     isSnoozed, snoozedUntil: getSnoozedUntil,
     snooze, unsnooze, parseReminderId,
     loading: snoozeLoading,
-  } = useReminderSnooze(user?.id);
+  } = useReminderSnooze(effectiveUserId);
   const [snoozeTarget, setSnoozeTarget] = useState(null);
 
   const handleSnoozeSelect = async (option) => {
+    if (isViewingAs) { toast('לא זמין בצפייה בחשבון'); setSnoozeTarget(null); return; }
     if (!snoozeTarget) return;
     const parsed = parseReminderId(snoozeTarget.id);
     if (!parsed) { toastError('לא ניתן להשתיק התראה זו', { action: 'notif_snooze_invalid' }); setSnoozeTarget(null); return; }
@@ -599,6 +617,7 @@ function AuthNotifications() {
   };
 
   const handleUnsnooze = async (notif) => {
+    if (isViewingAs) { toast('לא זמין בצפייה בחשבון'); return; }
     const parsed = parseReminderId(notif.id);
     if (!parsed) return;
     try {
@@ -612,6 +631,8 @@ function AuthNotifications() {
   const handleInviteAction = async (notif, action) => {
     const memberId = notif.data?.member_id;
     if (!memberId) return;
+    // Accept/decline runs as the admin's JWT — disabled while viewing.
+    if (isViewingAs) { toast('לא זמין בצפייה בחשבון'); return; }
     setInviteActing(`${notif.id}-${action}`);
     try {
       const rpc = action === 'accept' ? 'accept_account_invite' : 'decline_account_invite';

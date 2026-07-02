@@ -22,19 +22,23 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
+import useEffectiveUserId from '@/hooks/useEffectiveUserId';
 
 export const USER_PROFILE_QUERY_KEY = 'user-profile';
 
 export default function useUserProfile() {
-  const { user, isGuest } = useAuth();
-  const enabled = !!user?.id && !isGuest;
+  const { isGuest } = useAuth();
+  // In an admin view-as session this resolves to the TARGET user's id, so the
+  // profile shown (phone / license expiry) is the target's, not the admin's.
+  const effectiveUserId = useEffectiveUserId();
+  const enabled = !!effectiveUserId && !isGuest;
 
   const { data: profile = null, isLoading } = useQuery({
-    queryKey: [USER_PROFILE_QUERY_KEY, user?.id],
+    queryKey: [USER_PROFILE_QUERY_KEY, effectiveUserId],
     queryFn: async () => {
       const { db } = await import('@/lib/supabaseEntities');
       const profiles = await db.user_profiles.filter(
-        { user_id: user.id },
+        { user_id: effectiveUserId },
         { light: true },
       );
       return profiles.length > 0 ? profiles[0] : null;

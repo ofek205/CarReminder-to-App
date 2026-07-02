@@ -29,6 +29,8 @@ import { he as heLocale } from 'date-fns/locale';
 import { configForType as appConfigForType, requiresActionForType, decodeNotifBody } from '@/lib/appNotificationConfig';
 import { calcAllReminders } from '@/components/shared/ReminderEngine';
 import useUserProfile from '@/hooks/useUserProfile';
+import useViewAs from '@/hooks/useViewAs';
+import useEffectiveUserId from '@/hooks/useEffectiveUserId';
 import { C } from '@/lib/designTokens';
 
 // Hebrew "X ago" label for an ISO timestamp. Returns null for
@@ -252,6 +254,12 @@ export default function NotificationBell() {
   // were looking at. User-level rows (profile, license, app_notifications,
   // community) stay untouched — those aren't tied to a workspace.
   const { activeWorkspaceId } = useWorkspace();
+  // In an admin view-as session, user-scoped reads (notifications, reminder
+  // settings) use the TARGET's user_id and account reads use the target's
+  // account directly — so the bell shows what the TARGET sees, not the admin.
+  const viewAs = useViewAs();
+  const isViewingAs = !!viewAs;
+  const effectiveUserId = useEffectiveUserId();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -287,25 +295,31 @@ export default function NotificationBell() {
     (async () => {
       try {
         const { db } = await import('@/lib/supabaseEntities');
-        // Profile is now served by the cached useUserProfile hook above —
-        // removed from this Promise.all to eliminate a redundant Supabase
-        // round-trip on every refreshKey bump / workspace switch.
-        const [membersResult, settingsResult] = await Promise.all([
-          db.account_members.filter({ user_id: user.id, status: MEMBER_STATUS.ACTIVE }).catch(() => []),
-          db.reminder_settings.filter({ user_id: user.id }).catch(() => []),
-        ]);
+        // Reminder settings are USER-scoped → read the effective user (the
+        // TARGET during view-as). Profile is served by useUserProfile above.
+        const settingsResult = await db.reminder_settings
+          .filter({ user_id: effectiveUserId }).catch(() => []);
 
-        if (membersResult.length === 0) return;
-        // Pick the workspace the user is currently looking at. Falls
-        // back to the first active membership only when the workspace
-        // context hasn't resolved yet (very first render); otherwise
-        // the bell would either lag behind a workspace switch or pull
-        // vehicles from the wrong account entirely.
-        const activeMember = activeWorkspaceId
-          ? membersResult.find(m => m.account_id === activeWorkspaceId)
-          : null;
-        const targetAccountId = activeMember?.account_id || membersResult[0].account_id;
-        const targetMember = activeMember || membersResult[0];
+        // Resolve which ACCOUNT's vehicles drive the reminders.
+        //  • Normal: the user's active membership (falls back to first).
+        //  • View-as: the target account directly — RLS is_viewing grants the
+        //    read; the admin has NO membership row for it, so we must not go
+        //    through account_members (that would resolve to the admin's own).
+        let targetAccountId;
+        let targetMember = null;
+        if (isViewingAs) {
+          targetAccountId = activeWorkspaceId;
+        } else {
+          const membersResult = await db.account_members
+            .filter({ user_id: user.id, status: MEMBER_STATUS.ACTIVE }).catch(() => []);
+          if (membersResult.length === 0) return;
+          const activeMember = activeWorkspaceId
+            ? membersResult.find(m => m.account_id === activeWorkspaceId)
+            : null;
+          targetAccountId = activeMember?.account_id || membersResult[0].account_id;
+          targetMember = activeMember || membersResult[0];
+        }
+        if (!targetAccountId) return;
         // Bell only reads dates and labels off each vehicle — never
         // photos, notes, or any base64 column. Restricting to the
         // exact 11 columns used below shaves the per-vehicle payload
@@ -373,7 +387,7 @@ export default function NotificationBell() {
             // (post excerpts, comment text, metadata) over the wire on
             // every bell mount, which the UI never showed.
             .select('id, commenter_name, created_at')
-            .eq('user_id', user.id)
+            .eq('user_id', effectiveUserId)
             .eq('is_read', false)
             .order('created_at', { ascending: false })
             .limit(10);
@@ -404,7 +418,7 @@ export default function NotificationBell() {
             // bookkeeping columns (updated_at, push_fired flags etc)
             // are not needed for the dropdown.
             .select('id, type, title, body, data, created_at, is_read')
-            .eq('user_id', user.id)
+            .eq('user_id', effectiveUserId)
             .eq('is_read', false)
             .order('created_at', { ascending: false })
             .limit(10);
@@ -447,7 +461,7 @@ export default function NotificationBell() {
               // device (cr_push_active, set on push registration) — dispatch-push
               // already delivers each app_notification, so firing locally too
               // would double-notify ("pops once when sent, again on app open").
-              if (native && !localStorage.getItem('cr_push_active')) {
+              if (native && !isViewingAs && !localStorage.getItem('cr_push_active')) {
                 const { scheduleLocalNotification, requestNotificationPermission, checkNotificationPermission, createNotificationChannel } = await import('@/lib/notificationChannels');
                 let granted = await checkNotificationPermission();
                 if (!granted) granted = await requestNotificationPermission();
@@ -512,7 +526,7 @@ export default function NotificationBell() {
     // bell against the new account immediately. Without it the bell
     // would keep showing the previous workspace's reminders until some
     // unrelated event (profile save, realtime ping) bumped refreshKey.
-  }, [user, refreshKey, activeWorkspaceId]);
+  }, [user, refreshKey, activeWorkspaceId, effectiveUserId, isViewingAs]);
 
   const unreadCount = notifications.filter(n => !readIds.has(n.id)).length;
 
@@ -553,6 +567,9 @@ export default function NotificationBell() {
 
   const persistRemoteReadState = async (notification, nextRead) => {
     if (!notification) return;
+    // View-as is read-only for the target's notifications — never mutate their
+    // is_read state from the admin's session (local UI hide still applies).
+    if (isViewingAs) return;
     try {
       if (notification._communityNotifId) {
         await supabase
@@ -573,6 +590,9 @@ export default function NotificationBell() {
   const handleInviteAction = async (n, action) => {
     const memberId = n.appData?.member_id;
     if (!memberId) return;
+    // Accept/decline runs as the ADMIN's JWT — meaningless for the target's
+    // invite — so it's disabled while viewing another account.
+    if (isViewingAs) { toast('לא זמין בצפייה בחשבון'); return; }
     setInviteActing(`${n.id}-${action}`);
     try {
       const rpc = action === 'accept' ? 'accept_account_invite' : 'decline_account_invite';
@@ -620,6 +640,8 @@ export default function NotificationBell() {
         localStorage.setItem('read_notif_timed', JSON.stringify(timed));
       } catch {}
     }
+    // View-as: local hide only — don't mark the target's rows read remotely.
+    if (isViewingAs) return;
     const appIds = notifications.map(n => n._appNotifId).filter(Boolean);
     const communityIds = notifications.map(n => n._communityNotifId).filter(Boolean);
     try {
