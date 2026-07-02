@@ -87,8 +87,8 @@ begin
      and user_id = p_new_owner_user_id;
 
   -- Notify both parties.
-  select coalesce(full_name, email, 'משתמש') into v_actor_name
-    from public.user_profiles where user_id = uid limit 1;
+  select coalesce(raw_user_meta_data->>'full_name', email, 'משתמש') into v_actor_name
+    from auth.users where id = uid;
 
   insert into public.app_notifications (user_id, type, title, body, data)
   values (
@@ -351,8 +351,8 @@ begin
    where account_id = p_account_id and driver_user_id = uid and status = 'active';
 
   -- Notify owners/managers that someone left.
-  select coalesce(full_name, email, 'משתמש') into v_actor_name
-    from public.user_profiles where user_id = uid limit 1;
+  select coalesce(raw_user_meta_data->>'full_name', email, 'משתמש') into v_actor_name
+    from auth.users where id = uid;
 
   insert into public.app_notifications (user_id, type, title, body, data)
   select m.user_id, 'workspace_member_left', 'חבר עזב את החשבון',

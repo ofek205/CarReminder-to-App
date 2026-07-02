@@ -65,17 +65,11 @@ begin
     return true;
   end if;
 
-  select coalesce(full_name, email, 'משתמש')
+  -- Name from auth.users — user_profiles has no full_name/email columns
+  -- (fixed 2026-07-02, see supabase-fix-fullname-reads-2026-07-02.sql).
+  select coalesce(raw_user_meta_data->>'full_name', email, 'משתמש')
     into inviter_name
-    from public.user_profiles up
-   where up.user_id = inviter_uid
-   limit 1;
-
-  if inviter_name is null then
-    select coalesce(raw_user_meta_data->>'full_name', email, 'משתמש')
-      into inviter_name
-      from auth.users where id = inviter_uid;
-  end if;
+    from auth.users where id = inviter_uid;
 
   insert into public.app_notifications (user_id, type, title, body, data)
   values (
