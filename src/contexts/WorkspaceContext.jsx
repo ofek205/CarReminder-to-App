@@ -40,7 +40,7 @@ import useIsAdmin from '@/hooks/useIsAdmin';
 import { setViewAs, clearViewAs } from '@/lib/viewAsState';
 import { clearSignedUrlCache } from '@/hooks/useSignedUrl';
 import { clearBreadcrumbs } from '@/lib/breadcrumbs';
-import { MEMBER_STATUS, isActiveMember } from '@/lib/enums';
+import { MEMBER_STATUS, isGrantedMember } from '@/lib/enums';
 
 const WorkspaceContext = createContext(null);
 
@@ -312,7 +312,11 @@ export function WorkspaceProvider({ children }) {
     if (!targetAccountId) return false;
     const target = memberships?.find(m => m.account_id === targetAccountId);
     if (!target) return false;
-    if (!isActiveMember(target)) return false;
+    // Defense in depth: useWorkspaces already returns granted rows only,
+    // so a pending invite can't reach here — but switching into a
+    // workspace the server won't authorize is the exact failure this
+    // whole path guards against, so assert it rather than assume it.
+    if (!isGrantedMember(target)) return false;
     if (targetAccountId === activeId) return true;
 
     setActiveId(targetAccountId);

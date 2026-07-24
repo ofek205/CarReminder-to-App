@@ -30,6 +30,7 @@ import CompleteProfileScreen, { isProfileSkipActive } from '../components/shared
 import useUserProfile from '@/hooks/useUserProfile';
 import LicensePlate from '../components/shared/LicensePlate';
 import FirstTimeTour from '../components/shared/FirstTimeTour';
+import PendingInviteBanner from '../components/sharing/PendingInviteBanner';
 import SharedIndicator from '@/components/sharing/SharedIndicator';
 import { Share2, HelpCircle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -1519,6 +1520,11 @@ export default function Dashboard() {
         return <FirstTimeTour enabled={shouldTour} />;
       })()}
       <div className="px-4 pt-6">
+        {/* Account invitations awaiting this user. Sits above the hero
+            because a pending invite is time-boxed — expire_pending_invites()
+            deletes the row after 14 days — and the notification bell was
+            previously the only place it appeared. */}
+        <PendingInviteBanner />
         <VehicleCheckHero
           hasVehicles={vehicles.length > 0}
           plate={quickCheckPlate}
