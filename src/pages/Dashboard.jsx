@@ -20,6 +20,7 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { useAuth } from "../components/shared/GuestContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import useViewAs from '@/hooks/useViewAs';
 import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
 import { usesHours, usesKm } from "../components/shared/DateStatusUtils";
@@ -847,6 +848,7 @@ export default function Dashboard() {
   // Dashboard ended up showing them every vehicle in the workspace.
   const navigateRef = useNavigate();
   const { activeWorkspace, activeWorkspaceId } = useWorkspace();
+  const viewAs = useViewAs();
   const { isDriver, canManageRoutes } = useWorkspaceRole();
   const { profile: cachedProfile, isLoading: profileLoading } = useUserProfile();
   useEffect(() => {
@@ -937,9 +939,27 @@ export default function Dashboard() {
   });
 
 
-  //  Authenticated init (Supabase) 
+  //  Authenticated init (Supabase)
   useEffect(() => {
     if (!isAuthenticated || !user) return;
+    // Never run during an admin view-as session. Both halves of init() are
+    // wrong while impersonating:
+    //
+    //   1. It resolves accountId from account_members WHERE user_id =
+    //      user.id — the ADMIN's memberships — and calls setAccountId with
+    //      the result. The effect above already syncs accountId from
+    //      activeWorkspaceId, which points at the TARGET. Two async effects
+    //      writing the same state means whichever lands last wins, so the
+    //      dashboard rendered a mix of the admin's account and the target's
+    //      depending on network timing. That race is the "it mixes with
+    //      mine" symptom.
+    //   2. It migrates guest vehicles out of localStorage into the DB. Those
+    //      rows belong to whoever used this browser as a guest — writing
+    //      them mid-impersonation is a write nobody asked for.
+    //
+    // During view-as the sync effect above owns accountId outright, so
+    // skipping this leaves the page correctly scoped to the target.
+    if (viewAs) return;
     async function init() {
       try {
         // Find existing account membership. We pull ALL rows first so a
@@ -1028,7 +1048,7 @@ export default function Dashboard() {
       }
     }
     init();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, viewAs]);
 
   // Profile-completion popup — reads from shared useUserProfile cache.
   // Previously this was inlined inside init() which meant a raw Supabase
