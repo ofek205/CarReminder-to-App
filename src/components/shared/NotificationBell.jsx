@@ -593,7 +593,7 @@ export default function NotificationBell() {
     // Allowed during view-as. accept_account_invite / decline_account_invite
     // used to refuse unless auth.uid() was the invitee, which is never true
     // mid-session — hence the block that used to sit here. Both now also
-    // accept public.is_viewing(account_id), the same audited primitive every
+    // accept public.is_viewing_user(user_id), the audited primitive every
     // other view-as grant uses, and write an admin_audit_log row naming the
     // admin who acted and the user they acted for.
     //

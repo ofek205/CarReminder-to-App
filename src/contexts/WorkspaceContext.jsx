@@ -40,6 +40,7 @@ import useViewAs from '@/hooks/useViewAs';
 import useIsAdmin from '@/hooks/useIsAdmin';
 import { setViewAs, clearViewAs } from '@/lib/viewAsState';
 import { clearSignedUrlCache } from '@/hooks/useSignedUrl';
+import { clearVehiclesCache } from '@/lib/vehiclesCache';
 import { clearBreadcrumbs } from '@/lib/breadcrumbs';
 import { MEMBER_STATUS, isGrantedMember } from '@/lib/enums';
 import { adminSupabase, setImpersonationToken, clearImpersonationToken } from '@/lib/supabase';
@@ -416,10 +417,19 @@ export function WorkspaceProvider({ children }) {
     clearViewAs();
     // Drop every cached scrap of the target's data so nothing bleeds back
     // into the admin's own view: React Query cache, the signed-URL cache
-    // (file URLs valid for days), and the breadcrumb ring buffer.
+    // (file URLs valid for days), the breadcrumb ring buffer, and the
+    // localStorage vehicle lists.
+    //
+    // That last one was missing, and it was the only cache that outlived the
+    // browser tab. useMyVehicles keyed on accountId alone, so viewing a
+    // customer wrote their plates and models to the admin's disk under the
+    // CUSTOMER's account id, where nothing ever removed them — not exit, not
+    // sign-out, not session expiry. The hook no longer writes during a session
+    // at all; this sweep is what clears what older builds already left behind.
     queryClient.clear();
     try { clearSignedUrlCache(); } catch { /* noop */ }
     try { clearBreadcrumbs(); } catch { /* noop */ }
+    try { clearVehiclesCache(); } catch { /* noop */ }
   }, [queryClient]);
 
   // Keep the borrowed identity alive for as long as the session runs.

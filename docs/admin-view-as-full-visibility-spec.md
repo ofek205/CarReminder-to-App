@@ -1,5 +1,26 @@
 # Admin View-As — Full Visibility ("see everything he sees")
 
+> ## ⚠️ SUPERSEDED — 2026-07-24
+>
+> §1 below is titled *"extend the split model (NOT JWT impersonation)"*. That
+> decision was **reversed**: JWT impersonation is exactly what shipped. See
+> **`docs/admin-impersonation-spec.md`**.
+>
+> The goal in this document was right and is now met — the admin sees the
+> notification bell, notifications, reminders and profile of the person they
+> are viewing. The *mechanism* proposed here (more `is_viewing_user()` policies,
+> one per table) is what failed: it requires remembering every future table, and
+> the count of un-escaped functions was 21 out of 22 when it was measured.
+>
+> Real impersonation makes `auth.uid()` the target, so every policy and RPC —
+> including ones not written yet — behaves as it does for the real user. There
+> is nothing left to enumerate.
+>
+> The status line below is also stale: view-as is no longer held, and sessions
+> are now identified by **(user, account)** rather than by account alone.
+>
+> Kept for the requirements and the edge-case list. Do not build against §1.
+
 **Status:** SPEC / not started. View-as itself is currently **HELD** (reverted in v6.3.0,
 commit `75edc63`) pending Phase 1A-H + security sign-off. DB functions are live-but-dormant.
 **Owner decision (2026-06-30):** Ofek wants full impersonation *visibility* — the admin,

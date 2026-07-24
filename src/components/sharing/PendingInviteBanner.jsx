@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import useViewAs from '@/hooks/useViewAs';
+import useEffectiveUserId from '@/hooks/useEffectiveUserId';
 import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
 
@@ -39,23 +40,32 @@ import { C } from '@/lib/designTokens';
 export default function PendingInviteBanner() {
   const { user, isGuest } = useAuth();
   const viewAs = useViewAs();
+  // The auth plane is never impersonated, so `user` stays the ADMIN for the
+  // whole session. Filtering app_notifications on user.id would therefore ask
+  // for the admin's own invites — and RLS would refuse even those, since
+  // auth.uid() is the target. useEffectiveUserId is the established answer
+  // (NotificationBell, Notifications, useUserProfile all use it).
+  const effectiveUserId = useEffectiveUserId();
   const queryClient = useQueryClient();
   const [acting, setActing] = useState(null);
 
-  // Hidden during view-as: accept/decline runs as the admin's JWT, which
-  // is meaningless for the target's invite. NotificationBell blocks the
-  // action for the same reason — offering a button that cannot work is
-  // worse than not offering it.
-  const enabled = !!user?.id && !isGuest && !viewAs;
+  // Shown during view-as. This used to be hidden because accept/decline ran
+  // as the admin's own JWT and the RPCs refuse anyone but the invitee — a
+  // button that could not work. Impersonation made auth.uid() the target, so
+  // the action succeeds, and NotificationBell allows it. Keeping the banner
+  // hidden left the same action available in one surface and absent in the
+  // other, which is how "I can see the invite but can't approve it for him"
+  // got reported in the first place.
+  const enabled = !!effectiveUserId && !isGuest;
 
   const { data: invites = [], refetch } = useQuery({
-    queryKey: ['pending-account-invites', user?.id],
+    queryKey: ['pending-account-invites', effectiveUserId],
     queryFn: async () => {
       const { data, error } = await withTimeout(
         supabase
           .from('app_notifications')
           .select('id, title, body, data, created_at')
-          .eq('user_id', user.id)
+          .eq('user_id', effectiveUserId)
           .eq('type', 'account_invite_offered')
           .eq('is_read', false)
           .order('created_at', { ascending: false }),
@@ -83,14 +93,29 @@ export default function PendingInviteBanner() {
       // Mark the source notification read so the banner and the bell agree
       // — both key off is_read, so skipping this leaves the banner up
       // until the next full refetch.
-      await supabase.from('app_notifications').update({ is_read: true }).eq('id', invite.id);
+      //
+      // Except during view-as. Notification read state is the target's, and
+      // the standing decision is that an admin views it without mutating it
+      // (supabase-admin-view-as-user-scoped.sql, and the same early return in
+      // NotificationBell.persistRemoteReadState). The invite itself is already
+      // resolved server-side, so the only cost is that the target still sees
+      // the notification until they open it themselves.
+      if (!viewAs) {
+        await supabase.from('app_notifications').update({ is_read: true }).eq('id', invite.id);
+      }
       window.dispatchEvent(new CustomEvent('cr:notifications-changed'));
 
       // On accept the membership flips to 'פעיל', which is what makes the
       // workspace appear at all — user_account_ids() only returns active
       // rows, so until this invalidation lands the switcher still has no
       // idea the account exists.
-      await queryClient.invalidateQueries({ queryKey: ['user-workspaces', user.id] });
+      // Two different queries feed the switcher depending on who is looking:
+      // the signed-in user's own list, or — during view-as — the target's,
+      // loaded by admin_user_accounts under a different key. Invalidating only
+      // the first meant an invite accepted on someone's behalf appeared to do
+      // nothing until a reload.
+      await queryClient.invalidateQueries({ queryKey: ['user-workspaces', user?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['view-as-accounts', effectiveUserId] });
       await refetch();
 
       toast.success(action === 'accept' ? 'הצטרפת לחשבון בהצלחה' : 'ההזמנה נדחתה');

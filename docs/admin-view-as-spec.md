@@ -1,5 +1,24 @@
 # Admin "View-As" (Impersonation) — Design Spec
 
+> ## ⚠️ SUPERSEDED — 2026-07-24
+>
+> The "split capability" model below was **replaced by real JWT impersonation**.
+> See **`docs/admin-impersonation-spec.md`**, which is the current design.
+>
+> Why it was replaced: the split model grants access by adding
+> `is_viewing(account_id)` escapes to individual RLS policies and RPCs. That is
+> an allowlist, and a scan on 2026-07-24 found 22 SECURITY DEFINER functions
+> gating on `auth.uid()` membership with exactly **one** escape between them.
+> Three screens broke in a single testing session, and the count grew with
+> every RPC written.
+>
+> What is still accurate here: the session table, the audit model, the
+> time-boxing, and `is_viewing()` itself — all of which the new model still
+> uses as the *authorisation* primitive. What is no longer true is the claim
+> that the admin keeps their own `auth.uid()` during a session. They do not.
+>
+> Kept for the reasoning, not as an instruction. Do not build against §1.
+
 > Status: design / pre-implementation. Target branch: `staging`.
 > Goal: let an admin (Ofek) enter a specific account (personal OR business),
 > see exactly what that user sees, and manage their vehicles — safely,
