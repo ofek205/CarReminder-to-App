@@ -209,7 +209,7 @@ export function WorkspaceProvider({ children }) {
     if (!memberships) return;
 
     const stillValid = activeId && memberships.some(
-      m => m.account_id === activeId && isActiveMember(m)
+      m => m.account_id === activeId && isGrantedMember(m)
     );
 
     if (stillValid) return;
