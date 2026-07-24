@@ -1115,7 +1115,10 @@ export default function Dashboard() {
   const cachedVehicles = readVehiclesCache();
 
   const { data: vehicles = [], isLoading: vehiclesLoading, isError: vehiclesError, refetch: refetchVehicles } = useQuery({
-    queryKey: ['my-vehicles', user?.id, accountId],
+    // !!viewAs is part of the key: entering or leaving a session changes what
+    // the filter below keeps, and accountId alone doesn't always move (an
+    // admin can view an account they are also a member of).
+    queryKey: ['my-vehicles', user?.id, accountId, !!viewAs],
     queryFn: async () => {
       const { data, error } = await withTimeout(
         supabase.from('my_vehicles_v').select('*'),
@@ -1129,7 +1132,21 @@ export default function Dashboard() {
       // personal-flow feature; business workspace users are redirected
       // to /BusinessDashboard above so this filter only runs in
       // personal context.
-      return (data || []).filter(v => v.is_shared_with_me || v.account_id === accountId);
+      // The is_shared_with_me escape is deliberately dropped during view-as.
+      // my_vehicles_v's second branch returns vehicles shared with
+      // auth.uid(), and auth.uid() stays the ADMIN for the whole session —
+      // so without this the admin's own shared vehicles render inside the
+      // customer's dashboard. Confirmed in production: an admin viewing an
+      // account with zero vehicles saw a car belonging to a third party who
+      // had shared it with them, which reads exactly like a data leak even
+      // though every row was one the admin is entitled to.
+      //
+      // Sharing is a personal-flow feature, so outside view-as the escape
+      // stays — a sharee must still see their shared cars regardless of
+      // which workspace is active.
+      return (data || []).filter(v =>
+        (!viewAs && v.is_shared_with_me) || v.account_id === accountId
+      );
     },
     enabled: !!user?.id && !!accountId,
     retry: 1,
