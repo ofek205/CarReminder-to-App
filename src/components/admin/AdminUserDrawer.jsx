@@ -105,7 +105,16 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
       onClose?.();
       navigate(createPageUrl('Dashboard'));
     } catch (err) {
-      toast.error('שגיאה בכניסה לחשבון', { description: err?.message });
+      // 'impersonation_unavailable' is a machine code thrown by enterViewAs
+      // when the session token could not be minted. Showing it raw put an
+      // English identifier in front of a Hebrew user; worse, it reads like a
+      // crash when it is in fact the safety net working — the session was
+      // rolled back rather than started with the wrong identity.
+      toast.error('שגיאה בכניסה לחשבון', {
+        description: err?.message === 'impersonation_unavailable'
+          ? 'לא ניתן לאמת את הזהות לצפייה. הצפייה בוטלה ולא נפתחה — נסה שוב.'
+          : err?.message,
+      });
       setEntering(false);
     }
   };

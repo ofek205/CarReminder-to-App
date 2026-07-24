@@ -238,6 +238,25 @@ export function isImpersonating() {
   return _impersonationClient !== null;
 }
 
+/**
+ * The un-proxied client — always the signed-in user, never the impersonated
+ * one. Use for anything that must speak AS THE ADMIN while a session is live:
+ * admin_start_view, admin_end_view, admin_current_view, admin_user_accounts,
+ * and the admin-impersonate mint itself.
+ *
+ * Every one of those begins with an is_admin() check and would be rejected if
+ * it arrived as the target — who is never an admin, since minting refuses
+ * admin targets. Worse, several of the rejections are swallowed by a catch,
+ * so the failure is silent: an exit that does not exit, a renewal that never
+ * renews, a workspace list that quietly empties.
+ *
+ * This existed as "remember to call clearImpersonationToken() first" and was
+ * forgotten three times in one sitting. A named export makes the correct
+ * client the one you have to ask for, rather than the one you have to
+ * remember to restore.
+ */
+export const adminSupabase = realClient;
+
 const DATA_PLANE = new Set(['from', 'rpc', 'storage', 'functions']);
 
 export const supabase = new Proxy(realClient, {

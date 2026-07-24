@@ -12,6 +12,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Briefcase, User as UserIcon, Check, ChevronDown, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
 import { isGrantedMember } from '@/lib/enums';
@@ -101,7 +102,23 @@ export default function WorkspaceSwitcher() {
                       onClick={async () => {
                         setOpen(false);
                         if (!isActive) {
-                          const ok = await switchTo(m.account_id);
+                          // During view-as, switchTo IS enterViewAs — it opens
+                          // a fresh audited session and can reject (not admin
+                          // any more, session expired, token mint failed).
+                          // Unhandled, the dropdown just closed and nothing
+                          // happened, leaving the admin on the previous
+                          // workspace with no idea the switch failed.
+                          let ok = false;
+                          try {
+                            ok = await switchTo(m.account_id);
+                          } catch (err) {
+                            toast.error('לא ניתן היה להחליף מרחב עבודה', {
+                              description: err?.message === 'impersonation_unavailable'
+                                ? 'הצפייה בחשבון הופסקה. היכנס שוב מניהול המשתמשים.'
+                                : err?.message,
+                            });
+                            return;
+                          }
                           if (ok) {
                             // Navigate straight to the workspace home,
                             // role-aware. BusinessDashboard is manager-only;
