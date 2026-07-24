@@ -590,9 +590,15 @@ export default function NotificationBell() {
   const handleInviteAction = async (n, action) => {
     const memberId = n.appData?.member_id;
     if (!memberId) return;
-    // Accept/decline runs as the ADMIN's JWT — meaningless for the target's
-    // invite — so it's disabled while viewing another account.
-    if (isViewingAs) { toast('לא זמין בצפייה בחשבון'); return; }
+    // Allowed during view-as. accept_account_invite / decline_account_invite
+    // used to refuse unless auth.uid() was the invitee, which is never true
+    // mid-session — hence the block that used to sit here. Both now also
+    // accept public.is_viewing(account_id), the same audited primitive every
+    // other view-as grant uses, and write an admin_audit_log row naming the
+    // admin who acted and the user they acted for.
+    //
+    // Snooze stays blocked further up: reminder_snoozes is read-only in
+    // view-as by decision, and nothing changed there.
     setInviteActing(`${n.id}-${action}`);
     try {
       const rpc = action === 'accept' ? 'accept_account_invite' : 'decline_account_invite';

@@ -631,8 +631,9 @@ function AuthNotifications() {
   const handleInviteAction = async (notif, action) => {
     const memberId = notif.data?.member_id;
     if (!memberId) return;
-    // Accept/decline runs as the admin's JWT — disabled while viewing.
-    if (isViewingAs) { toast('לא זמין בצפייה בחשבון'); return; }
+    // Allowed during view-as — the RPCs now accept public.is_viewing(account_id)
+    // and audit the action. See the note in NotificationBell.handleInviteAction.
+    // Snooze above stays blocked: reminder_snoozes is read-only in view-as.
     setInviteActing(`${notif.id}-${action}`);
     try {
       const rpc = action === 'accept' ? 'accept_account_invite' : 'decline_account_invite';
