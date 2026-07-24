@@ -18,11 +18,18 @@ import { isGrantedMember } from '@/lib/enums';
 
 const PERSONAL_LABEL = 'החשבון הפרטי שלי';
 
-function workspaceLabel(m) {
+// "שלי" is a lie during an admin view-as session — the personal workspace
+// listed there belongs to the account being viewed, not to the admin reading
+// the screen. Naming it "mine" is the single most misleading string in the
+// impersonation flow: it makes the admin's own account look present in a
+// list that never contained it.
+const PERSONAL_LABEL_VIEW_AS = 'חשבון פרטי';
+
+function workspaceLabel(m, isViewAs = false) {
   if (m.account_type === 'business') {
     return m.account_name || 'חשבון עסקי';
   }
-  return PERSONAL_LABEL;
+  return isViewAs ? PERSONAL_LABEL_VIEW_AS : PERSONAL_LABEL;
 }
 
 export default function WorkspaceSwitcher() {
@@ -53,7 +60,7 @@ export default function WorkspaceSwitcher() {
   const hasMultiple = memberships.length > 1;
 
   const ActiveIcon = activeWorkspace?.account_type === 'business' ? Briefcase : UserIcon;
-  const activeLabel = activeWorkspace ? workspaceLabel(activeWorkspace) : '...';
+  const activeLabel = activeWorkspace ? workspaceLabel(activeWorkspace, isViewAs) : '...';
 
   return (
     <div ref={wrapRef} className="relative" dir="rtl">
@@ -119,7 +126,7 @@ export default function WorkspaceSwitcher() {
                     >
                       <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-[#2D5233]' : 'text-gray-400'}`} />
                       <span className={`flex-1 text-xs truncate ${isActive ? 'font-bold text-[#2D5233]' : 'text-gray-700'}`}>
-                        {workspaceLabel(m)}
+                        {workspaceLabel(m, isViewAs)}
                       </span>
                       {isActive && <Check className="h-4 w-4 text-[#2D5233] shrink-0" />}
                     </button>

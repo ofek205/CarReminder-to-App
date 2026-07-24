@@ -235,7 +235,23 @@ function GuestBanner() {
 
 function UserPopover() {
   const { user } = useAuth();
+  const viewAs = useViewAs();
   const [open, setOpen] = useState(false);
+
+  // During an admin view-as session this header must NOT show the admin.
+  // useAuth().user is always the signed-in admin — 54fed04 made
+  // notifications, profile and reminder settings view-as-aware but never
+  // touched the identity in the chrome, so the sidebar kept announcing the
+  // admin's own name and email while every panel below it showed someone
+  // else's data. That mismatch is what makes view-as read as "I'm seeing my
+  // own account".
+  //
+  // Falls back to empty rather than to `user` on purpose: showing nothing is
+  // correct-but-incomplete, showing the admin is actively wrong. ownerEmail
+  // is only populated by enterViewAs, not by the boot hydrate path, so after
+  // a refresh mid-session the email is legitimately absent.
+  const displayName  = viewAs ? (viewAs.targetName || 'חשבון') : (user?.full_name || '...');
+  const displayEmail = viewAs ? (viewAs.ownerEmail || '')      : (user?.email || '');
 
   const handleLogout = async () => {
     // Clear personal data from localStorage on logout (privacy)
@@ -282,8 +298,8 @@ function UserPopover() {
               <UserCircle className="h-5 w-5 text-[#2D5233]" />
             </div>
             <div className="min-w-0">
-              <p className="font-semibold text-gray-900 text-sm truncate">{user?.full_name || '...'}</p>
-              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+              <p className="font-semibold text-gray-900 text-sm truncate">{displayName}</p>
+              <p className="text-xs text-gray-500 truncate">{displayEmail}</p>
             </div>
           </div>
 
@@ -315,8 +331,15 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   // While viewing-as a customer account, hide the admin nav entirely so the
   // admin can't wander into admin tools (which act on explicit ids) while the
   // client is pointed at someone else's account. Exit first, then administer.
-  const isViewAs = useViewAs() !== null;
+  const viewAs = useViewAs();
+  const isViewAs = viewAs !== null;
   const isAdmin = adminCheck === true && !isViewAs;
+
+  // Same rule as UserPopover: the identity in the chrome follows the session,
+  // never the signed-in admin. See the comment there for why this falls back
+  // to empty instead of to `user`.
+  const navName  = viewAs ? (viewAs.targetName || 'חשבון') : (user?.full_name || 'ניהול כלי תחבורה');
+  const navEmail = viewAs ? (viewAs.ownerEmail || '')      : (user?.email || '');
 
   // Unacknowledged admin alerts — drives the red dot on the "התראות" nav
   // item (Stream 7). Refreshes every 60s alongside the AdminAlerts page so
@@ -426,8 +449,8 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
               <User className="h-5 w-5 text-[#2D5233]" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-gray-900 truncate">{user?.full_name || 'ניהול כלי תחבורה'}</p>
-              <p className="text-[10px] text-gray-400 truncate">{user?.email || ''}</p>
+              <p className="text-sm font-bold text-gray-900 truncate">{navName}</p>
+              <p className="text-[10px] text-gray-400 truncate">{navEmail}</p>
             </div>
             <ChevronLeft className="h-4 w-4 text-gray-400 shrink-0" aria-hidden="true" />
           </Link>
