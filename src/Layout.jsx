@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
-import { supabase } from '@/lib/supabase';
+import { supabase, adminSupabase } from '@/lib/supabase';
 import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield, Eye } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { Button } from "@/components/ui/button";
@@ -347,8 +347,13 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
   const { data: unackAlertCount = 0 } = useQuery({
     queryKey: ['admin-alerts-unack-count'],
     queryFn: async () => {
+      // adminSupabase: `enabled` below already stops this from running during
+      // a view session, so today it cannot reach the impersonated plane. That
+      // is a property of a condition three lines away, though, and the next
+      // person to touch `enabled` has no reason to know it. Asking for the
+      // admin client makes the call correct on its own terms.
       const { data, error } = await withTimeout(
-        supabase.rpc('admin_alert_count_unacknowledged'),
+        adminSupabase.rpc('admin_alert_count_unacknowledged'),
         'admin_alert_count_unacknowledged'
       );
       if (error) throw error;

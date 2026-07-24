@@ -31,6 +31,7 @@ import React, {
   createContext, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -76,6 +77,39 @@ async function mintImpersonationToken() {
     clearImpersonationToken();
     return false;
   }
+}
+
+/**
+ * How long a minted token is good for, minus a safety margin.
+ *
+ * admin-impersonate caps the token at 15 minutes while a view session runs for
+ * 30, so a session that is never renewed spends its entire second half holding
+ * an expired token: the banner keeps counting down, every data call comes back
+ * 401, and the feature looks broken for reasons nothing on screen explains.
+ * Renewing at 10 leaves five minutes of slack for a slow network, and each
+ * renewal re-runs all three server-side gates in admin-impersonate.
+ */
+const TOKEN_RENEW_MS = 10 * 60 * 1000;
+
+/**
+ * Shape the admin_start_view / admin_current_view payload into view-as state.
+ *
+ * Both RPCs deliberately return the same fields so that entering a session and
+ * restoring one after a reload cannot drift apart. They did drift: the hydrate
+ * path used to omit the role and the email, so pressing F5 while viewing a
+ * driver silently promoted them to an owner in the UI.
+ */
+function viewAsFromPayload(data) {
+  return {
+    targetAccountId: data.target_account_id,
+    targetUserId:    data.target_user_id,
+    targetName:      data.target_name,        // the ACCOUNT's name
+    targetUserName:  data.target_user_name,   // the PERSON's name
+    targetRole:      data.target_role,        // their real role in that account
+    targetType:      data.target_type,
+    ownerEmail:      data.owner_email,
+    expiresAt:       data.expires_at,
+  };
 }
 
 const WorkspaceContext = createContext(null);
@@ -204,11 +238,16 @@ export function WorkspaceProvider({ children }) {
         'admin_user_accounts'
       );
       if (error) return [];
+      // role is deliberately null: admin_user_accounts returns account identity
+      // only, and inventing 'בעלים' here made the switcher route a driver to
+      // BusinessDashboard — straight into the "אין הרשאה לדשבורד" guard. The
+      // authoritative role arrives from admin_start_view once the switch lands,
+      // and WorkspaceSwitcher navigates on that instead.
       return (data || []).map(a => ({
         account_id:   a.account_id,
         account_type: a.type,
         account_name: a.name,
-        role:         'בעלים',
+        role:         null,
         status:       MEMBER_STATUS.ACTIVE,
       }));
     },
@@ -293,13 +332,7 @@ export function WorkspaceProvider({ children }) {
       try {
         const { data } = await adminSupabase.rpc('admin_current_view');
         if (data && data.target_account_id) {
-          setViewAs({
-            targetAccountId: data.target_account_id,
-            targetUserId:    data.target_user_id,
-            targetName:      data.target_name,
-            targetType:      data.target_type,
-            expiresAt:       data.expires_at,
-          });
+          setViewAs(viewAsFromPayload(data));
           // A reload mid-session restores the flag from the server but not the
           // token — it is deliberately never persisted, so it does not survive
           // a refresh. Re-mint here, or the admin would come back to a session
@@ -315,10 +348,19 @@ export function WorkspaceProvider({ children }) {
     })();
   }, [isGuest, user?.id, isAdmin]);
 
-  // enterViewAs — admin-only. Opens a server-side view session and points
-  // the whole app at the target account. RLS (is_viewing) is what actually
-  // grants the access; this only drives the client.
-  const enterViewAs = useMemo(() => async (targetAccountId, reason) => {
+  // enterViewAs — admin-only. Opens a server-side view session and points the
+  // whole app at (targetUserId, targetAccountId). RLS is what actually grants
+  // the access; this only drives the client.
+  //
+  // targetUserId is what makes the session about a PERSON rather than an
+  // account. Omit it and the server falls back to the account's owner, which is
+  // the old behaviour and the source of the worst bug in this feature: because
+  // the workspace switcher routes through here, moving between the target's
+  // workspaces re-targeted the session at each new account's OWNER. An admin
+  // who asked to see a manager's business workspace was silently handed the
+  // owner's identity instead — visible in admin_view_sessions as a chain whose
+  // target_email changes mid-sequence.
+  const enterViewAs = useMemo(() => async (targetAccountId, reason, targetUserId) => {
     if (!targetAccountId) return false;
     // adminSupabase: admin_start_view opens with is_admin(), so switching
     // workspaces mid-session — which routes through here — must not arrive as
@@ -326,16 +368,10 @@ export function WorkspaceProvider({ children }) {
     const { data, error } = await adminSupabase.rpc('admin_start_view', {
       p_account_id: targetAccountId,
       p_reason: reason ?? null,
+      p_user_id: targetUserId ?? null,
     });
     if (error) throw error;
-    setViewAs({
-      targetAccountId: data.target_account_id,
-      targetUserId:    data.target_user_id,
-      targetName:      data.target_name,
-      targetType:      data.target_type,
-      ownerEmail:      data.owner_email,
-      expiresAt:       data.expires_at,
-    });
+    setViewAs(viewAsFromPayload(data));
     // Mint BEFORE clearing the cache. Otherwise the refetch storm that
     // queryClient.clear() triggers races the token and the first wave of
     // queries goes out on the admin's own identity — which is precisely the
@@ -386,6 +422,29 @@ export function WorkspaceProvider({ children }) {
     try { clearBreadcrumbs(); } catch { /* noop */ }
   }, [queryClient]);
 
+  // Keep the borrowed identity alive for as long as the session runs.
+  //
+  // The token expires at 15 minutes, the session at 30. Without this the whole
+  // second half of every session ran on a dead token: the banner counted down
+  // normally while each request came back 401, so the screens emptied for no
+  // reason the operator could see. Renewal is deliberately silent — no cache
+  // clear, no refetch storm — because the identity is unchanged; only the
+  // credential is refreshed.
+  //
+  // Failing to renew is treated exactly like failing to mint: leave, rather
+  // than sit inside a session that can no longer read anything.
+  useEffect(() => {
+    if (!viewAs) return undefined;
+    const id = setInterval(async () => {
+      if (await mintImpersonationToken()) return;
+      toast.error('הצפייה בחשבון הסתיימה', {
+        description: 'לא ניתן היה לחדש את ההרשאה. היכנס שוב מניהול המשתמשים.',
+      });
+      try { await exitViewAs(); } catch { /* best effort */ }
+    }, TOKEN_RENEW_MS);
+    return () => clearInterval(id);
+  }, [viewAs, exitViewAs]);
+
   // switchTo — the only public mutation. Validates target, updates
   // local state, persists hint, then invalidates all queries so every
   // page refetches scoped to the new account.
@@ -429,6 +488,26 @@ export function WorkspaceProvider({ children }) {
     return true;
   }, [memberships, activeId, user?.id, queryClient, viewAs]);
 
+  // switchWorkspaceDuringView — the switcher's behaviour while impersonating.
+  //
+  // Moving between workspaces has to re-open the session, because the session
+  // row is what target_account_id-scoped RLS reads. What must NOT change is WHO
+  // we are: passing the current targetUserId keeps the same person and moves
+  // only the workspace. Without it the server falls back to the new account's
+  // owner, which is how "view Zvika's business workspace" turned into "become
+  // the owner of that business" mid-session.
+  // targetUserId can legitimately be missing on a session opened before this
+  // change against an ownerless account, where the server stored NULL. Passing
+  // it through as undefined lets the server fall back to the owner, which then
+  // raises account_has_no_owner and reaches the operator as a readable error.
+  // Returning false here instead would make the click do nothing at all — the
+  // silent failure this whole rework exists to remove.
+  const switchWorkspaceDuringView = useMemo(() => async (targetAccountId) => {
+    if (!viewAs) return false;
+    if (targetAccountId === viewAs.targetAccountId) return true;
+    return enterViewAs(targetAccountId, 'workspace switch', viewAs.targetUserId);
+  }, [viewAs, enterViewAs]);
+
   const realActiveWorkspace = useMemo(
     () => memberships?.find(m => m.account_id === activeId) ?? null,
     [memberships, activeId]
@@ -437,24 +516,35 @@ export function WorkspaceProvider({ children }) {
   const value = useMemo(() => {
     const impersonating = !!viewAs;
     // When viewing-as, the admin is NOT a real member of the target, so we
-    // synthesize a membership-shaped object with the OWNER perspective. This
-    // is what makes business-vs-personal UI (account_type) and edit
-    // affordances (role) resolve correctly downstream — every consumer reads
+    // synthesize a membership-shaped object. Every consumer reads
     // activeWorkspace, so the override propagates with no per-screen change.
+    //
+    // The role is the TARGET's actual role, resolved server-side by
+    // admin_start_view. It used to be hardcoded to 'בעלים', which meant viewing
+    // a driver or a manager still rendered the owner's interface — the opposite
+    // of what a support session is for, and actively misleading: under real
+    // impersonation auth.uid() IS the target, so the server enforces THEIR
+    // permissions and every owner-only button we drew was one the click would
+    // have been refused. useAccountRole reads this straight through to roughly
+    // thirty pages.
+    //
+    // Falls back to 'בעלים' only when the server sent nothing — an old bundle
+    // talking to a pre-migration database, where the previous behaviour is the
+    // safer landing spot.
     const exposedWorkspace = impersonating
       ? {
           account_id:    viewAs.targetAccountId,
           account_name:  viewAs.targetName,
           account_type:  viewAs.targetType,
-          role:          'בעלים',
+          role:          viewAs.targetRole || 'בעלים',
           owner_user_id: viewAs.targetUserId,
           status:        MEMBER_STATUS.ACTIVE,
         }
       : realActiveWorkspace;
     // The WorkspaceSwitcher reads `memberships`. In view-as we feed it the
     // TARGET user's accounts so the admin can move between the target's
-    // personal/business workspaces; switching re-targets the session
-    // (switchTo → enterViewAs) instead of jumping to the admin's own account.
+    // personal/business workspaces; switching re-opens the session on the new
+    // workspace WITHOUT changing who we are (switchWorkspaceDuringView).
     const exposedMemberships = impersonating
       ? (viewAsAccounts.length > 0 ? viewAsAccounts : [exposedWorkspace])
       : (memberships ?? []);
@@ -462,7 +552,7 @@ export function WorkspaceProvider({ children }) {
       memberships:        exposedMemberships,
       activeWorkspaceId:  impersonating ? viewAs.targetAccountId : activeId,
       activeWorkspace:    exposedWorkspace,
-      switchTo:           impersonating ? enterViewAs : switchTo,
+      switchTo:           impersonating ? switchWorkspaceDuringView : switchTo,
       enterViewAs,
       exitViewAs,
       viewAs,
@@ -475,7 +565,7 @@ export function WorkspaceProvider({ children }) {
       isLoading: membershipsLoading && !activeId && !impersonating,
       isGuest:   !!isGuest || authState === 'guest',
     };
-  }, [memberships, viewAsAccounts, activeId, realActiveWorkspace, switchTo, enterViewAs, exitViewAs, viewAs, membershipsLoading, isGuest, authState]);
+  }, [memberships, viewAsAccounts, activeId, realActiveWorkspace, switchTo, switchWorkspaceDuringView, enterViewAs, exitViewAs, viewAs, membershipsLoading, isGuest, authState]);
 
   return (
     <WorkspaceContext.Provider value={value}>

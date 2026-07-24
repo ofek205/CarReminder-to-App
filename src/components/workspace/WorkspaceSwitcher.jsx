@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
 import { isGrantedMember } from '@/lib/enums';
+import { viewAsErrorText } from '@/lib/viewAsError';
 
 const PERSONAL_LABEL = 'החשבון הפרטי שלי';
 
@@ -102,20 +103,19 @@ export default function WorkspaceSwitcher() {
                       onClick={async () => {
                         setOpen(false);
                         if (!isActive) {
-                          // During view-as, switchTo IS enterViewAs — it opens
-                          // a fresh audited session and can reject (not admin
-                          // any more, session expired, token mint failed).
-                          // Unhandled, the dropdown just closed and nothing
-                          // happened, leaving the admin on the previous
-                          // workspace with no idea the switch failed.
+                          // During view-as, switchTo re-opens the audited
+                          // session on the new workspace and can reject (not
+                          // admin any more, session expired, target not a
+                          // member there, token mint failed). Unhandled, the
+                          // dropdown just closed and nothing happened, leaving
+                          // the admin on the previous workspace with no idea
+                          // the switch failed.
                           let ok = false;
                           try {
                             ok = await switchTo(m.account_id);
                           } catch (err) {
                             toast.error('לא ניתן היה להחליף מרחב עבודה', {
-                              description: err?.message === 'impersonation_unavailable'
-                                ? 'הצפייה בחשבון הופסקה. היכנס שוב מניהול המשתמשים.'
-                                : err?.message,
+                              description: viewAsErrorText(err, err?.message),
                             });
                             return;
                           }
@@ -125,11 +125,19 @@ export default function WorkspaceSwitcher() {
                             // drivers must land on /MyVehicles instead or
                             // they hit the "אין הרשאה לדשבורד" guard right
                             // after every switch back to business.
+                            //
+                            // During view-as the switch returns the session
+                            // payload, whose target_role is the role the server
+                            // just resolved for that person in that workspace.
+                            // Prefer it: the membership list carries no role
+                            // while impersonating, and guessing one here is
+                            // what used to send a viewed driver into the guard.
+                            const role = (ok && typeof ok === 'object' && ok.target_role)
+                              ? ok.target_role
+                              : m.role;
                             let target;
                             if (m.account_type === 'business') {
-                              target = m.role === 'driver'
-                                ? 'MyVehicles'
-                                : 'BusinessDashboard';
+                              target = role === 'driver' ? 'MyVehicles' : 'BusinessDashboard';
                             } else {
                               target = 'Dashboard';
                             }

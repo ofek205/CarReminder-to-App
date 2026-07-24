@@ -27,6 +27,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/business/system';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
+import { viewAsErrorText } from '@/lib/viewAsError';
 import { buildEmailHtml, escapeHtml } from '@/lib/emailTemplates';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 import { C } from '@/lib/designTokens';
@@ -101,20 +102,20 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
     if (!activeAccountId || entering) return;
     setEntering(true);
     try {
-      await enterViewAs(activeAccountId);
+      // Name the person explicitly rather than letting the server infer them
+      // from the account's owner. Same result for this screen — the drawer is
+      // account-centric and data.owner IS that account's owner — but it makes
+      // the identity a decision made at the call site instead of a side effect
+      // of which account happens to be selected.
+      await enterViewAs(activeAccountId, null, data?.owner?.id);
       onClose?.();
       navigate(createPageUrl('Dashboard'));
     } catch (err) {
-      // 'impersonation_unavailable' is a machine code thrown by enterViewAs
-      // when the session token could not be minted. Showing it raw put an
-      // English identifier in front of a Hebrew user; worse, it reads like a
-      // crash when it is in fact the safety net working — the session was
-      // rolled back rather than started with the wrong identity.
-      toast.error('שגיאה בכניסה לחשבון', {
-        description: err?.message === 'impersonation_unavailable'
-          ? 'לא ניתן לאמת את הזהות לצפייה. הצפייה בוטלה ולא נפתחה — נסה שוב.'
-          : err?.message,
-      });
+      // Codes travel from the server as machine strings; viewAsError owns the
+      // Hebrew. Showing err.message raw put English identifiers in front of a
+      // Hebrew user and, for refusals like cannot_view_admin, read as a crash
+      // when it was in fact the safety net working.
+      toast.error('שגיאה בכניסה לחשבון', { description: viewAsErrorText(err) });
       setEntering(false);
     }
   };
