@@ -11,10 +11,19 @@
 --   toast rather than surfacing the server error.
 --
 -- TWO CORRECTNESS FIXES, NOT ONE
---   1. The gate now also accepts public.is_viewing(v_row.account_id) — the
---      same audited, time-boxed primitive every other view-as grant uses.
---      is_viewing() is false for non-admins and false with no active session,
---      so nothing changes for regular users.
+--   1. The gate now also accepts public.is_viewing_user(v_row.user_id) — the
+--      audited, time-boxed primitive keyed on the TARGET USER. False for
+--      non-admins and false with no active session, so nothing changes for
+--      regular users.
+--
+--      It must be the invitee, not the account. The first version of this
+--      file gated on is_viewing(v_row.account_id) and rejected every real
+--      case: an invite to a BUSINESS account carries that business's
+--      account_id, while the admin's session targets the invitee's own
+--      account. Two different ids, so the check failed with not_your_invite
+--      on exactly the invites it was written to allow. The question is "am I
+--      impersonating the person this invite belongs to", and only
+--      is_viewing_user asks it.
 --
 --   2. The notification sent to the inviter was built from uid, which under
 --      view-as is the admin. The inviter would have been told "אופק אדלשטיין
@@ -58,7 +67,7 @@ begin
   end if;
 
   if v_row.user_id <> uid then
-    if public.is_viewing(v_row.account_id) then
+    if public.is_viewing_user(v_row.user_id) then
       v_via_admin := true;
     else
       raise exception 'not_your_invite';
@@ -147,7 +156,7 @@ begin
   end if;
 
   if v_row.user_id <> uid then
-    if public.is_viewing(v_row.account_id) then
+    if public.is_viewing_user(v_row.user_id) then
       v_via_admin := true;
     else
       raise exception 'not_your_invite';
