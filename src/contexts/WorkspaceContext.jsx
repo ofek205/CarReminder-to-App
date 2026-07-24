@@ -41,6 +41,43 @@ import { setViewAs, clearViewAs } from '@/lib/viewAsState';
 import { clearSignedUrlCache } from '@/hooks/useSignedUrl';
 import { clearBreadcrumbs } from '@/lib/breadcrumbs';
 import { MEMBER_STATUS, isGrantedMember } from '@/lib/enums';
+import { setImpersonationToken, clearImpersonationToken } from '@/lib/supabase';
+
+/**
+ * Ask admin-impersonate for a token whose `sub` is the target of the active
+ * view session, and route data calls through it.
+ *
+ * Best-effort by design. A failure here leaves the admin on their own token —
+ * exactly the behaviour that shipped before impersonation existed, where each
+ * screen worked only if its RPC happened to carry an is_viewing() escape. That
+ * is degraded, not broken, and it is the right failure direction: the
+ * alternative is a session that looks live but silently reads as the wrong
+ * person.
+ *
+ * Returns true when data calls are now scoped to the target.
+ */
+async function mintImpersonationToken() {
+  try {
+    // Clear first. `functions` is on the redirected data plane, so calling
+    // admin-impersonate while a token is already active sends the request as
+    // the TARGET — who fails the function's is_admin() gate by construction,
+    // since minting refuses admin targets. Renewal would fail forever and the
+    // session would quietly fall back to the admin's own identity. Minting
+    // must always speak as the admin.
+    clearImpersonationToken();
+    const { data, error } = await supabase.functions.invoke('admin-impersonate', { body: {} });
+    if (error || !data?.token) {
+      if (import.meta.env.DEV) console.warn('[view-as] impersonation unavailable:', error?.message || 'no token');
+      clearImpersonationToken();
+      return false;
+    }
+    return setImpersonationToken(data.token);
+  } catch (e) {
+    if (import.meta.env.DEV) console.warn('[view-as] impersonation failed:', e?.message || e);
+    clearImpersonationToken();
+    return false;
+  }
+}
 
 const WorkspaceContext = createContext(null);
 
@@ -199,6 +236,10 @@ export function WorkspaceProvider({ children }) {
     // A change of identity (sign in/out/switch) ends any view-as session
     // and allows boot re-hydration for the new identity.
     viewHydratedRef.current = false;
+    // Sign-out and account-switch must drop the borrowed identity too.
+    // Leaving it set would let the next signed-in user inherit data calls
+    // scoped to whoever the previous admin was viewing.
+    clearImpersonationToken();
     clearViewAs();
   }, [user?.id]);
 
@@ -260,6 +301,11 @@ export function WorkspaceProvider({ children }) {
             targetType:      data.target_type,
             expiresAt:       data.expires_at,
           });
+          // A reload mid-session restores the flag from the server but not the
+          // token — it is deliberately never persisted, so it does not survive
+          // a refresh. Re-mint here, or the admin would come back to a session
+          // that says "viewing" while every query silently runs as themselves.
+          await mintImpersonationToken();
         }
       } catch { /* no active session — stay in normal mode */ }
     })();
@@ -283,6 +329,11 @@ export function WorkspaceProvider({ children }) {
       ownerEmail:      data.owner_email,
       expiresAt:       data.expires_at,
     });
+    // Mint BEFORE clearing the cache. Otherwise the refetch storm that
+    // queryClient.clear() triggers races the token and the first wave of
+    // queries goes out on the admin's own identity — which is precisely the
+    // mixed-identity screen this feature exists to eliminate.
+    await mintImpersonationToken();
     // Hard-clear the cache (not just invalidate): any query the admin ran
     // under their own context — including results cached BEFORE the server
     // session existed — must not be served stale. Every screen then refetches
@@ -294,6 +345,15 @@ export function WorkspaceProvider({ children }) {
   // exitViewAs — close the server session and drop every cached scrap of
   // the target's data so nothing bleeds back into the admin's own view.
   const exitViewAs = useMemo(() => async () => {
+    // Drop the impersonation token FIRST. admin_end_view opens with
+    // `if not public.is_admin() then raise exception 'unauthorized'` and then
+    // closes the session `where admin_user_id = auth.uid()`. Called while the
+    // token is still active it runs as the TARGET — who is never an admin,
+    // since minting refuses admin targets — so it raises, the catch below
+    // swallows it, and ended_at silently stays NULL. The client would look
+    // exited while the server session lived on until expires_at, still able to
+    // mint fresh tokens. An exit that does not exit.
+    clearImpersonationToken();
     try { await supabase.rpc('admin_end_view'); } catch { /* best effort */ }
     clearViewAs();
     // Drop every cached scrap of the target's data so nothing bleeds back
