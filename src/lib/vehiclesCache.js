@@ -37,21 +37,31 @@ const STORAGE_VERSION = 'v2';
  */
 const CACHE_KEY_RE = /^cr_vehicles_v\d+(_ts)?:/;
 
+// Dashboard.jsx keeps a SEPARATE vehicle cache under a hyphenated key
+// (cr-vehicles-cache:<userId>:<accountId>, shape {ts,data}). It predates this
+// module and is not one of ours to read or write, but exitViewAs must be able
+// to wipe it too — otherwise an impersonated customer's vehicles written by an
+// OLD build (before Dashboard's own view-as write-guard landed) survive on the
+// admin's device. Matched only by clearVehiclesCache, never by the boot sweep:
+// for a normal user this is a valid current cache, not stale.
+const DASHBOARD_KEY_RE = /^cr-vehicles-cache:/;
+
 const storageKey   = (userId, accountId) => `${KEY_PREFIX}${STORAGE_VERSION}:${userId}:${accountId}`;
 const timestampKey = (userId, accountId) => `${KEY_PREFIX}${STORAGE_VERSION}_ts:${userId}:${accountId}`;
 
-/** Every versioned cache key currently in storage. */
-function cacheKeys(predicate) {
+/** Keys matching `re` for which `predicate` is true. */
+function keysMatching(re, predicate) {
   const found = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && CACHE_KEY_RE.test(k) && predicate(k)) found.push(k);
+    if (k && re.test(k) && predicate(k)) found.push(k);
   }
   return found;
 }
 
 /**
- * Remove every cached vehicle list, of any version, for any account.
+ * Remove every cached vehicle list this app writes — both this module's
+ * versioned keys and Dashboard's separate one, for any account.
  *
  * Matches by prefix rather than by current key shape on purpose: the v1 keys
  * older builds wrote hold a customer's vehicles under an account id that is
@@ -60,7 +70,8 @@ function cacheKeys(predicate) {
  */
 export function clearVehiclesCache() {
   try {
-    cacheKeys(() => true).forEach((k) => localStorage.removeItem(k));
+    keysMatching(CACHE_KEY_RE, () => true).forEach((k) => localStorage.removeItem(k));
+    keysMatching(DASHBOARD_KEY_RE, () => true).forEach((k) => localStorage.removeItem(k));
   } catch { /* storage unavailable — nothing cached, nothing to clear */ }
 }
 
@@ -79,7 +90,7 @@ export function clearVehiclesCache() {
 function sweepOtherVersions() {
   try {
     const keep = `${KEY_PREFIX}${STORAGE_VERSION}`;
-    cacheKeys((k) => !k.startsWith(keep)).forEach((k) => localStorage.removeItem(k));
+    keysMatching(CACHE_KEY_RE, (k) => !k.startsWith(keep)).forEach((k) => localStorage.removeItem(k));
   } catch { /* storage unavailable — nothing to sweep */ }
 }
 

@@ -190,10 +190,34 @@ serve(async (req) => {
   // is_admin has a single-argument overload added for triggers
   // (supabase-critical-fixes.sql:113) — the no-arg form reads auth.uid(),
   // which under the service-role client is nobody.
-  const { data: targetIsAdmin } = await admin.rpc('is_admin', { uid: targetId })
-    .then(r => r, () => ({ data: null }));
-  if (targetIsAdmin === true) {
-    logSecurityEvent(FN, 'permission_denied', { reason: 'target_is_admin', adminId, targetId });
+  //
+  // FAIL CLOSED. This must deny on ANY inability to prove the target is NOT an
+  // admin — not only when it proves they ARE. Because admin_start_view has no
+  // admin-target guard, this call is the sole barrier to admin-to-admin
+  // impersonation, so "could not check" has to mean "deny", exactly as gates 1
+  // and 2 above treat their own errors. The previous form swallowed the error
+  // (`.then(r => r, () => ({ data: null }))`) and branched only on
+  // `=== true`, so a missing overload, a missing EXECUTE grant, or a transient
+  // failure all collapsed to null and MINTED the token — the one fail-open
+  // hole in a design whose header promises "all fail-closed".
+  //
+  // supabase-js reports PostgREST-level failures as a resolved { error }, and
+  // transport failures as a rejection; both must deny. Require an explicit
+  // boolean `false` to proceed.
+  let targetIsAdmin: unknown = null;
+  let targetAdminErr: unknown = null;
+  try {
+    const res = await admin.rpc('is_admin', { uid: targetId });
+    targetIsAdmin = res.data;
+    targetAdminErr = res.error;
+  } catch (e) {
+    targetAdminErr = e;
+  }
+  if (targetAdminErr || targetIsAdmin !== false) {
+    logSecurityEvent(FN, 'permission_denied', {
+      reason: targetIsAdmin === true ? 'target_is_admin' : 'admin_check_failed',
+      adminId, targetId,
+    });
     return json({ error: 'cannot_impersonate_admin' }, 403, cors);
   }
 

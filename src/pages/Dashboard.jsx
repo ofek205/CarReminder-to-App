@@ -1179,6 +1179,16 @@ export default function Dashboard() {
   useEffect(() => {
     if (!VEHICLES_CACHE_KEY) return;
     if (!Array.isArray(vehicles)) return;
+    // Never persist during view-as. This is a SECOND vehicle cache, separate
+    // from the useMyVehicles/vehiclesCache.js path — and it was missed when
+    // that one was hardened, so it kept writing the impersonated customer's
+    // plates and models to the admin's disk under the admin's own user id
+    // (auth is never impersonated) and the target's account id. clearVehicles-
+    // Cache() could not remove them either: its key shape is the underscored
+    // cr_vehicles_v2:… while this one is the hyphenated cr-vehicles-cache:…
+    // Not writing is the primary fix; the exit sweep now also matches this
+    // prefix as a second layer. Mirrors the same guard in vehiclesCache.js.
+    if (viewAs) return;
     // Don't overwrite a populated cache with [] during the very first
     // mount before the query resolves — empty + no data = uninteresting.
     if (vehicles.length === 0 && !cachedVehicles) return;
@@ -1195,8 +1205,8 @@ export default function Dashboard() {
     // changing accounts re-evaluates it and re-writes under the new
     // key. cachedVehicles is read once at mount; intentionally NOT
     // a dep to avoid infinite re-write on every snapshot.
-     
-  }, [vehicles, VEHICLES_CACHE_KEY]);
+
+  }, [vehicles, VEHICLES_CACHE_KEY, viewAs]);
 
   // Schedule device notifications for authenticated users.
   // Pass the FULL vehicle list (not filteredVehicles) so the user's UI

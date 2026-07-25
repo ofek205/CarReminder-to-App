@@ -38,7 +38,7 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useWorkspaces from '@/hooks/useWorkspaces';
 import useViewAs from '@/hooks/useViewAs';
 import useIsAdmin from '@/hooks/useIsAdmin';
-import { setViewAs, clearViewAs } from '@/lib/viewAsState';
+import { setViewAs, clearViewAs, getViewAs } from '@/lib/viewAsState';
 import { clearSignedUrlCache } from '@/hooks/useSignedUrl';
 import { clearVehiclesCache } from '@/lib/vehiclesCache';
 import { clearBreadcrumbs } from '@/lib/breadcrumbs';
@@ -62,20 +62,65 @@ import { adminSupabase, setImpersonationToken, clearImpersonationToken } from '@
  * costume of a right one, with no error anywhere. Refusing to start the session
  * is the only failure mode an operator can act on.
  */
-async function mintImpersonationToken() {
+/**
+ * Monotonic view-as generation. Every operation that changes WHICH session is
+ * live — enter, exit, a workspace switch (which re-enters), and the identity
+ * change that force-clears — bumps it. An async mint captures the generation
+ * it began under and refuses to install its token if the number has moved on.
+ *
+ * Why it must exist: enterViewAs sets viewAs and mounts the banner BEFORE the
+ * mint edge-call resolves (~2-3s on the mobile networks this app targets). If
+ * an exit runs in that window, the exit clears the not-yet-installed token and
+ * ends the server session, then the in-flight mint resolves and re-installs
+ * the token — leaving _impersonationClient SET while viewAs is null: every
+ * data call silently runs as the target, with no banner and no renewal, until
+ * the token's 15-minute expiry or a reload. The generation check turns that
+ * late install into a no-op.
+ */
+let viewGeneration = 0;
+
+/**
+ * Mint a token for the session identified by `generation` and install it, but
+ * ONLY if that generation is still current when the edge-call returns. A stale
+ * generation means a concurrent exit or re-enter already owns the shared token
+ * state; installing now would strand it. Returns true only when the token was
+ * actually installed for the still-current session.
+ */
+async function mintImpersonationToken(generation) {
   try {
     // adminSupabase, not supabase: minting must speak as the admin, and
     // `functions` is on the redirected plane.
     const { data, error } = await adminSupabase.functions.invoke('admin-impersonate', { body: {} });
+    // Re-check AFTER the await: the world may have moved while it was in flight.
+
+    // (1) Session torn down while we were minting. This is the tighter test and
+    // it IS the invariant: viewAs null must imply no token. The generation
+    // number alone cannot catch every case — a renewal reads the current
+    // generation WITHOUT bumping it (to keep the same session), so a renewal
+    // and a concurrent enter can carry the SAME number; if that enter then
+    // fails and clears viewAs, the renewal's own install still passes a pure
+    // generation check and re-installs a token onto a session that no longer
+    // exists. Clearing here is always safe: a live enter sets viewAs BEFORE it
+    // installs, so viewAs===null means no operation legitimately owns a token.
+    if (getViewAs() === null) {
+      clearImpersonationToken();
+      return false;
+    }
+    // (2) A newer operation (with its own viewAs) superseded us by generation.
+    // It owns the token now — do NOT clear it, just decline to install ours.
+    if (generation !== viewGeneration) return false;
+    // (3) A genuine mint failure while we still own the live session.
     if (error || !data?.token) {
       if (import.meta.env.DEV) console.warn('[view-as] impersonation unavailable:', error?.message || 'no token');
       clearImpersonationToken();
       return false;
     }
+    // The checks and the install are synchronous together — no await between —
+    // so nothing can interleave in the gap and be overwritten.
     return setImpersonationToken(data.token);
   } catch (e) {
     if (import.meta.env.DEV) console.warn('[view-as] impersonation failed:', e?.message || e);
-    clearImpersonationToken();
+    if (generation === viewGeneration) clearImpersonationToken();
     return false;
   }
 }
@@ -277,7 +322,10 @@ export function WorkspaceProvider({ children }) {
     viewHydratedRef.current = false;
     // Sign-out and account-switch must drop the borrowed identity too.
     // Leaving it set would let the next signed-in user inherit data calls
-    // scoped to whoever the previous admin was viewing.
+    // scoped to whoever the previous admin was viewing. Bump the generation
+    // so any enter/renew mint still in flight from the previous identity
+    // cannot install its token after this clear.
+    viewGeneration++;
     clearImpersonationToken();
     clearViewAs();
   }, [user?.id]);
@@ -329,9 +377,11 @@ export function WorkspaceProvider({ children }) {
     if (isAdmin !== true) return;
     if (viewHydratedRef.current) return;
     viewHydratedRef.current = true;
+    const gen = ++viewGeneration;
     (async () => {
       try {
         const { data } = await adminSupabase.rpc('admin_current_view');
+        if (gen !== viewGeneration) return;   // superseded while we asked
         if (data && data.target_account_id) {
           setViewAs(viewAsFromPayload(data));
           // A reload mid-session restores the flag from the server but not the
@@ -343,7 +393,7 @@ export function WorkspaceProvider({ children }) {
           // server session is deliberately left OPEN — it is still valid and
           // the admin never asked to end it, so a transient network failure on
           // reload should cost a retry, not the session.
-          if (!await mintImpersonationToken()) clearViewAs();
+          if (!await mintImpersonationToken(gen) && gen === viewGeneration) clearViewAs();
         }
       } catch { /* no active session — stay in normal mode */ }
     })();
@@ -363,6 +413,10 @@ export function WorkspaceProvider({ children }) {
   // target_email changes mid-sequence.
   const enterViewAs = useMemo(() => async (targetAccountId, reason, targetUserId) => {
     if (!targetAccountId) return false;
+    // Claim this generation up front. Every await below re-checks it, so a
+    // concurrent exit or a second enter (e.g. two quick workspace-switch taps)
+    // that supersedes us can never be clobbered by our late writes.
+    const gen = ++viewGeneration;
     // adminSupabase: admin_start_view opens with is_admin(), so switching
     // workspaces mid-session — which routes through here — must not arrive as
     // the person currently being viewed.
@@ -372,6 +426,12 @@ export function WorkspaceProvider({ children }) {
       p_user_id: targetUserId ?? null,
     });
     if (error) throw error;
+    // Superseded while admin_start_view was in flight? We opened a server
+    // session nobody will use — close it as the admin and touch nothing else.
+    if (gen !== viewGeneration) {
+      try { await adminSupabase.rpc('admin_end_view'); } catch { /* best effort */ }
+      return false;
+    }
     setViewAs(viewAsFromPayload(data));
     // Mint BEFORE clearing the cache. Otherwise the refetch storm that
     // queryClient.clear() triggers races the token and the first wave of
@@ -385,7 +445,11 @@ export function WorkspaceProvider({ children }) {
     // a plausible blend of the admin's own rows and the target's — a wrong
     // answer that looks like a right one. An error the admin can read beats a
     // session that lies about whose data is on screen.
-    if (!await mintImpersonationToken()) {
+    if (!await mintImpersonationToken(gen)) {
+      // Only tear down if we are STILL the current operation. If the generation
+      // moved on, a concurrent exit/enter already owns teardown and running it
+      // here would clobber their state — the very race this guard prevents.
+      if (gen !== viewGeneration) return false;
       clearViewAs();
       // The token was already cleared inside mint on failure, so this speaks
       // as the admin and actually closes the row we just opened. Leaving it
@@ -393,17 +457,28 @@ export function WorkspaceProvider({ children }) {
       try { await adminSupabase.rpc('admin_end_view'); } catch { /* best effort */ }
       throw new Error('impersonation_unavailable');
     }
-    // Hard-clear the cache (not just invalidate): any query the admin ran
-    // under their own context — including results cached BEFORE the server
-    // session existed — must not be served stale. Every screen then refetches
-    // fresh, scoped to the target account.
+    // Hard-clear every cache, not just React Query. A workspace switch during
+    // view-as routes back through here (switchWorkspaceDuringView), so this is
+    // also the switch-from-A-to-B path — and B's session must not inherit A's
+    // signed URLs (valid for days), breadcrumb trail, or localStorage vehicle
+    // lists. Clearing only the query cache here left the other three holding
+    // the previous target's data while the admin viewed the next one. Same set
+    // exitViewAs clears, for the same reason.
     queryClient.clear();
+    try { clearSignedUrlCache(); } catch { /* noop */ }
+    try { clearBreadcrumbs(); } catch { /* noop */ }
+    try { clearVehiclesCache(); } catch { /* noop */ }
     return data;
   }, [queryClient]);
 
   // exitViewAs — close the server session and drop every cached scrap of
   // the target's data so nothing bleeds back into the admin's own view.
   const exitViewAs = useMemo(() => async () => {
+    // Claim a generation. Bumping before anything else makes a concurrent
+    // enter's or renewal's in-flight mint a no-op (its post-await check sees
+    // the number moved). Capturing our own bump value lets us detect the
+    // REVERSE interleaving below.
+    const myGen = ++viewGeneration;
     // Drop the impersonation token FIRST. admin_end_view opens with
     // `if not public.is_admin() then raise exception 'unauthorized'` and then
     // closes the session `where admin_user_id = auth.uid()`. Called while the
@@ -414,7 +489,25 @@ export function WorkspaceProvider({ children }) {
     // mint fresh tokens. An exit that does not exit.
     clearImpersonationToken();
     try { await adminSupabase.rpc('admin_end_view'); } catch { /* best effort */ }
+    // exit-then-enter guard. If a fresh enterViewAs started while admin_end_view
+    // was in flight, it has by now set viewAs and installed a token for its own
+    // session (a consistent pair) under a newer generation. Running the teardown
+    // below would null viewAs while that newer token stays installed — the exact
+    // orphaned-token state (_impersonationClient set, viewAs null, no banner,
+    // data calls silently as the target) this whole generation mechanism exists
+    // to prevent. The newer operation owns the state now; yield to it.
+    if (myGen !== viewGeneration) return;
     clearViewAs();
+    // Clear the token a SECOND time, after clearViewAs. The first clear (above,
+    // before the await) is required so admin_end_view runs as the admin — but a
+    // renewal firing DURING that await shares this exit's generation (renewal
+    // reads viewGeneration without bumping) and viewAs is still set at that
+    // instant, so neither the generation guard nor mint's viewAs-null guard
+    // stops it from installing a fresh token. That token would then outlive the
+    // clearViewAs above as an orphan (viewAs null, token set, no banner). This
+    // second clear wipes exactly that late install; any renewal resolving after
+    // this point is refused by mint because viewAs is now null.
+    clearImpersonationToken();
     // Drop every cached scrap of the target's data so nothing bleeds back
     // into the admin's own view: React Query cache, the signed-URL cache
     // (file URLs valid for days), the breadcrumb ring buffer, and the
@@ -446,7 +539,19 @@ export function WorkspaceProvider({ children }) {
   useEffect(() => {
     if (!viewAs) return undefined;
     const id = setInterval(async () => {
-      if (await mintImpersonationToken()) return;
+      // Renewal keeps the SAME session, so it renews under the current
+      // generation. If an exit fires mid-renewal, the generation moves and the
+      // freshly-minted token is discarded rather than installed over the exit.
+      const gen = viewGeneration;
+      if (await mintImpersonationToken(gen)) return;
+      // Nothing to report if the session is already gone. Two ways that
+      // happens: a newer operation bumped the generation (exit/enter), or a
+      // user-initiated exit nulled viewAs while this renewal's mint was in
+      // flight — in which case mint refused the install via its viewAs-null
+      // guard and there is no failed session to announce. Without this second
+      // check the admin gets a spurious "view ended" toast in the ~1-2s window
+      // right after they themselves pressed exit.
+      if (gen !== viewGeneration || getViewAs() === null) return;
       toast.error('הצפייה בחשבון הסתיימה', {
         description: 'לא ניתן היה לחדש את ההרשאה. היכנס שוב מניהול המשתמשים.',
       });

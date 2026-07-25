@@ -41,15 +41,36 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_admin uuid;
 begin
   -- nullif('') guards the case where the claim is present but empty; a bad
   -- cast here would abort a legitimate write, so the failure mode has to be
   -- "no attribution", never "no write".
   begin
-    new.acting_admin_id := nullif(auth.jwt() ->> 'impersonated_by', '')::uuid;
+    v_admin := nullif(auth.jwt() ->> 'impersonated_by', '')::uuid;
   exception when others then
-    new.acting_admin_id := null;
+    v_admin := null;
   end;
+
+  if v_admin is not null then
+    -- An impersonated write: record who really held the keyboard.
+    new.acting_admin_id := v_admin;
+  elsif tg_op = 'UPDATE' then
+    -- A NORMAL write must never erase an existing stamp. This is a BEFORE
+    -- trigger, so assigning the column overrides what the UPDATE would have
+    -- left in place — and the row acting_admin_id is the ONLY durable
+    -- row-level record that an admin ever touched this row (there is no
+    -- history table, and the audit-log path short-circuits under
+    -- impersonation because auth.uid() is the non-admin target). Blindly
+    -- setting it to NULL on the user's next ordinary edit destroyed exactly
+    -- the attribution this file exists to keep. Carry the prior value forward.
+    new.acting_admin_id := old.acting_admin_id;
+  else
+    -- Normal INSERT with no impersonation: nobody to attribute.
+    new.acting_admin_id := null;
+  end if;
+
   return new;
 end $$;
 

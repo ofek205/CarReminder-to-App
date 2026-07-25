@@ -48,6 +48,13 @@ export default function PendingInviteBanner() {
   const effectiveUserId = useEffectiveUserId();
   const queryClient = useQueryClient();
   const [acting, setActing] = useState(null);
+  // Invites acted on this mount, hidden locally. During view-as the is_read
+  // write is deliberately skipped (read state is the target's), so the query —
+  // which filters is_read=false — keeps returning the row after a successful
+  // accept/decline and the banner never clears. The bell solves this with the
+  // same local-Set pattern (NotificationBell markRead); without it the admin
+  // sees active buttons after acting and a second click hits invite_not_pending.
+  const [handledIds, setHandledIds] = useState(() => new Set());
 
   // Shown during view-as. This used to be hidden because accept/decline ran
   // as the admin's own JWT and the RPCs refuse anyone but the invitee — a
@@ -90,6 +97,11 @@ export default function PendingInviteBanner() {
       const { error } = await supabase.rpc(rpc, { p_member_id: memberId });
       if (error) throw error;
 
+      // Hide it locally right away. This is the only thing that clears the
+      // banner during view-as, where the is_read write below is skipped and the
+      // query would otherwise keep returning the still-unread row.
+      setHandledIds(prev => new Set(prev).add(invite.id));
+
       // Mark the source notification read so the banner and the bell agree
       // — both key off is_read, so skipping this leaves the banner up
       // until the next full refetch.
@@ -129,11 +141,12 @@ export default function PendingInviteBanner() {
     }
   };
 
-  if (!enabled || invites.length === 0) return null;
+  const visible = invites.filter(i => i.data?.member_id && !handledIds.has(i.id));
+  if (!enabled || visible.length === 0) return null;
 
   return (
     <>
-      {invites.filter(i => i.data?.member_id).map(invite => (
+      {visible.map(invite => (
         <div key={invite.id}
           className="rounded-2xl p-4 flex items-start gap-3 mb-4"
           style={{
