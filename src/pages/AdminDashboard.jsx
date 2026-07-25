@@ -1651,6 +1651,27 @@ export function AdminUsersTab({ onOpenDrawer }) {
           </div>
         </div>
 
+        {/* Ownerless-workspace alert.
+            An account whose owner was cleared has nobody holding owner
+            powers — members cannot invite, change roles or edit it, because
+            every owner-level RLS policy keys off account_members.role =
+            'בעלים'. The workspace is frozen until an admin appoints someone,
+            and only an admin can. That state is easy to create and easy to
+            forget, so it gets a standing banner rather than only a per-row
+            badge. Counted across ALL accounts, not just the current page —
+            an orphan on page 4 still needs attention. */}
+        {!rpcMissing && users.some(u => !u.owner_user_id) && (
+          <div className="mb-3 rounded-xl px-3 py-2.5 flex items-start gap-2 bg-amber-50 border border-amber-200" role="status">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+            <div className="text-[11px] leading-relaxed text-amber-900">
+              <span className="font-bold">
+                {users.filter(u => !u.owner_user_id).length} חשבונות ללא בעלים
+              </span>
+              {' — '}אף אחד לא יכול לנהל אותם עד שימונה בעלים. חפש/י את הסימון «אין בעלים» ברשימה.
+            </div>
+          </div>
+        )}
+
         {/* Mobile sort control. the table's click-to-sort doesn't exist in card view. */}
         <div className="sm:hidden mb-3">
           <select value={`${sortKey}:${sortDir}`}
@@ -1687,6 +1708,17 @@ export function AdminUsersTab({ onOpenDrawer }) {
                     </div>
                   ) : <p className="text-[11px] text-gray-300 mt-0.5"></p>}
                 </div>
+                {/* Mobile has no columns, so the ownerless state rides as a
+                    badge here instead. Same rpcMissing guard as the desktop
+                    column — the fallback path nulls owner_user_id on every
+                    row and would otherwise flag them all. */}
+                {!rpcMissing && !u.owner_user_id && (
+                  <span
+                    title="לחשבון אין בעלים"
+                    className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">
+                    <AlertTriangle className="w-3 h-3" /> אין בעלים
+                  </span>
+                )}
                 {u.role === 'admin' && (
                   <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 shrink-0">
                     <ShieldCheck className="w-3 h-3" /> אדמין
@@ -1742,6 +1774,7 @@ export function AdminUsersTab({ onOpenDrawer }) {
             <thead className="text-gray-500 border-b border-gray-100">
               <tr>
                 <SortHead label="שם חשבון" k="name" />
+                <th className="text-right py-2 px-2">בעלים</th>
                 <th className="text-right py-2 px-2">אימייל</th>
                 <th className="text-right py-2 px-2">תפקיד</th>
                 <SortHead label="רכבים" k="vehicles" />
@@ -1757,6 +1790,29 @@ export function AdminUsersTab({ onOpenDrawer }) {
               {pageUsers.map(u => (
                 <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="py-2 px-2 font-medium max-w-[140px] truncate" title={u.name}>{u.name || '-'}</td>
+                  {/* Owner column. An account with no owner is a real state
+                      since admin_set_account_owner can clear it — nobody then
+                      holds owner powers, so members cannot invite, change
+                      roles, or edit the account until an admin appoints
+                      someone. Worth calling out rather than rendering blank.
+                      Suppressed while rpcMissing: the client-side fallback
+                      sets owner_user_id to null for EVERY row, which would
+                      otherwise flag the whole table as ownerless. */}
+                  <td className="py-2 px-2">
+                    {rpcMissing ? (
+                      <span className="text-gray-300">—</span>
+                    ) : u.owner_user_id ? (
+                      <span className="truncate max-w-[120px] inline-block align-bottom" title={u.owner_name || u.email || ''}>
+                        {u.owner_name || u.email || '—'}
+                      </span>
+                    ) : (
+                      <span
+                        title="לחשבון אין בעלים — אף אחד לא יכול לנהל אותו עד שימונה בעלים"
+                        className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                        <AlertTriangle className="w-3 h-3" /> אין בעלים
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2 px-2">
                     {u.email ? (
                       <div className="flex items-center gap-1.5">

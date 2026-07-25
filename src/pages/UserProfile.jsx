@@ -24,6 +24,8 @@ import { toastError } from "@/lib/userErrorReport";
 import { useQueryClient } from '@tanstack/react-query';
 import { USER_PROFILE_QUERY_KEY } from '@/hooks/useUserProfile';
 import { useAuth } from "../components/shared/GuestContext";
+import useViewAs from '@/hooks/useViewAs';
+import useEffectiveUserId from '@/hooks/useEffectiveUserId';
 import useFormValidation from '@/hooks/useFormValidation';
 import FieldError from '../components/shared/FieldError';
 import SystemErrorBanner from '../components/shared/SystemErrorBanner';
@@ -223,6 +225,12 @@ export default function UserProfilePage({ embedded = false }) {
 
 function AuthUserProfile({ embedded = false }) {
   const { refreshUser } = useAuth();
+  // View-as: show the TARGET's profile, READ-ONLY. Saving here calls
+  // auth.updateUser() which would edit the ADMIN's own name — so save is hard-
+  // blocked while viewing (decision: profile is read-only in view-as).
+  const viewAs = useViewAs();
+  const isViewingAs = !!viewAs;
+  const effectiveUserId = useEffectiveUserId();
   const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -253,10 +261,12 @@ function AuthUserProfile({ embedded = false }) {
       if (!u) { setLoading(false); return; }
       const normalized = { ...u, full_name: u.user_metadata?.full_name || u.email, email: u.email, id: u.id };
       setUser(normalized);
-      setFullName(normalized.full_name || '');
-      // Load profile from Supabase
+      // In view-as the target's auth name isn't readable client-side; fall back
+      // to the account name for display.
+      setFullName(isViewingAs ? (viewAs?.targetName || '') : (normalized.full_name || ''));
+      // Load profile — the TARGET's during view-as (RLS is_viewing_user grants it).
       try {
-        const profiles = await db.user_profiles.filter({ user_id: u.id });
+        const profiles = await db.user_profiles.filter({ user_id: effectiveUserId || u.id });
         if (profiles.length > 0) {
           const p = profiles[0];
           setProfileId(p.id);
@@ -275,11 +285,12 @@ function AuthUserProfile({ embedded = false }) {
       setLoading(false);
     }
     init();
-  }, []);
+  }, [isViewingAs, effectiveUserId, viewAs?.targetName]);
 
   const handleChange = (field, value) => setForm(p => ({ ...p, [field]: value }));
 
   const handleScanSave = async (extracted) => {
+    if (isViewingAs) { toast('צפייה בלבד — הפרופיל לקריאה בלבד'); return; }
     if (extracted.full_name) {
       await supabase.auth.updateUser({ data: { full_name: extracted.full_name } });
       setUser(prev => ({ ...prev, full_name: extracted.full_name }));
@@ -313,6 +324,7 @@ function AuthUserProfile({ embedded = false }) {
   };
 
   const handleSave = async () => {
+    if (isViewingAs) { toastError('הפרופיל לקריאה בלבד בצפייה בחשבון', { action: 'profile_readonly_viewas' }); return; }
     setSystemError(null);
     if (!validate(form, {
       phone: { pattern: [/^0\d{9}$/, 'מספר טלפון לא תקין (לדוגמה: 0501234567)'] },

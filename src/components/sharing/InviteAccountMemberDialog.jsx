@@ -20,7 +20,7 @@ import { toastError } from '@/lib/userErrorReport';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { getRecentShareEmails, rememberShareEmail } from '@/lib/recentShareEmails';
-import { sendAccountInviteEmail } from '@/lib/inviteEmail';
+import { sendAccountInviteEmail, sendPendingInviteEmail } from '@/lib/inviteEmail';
 import { isNative } from '@/lib/capacitor';
 import VehicleImage, { hasVehiclePhoto } from '@/components/shared/VehicleImage';
 
@@ -136,6 +136,12 @@ export default function InviteAccountMemberDialog({ open, onOpenChange, accountI
 
       if (data?.recipient_existing_user) {
         toast.success('ההזמנה נשלחה — ממתין לאישור');
+        // Registered invitees get no token, so until now they got no email
+        // either — only an in-app notification. If they didn't happen to
+        // open the app and check the bell, the invite went unseen and the
+        // sweep deleted the pending row after 14 days, while the inviter
+        // had been told it was sent. Mail them too.
+        sendPendingInviteEmail(cleanEmail, role, user?.full_name || undefined).catch(() => {});
       } else {
         toast.success('קישור הזמנה נוצר');
         if (data?.invite_token) {

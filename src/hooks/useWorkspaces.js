@@ -20,7 +20,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/shared/GuestContext';
-import { isActiveMember } from '@/lib/enums';
+import { isGrantedMember } from '@/lib/enums';
 
 export default function useWorkspaces() {
   const { user, isGuest, authState } = useAuth();
@@ -80,11 +80,22 @@ export default function useWorkspaces() {
     retryDelay: 500,
   });
 
-  // Mirror the existing useAccountRole filter: never surface 'הוסר' /
-  // 'removed' rows. Keeps semantics aligned for the eventual Phase 3
-  // migration where useAccountRole becomes a thin wrapper over this.
-  const memberships = (data || []).filter(isActiveMember);
+  // Only 'פעיל' rows are surfaced as memberships. This has to match the
+  // server: `user_account_ids()` — the chokepoint every account-scoped
+  // RLS policy goes through — selects `status = 'פעיל'`, so a 'ממתין'
+  // row grants nothing. Filtering on the looser isActiveMember() (which
+  // only drops explicitly-removed rows) let pending invites through and
+  // rendered the workspace as joined while every query returned empty.
+  const memberships = (data || []).filter(isGrantedMember);
 
+  // NOTE: pending invites deliberately cannot be surfaced from here.
+  // v_user_workspaces is security_invoker and inner-joins accounts, and
+  // BOTH gates (accounts_select and members_select) resolve through
+  // user_account_ids(), which selects status = 'פעיל'. A 'ממתין' row is
+  // therefore invisible to the very user it belongs to — the view drops
+  // it, and so does a direct account_members query. The pending-invite
+  // banner reads app_notifications instead, which is the only channel
+  // the invitee can actually see.
   return {
     memberships,
     isLoading: enabled && isLoading,

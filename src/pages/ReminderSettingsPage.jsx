@@ -11,6 +11,8 @@ import MobileBackButton from "../components/shared/MobileBackButton";
 import { toast } from "sonner";
 import { toastError } from "@/lib/userErrorReport";
 import { useAuth } from "../components/shared/GuestContext";
+import useViewAs from '@/hooks/useViewAs';
+import useEffectiveUserId from '@/hooks/useEffectiveUserId';
 import { isNative } from "@/lib/capacitor";
 import { requestNotificationPermission, checkNotificationPermission } from "@/lib/notificationChannels";
 import { C } from '@/lib/designTokens';
@@ -156,6 +158,11 @@ export default function ReminderSettingsPage({ embedded = false }) {
 //  Auth version 
 function AuthReminderSettings({ embedded = false }) {
   const { user } = useAuth();
+  // View-as: read/write the TARGET's reminder settings (decision: reminder
+  // settings are writable in view-as so an admin can fix them for the user).
+  const viewAs = useViewAs();
+  const isViewingAs = !!viewAs;
+  const effectiveUserId = useEffectiveUserId();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settingsId, setSettingsId] = useState(null);
@@ -163,7 +170,7 @@ function AuthReminderSettings({ embedded = false }) {
 
   useEffect(() => {
     async function init() {
-      if (!user?.id) { setLoading(false); return; }
+      if (!effectiveUserId) { setLoading(false); return; }
 
       // Pull UI-only toggles from localStorage (notify_*, device_notifications_enabled).
       // These aren't in the DB yet. see DB_COLUMNS below + pending SQL migration.
@@ -171,8 +178,10 @@ function AuthReminderSettings({ embedded = false }) {
       try { localOnly = JSON.parse(localStorage.getItem('reminder_settings_local') || '{}') || {}; } catch {}
 
       try {
-        let rows = await db.reminder_settings.filter({ user_id: user.id });
-        if (rows.length === 0) {
+        let rows = await db.reminder_settings.filter({ user_id: effectiveUserId });
+        // Auto-provision defaults only for the REAL user — never create a row on
+        // the target just because an admin opened this page in view-as.
+        if (rows.length === 0 && !isViewingAs) {
           // Create default settings. only with columns the DB knows about.
           const dbDefaults = {};
           ['remind_test_days_before','remind_insurance_days_before','remind_document_days_before',
@@ -180,12 +189,17 @@ function AuthReminderSettings({ embedded = false }) {
            'email_enabled','whatsapp_enabled'].forEach(k => {
             if (DEFAULT_FORM[k] !== undefined) dbDefaults[k] = DEFAULT_FORM[k];
           });
-          const created = await db.reminder_settings.create({ user_id: user.id, ...dbDefaults });
+          const created = await db.reminder_settings.create({ user_id: effectiveUserId, ...dbDefaults });
           rows = [created];
         }
         const s = rows[0];
-        setSettingsId(s.id);
-        setForm({ ...DEFAULT_FORM, ...localOnly, ...s });
+        if (s) {
+          setSettingsId(s.id);
+          setForm({ ...DEFAULT_FORM, ...localOnly, ...s });
+        } else {
+          // View-as + target has no settings row yet → show defaults, no write.
+          setForm({ ...DEFAULT_FORM, ...localOnly });
+        }
       } catch (e) {
         console.warn('Failed to load reminder settings:', e);
         // Still apply any local-only preferences so the user's toggles don't reset
@@ -195,7 +209,7 @@ function AuthReminderSettings({ embedded = false }) {
       }
     }
     init();
-  }, [user?.id]);
+  }, [effectiveUserId]);
 
   // Columns persisted to the 'reminder_settings' table.
   // notify_* + device_notifications_enabled were localStorage-only until
@@ -250,7 +264,7 @@ function AuthReminderSettings({ embedded = false }) {
       if (settingsId) {
         await db.reminder_settings.update(settingsId, dbPayload);
       } else {
-        const created = await db.reminder_settings.create({ user_id: user.id, ...dbPayload });
+        const created = await db.reminder_settings.create({ user_id: effectiveUserId, ...dbPayload });
         setSettingsId(created.id);
       }
       toast.success('ההגדרות נשמרו');

@@ -230,12 +230,11 @@ BEGIN
   -- Notify the inviter
   v_inviter_id := v_row.invited_by;
   IF v_inviter_id IS NOT NULL THEN
-    SELECT coalesce(full_name, email, 'משתמש') INTO v_acceptor_name
-      FROM public.user_profiles WHERE user_id = uid LIMIT 1;
-    IF v_acceptor_name IS NULL THEN
-      SELECT coalesce(raw_user_meta_data->>'full_name', email, 'משתמש')
-        INTO v_acceptor_name FROM auth.users WHERE id = uid;
-    END IF;
+    -- Name from auth.users — user_profiles has no full_name/email columns
+    -- (reading it there raised "column full_name does not exist"; fixed
+    -- 2026-07-02, see supabase-fix-invite-accept-fullname-2026-07-02.sql).
+    SELECT coalesce(raw_user_meta_data->>'full_name', email, 'משתמש')
+      INTO v_acceptor_name FROM auth.users WHERE id = uid;
 
     INSERT INTO public.app_notifications (user_id, type, title, body, data)
     VALUES (
@@ -304,12 +303,10 @@ BEGIN
 
   -- Notify the inviter
   IF v_row.invited_by IS NOT NULL THEN
-    SELECT coalesce(full_name, email, 'משתמש') INTO v_decliner_name
-      FROM public.user_profiles WHERE user_id = uid LIMIT 1;
-    IF v_decliner_name IS NULL THEN
-      SELECT coalesce(raw_user_meta_data->>'full_name', email, 'משתמש')
-        INTO v_decliner_name FROM auth.users WHERE id = uid;
-    END IF;
+    -- Name from auth.users — user_profiles has no full_name/email columns
+    -- (fixed 2026-07-02, see supabase-fix-invite-accept-fullname-2026-07-02.sql).
+    SELECT coalesce(raw_user_meta_data->>'full_name', email, 'משתמש')
+      INTO v_decliner_name FROM auth.users WHERE id = uid;
 
     INSERT INTO public.app_notifications (user_id, type, title, body, data)
     VALUES (

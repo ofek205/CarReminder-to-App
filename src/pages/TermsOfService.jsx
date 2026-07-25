@@ -11,7 +11,7 @@ export default function TermsOfService() {
         <ArrowRight className="w-4 h-4" /> חזרה
       </button>
       <h1 className="text-2xl font-bold mb-6">תנאי שימוש - CarReminder</h1>
-      <p className="text-xs mb-4" style={{ color: C.gray400 }}>עודכן לאחרונה: אפריל 2026</p>
+      <p className="text-xs mb-4" style={{ color: C.gray400 }}>עודכן לאחרונה: יוני 2026</p>
 
       <div className="space-y-5 text-sm leading-relaxed" style={{ color: C.gray700 }}>
         <section>
@@ -64,17 +64,28 @@ export default function TermsOfService() {
         </section>
 
         <section>
-          <h2 className="text-base font-bold mb-2">6. מחיקת חשבון</h2>
+          <h2 className="text-base font-bold mb-2">6. גישת צוות התמיכה לחשבון</h2>
+          <p>לצורך מתן תמיכה, פתרון תקלות וסיוע בהקמת נתונים, צוות מורשה של CarReminder רשאי לגשת לחשבונך ולצפות או לערוך בו נתונים (כגון כלי תחבורה ומסמכים) מטעמך. גישה כזו:</p>
+          <ul className="list-disc mr-5 mt-2 space-y-1">
+            <li>מוגבלת בזמן ומשמשת אך ורק למטרות תפעול ותמיכה</li>
+            <li>מתועדת ביומן פנימי (מי ניגש, מתי ולאיזה חשבון)</li>
+            <li>אינה כוללת צפייה בסיסמתך</li>
+          </ul>
+          <p className="mt-2">המשך השימוש בשירות מהווה הסכמה לכך. אם אינך מעוניין בגישת תמיכה לחשבונך, ניתן לפנות אלינו.</p>
+        </section>
+
+        <section>
+          <h2 className="text-base font-bold mb-2">7. מחיקת חשבון</h2>
           <p>ניתן למחוק את החשבון ואת כל הנתונים בכל עת דרך "מחיקת חשבון" בהגדרות. המחיקה היא סופית ולא ניתנת לשחזור.</p>
         </section>
 
         <section>
-          <h2 className="text-base font-bold mb-2">7. שינויים בתנאים</h2>
+          <h2 className="text-base font-bold mb-2">8. שינויים בתנאים</h2>
           <p>CarReminder רשאית לעדכן תנאים אלה. שימוש מתמשך לאחר עדכון מהווה הסכמה לתנאים המעודכנים.</p>
         </section>
 
         <section>
-          <h2 className="text-base font-bold mb-2">8. צור קשר</h2>
+          <h2 className="text-base font-bold mb-2">9. צור קשר</h2>
           <p>לשאלות: <strong>support@car-reminder.app</strong></p>
         </section>
       </div>

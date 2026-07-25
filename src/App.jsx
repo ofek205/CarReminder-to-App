@@ -6,6 +6,7 @@ import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
+import ViewAsRouteGuard from '@/components/shared/ViewAsRouteGuard';
 import { PinGate } from '@/components/shared/PinLock';
 import AppUpdateGate from '@/components/shared/AppUpdateGate';
 import BootDebug from './pages/BootDebug';
@@ -261,7 +262,13 @@ function App() {
                   element={
                     <LayoutWrapper currentPageName={path}>
                       <PageErrorBoundary routeName={path}>
-                        <Page />
+                        {/* Admin pages stay closed while an admin is viewing
+                            a customer's account. Layout hides the nav, but a
+                            hidden link is not a guard — /AdminHome was fully
+                            reachable by URL mid-session. */}
+                        <ViewAsRouteGuard routeName={path}>
+                          <Page />
+                        </ViewAsRouteGuard>
                       </PageErrorBoundary>
                     </LayoutWrapper>
                   }

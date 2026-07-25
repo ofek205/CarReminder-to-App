@@ -66,3 +66,18 @@ jobs:
       # wrapper. See scripts/check-query-timeouts.cjs and
       # CLAUDE.md gate "Query Timeout Gate".
       - run: node scripts/check-query-timeouts.cjs
+
+  view-as-identity:
+    name: View-as identity gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Plain Node, no dependencies. Failing here means an admin RPC is
+      # being called on the impersonation-proxied `supabase` client, where
+      # it arrives as the viewed user and fails is_admin() — silently, in
+      # most of the call sites. Use the `adminSupabase` export instead.
+      # See scripts/check-view-as-identity.cjs.
+      - run: node scripts/check-view-as-identity.cjs
