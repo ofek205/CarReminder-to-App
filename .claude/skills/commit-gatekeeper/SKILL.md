@@ -170,15 +170,25 @@ If **BLOCKED**, add:
 
 ## Hook integration — IMPORTANT
 
-The project's `.claude/settings.json` has a `PreToolUse` hook on `Bash` that **blocks** any `git commit` or `git push` unless a fresh approval token exists.
+`.claude/settings.json` runs `.claude/hooks/commit-gate.cjs` as a `PreToolUse` hook on **both** `Bash` and `PowerShell`. It blocks any `git commit` or `git push` unless a fresh approval token exists.
 
 **After producing the APPROVED verdict (and ONLY then), you MUST write the approval token:**
 
 ```bash
-mkdir -p /tmp && date +%s > /tmp/cardocs-gatekeeper-approved
+node .claude/hooks/approve.cjs
 ```
 
-The hook reads this file, accepts it if it is less than 10 minutes old, and deletes it after the commit/push proceeds (single-use). This means:
+The gate consumes the token on the next `git commit`/`git push` and accepts it only if it is under 10 minutes old. This means:
 - Every commit/push requires a fresh gatekeeper review.
 - Never write the token on a BLOCKED verdict.
 - Never write the token preemptively. Only after the full 10-stage review concludes APPROVED.
+
+### Why it is Node and not a shell one-liner
+
+Until 2026-09-01 this hook was inline POSIX `sh` using `cat`/`sed`/`grep`/`date` with a `/tmp/cardocs-gatekeeper-approved` token. On Windows none of those resolve, and the failure mode was the dangerous one:
+
+```
+grep missing -> exit 127 -> `if ! <127>` is TRUE -> `exit 0` = ALLOW
+```
+
+The gate **failed open** — its own breakage authorized every commit — and it matched only the `Bash` tool while all work here goes through PowerShell. It had not blocked anything in months. The rewrite fails **closed** on any error, matches both tools, and puts the token in `os.tmpdir()`. Do not reintroduce a shell version.
