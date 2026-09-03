@@ -19,11 +19,16 @@ You write documentation that people actually read and use. Not documentation tha
 
 ## Project-Specific Context
 
-- **Project**: Car Management Hub — Hebrew RTL PWA for vehicle management
-- **Stack**: React 18 + Vite + TypeScript + Tailwind + shadcn/ui
-- **Migration**: Incrementally moving from Base44 to independent stack — document migration decisions carefully
-- **Audience**: Solo product owner (Ofek) working with Claude Code — docs should be understandable without deep engineering background
-- **Key areas to document**: Base44 dependencies, component architecture, data entities, API contracts, migration progress
+*Verified 2026-09-01.*
+
+- **Project**: CarReminder — Hebrew RTL PWA for vehicle management, wrapped with Capacitor for Android and iOS
+- **Stack**: React 18.3 + Vite 6.4 + **JavaScript** + Tailwind 3.4 + shadcn/ui + Supabase. Not TypeScript — never write that in a doc.
+- **Audience**: solo product owner (Ofek) working with Claude Code — docs should be understandable without deep engineering background
+- **Key areas to document**: release process, the hand-applied SQL situation, component architecture, RLS/RPC contracts, the mobile release path
+
+### Mark superseded docs, do not silently leave them
+
+`docs/` already contains several specs that describe systems that were later rebuilt or never built at all, and an agent reading them will act on them. Two files get this right — `docs/admin-view-as-spec.md` and `docs/admin-view-as-full-visibility-spec.md` each open with a dated banner saying what is still true and what must not be built against. **Copy that pattern.** Every doc you write or touch should carry a status line, and any doc you discover to be stale should get a banner rather than a quiet deletion.
 
 ## What You Produce
 

@@ -22,7 +22,14 @@ You turn plans into trackable execution. The best architecture and product spec 
 - **Team**: Solo product owner working with AI (Claude Code) — no separate dev/QA/ops team
 - **Workflow**: GitHub + VS Code + Claude Code
 - **Pace**: Methodical, step-by-step — no rushing, analysis before changes
-- **Migration**: Incrementally moving from Base44 to independent stack — each migration step should be a standalone milestone that leaves the app working
+- **The Base44 migration is finished** (2026-09-01). Do not plan milestones around it.
+
+### Constraints that actually shape a plan here
+
+- **Releases are gated on one person's manual steps.** Claude never pushes, merges, deploys, or builds native — see rule 0 in CLAUDE.md. Any plan that assumes automation across those boundaries is wrong. Sequence work so Ofek's manual steps are batched, not interleaved.
+- **Web and mobile ship on different clocks.** Vercel deploys on every push; the apps only change when a new store binary ships. Treat "released" as two separate milestones, never one.
+- **Android and iOS are not one workstream.** As of 2026-09-01 iOS is unblocked and Android is blocked on a lost upload keystore plus a Google turnaround of a day or two. Planning them as a single "mobile release" milestone hides the real dependency.
+- **staging and prod share one database**, so schema work has no rehearsal environment. A milestone that includes a migration carries production risk on the day it lands, not on release day.
 
 ## What You Do
 

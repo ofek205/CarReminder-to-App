@@ -19,11 +19,14 @@ You diagnose and fix what's broken. Your job is to move systematically from symp
 
 ## Project-Specific Context
 
-- **Stack**: React 18 + Vite + TypeScript + Tailwind + shadcn/ui
-- **Runtime**: Browser (PWA) — primary debugging via browser DevTools
-- **Data**: Guest mode (localStorage) + Authenticated mode (Base44 / migrating)
-- **RTL**: Hebrew layout — some bugs are directional (left/right confusion)
-- **Common issue areas**: Base44 API failures, localStorage corruption in guest mode, RTL layout breaks, PWA service worker cache staleness
+*Verified 2026-09-01.*
+
+- **Stack**: React 18.3 + Vite 6.4 + **JavaScript** + Tailwind 3.4 + shadcn/ui. This is **not** a TypeScript project — 289 `.jsx`, 130 `.js`, one `.ts`. There is a `jsconfig.json` (with `checkJs`), no `tsconfig.json`. Never diagnose a bug as a "type error".
+- **Runtime**: browser PWA, plus the same bundle inside Capacitor on Android/iOS. A bug that only reproduces in the app is usually a WebView or plugin issue, not React.
+- **Data**: guest mode (localStorage) + authenticated (Supabase).
+- **RTL**: Hebrew layout — some bugs are directional (left/right confusion).
+- **The project is unusually well instrumented — use it before guessing.** `src/lib/bootDiagnostics.js`, `src/lib/crashReporter.js`, the `app_errors` table, and slow-query telemetry in `src/lib/supabaseQuery.js` (logs anything over 5s with a 5-minute per-label cooldown).
+- **Read the post-mortem comments.** `eslint.config.js` and most defensive lines in `src/lib/` carry a comment naming the exact production failure that caused them. If you are debugging in that area, the history is already written down.
 
 ## Debugging Methodology
 
@@ -51,12 +54,15 @@ Apply the minimal fix. Verify it resolves the original symptom. Check for regres
 
 | Symptom | Likely Cause | Where to Look |
 |---------|-------------|---------------|
-| Data not loading | Base44 API auth expired, network error | Network tab, console errors |
+| Data not loading | Expired Supabase session, or an RLS policy denying the row | Network tab; run the same query in the SQL editor as that user |
+| **Spinner that never resolves** | A Supabase call inside `useQuery` with no `withTimeout()` — `isLoading` stays true forever | `scripts/.query-timeout-baseline.json` grandfathers 24 known cases across 13 files. If the screen is on that list, this is your bug |
 | Guest mode data lost | localStorage key mismatch, quota exceeded | Application tab → LocalStorage |
 | RTL layout broken | Using `left/right` instead of `start/end` | CSS classes on affected element |
 | Component not updating | Missing dependency in useEffect, stale closure | React DevTools, component props/state |
-| PWA showing old version | Service worker cache not refreshed | Application tab → Service Workers |
-| TypeScript error on build | Type mismatch after Base44 data change | Build output, affected type definitions |
+| PWA showing old version | Service worker cache key not bumped | `public/sw.js` `CACHE_VERSION` vs `package.json` version |
+| **Works on web, broken in the app** | A Capacitor plugin missing from `ios/App/Podfile` — `cap sync` does **not** maintain it | Podfile vs `package.json`. This exact gap produced 0 APNs tokens on iOS against 242 on Android |
+| **Blank screen / stuck splash on device** | A plugin requesting permission at boot, or a failed dynamic import | `docs/IOS_PLUGIN_AUDIT.md`, `docs/IOS_DEBUGGING.md` — both written for exactly this |
+| Undefined identifier at runtime | A refactor added a reference without the import | `npm run lint` — `no-undef` is an error and catches the whole class |
 
 ## Output Format
 
@@ -67,7 +73,7 @@ Symptom, reproduction steps, affected environment.
 Console errors, network failures, relevant state values. Show the actual data.
 
 ### 3. Root Cause Analysis
-What is actually causing the problem. Be specific — not "there's a state issue" but "the `vehicles` array is undefined on first render because the Base44 fetch hasn't resolved yet and there's no null check."
+What is actually causing the problem. Be specific — not "there's a state issue" but "the `vehicles` array is undefined on first render because the Supabase query hasn't resolved and there's no null check."
 
 ### 4. Fix
 The minimal code change that addresses the root cause. Explain why this fix works.

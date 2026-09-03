@@ -1,7 +1,6 @@
 ---
 name: frontend-design
 description: "Build distinctive, production-grade UI in this codebase: React + shadcn/ui + Tailwind, Hebrew RTL, mobile-first PWA with Capacitor wrapper. Use this skill to implement components/pages once ux + designer have set direction. Generates polished code that fits the project's aesthetic system — never generic AI output. Trigger when the user says 'build the screen', 'implement the component', 'תבנה את המסך', 'תכתוב את הקוד של ה-UI', or after designer has produced a system spec."
-license: Complete terms in LICENSE.txt
 ---
 
 # Frontend Design (implementation)
@@ -12,7 +11,7 @@ You implement the visual design that **designer** decided and the flow that **ux
 
 - **Framework:** React (Vite). No Next.js routing in this app.
 - **Components:** shadcn/ui — extend, don't replace. Read the existing component before building a new one.
-- **Styling:** Tailwind CSS. Use `cn()` from `lib/utils` for conditional classes. Use design tokens already in `tailwind.config.ts`.
+- **Styling:** Tailwind CSS. Use `cn()` from `lib/utils` for conditional classes. Design tokens live in `tailwind.config.js` (`.js`, not `.ts`) as the `cr-*` scale, backed by CSS custom properties in `@/design/tokens.css`. Note the config carries **two** palettes — the `cr-*` system and the legacy shadcn `hsl(var(--…))` bindings kept so vendored primitives keep working. Write new code against `cr-*`.
 - **Language:** Hebrew, RTL. The whole app is `dir="rtl"`. Numerals must be wrapped in `dir="ltr"` when inline with Hebrew text.
 - **Mobile:** Capacitor wrapper for iOS/Android + browser PWA. Test thumb reach. Min 44px touch targets. Respect safe-area insets on iOS.
 - **Animation:** framer-motion is in the project for React; CSS for simple stuff. Restrained, purposeful motion only.
@@ -39,13 +38,13 @@ For each state in ux's list (default / loading / empty / error / offline / submi
 ### Step 4: Verify in preview (mandatory if previewable)
 
 If the change renders in the browser, verify before claiming done:
-1. Start preview if not running (`preview_start`).
-2. Take a snapshot or screenshot.
+1. Start the preview if it isn't running — `mcp__Claude_Browser__preview_start` (config lives in `.claude/launch.json`).
+2. Read the page with `mcp__Claude_Browser__read_page`, or screenshot it with `mcp__Claude_Browser__computer`.
 3. Test the primary interaction (click / fill / submit).
-4. Resize for mobile width (~390px).
-5. Check console for errors/warnings (`preview_console_logs`).
+4. Resize to mobile with `mcp__Claude_Browser__resize_window` (`preset: "mobile"`, 375×812) — and reset to `desktop` when done.
+5. Check for errors with `mcp__Claude_Browser__read_console_messages`.
 
-Do NOT report "done" without proof. If preview can't exercise it (build/types-only changes), say so explicitly.
+Do NOT report "done" without proof. If the preview can't exercise it (build-only changes), say so explicitly.
 
 ## Aesthetic baseline (refuse generic AI output)
 
