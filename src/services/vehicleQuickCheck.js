@@ -1,6 +1,5 @@
 import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
-import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { lookupVehicleByPlate, isAircraftPlate } from '@/services/vehicleLookup';
 import { generateVehicleInsights } from '@/lib/vehicleInsights';
@@ -330,7 +329,7 @@ export async function vehicleExistsInAccount(accountId, plate) {
 async function resolveAccountId(accountId) {
   if (accountId) return accountId;
   const { data, error } = await withTimeout(
-    supabase.rpc('ensure_user_account'),
+    dal.run('account.ensure', {}),
     'ensure_user_account'
   );
   if (error) throw error;

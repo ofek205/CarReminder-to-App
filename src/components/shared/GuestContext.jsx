@@ -12,6 +12,7 @@
  */
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { GuestDataProvider, GuestDataCtx, DEFAULT_REMINDER_SETTINGS } from '@/contexts/GuestDataContext';
 
 const AuthCtx = createContext(null);
@@ -120,7 +121,7 @@ function AuthInner({ children }) {
     const provisionIfNeeded = async () => {
       try {
         await Promise.race([
-          supabase.rpc('ensure_user_account'),
+          dal.run('account.ensure', {}),
           new Promise(resolve => setTimeout(resolve, 5000)),
         ]);
       } catch { /* fall through; pages will surface the error */ }

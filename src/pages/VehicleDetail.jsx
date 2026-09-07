@@ -695,9 +695,9 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         if (shareCount > 0) {
           // Routes through the SECURITY DEFINER RPC so all recipients
           // get a 'share_deleted' notification before we drop the row.
-          const { error } = await supabase.rpc('delete_vehicle_with_share_choice', {
-            p_vehicle_id: vehicleId,
-            p_mode: 'both',
+          const { error } = await dal.run('vehicle.deleteWithShareChoice', {
+            vehicleId,
+            mode: 'both',
           });
           if (error) throw error;
         } else {

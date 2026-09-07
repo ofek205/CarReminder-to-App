@@ -1001,14 +1001,14 @@ export default function Dashboard() {
           // account storm the old client-side double-write caused).
           let claimedId = null;
           try {
-            const { data: cid } = await supabase.rpc('claim_migrated_account');
+            const { data: cid } = await dal.run('account.claimMigrated', {});
             claimedId = cid || null;
           } catch { /* no migration / table absent → fall through */ }
 
           if (claimedId) {
             finalAccountId = claimedId;
           } else {
-            const { data: ensuredId, error: ensureErr } = await supabase.rpc('ensure_user_account');
+            const { data: ensuredId, error: ensureErr } = await dal.run('account.ensure', {});
             if (ensureErr) throw ensureErr;
             finalAccountId = ensuredId;
           }

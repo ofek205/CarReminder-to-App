@@ -30,6 +30,8 @@ import './commands/access';
 import './commands/drivers';
 import './commands/community';
 import './commands/admin';
+import './commands/account';
+import './commands/notifications';
 
 export const dal = {
   run: runCommand,

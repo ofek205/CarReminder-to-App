@@ -25,6 +25,7 @@ import {
   Trash2, CheckSquare, Square, Loader2, ListChecks, SlidersHorizontal, ArrowUpDown,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
@@ -361,7 +362,7 @@ export default function Fleet() {
       // eslint-disable-next-line no-await-in-loop
       await Promise.all(chunk.map(async (id) => {
         try {
-          const { error } = await supabase.rpc('delete_vehicle_with_share_choice', { p_vehicle_id: id, p_mode: 'both' });
+          const { error } = await dal.run('vehicle.deleteWithShareChoice', { vehicleId: id, mode: 'both' });
           if (error) throw error;
           ok += 1;
         } catch { failed += 1; }

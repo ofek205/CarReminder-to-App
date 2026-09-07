@@ -23,6 +23,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
@@ -431,9 +432,9 @@ export default function BulkAddVehicles() {
         };
       });
 
-      const { data, error } = await supabase.rpc('bulk_add_vehicles', {
-        p_account_id: accountId,
-        p_vehicles:   payload,
+      const { data, error } = await dal.run('vehicle.bulkAdd', {
+        accountId,
+        vehicles: payload,
       });
       if (error) throw error;
 

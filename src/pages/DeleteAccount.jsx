@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useAuth } from '../components/shared/GuestContext';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -70,7 +71,7 @@ export default function DeleteAccount() {
       // (b) running ~20 DELETEs serially with no transaction meant a
       // mid-flight failure could leave partial state. The RPC does
       // everything in one BEGIN/COMMIT and returns counts.
-      const { error: rpcErr } = await supabase.rpc('delete_my_account', { mode });
+      const { error: rpcErr } = await dal.run('account.deleteMine', { mode });
       if (rpcErr) throw rpcErr;
 
       if (mode === 'account') {

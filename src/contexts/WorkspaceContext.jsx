@@ -33,6 +33,7 @@ import React, {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import useWorkspaces from '@/hooks/useWorkspaces';
@@ -363,7 +364,7 @@ export function WorkspaceProvider({ children }) {
     healedRef.current = true;
     (async () => {
       try {
-        await supabase.rpc('ensure_user_account');
+        await dal.run('account.ensure', {});
         queryClient.invalidateQueries({ queryKey: ['user-workspaces', user.id] });
       } catch { /* surfaced to user via per-page empty-state banners */ }
     })();
@@ -581,11 +582,11 @@ export function WorkspaceProvider({ children }) {
     // Persist hint. Fire-and-forget — never block the UI on this.
     (async () => {
       try {
-        await supabase.from('user_preferences').upsert({
-          user_id: user.id,
-          last_active_account_id: targetAccountId,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
+        await dal.run('userPreferences.setLastActive', {
+          userId: user.id,
+          accountId: targetAccountId,
+          updatedAt: new Date().toISOString(),
+        });
       } catch { /* hint not saved; resolution will fall back next boot */ }
     })();
 
