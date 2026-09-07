@@ -406,7 +406,7 @@ Foundation. Behavior-preserving; each domain = its own commit.
 - [ ] **repairs** — repair.save (`save_repair_with_children` rpc, HARD), repair.delete, repairType.{create,update,delete}
 - [ ] **documents** — document.{create,delete}
 - [ ] **accidents** — accident.{create,update}
-- [ ] **vessel-issues** — vesselIssue.{create,update,delete}
+- [x] **vessel-issues** — vesselIssue.{create,update,delete} (`d78fab8`)
 - [ ] **checklists** — checklist.{create,update}, checklistRun.{create,update}
 - [ ] **notifications** — notificationLog.{create,markRead}, appNotification.markRead, reminderSnooze.{upsert,delete}, deviceToken.register
 - [ ] **profile / settings** — profile.{create,update}, reminderSettings.{create,update}, contact, review, analytics, crashReport, popupEvent, userPreferences.upsert
