@@ -411,8 +411,8 @@ Foundation. Behavior-preserving; each domain = its own commit.
 
 **Verified remaining entity-layer writes (swept 2026-09-07, excluding src/lib/dal):** user_profiles ×6 (UserProfile, CompleteProfileScreen) · reminder_settings ×3 + reminder_snoozes ×1 · notification_log ×3 (notificationChannels, MaintenanceSection) · community ×3 (online-required) · contact_messages ×1 (admin, online-required). Plus the non-entity bypasses still to route: direct `supabase.from` in TasksSection-style spots already done, but community/notifications/admin/sharing/drivers/routes RPCs remain. **Re-run the sweep rather than trusting this list** — two misses were found that way:
 `grep -rnE "db\.[a-z_]+\.(create|update|delete)\(" src/ | grep -v "^src/lib/dal"`
-- [ ] **notifications** — notificationLog.{create,markRead}, appNotification.markRead, reminderSnooze.{upsert,delete}, deviceToken.register
-- [ ] **profile / settings** — profile.{create,update}, reminderSettings.{create,update}, contact, review, analytics, crashReport, popupEvent, userPreferences.upsert
+- [~] **notifications** — notificationLog.{create,markRead} + reminderSnooze.{upsert,delete} done (`2d0f8a1`). TODO: `appNotification.markRead` (bulk `.in('id', ids)` / `.eq` writes in NotificationBell, Notifications, PendingInviteBanner — needs a bulk command shape) + `deviceToken.register`
+- [x] **profile / settings** — profile.{create,update}, reminderSettings.{create,update} (`2d0f8a1`). Remaining odds and ends: contact, review, analytics, crashReport, popupEvent, userPreferences.upsert (all fire-and-forget / telemetry)
 - [ ] **routes (field-driver)** — route.updateStopStatus, route.addStopDocumentation
 - [ ] **ONLINE-REQUIRED** (route with `offlineCapable:false`): sharing (5), members/team/business (12), drivers/fleet/route-create (7), community (11), admin/view-as (~20), `vehicle.deleteWithShareChoice`, notify_* side-effects
 
