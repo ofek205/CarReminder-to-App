@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import { toast } from 'sonner';
 import { Flag, Loader2 } from 'lucide-react';
@@ -40,7 +40,7 @@ export default function ReportDialog({ open, onClose, postId, postAuthorName }) 
     setSubmitting(true);
     try {
       // supabase-js v2 returns errors in the response — must inspect explicitly.
-      const { error } = await supabase.from('reported_posts').insert({
+      const { error } = await dal.run('community.postReport', {
         post_id: postId,
         reporter_id: user.id,
         reason,

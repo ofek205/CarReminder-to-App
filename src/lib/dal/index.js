@@ -28,6 +28,7 @@ import './commands/profile';
 import './commands/routes';
 import './commands/access';
 import './commands/drivers';
+import './commands/community';
 
 export const dal = {
   run: runCommand,

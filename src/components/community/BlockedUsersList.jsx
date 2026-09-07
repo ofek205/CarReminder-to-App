@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
@@ -59,7 +60,7 @@ export default function BlockedUsersList() {
     const blockId = target.id;
     setUnblockingId(blockId);
     try {
-      const { error } = await supabase.from('blocked_users').delete().eq('id', blockId);
+      const { error } = await dal.run('community.userUnblock', { id: blockId });
       if (error) {
         console.warn('Unblock failed:', error.message);
         toastError('שגיאה בהסרת החסימה', { action: 'unblock_user', err: error });

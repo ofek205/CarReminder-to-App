@@ -6,8 +6,8 @@ import { getAiExpertForDomain } from '@/lib/aiExpert';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { useAuth } from '../shared/GuestContext';
-import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import useIsAdmin from '@/hooks/useIsAdmin';
@@ -144,14 +144,14 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     try {
       if (prevLiked) {
         const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await supabase.from('community_likes').delete().eq('id', data.id);
+        if (data) await dal.run('community.likeRemove', { id: data.id });
       } else {
         if (myReaction) {
           const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-          if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
+          if (data) await dal.run('community.reactionRemove', { id: data.id });
           setOptReaction(false);
         }
-        await supabase.from('community_likes').insert({ user_id: user.id, post_id: post.id });
+        await dal.run('community.likeAdd', { userId: user.id, postId: post.id });
       }
       await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
       setOptLiked(null);
@@ -177,15 +177,15 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     try {
       if (prevLiked) {
         const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await supabase.from('community_likes').delete().eq('id', data.id);
+        if (data) await dal.run('community.likeRemove', { id: data.id });
       }
       if (toggling) {
         const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await supabase.from('community_reactions').delete().eq('id', data.id);
+        if (data) await dal.run('community.reactionRemove', { id: data.id });
       } else if (prevReaction) {
-        await supabase.from('community_reactions').update({ emoji }).eq('user_id', user.id).eq('post_id', post.id);
+        await dal.run('community.reactionUpdate', { userId: user.id, postId: post.id, emoji });
       } else {
-        await supabase.from('community_reactions').insert({ user_id: user.id, post_id: post.id, emoji });
+        await dal.run('community.reactionAdd', { userId: user.id, postId: post.id, emoji });
       }
       await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
       setOptReaction(null);
@@ -208,9 +208,9 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     try {
       if (prevSaved) {
         const { data } = await supabase.from('community_saved').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await supabase.from('community_saved').delete().eq('id', data.id);
+        if (data) await dal.run('community.savedRemove', { id: data.id });
       } else {
-        await supabase.from('community_saved').insert({ user_id: user.id, post_id: post.id });
+        await dal.run('community.savedAdd', { userId: user.id, postId: post.id });
       }
       await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
       setOptSaved(null);
@@ -244,7 +244,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     setConfirmDeleteOpen(false);
     setDeleting(true);
     try {
-      await db.community_posts.delete(post.id);
+      await dal.run('community.postDelete', { id: post.id });
       queryClient.invalidateQueries({ queryKey: ['community_posts', post.domain] });
     } catch { toast.error('שגיאה במחיקה'); }
     setDeleting(false);
@@ -269,7 +269,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     if (!user || !post.user_id || post.user_id === user.id) return;
     setBlocking(true);
     try {
-      const { error } = await supabase.from('blocked_users').insert({
+      const { error } = await dal.run('community.userBlock', {
         blocker_id: user.id,
         blocked_id: post.user_id,
         // Denormalized display label so the "blocked users" management
@@ -295,7 +295,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
       // succeeded; the auto-report is best-effort defense-in-depth.
       // Fire-and-forget: we don't await, but we DO surface the error in
       // the console so a recurring failure shows up in QA.
-      supabase.from('reported_posts').insert({
+      dal.run('community.postReport', {
         post_id: post.id,
         reporter_id: user.id,
         reason: 'other',
@@ -324,7 +324,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     if (trimmed === post.body) { setEditing(false); return; }
     setSavingEdit(true);
     try {
-      await supabase.from('community_posts').update({ body: trimmed }).eq('id', post.id);
+      await dal.run('community.postUpdateBody', { id: post.id, body: trimmed });
       queryClient.invalidateQueries({ queryKey: ['community_posts', post.domain] });
       setEditing(false);
     } catch (err) {

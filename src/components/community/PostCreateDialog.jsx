@@ -3,8 +3,8 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { Textarea } from '@/components/ui/textarea';
 import { Camera, X, Loader2, Image as ImageIcon, User, HelpCircle, Car, Ship, ChevronDown, Check, Sparkles, MessageSquare, ArrowLeft } from 'lucide-react';
-import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useQueryClient } from '@tanstack/react-query';
 import { aiRequest } from '@/lib/aiProxy';
 import { C, getVehicleVisual } from '@/lib/designTokens';
@@ -160,7 +160,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
       });
       const aiText = json?.content?.[0]?.text || '';
       if (aiText) {
-        await supabase.from('community_comments').insert({
+        await dal.run('community.commentCreate', {
           post_id: post.id, user_id: post.user_id,
           author_name: expert.communityName,
           // Raised from 1000 → 2500 (2026-05-28). Pairs with max_tokens
@@ -192,7 +192,7 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
         authorName = `אנונימי #${anonymousNumber}`;
       }
 
-      const post = await db.community_posts.create({
+      const post = await dal.run('community.postCreate', {
         user_id: user.id, author_name: authorName, domain,
         body: body.trim(),
         image_url: imageUrl || null,
