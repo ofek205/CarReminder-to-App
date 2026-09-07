@@ -21,6 +21,7 @@ import { notifyVehicleChange } from '@/lib/notifyVehicleChange';
 import { getRecommendedInterval, computeNextReminder, reminderFireDate } from '@/lib/maintenanceRecommendations';
 import { scheduleLocalNotification } from '@/lib/notificationChannels';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { reportUserError } from '@/lib/crashReporter';
 import ManufacturerScheduleCard from './ManufacturerScheduleCard';
 import ScanConfirmDialog from '@/components/shared/ScanConfirmDialog';
@@ -343,7 +344,6 @@ export default function MaintenanceSection({ vehicle }) {
     if (!form.title.trim()) { toast.error(dialogType === 'תיקון' ? 'יש להזין כותרת' : 'בחר מה בוצע או הזן תיאור'); return; }
     setSaving(true);
     try {
-      const { supabase } = await import('@/lib/supabase');
       const row = {
         vehicle_id: vehicle.id,
         type: dialogType === 'תיקון' ? 'תיקון'
@@ -393,9 +393,9 @@ export default function MaintenanceSection({ vehicle }) {
 
       let savedRowId = editingId;
       if (editingId) {
-        await supabase.from('maintenance_logs').update(row).eq('id', editingId);
+        await dal.run('maintenance.update', { ...row, id: editingId });
       } else {
-        const { data: inserted } = await supabase.from('maintenance_logs').insert(row).select('id').single();
+        const inserted = await dal.run('maintenance.create', row);
         savedRowId = inserted?.id || null;
       }
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
@@ -455,8 +455,7 @@ export default function MaintenanceSection({ vehicle }) {
 
   const handleDelete = async (id) => {
     try {
-      const { supabase } = await import('@/lib/supabase');
-      await supabase.from('maintenance_logs').delete().eq('id', id);
+      await dal.run('maintenance.delete', { id });
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
     } catch (err) {
       console.error('Delete maintenance error:', err);

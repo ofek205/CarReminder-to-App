@@ -19,6 +19,7 @@ import './commands/expenses';
 import './commands/corkNotes';
 import './commands/vehicles';
 import './commands/vesselIssues';
+import './commands/maintenance';
 
 export const dal = {
   run: runCommand,

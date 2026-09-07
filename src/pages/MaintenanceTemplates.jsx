@@ -18,6 +18,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -660,7 +661,7 @@ function MaintenanceEditorSheet({ item, open, onClose, userId }) {
   const handleDelete = async () => {
     if (!item.pref_id || !item.is_custom) return;
     try {
-      await db.maintenance_reminder_prefs.delete(item.pref_id);
+      await dal.run('maintPref.delete', { id: item.pref_id });
       qc.invalidateQueries({ queryKey: ['maint-prefs', userId] });
       toast.success('נמחק');
       onClose();
@@ -784,7 +785,7 @@ function CreateMaintenanceDialog({ open, onClose, userId, vehicleTypes }) {
     if (!form.interval_months || Number(form.interval_months) <= 0) { toastError('יש להזין מרווח חודשים', { action: 'maint_template_interval_required' }); return; }
     setSaving(true);
     try {
-      await db.maintenance_reminder_prefs.create({
+      await dal.run('maintPref.create', {
         user_id: userId,
         is_custom: true,
         custom_name: form.custom_name.trim(),
@@ -1010,6 +1011,6 @@ async function upsertPref({ pref_id, user_id, catalog_key, is_custom, custom_nam
     enabled: enabled === undefined ? true : enabled,
     service_size: service_size ?? null,
   };
-  if (pref_id) return db.maintenance_reminder_prefs.update(pref_id, payload);
-  return db.maintenance_reminder_prefs.create(payload);
+  if (pref_id) return dal.run('maintPref.update', { ...payload, id: pref_id });
+  return dal.run('maintPref.create', payload);
 }
