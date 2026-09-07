@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
 import useAccountRole from '@/hooks/useAccountRole';
@@ -295,10 +296,10 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
   const callStopRpc = async (newStatus, completionNote, successMsg) => {
     setBusy(true);
     try {
-      const { error } = await supabase.rpc('update_stop_status', {
-        p_stop_id: stop.id,
-        p_status:  newStatus,
-        p_note:    completionNote || null,
+      const { error } = await dal.run('route.updateStopStatus', {
+        stopId: stop.id,
+        status: newStatus,
+        note:   completionNote || null,
       });
       if (error) throw error;
       toast.success(successMsg || 'סטטוס התחנה עודכן');
@@ -319,10 +320,10 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
     if (!noteText.trim()) return;
     setBusy(true);
     try {
-      const { error } = await supabase.rpc('add_stop_documentation', {
-        p_stop_id: stop.id,
-        p_kind:    'note',
-        p_payload: { text: noteText.trim() },
+      const { error } = await dal.run('route.addStopDocumentation', {
+        stopId:  stop.id,
+        kind:    'note',
+        payload: { text: noteText.trim() },
       });
       if (error) throw error;
       toast.success('ההערה נשמרה');
@@ -342,16 +343,16 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
     if (!issueText.trim()) return;
     setBusy(true);
     try {
-      const { error: statusErr } = await supabase.rpc('update_stop_status', {
-        p_stop_id: stop.id,
-        p_status:  'failed',
-        p_note:    issueText.trim(),
+      const { error: statusErr } = await dal.run('route.updateStopStatus', {
+        stopId: stop.id,
+        status: 'failed',
+        note:   issueText.trim(),
       });
       if (statusErr) throw statusErr;
-      await supabase.rpc('add_stop_documentation', {
-        p_stop_id: stop.id,
-        p_kind:    'issue',
-        p_payload: { text: issueText.trim() },
+      await dal.run('route.addStopDocumentation', {
+        stopId:  stop.id,
+        kind:    'issue',
+        payload: { text: issueText.trim() },
       });
       toast.success('התקלה תועדה. המנהל יראה את הדיווח ביומן הפעילות.');
       setIssueText('');
