@@ -13,6 +13,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dal } from '@/lib/dal';
+import { clearPersistedCache } from '@/lib/query-persister';
 import { GuestDataProvider, GuestDataCtx, DEFAULT_REMINDER_SETTINGS } from '@/contexts/GuestDataContext';
 
 const AuthCtx = createContext(null);
@@ -321,6 +322,12 @@ function AuthInner({ children }) {
         // server-revoked token on next API call).
         try { localStorage.removeItem('cr_has_session'); } catch {}
         try { localStorage.removeItem('cr_is_admin'); } catch {}
+        // The central sign-out chokepoint: this fires for our own logout
+        // buttons, PIN lockout, and externally-revoked sessions alike. Drop
+        // the on-disk query snapshot here so the next person to sign in on
+        // this device cannot rehydrate the previous user's vehicles and
+        // documents from IndexedDB.
+        clearPersistedCache();
         setAuthState('guest');
         try { window.__crAuthResolvedAt = Date.now(); } catch {}
         // Detach PIN — every subsequent isPinEnabled() / tryUnlock()

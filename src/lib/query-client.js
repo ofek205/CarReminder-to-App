@@ -33,7 +33,13 @@ export const queryClientInstance = new QueryClient({
 			refetchOnWindowFocus: false,
 			retry: 1,
 			staleTime: 5 * 60 * 1000,
-			gcTime: 10 * 60 * 1000,
+			// MUST stay >= the persister's maxAge (see PERSIST_MAX_AGE in
+			// query-persister.js). React Query garbage-collects a restored
+			// query once gcTime elapses with no observer, so with the old
+			// 10-minute value the rehydrated offline cache evaporated within
+			// minutes of boot — the cache "restored" and then vanished.
+			// Raising this is what makes offline reads actually survive.
+			gcTime: 24 * 60 * 60 * 1000,
 		},
 	},
 });

@@ -1,7 +1,8 @@
 import React from 'react'
 import { Toaster as SonnerToaster } from "sonner"
-import { QueryClientProvider } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { queryClientInstance } from '@/lib/query-client'
+import { idbPersister, PERSIST_MAX_AGE, shouldDehydrateQuery } from '@/lib/query-persister'
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
@@ -227,7 +228,25 @@ function App() {
   return (
     <div>
       <AppErrorBoundary>
-        <QueryClientProvider client={queryClientInstance}>
+        {/* PersistQueryClientProvider = QueryClientProvider + an async restore
+            of the last cache snapshot from IndexedDB, which is what makes reads
+            work with no signal. It renders children IMMEDIATELY and hydrates in
+            the background, so it cannot delay first paint or the auth watchdog
+            in main.jsx — a hard requirement given the app's history of
+            splash-forever bugs on iOS. See docs/offline-architecture-spec.md §4. */}
+        <PersistQueryClientProvider
+          client={queryClientInstance}
+          persistOptions={{
+            persister: idbPersister,
+            maxAge: PERSIST_MAX_AGE,
+            // Every release bumps package.json's version (mandated by the
+            // production gates), so this discards the previous build's cache
+            // automatically. That protects against a query's row shape
+            // changing under a snapshot written by an older build.
+            buster: typeof __APP_VERSION__ !== 'undefined' ? String(__APP_VERSION__) : 'dev',
+            dehydrateOptions: { shouldDehydrateQuery },
+          }}
+        >
           {/* AppUpdateGate sits high in the tree so it can hide the
               entire app if the installed native version is below the
               server-defined minimum. It's wrapped in QueryClientProvider
@@ -283,7 +302,7 @@ function App() {
             </PinGate>
           </Router>
           </AppUpdateGate>
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </AppErrorBoundary>
       {/* sonner is the ONLY toast renderer — the old shadcn Toaster was
           mounted but received no toasts (every caller uses sonner's toast())

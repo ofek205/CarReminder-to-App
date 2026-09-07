@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dal } from '@/lib/dal';
+import { clearPersistedCache } from '@/lib/query-persister';
 import { useAuth } from '../components/shared/GuestContext';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -73,6 +74,12 @@ export default function DeleteAccount() {
       // everything in one BEGIN/COMMIT and returns counts.
       const { error: rpcErr } = await dal.run('account.deleteMine', { mode });
       if (rpcErr) throw rpcErr;
+
+      // Both modes: the on-disk query snapshot still holds the rows that were
+      // just deleted server-side. localStorage.clear() below does NOT touch
+      // IndexedDB, so without this the UI would rehydrate ghost vehicles and
+      // documents that no longer exist.
+      await clearPersistedCache();
 
       if (mode === 'account') {
         // Account is gone — wipe everything and sign the user out so

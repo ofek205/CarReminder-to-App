@@ -43,6 +43,7 @@ import { setViewAs, clearViewAs, getViewAs } from '@/lib/viewAsState';
 import { clearSignedUrlCache } from '@/hooks/useSignedUrl';
 import { clearVehiclesCache } from '@/lib/vehiclesCache';
 import { clearBreadcrumbs } from '@/lib/breadcrumbs';
+import { clearPersistedCache } from '@/lib/query-persister';
 import { MEMBER_STATUS, isGrantedMember } from '@/lib/enums';
 import { adminSupabase, setImpersonationToken, clearImpersonationToken } from '@/lib/supabase';
 
@@ -329,6 +330,9 @@ export function WorkspaceProvider({ children }) {
     viewGeneration++;
     clearImpersonationToken();
     clearViewAs();
+    // Identity changed, so the on-disk query snapshot belongs to someone else.
+    // Drop it before the new identity can rehydrate from it.
+    clearPersistedCache();
   }, [user?.id]);
 
   // Initial resolution + revalidation when the active workspace
@@ -469,6 +473,11 @@ export function WorkspaceProvider({ children }) {
     try { clearSignedUrlCache(); } catch { /* noop */ }
     try { clearBreadcrumbs(); } catch { /* noop */ }
     try { clearVehiclesCache(); } catch { /* noop */ }
+    // queryClient.clear() only empties MEMORY. The persisted snapshot lives in
+    // IndexedDB and would otherwise rehydrate the customer's rows on the
+    // admin's next load — the same class of leak as the vehicles-cache one
+    // described above, one layer down.
+    clearPersistedCache();
     return data;
   }, [queryClient]);
 
@@ -524,6 +533,11 @@ export function WorkspaceProvider({ children }) {
     try { clearSignedUrlCache(); } catch { /* noop */ }
     try { clearBreadcrumbs(); } catch { /* noop */ }
     try { clearVehiclesCache(); } catch { /* noop */ }
+    // queryClient.clear() only empties MEMORY. The persisted snapshot lives in
+    // IndexedDB and would otherwise rehydrate the customer's rows on the
+    // admin's next load — the same class of leak as the vehicles-cache one
+    // described above, one layer down.
+    clearPersistedCache();
   }, [queryClient]);
 
   // Keep the borrowed identity alive for as long as the session runs.
