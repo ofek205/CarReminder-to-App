@@ -426,13 +426,15 @@ Foundation. Behavior-preserving; each domain = its own commit.
 
 **Lesson (2026-09-07): never delete an import based on a single-line grep.** `grep -c 'supabase\.'` reported 0 uses in CreateBusinessWorkspace.jsx, but the file reads `withTimeout(supabase` with `.from()` on the NEXT line → dropping the import produced a `no-undef` that would have crashed the page at runtime. **Always run the full-project `npx --no-install eslint .` (0 errors) before committing a slice** — `no-undef` + `unused-imports` are the two rules that keep catching this refactor's real bugs.
 
-### Phase 1 — read-cache (offline reads) — ~80% of the value
-- [ ] `npm i` idb-keyval + react-query-persist-client + query-async-storage-persister
-- [ ] 🛑 `gcTime` 10min → 24h (query-client.js:36)
-- [ ] `query-persister.js` + `query-persist-allowlist.js` + `PersistQueryClientProvider` (App.jsx:229), `buster: __APP_VERSION__`, `maxAge: 24h`
-- [ ] 🛑 strip signed-URL fields on dehydrate + `VehicleImage` onError→placeholder
-- [ ] `OfflineBanner` + `useOnlineStatus`
-- [ ] `clearPersistedCache()` wired at the 7 identity/teardown points (§7); persist-only-when-authenticated
+### Phase 1 — read-cache (offline reads) — ~80% of the value ✅ CODE COMPLETE (2026-09-07)
+- [x] deps installed: `idb-keyval@6.3.0`, `@tanstack/react-query-persist-client@5.90.2`, `@tanstack/query-async-storage-persister@5.90.2`. ⚠️ **Gotcha:** the install silently re-resolved `@tanstack/react-query` 5.90.21 → 5.102.8 (the `^5.84.1` range allowed it). Pinned back to `^5.90.21`; persist at 5.90.2 peers `^5.90.2`. **Check `@tanstack/react-query`'s resolved version after any future npm install.**
+- [x] 🛑 `gcTime` 10min → 24h (`query-client.js`) — must stay >= `PERSIST_MAX_AGE`
+- [x] `query-persister.js` + `query-persist-allowlist.js` + `PersistQueryClientProvider` (App.jsx), `buster: __APP_VERSION__`, `maxAge: 24h`, IDB calls raced against a 2.5s resolve-timeout (WKWebView hang)
+- [x] 🛑 signed-URL fields stripped on dehydrate (verified in-browser: no token, no URL field, `*_storage_path` kept). **`VehicleImage` placeholder NOT done** — `hasVehiclePhoto()` still returns true offline (it checks `storage_path`), so the component renders nothing → an empty area, not a broken-image icon. Minor cosmetic gap, offline only; a real fix means per-call-site placeholders since VehicleImage deliberately has none.
+- [x] `OfflineBanner` + `useOnlineStatus` / `useSettledOnlineStatus` (asymmetric debounce: 600ms to appear, instant to hide). Mounted in Layout below StagingBanner. **Only renders on signed-in pages** (Layout isn't mounted on AuthPage) — acceptable, since logging in offline is impossible anyway.
+- [x] `clearPersistedCache()` wired at 5 identity boundaries: sign-out (the central `onAuthStateChange` chokepoint, which also covers PIN lockout + server-revoked sessions), identity change, both view-as teardowns, account deletion (both modes)
+- [ ] **NOT live-tested with a signed-in session** — the banner's appearance and a real offline reload both need Ofek on the staging preview.
+- [ ] Guest mode: persistence is not gated on `authState`. Low risk (guest data lives in localStorage and the allowlist is account-scoped), and the identity-change clear covers the guest→auth transition. Revisit if it ever matters.
 
 ### Phase 2 — reliable detection + offline guard
 - [ ] `npm i` @capacitor/network → `npx cap sync`; wire `onlineManager` on native
