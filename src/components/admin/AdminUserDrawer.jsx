@@ -23,6 +23,7 @@ import {
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/business/system';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -367,7 +368,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
     if (!deleteVehicle) return;
     setVehicleBusy(true);
     try {
-      const { error } = await supabase.rpc('admin_delete_vehicle', { p_vehicle_id: deleteVehicle.id });
+      const { error } = await dal.run('admin.deleteVehicle', { vehicleId: deleteVehicle.id });
       if (error) throw error;
       toast.success('הרכב נמחק');
       setDeleteVehicle(null);
@@ -398,10 +399,10 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
   const applyOwnerChange = async ({ newOwnerId, removePrevious }) => {
     setOwnerBusy(true);
     try {
-      const { error } = await supabase.rpc('admin_set_account_owner', {
-        p_account_id:        account.id,
-        p_new_owner_user_id: newOwnerId,          // null ⇒ leave ownerless
-        p_remove_previous:   !!removePrevious,
+      const { error } = await dal.run('admin.setAccountOwner', {
+        accountId:        account.id,
+        newOwnerUserId:   newOwnerId,          // null ⇒ leave ownerless
+        removePrevious:   !!removePrevious,
       });
       if (error) throw error;
       toast.success(newOwnerId ? 'הבעלות הועברה' : 'החשבון נותר ללא בעלים');
@@ -426,7 +427,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
     if (!editVehicle) return;
     setVehicleBusy(true);
     try {
-      const { error } = await supabase.rpc('admin_update_vehicle', { p_vehicle_id: editVehicle.id, p_patch: patch });
+      const { error } = await dal.run('admin.updateVehicle', { vehicleId: editVehicle.id, patch });
       if (error) throw error;
       toast.success('הרכב עודכן');
       setEditVehicle(null);
@@ -462,7 +463,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
     if (ids.length === 0) return;
     setVehicleBusy(true);
     try {
-      const { error } = await supabase.rpc('admin_delete_vehicles', { p_vehicle_ids: ids });
+      const { error } = await dal.run('admin.deleteVehicles', { vehicleIds: ids });
       if (error) throw error;
       toast.success(`${ids.length} כלי תחבורה נמחקו`);
       setBulkConfirm(false);
@@ -1559,9 +1560,9 @@ function AdminNotes({ userId }) {
 
   const handleSave = async () => {
     setSaving(true);
-    const { error } = await supabase.rpc('admin_set_user_note', {
-      p_user_id: userId,
-      p_note: note,
+    const { error } = await dal.run('admin.setUserNote', {
+      userId,
+      note,
     });
     setSaving(false);
     if (error) {
@@ -1724,7 +1725,7 @@ function AdminActions({ accountId, accountName, ownerId, ownerRole, onClose, onA
     if (!accountId) return;
     setDeleting(true);
     try {
-      const { error } = await supabase.rpc('admin_delete_account', { p_account_id: accountId });
+      const { error } = await dal.run('admin.deleteAccount', { accountId });
       if (error) throw error;
       toast.success(`חשבון "${accountName}" נמחק`);
       qc.invalidateQueries({ queryKey: ['admin-user-list'] });
@@ -1745,7 +1746,7 @@ function AdminActions({ accountId, accountName, ownerId, ownerRole, onClose, onA
     const newRole = isOwnerAdmin ? 'user' : 'admin';
     setTogglingRole(true);
     try {
-      const { error } = await supabase.rpc('admin_set_role', { p_user_id: ownerId, p_role: newRole });
+      const { error } = await dal.run('admin.setRole', { userId: ownerId, role: newRole });
       if (error) throw error;
       toast.success(`הרשאה שונתה ל-${newRole === 'admin' ? 'אדמין' : 'משתמש'}`);
       qc.invalidateQueries({ queryKey: ['admin-user-list'] });

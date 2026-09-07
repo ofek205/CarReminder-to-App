@@ -11,6 +11,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useNavigate } from 'react-router-dom';
 import useIsAdmin from '@/hooks/useIsAdmin';
 import { toast } from 'sonner';
@@ -114,9 +115,9 @@ export default function AdminAiSettings({ embedded = false }) {
     setSaving(feature);
     const prev = settings[feature];
     setSettings(s => ({ ...s, [feature]: provider }));
-    const { error } = await supabase.rpc('set_ai_provider', {
-      p_feature:  feature,
-      p_provider: provider,
+    const { error } = await dal.run('admin.setAiProvider', {
+      feature,
+      provider,
     });
     setSaving(null);
     if (error) {

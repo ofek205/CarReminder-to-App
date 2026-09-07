@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import useIsAdmin from '@/hooks/useIsAdmin';
 import { BUSINESS_WELCOME_FEATURES } from '@/lib/businessWelcome';
@@ -293,9 +294,9 @@ function ResolveDialog({ request, mode, onClose, onResolved }) {
     setSubmitting(true);
     try {
       if (isApprove) {
-        const { error } = await supabase.rpc('approve_business_workspace_request', {
-          p_request_id: request.id,
-          p_review_note: note.trim() || null,
+        const { error } = await dal.run('admin.approveBusinessRequest', {
+          requestId: request.id,
+          reviewNote: note.trim() || null,
         });
         if (error) throw error;
         // Approval email to the requester. Best-effort — the in-app + push
@@ -313,9 +314,9 @@ function ResolveDialog({ request, mode, onClose, onResolved }) {
         }
         toast.success(`החשבון "${request.requested_name}" נפתח עבור ${request.display_name}`);
       } else {
-        const { error } = await supabase.rpc('deny_business_workspace_request', {
-          p_request_id: request.id,
-          p_review_note: note.trim(),
+        const { error } = await dal.run('admin.denyBusinessRequest', {
+          requestId: request.id,
+          reviewNote: note.trim(),
         });
         if (error) throw error;
         toast.success('הבקשה נדחתה. המבקש יראה את הסיבה.');

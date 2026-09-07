@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { DateTimeInput } from '@/components/ui/datetime-input';
@@ -108,11 +109,11 @@ export default function AdminPopupEditor({ popup, onClose, onSaved }) {
     setter(true);
     try {
       if (popup?.id) {
-        const { error } = await supabase.from('admin_popups').update(payload).eq('id', popup.id);
+        const { error } = await dal.run('admin.popupUpdate', { ...payload, id: popup.id });
         if (error) throw error;
       } else {
         const { data: { user } } = await supabase.auth.getUser();
-        const { error } = await supabase.from('admin_popups').insert({ ...payload, created_by: user?.id });
+        const { error } = await dal.run('admin.popupCreate', { ...payload, created_by: user?.id });
         if (error) throw error;
       }
       toast.success(nextStatus === 'active' ? 'פורסם 🚀' : 'נשמר');

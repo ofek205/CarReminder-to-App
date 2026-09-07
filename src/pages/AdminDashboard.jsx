@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { db } from '@/lib/supabaseEntities';
 import useIsAdmin from '@/hooks/useIsAdmin';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
@@ -1505,8 +1506,8 @@ export function AdminUsersTab({ onOpenDrawer }) {
     }
     setDeleting(true);
     try {
-      const { error } = await supabase.rpc('admin_delete_user_full', {
-        p_user_id: pendingDelete.owner_user_id,
+      const { error } = await dal.run('admin.deleteUserFull', {
+        userId: pendingDelete.owner_user_id,
       });
       if (error) throw error;
       toast.success('החשבון נמחק');
@@ -1533,7 +1534,7 @@ export function AdminUsersTab({ onOpenDrawer }) {
     if (!u.owner_user_id) { toast.error('אין בעלים לחשבון'); return; }
     const nextRole = u.role === 'admin' ? 'user' : 'admin';
     try {
-      const { error } = await supabase.rpc('admin_set_role', { p_user_id: u.owner_user_id, p_role: nextRole });
+      const { error } = await dal.run('admin.setRole', { userId: u.owner_user_id, role: nextRole });
       if (error) throw error;
       toast.success(nextRole === 'admin' ? 'הוגדר כאדמין' : 'הוסר מנהל');
       setRefreshKey(k => k + 1);
@@ -2288,7 +2289,7 @@ function AdminBugsTab() {
   const markResolved = async (bug) => {
     if (source !== 'remote' || !bug.id) return;
     try {
-      const { error } = await supabase.from('app_errors').update({ resolved: true }).eq('id', bug.id);
+      const { error } = await dal.run('admin.resolveBug', { id: bug.id });
       if (error) throw error;
       toast.success('סומן כטופל');
       loadBugs();
