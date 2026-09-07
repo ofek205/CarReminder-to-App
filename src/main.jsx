@@ -14,6 +14,7 @@ import { isNative, isIOS, isAndroid, initStatusBar, initKeyboard, initBackButton
 import { reportError } from '@/lib/crashReporter';
 import { initBootLog, recordBootStage, markBootSucceeded, flushPreviousFailedBoot } from '@/lib/bootDiagnostics';
 import { validateEnv } from '@/lib/envValidator';
+import { captureAttribution } from '@/lib/signupAttribution';
 import { C } from '@/lib/designTokens';
 
 // Boot log is the FIRST thing we initialize — even before plugin init,
@@ -21,6 +22,12 @@ import { C } from '@/lib/designTokens';
 // post-mortem analysis. Synchronous, never throws.
 initBootLog();
 recordBootStage('main_entry', { isNative, ua: navigator?.userAgent?.slice(0, 120) });
+
+// Signup attribution — capture the acquisition context of this visit BEFORE
+// React mounts and the router rewrites the URL (which would drop ?utm_*).
+// First-touch only, idempotent, never throws. Store installs have no referrer
+// or UTM and are recorded as store_or_direct; see signupAttribution.js.
+try { captureAttribution(); } catch {}
 
 // Flush previous-launch boot log if it ended without `boot_succeeded`.
 // Fire-and-forget — never blocks current boot. Gives us a remote
