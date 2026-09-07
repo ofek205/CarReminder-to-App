@@ -222,7 +222,11 @@ export default function useReminderSnooze(userId) {
 
     try {
       // Delete matching row. RLS ensures only own rows.
-      const { data: rows } = await db.reminder_snoozes.filter({
+      // NOTE: db.<entity>.filter() returns the ROW ARRAY itself (see
+      // supabaseEntities.js — `return data || []`), never a { data } envelope.
+      // Destructuring `{ data: rows }` here left rows undefined and made the
+      // loop below throw "undefined is not iterable" on EVERY un-snooze.
+      const rows = await db.reminder_snoozes.filter({
         user_id: userId,
         vehicle_id: vehicleId,
         reminder_type: reminderType,
