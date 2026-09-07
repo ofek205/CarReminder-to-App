@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import { getVesselAdvice } from '@/lib/aiAdvice';
 import VesselIssueDialog from './VesselIssueDialog';
@@ -342,9 +343,9 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
       }
     } else {
       if (editingIssue) {
-        await db.vessel_issues.update(editingIssue.id, formData);
+        await dal.run('vesselIssue.update', { ...formData, id: editingIssue.id });
       } else {
-        await db.vessel_issues.create({
+        await dal.run('vesselIssue.create', {
           ...formData,
           vehicle_id: vehicle.id,
           account_id: vehicle.account_id,
@@ -359,7 +360,7 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
     if (isGuest) {
       removeGuestVesselIssue(id);
     } else {
-      await db.vessel_issues.delete(id);
+      await dal.run('vesselIssue.delete', { id });
       queryClient.invalidateQueries({ queryKey: ['vessel_issues', vehicle.id] });
     }
   };
@@ -373,7 +374,7 @@ export default function VesselIssuesSection({ vehicle, isGuest, readOnly = false
     if (isGuest) {
       updateGuestVesselIssue(issue.id, changes);
     } else {
-      await db.vessel_issues.update(issue.id, changes);
+      await dal.run('vesselIssue.update', { ...changes, id: issue.id });
       queryClient.invalidateQueries({ queryKey: ['vessel_issues', vehicle.id] });
     }
   };

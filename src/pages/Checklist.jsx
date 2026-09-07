@@ -25,6 +25,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { PHASE_LABELS } from '@/lib/checklistTemplates';
 import { ArrowRight, Check, X, Minus, AlertCircle, CheckCircle2, Pin, AlertTriangle, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
@@ -342,7 +343,7 @@ export default function Checklist() {
     // 2) Optional vessel_issues row
     if (addToIssues) {
       try {
-        const created = await db.vessel_issues.create({
+        const created = await dal.run('vesselIssue.create', {
           vehicle_id: vehicleId,
           account_id: accountId,
           title: itemTitle,
