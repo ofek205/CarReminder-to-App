@@ -403,7 +403,7 @@ Foundation. Behavior-preserving; each domain = its own commit.
 - [x] **cork_notes + tasks** — corkNote.{create,update,delete}, task.{create,toggleDone,delete} (`b6ed878`)
 - [~] **vehicles** — `vehicle.update` command done; MileageUpdateWidget + VehicleCompletionSheet migrated (`82c74ac`). TODO: remaining `vehicle.update` sites (EditVehicle, VehicleDetail, VehicleInfoSection, VehicleCardEnhanced, ChecklistsSection, VehicleScanWizard); `vehicle.create` (AddVehicle, Dashboard, VehicleScanWizard, GuestDataContext[guest], vehicleQuickCheck[boot]); `vehicle.delete`; `vehicle.bulkAdd`; driver RPCs (driverUpdateMileage, driverLogEvent)
 - [x] **maintenance** — maintenance.{create,update,delete} (was direct-from) + maintPref.{create,update,delete} (`2fb6d8e`)
-- [ ] **repairs** — repair.save (`save_repair_with_children` rpc, HARD), repair.delete, repairType.{create,update,delete}
+- [x] **repairs** — repair.save (`save_repair_with_children` rpc, HARD), repair.delete, repairType.{create,update,delete} (`06bb1d4`). ⚠️ `repair.save` returns the raw `{data,error}` envelope — **Phase-2 task: normalize it** (its 2 call sites branch on `error` differently)
 - [ ] **documents** — document.{create,delete}
 - [ ] **accidents** — accident.{create,update}
 - [x] **vessel-issues** — vesselIssue.{create,update,delete} (`d78fab8`)
