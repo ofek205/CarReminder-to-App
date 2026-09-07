@@ -27,6 +27,7 @@ import './commands/checklists';
 import './commands/profile';
 import './commands/routes';
 import './commands/access';
+import './commands/drivers';
 
 export const dal = {
   run: runCommand,

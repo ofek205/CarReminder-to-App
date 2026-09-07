@@ -36,12 +36,11 @@ import useAccountRole from '@/hooks/useAccountRole';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import {
   getExternalDriver,
-  archiveExternalDriver,
-  endDriverAssignment,
   listAssignmentsForExternalDriver,
   categoryShortLabel,
   categoryEmoji,
 } from '@/services/drivers';
+import { dal } from '@/lib/dal';
 // Living Dashboard system - shared with all B2B pages.
 // We import Card as SystemCard because this file already declares a
 // local <Card> helper (now renamed InfoSection) for the per-section
@@ -181,7 +180,7 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
   const doArchive = async () => {
     setArchiving(false);
     try {
-      await archiveExternalDriver(externalDriverId);
+      await dal.run('externalDriver.archive', { id: externalDriverId });
       await queryClient.invalidateQueries({ queryKey: ['external-drivers'] });
       await queryClient.invalidateQueries({ queryKey: ['external-driver', externalDriverId] });
       await queryClient.invalidateQueries({ queryKey: ['driver-assignments'] });
@@ -198,7 +197,7 @@ function ExternalDriverDetail({ externalDriverId, accountId, navigate }) {
     setConfirmEnd(null);
     if (!assignmentId) return;
     try {
-      await endDriverAssignment(assignmentId);
+      await dal.run('driverAssignment.end', { assignmentId });
       await queryClient.invalidateQueries({ queryKey: ['external-driver-assignments', externalDriverId] });
       await queryClient.invalidateQueries({ queryKey: ['driver-assignments'] });
       toast.success('השיבוץ הסתיים');
@@ -607,7 +606,7 @@ function RegisteredDriverDetail({ userId, accountId, navigate }) {
     setConfirmEnd(null);
     if (!aid) return;
     try {
-      await endDriverAssignment(aid);
+      await dal.run('driverAssignment.end', { assignmentId: aid });
       await queryClient.invalidateQueries({ queryKey: ['user-driver-assignments', accountId, userId] });
       await queryClient.invalidateQueries({ queryKey: ['driver-assignments'] });
       toast.success('השיבוץ הסתיים');
