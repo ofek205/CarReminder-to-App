@@ -12,17 +12,26 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Briefcase, User as UserIcon, Check, ChevronDown, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
-import { isActiveMember } from '@/lib/enums';
+import { isGrantedMember } from '@/lib/enums';
+import { viewAsErrorText } from '@/lib/viewAsError';
 
 const PERSONAL_LABEL = 'החשבון הפרטי שלי';
 
-function workspaceLabel(m) {
+// "שלי" is a lie during an admin view-as session — the personal workspace
+// listed there belongs to the account being viewed, not to the admin reading
+// the screen. Naming it "mine" is the single most misleading string in the
+// impersonation flow: it makes the admin's own account look present in a
+// list that never contained it.
+const PERSONAL_LABEL_VIEW_AS = 'חשבון פרטי';
+
+function workspaceLabel(m, isViewAs = false) {
   if (m.account_type === 'business') {
     return m.account_name || 'חשבון עסקי';
   }
-  return PERSONAL_LABEL;
+  return isViewAs ? PERSONAL_LABEL_VIEW_AS : PERSONAL_LABEL;
 }
 
 export default function WorkspaceSwitcher() {
@@ -53,7 +62,7 @@ export default function WorkspaceSwitcher() {
   const hasMultiple = memberships.length > 1;
 
   const ActiveIcon = activeWorkspace?.account_type === 'business' ? Briefcase : UserIcon;
-  const activeLabel = activeWorkspace ? workspaceLabel(activeWorkspace) : '...';
+  const activeLabel = activeWorkspace ? workspaceLabel(activeWorkspace, isViewAs) : '...';
 
   return (
     <div ref={wrapRef} className="relative" dir="rtl">
@@ -81,7 +90,7 @@ export default function WorkspaceSwitcher() {
                 סביבות העבודה שלי
               </div>
               {memberships
-                .filter(isActiveMember)
+                .filter(isGrantedMember)
                 .map(m => {
                   const isActive = m.account_id === activeWorkspaceId;
                   const Icon = m.account_type === 'business' ? Briefcase : UserIcon;
@@ -94,18 +103,41 @@ export default function WorkspaceSwitcher() {
                       onClick={async () => {
                         setOpen(false);
                         if (!isActive) {
-                          const ok = await switchTo(m.account_id);
+                          // During view-as, switchTo re-opens the audited
+                          // session on the new workspace and can reject (not
+                          // admin any more, session expired, target not a
+                          // member there, token mint failed). Unhandled, the
+                          // dropdown just closed and nothing happened, leaving
+                          // the admin on the previous workspace with no idea
+                          // the switch failed.
+                          let ok = false;
+                          try {
+                            ok = await switchTo(m.account_id);
+                          } catch (err) {
+                            toast.error('לא ניתן היה להחליף מרחב עבודה', {
+                              description: viewAsErrorText(err, err?.message),
+                            });
+                            return;
+                          }
                           if (ok) {
                             // Navigate straight to the workspace home,
                             // role-aware. BusinessDashboard is manager-only;
                             // drivers must land on /MyVehicles instead or
                             // they hit the "אין הרשאה לדשבורד" guard right
                             // after every switch back to business.
+                            //
+                            // During view-as the switch returns the session
+                            // payload, whose target_role is the role the server
+                            // just resolved for that person in that workspace.
+                            // Prefer it: the membership list carries no role
+                            // while impersonating, and guessing one here is
+                            // what used to send a viewed driver into the guard.
+                            const role = (ok && typeof ok === 'object' && ok.target_role)
+                              ? ok.target_role
+                              : m.role;
                             let target;
                             if (m.account_type === 'business') {
-                              target = m.role === 'driver'
-                                ? 'MyVehicles'
-                                : 'BusinessDashboard';
+                              target = role === 'driver' ? 'MyVehicles' : 'BusinessDashboard';
                             } else {
                               target = 'Dashboard';
                             }
@@ -119,7 +151,7 @@ export default function WorkspaceSwitcher() {
                     >
                       <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-[#2D5233]' : 'text-gray-400'}`} />
                       <span className={`flex-1 text-xs truncate ${isActive ? 'font-bold text-[#2D5233]' : 'text-gray-700'}`}>
-                        {workspaceLabel(m)}
+                        {workspaceLabel(m, isViewAs)}
                       </span>
                       {isActive && <Check className="h-4 w-4 text-[#2D5233] shrink-0" />}
                     </button>

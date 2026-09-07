@@ -13,13 +13,24 @@
  * enforced here — RLS (is_viewing) enforces access server-side. This flag only
  * drives UX and client-side guards.
  *
- * State shape (or null when not active):
+ * A session identifies a PERSON in a WORKSPACE, not just an account. Those are
+ * genuinely independent: viewing a manager inside the business they manage is
+ * (their user id, the business account). Deriving the person from the account's
+ * owner — which is what the server used to do — silently swapped identities
+ * whenever the admin changed workspace mid-session.
+ *
+ * State shape (or null when not active). Every field is populated by
+ * viewAsFromPayload() in WorkspaceContext from admin_start_view /
+ * admin_current_view, which return identical shapes so that entering a session
+ * and restoring one after a reload cannot diverge:
  *   {
- *     targetAccountId: string,
- *     targetUserId:    string | null,
- *     targetName:      string,
+ *     targetAccountId: string,                  // the workspace
+ *     targetUserId:    string | null,           // the person — drives the token's `sub`
+ *     targetName:      string,                  // the ACCOUNT's name
+ *     targetUserName:  string,                  // the PERSON's name (banner)
+ *     targetRole:      string,                  // their real role here; NOT assumed owner
  *     targetType:      'personal' | 'business',
- *     ownerEmail?:     string,
+ *     ownerEmail?:     string,                  // the target's email
  *     expiresAt:       string (ISO),
  *   }
  */

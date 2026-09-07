@@ -29,12 +29,19 @@ export default [
     ],
   },
   {
-    files: [
-      "src/components/**/*.{js,mjs,cjs,jsx}",
-      "src/pages/**/*.{js,mjs,cjs,jsx}",
-      "src/lib/**/*.{js,mjs,cjs,jsx}",
-      "src/Layout.jsx",
-    ],
+    // ALL of src/, not an enumerated list of subdirectories. The list form
+    // has now failed three times, each the same way: a directory nobody
+    // added shipped an undefined identifier to production.
+    //   v5.4.1-hotfix1 — no-undef itself was silently dropped from `rules`.
+    //   v5.4.4-hotfix1 — src/lib/** was outside the scan list.
+    //   2026-07-24     — src/contexts/** was outside it, so WorkspaceContext
+    //                    (which ~30 pages read through) was never linted at
+    //                    all. A renamed import left isActiveMember undefined
+    //                    and staging died on load.
+    // Enumerating opts every future directory OUT by default. A glob opts
+    // them in, and anything genuinely unlintable goes in `ignores` below
+    // where the exclusion is visible instead of implied.
+    files: ["src/**/*.{js,mjs,cjs,jsx}"],
     // src/components/ui/** stays out — those are shadcn primitives we
     // copy verbatim from the library. JSX-specific rules trip on them
     // (e.g. react/no-unknown-property for cmdk-input-wrapper).

@@ -54,5 +54,16 @@ elif [ "$HAVE_NODE" != 1 ]; then
   warn "node not found - skipping query-timeout gate. CI enforces it on PR to main."
 fi
 
+# 5. View-as identity gate - admin RPCs must go through adminSupabase, never the
+# impersonation-proxied `supabase`. On the proxied client they arrive as the
+# viewed user and fail is_admin(), usually silently. Fixed three times by hand in
+# one day before this gate existed. See scripts/check-view-as-identity.cjs.
+if [ "$HAVE_NODE" = 1 ] && [ -f scripts/check-view-as-identity.cjs ]; then
+  node scripts/check-view-as-identity.cjs || fail "check-view-as-identity gate failed."
+  ok "view-as identity gate passed"
+elif [ "$HAVE_NODE" != 1 ]; then
+  warn "node not found - skipping view-as identity gate. CI enforces it on PR to main."
+fi
+
 printf "${GRN}[ok] pre-push checks done${NC}\n"
 exit 0

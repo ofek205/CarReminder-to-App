@@ -63,8 +63,18 @@ export default function ViewAsBanner() {
     >
       <div className="flex items-center gap-2 min-w-0">
         <Eye className="w-4 h-4 shrink-0" />
+        {/* Name the PERSON first, then the workspace they are in.
+            This line used to read "צופה בחשבון של " + the account name, which
+            produced "צופה בחשבון של החשבון של אופק" and, more importantly, told
+            the admin nothing about whose eyes they were actually looking
+            through. A session is now (person, workspace); the banner says both.
+            Falls back to the old wording when the server has not been migrated
+            yet, so a stale bundle never renders "צופה כ" with an empty name. */}
         <span className="text-[13px] font-bold truncate">
-          צופה בחשבון של {viewAs.targetName || 'משתמש'}
+          {viewAs.targetUserName
+            ? <>צופה כ<strong>{viewAs.targetUserName}</strong>
+                {viewAs.targetName ? ` · ${viewAs.targetName}` : ''}</>
+            : `צופה בחשבון של ${viewAs.targetName || 'משתמש'}`}
         </span>
       </div>
       <div className="flex items-center gap-3 shrink-0">

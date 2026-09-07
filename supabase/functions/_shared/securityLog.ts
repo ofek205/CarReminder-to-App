@@ -28,7 +28,12 @@ export type SecurityEvent =
   | 'rate_limit_hit'
   | 'rate_limit_error'
   | 'ssrf_rejected'
-  | 'payload_rejected';
+  | 'payload_rejected'
+  // Emitted by admin-impersonate on every successful mint. Unlike the others
+  // this is not a failure — it is the highest-privilege thing the system can
+  // do, so it belongs in the same queryable stream rather than in a log line
+  // nobody greps for.
+  | 'impersonation_issued';
 
 /**
  * Emit a single structured security log line.

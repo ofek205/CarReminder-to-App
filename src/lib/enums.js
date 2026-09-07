@@ -18,6 +18,7 @@
  */
 export const MEMBER_STATUS = Object.freeze({
   ACTIVE:  'פעיל',
+  PENDING: 'ממתין',
   REMOVED: 'הוסר',
 });
 
@@ -38,6 +39,33 @@ export function isActiveMember(member) {
   if (!member.status) return true;
   return member.status !== MEMBER_STATUS.REMOVED
       && member.status !== LEGACY_MEMBER_STATUS.REMOVED_EN;
+}
+
+/**
+ * Helper: returns true only when the server will actually grant this
+ * membership access to account data.
+ *
+ * This is NOT the same question as isActiveMember(). The RLS chokepoint
+ * `user_account_ids()` selects `where user_id = auth.uid() and status =
+ * 'פעיל'`, so 'ממתין' rows read back zero rows from vehicles, accounts
+ * and every account-scoped table. isActiveMember() only excludes
+ * explicitly-removed rows, so a pending invite passes it — the client
+ * then renders the workspace as joined while every query comes back
+ * empty. That divergence is the "invited user sees the account but no
+ * data" bug.
+ *
+ * Rule of thumb:
+ *   isActiveMember   → "this row was not revoked"  (healing / legacy paths)
+ *   isGrantedMember  → "this row grants access"    (anything gating UI or data)
+ *
+ * Deliberately strict about a missing status: unlike isActiveMember, a
+ * null status is NOT treated as granted, because `user_account_ids()`
+ * would not return it either. Verified safe against production on
+ * 2026-07-24 — account_members held 590 'פעיל', 2 'ממתין', and zero
+ * null/legacy rows, so nothing is demoted by this.
+ */
+export function isGrantedMember(member) {
+  return !!member && member.status === MEMBER_STATUS.ACTIVE;
 }
 
 /**

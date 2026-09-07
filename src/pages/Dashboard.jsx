@@ -20,6 +20,7 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { useAuth } from "../components/shared/GuestContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
+import useViewAs from '@/hooks/useViewAs';
 import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
 import { usesHours, usesKm } from "../components/shared/DateStatusUtils";
@@ -30,6 +31,7 @@ import CompleteProfileScreen, { isProfileSkipActive } from '../components/shared
 import useUserProfile from '@/hooks/useUserProfile';
 import LicensePlate from '../components/shared/LicensePlate';
 import FirstTimeTour from '../components/shared/FirstTimeTour';
+import PendingInviteBanner from '../components/sharing/PendingInviteBanner';
 import SharedIndicator from '@/components/sharing/SharedIndicator';
 import { Share2, HelpCircle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -846,6 +848,7 @@ export default function Dashboard() {
   // Dashboard ended up showing them every vehicle in the workspace.
   const navigateRef = useNavigate();
   const { activeWorkspace, activeWorkspaceId } = useWorkspace();
+  const viewAs = useViewAs();
   const { isDriver, canManageRoutes } = useWorkspaceRole();
   const { profile: cachedProfile, isLoading: profileLoading } = useUserProfile();
   useEffect(() => {
@@ -936,9 +939,27 @@ export default function Dashboard() {
   });
 
 
-  //  Authenticated init (Supabase) 
+  //  Authenticated init (Supabase)
   useEffect(() => {
     if (!isAuthenticated || !user) return;
+    // Never run during an admin view-as session. Both halves of init() are
+    // wrong while impersonating:
+    //
+    //   1. It resolves accountId from account_members WHERE user_id =
+    //      user.id — the ADMIN's memberships — and calls setAccountId with
+    //      the result. The effect above already syncs accountId from
+    //      activeWorkspaceId, which points at the TARGET. Two async effects
+    //      writing the same state means whichever lands last wins, so the
+    //      dashboard rendered a mix of the admin's account and the target's
+    //      depending on network timing. That race is the "it mixes with
+    //      mine" symptom.
+    //   2. It migrates guest vehicles out of localStorage into the DB. Those
+    //      rows belong to whoever used this browser as a guest — writing
+    //      them mid-impersonation is a write nobody asked for.
+    //
+    // During view-as the sync effect above owns accountId outright, so
+    // skipping this leaves the page correctly scoped to the target.
+    if (viewAs) return;
     async function init() {
       try {
         // Find existing account membership. We pull ALL rows first so a
@@ -1027,7 +1048,7 @@ export default function Dashboard() {
       }
     }
     init();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, viewAs]);
 
   // Profile-completion popup — reads from shared useUserProfile cache.
   // Previously this was inlined inside init() which meant a raw Supabase
@@ -1094,7 +1115,10 @@ export default function Dashboard() {
   const cachedVehicles = readVehiclesCache();
 
   const { data: vehicles = [], isLoading: vehiclesLoading, isError: vehiclesError, refetch: refetchVehicles } = useQuery({
-    queryKey: ['my-vehicles', user?.id, accountId],
+    // !!viewAs is part of the key: entering or leaving a session changes what
+    // the filter below keeps, and accountId alone doesn't always move (an
+    // admin can view an account they are also a member of).
+    queryKey: ['my-vehicles', user?.id, accountId, !!viewAs],
     queryFn: async () => {
       const { data, error } = await withTimeout(
         supabase.from('my_vehicles_v').select('*'),
@@ -1108,7 +1132,21 @@ export default function Dashboard() {
       // personal-flow feature; business workspace users are redirected
       // to /BusinessDashboard above so this filter only runs in
       // personal context.
-      return (data || []).filter(v => v.is_shared_with_me || v.account_id === accountId);
+      // The is_shared_with_me escape is deliberately dropped during view-as.
+      // my_vehicles_v's second branch returns vehicles shared with
+      // auth.uid(), and auth.uid() stays the ADMIN for the whole session —
+      // so without this the admin's own shared vehicles render inside the
+      // customer's dashboard. Confirmed in production: an admin viewing an
+      // account with zero vehicles saw a car belonging to a third party who
+      // had shared it with them, which reads exactly like a data leak even
+      // though every row was one the admin is entitled to.
+      //
+      // Sharing is a personal-flow feature, so outside view-as the escape
+      // stays — a sharee must still see their shared cars regardless of
+      // which workspace is active.
+      return (data || []).filter(v =>
+        (!viewAs && v.is_shared_with_me) || v.account_id === accountId
+      );
     },
     enabled: !!user?.id && !!accountId,
     retry: 1,
@@ -1141,6 +1179,16 @@ export default function Dashboard() {
   useEffect(() => {
     if (!VEHICLES_CACHE_KEY) return;
     if (!Array.isArray(vehicles)) return;
+    // Never persist during view-as. This is a SECOND vehicle cache, separate
+    // from the useMyVehicles/vehiclesCache.js path — and it was missed when
+    // that one was hardened, so it kept writing the impersonated customer's
+    // plates and models to the admin's disk under the admin's own user id
+    // (auth is never impersonated) and the target's account id. clearVehicles-
+    // Cache() could not remove them either: its key shape is the underscored
+    // cr_vehicles_v2:… while this one is the hyphenated cr-vehicles-cache:…
+    // Not writing is the primary fix; the exit sweep now also matches this
+    // prefix as a second layer. Mirrors the same guard in vehiclesCache.js.
+    if (viewAs) return;
     // Don't overwrite a populated cache with [] during the very first
     // mount before the query resolves — empty + no data = uninteresting.
     if (vehicles.length === 0 && !cachedVehicles) return;
@@ -1157,8 +1205,8 @@ export default function Dashboard() {
     // changing accounts re-evaluates it and re-writes under the new
     // key. cachedVehicles is read once at mount; intentionally NOT
     // a dep to avoid infinite re-write on every snapshot.
-     
-  }, [vehicles, VEHICLES_CACHE_KEY]);
+
+  }, [vehicles, VEHICLES_CACHE_KEY, viewAs]);
 
   // Schedule device notifications for authenticated users.
   // Pass the FULL vehicle list (not filteredVehicles) so the user's UI
@@ -1519,6 +1567,11 @@ export default function Dashboard() {
         return <FirstTimeTour enabled={shouldTour} />;
       })()}
       <div className="px-4 pt-6">
+        {/* Account invitations awaiting this user. Sits above the hero
+            because a pending invite is time-boxed — expire_pending_invites()
+            deletes the row after 14 days — and the notification bell was
+            previously the only place it appeared. */}
+        <PendingInviteBanner />
         <VehicleCheckHero
           hasVehicles={vehicles.length > 0}
           plate={quickCheckPlate}

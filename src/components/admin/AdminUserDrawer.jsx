@@ -27,6 +27,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/business/system';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { createPageUrl } from '@/utils';
+import { viewAsErrorText } from '@/lib/viewAsError';
 import { buildEmailHtml, escapeHtml } from '@/lib/emailTemplates';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 import { C } from '@/lib/designTokens';
@@ -101,11 +102,20 @@ export default function AdminUserDrawer({ account, onClose, onAccountDeleted }) 
     if (!activeAccountId || entering) return;
     setEntering(true);
     try {
-      await enterViewAs(activeAccountId);
+      // Name the person explicitly rather than letting the server infer them
+      // from the account's owner. Same result for this screen — the drawer is
+      // account-centric and data.owner IS that account's owner — but it makes
+      // the identity a decision made at the call site instead of a side effect
+      // of which account happens to be selected.
+      await enterViewAs(activeAccountId, null, data?.owner?.id);
       onClose?.();
       navigate(createPageUrl('Dashboard'));
     } catch (err) {
-      toast.error('שגיאה בכניסה לחשבון', { description: err?.message });
+      // Codes travel from the server as machine strings; viewAsError owns the
+      // Hebrew. Showing err.message raw put English identifiers in front of a
+      // Hebrew user and, for refusals like cannot_view_admin, read as a crash
+      // when it was in fact the safety net working.
+      toast.error('שגיאה בכניסה לחשבון', { description: viewAsErrorText(err) });
       setEntering(false);
     }
   };
@@ -366,6 +376,48 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
       toast.error('מחיקת הרכב נכשלה: ' + (e?.message || 'שגיאה'));
     } finally {
       setVehicleBusy(false);
+    }
+  };
+
+  // Ownership control (admin only, business workspaces only).
+  //
+  // transfer_ownership() cannot serve this: it demands auth.uid() BE the
+  // current owner, so once that person leaves the company nobody can hand
+  // the workspace to anyone. admin_set_account_owner takes the same action
+  // from the admin side, and can also clear the owner entirely.
+  //
+  // owner_user_id comes from the dashboard row (accountProp), not from
+  // admin_account_details — that RPC returns the resolved owner PROFILE but
+  // not the accounts.owner_user_id column, and only the column tells us
+  // whether the workspace is currently ownerless.
+  const isBusiness = account?.kind === 'business';
+  const currentOwnerId = accountProp?.owner_user_id ?? null;
+  const [ownerDialog, setOwnerDialog] = useState(false);
+  const [ownerBusy, setOwnerBusy] = useState(false);
+
+  const applyOwnerChange = async ({ newOwnerId, removePrevious }) => {
+    setOwnerBusy(true);
+    try {
+      const { error } = await supabase.rpc('admin_set_account_owner', {
+        p_account_id:        account.id,
+        p_new_owner_user_id: newOwnerId,          // null ⇒ leave ownerless
+        p_remove_previous:   !!removePrevious,
+      });
+      if (error) throw error;
+      toast.success(newOwnerId ? 'הבעלות הועברה' : 'החשבון נותר ללא בעלים');
+      setOwnerDialog(false);
+      onChanged?.();
+    } catch (e) {
+      const code = String(e?.message || '');
+      const friendly =
+        code.includes('not_a_business_account')  ? 'אפשר לשנות בעלות רק בחשבון עסקי' :
+        code.includes('new_owner_not_registered')? 'המשתמש שנבחר אינו רשום במערכת' :
+        code.includes('not_authorized')          ? 'אין לך הרשאה לפעולה הזו' :
+        code.includes('account_not_found')       ? 'החשבון לא נמצא' :
+        'שינוי הבעלות נכשל: ' + (e?.message || 'שגיאה');
+      toast.error(friendly);
+    } finally {
+      setOwnerBusy(false);
     }
   };
 
@@ -718,21 +770,55 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
       </Card>
 
       {/* MEMBERS ───────────────────────────────────────────────────── */}
-      {members.length > 0 && (
+      {/* Business workspaces render this card even with zero members, so an
+          ownerless one still exposes the control that can rescue it. */}
+      {(members.length > 0 || isBusiness) && (
         <Card accent="purple">
           <SectionHeader
             icon={Users}
             title="חברי החשבון"
             right={(
-              <span className="text-[11px] tabular-nums" style={{ color: C.mutedAlt }} dir="ltr">
-                {members.length}
-              </span>
+              <div className="flex items-center gap-2">
+                {isBusiness && (
+                  <button
+                    type="button"
+                    onClick={() => setOwnerDialog(true)}
+                    className="text-[10px] font-bold px-2 py-1 rounded-lg transition-all active:scale-95"
+                    style={{ background: '#FAF5FF', color: '#6B21A8' }}>
+                    נהל בעלות
+                  </button>
+                )}
+                <span className="text-[11px] tabular-nums" style={{ color: C.mutedAlt }} dir="ltr">
+                  {members.length}
+                </span>
+              </div>
             )}
           />
-          <ul className="space-y-1.5">
-            {members.map(m => <MemberRow key={m.user_id} member={m} />)}
-          </ul>
+          {isBusiness && !currentOwnerId && (
+            <div className="mb-2 rounded-lg px-2.5 py-2 text-[11px] font-bold"
+              style={{ background: C.warnSubtle, color: C.warnDark }}>
+              לחשבון אין בעלים — אף אחד לא יכול לנהל אותו עד שימונה
+            </div>
+          )}
+          {members.length > 0 ? (
+            <ul className="space-y-1.5">
+              {members.map(m => <MemberRow key={m.user_id} member={m} />)}
+            </ul>
+          ) : (
+            <EmptyText>אין חברים בחשבון</EmptyText>
+          )}
         </Card>
+      )}
+
+      {ownerDialog && (
+        <OwnershipDialog
+          members={members}
+          currentOwnerId={currentOwnerId}
+          accountName={account?.name}
+          busy={ownerBusy}
+          onApply={applyOwnerChange}
+          onClose={() => setOwnerDialog(false)}
+        />
       )}
 
       {/* MONEY BREAKDOWN — only when there's spend ─────────────────── */}
@@ -1134,6 +1220,111 @@ function VehicleEditDialog({ vehicle, busy, onSave, onClose }) {
             className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-60"
             style={{ background: C.primaryDark }}>
             {busy ? 'שומר…' : 'שמור'}
+          </button>
+          <button type="button" disabled={busy} onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-[13px] font-bold disabled:opacity-60"
+            style={{ background: C.bgSubtle, color: C.textAlt }}>
+            ביטול
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * OwnershipDialog — admin-side transfer or clearing of a business workspace's
+ * owner.
+ *
+ * Two decisions, deliberately separate:
+ *   1. WHO becomes owner — an existing member, or nobody.
+ *   2. What happens to the OUTGOING owner — removed from the account, or kept
+ *      as a מנהל. Support cases go both ways: someone who left the company vs
+ *      someone who merely handed the reins over.
+ *
+ * "Nobody" is a real choice, not an error state. A workspace whose owner left
+ * has to be parkable until a replacement is decided. It freezes rather than
+ * leaks — every owner-level RLS policy keys off account_members.role, so an
+ * ownerless workspace authorises nothing for anyone, and only an admin can
+ * bring it back.
+ *
+ * Candidates are limited to existing members because that is all this drawer
+ * knows about. An ownerless workspace with NO members can therefore only be
+ * parked, not rescued — appointing an outsider needs a user search that does
+ * not exist yet. The RPC already accepts any registered user, so that gap is
+ * UI-only.
+ */
+function OwnershipDialog({ members, currentOwnerId, accountName, busy, onApply, onClose }) {
+  const candidates = (members || []).filter(m => m.user_id && m.user_id !== currentOwnerId);
+  const [choice, setChoice] = useState(candidates[0]?.user_id || '__none__');
+  const [removePrevious, setRemovePrevious] = useState(false);
+
+  const leavingOwnerless = choice === '__none__';
+  const picked = candidates.find(m => m.user_id === choice);
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" dir="rtl"
+      onClick={() => { if (!busy) onClose(); }}>
+      <div className="absolute inset-0" style={{ background: 'rgba(11,41,18,0.5)' }} />
+      <div className="relative w-full max-w-sm rounded-2xl p-5 bg-white" onClick={(e) => e.stopPropagation()}
+        style={{ boxShadow: '0 20px 50px rgba(11,41,18,0.3)' }}>
+        <p className="text-sm font-black mb-1" style={{ color: C.primaryDark }}>ניהול בעלות</p>
+        <p className="text-[12px] mb-4" style={{ color: C.mutedAlt }}>{accountName || 'החשבון'}</p>
+
+        <label className="block text-[11px] font-bold mb-1.5" style={{ color: C.textAlt }}>בעלים חדש</label>
+        <select
+          value={choice}
+          disabled={busy}
+          onChange={(e) => setChoice(e.target.value)}
+          className="w-full text-[13px] px-3 py-2.5 rounded-xl border mb-1"
+          style={{ borderColor: C.bgSage, background: '#FFFFFF' }}>
+          {candidates.map(m => (
+            <option key={m.user_id} value={m.user_id}>
+              {(m.display_name || m.email || 'ללא שם')}{m.role ? ` — ${m.role}` : ''}
+            </option>
+          ))}
+          <option value="__none__">ללא בעלים</option>
+        </select>
+
+        {candidates.length === 0 && (
+          <p className="text-[11px] mb-2" style={{ color: C.mutedAlt }}>
+            אין חברים אחרים בחשבון. אפשר להשאיר אותו ללא בעלים בלבד.
+          </p>
+        )}
+
+        {leavingOwnerless && (
+          <div className="rounded-lg px-2.5 py-2 mb-3 mt-2 text-[11px] leading-relaxed"
+            style={{ background: C.warnSubtle, color: C.warnDark }}>
+            <b>החשבון יישאר ללא בעלים.</b> אף אחד לא יוכל להזמין חברים, לשנות תפקידים או לערוך אותו — עד שאדמין ימנה בעלים.
+          </div>
+        )}
+
+        {currentOwnerId && (
+          <label className="flex items-start gap-2 mb-4 mt-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={removePrevious}
+              disabled={busy}
+              onChange={(e) => setRemovePrevious(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span className="text-[12px] leading-relaxed" style={{ color: C.textAlt }}>
+              להסיר את הבעלים הנוכחי מהחשבון
+              <span className="block text-[11px]" style={{ color: C.mutedAlt }}>
+                {removePrevious
+                  ? 'יוסר מהחשבון וההקצאות שלו כנהג יבוטלו'
+                  : 'יישאר בחשבון בתפקיד מנהל'}
+              </span>
+            </span>
+          </label>
+        )}
+
+        <div className="flex gap-2 justify-start">
+          <button type="button" disabled={busy}
+            onClick={() => onApply({ newOwnerId: leavingOwnerless ? null : choice, removePrevious })}
+            className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-60"
+            style={{ background: leavingOwnerless ? C.warnDark : C.primaryDark }}>
+            {busy ? 'מעדכן…' : leavingOwnerless ? 'השאר ללא בעלים' : `מנה את ${picked?.display_name || picked?.email || 'המשתמש'}`}
           </button>
           <button type="button" disabled={busy} onClick={onClose}
             className="px-4 py-2.5 rounded-xl text-[13px] font-bold disabled:opacity-60"

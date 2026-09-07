@@ -171,7 +171,104 @@ function buildSupabaseClient() {
   }
 }
 
-export const supabase = buildSupabaseClient();
+const realClient = buildSupabaseClient();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Admin impersonation — data-plane redirection
+//
+// During an audited view session, admin-impersonate mints a short-lived JWT
+// whose `sub` is the TARGET user. Routing data calls through a client carrying
+// that token makes auth.uid() the target, so every RLS policy and every
+// SECURITY DEFINER RPC — including ones not written yet — behaves exactly as
+// it does for the real user. That replaces the previous model, where each
+// policy needed its own is_viewing() escape: a scan on 2026-07-24 found 22
+// functions gating on auth.uid() membership and exactly ONE with an escape.
+//
+// WHAT IS AND IS NOT REDIRECTED
+//   Redirected: from, rpc, storage, functions — the data plane.
+//   NOT redirected: auth. The admin's real session lives there, and it is what
+//     the view-as banner, the exit button, token refresh and sign-out all
+//     depend on. Point auth at a session-less client and the admin cannot get
+//     back out.
+//   NOT redirected: channel / removeChannel. Realtime authenticates its socket
+//     separately; a half-authenticated websocket fails quietly and is
+//     miserable to diagnose. Realtime during view-as is a nice-to-have, so it
+//     stays on the real client rather than becoming a subtle failure.
+//
+// The impersonation client never persists. persistSession:false means the
+// target's token is never written to disk — close the tab mid-session and it
+// is simply gone, rather than leaving an admin holding a customer's identity
+// in localStorage. autoRefreshToken:false because a self-signed token has no
+// refresh token; letting the SDK try would fail and could clear the session.
+// ═══════════════════════════════════════════════════════════════════════════
+
+let _impersonationClient = null;
+
+/** Route data calls as the impersonated user. Called on entering view-as. */
+export function setImpersonationToken(token) {
+  if (!token || !supabaseUrl || !supabaseAnonKey) {
+    _impersonationClient = null;
+    return false;
+  }
+  try {
+    _impersonationClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession:     false,
+        autoRefreshToken:   false,
+        detectSessionInUrl: false,
+      },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    return true;
+  } catch {
+    // Fail closed: no impersonation client means every call falls back to the
+    // admin's own token, which is the pre-existing behaviour. Degraded, not broken.
+    _impersonationClient = null;
+    return false;
+  }
+}
+
+/** Drop the impersonated identity. Called on exiting view-as and on expiry. */
+export function clearImpersonationToken() {
+  _impersonationClient = null;
+}
+
+/** True while data calls are being made as someone else. */
+export function isImpersonating() {
+  return _impersonationClient !== null;
+}
+
+/**
+ * The un-proxied client — always the signed-in user, never the impersonated
+ * one. Use for anything that must speak AS THE ADMIN while a session is live:
+ * admin_start_view, admin_end_view, admin_current_view, admin_user_accounts,
+ * and the admin-impersonate mint itself.
+ *
+ * Every one of those begins with an is_admin() check and would be rejected if
+ * it arrived as the target — who is never an admin, since minting refuses
+ * admin targets. Worse, several of the rejections are swallowed by a catch,
+ * so the failure is silent: an exit that does not exit, a renewal that never
+ * renews, a workspace list that quietly empties.
+ *
+ * This existed as "remember to call clearImpersonationToken() first" and was
+ * forgotten three times in one sitting. A named export makes the correct
+ * client the one you have to ask for, rather than the one you have to
+ * remember to restore.
+ */
+export const adminSupabase = realClient;
+
+const DATA_PLANE = new Set(['from', 'rpc', 'storage', 'functions']);
+
+export const supabase = new Proxy(realClient, {
+  get(target, prop) {
+    const client = (DATA_PLANE.has(prop) && _impersonationClient) || target;
+    const value = Reflect.get(client, prop, client);
+    // Methods must keep their own client as `this` — an unbound reference
+    // would execute against the wrong instance and silently use the wrong
+    // token, which is the exact failure this whole mechanism exists to avoid.
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
+});
 
 // The resolved (trimmed) project URL + anon key, exported for the rare
 // call site that must hit an Edge Function with a raw fetch — e.g.
