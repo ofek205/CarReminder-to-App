@@ -404,8 +404,8 @@ Foundation. Behavior-preserving; each domain = its own commit.
 - [~] **vehicles** — `vehicle.update` command done; MileageUpdateWidget + VehicleCompletionSheet migrated (`82c74ac`). TODO: remaining `vehicle.update` sites (EditVehicle, VehicleDetail, VehicleInfoSection, VehicleCardEnhanced, ChecklistsSection, VehicleScanWizard); `vehicle.create` (AddVehicle, Dashboard, VehicleScanWizard, GuestDataContext[guest], vehicleQuickCheck[boot]); `vehicle.delete`; `vehicle.bulkAdd`; driver RPCs (driverUpdateMileage, driverLogEvent)
 - [x] **maintenance** — maintenance.{create,update,delete} (was direct-from) + maintPref.{create,update,delete} (`2fb6d8e`)
 - [x] **repairs** — repair.save (`save_repair_with_children` rpc, HARD), repair.delete, repairType.{create,update,delete} (`06bb1d4`). ⚠️ `repair.save` returns the raw `{data,error}` envelope — **Phase-2 task: normalize it** (its 2 call sites branch on `error` differently)
-- [ ] **documents** — document.{create,delete}
-- [ ] **accidents** — accident.{create,update}
+- [x] **documents** — document.{create,delete} (`93df04a`)
+- [x] **accidents** — accident.{create,update} (`93df04a`)
 - [x] **vessel-issues** — vesselIssue.{create,update,delete} (`d78fab8`)
 - [ ] **checklists** — checklist.{create,update}, checklistRun.{create,update}
 - [ ] **notifications** — notificationLog.{create,markRead}, appNotification.markRead, reminderSnooze.{upsert,delete}, deviceToken.register
