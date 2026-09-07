@@ -108,11 +108,27 @@ set search_path = public, pg_temp
 as $$
 declare
   v_id    bigint;
+  v_uid   uuid := auth.uid();
   v_email text;
   v_prior record;
 begin
-  if not public.is_current_user_admin() then
-    raise exception 'sql_ledger_record: admin only' using errcode = '42501';
+  -- Two legitimate callers, and only two:
+  --   1. an admin user holding a JWT (the app, or a signed-in session)
+  --   2. a privileged database role with no JWT at all — which is exactly what
+  --      the Supabase SQL Editor is, and is the normal way SQL is applied here.
+  --
+  -- The first cut of this function only allowed (1). It failed on its very
+  -- first real use with `42501: admin only`, because the SQL Editor runs as
+  -- `postgres` with no JWT, so auth.uid() is null and is_current_user_admin()
+  -- is false. An admin gate that locks out the only path the table exists to
+  -- serve is not a gate, it is a bug.
+  if v_uid is not null then
+    if not public.is_current_user_admin() then
+      raise exception 'sql_ledger_record: admin only' using errcode = '42501';
+    end if;
+  elsif current_user not in ('postgres', 'supabase_admin', 'service_role') then
+    raise exception 'sql_ledger_record: no JWT and % is not a privileged role', current_user
+      using errcode = '42501';
   end if;
 
   if p_sha256 !~ '^[0-9a-f]{64}$' then
@@ -136,12 +152,18 @@ begin
       p_filename, v_prior.applied_at, left(v_prior.sha256, 12), left(p_sha256, 12);
   end if;
 
-  select email into v_email from auth.users where id = auth.uid();
+  -- With no JWT there is no user to name, so record the database role instead.
+  -- 'sql-editor:postgres' is more honest than a null column.
+  if v_uid is not null then
+    select email into v_email from auth.users where id = v_uid;
+  else
+    v_email := 'sql-editor:' || current_user;
+  end if;
 
   insert into public.sql_ledger
-    (filename, sha256, applied_by_email, target_database, verdict, notes, verification_result)
+    (filename, sha256, applied_by, applied_by_email, target_database, verdict, notes, verification_result)
   values
-    (p_filename, p_sha256, v_email, p_target, p_verdict, p_notes, p_verification)
+    (p_filename, p_sha256, v_uid, v_email, p_target, p_verdict, p_notes, p_verification)
   on conflict (filename, sha256, target_database) where rolled_back_at is null
   do update set
     notes               = coalesce(excluded.notes, public.sql_ledger.notes),
