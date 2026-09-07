@@ -70,6 +70,37 @@ export async function scheduleLocalNotification({ id, title, body, scheduleAt, e
   }
 }
 
+/**
+ * Cancel a SPECIFIC set of scheduled notifications, by the numeric ids that
+ * scheduleLocalNotification() returned when they were planted.
+ *
+ * Prefer this over cancelAllLocalNotifications(). A caller that wipes every
+ * pending notification also destroys notifications it does not own: the
+ * reminder engine's cancel→recalculate→reschedule pass used to delete the
+ * user's maintenance "next service" reminder (scheduled separately from
+ * MaintenanceSection), silently, on the next Dashboard mount. Cancelling only
+ * what you scheduled keeps that class of bug impossible.
+ */
+export async function cancelLocalNotifications(ids) {
+  if (!isNative) return;
+  const list = (Array.isArray(ids) ? ids : [])
+    .map(Number)
+    .filter(Number.isFinite);
+  if (list.length === 0) return;
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    await LocalNotifications.cancel({ notifications: list.map(id => ({ id })) });
+  } catch (e) {
+    console.warn('Failed to cancel notifications:', e);
+  }
+}
+
+/**
+ * Cancel EVERY pending local notification, including ones scheduled elsewhere
+ * in the app. Reserved for a genuine full reset (e.g. logout / account wipe).
+ * For routine rescheduling use cancelLocalNotifications(ids) instead — see the
+ * note above about destroying other features' reminders.
+ */
 export async function cancelAllLocalNotifications() {
   if (!isNative) return;
   try {
