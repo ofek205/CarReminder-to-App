@@ -82,32 +82,12 @@ export default function useSharedVehicleRealtime() {
             queryClient.invalidateQueries({ queryKey: ['vehicle-share-info', vid] });
           }
 
-          // Native: ping the device. Web doesn't have this surface; the
-          // bell + toast on focus cover that case.
-          if (isNative && row?.title) {
-            (async () => {
-              try {
-                const { scheduleLocalNotification, requestNotificationPermission, checkNotificationPermission, createNotificationChannel } = await import('@/lib/notificationChannels');
-                let granted = await checkNotificationPermission();
-                if (!granted) granted = await requestNotificationPermission();
-                if (!granted) return;
-                await createNotificationChannel();
-                // Dedup with the bell-fetch path so we don't ping twice
-                // for the same row (the bell also fires LocalNotifications
-                // on first-fetch). localStorage flag is shared.
-                const key = `app_push_fired_${row.id}`;
-                if (localStorage.getItem(key)) return;
-                localStorage.setItem(key, '1');
-                await scheduleLocalNotification({
-                  id: `app-${row.id}`,
-                  title: row.title,
-                  body:  row.body || '',
-                  scheduleAt: new Date(Date.now() + 1500),
-                  extra: { type: 'app', appType: row.type, appNotifId: row.id },
-                });
-              } catch { /* never block the realtime listener */ }
-            })();
-          }
+          // This realtime listener does NOT fire device notifications. Its job
+          // is live data sync — refresh the bell badge + invalidate caches so
+          // the open app repaints instantly. The device BANNER for this
+          // app_notifications row is owned solely by OS push (dispatch-push →
+          // FCM/APNs), delivered exactly once. Mirroring it here as a local
+          // notification was a duplicate vector (push banner + this banner).
         }
       )
       .subscribe();

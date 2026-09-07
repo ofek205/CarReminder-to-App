@@ -110,12 +110,16 @@ function openDataUrlAsBlob(url) {
  * URL was rejected (untrusted, malformed data:) or the browser blocked
  * the open (popup blocker, native plugin error).
  */
-export async function openFileUrlSafely(url) {
+export async function openFileUrlSafely(url, preOpened = null) {
+  const discard = () => { try { preOpened?.close(); } catch { /* noop */ } };
+
   if (!isSafeFileUrl(url)) {
     console.warn('[security] Blocked attempt to open untrusted URL:', url);
+    discard();
     return false;
   }
   if (typeof url === 'string' && url.startsWith('data:')) {
+    discard();
     return openDataUrlAsBlob(url);
   }
   // Native path — Capacitor Browser plugin. Dynamic import so the
@@ -126,6 +130,7 @@ export async function openFileUrlSafely(url) {
     if (Capacitor.isNativePlatform()) {
       const { Browser } = await import('@capacitor/browser');
       await Browser.open({ url, windowName: '_blank' });
+      discard();
       return true;
     }
   } catch (err) {
@@ -134,8 +139,42 @@ export async function openFileUrlSafely(url) {
     // toast they would have seen before; at best the web fallback
     // happens to work on whichever WebView the platform is using.
   }
+  // Prefer a tab reserved during the click. Opening a NEW window this late
+  // is blocked by the popup blocker whenever the caller awaited anything
+  // (e.g. minting a signed URL) — see reserveFileTab().
+  if (preOpened && !preOpened.closed) {
+    // Drop the opener before navigating so the file page can't reach back
+    // into this tab — the same protection `noopener` gives below.
+    try { preOpened.opener = null; } catch { /* best effort */ }
+    preOpened.location.replace(url);
+    return true;
+  }
   const win = window.open(url, '_blank', 'noopener,noreferrer');
   return !!win;
+}
+
+/**
+ * Reserve a tab for a file whose URL still needs an async lookup.
+ *
+ * MUST be called SYNCHRONOUSLY inside the click handler. Browsers honour
+ * `window.open()` only while the click's transient user activation is alive.
+ * After an `await` — e.g. minting a Supabase signed URL — Safari (and Chrome,
+ * once its short activation window lapses) treats the call as an unsolicited
+ * popup and returns null. That surfaced to users as "לא ניתן לפתוח את הקובץ"
+ * even though the URL was a perfectly valid HTTPS signed URL.
+ *
+ * Hand the returned handle to openFileUrlSafely() as `preOpened` — it will
+ * navigate the tab, or close it if the URL turns out to be unusable.
+ * Returns null on native (the Capacitor Browser plugin needs no activation)
+ * and whenever the browser refuses outright.
+ */
+export function reserveFileTab() {
+  try {
+    if (window.Capacitor?.isNativePlatform?.()) return null;
+    return window.open('', '_blank');
+  } catch {
+    return null;
+  }
 }
 
 //  File upload validation 

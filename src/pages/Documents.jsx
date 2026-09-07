@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { db } from '@/lib/supabaseEntities';
 import { supabase } from '@/lib/supabase';
-import { openFileUrlSafely } from '@/lib/securityUtils';
+import { openFileUrlSafely, reserveFileTab } from '@/lib/securityUtils';
 import { MEMBER_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
@@ -1331,6 +1331,12 @@ function AuthDocuments({ vehicleIdParam }) {
   };
 
   const handleOpenDocument = async (doc) => {
+    // Reserve the tab NOW, while the click's user activation is still valid.
+    // resolveDocUrl() below awaits a signed-URL round-trip, after which a
+    // fresh window.open() gets swallowed by the popup blocker (Safari
+    // especially) — that was the "לא ניתן לפתוח את הקובץ" report.
+    const tab = reserveFileTab();
+    let handedOff = false;
     setOpeningDocId(doc.id);
     try {
       const url = await resolveDocUrl(doc);
@@ -1338,14 +1344,18 @@ function AuthDocuments({ vehicleIdParam }) {
         toastError('הקובץ לא זמין', { action: 'doc_open_unavailable' });
         return;
       }
+      handedOff = true;
       // openFileUrlSafely is now async — on Capacitor native it goes
       // through @capacitor/browser (SafariViewController on iOS, Custom
       // Tabs on Android), which is the only way to open external URLs
       // from WKWebView. Plain `window.open()` returns null silently on
       // iOS and surfaced as the "כתובת לא מאובטחת" toast.
-      const opened = await openFileUrlSafely(url);
+      const opened = await openFileUrlSafely(url, tab);
       if (!opened) toastError('לא ניתן לפתוח את הקובץ', { action: 'doc_open_failed' });
     } finally {
+      // Never leave a blank reserved tab behind (no URL, or a throw above).
+      // Once handed off, openFileUrlSafely owns it.
+      if (!handedOff) { try { tab?.close(); } catch { /* noop */ } }
       setOpeningDocId(null);
     }
   };

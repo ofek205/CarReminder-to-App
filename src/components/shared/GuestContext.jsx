@@ -288,6 +288,13 @@ function AuthInner({ children }) {
           // so this helper short-circuits on provider==='email' to avoid
           // double-dispatch. See dispatchOAuthWelcomeEmail above for gates.
           dispatchOAuthWelcomeEmail(session.user);
+          // Stamp acquisition source (utm / referrer captured at first load)
+          // onto genuinely NEW accounts — one write path for every provider.
+          // Self-gating: no-ops for returning users, for users already
+          // stamped, and when nothing was captured. Fire-and-forget.
+          import('@/lib/signupAttribution')
+            .then(({ persistAttributionIfNewUser }) => persistAttributionIfNewUser(session.user))
+            .catch(() => {});
         }
         // Synchronous "has-session" flag for RootGate. Supabase v2
         // stores the actual token in Capacitor Preferences on native
