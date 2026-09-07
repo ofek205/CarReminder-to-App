@@ -402,7 +402,7 @@ Foundation. Behavior-preserving; each domain = its own commit.
 - [x] **expenses** — expense.{create,update,delete} (`d355041`)
 - [x] **cork_notes + tasks** — corkNote.{create,update,delete}, task.{create,toggleDone,delete} (`b6ed878`)
 - [~] **vehicles** — `vehicle.update` command done; MileageUpdateWidget + VehicleCompletionSheet migrated (`82c74ac`). TODO: remaining `vehicle.update` sites (EditVehicle, VehicleDetail, VehicleInfoSection, VehicleCardEnhanced, ChecklistsSection, VehicleScanWizard); `vehicle.create` (AddVehicle, Dashboard, VehicleScanWizard, GuestDataContext[guest], vehicleQuickCheck[boot]); `vehicle.delete`; `vehicle.bulkAdd`; driver RPCs (driverUpdateMileage, driverLogEvent)
-- [ ] **maintenance** — maintenance.{create,update,delete} (direct-from) + maintPref.{create,update,delete}
+- [x] **maintenance** — maintenance.{create,update,delete} (was direct-from) + maintPref.{create,update,delete} (`2fb6d8e`)
 - [ ] **repairs** — repair.save (`save_repair_with_children` rpc, HARD), repair.delete, repairType.{create,update,delete}
 - [ ] **documents** — document.{create,delete}
 - [ ] **accidents** — accident.{create,update}
