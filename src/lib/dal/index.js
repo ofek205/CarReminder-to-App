@@ -21,6 +21,8 @@ import './commands/vehicles';
 import './commands/vesselIssues';
 import './commands/maintenance';
 import './commands/repairs';
+import './commands/documents';
+import './commands/accidents';
 
 export const dal = {
   run: runCommand,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { compressImage } from '@/lib/imageCompress';
 import { PRINT_PAINT_DELAY_MS } from '@/lib/timingConstants';
 import { useNavigate } from 'react-router-dom';
@@ -354,8 +355,8 @@ export default function AddAccident() {
         // can retry.
         const SAVE_TIMEOUT_MS = 15000;
         const savePromise = isEdit
-          ? db.accidents.update(editId, data)
-          : db.accidents.create(data);
+          ? dal.run('accident.update', { ...data, id: editId })
+          : dal.run('accident.create', data);
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('save-timeout')), SAVE_TIMEOUT_MS)
         );

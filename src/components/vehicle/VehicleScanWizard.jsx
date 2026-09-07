@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { aiRequest } from '@/lib/aiProxy';
 import { compressImage } from '@/lib/imageCompress';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
@@ -349,7 +350,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       // Save document
       if (fileUrl && vehicle?.id) {
         try {
-          await db.documents.create({
+          await dal.run('document.create', {
             account_id: accountId,
             vehicle_id: vehicle.id,
             document_type: 'רישיון רכב',
@@ -390,7 +391,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       }
       if (fileUrl) {
         try {
-          await db.documents.create({
+          await dal.run('document.create', {
             account_id: accountId,
             vehicle_id: selectedVehicleId,
             document_type: 'רישיון רכב',

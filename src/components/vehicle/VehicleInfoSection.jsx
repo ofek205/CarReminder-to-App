@@ -10,6 +10,7 @@ import { Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCirc
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '../shared/GuestContext';
@@ -235,7 +236,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
           // accountId hasn't resolved yet — the date update on the
           // vehicle is the main action and survives that miss.
           try {
-            await db.documents.create({ ...doc, account_id: accountId });
+            await dal.run('document.create', { ...doc, account_id: accountId });
           } catch (saveErr) {
             console.warn('Document save skipped:', saveErr?.message);
           }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
 import { openFileUrlSafely, reserveFileTab } from '@/lib/securityUtils';
 import { MEMBER_STATUS } from '@/lib/enums';
@@ -1280,7 +1281,7 @@ function AuthDocuments({ vehicleIdParam }) {
         data.extra_storage_paths = form.extra_storage_paths || [];
       }
 
-      const created = await db.documents.create(data);
+      const created = await dal.run('document.create', data);
       if (!created) throw new Error('שמירה נכשלה');
       if (userId) await trackUserAction(userId);
       await queryClient.invalidateQueries({ queryKey: ['documents'] });
@@ -1400,7 +1401,7 @@ function AuthDocuments({ vehicleIdParam }) {
 
   const handleDelete = async (id) => {
     try {
-      await db.documents.delete(id);
+      await dal.run('document.delete', { id });
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       toast.success('הפריט נמחק בהצלחה');
     } catch (err) {
