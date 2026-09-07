@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { validateUploadFile } from '@/lib/securityUtils';
@@ -474,7 +475,7 @@ export default function EditVehicle() {
 
     if (!accountId) { setSaving(false); return; }
     try {
-      await db.vehicles.update(vehicleId, data);
+      await dal.run('vehicle.update', { ...data, id: vehicleId });
       // Invalidate all cached reads of this vehicle + the vehicles list so the
       // detail page + dashboard reflect the new marine insurance / engine
       // hours / any other edited field immediately instead of showing stale
@@ -505,12 +506,12 @@ export default function EditVehicle() {
           'offroad_equipment','offroad_usage_type','last_offroad_service_date'];
         const coreData = {};
         CORE.forEach(k => { if (data[k] !== undefined) coreData[k] = data[k]; });
-        await db.vehicles.update(vehicleId, coreData);
+        await dal.run('vehicle.update', { ...coreData, id: vehicleId });
         // Try spec fields one by one (columns may not exist yet) - collect failures
         const specKeys = Object.keys(data).filter(k => !CORE.includes(k));
         const failedFields = [];
         for (const k of specKeys) {
-          try { await db.vehicles.update(vehicleId, { [k]: data[k] }); }
+          try { await dal.run('vehicle.update', { id: vehicleId, [k]: data[k] }); }
           catch (e) { failedFields.push(k); console.warn(`Spec field "${k}" save failed:`, e?.message); }
         }
         if (failedFields.length > 0 && failedFields.length < specKeys.length) {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from '@/lib/popups/systemPopups';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { MEMBER_STATUS, isActiveMember } from '@/lib/enums';
@@ -1026,7 +1027,7 @@ export default function Dashboard() {
         const storedVehicles = getStoredGuestVehicles().filter(v => !v._isDemo);
         if (storedVehicles.length > 0 && finalAccountId) {
           for (const gv of storedVehicles.slice(0, 20)) {
-            await db.vehicles.create({
+            await dal.run('vehicle.create', {
               account_id: finalAccountId,
               vehicle_type: sanitizeStr(gv.vehicle_type, 40) || 'רכב',
               manufacturer: sanitizeStr(gv.manufacturer, 60),

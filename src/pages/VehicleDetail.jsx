@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -573,11 +574,11 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         if (Object.keys(update).length > 0) {
           // Try batch update first (1 call), fallback to per-field if columns missing
           try {
-            await db.vehicles.update(vehicle.id, update);
+            await dal.run('vehicle.update', { ...update, id: vehicle.id });
           } catch {
             // Some columns may not exist - retry per field
             for (const [key, val] of Object.entries(update)) {
-              try { await db.vehicles.update(vehicle.id, { [key]: val }); } catch {}
+              try { await dal.run('vehicle.update', { id: vehicle.id, [key]: val }); } catch {}
             }
           }
           queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
@@ -660,7 +661,8 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
     try {
       const { fileUrl, storagePath } = await uploadHeroPhoto(file);
       // Persist BOTH fields together so they never drift out of sync.
-      await db.vehicles.update(vehicleId, {
+      await dal.run('vehicle.update', {
+        id: vehicleId,
         vehicle_photo: fileUrl,
         vehicle_photo_storage_path: storagePath,
       });
@@ -699,7 +701,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
           });
           if (error) throw error;
         } else {
-          await db.vehicles.delete(vehicleId);
+          await dal.run('vehicle.delete', { id: vehicleId });
         }
         toast.success('הרכב נמחק');
       } else if (isSharedWithMe) {

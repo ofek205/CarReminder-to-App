@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
 import useFileUpload from '@/hooks/useFileUpload';
@@ -1020,7 +1021,7 @@ export default function AddVehicle() {
       // the user got a vehicle without their VIN/spec data AND no warning).
       // The whole-row insert either works or raises the real error, which
       // the catch below translates to a friendly Hebrew message.
-      const savedVehicle = await db.vehicles.create(cleanData);
+      const savedVehicle = await dal.run('vehicle.create', cleanData);
       // Invalidate BOTH cache keys. ['vehicles'] is used by per-page
       // useMyVehicles (Accidents, AddAccident, AiAssistant…) while
       // ['my-vehicles', userId, accountId] is the Dashboard's own

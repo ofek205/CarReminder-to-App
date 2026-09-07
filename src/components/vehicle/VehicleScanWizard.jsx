@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { aiRequest } from '@/lib/aiProxy';
 import { compressImage } from '@/lib/imageCompress';
-import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { useNavigate } from 'react-router-dom';
@@ -345,7 +344,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
 
     try {
-      const vehicle = await db.vehicles.create(data);
+      const vehicle = await dal.run('vehicle.create', data);
 
       // Save document
       if (fileUrl && vehicle?.id) {
@@ -387,7 +386,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
 
     try {
       if (Object.keys(vehicleUpdate).length > 0) {
-        await db.vehicles.update(selectedVehicleId, vehicleUpdate);
+        await dal.run('vehicle.update', { ...vehicleUpdate, id: selectedVehicleId });
       }
       if (fileUrl) {
         try {

@@ -9,7 +9,6 @@ import { COUNTRIES } from "../vehicle/CountryFlagSelect";
 import { Calendar, Shield, Download, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle, MinusCircle, ClipboardList, Cog, ExternalLink, Camera, Loader2, Upload, AlertTriangle, Zap, Leaf, Hash, Paperclip, ArrowRight, Sparkles, Info } from "lucide-react";
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
-import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -248,7 +247,7 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
       if (isGuest) {
         updateGuestVehicle(vehicle.id, update);
       } else {
-        await db.vehicles.update(vehicle.id, update);
+        await dal.run('vehicle.update', { ...update, id: vehicle.id });
         await queryClient.invalidateQueries({ queryKey: ['vehicle'] });
         await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
         await queryClient.refetchQueries({ queryKey: ['vehicle', vehicle.id] });

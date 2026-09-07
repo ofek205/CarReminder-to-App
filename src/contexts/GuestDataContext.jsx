@@ -13,6 +13,7 @@
  */
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { toast } from 'sonner';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 import { MEMBER_STATUS } from '@/lib/enums';
@@ -399,7 +400,7 @@ export function GuestDataProvider({ children }) {
         }
 
         try {
-          const createdVehicle = await db.vehicles.create(cleanData);
+          const createdVehicle = await dal.run('vehicle.create', cleanData);
           if (createdVehicle?.id) idMap[guestVehicle.id] = createdVehicle.id;
           migrated++;
         } catch (err) {

@@ -13,7 +13,7 @@ import StatusBadge from '../shared/StatusBadge';
 import LicensePlate from '../shared/LicensePlate';
 import DisabilityPermitBadge from '../shared/DisabilityPermitBadge';
 import useDisabilityPermit from '@/hooks/useDisabilityPermit';
-import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { useAuth } from '../shared/GuestContext';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -91,11 +91,11 @@ function QuickMileageInput({ vehicle, T, isKm, onClose }) {
       const now = new Date().toISOString();
       // Save km/hours value first (always works)
       const coreUpdate = isKm ? { current_km: num } : { current_engine_hours: num };
-      await db.vehicles.update(vehicle.id, coreUpdate);
+      await dal.run('vehicle.update', { ...coreUpdate, id: vehicle.id });
       // Try saving the update date too (column may not exist yet)
       try {
         const dateUpdate = isKm ? { km_update_date: now } : { engine_hours_update_date: now };
-        await db.vehicles.update(vehicle.id, dateUpdate);
+        await dal.run('vehicle.update', { ...dateUpdate, id: vehicle.id });
       } catch {}
       // Save update date to localStorage (always works, even without DB column)
       setMileageUpdateDate(vehicle.id);

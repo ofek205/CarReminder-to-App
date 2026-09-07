@@ -1,4 +1,5 @@
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { lookupVehicleByPlate, isAircraftPlate } from '@/services/vehicleLookup';
@@ -356,5 +357,5 @@ export async function saveQuickCheckVehicle(result, accountId) {
     err.vehicle = duplicate;
     throw err;
   }
-  return db.vehicles.create(buildVehicleInsertPayload(result, acctId));
+  return dal.run('vehicle.create', buildVehicleInsertPayload(result, acctId));
 }
