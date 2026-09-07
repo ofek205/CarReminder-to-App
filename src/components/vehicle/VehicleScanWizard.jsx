@@ -15,6 +15,9 @@ import { Loader2, Upload, Pencil, ScanLine, AlertTriangle, Check, Camera } from 
 import { normalizePlate } from "../shared/DateStatusUtils";
 import { isNative, takePhoto } from '@/lib/capacitor';
 import { C } from '@/lib/designTokens';
+import { isVehicleCapError } from '@/lib/vehicleCapError';
+import useVehicleCapacity from '@/hooks/useVehicleCapacity';
+import VehicleCapReachedModal from '@/components/vehicles/VehicleCapReachedModal';
 
 function parseIsraeliDate(dateStr) {
   if (!dateStr) return '';
@@ -65,6 +68,9 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [duplicateVehicle, setDuplicateVehicle] = useState(null); // existing vehicle with same plate
+  // Personal-vehicle-cap block (dormant while enforcement is gated off).
+  const [capReached, setCapReached] = useState(false);
+  const capacity = useVehicleCapacity();
   // completion fields (not from license)
   const [completion, setCompletion] = useState({
     nickname: '',
@@ -364,6 +370,13 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       navigate(createPageUrl(`VehicleDetail?id=${vehicle.id}`));
     } catch (err) {
       setSaving(false);
+      // Personal-vehicle-cap block — show the upgrade path instead of a
+      // generic save error. It is a policy stop, not a failure.
+      if (isVehicleCapError(err)) {
+        capacity.refetch?.();
+        setCapReached(true);
+        return;
+      }
       setError('שגיאה בשמירה: ' + (err?.message || ''));
     }
   };
@@ -413,7 +426,13 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
   const nonEmptyFields = Object.entries(editableFields).filter(([, v]) => v && v !== '');
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+   <>
+    <VehicleCapReachedModal
+      open={capReached}
+      onClose={() => setCapReached(false)}
+      capacity={capacity}
+    />
+    <Dialog open={open && !capReached} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-right">
@@ -709,5 +728,6 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
         )}
       </DialogContent>
     </Dialog>
+   </>
   );
 }

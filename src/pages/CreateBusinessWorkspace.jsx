@@ -32,6 +32,7 @@ import { createPageUrl } from '@/utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import useUserProfile from '@/hooks/useUserProfile';
+import useVehicleCapacity from '@/hooks/useVehicleCapacity';
 // Living Dashboard system - shared with all B2B pages.
 import { PageShell, Card } from '@/components/business/system';
 import { C } from '@/lib/designTokens';
@@ -197,6 +198,15 @@ export default function CreateBusinessWorkspace() {
 
 function RequestForm({ mode, latestRequest, onRequested }) {
   const { profile } = useUserProfile();
+  // When the user is already at their personal vehicle cap, the business
+  // account is auto-approved (spec ה-2): we create it immediately via
+  // create_business_workspace_from_cap (server re-verifies the cap) instead
+  // of filing a pending admin request. Everyone else takes the manual path.
+  const { isCapped, remaining } = useVehicleCapacity();
+  const atCap = isCapped && (remaining ?? 1) <= 0;
+  const { switchTo } = useWorkspace();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [name, setName]               = useState('');
   const [phone, setPhone]             = useState('');
   const [vehiclesRange, setVehicles]  = useState('');
@@ -269,6 +279,27 @@ function RequestForm({ mode, latestRequest, onRequested }) {
       }
       if (cleanInvitees.length) meta.invitees = cleanInvitees.slice(0, 25);
 
+      // ── At-cap → immediate creation (auto-approved). ──────────────────────
+      if (atCap) {
+        meta.origin = 'cap_upgrade';
+        const { data: newId, error } = await supabase.rpc('create_business_workspace_from_cap', {
+          p_name:          cleanName,
+          p_business_meta: meta,
+        });
+        if (error) throw error;
+        // Enter the new business account right away, then fire the pre-attached
+        // team invites (same best-effort path the manual approval uses).
+        await queryClient.invalidateQueries({ queryKey: ['user-workspaces'] });
+        await new Promise((r) => setTimeout(r, 50));
+        try { await switchTo(newId); } catch { /* poll effect will catch up */ }
+        autoInviteOnApproval(newId, meta.invitees).catch(() => {});
+        toast.success('החשבון העסקי נפתח! 🎉');
+        navigate(createPageUrl('Vehicles'));
+        return;
+      }
+
+      // ── Not at cap → manual admin-reviewed request (unchanged flow). ──────
+      meta.origin = 'manual_request';
       const { error } = await supabase.rpc('request_business_workspace', {
         p_name:          cleanName,
         p_business_meta: meta,
@@ -278,12 +309,15 @@ function RequestForm({ mode, latestRequest, onRequested }) {
       setSentOpen(true);
     } catch (err) {
       const code = err?.message || err?.code || '';
-      if      (code.includes('name_required'))         toastError('שם החברה חובה', { action: 'biz_req_name_required_srv', err });
-      else if (code.includes('name_too_long'))         toastError(`שם ארוך מדי (עד ${MAX_NAME} תווים)`, { action: 'biz_req_name_too_long_srv', err });
-      else if (code.includes('not_authenticated'))     toastError('פג תוקף ההתחברות. התחבר מחדש ונסה שוב.', { action: 'biz_req_auth_expired', err });
+      if      (code.includes('name_required'))          toastError('שם החברה חובה', { action: 'biz_req_name_required_srv', err });
+      else if (code.includes('name_too_long'))          toastError(`שם ארוך מדי (עד ${MAX_NAME} תווים)`, { action: 'biz_req_name_too_long_srv', err });
+      else if (code.includes('not_authenticated'))      toastError('פג תוקף ההתחברות. התחבר מחדש ונסה שוב.', { action: 'biz_req_auth_expired', err });
+      // Race: user dropped below the cap (deleted a vehicle) between page load
+      // and submit. Tell them to retry — the form will re-evaluate atCap.
+      else if (code.includes('not_at_cap'))             toastError('נראה שכבר לא הגעת לתקרה. רענן/י את הדף ונסה/י שוב.', { action: 'biz_cap_upgrade_not_at_cap', err });
       else if (code.includes('pending_request_exists')) toastError('כבר יש לך בקשה ממתינה. אי אפשר להגיש שתיים בו זמנית.', { action: 'biz_req_pending', err });
-      else                                             toastError('שליחת הבקשה נכשלה. נסה שוב, או פנה לתמיכה.', { action: 'biz_req_save', err });
-      console.error('request business workspace failed:', err);
+      else                                              toastError('שליחת הבקשה נכשלה. נסה שוב, או פנה לתמיכה.', { action: 'biz_req_save', err });
+      console.error('business workspace submit failed:', err);
     } finally {
       setSubmitting(false);
     }
@@ -292,17 +326,21 @@ function RequestForm({ mode, latestRequest, onRequested }) {
   return (
     <PageShell
       title="פתיחת חשבון עסקי"
-      subtitle="לניהול צי רכבים של חברה או עסק. הפתיחה דורשת אישור צוות."
+      subtitle={atCap
+        ? 'הגעת לתקרת הרכבים באישי — פתיחת החשבון העסקי מיידית.'
+        : 'לניהול צי רכבים של חברה או עסק. הפתיחה דורשת אישור צוות.'}
     >
-      {/* Identity hero — amber "needs approval" tone. */}
-      <Card accent="amber" className="mb-4">
+      {/* Identity hero — emerald "immediate" when at cap, else amber "needs approval". */}
+      <Card accent={atCap ? 'emerald' : 'amber'} className="mb-4">
         <div className="flex items-center gap-3">
           <div
             className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center"
             style={{
-              background: `linear-gradient(135deg, ${C.warnDark} 0%, ${C.warnIcon} 80%, #FCD34D 100%)`,
+              background: atCap
+                ? `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`
+                : `linear-gradient(135deg, ${C.warnDark} 0%, ${C.warnIcon} 80%, #FCD34D 100%)`,
               color: '#FFFFFF',
-              boxShadow: '0 8px 20px rgba(245,158,11,0.32)',
+              boxShadow: atCap ? '0 8px 20px rgba(16,185,129,0.30)' : '0 8px 20px rgba(245,158,11,0.32)',
             }}
           >
             <Briefcase className="h-6 w-6" />
@@ -310,12 +348,14 @@ function RequestForm({ mode, latestRequest, onRequested }) {
           <div className="flex-1 min-w-0">
             <p
               className="text-[11px] font-bold inline-flex items-center gap-1 px-2 py-0.5 rounded-md"
-              style={{ background: C.warnSubtle, color: C.warnDark }}
+              style={atCap ? { background: C.light, color: C.successDark } : { background: C.warnSubtle, color: C.warnDark }}
             >
-              דורש אישור צוות
+              {atCap ? 'פתיחה מיידית' : 'דורש אישור צוות'}
             </p>
             <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: C.textAlt }}>
-              מילוי קצר ונחזור אליך אחרי אישור. הרכבים האישיים שלך נשארים פרטיים.
+              {atCap
+                ? 'נפתח עכשיו וניכנס אליו מיד. הרכבים האישיים שלך נשארים פרטיים.'
+                : 'מילוי קצר ונחזור אליך אחרי אישור. הרכבים האישיים שלך נשארים פרטיים.'}
             </p>
           </div>
         </div>
@@ -568,11 +608,13 @@ function RequestForm({ mode, latestRequest, onRequested }) {
             }}
           >
             {submitting
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> שולח...</>
-              : <>שלח בקשה לאישור <ArrowRight className="h-4 w-4 rotate-180" /></>
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> {atCap ? 'פותח...' : 'שולח...'}</>
+              : <>{atCap ? 'פתח חשבון עסקי עכשיו' : 'שלח בקשה לאישור'} <ArrowRight className="h-4 w-4 rotate-180" /></>
             }
           </button>
-          <p className="text-[10px] text-center" style={{ color: C.muted }}>נחזור אליך בטלפון או בהתראה.</p>
+          <p className="text-[10px] text-center" style={{ color: C.muted }}>
+            {atCap ? 'החשבון ייפתח מיד וניכנס אליו.' : 'נחזור אליך בטלפון או בהתראה.'}
+          </p>
         </form>
       </Card>
 

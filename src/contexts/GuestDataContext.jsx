@@ -13,6 +13,7 @@
  */
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '@/lib/supabaseEntities';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 import { MEMBER_STATUS } from '@/lib/enums';
@@ -379,6 +380,10 @@ export function GuestDataProvider({ children }) {
         'ownership_hand','ownership_history',
         'is_personal_import','personal_import_type'];
 
+      // Raise the personal cap so the whole guest batch lands even when
+      // enforcement is on (P0-1); sync below freezes it to greatest(count,10).
+      try { await supabase.rpc('bump_personal_cap', { p_account_id: accountId, p_headroom: toMigrate.length }); } catch { /* cap sync best-effort */ }
+
       let migrated = 0;
       const idMap = {}; // guest vehicle id → new server id (C4: remap dependent data)
       for (const guestVehicle of toMigrate) {
@@ -406,6 +411,9 @@ export function GuestDataProvider({ children }) {
           console.warn('Guest vehicle migration failed for one vehicle:', err?.message);
         }
       }
+
+      // Freeze the personal cap to the real vehicle count (greatest(count,10)).
+      try { await supabase.rpc('sync_personal_cap_to_count', { p_account_id: accountId }); } catch { /* cap sync best-effort */ }
 
       if (migrated > 0) {
         localStorage.removeItem(STORAGE_KEY);
