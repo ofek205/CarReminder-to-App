@@ -413,7 +413,9 @@ Foundation. Behavior-preserving; each domain = its own commit.
 `grep -rnE "db\.[a-z_]+\.(create|update|delete)\(" src/ | grep -v "^src/lib/dal"`
 - [~] **notifications** — notificationLog.{create,markRead} + reminderSnooze.{upsert,delete} done (`2d0f8a1`). TODO: `appNotification.markRead` (bulk `.in('id', ids)` / `.eq` writes in NotificationBell, Notifications, PendingInviteBanner — needs a bulk command shape) + `deviceToken.register`
 - [x] **profile / settings** — profile.{create,update}, reminderSettings.{create,update} (`2d0f8a1`). Remaining odds and ends: contact, review, analytics, crashReport, popupEvent, userPreferences.upsert (all fire-and-forget / telemetry)
-- [ ] **routes (field-driver)** — route.updateStopStatus, route.addStopDocumentation
+- [x] **routes** — route.updateStopStatus + route.addStopDocumentation (offlineCapable), route.createWithStops (online-required: transactional + server geocoding) (`6414563`)
+
+**The 3 envelope commands (Phase-2 normalization list):** `repair.save`, `reminderSnooze.upsert`, and the 3 `route.*` — these resolve to the raw supabase `{data,error}` because their call sites branch on `error` (or need `data`) rather than using try/catch. Normalizing them means touching call-site control flow, which is why it is Phase 2, not Phase 0.
 - [ ] **ONLINE-REQUIRED** (route with `offlineCapable:false`): sharing (5), members/team/business (12), drivers/fleet/route-create (7), community (11), admin/view-as (~20), `vehicle.deleteWithShareChoice`, notify_* side-effects
 
 ### Phase 1 — read-cache (offline reads) — ~80% of the value
