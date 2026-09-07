@@ -23,6 +23,7 @@ import './commands/maintenance';
 import './commands/repairs';
 import './commands/documents';
 import './commands/accidents';
+import './commands/checklists';
 
 export const dal = {
   run: runCommand,

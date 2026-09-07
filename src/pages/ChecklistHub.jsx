@@ -24,6 +24,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPageUrl } from '@/utils';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { PHASE_LABELS, PHASE_ORDER } from '@/lib/checklistTemplates';
 import {
   ArrowRight, Wrench, Anchor, ClipboardCheck, CheckCircle2, Edit3, Plus, ListChecks,
@@ -143,7 +144,7 @@ export default function ChecklistHub() {
     (async () => {
       const now = new Date().toISOString();
       for (const r of stale) {
-        try { await db.vessel_checklist_runs.update(r.id, { archived_at: now }); } catch {}
+        try { await dal.run('checklistRun.update', { id: r.id, archived_at: now }); } catch {}
       }
       qc.invalidateQueries({ queryKey: ['vessel_checklist_runs', vehicleId] });
     })();
@@ -202,7 +203,7 @@ export default function ChecklistHub() {
     if (!name || !vehicle) return;
     setCreating(true);
     try {
-      const created = await db.vessel_checklists.create({
+      const created = await dal.run('checklist.create', {
         vehicle_id: vehicle.id,
         account_id: vehicle.account_id,
         phase: 'custom',
