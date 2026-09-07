@@ -451,39 +451,13 @@ export default function NotificationBell() {
               });
             });
 
-            // Fire a device-level local notification for any app_notification
-            // we haven't pinged yet. Key pattern: `app_push_fired_<id>` in
-            // localStorage so a single event only fires once per install,
-            // even if the bell reloads multiple times. No-op on web.
-            try {
-              const { isNative: native } = await import('@/lib/capacitor');
-              // Skip the local-fire fallback when server push is live on this
-              // device (cr_push_active, set on push registration) — dispatch-push
-              // already delivers each app_notification, so firing locally too
-              // would double-notify ("pops once when sent, again on app open").
-              if (native && !isViewingAs && !localStorage.getItem('cr_push_active')) {
-                const { scheduleLocalNotification, requestNotificationPermission, checkNotificationPermission, createNotificationChannel } = await import('@/lib/notificationChannels');
-                let granted = await checkNotificationPermission();
-                if (!granted) granted = await requestNotificationPermission();
-                if (granted) {
-                  await createNotificationChannel();
-                  for (const an of appNotifs) {
-                    const key = `app_push_fired_${an.id}`;
-                    if (localStorage.getItem(key)) continue;
-                    // Fire ~2s from now so the scheduler doesn't drop a past-time
-                    // notification. Good enough for "ping on app open".
-                    await scheduleLocalNotification({
-                      id: `app-${an.id}`,
-                      title: an.title,
-                      body: an.body || '',
-                      scheduleAt: new Date(Date.now() + 2000),
-                      extra: { type: 'app', appType: an.type, appNotifId: an.id },
-                    });
-                    localStorage.setItem(key, '1');
-                  }
-                }
-              }
-            } catch {}
+            // The bell does NOT fire device notifications. OS push is the
+            // single owner of the device banner for every app_notifications
+            // row — delivered exactly once (background = system tray;
+            // foreground = forwardForegroundToLocal on Android, or iOS's own
+            // presentationOptions). Firing a local banner here too was the
+            // "pops again every time I open the app" duplicate. The bell is a
+            // pure in-app surface now: badge + dropdown only.
           }
         } catch {}
 
