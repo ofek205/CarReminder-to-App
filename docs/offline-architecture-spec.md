@@ -388,3 +388,49 @@ Phase 0 changes **routing only, behavior identical**.
 **PoC slice (Phase 3):** `vehicle.updateMileage` (flagship) + `corkNote.create` +
 `reminderSettings.update` — exercises insert + update + entity routing with zero files,
 zero children, zero server-computed dependencies.
+
+---
+
+## Appendix C — Progress tracker
+
+Legend: `[x]` done · `[~]` in progress · `[ ]` todo. Commits are on `staging`.
+
+### Phase 0 — route every write through the seam
+Foundation. Behavior-preserving; each domain = its own commit.
+
+- [x] **seam core** — `src/lib/dal/{registry,run,index}.js`, `dal.run` (`d355041`)
+- [x] **expenses** — expense.{create,update,delete} (`d355041`)
+- [x] **cork_notes + tasks** — corkNote.{create,update,delete}, task.{create,toggleDone,delete} (`b6ed878`)
+- [~] **vehicles** — `vehicle.update` command done; MileageUpdateWidget + VehicleCompletionSheet migrated (`82c74ac`). TODO: remaining `vehicle.update` sites (EditVehicle, VehicleDetail, VehicleInfoSection, VehicleCardEnhanced, ChecklistsSection, VehicleScanWizard); `vehicle.create` (AddVehicle, Dashboard, VehicleScanWizard, GuestDataContext[guest], vehicleQuickCheck[boot]); `vehicle.delete`; `vehicle.bulkAdd`; driver RPCs (driverUpdateMileage, driverLogEvent)
+- [ ] **maintenance** — maintenance.{create,update,delete} (direct-from) + maintPref.{create,update,delete}
+- [ ] **repairs** — repair.save (`save_repair_with_children` rpc, HARD), repair.delete, repairType.{create,update,delete}
+- [ ] **documents** — document.{create,delete}
+- [ ] **accidents** — accident.{create,update}
+- [ ] **vessel-issues** — vesselIssue.{create,update,delete}
+- [ ] **checklists** — checklist.{create,update}, checklistRun.{create,update}
+- [ ] **notifications** — notificationLog.{create,markRead}, appNotification.markRead, reminderSnooze.{upsert,delete}, deviceToken.register
+- [ ] **profile / settings** — profile.{create,update}, reminderSettings.{create,update}, contact, review, analytics, crashReport, popupEvent, userPreferences.upsert
+- [ ] **routes (field-driver)** — route.updateStopStatus, route.addStopDocumentation
+- [ ] **ONLINE-REQUIRED** (route with `offlineCapable:false`): sharing (5), members/team/business (12), drivers/fleet/route-create (7), community (11), admin/view-as (~20), `vehicle.deleteWithShareChoice`, notify_* side-effects
+
+### Phase 1 — read-cache (offline reads) — ~80% of the value
+- [ ] `npm i` idb-keyval + react-query-persist-client + query-async-storage-persister
+- [ ] 🛑 `gcTime` 10min → 24h (query-client.js:36)
+- [ ] `query-persister.js` + `query-persist-allowlist.js` + `PersistQueryClientProvider` (App.jsx:229), `buster: __APP_VERSION__`, `maxAge: 24h`
+- [ ] 🛑 strip signed-URL fields on dehydrate + `VehicleImage` onError→placeholder
+- [ ] `OfflineBanner` + `useOnlineStatus`
+- [ ] `clearPersistedCache()` wired at the 7 identity/teardown points (§7); persist-only-when-authenticated
+
+### Phase 2 — reliable detection + offline guard
+- [ ] `npm i` @capacitor/network → `npx cap sync`; wire `onlineManager` on native
+- [ ] offline fast-fail in `withTimeout` via `onlineManager.isOnline()` (activates the `offlineCapable:false` rule)
+
+### Phase 3 — outbox core (first real offline writes)
+- [ ] 🛑 DB: add `updated_at` + trigger to offline-write tables; verify client-supplied `id` inserts pass RLS (Ofek SQL)
+- [ ] durable IndexedDB outbox + sync engine (drain on reconnect, idempotency, retry, ordering)
+- [ ] optimistic apply + local UUIDs; prove on PoC (vehicle.updateMileage + corkNote.create + reminderSettings.update)
+
+### Phase 4-6
+- [ ] Phase 4 — register optimistic/invalidates on all offline-capable commands (expand coverage)
+- [ ] Phase 5 — file-upload queue (offline photos/docs → Filesystem → upload on reconnect)
+- [ ] Phase 6 — failed-sync inbox + conflict UI + pending-sync indicator; logout warn+discard (§10.1 decided)
