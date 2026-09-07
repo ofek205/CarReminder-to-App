@@ -401,13 +401,16 @@ Foundation. Behavior-preserving; each domain = its own commit.
 - [x] **seam core** — `src/lib/dal/{registry,run,index}.js`, `dal.run` (`d355041`)
 - [x] **expenses** — expense.{create,update,delete} (`d355041`)
 - [x] **cork_notes + tasks** — corkNote.{create,update,delete}, task.{create,toggleDone,delete} (`b6ed878`)
-- [~] **vehicles** — `vehicle.update` command done; MileageUpdateWidget + VehicleCompletionSheet migrated (`82c74ac`). TODO: remaining `vehicle.update` sites (EditVehicle, VehicleDetail, VehicleInfoSection, VehicleCardEnhanced, ChecklistsSection, VehicleScanWizard); `vehicle.create` (AddVehicle, Dashboard, VehicleScanWizard, GuestDataContext[guest], vehicleQuickCheck[boot]); `vehicle.delete`; `vehicle.bulkAdd`; driver RPCs (driverUpdateMileage, driverLogEvent)
+- [x] **vehicles** — vehicle.{update,create,delete}, all 18 sites (`82c74ac` mileage + completion, `4cc97cc` the rest). Still to register: `vehicle.bulkAdd`, the driver RPCs (driverUpdateMileage, driverLogEvent), and the ONLINE-REQUIRED `deleteWithShareChoice`
 - [x] **maintenance** — maintenance.{create,update,delete} (was direct-from) + maintPref.{create,update,delete} (`2fb6d8e`)
 - [x] **repairs** — repair.save (`save_repair_with_children` rpc, HARD), repair.delete, repairType.{create,update,delete} (`06bb1d4`). ⚠️ `repair.save` returns the raw `{data,error}` envelope — **Phase-2 task: normalize it** (its 2 call sites branch on `error` differently)
 - [x] **documents** — document.{create,delete} (`93df04a`)
 - [x] **accidents** — accident.{create,update} (`93df04a`)
 - [x] **vessel-issues** — vesselIssue.{create,update,delete} (`d78fab8`)
-- [ ] **checklists** — checklist.{create,update}, checklistRun.{create,update}
+- [x] **checklists** — checklist.{create,update}, checklistRun.{create,update} (`72f8260`, which also closed 2 writes missed by earlier slices)
+
+**Verified remaining entity-layer writes (swept 2026-09-07, excluding src/lib/dal):** user_profiles ×6 (UserProfile, CompleteProfileScreen) · reminder_settings ×3 + reminder_snoozes ×1 · notification_log ×3 (notificationChannels, MaintenanceSection) · community ×3 (online-required) · contact_messages ×1 (admin, online-required). Plus the non-entity bypasses still to route: direct `supabase.from` in TasksSection-style spots already done, but community/notifications/admin/sharing/drivers/routes RPCs remain. **Re-run the sweep rather than trusting this list** — two misses were found that way:
+`grep -rnE "db\.[a-z_]+\.(create|update|delete)\(" src/ | grep -v "^src/lib/dal"`
 - [ ] **notifications** — notificationLog.{create,markRead}, appNotification.markRead, reminderSnooze.{upsert,delete}, deviceToken.register
 - [ ] **profile / settings** — profile.{create,update}, reminderSettings.{create,update}, contact, review, analytics, crashReport, popupEvent, userPreferences.upsert
 - [ ] **routes (field-driver)** — route.updateStopStatus, route.addStopDocumentation
