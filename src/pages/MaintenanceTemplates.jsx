@@ -557,7 +557,7 @@ function RepairRow({ repair, isLast, userId, onQueryInvalidate }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const handleDelete = async () => {
     try {
-      await db.repair_types.delete(repair.id);
+      await dal.run('repairType.delete', { id: repair.id });
       onQueryInvalidate();
       toast.success('נמחק');
     } catch (e) {
@@ -883,7 +883,7 @@ function CreateRepairDialog({ open, onClose, userId }) {
     if (!name.trim()) { toastError('יש להזין שם', { action: 'repair_type_name_required' }); return; }
     setSaving(true);
     try {
-      await db.repair_types.create({
+      await dal.run('repairType.create', {
         owner_user_id: userId,
         scope: 'user',
         is_active: true,

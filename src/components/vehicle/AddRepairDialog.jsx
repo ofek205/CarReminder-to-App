@@ -2,6 +2,7 @@ import { toastError } from '@/lib/userErrorReport';
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { uploadVehicleFile, deleteFile } from '@/lib/supabaseStorage';
 import useAccountRole from '@/hooks/useAccountRole';
 import { validateUploadFile } from '@/lib/securityUtils';
@@ -157,10 +158,10 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
       }));
       const accidentPayload = data.repairData.is_accident ? accidentDetails : null;
 
-      const { error } = await supabase.rpc('save_repair_with_children', {
-        p_repair_log: repairLog,
-        p_attachments: attachmentsPayload,
-        p_accident: accidentPayload,
+      const { error } = await dal.run('repair.save', {
+        repairLog,
+        attachments: attachmentsPayload,
+        accident: accidentPayload,
       });
       if (error) throw error;
     },
@@ -185,7 +186,7 @@ export default function AddRepairDialog({ open, onClose, vehicle, repair }) {
   // here immediately shows up there too.
   const createRepairTypeMutation = useMutation({
     mutationFn: async (name) => {
-      return db.repair_types.create({
+      return dal.run('repairType.create', {
         owner_user_id: currentUser.id,
         scope: 'user',
         is_active: true,

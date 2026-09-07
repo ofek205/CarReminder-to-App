@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { uploadVehicleFile, deleteFile } from '@/lib/supabaseStorage';
 import useAccountRole from '@/hooks/useAccountRole';
 import { validateUploadFile } from '@/lib/securityUtils';
@@ -153,11 +154,7 @@ export default function RepairsSection({ vehicle }) {
       ? repairForm.accident_details
       : null;
 
-    const { error } = await supabase.rpc('save_repair_with_children', {
-      p_repair_log: repairLog,
-      p_attachments: attachments,
-      p_accident: accident,
-    });
+    const { error } = await dal.run('repair.save', { repairLog, attachments, accident });
     if (error) {
       setSaving(false);
       toastError('שמירה נכשלה: ' + error.message, { action: 'repair_save', err: error });
@@ -200,7 +197,7 @@ export default function RepairsSection({ vehicle }) {
     setDeleteTarget(null);
     // FK ON DELETE CASCADE on repair_attachments.repair_log_id and
     // accident_details.repair_log_id takes care of children atomically.
-    await db.repair_logs.delete(logId);
+    await dal.run('repair.delete', { id: logId });
     queryClient.invalidateQueries({ queryKey: ['repair-logs', vehicle.id] });
     toast.success('הפריט נמחק בהצלחה');
   };

@@ -20,6 +20,7 @@ import './commands/corkNotes';
 import './commands/vehicles';
 import './commands/vesselIssues';
 import './commands/maintenance';
+import './commands/repairs';
 
 export const dal = {
   run: runCommand,

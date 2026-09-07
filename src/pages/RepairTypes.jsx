@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -71,9 +72,9 @@ export default function RepairTypes() {
     };
 
     if (editingType) {
-      await db.repair_types.update(editingType.id, data);
+      await dal.run('repairType.update', { ...data, id: editingType.id });
     } else {
-      await db.repair_types.create(data);
+      await dal.run('repairType.create', data);
     }
 
     queryClient.invalidateQueries({ queryKey: ['repair-types'] });
@@ -97,7 +98,7 @@ export default function RepairTypes() {
     const target = confirmDeactivate?.type;
     setConfirmDeactivate(null);
     if (!target) return;
-    await db.repair_types.update(target.id, { is_active: false });
+    await dal.run('repairType.update', { id: target.id, is_active: false });
     queryClient.invalidateQueries({ queryKey: ['repair-types'] });
   };
 
@@ -106,7 +107,7 @@ export default function RepairTypes() {
     const target = confirmDeleteType;
     setConfirmDeleteType(null);
     if (!target) return;
-    await db.repair_types.delete(target.id);
+    await dal.run('repairType.delete', { id: target.id });
     queryClient.invalidateQueries({ queryKey: ['repair-types'] });
   };
 
