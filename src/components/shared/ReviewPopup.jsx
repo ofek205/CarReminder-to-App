@@ -9,6 +9,7 @@ import { Star, Loader2, Send, Heart } from "lucide-react";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { dal } from '@/lib/dal';
 import { hapticFeedback } from "@/lib/capacitor";
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from "@/lib/popups/systemPopups";
 import { C } from '@/lib/designTokens';
@@ -112,7 +113,7 @@ export default function ReviewPopup({ open, onClose, userId, userEmail, userName
         is_verified: false,
       };
 
-      const { error: insertError } = await supabase.from('reviews').insert(payload);
+      const { error: insertError } = await dal.run('review.create', payload);
       if (insertError) throw insertError;
 
       hapticFeedback('medium');

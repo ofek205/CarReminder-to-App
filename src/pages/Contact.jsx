@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { MessageSquare, Send, Loader2, CheckCircle2, User, Mail, FileText, Clock, HelpCircle, Shield, ExternalLink, Bug } from 'lucide-react';
 import { openReportBugDialog } from '@/components/shared/ReportBugDialog';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import { toast } from 'sonner';
 import { C } from '@/lib/designTokens';
@@ -51,7 +51,7 @@ export default function Contact() {
       // the response object. We must inspect `error` explicitly; a
       // try/catch alone would let a missing-table / RLS-denied insert
       // silently masquerade as success and trigger a false "sent" toast.
-      const { error: insertErr } = await supabase.from('contact_messages').insert({
+      const { error: insertErr } = await dal.run('contactMessage.create', {
         user_id: user?.id || null,
         name: form.name.trim(),
         email: form.email.trim(),

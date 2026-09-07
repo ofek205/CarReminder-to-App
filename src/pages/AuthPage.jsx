@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { supabaseRecovery } from '@/lib/supabaseRecovery';
 import { useAuth } from '@/components/shared/GuestContext';
 import { isNative, isIOS } from '@/lib/capacitor';
@@ -862,7 +863,7 @@ export default function AuthPage() {
                   { user_id: uid, document_type: 'tos',     document_version: stashed.tos,     user_agent: stashed.ua || null },
                   { user_id: uid, document_type: 'privacy', document_version: stashed.privacy, user_agent: stashed.ua || null },
                 ];
-                supabase.from('eula_acceptances').insert(rows).then(({ error: eulaErr }) => {
+                dal.run('telemetry.eulaAccept', { rows }).then(({ error: eulaErr }) => {
                   if (eulaErr && eulaErr.code !== '23505') {
                     console.warn('eula_acceptances insert failed:', eulaErr.message);
                   }
@@ -1028,7 +1029,7 @@ export default function AuthPage() {
                 { user_id: uid, document_type: 'tos',     document_version: TOS_VERSION,     user_agent: navigator.userAgent.slice(0, 200) },
                 { user_id: uid, document_type: 'privacy', document_version: PRIVACY_VERSION, user_agent: navigator.userAgent.slice(0, 200) },
               ];
-              supabase.from('eula_acceptances').insert(rows).then(({ error: eulaErr }) => {
+              dal.run('telemetry.eulaAccept', { rows }).then(({ error: eulaErr }) => {
                 if (eulaErr && eulaErr.code !== '23505') {
                   console.warn('eula_acceptances insert failed:', eulaErr.message);
                 }

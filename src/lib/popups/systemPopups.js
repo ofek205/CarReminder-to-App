@@ -12,6 +12,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 
 export const SYSTEM_POPUP_IDS = {
   welcome:        'ffffffff-ffff-ffff-ffff-000000000001',
@@ -36,7 +37,7 @@ export function logSystemPopupEvent(popupId, kind) {
   try {
     supabase.auth.getUser().then(({ data }) => {
       const userId = data?.user?.id || null;
-      supabase.from('admin_popup_events').insert({
+      dal.run('telemetry.popupEvent', {
         popup_id: popupId, user_id: userId, kind,
       }).then(() => {}, () => {});
     }).catch(() => {});
