@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -311,9 +312,9 @@ function AuthUserProfile({ embedded = false }) {
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
     try {
       if (profileId) {
-        await db.user_profiles.update(profileId, data);
+        await dal.run('profile.update', { ...data, id: profileId });
       } else {
-        const created = await db.user_profiles.create(data);
+        const created = await dal.run('profile.create', data);
         setProfileId(created.id);
       }
     } catch (err) {
@@ -362,9 +363,9 @@ function AuthUserProfile({ embedded = false }) {
       };
       try {
         if (profileId) {
-          await db.user_profiles.update(profileId, profileData);
+          await dal.run('profile.update', { ...profileData, id: profileId });
         } else {
-          const created = await db.user_profiles.create(profileData);
+          const created = await dal.run('profile.create', profileData);
           setProfileId(created.id);
         }
       } catch (err) {

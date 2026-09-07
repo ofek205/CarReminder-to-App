@@ -20,7 +20,6 @@ import { uploadToBucket } from '@/lib/supabaseStorage';
 import { notifyVehicleChange } from '@/lib/notifyVehicleChange';
 import { getRecommendedInterval, computeNextReminder, reminderFireDate } from '@/lib/maintenanceRecommendations';
 import { scheduleLocalNotification } from '@/lib/notificationChannels';
-import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
 import { reportUserError } from '@/lib/crashReporter';
 import ManufacturerScheduleCard from './ManufacturerScheduleCard';
@@ -428,7 +427,7 @@ export default function MaintenanceSection({ vehicle }) {
         } catch (err) { console.warn('schedule next-service notification failed:', err); }
 
         try {
-          await db.notification_log.create({
+          await dal.run('notificationLog.create', {
             vehicle_id: vehicle.id,
             type: 'maintenance_reminder_scheduled',
             title: `תזכורת לטיפול הבא נקבעה`,

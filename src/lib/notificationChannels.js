@@ -12,6 +12,7 @@
 
 import { isNative } from './capacitor';
 import { db } from './supabaseEntities';
+import { dal } from './dal';
 
 //  Stable numeric ID from string (Capacitor requires numeric IDs) 
 function hashStringToInt(str) {
@@ -159,7 +160,7 @@ export async function createNotificationChannel() {
 //  In-App Notifications (Supabase notification_log) 
 export async function sendInAppNotification({ userId, vehicleId, type, title, body }) {
   try {
-    await db.notification_log.create({
+    await dal.run('notificationLog.create', {
       user_id: userId,
       vehicle_id: vehicleId || null,
       type,
@@ -175,7 +176,7 @@ export async function sendInAppNotification({ userId, vehicleId, type, title, bo
 
 export async function markNotificationRead(notificationId) {
   try {
-    await db.notification_log.update(notificationId, { is_read: true });
+    await dal.run('notificationLog.markRead', { id: notificationId });
   } catch (e) {
     console.warn('Failed to mark notification read:', e);
   }

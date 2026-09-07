@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '@/lib/supabaseEntities';
+import { dal } from '@/lib/dal';
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -189,7 +190,7 @@ function AuthReminderSettings({ embedded = false }) {
            'email_enabled','whatsapp_enabled'].forEach(k => {
             if (DEFAULT_FORM[k] !== undefined) dbDefaults[k] = DEFAULT_FORM[k];
           });
-          const created = await db.reminder_settings.create({ user_id: effectiveUserId, ...dbDefaults });
+          const created = await dal.run('reminderSettings.create', { user_id: effectiveUserId, ...dbDefaults });
           rows = [created];
         }
         const s = rows[0];
@@ -262,9 +263,9 @@ function AuthReminderSettings({ embedded = false }) {
       } catch {}
 
       if (settingsId) {
-        await db.reminder_settings.update(settingsId, dbPayload);
+        await dal.run('reminderSettings.update', { ...dbPayload, id: settingsId });
       } else {
-        const created = await db.reminder_settings.create({ user_id: effectiveUserId, ...dbPayload });
+        const created = await dal.run('reminderSettings.create', { user_id: effectiveUserId, ...dbPayload });
         setSettingsId(created.id);
       }
       toast.success('ההגדרות נשמרו');
