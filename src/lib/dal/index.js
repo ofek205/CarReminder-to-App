@@ -26,6 +26,7 @@ import './commands/accidents';
 import './commands/checklists';
 import './commands/profile';
 import './commands/routes';
+import './commands/access';
 
 export const dal = {
   run: runCommand,

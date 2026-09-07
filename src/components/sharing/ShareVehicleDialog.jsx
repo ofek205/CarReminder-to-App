@@ -21,7 +21,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { COPY_FEEDBACK_DURATION_MS } from '@/lib/timingConstants';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -120,10 +120,10 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
         setSubmitting(false);
         return;
       }
-      const { data, error } = await supabase.rpc('share_vehicle_with_email', {
-        p_vehicle_id: vehicle.id,
-        p_email:      cleanEmail,
-        p_role:       role,
+      const { data, error } = await dal.run('share.byEmail', {
+        vehicleId: vehicle.id,
+        email:     cleanEmail,
+        role,
       });
       if (error) {
         const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';

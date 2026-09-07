@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import SystemErrorBanner from '@/components/shared/SystemErrorBanner';
@@ -503,12 +504,12 @@ function AddMemberDialog({ accountId, onClose, onAdded }) {
       // as every other member. Replaces the legacy immediate-add
       // (add_workspace_member_by_email). Role is fixed to 'driver'; other roles
       // are managed in הגדרות → הצוות.
-      const { data, error } = await withTimeout(supabase.rpc('invite_account_member_by_email', {
-        p_email: cleanEmail,
-        p_role: 'driver',
-        p_vehicle_ids: null,
-        p_account_id: accountId,
-        p_name: name.trim() || null,
+      const { data, error } = await withTimeout(dal.run('member.inviteByEmail', {
+        email: cleanEmail,
+        role: 'driver',
+        vehicleIds: null,
+        accountId,
+        name: name.trim() || null,
       }), 'invite_driver');
       if (error) throw error;
       if (data?.recipient_existing_user) {

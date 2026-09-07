@@ -24,6 +24,7 @@ import {
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { sendAccountInviteEmail } from '@/lib/inviteEmail';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -87,8 +88,8 @@ async function autoInviteOnApproval(accountId, invitees) {
     const nm    = (inv?.name || '').trim() || null;
     if (!email || !email.includes('@') || !['מנהל', 'שותף', 'driver'].includes(role)) continue;
     try {
-      const { data, error } = await supabase.rpc('invite_account_member_by_email', {
-        p_email: email, p_role: role, p_vehicle_ids: null, p_account_id: accountId, p_name: nm,
+      const { data, error } = await dal.run('member.inviteByEmail', {
+        email, role, vehicleIds: null, accountId, name: nm,
       });
       if (error) continue;  // already_member / transient — skip, keep going
       if (data && !data.recipient_existing_user && data.invite_token) {
@@ -269,10 +270,10 @@ function RequestForm({ mode, latestRequest, onRequested }) {
       }
       if (cleanInvitees.length) meta.invitees = cleanInvitees.slice(0, 25);
 
-      const { error } = await supabase.rpc('request_business_workspace', {
-        p_name:          cleanName,
-        p_business_meta: meta,
-        p_reason:        notes.trim() || null,
+      const { error } = await dal.run('businessWorkspace.request', {
+        name:         cleanName,
+        businessMeta: meta,
+        reason:       notes.trim() || null,
       });
       if (error) throw error;
       setSentOpen(true);

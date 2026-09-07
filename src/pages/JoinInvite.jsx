@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dal } from '@/lib/dal';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
@@ -55,7 +56,7 @@ export default function JoinInvite() {
     // notification, and grants access via vehicle_shares.status='accepted'.
     if (inviteType === 'vehicle') {
       try {
-        const { data, error } = await supabase.rpc('accept_vehicle_share', { p_token: token });
+        const { data, error } = await dal.run('share.accept', { token });
         if (error) {
           const code = String(error.message || '').toLowerCase();
           let friendly = 'אירעה שגיאה באישור השיתוף.';
@@ -94,7 +95,7 @@ export default function JoinInvite() {
       // membership insert run atomically inside the SECURITY DEFINER RPC.
       // This closes M7 (race condition) and prevents a direct-from-client
       // invites table walk that previously let clients peek at invite rows.
-      const { data, error: rpcError } = await supabase.rpc('redeem_invite_token', { tok: token });
+      const { data, error: rpcError } = await dal.run('member.redeemInvite', { token });
 
       if (rpcError) {
         const code = String(rpcError.message || '').toLowerCase();
