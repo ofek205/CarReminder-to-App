@@ -395,7 +395,8 @@ zero children, zero server-computed dependencies.
 
 Legend: `[x]` done · `[~]` in progress · `[ ]` todo. Commits are on `staging`.
 
-### Phase 0 — route every write through the seam
+### Phase 0 — route every write through the seam ✅ COMPLETE (2026-09-07)
+**119 commands in 19 `src/lib/dal/commands/*.js` files. The invariant now holds: no screen writes to supabase directly**, except the 3 deliberate exclusions below. Behavior-preserving throughout; each domain was its own commit, each verified with full-project `eslint .` (0 errors) + `vite build`.
 Foundation. Behavior-preserving; each domain = its own commit.
 
 - [x] **seam core** — `src/lib/dal/{registry,run,index}.js`, `dal.run` (`d355041`)
@@ -416,7 +417,7 @@ Foundation. Behavior-preserving; each domain = its own commit.
 - [x] **routes** — route.updateStopStatus + route.addStopDocumentation (offlineCapable), route.createWithStops (online-required: transactional + server geocoding) (`6414563`)
 
 **The 3 envelope commands (Phase-2 normalization list):** `repair.save`, `reminderSnooze.upsert`, and the 3 `route.*` — these resolve to the raw supabase `{data,error}` because their call sites branch on `error` (or need `data`) rather than using try/catch. Normalizing them means touching call-site control flow, which is why it is Phase 2, not Phase 0.
-- [~] **ONLINE-REQUIRED** (`offlineCapable:false`): ✅ sharing (5) + members/team/business (7) via `access.js` (`54c4457`); ✅ drivers + assignments (6) via `drivers.js` (`4f1aced`); ✅ route.createWithStops; ✅ community feed (18 sites / 16 commands) via `community.js` (`4a291a9`); ✅ admin console (22 sites / 17 commands) via `admin.js` (`53e6d8e`). TODO: `vehicle.deleteWithShareChoice`, `notify_*` side-effects, `appNotification` bulk mark-read, `deviceToken.register`, `account.{ensure,claimMigrated,deleteMine}`, `vehicle.bulkAdd`, driver mileage/event RPCs
+- [~] **ONLINE-REQUIRED** (`offlineCapable:false`): ✅ sharing (5) + members/team/business (7) via `access.js` (`54c4457`); ✅ drivers + assignments (6) via `drivers.js` (`4f1aced`); ✅ route.createWithStops; ✅ community feed (18 sites / 16 commands) via `community.js` (`4a291a9`); ✅ admin console (22 sites / 17 commands) via `admin.js` (`53e6d8e`); ✅ the remainder — deleteWithShareChoice, bulkAdd, driver field RPCs, notify_vehicle_change, account provisioning/deletion, workspace pref, single-row notification mark-read (`c745914`); ✅ email admin + telemetry (`7992937`). Nothing left except the 3 exclusions. Historical TODO list: `vehicle.deleteWithShareChoice`, `notify_*` side-effects, `appNotification` bulk mark-read, `deviceToken.register`, `account.{ensure,claimMigrated,deleteMine}`, `vehicle.bulkAdd`, driver mileage/event RPCs
 
 **Three writes deliberately kept OUT of the seam (by design, not oversight):**
 1. `admin_start_view` / `admin_end_view` (`WorkspaceContext.jsx`) — the view-as impersonation path that shipped to prod in v6.4.0. Security-critical + the most-churned file in the repo.
