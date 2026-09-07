@@ -28,6 +28,7 @@ import { AccessibilityProvider } from "@/components/shared/AccessibilityContext"
 import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
 import StagingBanner from "@/components/shared/StagingBanner";
+import OfflineBanner from "@/components/shared/OfflineBanner";
 import useIsAdmin from "@/hooks/useIsAdmin";
 import useViewAs from "@/hooks/useViewAs";
 import ViewAsBanner from "@/components/admin/ViewAsBanner";
@@ -971,6 +972,9 @@ function LayoutInner({ children }) {
   return (
     <div>
       <StagingBanner />
+      {/* Directly below StagingBanner so on a staging preview the two stack
+          instead of overlapping. Renders null whenever the user is online. */}
+      <OfflineBanner />
       <SafeComponent label="GuestWelcomePopup">
         <GuestWelcomePopup open={isGuest && !guestPopupClosed} onClose={() => { setGuestPopupClosed(true); sessionStorage.setItem('guest_popup_closed', '1'); }} />
       </SafeComponent>
