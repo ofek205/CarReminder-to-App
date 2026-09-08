@@ -13,11 +13,22 @@
  *   5. The recipient also gets an in-app notification (created server-side
  *      by the RPC) and a Resend email (sent client-side from here)
  *
- * The DB enforces:
- *   - Caller must own the vehicle (account_members role='בעלים')
- *   - No duplicate active invite for same (vehicle, email)
- *   - Cap of 3 ACCEPTED users per vehicle (pending unlimited)
+ * The DB enforces, per the pg_get_functiondef read on 2026-09-08:
+ *   - Caller must be the OWNER of the vehicle's account (accounts.owner_user_id)
+ *   - A live pending invite for the same (vehicle, email) is REUSED, with the
+ *     role and token refreshed, rather than refused
+ *   - Cap of 3 per vehicle counting 'pending' + 'accepted'
+ *   - Self-share refused
  *   - 7-day TTL on pending invites
+ *
+ * ⚠️ THE LINE ABOVE USED TO SAY "3 ACCEPTED users per vehicle (pending
+ *   unlimited)". That is what trg_vshare_cap does, but NOT what the deployed
+ *   RPC body does: it counts pending as occupying a slot. The two differ,
+ *   and the RPC is what this dialog calls.
+ *
+ * And from phase 5a there is a THIRD cap on a different axis: max_shares per
+ * ACCOUNT, from the plan. See shareErrorCopy() below for why its message
+ * cannot be a fixed string.
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -28,6 +39,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Copy, Check, Eye, Edit, Share2, Clock, UserPlus, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
+import { capWallAction } from '@/lib/billingGate';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { getRecentShareEmails, rememberShareEmail } from '@/lib/recentShareEmails';
@@ -100,6 +112,31 @@ const VEHICLE_ERROR_COPY = {
   share_already_exists:  'הרכב כבר משותף עם המייל הזה',
 };
 
+/**
+ * The message for one share failure.
+ *
+ * ⚠️ ONE CODE CANNOT LIVE IN THE STATIC MAP ABOVE, and that is why this
+ * function exists. `account_share_cap_exceeded` comes from the per-ACCOUNT
+ * plan cap (phase 5a), so its remedy is a bigger plan, and on iOS naming a
+ * paid plan at all breaches Guideline 3.1.1(a) — which covers prose, not
+ * just buttons. A fixed string would either steer on iOS or under-inform
+ * everywhere else, so the platform decides, through the same billingGate
+ * that governs the cap wall.
+ *
+ * ⚠️ AND IT IS A DIFFERENT LIMIT FROM max_shares_per_vehicle. That one is
+ * "this vehicle already has 3 recipients", fixable for free by removing
+ * one. Conflating them would tell someone to pay when they need not.
+ */
+function shareErrorCopy(code) {
+  if (code === 'account_share_cap_exceeded') {
+    return capWallAction('plan').mayMentionPlans
+      ? 'הגעת למספר הרכבים המשותפים שהמסלול הנוכחי כולל. במסלול גדול יותר אפשר לשתף יותר.'
+      // iOS: states the limit and the only action available inside the app.
+      : 'הגעת למספר הרכבים המשותפים שהמסלול הנוכחי כולל. כדי לשתף רכב אחר, אפשר לבטל שיתוף קיים.';
+  }
+  return VEHICLE_ERROR_COPY[code];
+}
+
 export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
   const { user } = useAuth();
   const [role, setRole] = useState('editor');
@@ -155,7 +192,7 @@ export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
       });
       if (error) {
         const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
-        const msg = VEHICLE_ERROR_COPY[code] || `שגיאה בשיתוף: ${error.message}`;
+        const msg = shareErrorCopy(code) || `שגיאה בשיתוף: ${error.message}`;
         toastError(msg, { action: 'share_vehicle_send', err: error });
         if (import.meta.env.DEV) console.warn('share_vehicle_with_email error:', error);
         setSubmitting(false);
