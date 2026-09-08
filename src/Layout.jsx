@@ -6,6 +6,7 @@ import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignat
 import logo from '@/assets/logo.png';
 import ConfirmDeleteDialog from '@/components/shared/ConfirmDeleteDialog';
 import useLogoutWithGuard, { logoutWarningCopy } from '@/hooks/useLogoutWithGuard';
+import usePrefetchOfflineEssentials from '@/hooks/usePrefetchOfflineEssentials';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -710,6 +711,12 @@ function LayoutInner({ children }) {
   const [open, setOpen] = useState(false);
   const menuBtnRef = useRef(false);
   const [a11yOpen, setA11yOpen] = useState(false);
+
+  // Warm the offline cache with data the user has not opened yet, so a first
+  // visit to Documents with no signal shows their documents instead of an
+  // empty list. Online-only and best-effort; see the hook for why drivers are
+  // skipped and why the query key has to match the page part for part.
+  usePrefetchOfflineEssentials();
 
   // Close hamburger + a11y when any other top-level popup opens
   useEffect(() => {

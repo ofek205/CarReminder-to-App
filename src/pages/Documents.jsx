@@ -34,6 +34,7 @@ import { toastError } from "@/lib/userErrorReport";
 import { useAuth } from "../components/shared/GuestContext";
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import useAccountRole from '@/hooks/useAccountRole';
+import { documentsListKey } from '@/lib/queryKeys';
 import { canEdit } from '@/lib/permissions';
 import { C } from '@/lib/designTokens';
 
@@ -1195,7 +1196,7 @@ function AuthDocuments({ vehicleIdParam }) {
   });
 
   const { data: documents = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ['documents', accountId, vehicleIdParam, restrictToDriverAssignments, driverAssignedVehicleIds?.join(',')],
+    queryKey: documentsListKey({ accountId, vehicleId: vehicleIdParam, restrictToDriverAssignments, driverAssignedVehicleIds }),
     queryFn: async () => {
       try {
         const filter = { account_id: accountId };
