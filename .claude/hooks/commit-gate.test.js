@@ -36,6 +36,14 @@ describe('commit gate matcher', () => {
     ['git merge --no-commit --no-ff origin/staging', 'a staged merge, which still moves the branch'],
     ['git merge --continue', 'finishing a conflicted merge, which commits'],
     ['git -C /some/repo merge foo', 'a merge behind -C'],
+    ['git pull', 'a bare pull, which is fetch plus merge'],
+    ['git pull origin staging', 'a pull with a remote'],
+    ['git pull --rebase', 'a pull that rebases instead of merging'],
+    ['git pull --ff-only', 'a pull that only fast-forwards, which still moves the branch'],
+    ['git rebase main', 'a rebase'],
+    ['git rebase -i HEAD~3', 'an interactive rebase'],
+    ['git rebase --continue', 'continuing a rebase, which commits'],
+    ['git rebase --skip', 'skipping a patch, which carries on committing'],
 
     // Compound commands: the gate must see past the first segment.
     ['echo hi && git merge foo', 'a merge after &&'],
@@ -58,6 +66,8 @@ describe('commit gate matcher', () => {
     ['git merge --abort', 'aborting a merge'],
     ['git merge --quit', 'quitting a merge'],
     ['  git merge --abort  ', 'aborting, with surrounding whitespace'],
+    ['git rebase --abort', 'aborting a rebase'],
+    ['git rebase --quit', 'quitting a rebase'],
 
     // Ordinary read-only git and non-git work.
     ['git status --short', 'status'],
@@ -84,6 +94,8 @@ describe('commit gate matcher', () => {
     expect(isGated('cd /repo && git merge --abort')).toBe(true);
     expect(isGated('git merge --abort; echo done')).toBe(true);
     expect(isGated('git merge --abort')).toBe(false);
+    expect(isGated('cd /repo && git rebase --abort')).toBe(true);
+    expect(isGated('git rebase --abort')).toBe(false);
   });
 
   it('treats a non-string command as nothing to judge', () => {

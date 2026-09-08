@@ -1,6 +1,6 @@
 ---
 name: commit-gatekeeper
-description: Final production gatekeeper — MUST run before ANY git commit or git push. Acts as senior engineer + QA + security + product owner reviewing staged changes through 10 mandatory stages and producing an APPROVED/BLOCKED verdict. Trigger automatically whenever the user asks to commit, push, "ready to ship", "ready to commit", "let's commit this", or any Hebrew equivalent (לקמיט, לדחוף, מוכן לקומיט, מוכן לפוש, לעלות לפרודקשן). Also trigger BEFORE running any `git commit`, `git push` or `git merge` Bash command — the project has a hook that blocks these commands until this skill produces an APPROVED verdict.
+description: Final production gatekeeper — MUST run before ANY git commit or git push. Acts as senior engineer + QA + security + product owner reviewing staged changes through 10 mandatory stages and producing an APPROVED/BLOCKED verdict. Trigger automatically whenever the user asks to commit, push, "ready to ship", "ready to commit", "let's commit this", or any Hebrew equivalent (לקמיט, לדחוף, מוכן לקומיט, מוכן לפוש, לעלות לפרודקשן). Also trigger BEFORE running any `git commit`, `git push`, `git merge`, `git pull` or `git rebase` Bash command — the project has a hook that blocks these commands until this skill produces an APPROVED verdict.
 ---
 
 # Commit Gatekeeper
@@ -170,7 +170,7 @@ If **BLOCKED**, add:
 
 ## Hook integration — IMPORTANT
 
-`.claude/settings.json` runs `.claude/hooks/commit-gate.cjs` as a `PreToolUse` hook on **both** `Bash` and `PowerShell`. It blocks any `git commit`, `git push` or `git merge` unless a fresh approval token exists. `git merge --abort` and `--quit` are exempt, since neither can create a commit and needing a token to escape a half-finished merge would be a trap. Run either as the WHOLE command: the exemption is anchored, so `cd /repo && git merge --abort` is still blocked, and that anchoring is exactly what stops `--abort && commit` being a bypass. `merge-base` and `merge-tree` stay allowed too, being read-only.
+`.claude/settings.json` runs `.claude/hooks/commit-gate.cjs` as a `PreToolUse` hook on **both** `Bash` and `PowerShell`. It blocks any `git commit`, `git push`, `git merge`, `git pull` or `git rebase` unless a fresh approval token exists. `--abort` and `--quit`, on merge and on rebase, are exempt, since neither can create a commit and needing a token to escape a half-finished merge or rebase would be a trap. `--continue` and `--skip` are NOT exempt, because both go on to commit. Run either as the WHOLE command: the exemption is anchored, so `cd /repo && git merge --abort` is still blocked, and that anchoring is exactly what stops `--abort && commit` being a bypass. `merge-base` and `merge-tree` stay allowed too, being read-only.
 
 **After producing the APPROVED verdict (and ONLY then), you MUST write the approval token:**
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * PreToolUse gate — blocks `git commit` / `git push` / `git merge` issued by
- * Claude Code unless the commit-gatekeeper skill has just produced an
- * APPROVED verdict.
+ * PreToolUse gate — blocks the git commands that create or rewrite commits
+ * (commit, push, merge, pull, rebase) when issued by Claude Code, unless the
+ * commit-gatekeeper skill has just produced an APPROVED verdict.
  *
  * WHY THIS IS NODE AND NOT SHELL
  * ------------------------------
@@ -37,27 +37,32 @@ const TOKEN_PATH = path.join(os.tmpdir(), 'carreminder-gatekeeper-approved');
 const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes, single use
 
 /**
- * Matches `git commit` / `git push` / `git merge`, including `git -C <dir> push`
- * and `git --no-pager commit`.
+ * Matches commit, push, merge, pull and rebase, including forms like
+ * `git -C <dir> push` and `git --no-pager commit`.
  *
- * `merge` is here because it CREATES A COMMIT and was not matched before, so a
- * merge commit could enter history with no gatekeeper review at all, while
- * CLAUDE.md described the gate as covering every commit Claude makes. Found
- * 2026-09-08, when a sync merge sailed straight through it.
+ * Everything past commit and push is here because it CREATES OR REWRITES a
+ * commit, and none of it was matched before, so such a commit could enter
+ * history with no gatekeeper review at all while CLAUDE.md described the gate
+ * as covering every commit Claude makes. Found 2026-09-08, when a sync merge
+ * sailed straight through it. `pull` matters as much as `merge`: it is fetch
+ * plus merge, so leaving it out would have left the same hole one word wide.
  *
  * `merge-base` and `merge-tree` are read-only and must keep working. The
  * trailing (\s|$) is what excludes them, since both continue with a hyphen.
  *
- * STILL OPEN, by decision rather than oversight: pull (which is fetch + merge),
- * rebase, cherry-pick, revert and am all create or rewrite commits and are NOT
- * matched. Each is one word here. If you add one, fix this comment too.
+ * STILL OPEN, by decision rather than oversight: cherry-pick, revert and am
+ * also create or rewrite commits and are NOT matched. Each is one word here.
+ * If you add one, fix this comment too.
  */
-const GIT_WRITE = /(^|[;&|`]\s*|\$\(\s*)git(\s+(-[^\s]+|--[^\s]+)(\s+[^\s]+)?)*\s+(commit|push|merge)(\s|$)/;
+const GIT_WRITE = /(^|[;&|`]\s*|\$\(\s*)git(\s+(-[^\s]+|--[^\s]+)(\s+[^\s]+)?)*\s+(commit|push|merge|pull|rebase)(\s|$)/;
 
 /**
- * `git merge --abort` and `--quit` unwind a merge and cannot create a commit.
- * Needing a fresh gatekeeper token merely to escape a half-finished merge would
- * be a trap, so they are exempt.
+ * `--abort` and `--quit`, on merge and on rebase, unwind the operation and
+ * cannot create a commit. Needing a fresh gatekeeper token merely to escape a
+ * half-finished merge or rebase would be a trap, so they are exempt.
+ *
+ * `--continue` and `--skip` are deliberately NOT exempt. Both go on to create
+ * commits, which is the whole thing being gated.
  *
  * Anchored to the WHOLE command deliberately. Matching loosely would exempt
  * `git merge --abort && git commit -m x` and hand back the very bypass this
@@ -71,12 +76,12 @@ const GIT_WRITE = /(^|[;&|`]\s*|\$\(\s*)git(\s+(-[^\s]+|--[^\s]+)(\s+[^\s]+)?)*\
  * would put quote handling in the path of a decision that must fail closed,
  * which is a bad trade for saving one keystroke.
  */
-const MERGE_UNWIND_ONLY = /^\s*git\s+merge\s+--(abort|quit)\s*$/;
+const UNWIND_ONLY = /^\s*git\s+(merge|rebase)\s+--(abort|quit)\s*$/;
 
 /** The whole decision, exported so it can be tested instead of trusted. */
 function isGated(command) {
   if (typeof command !== 'string') return false;
-  if (MERGE_UNWIND_ONLY.test(command)) return false;
+  if (UNWIND_ONLY.test(command)) return false;
   return GIT_WRITE.test(command);
 }
 
@@ -160,7 +165,7 @@ function main() {
 
   block(
     `${why}\n\n` +
-      'Before retrying this git commit/push/merge you MUST:\n' +
+      'Before retrying this gated git command you MUST:\n' +
       '  1. Invoke the commit-gatekeeper skill (Skill tool)\n' +
       '  2. Run the full 10-stage review on the staged diff\n' +
       '  3. Output the mandatory final-format verdict\n' +
