@@ -160,6 +160,10 @@ function viewAsFromPayload(data) {
   };
 }
 
+// Distinguishes "this mount has not seen an identity yet" from "signed out",
+// which `user?.id === undefined` cannot express on its own.
+const NO_PREVIOUS_IDENTITY = Symbol('no-previous-identity');
+
 const WorkspaceContext = createContext(null);
 
 // Per-user localStorage key for the last-known active workspace. Seeding
@@ -312,6 +316,10 @@ export function WorkspaceProvider({ children }) {
   const [activeId, setActiveId] = useState(() => readCachedWorkspace(user?.id));
   const initializedRef = useRef(false);
   const viewHydratedRef = useRef(false);
+  // Sentinel, deliberately not `undefined`: the effect below must be able to
+  // tell "first run of this mount" apart from "signed out", because
+  // `user?.id` is undefined in both cases.
+  const prevUserIdRef = useRef(NO_PREVIOUS_IDENTITY);
 
   // Re-seed whenever the auth user identity changes (sign in / sign out
   // / account switch). Without this the seed sticks across users and a
@@ -330,9 +338,32 @@ export function WorkspaceProvider({ children }) {
     viewGeneration++;
     clearImpersonationToken();
     clearViewAs();
-    // Identity changed, so the on-disk query snapshot belongs to someone else.
-    // Drop it before the new identity can rehydrate from it.
-    clearPersistedCache();
+
+    // Wipe the persisted cache ONLY on a real transition between identities.
+    //
+    // This effect runs on mount too, and `user` starts null, so a signed-in
+    // cold boot passes through here twice: once with no id, then again when
+    // auth resolves. Clearing unconditionally destroyed the snapshot the
+    // persister had just restored a few hundred ms earlier, which made offline
+    // reads across a reload impossible — verified: a planted snapshot was gone
+    // after one reload, replaced by an empty one. The feature was a no-op.
+    //
+    // undefined -> id is the normal boot path and must NOT clear. A different
+    // user signing in is already covered, because the previous session's
+    // sign-out cleared at the GuestContext chokepoint. What must still clear is
+    // id -> undefined (sign-out) and id -> other-id (a switch with no
+    // intervening sign-out event).
+    // The test is "did we previously KNOW a real user id" — not merely "have we
+    // run before". Storing `user?.id` on the first run turns the sentinel into
+    // `undefined`, so a plain !== check would read the normal
+    // undefined -> 'abc' boot as a transition and clear anyway. Requiring the
+    // previous value to be an actual id string is what makes sign-out and
+    // user-switch clear while a cold boot does not.
+    const prevUserId = prevUserIdRef.current;
+    prevUserIdRef.current = user?.id;
+    if (typeof prevUserId === 'string' && prevUserId !== user?.id) {
+      clearPersistedCache();
+    }
   }, [user?.id]);
 
   // Initial resolution + revalidation when the active workspace

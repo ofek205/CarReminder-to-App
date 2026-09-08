@@ -1,5 +1,22 @@
-import { QueryClient, QueryCache, MutationCache } from '@tanstack/react-query';
+import { QueryClient, QueryCache, MutationCache, onlineManager } from '@tanstack/react-query';
 import { reportError, reportUserError } from './crashReporter';
+
+// Seed connectivity from the browser BEFORE any query runs.
+//
+// onlineManager hardcodes `#online = true` and only ever updates on an
+// online/offline TRANSITION it observes while running. So an app launched with
+// no signal believes it is online: React Query does not pause, queries fetch
+// and fail, screens fall through to their "couldn't load" state discarding the
+// cache they just restored, and the offline banner never appears — in exactly
+// the scenario offline reads exist for.
+//
+// navigator.onLine === false is trustworthy (it means definitely offline);
+// true can be a lie behind a captive portal, but that is no worse than the
+// hardcoded default. Phase 2 replaces this with the OS-level signal from
+// @capacitor/network, which is the reliable source on native.
+if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean') {
+	onlineManager.setOnline(navigator.onLine);
+}
 
 export const queryClientInstance = new QueryClient({
 	queryCache: new QueryCache({

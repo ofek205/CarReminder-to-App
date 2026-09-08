@@ -327,7 +327,16 @@ function AuthInner({ children }) {
         // the on-disk query snapshot here so the next person to sign in on
         // this device cannot rehydrate the previous user's vehicles and
         // documents from IndexedDB.
-        clearPersistedCache();
+        //
+        // Scoped to a REAL sign-out. Supabase also emits INITIAL_SESSION with
+        // a null session on every session-less boot, and clearing on that was
+        // wiping the snapshot moments after the persister restored it —
+        // verified: a planted row did not survive one reload. It would also
+        // destroy a user's offline data the moment their token expired while
+        // they had no connection, which is precisely when they need it.
+        if (event !== 'INITIAL_SESSION') {
+          clearPersistedCache();
+        }
         setAuthState('guest');
         try { window.__crAuthResolvedAt = Date.now(); } catch {}
         // Detach PIN — every subsequent isPinEnabled() / tryUnlock()
