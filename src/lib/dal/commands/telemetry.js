@@ -42,7 +42,11 @@ defineCommand('review.create', {
 });
 
 // Only meaningful about the CURRENT session, so never queue it.
+// Takes friendly names like every other command: passing the raw p_* payload
+// straight through would make this the one place where a server-side param
+// rename could not be caught at the seam boundary.
 defineCommand('telemetry.reportAppVersion', {
   offlineCapable: false, returnsEnvelope: true, kind: 'rpc', table: 'app_version_reports',
-  run: (params) => supabase.rpc('report_app_version', params),
+  run: ({ platform, version }) =>
+    supabase.rpc('report_app_version', { p_platform: platform, p_version: version }),
 });

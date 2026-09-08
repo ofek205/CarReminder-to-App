@@ -49,9 +49,9 @@ export default function MileageUpdateWidget({ vehicle, onUpdated }) {
       if (isGuest) {
         updateGuestVehicle(vehicle.id, { ...coreUpdate, ...dateUpdate });
       } else {
-        await dal.run('vehicle.update', { id: vehicle.id, ...coreUpdate });
+        await dal.run('vehicle.update', { ...coreUpdate, id: vehicle.id });
         // Try saving update date (column may not exist yet in DB)
-        try { await dal.run('vehicle.update', { id: vehicle.id, ...dateUpdate }); } catch {}
+        try { await dal.run('vehicle.update', { ...dateUpdate, id: vehicle.id }); } catch {}
         queryClient.invalidateQueries({ queryKey: ['vehicle', vehicle.id] });
       }
       // Save to localStorage so the quick-update button on Vehicles list hides for 30 days

@@ -46,17 +46,46 @@ function race(promise, fallback) {
 }
 
 /**
- * Storage-URL fields that must NEVER reach disk.
+ * Fields that must NEVER reach disk, stripped from every persisted row.
  *
- * Rows carry a signed URL (7-day TTL) alongside a durable `*_storage_path`.
- * Persisting the URL is a time bomb: offline we cannot re-sign it, so an
- * expired URL renders as a broken image or a dead file link — precisely when
- * offline reading is the whole point. Stripping them means the URL is always
- * re-derived from storage_path when online, and shows a placeholder when not.
+ * The allowlist decides WHICH QUERIES may be persisted. This decides which
+ * COLUMNS may be, because a query can be worth caching while still carrying a
+ * field that must not sit on disk. Both are needed: an audit found three cases
+ * where a forbidden value rode in on an otherwise-legitimate query.
+ *
+ * 1. EXPIRING URLS. Rows carry a signed URL (7-day TTL) next to a durable
+ *    `*_storage_path`. Persisting the URL is a time bomb: offline we cannot
+ *    re-sign it, so an expired URL renders as a broken image or a dead link,
+ *    precisely when offline reading is the point. Keeping only the path means
+ *    the URL is re-derived online and degrades to a placeholder offline.
+ *
+ * 2. AUTHORIZATION VERDICTS. `role` arrives on `user-workspaces`, which must be
+ *    persisted or the app cannot resolve a workspace offline at all. But `role`
+ *    is the app's permission source (it gates member removal, role changes,
+ *    owner-only and manager-only screens), and caching a permission verdict to
+ *    disk is exactly what the allowlist forbids. Stripping it is fail-closed:
+ *    `activeWorkspace?.role ?? null` makes every capability check false, so
+ *    offline you get read-only affordances, which is correct since every
+ *    role-gated action is an online-required command anyway. Business-vs-
+ *    personal UI is unaffected because it reads `account_type`, not `role`.
+ *    `share_count` / `is_shared_with_me` / `share_role` are the same story on
+ *    `my_vehicles_v`: `vehicle-share-info` was kept OUT of the allowlist
+ *    because shareCount decides whether deleting a vehicle cascades to every
+ *    sharee, and these columns would have smuggled the same values back in.
+ *
+ * 3. THIRD-PARTY PII. Accident rows carry the OTHER driver's name and phone,
+ *    plus the witnesses. `user-profile` is excluded from the allowlist for the
+ *    user's own PII; someone else's contact details deserve at least that. The
+ *    accident record itself (date, damage, status) still persists.
  */
-const SIGNED_URL_FIELDS = [
+const STRIPPED_FIELDS = [
+  // 1. expiring signed URLs (the durable *_storage_path is kept)
   'vehicle_photo', 'file_url', 'extra_file_urls',
   'receipt_url', 'license_photo_url', 'image_url',
+  // 2. authorization verdicts
+  'role', 'share_count', 'is_shared_with_me', 'share_role',
+  // 3. third-party PII
+  'other_driver_name', 'other_driver_phone', 'witnesses',
 ];
 
 function stripSignedUrls(value) {
@@ -67,7 +96,7 @@ function stripSignedUrls(value) {
   if (Object.getPrototypeOf(value) !== Object.prototype) return value;
 
   let next = value;
-  for (const field of SIGNED_URL_FIELDS) {
+  for (const field of STRIPPED_FIELDS) {
     if (field in next) {
       if (next === value) next = { ...value };
       delete next[field];

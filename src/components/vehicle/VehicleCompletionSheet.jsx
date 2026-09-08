@@ -265,7 +265,7 @@ export default function VehicleCompletionSheet({
           : form.insurance_company;
       }
       if (form.last_tire_change_date) patch.last_tire_change_date = form.last_tire_change_date;
-      await dal.run('vehicle.update', { id: vehicleId, ...patch });
+      await dal.run('vehicle.update', { ...patch, id: vehicleId });
       toast.success('הפרטים נשמרו');
       onSaved?.();
     } catch (err) {

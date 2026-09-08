@@ -163,6 +163,15 @@ only on the **failure** path, so test failures deliberately:
 | E8 | Save a repair with an attachment while the network drops mid-save | Toast + no orphaned attachment; the transactional RPC either fully applied or not at all |
 | E9 | Snooze a reminder twice on the same vehicle/type | Second one updates rather than erroring (upsert on conflict) |
 
+**(b2) Two data-value changes found by the param-mapping audit — test these explicitly**
+
+| # | Scenario | Must see | Why |
+|---|---|---|---|
+| E10 | Add a task (משימות) with leading/trailing spaces and with an HTML-ish string like `<b>בדיקה</b>` in the title/content | Saved **trimmed** and **HTML-stripped** | Tasks used raw `supabase.from` before and stored the value as-is; routing through the entity layer now applies `sanitizeString`. A real change to what lands in the DB. |
+| E11 | Add an expense from the **Expenses page** inline form (not the dialog) → inspect the row's `source` | `source = 'manual'` | The old inline RPC omitted `p_source`, so those rows were written with `NULL`. Now it's `'manual'`. Arguably a fix, but it changes what new rows contain — confirm nothing downstream filters on `source IS NULL`. |
+| E12 | Maintenance save that FAILS (e.g. expired session) | Error toast, and **no** success toast + **no** reminder scheduled | Previously a failed maintenance save still showed success and scheduled the local notification. This is now correct, but it is the most user-visible behavior change in the set. |
+| E13 | AI expert reply on a new community post, with the network dropped mid-reply | Post itself still created; the AI comment just doesn't appear (silent) | The AI comment insert now throws into a catch that only logs, so it fails silently rather than half-succeeding. |
+
 **(c) Other things worth a look**
 
 - Double-click submit on any form (expenses, maintenance, repair) → one row, not two.

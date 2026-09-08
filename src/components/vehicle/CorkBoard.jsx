@@ -403,7 +403,7 @@ export default function CorkBoard({ vehicle, isGuest = false, readOnly = false }
     } else {
       try {
         if (noteData.id) {
-          await dal.run('corkNote.update', { id: noteData.id, ...dbFields });
+          await dal.run('corkNote.update', { ...dbFields, id: noteData.id });
         } else {
           await dal.run('corkNote.create', {
             vehicle_id: vehicle.id,

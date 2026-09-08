@@ -180,8 +180,8 @@ export default function useUpdateAvailable() {
       // blip never affects the user's session or the banner flow.
       try {
         dal.run('telemetry.reportAppVersion', {
-          p_platform: platform,
-          p_version: currentVersion,
+          platform,
+          version: currentVersion,
         }).then(() => {}).catch(() => {});
       } catch {}
 
