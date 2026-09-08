@@ -322,9 +322,21 @@ revoke all on function public.resolve_usage_account(uuid) from anon;
 --
 -- Account-wide sums, because the quotas in the spec are per-account. The
 -- per-user breakdown is still in the table for reporting.
+-- ⚠️ RETURNS A `horizon` LABEL, NOT JUST period_key, AND THAT MATTERS.
+--   ai_advisor produces TWO rows in the same result: its lifetime teaser
+--   count and today's fair-use count. A client holding only period_key
+--   ('lifetime' / '2026-09' / '2026-09-08') cannot tell the monthly row
+--   from the daily one without recomputing Israel-time dates itself, and
+--   matching on "whichever is not lifetime" returns whichever happens to
+--   come first. Asking for today's AI usage would then sometimes hand back
+--   a monthly plate-check total.
+--
+--   Labelling here keeps every date decision, including DST, on the server
+--   where usage_period_key() already lives.
 create or replace function public.my_feature_usage(p_account_id uuid)
 returns table (
   feature      text,
+  horizon      text,
   period_key   text,
   used         bigint
 )
@@ -356,7 +368,14 @@ begin
   --   plate_check   this month
   --   vehicle_share is a live count of rows, not a counter, so it is not
   --                 here. The share cap is a trigger on vehicle_shares.
-  select c.feature, c.period_key, sum(c.count)::bigint as used
+  select c.feature,
+         case c.period_key
+           when 'lifetime'                     then 'lifetime'
+           when public.usage_period_key('month') then 'month'
+           when public.usage_period_key('day')   then 'day'
+         end                                   as horizon,
+         c.period_key,
+         sum(c.count)::bigint                  as used
     from public.feature_usage_counters c
    where c.account_id = p_account_id
      and c.period_key in (

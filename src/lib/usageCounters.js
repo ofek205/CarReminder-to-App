@@ -12,6 +12,16 @@
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 
+// Feature names, matching feature_usage_counters.feature's CHECK.
+//
+// ⚠️ AI_ADVISOR belongs here even though the client never WRITES it: the
+// advisor counter is incremented server-side in ai-proxy, but /MyPlan reads
+// it to render the meter. This is not the exemption list that was
+// deliberately moved to supabase/functions/_shared/aiQuota.ts. That list
+// decides what is free and must live where it is enforced; this is just the
+// row's name. Getting it wrong is silent, not exploitable: an undefined
+// feature matches no row and the meter reads a permanent zero.
+export const AI_ADVISOR = 'ai_advisor';
 export const PLATE_CHECK = 'plate_check';
 
 

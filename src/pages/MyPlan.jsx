@@ -37,6 +37,8 @@ import { createPageUrl } from '@/utils';
 import { C } from '@/lib/designTokens';
 import useAccountPlan, { usagePercent, usageLevel, ACCOUNT_PLAN_QUERY_KEY } from '@/hooks/useAccountPlan';
 import useVehicleCapacity from '@/hooks/useVehicleCapacity';
+import useFeatureUsage, { LIFETIME, MONTH, DAY } from '@/hooks/useFeatureUsage';
+import { AI_ADVISOR, PLATE_CHECK } from '@/lib/usageCounters';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { canMentionExternalPurchase, canReferToWeb } from '@/lib/billingGate';
@@ -107,6 +109,28 @@ export function vehiclesLabel(count, cap, countKnown) {
   return `${count} / ${cap}`;
 }
 
+/**
+ * The label for one metered allowance.
+ *
+ * ⚠️ THE ENTIRE POINT IS THE `used === null` BRANCH. null means the usage
+ * read has not succeeded, and it must fall back to the plan's limit with NO
+ * figure, never to "0 / 3". A zero numerator beside a real cap reports an
+ * untouched allowance to someone who may have spent all of it, which is the
+ * failure this screen exists to prevent. A genuine zero arrives as the
+ * number 0, not as null: the hook distinguishes them.
+ *
+ * @param {number|null} used     consumption, or null when not yet known
+ * @param {number|null} cap      plan limit, null meaning unlimited
+ * @param {(u:number,c:number)=>string} withUsage  formatter when both known
+ * @param {string} fallback      what to show when there is no usable figure
+ */
+export function meteredValue(used, cap, withUsage, fallback) {
+  if (cap === null || cap === undefined) return fallback;   // unlimited
+  if (used === null || used === undefined) return fallback; // not known yet
+  if (!Number.isFinite(used)) return fallback;
+  return withUsage(used, cap);
+}
+
 export function statusBadge(status) {
   // An unrecognised status must not silently render as "פעיל". Showing the
   // raw value is ugly and correct: it says "we do not know", which is
@@ -167,6 +191,9 @@ export default function MyPlan() {
   const qc = useQueryClient();
   const { plan, subscription, graceDaysLeft, isGuest, isLoading, isError, refetch } = useAccountPlan();
   const capacity = useVehicleCapacity();
+  // Independent of useAccountPlan on purpose: if usage fails, the limits
+  // still render and only the numbers go missing.
+  const usage = useFeatureUsage();
   const { isBusiness } = useWorkspaceRole();
   const { activeWorkspace } = useWorkspace();
 
@@ -288,6 +315,16 @@ export default function MyPlan() {
   const overCap =
     countKnown && plan.maxVehicles !== null && capacity.count > plan.maxVehicles;
 
+  // Metered allowances. Each is a number when the counter has been read
+  // (including a genuine 0), or null while loading or after a failure.
+  const usedPlate       = usage.used(PLATE_CHECK, MONTH);
+  const usedAiLifetime  = usage.used(AI_ADVISOR, LIFETIME);
+  const usedAiToday     = usage.used(AI_ADVISOR, DAY);
+  // The AI row's meter tracks whichever ceiling the plan actually uses: a
+  // one-question teaser on free, a daily fair-use cap on the paid plans.
+  const aiCap  = isFree ? plan.aiLifetimeTeaser : plan.aiDailyCap;
+  const aiUsed = isFree ? usedAiLifetime : usedAiToday;
+
   // No subtitle here: the identity row below names the account AND its
   // type, so passing accountName as a subtitle too would stack the same
   // name twice. The error and loading states DO use it, because they have
@@ -398,24 +435,58 @@ export default function MyPlan() {
               used={showVehicleUsage ? capacity.count : undefined}
               cap={plan.maxVehicles}
             />
+            {/* Plate checks: a real meter once the counter has been read.
+                usedPlate is null while the usage query is loading or has
+                failed, and LimitRow then renders the limit with no figure
+                and no bar, rather than "0 / 3" for someone who may have
+                used all three. */}
             <LimitRow
               icon={Search}
               label="בדיקת רכב לפי מספר רישוי"
-              value={plan.plateChecksPerMonth === null ? UNLIMITED : `${plan.plateChecksPerMonth} בחודש`}
+              value={meteredValue(
+                usedPlate,
+                plan.plateChecksPerMonth,
+                (u, c) => `${u} / ${c} בחודש`,
+                plan.plateChecksPerMonth === null ? UNLIMITED : `${plan.plateChecksPerMonth} בחודש`,
+              )}
+              used={plan.plateChecksPerMonth !== null && usedPlate !== null ? usedPlate : undefined}
+              cap={plan.plateChecksPerMonth}
             />
+            {/* ⚠️ NO METER FOR SHARES, ON PURPOSE. Shares are not a
+                counter: the allowance is a live count of vehicle_shares
+                rows, which go up AND down as invitations are revoked, so a
+                monotonic usage counter would be wrong. §3.3 puts that cap
+                in a trigger on the table. Showing the plan limit alone is
+                honest; showing a number from the wrong source would not
+                be. */}
             <LimitRow
               icon={Share2}
               label="שיתוף רכבים"
               value={plan.maxShares === null ? UNLIMITED : `עד ${plan.maxShares}`}
             />
+            {/* AI: the free plan is bounded by a lifetime teaser, the paid
+                plans by a daily fair-use ceiling. Two different horizons,
+                so two different rows from the same counter. */}
             <LimitRow
               icon={Sparkles}
               label="יועץ AI"
               value={
                 isFree
-                  ? (plan.aiLifetimeTeaser ? `${plan.aiLifetimeTeaser} שאלה להתרשמות` : 'לא זמין')
-                  : UNLIMITED
+                  ? meteredValue(
+                    usedAiLifetime,
+                    plan.aiLifetimeTeaser,
+                    (u, c) => (u >= c ? 'נוצלה' : `${c - u} מתוך ${c}`),
+                    plan.aiLifetimeTeaser ? `${plan.aiLifetimeTeaser} שאלה להתרשמות` : 'לא זמין',
+                  )
+                  : meteredValue(
+                    usedAiToday,
+                    plan.aiDailyCap,
+                    (u, c) => `${u} / ${c} היום`,
+                    UNLIMITED,
+                  )
               }
+              used={aiCap !== null && aiUsed !== null ? aiUsed : undefined}
+              cap={aiCap}
             />
             <LimitRow
               icon={CreditCard}

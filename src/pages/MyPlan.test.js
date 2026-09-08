@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { valueDir, statusBadge, vehiclesLabel } from './MyPlan';
+import { valueDir, statusBadge, vehiclesLabel, meteredValue } from './MyPlan';
 
 describe('valueDir', () => {
   it('is ltr only for purely numeric or symbolic values', () => {
@@ -102,5 +102,41 @@ describe('vehiclesLabel', () => {
     expect(vehiclesLabel(0, 30, false)).not.toContain('0 /');
     expect(vehiclesLabel(undefined, 30, true)).not.toContain('/');
     expect(vehiclesLabel(NaN, 30, true)).not.toContain('/');
+  });
+});
+
+describe('meteredValue', () => {
+  const fmt = (u, c) => `${u} / ${c}`;
+
+  it('renders usage when both numbers are known', () => {
+    expect(meteredValue(2, 3, fmt, 'fallback')).toBe('2 / 3');
+    expect(meteredValue(0, 3, fmt, 'fallback')).toBe('0 / 3'); // a GENUINE zero
+  });
+
+  it('falls back for an unlimited cap', () => {
+    expect(meteredValue(40, null, fmt, 'ללא הגבלה')).toBe('ללא הגבלה');
+    expect(meteredValue(40, undefined, fmt, 'ללא הגבלה')).toBe('ללא הגבלה');
+  });
+
+  // ── the branch this function exists for ─────────────────────────────
+  //
+  // null means the usage read has NOT succeeded. Rendering "0 / 3" there
+  // tells someone who spent all three that they have spent none. A genuine
+  // zero arrives as the number 0 and is shown; only null falls back.
+
+  it('shows NO figure when usage is not yet known', () => {
+    expect(meteredValue(null, 3, fmt, '3 בחודש')).toBe('3 בחודש');
+    expect(meteredValue(undefined, 3, fmt, '3 בחודש')).toBe('3 בחודש');
+  });
+
+  it('never renders a fabricated zero from an unknown read', () => {
+    expect(meteredValue(null, 3, fmt, '3 בחודש')).not.toContain('0 /');
+    expect(meteredValue(NaN, 3, fmt, '3 בחודש')).not.toContain('/');
+  });
+
+  it('distinguishes a real zero from an unknown one', () => {
+    // The whole reason the hook returns 0 for "no row" and null for
+    // "no answer".
+    expect(meteredValue(0, 3, fmt, 'fb')).not.toBe(meteredValue(null, 3, fmt, 'fb'));
   });
 });
