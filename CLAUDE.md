@@ -183,7 +183,7 @@ git checkout staging && git merge main && git push origin staging
 |---|---|---|
 | `.githooks/pre-commit` | כל commit מקומי | קבצי סוד (`.env`/`.pem`/`.key`), סמני קונפליקט, מפתחות מקודדים (`sk-`/`AKIA`/`ghp_`), eslint על הקבצים בסטייג' |
 | `.githooks/pre-push` | כל push מקומי | **שש** בדיקות: אזהרת main, `npm run lint`, `npm test`, `npm run build`, שער query-timeout, שער זהות view-as |
-| `.claude/hooks/commit-gate.cjs` | commit/push/merge של קלוד | דורש אסימון APPROVED טרי מ-commit-gatekeeper |
+| `.claude/hooks/commit-gate.cjs` | כל פקודת git שיוצרת או משכתבת קומיט של קלוד (commit/push/merge/pull/rebase/cherry-pick/revert/am) | דורש אסימון APPROVED טרי מ-commit-gatekeeper |
 | `production-gates.yml` | **PR ל-main בלבד** | **ארבעה** jobs: build, lint, query-timeout, view-as identity |
 
 - **`git push origin staging`** — עובר ללא `--no-verify`.
@@ -342,7 +342,11 @@ node scripts/sql-ledger.cjs drift           # מה השתנה מאז שהוחל
 
 **התהליך:** מריצים את הקובץ ב-SQL editor → מריצים `record` → מדביקים את הפלט → ממלאים `p_notes` במה שאימתת בפועל.
 
-הטבלה היא `public.sql_ledger` (ראה `supabase-sql-ledger-2026-09-01.sql`, טרם הוחל). **השדה הנושא הוא `sha256`** — שם קובץ לא מוכיח כלום אם הקובץ השתנה אחרי ההחלה. ה-hash מצמיד את הבייטים המדויקים שרצו, וזה מה שמאפשר ל-`drift` לענות על „האם המסד הריץ את מה שהקובץ אומר היום”.
+הטבלה היא `public.sql_ledger` (ראה `supabase-sql-ledger-2026-09-01.sql`). **השדה הנושא הוא `sha256`** — שם קובץ לא מוכיח כלום אם הקובץ השתנה אחרי ההחלה. ה-hash מצמיד את הבייטים המדויקים שרצו, וזה מה שמאפשר ל-`drift` לענות על „האם המסד הריץ את מה שהקובץ אומר היום”.
+
+> **תיקון 2026-09-08:** הסעיף הזה אמר „טרם הוחל”. **הפנקס חי.** `select count(*) from public.sql_ledger` החזיר 4, והקובץ עצמו אינו זורע שורות (ה-`insert` היחיד שבו יושב בתוך גוף `sql_ledger_record`), ולכן אלה רישומים אמיתיים שקדמו לתאריך הזה.
+>
+> **ומכאן נובע הכלל שהיה משתמע ולא כתוב:** מכיוון שה-`sha256` הוא השדה הנושא, **אין לערוך קובץ SQL אחרי שהוא הוחל ונרשם.** עריכה כזו מנתקת את הקובץ מהבייטים שרצו, ו-`drift` יסמן אותו כ-CHANGED לנצח. תוספת לפיצ'ר שכבר הוחל = **קובץ חדש**, לא עריכה של הקיים.
 
 **שלוש רמות סיווג:**
 
