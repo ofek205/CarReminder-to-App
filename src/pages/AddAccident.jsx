@@ -24,6 +24,7 @@ import PlateScanButton from '@/components/shared/PlateScanButton';
 import { useAuth } from '../components/shared/GuestContext';
 import { DEMO_ACCIDENTS, DEMO_VEHICLE } from '../components/shared/demoVehicleData';
 import useAccountRole from '@/hooks/useAccountRole';
+import { countPlateLookup } from '@/lib/usageCounters';
 import { isViewOnly } from '@/lib/permissions';
 import { C } from '@/lib/designTokens';
 import ImageViewer from '../components/shared/ImageViewer';
@@ -263,6 +264,10 @@ export default function AddAccident() {
     setLookupStatus('loading');
     try {
       const result = await lookupVehicleByPlate(plateQuery.trim());
+      // Monetization phase 3: count, never block. This is a THIRD-PARTY
+      // plate lookup that fills the form, so it behaves like "check any
+      // vehicle for free" (§3.2) and has to appear in the numbers.
+      countPlateLookup(accountId, 'add_accident');
       if (!result) { setLookupStatus('not_found'); return; }
       // Dual-registry hit — ask the user which vehicle the OTHER driver
       // owns instead of guessing. Same dialog visual as AddVehicle /

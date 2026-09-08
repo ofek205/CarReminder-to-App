@@ -61,6 +61,7 @@ import { C, getTheme } from '@/lib/designTokens';
 import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { useQueryClient } from '@tanstack/react-query';
 import useAccountRole from '@/hooks/useAccountRole';
+import { countPlateLookup } from '@/lib/usageCounters';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
@@ -781,6 +782,14 @@ export default function AddVehicle() {
     setLookupStatus('loading');
     try {
       const result = await lookupVehicleByPlate(plateQuery.trim());
+      // Monetization phase 3: count, never block. §3.2 calls this the
+      // BIGGEST hole in the plate quota: an explicit user-initiated lookup
+      // that returns the full specification, reachable by opening
+      // /AddVehicle and searching without ever saving a vehicle. Leaving it
+      // uncounted would make free full-spec lookups effectively unlimited
+      // and would set the eventual cap from numbers that were wrong.
+      // Counted even on a miss: the request went to data.gov.il either way.
+      countPlateLookup(accountId, 'add_vehicle_search');
       if (!result) { setLookupStatus('not_found'); return; }
 
       // Dual-registry collision (e.g. plate 229080 = 1965 Triumph Herald

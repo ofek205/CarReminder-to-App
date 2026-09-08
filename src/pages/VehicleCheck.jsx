@@ -11,6 +11,7 @@ import { toastError } from '@/lib/userErrorReport';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
+import { countPlateLookup } from '@/lib/usageCounters';
 import useVehicleCapacity from '@/hooks/useVehicleCapacity';
 import { isVehicleCapError } from '@/lib/vehicleCapError';
 import VehicleCapReachedModal from '@/components/vehicles/VehicleCapReachedModal';
@@ -181,6 +182,23 @@ export default function VehicleCheck() {
     setLoadingIndex(0);
     try {
       const data = await lookupVehicleQuickCheck(v.plate);
+      // Monetization phase 3: count, never block. Not awaited, so a counter
+      // failure can never cost the user their result.
+      //
+      // ⚠️ THIS COUNTS CACHE HITS TOO. lookupVehicleQuickCheck keeps a
+      // 10-minute module-level cache and returns from it at
+      // vehicleQuickCheck.js:216 with NO signal that it did, so there is
+      // nothing here to branch on. §3.2 recommends the opposite (a re-view
+      // inside the window should be free, "so nobody complains they paid
+      // twice for the same vehicle"), and doing that properly needs the
+      // service to report a hit; approximating it with a second cache here
+      // would just be two caches disagreeing.
+      //
+      // Acceptable for phase 3 because nothing is charged yet, and because
+      // over-counting demand errs toward a MORE generous cap rather than a
+      // tighter one. It must be revisited before phase 5, where the same
+      // call becomes a charge.
+      countPlateLookup(accountId, 'vehicle_check');
       if (!isAuthenticated) markQuickCheckUsed();
       if (!data) {
         setResult(null);

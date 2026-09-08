@@ -26,6 +26,7 @@ import { supabase } from '@/lib/supabase';
 import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
+import { countPlateLookup } from '@/lib/usageCounters';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { lookupVehicleByPlate } from '@/services/vehicleLookup';
 import { LEASING_COMPANIES, canonicalizeLeasingCompany } from '@/constants/leasingCompanies';
@@ -359,6 +360,28 @@ export default function BulkAddVehicles() {
     if (inputRows.length === 0) { toastError('הוסף לפחות מספר רישוי אחד', { action: 'bulk_add_no_plates' }); return; }
     setStep('review');
     setProgress({ done: 0, total: inputRows.length, phase: 'lookup' });
+
+    // Monetization phase 3: count, never block. §3.2 flags bulk import as N
+    // lookups per run with no ceiling, the largest single harvest of
+    // specifications in the app, and requires an explicit in-or-out
+    // decision. It is IN, and counted as N rather than 1, because phase 3
+    // exists to reveal true volume: charging an import of 200 plates as one
+    // check would hide exactly the pattern the cap has to be set against.
+    //
+    // Batched, not N calls: the RPC takes a delta, so a large import does
+    // not fire hundreds of round trips. Counted BEFORE the lookups, on the
+    // row count the user submitted, because that is the number of requests
+    // about to be made regardless of how many succeed. The sweeps below are
+    // RETRIES of the same plates and are deliberately not counted again.
+    //
+    // ⚠️ CHUNKED RATHER THAN CLAMPED. The delta is capped at 500 per call
+    // (both sides), and an earlier version passed min(length, 500), which
+    // silently discarded every row past the 500th. In a subsystem whose
+    // only purpose is measurement, dropping observations distorts the exact
+    // number the cap will later be set from, so the whole import is counted.
+    for (let i = 0; i < inputRows.length; i += 500) {
+      countPlateLookup(accountId, 'bulk_add', Math.min(500, inputRows.length - i));
+    }
 
     let results = await lookupAll(
       inputRows,
