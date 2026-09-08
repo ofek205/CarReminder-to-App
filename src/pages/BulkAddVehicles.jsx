@@ -28,6 +28,8 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import { countPlateLookup } from '@/lib/usageCounters';
 import { checkPlateQuota, isPlateQuotaRefusal } from '@/lib/plateQuotaGate';
+import { checkVehicleCapRoom, isCapRefusal } from '@/lib/vehicleCapRoom';
+import VehicleCapReachedModal from '@/components/vehicles/VehicleCapReachedModal';
 import PlateQuotaNotice from '@/components/shared/PlateQuotaNotice';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { lookupVehicleByPlate } from '@/services/vehicleLookup';
@@ -313,6 +315,10 @@ export default function BulkAddVehicles() {
   // import twice.
   const [checkingQuota, setCheckingQuota] = useState(false);
   const checkingQuotaRef = useRef(false);
+  // The plan vehicle-cap verdict when the import would not fit. Reuses the
+  // established wall for this exact limit rather than inventing a second
+  // look for the same refusal.
+  const [capRoom, setCapRoom] = useState(null);
   const [matrix, setMatrix]   = useState([]);      // raw parsed cells (rows × columns)
   const [mapping, setMapping] = useState(null);    // { plateCol, nicknameCol, kmCol, hasHeader }
   const [rows, setRows]       = useState([]);      // [{plate, nickname, current_km, data, status, included, ...}]
@@ -378,6 +384,7 @@ export default function BulkAddVehicles() {
     if (checkingQuotaRef.current) return;
     checkingQuotaRef.current = true;
     setQuotaVerdict(null);
+    setCapRoom(null);
     setCheckingQuota(true);
 
     // Monetization phase 5c. CHECKED AS N, NOT AS 1, and checked BEFORE the
@@ -389,15 +396,36 @@ export default function BulkAddVehicles() {
     // would leave the user staring at a review screen where an arbitrary
     // subset resolved, with no way to tell a plate that failed lookup from
     // one that was never attempted.
+    // The VEHICLE cap, checked here too, and this is the more expensive dead
+    // end of the two. It is a different limit from the plate quota: an
+    // account can have plenty of monthly checks left and still be at its
+    // max_vehicles. Without this, a free account at 5 of 5 passes the quota,
+    // spends N gov API lookups, sits through the whole review screen, presses
+    // submit, and only THEN meets the trigger.
+    //
+    // ⚠️ ADVISORY ONLY. The trigger on public.vehicles is the authority and
+    // this read fails open, so a failure here costs the old behaviour
+    // (refused at submit, with the mapped modal) rather than a false block.
+    // See src/lib/vehicleCapRoom.js.
     let verdict;
+    let room;
     try {
-      verdict = await checkPlateQuota(inputRows.length);
+      // Both reads together: they are independent, and one round trip of
+      // latency on a button press is better than two.
+      [verdict, room] = await Promise.all([
+        checkPlateQuota(inputRows.length),
+        checkVehicleCapRoom(accountId, inputRows.length),
+      ]);
     } finally {
       checkingQuotaRef.current = false;
       setCheckingQuota(false);
     }
     if (isPlateQuotaRefusal(verdict)) {
       setQuotaVerdict(verdict);
+      return;
+    }
+    if (isCapRefusal(room)) {
+      setCapRoom(room);
       return;
     }
 
@@ -605,6 +633,17 @@ export default function BulkAddVehicles() {
               tail={`בקשת לבדוק ${inputRows.length} מספרי רישוי בייבוא הזה.`}
             />
           )}
+          {/* The plan vehicle cap. A modal rather than an inline notice
+              because this one is not "trim the list and retry" — the
+              account is full, and the same wall appears when adding a
+              single vehicle, so it must look identical here. */}
+          <VehicleCapReachedModal
+            open={!!capRoom}
+            onClose={() => setCapRoom(null)}
+            kind="plan"
+            planCap={capRoom?.cap ?? null}
+            capacity={{ cap: capRoom?.cap ?? null, count: capRoom?.used ?? null }}
+          />
         </>
       )}
 
