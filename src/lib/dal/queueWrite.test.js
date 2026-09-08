@@ -38,11 +38,17 @@ const { listPending, clearOutbox } = await import('./outbox');
 // Register the real command names the allowlist refers to, without importing
 // dal/index.js (which would pull in the live Supabase client).
 let serverCalls = [];
-defineCommand('corkNote.create', { offlineCapable: true, invalidates: () => [['cork-notes']], run: (p) => { serverCalls.push(p); return Promise.resolve({ id: 'server-1' }); } });
-defineCommand('corkNote.update', { offlineCapable: true, run: (p) => { serverCalls.push(p); return Promise.resolve({}); } });
-defineCommand('corkNote.delete', { offlineCapable: true, run: (p) => { serverCalls.push(p); return Promise.resolve({}); } });
-defineCommand('expense.create', { offlineCapable: true, run: (p) => { serverCalls.push(p); return Promise.resolve({}); } });
+const T = 'cork_notes';
+defineCommand('corkNote.create', { offlineCapable: true, outboxOp: 'insert', table: T, invalidates: (p) => [['cork-notes', p?.vehicle_id]], run: (p) => { serverCalls.push(p); return Promise.resolve({ id: 'server-1' }); } });
+defineCommand('corkNote.update', { offlineCapable: true, outboxOp: 'update', table: T, run: (p) => { serverCalls.push(p); return Promise.resolve({}); } });
+defineCommand('corkNote.delete', { offlineCapable: true, outboxOp: 'delete', table: T, run: (p) => { serverCalls.push(p); return Promise.resolve({}); } });
+// offlineCapable AND an insert, but NOT in OUTBOX_ENABLED — the flag alone must
+// never be enough to start queueing.
+defineCommand('expense.create', { offlineCapable: true, outboxOp: 'insert', table: 'vehicle_expenses', run: (p) => { serverCalls.push(p); return Promise.resolve({}); } });
 defineCommand('share.revoke', { offlineCapable: false, returnsEnvelope: true, run: () => Promise.resolve({ data: null, error: null }) });
+// Enabled by name but declaring no outboxOp: must still refuse, so a
+// half-registered command cannot slip through the set.
+defineCommand('task.toggleDone', { offlineCapable: true, table: T, run: (p) => { serverCalls.push(p); return Promise.resolve({}); } });
 
 beforeEach(async () => {
   serverCalls = [];
@@ -54,7 +60,12 @@ beforeEach(async () => {
 describe('canQueue — the allowlist boundary', () => {
   it('allows the creates that carry no clobber risk', () => {
     expect(canQueue('corkNote.create', {})).toBe(true);
-    expect(canQueue('task.create', {})).toBe(false);   // not registered in this test file
+  });
+
+  it('refuses a command that is enabled but declares no outboxOp', () => {
+    // Behaviour comes from the command's own declaration, so a name in the set
+    // without one is a half-registration and must not queue silently.
+    expect(canQueue('task.toggleDone', { id: `${LOCAL_ID_PREFIX}abc` })).toBe(false);
   });
 
   it('does NOT allow an offlineCapable command that is merely offline-capable', () => {
@@ -137,6 +148,38 @@ describe('editing a row whose create has not been sent yet', () => {
     await runCommand('corkNote.delete', { id: row.id });
     expect(await listPending('user-a')).toEqual([]);
     expect(serverCalls).toEqual([]);
+  });
+});
+
+describe('the optimistic patch stays on the right list', () => {
+  beforeEach(() => { onlineManager.setOnline(false); });
+
+  it('does NOT put the new row on another vehicle\'s list', async () => {
+    // The real keys are parameterised (['cork-notes', vehicleId]) and
+    // setQueriesData matches by PREFIX, so patching ['cork-notes'] would put a
+    // note added to one car onto every car's board.
+    const { queryClientInstance: qc } = await import('../query-client');
+    qc.setQueryData(['cork-notes', 'veh-A'], [{ id: 'a1' }]);
+    qc.setQueryData(['cork-notes', 'veh-B'], [{ id: 'b1' }]);
+
+    await runCommand('corkNote.create', { vehicle_id: 'veh-A', body: 'for A only' });
+
+    const listA = qc.getQueryData(['cork-notes', 'veh-A']);
+    const listB = qc.getQueryData(['cork-notes', 'veh-B']);
+    expect(listA).toHaveLength(2);
+    expect(listA[0].body).toBe('for A only');
+    expect(listB).toEqual([{ id: 'b1' }]);   // untouched
+  });
+
+  it('patches no list at all when the scoping field is missing', async () => {
+    // A key of ['cork-notes', undefined] would match by prefix and hit every
+    // list, so it is refused rather than applied to the wrong screens. The
+    // write is still queued — the queue is the source of truth.
+    const { queryClientInstance: qc } = await import('../query-client');
+    qc.setQueryData(['cork-notes', 'veh-C'], [{ id: 'c1' }]);
+    await runCommand('corkNote.create', { body: 'no vehicle id' });
+    expect(qc.getQueryData(['cork-notes', 'veh-C'])).toEqual([{ id: 'c1' }]);
+    expect(await listPending('user-a')).toHaveLength(1);
   });
 });
 

@@ -94,6 +94,36 @@ describe('DAL registry integrity', () => {
     expect(missing).toEqual([]);
   });
 
+  it('every outbox-enabled command declares what it does offline', () => {
+    // A name in OUTBOX_ENABLED without an `outboxOp` is a half-registration:
+    // canQueue refuses it, so the user silently gets the plain offline refusal
+    // while the set claims the command is enabled. Catching that here means the
+    // two declarations cannot drift apart.
+    const enabled = [...readFileSync(path.join(SRC, 'lib', 'dal', 'queueWrite.js'), 'utf8')
+      .matchAll(/^\s*'([\w.]+)',$/gm)].map((m) => m[1]);
+    expect(enabled.length).toBeGreaterThan(0);
+
+    const declared = new Map();
+    for (const file of readdirSync(COMMANDS_DIR)) {
+      if (!file.endsWith('.js')) continue;
+      const src = readFileSync(path.join(COMMANDS_DIR, file), 'utf8');
+      const re = /defineCommand\(\s*'([^']+)'\s*,\s*\{([\s\S]*?)\n\}\);/g;
+      let m;
+      while ((m = re.exec(src))) declared.set(m[1], m[2]);
+    }
+
+    const missingOp = enabled.filter((n) => !/outboxOp:\s*'(insert|update|delete)'/.test(declared.get(n) || ''));
+    expect(missingOp).toEqual([]);
+
+    // An enabled INSERT must also declare `invalidates`, or after the flush the
+    // optimistic row keeps its `local_` id forever: nothing would refetch to
+    // replace it with the server's row.
+    const insertsWithoutInvalidates = enabled
+      .filter((n) => /outboxOp:\s*'insert'/.test(declared.get(n) || ''))
+      .filter((n) => !/invalidates:/.test(declared.get(n) || ''));
+    expect(insertsWithoutInvalidates).toEqual([]);
+  });
+
   it('never writes to supabase from a screen — the seam has one entry point', () => {
     // The invariant the whole Phase 0 refactor exists to create. It has eroded
     // twice already: a parallel branch merged in three raw cap RPCs, and the

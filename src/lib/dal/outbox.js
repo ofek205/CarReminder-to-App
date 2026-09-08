@@ -71,7 +71,7 @@ async function readAll() {
  * Returns the opId, or null if the queue could not be written (caller then
  * treats the write as refused rather than pretending it was saved).
  */
-export async function enqueue({ command, payload, userId, localId = null }) {
+export async function enqueue({ command, payload, userId, localId = null, table = null }) {
   if (!command || !userId) return null;
   const item = {
     opId: crypto.randomUUID(),
@@ -79,6 +79,11 @@ export async function enqueue({ command, payload, userId, localId = null }) {
     payload,
     userId,
     localId,
+    // The table the write targets. Recorded so a later local-row edit can find
+    // its pending create by TABLE rather than by a hardcoded command-name map:
+    // the two commands that write cork_notes are called corkNote.create and
+    // task.create, and nothing in their names says they share a row space.
+    table,
     createdAt: new Date().toISOString(),
     attempts: 0,
     status: OUTBOX_STATUS.PENDING,
