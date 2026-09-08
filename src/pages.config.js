@@ -49,6 +49,7 @@ const MaintenanceTemplates = React.lazy(() => import('./pages/MaintenanceTemplat
 const Notifications = React.lazy(() => import('./pages/Notifications'));
 const ReminderSettingsPage = React.lazy(() => import('./pages/ReminderSettingsPage'));
 const AiServices = React.lazy(() => import('./pages/AiServices'));
+const MyPlan = React.lazy(() => import('./pages/MyPlan'));
 const RepairTypes = React.lazy(() => import('./pages/RepairTypes'));
 const UserProfile = React.lazy(() => import('./pages/UserProfile'));
 const AiAssistant = React.lazy(() => import('./pages/AiAssistant'));
@@ -127,6 +128,7 @@ export const PAGES = {
     "Notifications": Notifications,
     "ReminderSettingsPage": ReminderSettingsPage,
     "AiServices": AiServices,
+    "MyPlan": MyPlan,
     "RepairTypes": RepairTypes,
     "UserProfile": UserProfile,
     "VehicleDetail": VehicleDetail,

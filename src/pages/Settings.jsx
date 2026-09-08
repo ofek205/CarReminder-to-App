@@ -15,11 +15,12 @@
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { User, Users, Bell, Shield, ChevronLeft, UserCog, Briefcase, Sparkles } from 'lucide-react';
+import { User, Users, Bell, Shield, ChevronLeft, UserCog, Briefcase, Sparkles, CreditCard } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { PageShell, Card } from '@/components/business/system';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import useIsAdmin from '@/hooks/useIsAdmin';
+import { useFeatureFlag } from '@/lib/featureFlags';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { C } from '@/lib/designTokens';
 
@@ -33,7 +34,25 @@ export default function Settings() {
   // rollout (matches the page's own gate). Hidden in a business workspace.
   const showSafetyEntry = !isBusiness && isAdmin;
 
+  // "המסלול והחיוב" (monetization phase 2). Flag-gated because the screen
+  // reads plan_limits and account_subscriptions, which do not exist until
+  // supabase-monetization-phase1-plans-2026-09-08.sql has been applied:
+  // without the gate every user would find a row leading to an error state.
+  // defaultOnError stays false (the helper's default) so a flag read that
+  // fails hides the row rather than exposing a broken screen.
+  //
+  // ⚠️ "המסלול והחיוב", not "מנוי". Everyone is on the free plan today, and
+  // "subscription" implies they are paying for something.
+  const { enabled: planUiEnabled } = useFeatureFlag('monetization_ui_enabled');
+
+  const planRow = planUiEnabled
+    ? { to: 'MyPlan', icon: CreditCard, label: 'המסלול והחיוב', sub: 'המסלול הנוכחי, המגבלות והניצול' }
+    : null;
+
   const personalRows = [
+    // First in the group when shown: the plan is per ACCOUNT, and the
+    // active workspace is what decides which account this is.
+    !isBusiness && planRow,
     { to: 'UserProfile', icon: User, label: 'פרופיל ורישיון', sub: 'פרטים אישיים ורישיון נהיגה' },
     !isBusiness && { to: 'AccountSettings', icon: Users, label: 'חשבון משותף', sub: 'שיתוף רכבים עם בני משפחה' },
     { to: 'ReminderSettingsPage', icon: Bell, label: 'התראות ותזכורות', sub: 'מה ומתי לקבל תזכורות' },
@@ -48,6 +67,10 @@ export default function Settings() {
   // Business group — only in a business workspace, gated by role.
   // הצוות: owner+manager · הגדרות העסק (company/drivers/ownership): owner only.
   const businessRows = isBusiness ? [
+    // Same row, in the business group, when a business workspace is active.
+    // It appears in exactly one group at a time, so there is never a second
+    // plan entry to disagree with the first.
+    planRow,
     isManager && { to: 'TeamManagement', icon: UserCog, label: 'הצוות', sub: 'הזמנה, תפקידים והסרת חברים' },
     isOwner   && { to: 'BusinessSettings', icon: Briefcase, label: 'הגדרות העסק', sub: 'פרטי החברה, נהגים ובעלות' },
   ].filter(Boolean) : [];
