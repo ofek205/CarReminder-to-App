@@ -76,6 +76,7 @@ const Reports           = React.lazy(() => import('./pages/Reports'));
 const Drivers           = React.lazy(() => import('./pages/Drivers'));
 const DriverDetail      = React.lazy(() => import('./pages/DriverDetail'));
 const AdminBusinessRequests = React.lazy(() => import('./pages/AdminBusinessRequests'));
+const AdminPlans = React.lazy(() => import('./pages/AdminPlans'));
 const AdminAlerts           = React.lazy(() => import('./pages/AdminAlerts'));
 const AdminUsers            = React.lazy(() => import('./pages/AdminUsers'));
 const AdminAuditLog         = React.lazy(() => import('./pages/AdminAuditLog'));
@@ -157,6 +158,7 @@ export const PAGES = {
     // Intentionally NOT in Layout.jsx menu (per product decision).
     "DriverDetail": DriverDetail,
     "AdminBusinessRequests": AdminBusinessRequests,
+    "AdminPlans": AdminPlans,
     "AdminAlerts": AdminAlerts,
     "AdminUsers": AdminUsers,
     "AdminAuditLog": AdminAuditLog,

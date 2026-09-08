@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from "@/utils";
 import { supabase, adminSupabase } from '@/lib/supabase';
-import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield, Eye } from 'lucide-react';
+import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield, Eye, CreditCard } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import ConfirmDeleteDialog from '@/components/shared/ConfirmDeleteDialog';
 import useLogoutWithGuard, { logoutWarningCopy } from '@/hooks/useLogoutWithGuard';
@@ -199,6 +199,12 @@ const navItems = [
   { name: 'AdminDashboard?tab=bugs',     label: 'באגים',   icon: Bug,         guestAllowed: false, adminOnly: true },
   { name: 'AdminDashboard?tab=versions', label: 'גרסאות', icon: Smartphone,  guestAllowed: false, adminOnly: true },
   { name: 'AdminBusinessRequests', label: 'בקשות עסקים', icon: Briefcase,    guestAllowed: false, adminOnly: true },
+  // Not behind monetization_ui_enabled, unlike the user-facing /MyPlan row.
+  // This screen exists to catch a forgotten grant, so it has to be
+  // reachable whenever a grant can exist. Its own RPC checks is_admin() and
+  // returns an empty list before the migration, which renders as the
+  // "no exceptions" state rather than an error.
+  { name: 'AdminPlans',         label: 'מסלולים',       icon: CreditCard,   guestAllowed: false, adminOnly: true },
 ];
 
 
