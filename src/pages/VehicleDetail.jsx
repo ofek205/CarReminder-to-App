@@ -620,6 +620,11 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   });
   const shareCount = shareInfo?.shareCount ?? 0;
   const isSharedWithMe = !!shareInfo?.mySharedAccess;
+  // Whether the share count is actually KNOWN, as opposed to defaulted to 0.
+  // The delete confirmation must not promise "this affects only you" while the
+  // query is still in flight, which it happily did before: the page paints
+  // from the persisted cache well ahead of this query resolving.
+  const shareCountKnown = shareInfo !== undefined;
 
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [accessModalOpen, setAccessModalOpen] = useState(false);
@@ -692,17 +697,28 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
     setDeleting(true);
     try {
       if (vehicleIsOwned) {
-        if (shareCount > 0) {
-          // Routes through the SECURITY DEFINER RPC so all recipients
-          // get a 'share_deleted' notification before we drop the row.
-          const { error } = await dal.run('vehicle.deleteWithShareChoice', {
-            vehicleId,
-            mode: 'both',
-          });
-          if (error) throw error;
-        } else {
-          await dal.run('vehicle.delete', { id: vehicleId });
-        }
+        // ALWAYS the cascade RPC, never a plain delete, and deliberately not
+        // branched on shareCount.
+        //
+        // shareCount is 0 both while this page's share query is still in
+        // flight AND when its queryFn swallows an error (it returns
+        // { shareCount: 0 } on failure). So `shareCount > 0` could send a
+        // genuinely shared vehicle down the plain-delete path: the recipients
+        // would lose access with no 'share_deleted' notification and the
+        // cascade the RPC performs would be skipped. Persisting the vehicle
+        // row to disk widened that window, because the page now paints this
+        // delete button from cache long before the share query resolves.
+        //
+        // Calling the RPC unconditionally is safe: in 'both' mode it checks
+        // ownership, notifies whatever sharees exist (none, for an unshared
+        // vehicle) and then deletes. So there is no branch left to get wrong.
+        // It does make owner-delete online-only, which is the correct posture
+        // for an operation that revokes other people's access.
+        const { error } = await dal.run('vehicle.deleteWithShareChoice', {
+          vehicleId,
+          mode: 'both',
+        });
+        if (error) throw error;
         toast.success('הרכב נמחק');
       } else if (isSharedWithMe) {
         // Sharee leaves the share — vehicle stays with the owner.
@@ -959,6 +975,11 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
                     <>
                       הרכב משותף עם עוד <strong>{shareCount}</strong> משתמשים. המחיקה תסיר אותו ואת כל המידע מכולם, וכולם יקבלו על כך התראה. הפעולה אינה הפיכה.
                     </>
+                  ) : !shareCountKnown ? (
+                    // Count not resolved yet: say what is certain and stay
+                    // silent on who else is affected, rather than claiming
+                    // nobody is.
+                    <>פעולה זו תמחק את ה{isVessel ? 'כלי שייט' : 'רכב'} וכל המידע המשויך אליו. אם הרכב משותף, הוא יימחק גם עבור מי שהוא שותף איתו, והם יקבלו על כך התראה. הפעולה אינה הפיכה.</>
                   ) : (
                     <>פעולה זו תמחק את ה{isVessel ? 'כלי שייט' : 'רכב'} וכל המידע המשויך אליו. הפעולה אינה הפיכה.</>
                   )}

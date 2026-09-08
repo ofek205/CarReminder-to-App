@@ -27,14 +27,15 @@ defineCommand('vehicle.create', {
   run: (payload) => db.vehicles.create(payload),
 });
 
-// Plain delete — only used on the UNSHARED path. A shared vehicle goes through
-// delete_vehicle_with_share_choice instead (online-required: it cascades to
-// every sharee and notifies them).
-defineCommand('vehicle.delete', {
-  offlineCapable: true,
-  table: 'vehicles',
-  run: ({ id }) => db.vehicles.delete(id),
-});
+// There is deliberately NO plain `vehicle.delete` command.
+//
+// An owner deleting a vehicle must always go through
+// `vehicle.deleteWithShareChoice` below, because a plain delete drops the row
+// without notifying anyone it was shared with. The old branch chose between
+// the two on `shareCount > 0`, and that value reads 0 both while the share
+// query is in flight and when it errors — so a shared vehicle could take the
+// silent path. Removing the primitive removes the possibility: there is no
+// unsafe call to accidentally reach for.
 
 // ── RPC-backed (envelope) ──────────────────────────────────────────────────
 
