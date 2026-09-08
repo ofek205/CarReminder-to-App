@@ -1,0 +1,218 @@
+# Deploy one Supabase Edge Function, from the browser, with a record.
+#
+# Why this exists
+# ---------------
+# All 18 Edge Functions were deployed by hand from a developer machine.
+# Nothing recorded which function shipped, from which commit, or when — the
+# same blind spot the SQL ledger was written to close, and it bit us on
+# 2026-09-08: the scan kill switch was merged into main, verified, released
+# as v6.4.2, and stayed completely inert in production, because deploying a
+# function is a separate manual act that nobody was tracking. Code in main
+# is not code that is running.
+#
+# Dispatching from Actions leaves the function name, the ref, the SHA and
+# the commit subject in the run log, so the Actions history becomes the
+# deployment ledger that did not exist before.
+#
+# One-time setup
+# --------------
+#   Settings → Secrets and variables → Actions → New repository secret
+#     SUPABASE_ACCESS_TOKEN   (create at supabase.com/dashboard/account/tokens)
+#
+#   NOTE this token is ACCOUNT-scoped, not project-scoped: whoever holds it
+#   can reach every Supabase project on the account. That is normal for CI
+#   but it is not a minor secret. Revoke it in the dashboard if this
+#   workflow is retired.
+#
+# The project ref below is deliberately NOT a secret. It is the hostname of
+# VITE_SUPABASE_URL, which Vite inlines into the public browser bundle, so
+# it is already readable by anyone who loads the app. Keeping it in plain
+# sight here means one less thing to configure and nothing is exposed.
+
+name: Deploy Edge Function
+
+on:
+  workflow_dispatch:
+    inputs:
+      function:
+        description: 'Function directory under supabase/functions/ (e.g. ai-proxy)'
+        required: true
+        type: string
+        default: ai-proxy
+      ref:
+        description: 'Git ref to deploy from (tag/branch/SHA). Empty = the ref this run was dispatched on.'
+        required: false
+        type: string
+        default: ''
+      verify_jwt:
+        description: 'JWT verification. Leave ON unless the function is deliberately public (the run cross-checks this against the source and fails on a mismatch).'
+        required: true
+        type: choice
+        default: 'on'
+        options: ['on', 'off']
+
+# A function is a single remote resource. Two concurrent deploys of the same
+# one race, and the loser wins silently — whichever upload finishes last is
+# what runs. Serialise per function, but let different functions overlap.
+concurrency:
+  group: edge-deploy-${{ inputs.function }}
+  cancel-in-progress: false
+
+env:
+  SUPABASE_PROJECT_REF: zuqvolqapwcxomuzoodu
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.function }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout the ref being deployed
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Validate the function exists
+        run: |
+          set -euo pipefail
+          FN='${{ inputs.function }}'
+          # Reject anything that is not a plain directory name. The value is
+          # interpolated into a shell command below, and a function name is
+          # never a path.
+          if ! printf '%s' "$FN" | grep -qE '^[a-z0-9][a-z0-9-]*$'; then
+            echo "::error::'$FN' is not a valid function name (expected lowercase letters, digits and hyphens)."
+            exit 1
+          fi
+          if [ ! -d "supabase/functions/$FN" ]; then
+            echo "::error::supabase/functions/$FN does not exist at this ref."
+            echo "Functions available here:"
+            ls -1 supabase/functions/ | grep -v '^_' | sed 's/^/  /'
+            exit 1
+          fi
+          if [ ! -f "supabase/functions/$FN/index.ts" ]; then
+            echo "::error::supabase/functions/$FN has no index.ts."
+            exit 1
+          fi
+
+      - name: Cross-check JWT verification against the function's own source
+        run: |
+          set -euo pipefail
+          FN='${{ inputs.function }}'
+          WANT='${{ inputs.verify_jwt }}'
+          SRC="supabase/functions/$FN/index.ts"
+
+          # Getting this wrong breaks things far from the deploy that caused
+          # it, and quietly. Deploy `unsubscribe` with verification ON and
+          # every opt-out link in every email we send stops working — a
+          # compliance problem, not just a bug. Deploy `overpass-proxy` with
+          # it ON and guests silently lose garage search. Neither failure
+          # surfaces anywhere near this workflow run.
+          #
+          # So the function's own source is the authority, never this form.
+          # Twelve functions in this repo declare "Verify JWT = OFF" or
+          # "--no-verify-jwt" in their header; the pattern below accepts the
+          # several ways they phrase it, because they are not consistent
+          # (":" in some, "=" in others, "--no-verify-jwt" in others still).
+          if grep -qiE -- '(no-verify-jwt)|(verify[ _-]?jwt[^A-Za-z0-9]{0,4}(off|false))' "$SRC"; then
+            NEEDS=off
+
+          # Functions confirmed to require a real user JWT by reading their
+          # own auth gate, not by inferring from silence:
+          #   ai-proxy           401 "Missing bearer token" + auth.getUser
+          #   send-email         401 "missing authorization" + auth.getUser
+          #   admin-impersonate  "the caller's own JWT must satisfy is_admin()"
+          elif printf '%s\n' ai-proxy send-email admin-impersonate | grep -qx "$FN"; then
+            NEEDS=on
+
+          # Anything else has not been determined. Silence is NOT evidence of
+          # needing verification: dispatch-admin-alert, for instance, gates on
+          # an x-dispatch-secret header and is called server-to-server, so a
+          # default-ON deploy could reject its callers before the function
+          # even runs. Refuse rather than guess — a blocked deploy costs
+          # minutes, a wrong one costs a silent outage.
+          else
+            echo "::error::$FN does not declare its JWT stance and is not on the verified list."
+            echo
+            echo "Before deploying it, work out how it is actually called and record the answer"
+            echo "in its own header, the way the others do:"
+            echo "    // Deploy with Verify JWT = OFF (reached by <caller>, which carries no JWT)"
+            echo "or add it to the verified-ON list in this workflow."
+            exit 1
+          fi
+
+          echo "source says verify_jwt should be: $NEEDS"
+          echo "this run was dispatched with:     $WANT"
+
+          if [ "$WANT" != "$NEEDS" ]; then
+            echo "::error::Mismatch. $FN needs verify_jwt=$NEEDS but the run requested $WANT."
+            if [ "$NEEDS" = off ]; then
+              echo "Re-run with verify_jwt = off. Verification ON rejects this function's callers before it runs."
+            else
+              echo "Re-run with verify_jwt = on. This function authenticates a real user and must not be public."
+            fi
+            exit 1
+          fi
+
+      - name: Record what is being deployed
+        run: |
+          set -euo pipefail
+          FN='${{ inputs.function }}'
+          SHA="$(git rev-parse HEAD)"
+          {
+            echo "## Deployed \`$FN\`"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| function | \`$FN\` |"
+            echo "| ref | \`${{ inputs.ref || github.ref }}\` |"
+            echo "| commit | \`$(git rev-parse --short HEAD)\` |"
+            echo "| subject | $(git log -1 --format=%s | sed 's/|/\\|/g') |"
+            echo "| authored | $(git log -1 --format=%ad --date=iso) |"
+            echo "| verify_jwt | \`${{ inputs.verify_jwt }}\` |"
+            echo "| project | \`$SUPABASE_PROJECT_REF\` |"
+            echo
+            echo "Shared modules pulled in:"
+            echo '```'
+            grep -hoE "from '\.\./_shared/[a-zA-Z]+\.ts'" "supabase/functions/$FN/index.ts" | sort -u || echo "(none)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Deploying from something other than main is legitimate while
+          # testing, but it should never be the thing you did by accident.
+          if [ "${{ inputs.ref || github.ref }}" != "refs/heads/main" ] && [ "${{ inputs.ref }}" != "main" ]; then
+            echo "::warning::Deploying from '${{ inputs.ref || github.ref }}', not main. Production will run this code immediately."
+          fi
+
+      - name: Install the Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+          # Spelled out rather than assembled into an array: an empty array
+          # under `set -u` is a well-known quoting trap, and this is not the
+          # place to be clever about it.
+          if [ '${{ inputs.verify_jwt }}' = 'off' ]; then
+            supabase functions deploy '${{ inputs.function }}' \
+              --project-ref "$SUPABASE_PROJECT_REF" \
+              --no-verify-jwt
+          else
+            supabase functions deploy '${{ inputs.function }}' \
+              --project-ref "$SUPABASE_PROJECT_REF"
+          fi
+
+      - name: Confirm
+        run: |
+          echo "✅ ${{ inputs.function }} is live from $(git rev-parse --short HEAD)."
+          echo "Functions dashboard: https://supabase.com/dashboard/project/$SUPABASE_PROJECT_REF/functions"

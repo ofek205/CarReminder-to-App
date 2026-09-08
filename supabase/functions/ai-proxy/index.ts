@@ -118,6 +118,67 @@ async function isUsageTrackingEnabled(sb: ReturnType<typeof createClient>): Prom
   return usageFlagInFlight;
 }
 
+// ──────────────────────────────────────────────────────────────────────
+// Scan kill switch — server-side half of app_config.
+// scan_extraction_enabled.
+//
+// Why this has to live here and not only in the browser: the
+// extract_document mode is reached by calling
+// supabase.functions.invoke('ai-proxy', { mode: 'extract_document' })
+// directly (src/lib/aiExtract.js), which never passes through
+// aiRequest's client-side gate. Until 2026-09-08 that meant flipping
+// the flag to false stopped the four aiRequest surfaces (vehicle
+// licence, inline renewal, generic document, garage receipt) and left
+// the four extraction surfaces running at full cost: personal and
+// business receipts, vessel licence, driver licence. Half a kill
+// switch is worse than none, because the dashboard reads "off".
+//
+// Fail OPEN on any error, deliberately, mirroring the client's
+// { defaultOnError: true }. This is a cost and provider-health
+// throttle, not a security boundary — a transient app_config read
+// failure must not take scanning down for every user. Contrast with
+// rate_limit_check above, which fails CLOSED because bypassing it is
+// an abuse vector.
+//
+// Same 60s module cache + in-flight dedup as the usage flag, so a
+// burst of scan pages costs one app_config row read per minute.
+// ──────────────────────────────────────────────────────────────────────
+let scanFlagCache: boolean | null = null;
+let scanFlagCachedAt = 0;
+let scanFlagInFlight: Promise<boolean> | null = null;
+
+async function isScanExtractionEnabled(sb: ReturnType<typeof createClient>): Promise<boolean> {
+  const now = Date.now();
+  if (scanFlagCache !== null && now - scanFlagCachedAt < USAGE_FLAG_TTL_MS) {
+    return scanFlagCache;
+  }
+  if (scanFlagInFlight) return scanFlagInFlight;
+
+  scanFlagInFlight = (async () => {
+    try {
+      const { data, error } = await sb
+        .from('app_config')
+        .select('value')
+        .eq('key', 'scan_extraction_enabled')
+        .maybeSingle();
+      if (error) throw error;
+      const raw = data?.value;
+      // Only an EXPLICIT false disables. A missing row means enabled —
+      // the feature shipped that way for months and the client agrees.
+      scanFlagCache = !(raw === false || raw === 'false');
+    } catch (err) {
+      console.warn('[ai-proxy] scan flag fetch failed:', (err as Error)?.message);
+      scanFlagCache = true;  // fail open
+    } finally {
+      scanFlagCachedAt = Date.now();
+      scanFlagInFlight = null;
+    }
+    return scanFlagCache!;
+  })();
+
+  return scanFlagInFlight;
+}
+
 // Allowed values for the optional `surface` field on a request. Keeps
 // in sync with the CHECK constraint in supabase-ai-quota-alerts.sql.
 // Anything not in this set is silently dropped (logged as NULL) so a
@@ -723,6 +784,38 @@ serve(async (req) => {
   // sometimes burst 2-3 pages back-to-back.
   // ─────────────────────────────────────────────────────────────────────
   if (body?.mode === 'extract_document') {
+    // Kill switch BEFORE the rate-limit check: a request we are going
+    // to refuse should not consume the caller's scan budget.
+    if (!(await isScanExtractionEnabled(supabase))) {
+      // Admins bypass so QA can exercise scan flows while the feature
+      // is off for users — same rule the client gate has had since
+      // 2026-05-26. Probed only on the disabled path, so a normal
+      // request pays nothing for it.
+      //
+      // NOTE the uuid overload. The 0-arg is_admin() reads auth.uid()
+      // from the JWT context, which is absent here, so it returns
+      // false and would lock admins out too. See the identical note on
+      // the admin-flags branch below.
+      const { data: isAdminFlag } = await supabase.rpc('is_admin', { uid: user.id });
+      if (isAdminFlag !== true) {
+        logSecurityEvent('ai-proxy', 'scan_extraction_blocked', {
+          user_id: user.id,
+          surface: typeof body?.surface === 'string' ? body.surface : null,
+        });
+        // `code` is the load-bearing field — aiExtract.js keys on it to
+        // raise the global "currently unavailable" explainer instead of
+        // letting each surface show its generic "could not read"
+        // message. `details` is a readable fallback for any caller that
+        // surfaces it directly. 403, not 503: this is a deliberate
+        // policy decision, not an outage.
+        return json({
+          status:  'error',
+          code:    'SCAN_EXTRACTION_DISABLED',
+          details: 'שירות הסריקה מושבת זמנית. אפשר למלא את הפרטים ידנית.',
+        }, 403, req);
+      }
+    }
+
     const { data: allowed, error: rlErr } = await supabase.rpc('rate_limit_check', {
       kind:        `extract_document:${user.id}`,
       max_per_min: 30,
