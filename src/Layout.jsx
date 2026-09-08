@@ -4,6 +4,8 @@ import { createPageUrl } from "@/utils";
 import { supabase, adminSupabase } from '@/lib/supabase';
 import { Car, Ship, LayoutDashboard, Settings, Users, User, FileText, FileSignature, Menu, LogOut, Star, UserCircle, AlertTriangle, Mail, UserPlus, MapPin, MessageSquare, Sparkles, ChevronLeft, Receipt, TrendingUp, Briefcase, Truck, Wallet, Bell, ClipboardList, HeartPulse, BarChart3, Home, Bug, Smartphone, Shield, Eye } from 'lucide-react';
 import logo from '@/assets/logo.png';
+import ConfirmDeleteDialog from '@/components/shared/ConfirmDeleteDialog';
+import useLogoutWithGuard, { logoutWarningCopy } from '@/hooks/useLogoutWithGuard';
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -14,6 +16,7 @@ import useReleaseAnnouncement from "@/hooks/useReleaseAnnouncement";
 import GuestWelcomePopup from "@/components/shared/GuestWelcomePopup";
 import MileageReminderPopup from "@/components/shared/MileageReminderPopup";
 import AiScanUnavailableDialog from "@/components/shared/AiScanUnavailableDialog";
+import AiConsentSheet from "@/components/shared/AiConsentSheet";
 import UpdateAvailableBanner from "@/components/shared/UpdateAvailableBanner";
 import ReviewManager from "@/components/shared/ReviewManager";
 import ReviewPopup from "@/components/shared/ReviewPopup";
@@ -254,31 +257,31 @@ function UserPopover() {
   const displayName  = viewAs ? (viewAs.targetName || 'חשבון') : (user?.full_name || '...');
   const displayEmail = viewAs ? (viewAs.ownerEmail || '')      : (user?.email || '');
 
-  const handleLogout = async () => {
-    // Clear personal data from localStorage on logout (privacy)
-    try {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('yossi_chat_history') || k === 'read_notif_ids' || k === 'read_notif_timed' || k === 'dismissed_notif_ids')
-        .forEach(k => localStorage.removeItem(k));
-    } catch (err) {
-      console.warn('[layout] logout localStorage clear failed:', err?.message || err);
-    }
-    // Clear the cached vehicle snapshots and the RootGate last-route
-    // hint so the next sign-in (possibly as a different user) doesn't
-    // get routed back to a private route from the previous session
-    // OR shown stale data for the wrong account.
-    try {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('cr-vehicles-cache:'))
-        .forEach(k => localStorage.removeItem(k));
-    } catch {}
-    try {
-      sessionStorage.removeItem('cr_last_route');
-    } catch {}
-    await supabase.auth.signOut();
-  };
+  // Logout now goes through one shared path (useLogoutWithGuard) that warns
+  // before discarding unsynced offline writes (§10.1). The localStorage cleanup
+  // that used to be duplicated here and in NavContent lives there too — a guard
+  // added to one copy and not the other would be worse than none, because the
+  // unguarded route would look safe while destroying data.
+  const { requestLogout, warnCount, confirmDiscardAndLogout, cancelLogout } = useLogoutWithGuard();
+  const handleLogout = requestLogout;
+
+  const warnCopy = warnCount !== null ? logoutWarningCopy(warnCount) : null;
 
   return (
+    <>
+    {warnCopy && (
+      <ConfirmDeleteDialog
+        open
+        onConfirm={confirmDiscardAndLogout}
+        onCancel={cancelLogout}
+        title={warnCopy.title}
+        description={warnCopy.description}
+        // NOT plain "התנתק": that familiar word would hide the deletion behind
+        // it. The verb has to name both consequences, because this is the only
+        // moment the user can still choose otherwise.
+        confirmLabel="התנתק ומחק"
+      />
+    )}
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <div
@@ -317,6 +320,7 @@ function UserPopover() {
         </div>
       </PopoverContent>
     </Popover>
+    </>
   );
 }
 
@@ -420,31 +424,25 @@ function NavContent({ currentPath, onItemClick, hasVessel, isMobile = false }) {
     return false;
   });
 
-  const handleLogout = async () => {
-    // Clear personal data from localStorage on logout (privacy)
-    try {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('yossi_chat_history') || k === 'read_notif_ids' || k === 'read_notif_timed' || k === 'dismissed_notif_ids')
-        .forEach(k => localStorage.removeItem(k));
-    } catch (err) {
-      console.warn('[layout] logout localStorage clear failed:', err?.message || err);
-    }
-    // Same cleanup as the UserPopover logout — vehicle cache + last-route
-    // hint must die with the session so the next signed-in user starts
-    // fresh.
-    try {
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('cr-vehicles-cache:'))
-        .forEach(k => localStorage.removeItem(k));
-    } catch {}
-    try {
-      sessionStorage.removeItem('cr_last_route');
-    } catch {}
-    await supabase.auth.signOut();
-  };
+  // The same shared logout path as UserPopover. This copy used to duplicate the
+  // whole cleanup body; both now go through one function, so the unsynced-writes
+  // warning cannot exist on one route and be missing from the other.
+  const { requestLogout, warnCount, confirmDiscardAndLogout, cancelLogout } = useLogoutWithGuard();
+  const handleLogout = requestLogout;
+  const warnCopy = warnCount !== null ? logoutWarningCopy(warnCount) : null;
 
   return (
     <div className="flex flex-col h-full">
+      {warnCopy && (
+        <ConfirmDeleteDialog
+          open
+          onConfirm={confirmDiscardAndLogout}
+          onCancel={cancelLogout}
+          title={warnCopy.title}
+          description={warnCopy.description}
+          confirmLabel="התנתק ומחק"
+        />
+      )}
       {/* Header */}
       <div className="p-4 pt-12 border-b border-gray-100 shrink-0">
         {isAuthenticated ? (
@@ -1007,6 +1005,20 @@ function LayoutInner({ children }) {
           if it ever calls a scan endpoint) get the explanation. */}
       <SafeComponent label="AiScanUnavailableDialog">
         <AiScanUnavailableDialog />
+      </SafeComponent>
+      {/* AiConsentSheet — sister to the dialog above and mounted the
+          same way: a singleton with no props that listens for any AI
+          call needing permission (App Store 5.1.2(i)). The difference
+          is that this one is part of a request's control flow, not a
+          notice: aiRequest awaits the user's answer here before the
+          payload leaves the device.
+
+          ⚠️ Must stay mounted app-wide. AI is reachable from the chat,
+          the community, the vehicle screens and the scan wizards, and
+          an ask with nothing listening resolves as "no answer" and
+          fails the request. */}
+      <SafeComponent label="AiConsentSheet">
+        <AiConsentSheet />
       </SafeComponent>
       {/* UpdateAvailableBanner — sister to AppUpdateGate. The gate
           hard-blocks the app when below *_min_version; this banner
