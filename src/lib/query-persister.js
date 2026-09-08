@@ -33,6 +33,11 @@ const IDB_KEY = 'cr-rq-cache';
  */
 export const PERSIST_MAX_AGE = 24 * 60 * 60 * 1000;
 
+// Slack allowed for a snapshot stamped slightly ahead of "now" — clocks drift,
+// and a write that happened moments ago must not be discarded over a second or
+// two of skew. Anything further ahead than this is treated as unusable.
+const CLOCK_SKEW_TOLERANCE_MS = 5 * 60 * 1000;
+
 // WKWebView has a long-standing bug where an IndexedDB open can hang forever
 // after the app is backgrounded or killed mid-transaction. Every IDB call is
 // therefore raced against a short timeout that RESOLVES (never rejects) —
@@ -138,7 +143,23 @@ export const idbPersister = createAsyncStoragePersister({
   },
   deserialize: (cached) => {
     try {
-      return cached ? JSON.parse(cached) : undefined;
+      if (!cached) return undefined;
+      const parsed = JSON.parse(cached);
+      // Reject a snapshot stamped in the FUTURE.
+      //
+      // maxAge is enforced as `Date.now() - timestamp`, so a device clock that
+      // moved backwards (dead battery resetting to 1970, a manual change, a
+      // bad NTP sync) makes that difference negative and the snapshot never
+      // expires. Worse, the restored dataUpdatedAt is also in the future, so
+      // every query looks permanently fresh — and with refetchOnWindowFocus
+      // off there is no path left that would refresh it. The user ends up
+      // pinned to frozen data with no indication, while online. A snapshot
+      // from the future is not usable, so treat it as no cache.
+      const stamp = parsed?.timestamp;
+      if (typeof stamp === 'number' && stamp - Date.now() > CLOCK_SKEW_TOLERANCE_MS) {
+        return undefined;
+      }
+      return parsed;
     } catch {
       return undefined;
     }
