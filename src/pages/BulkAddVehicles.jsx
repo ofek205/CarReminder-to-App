@@ -476,7 +476,40 @@ export default function BulkAddVehicles() {
       queryClient.invalidateQueries({ queryKey: ['vehicles-list'] });
       queryClient.invalidateQueries({ queryKey: ['fleet-vehicles'] });
       queryClient.invalidateQueries({ queryKey: ['bulk-add-existing-plates', accountId] });
-      toast.success(`${data.added_count} רכבים נוספו לצי`);
+
+      // ⚠️ READ `errors`, NOT JUST added_count. bulk_add_vehicles wraps
+      // every insert in its own `exception when others`
+      // (supabase-phase9-bulk-vehicles.sql:110), so ANY per-row failure is
+      // swallowed into errors[] and the RPC still returns 200. Reading only
+      // added_count is why a user importing 50 vehicles into a capped
+      // account would see "5 רכבים נוספו לצי" and no explanation at all:
+      // no popup, no error, no hint that a limit exists. Total silence on a
+      // paywall is worse than a refusal.
+      const errs = Array.isArray(data?.errors) ? data.errors : [];
+      const capBlocked = errs.filter((e) => String(e?.reason || '').includes('vehicle_plan_cap_exceeded'));
+      const otherErrs = errs.length - capBlocked.length;
+
+      if (data.added_count > 0) toast.success(`${data.added_count} רכבים נוספו לצי`);
+
+      if (capBlocked.length > 0) {
+        // Named as a limit, not as a failure, because nothing is broken:
+        // the account is full. The count is what makes it actionable.
+        toastError(
+          `${capBlocked.length} רכבים לא נוספו כי הצי הגיע לתקרת המסלול. אפשר לפנות מקום או לעבור למסלול גדול יותר.`,
+          { action: 'bulk_add_cap_exceeded' },
+        );
+      }
+      if (otherErrs > 0) {
+        toastError(`${otherErrs} רכבים לא נוספו. בדוק את הרשימה ונסה שוב.`, {
+          action: 'bulk_add_partial_errors',
+          context: { reasons: errs.filter((e) => !String(e?.reason || '').includes('vehicle_plan_cap_exceeded')).slice(0, 5) },
+        });
+      }
+      if (data.added_count === 0 && errs.length === 0) {
+        // Neither added nor errored: nothing matched. Silence here would
+        // leave the user staring at a success screen with no vehicles.
+        toastError('לא נוסף אף רכב.', { action: 'bulk_add_none' });
+      }
     } catch (err) {
       const msg = err?.message || '';
       if      (msg.includes('forbidden_not_manager')) toastError('אין לך הרשאת מנהל', { action: 'bulk_add_forbidden', err });
