@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toastError } from '@/lib/userErrorReport';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -79,6 +80,13 @@ export default function VesselIssueDialog({ open, onOpenChange, issue, onSave })
         ...(form.status === 'done' && !issue?.completed_date ? { completed_date: new Date().toISOString().split('T')[0] } : {}),
       });
       onOpenChange(false);
+    } catch (err) {
+      // Without this catch the rejection escaped as an unhandled promise
+      // rejection: the spinner cleared (finally ran) but onOpenChange never
+      // did, so the user was left looking at an open dialog with no idea the
+      // save had failed. The seam will reject offline-blocked writes, so this
+      // path is about to become reachable rather than theoretical.
+      toastError('שמירת התקלה נכשלה. נסה שוב', { action: 'vessel_issue_save', err });
     } finally {
       setSaving(false);
     }

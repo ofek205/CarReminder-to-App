@@ -154,10 +154,21 @@ export default function RepairsSection({ vehicle }) {
       ? repairForm.accident_details
       : null;
 
-    const { error } = await dal.run('repair.save', { repairLog, attachments, accident });
-    if (error) {
+    // repair.save resolves to an envelope today, but the seam will start
+    // REJECTING offline-blocked writes (see src/lib/dal/run.js). Both shapes
+    // must land on the same handled path: if a rejection escaped here, `saving`
+    // would stay true, and handleDialogOpenChange below refuses to close while
+    // saving — leaving the user trapped in a dialog they cannot dismiss.
+    let saveError = null;
+    try {
+      const { error } = await dal.run('repair.save', { repairLog, attachments, accident });
+      saveError = error;
+    } catch (err) {
+      saveError = err;
+    }
+    if (saveError) {
       setSaving(false);
-      toastError('שמירה נכשלה: ' + error.message, { action: 'repair_save', err: error });
+      toastError('שמירה נכשלה: ' + (saveError.message || ''), { action: 'repair_save', err: saveError });
       return;
     }
 

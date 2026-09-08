@@ -115,10 +115,15 @@ export default function AdminAiSettings({ embedded = false }) {
     setSaving(feature);
     const prev = settings[feature];
     setSettings(s => ({ ...s, [feature]: provider }));
-    const { error } = await dal.run('admin.setAiProvider', {
-      feature,
-      provider,
-    });
+    // Normalize a rejection into the same `error` branch below, so the spinner
+    // clears AND the optimistic setSettings above is rolled back. The seam will
+    // start rejecting blocked writes.
+    let error = null;
+    try {
+      ({ error } = await dal.run('admin.setAiProvider', { feature, provider }));
+    } catch (err) {
+      error = err;
+    }
     setSaving(null);
     if (error) {
       setSettings(s => ({ ...s, [feature]: prev }));

@@ -1560,10 +1560,14 @@ function AdminNotes({ userId }) {
 
   const handleSave = async () => {
     setSaving(true);
-    const { error } = await dal.run('admin.setUserNote', {
-      userId,
-      note,
-    });
+    // Normalize a rejection into the same `error` branch below, so the spinner
+    // always clears. The seam will start rejecting blocked writes.
+    let error = null;
+    try {
+      ({ error } = await dal.run('admin.setUserNote', { userId, note }));
+    } catch (err) {
+      error = err;
+    }
     setSaving(false);
     if (error) {
       toast.error('שגיאה בשמירת ההערה');
