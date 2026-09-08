@@ -15,7 +15,8 @@ import { Loader2, Upload, Pencil, ScanLine, AlertTriangle, Check, Camera } from 
 import { normalizePlate } from "../shared/DateStatusUtils";
 import { isNative, takePhoto } from '@/lib/capacitor';
 import { C } from '@/lib/designTokens';
-import { isVehicleCapError } from '@/lib/vehicleCapError';
+import { isVehicleCapError, vehicleCapKind } from '@/lib/vehicleCapError';
+import useAccountPlan from '@/hooks/useAccountPlan';
 import useVehicleCapacity from '@/hooks/useVehicleCapacity';
 import VehicleCapReachedModal from '@/components/vehicles/VehicleCapReachedModal';
 
@@ -70,6 +71,8 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
   const [duplicateVehicle, setDuplicateVehicle] = useState(null); // existing vehicle with same plate
   // Personal-vehicle-cap block (dormant while enforcement is gated off).
   const [capReached, setCapReached] = useState(false);
+  const [capKind, setCapKind] = useState('personal');
+  const { plan: accountPlan } = useAccountPlan();
   const capacity = useVehicleCapacity();
   // completion fields (not from license)
   const [completion, setCompletion] = useState({
@@ -382,10 +385,14 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       navigate(createPageUrl(`VehicleDetail?id=${vehicle.id}`));
     } catch (err) {
       setSaving(false);
-      // Personal-vehicle-cap block — show the upgrade path instead of a
-      // generic save error. It is a policy stop, not a failure.
+      // A vehicle-cap block — show the wall instead of a generic save
+      // error. It is a policy stop, not a failure.
       if (isVehicleCapError(err)) {
         capacity.refetch?.();
+        // WHICH cap fired decides the wall's ceiling and its remedy. Left
+        // unset, a plan-cap refusal would show accounts.vehicle_cap and
+        // offer a business account that a paid plan already includes.
+        setCapKind(vehicleCapKind(err) || 'personal');
         setCapReached(true);
         return;
       }
@@ -441,6 +448,8 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
    <>
     <VehicleCapReachedModal
       open={capReached}
+      kind={capKind}
+      planCap={accountPlan?.maxVehicles ?? null}
       onClose={() => setCapReached(false)}
       capacity={capacity}
     />

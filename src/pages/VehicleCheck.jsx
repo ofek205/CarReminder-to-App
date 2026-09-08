@@ -13,7 +13,8 @@ import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import { countPlateLookup } from '@/lib/usageCounters';
 import useVehicleCapacity from '@/hooks/useVehicleCapacity';
-import { isVehicleCapError } from '@/lib/vehicleCapError';
+import { isVehicleCapError, vehicleCapKind } from '@/lib/vehicleCapError';
+import useAccountPlan from '@/hooks/useAccountPlan';
 import VehicleCapReachedModal from '@/components/vehicles/VehicleCapReachedModal';
 import LicensePlate from '@/components/shared/LicensePlate';
 import MultipleMatchDialog from '@/components/vehicle/MultipleMatchDialog';
@@ -84,6 +85,8 @@ export default function VehicleCheck() {
   const [loadingIndex, setLoadingIndex] = useState(0);
   // Personal-vehicle-cap block (dormant while enforcement is gated off).
   const [capReached, setCapReached] = useState(false);
+  const [capKind, setCapKind] = useState('personal');
+  const { plan: accountPlan } = useAccountPlan();
   const capacity = useVehicleCapacity();
   const [limitLocked, setLimitLocked] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -298,8 +301,12 @@ export default function VehicleCheck() {
       }
     } catch (err) {
       if (isVehicleCapError(err)) {
-        // Personal account is full — show the upgrade path, not an error.
+        // A cap is full — show the wall, not an error.
         capacity.refetch?.();
+        // WHICH cap fired decides the wall's ceiling and its remedy. Left
+        // unset, a plan-cap refusal would show accounts.vehicle_cap and
+        // offer a business account that a paid plan already includes.
+        setCapKind(vehicleCapKind(err) || 'personal');
         setCapReached(true);
       } else if (err?.code === 'duplicate_vehicle') {
         // Duplicate is expected validation — show toast but don't report
@@ -340,6 +347,8 @@ export default function VehicleCheck() {
       style={{ background: 'linear-gradient(180deg, #F5FAF6 0%, #FFFFFF 52%)' }}>
       <VehicleCapReachedModal
         open={capReached}
+        kind={capKind}
+        planCap={accountPlan?.maxVehicles ?? null}
         onClose={() => setCapReached(false)}
         capacity={capacity}
       />
