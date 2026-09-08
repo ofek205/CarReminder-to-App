@@ -45,12 +45,36 @@ function uuid() {
  * @param {string} pathPrefix  e.g. `${accountId}/${vehicleId}` or `scans/${uid}`
  * @returns {Promise<{ file_url: string, storage_path: string }>}
  */
+/**
+ * Compute the path a file WILL occupy, without uploading it.
+ *
+ * Exported for the offline upload queue (dal/uploadQueue.js). The path is
+ * generated entirely client-side from a v4 uuid, so it can be decided while
+ * offline and is collision-free. That is what lets a row be created offline
+ * carrying its real, permanent `storage_path`: the file is uploaded to exactly
+ * that path when connectivity returns, so the row never needs a placeholder
+ * value or a second write to correct it.
+ */
+export function buildStoragePath(pathPrefix, fileName) {
+  if (!pathPrefix) throw new Error('buildStoragePath: missing pathPrefix');
+  return `${pathPrefix}/${uuid()}-${safeName(fileName || 'upload.bin')}`;
+}
+
 export async function uploadToBucket(file, pathPrefix) {
   if (!file) throw new Error('uploadToBucket: missing file');
   if (!pathPrefix) throw new Error('uploadToBucket: missing pathPrefix');
+  return uploadToPath(file, buildStoragePath(pathPrefix, file.name));
+}
 
-  const name = file.name || 'upload.bin';
-  const storage_path = `${pathPrefix}/${uuid()}-${safeName(name)}`;
+/**
+ * Upload a file to an EXPLICIT path that was decided earlier.
+ *
+ * Same body as the original uploadToBucket, with the path passed in rather than
+ * generated, so a queued offline upload lands where its row already points.
+ */
+export async function uploadToPath(file, storage_path, { sign = true } = {}) {
+  if (!file) throw new Error('uploadToPath: missing file');
+  if (!storage_path) throw new Error('uploadToPath: missing storage_path');
 
   const { error: upErr } = await supabase.storage
     .from(BUCKET)
@@ -60,6 +84,16 @@ export async function uploadToBucket(file, pathPrefix) {
       contentType: file.type || undefined,
     });
   if (upErr) throw new Error(`Upload failed: ${upErr.message}`);
+
+  // A QUEUED upload passes sign:false, and that is not just an optimisation.
+  // The signing-failure branch below DELETES the uploaded file, on the
+  // reasoning that the caller never received the storage_path so the object
+  // would be an untrackable orphan. For a queued upload that reasoning is
+  // inverted: the row already points at this exact path, so removing the file
+  // would destroy a successful upload the database still references. The URL is
+  // re-signed on read anyway (useSignedUrl / refreshSignedUrl), so there is
+  // nothing to gain by signing here.
+  if (!sign) return { file_url: null, storage_path };
 
   const { data, error: signErr } = await supabase.storage
     .from(BUCKET)

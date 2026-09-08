@@ -308,5 +308,11 @@ export async function clearPersistedCache() {
   try {
     const { clearOutbox } = await import('./dal/outbox');
     await clearOutbox();
+    // Pending upload blobs too. A photo of someone's vehicle documents is
+    // customer data at rest, and it is larger and more sensitive than the queue
+    // records that reference it — leaving it for the next person to sign in on
+    // the device is the same leak, with more in it.
+    const { clearBlobs } = await import('./dal/blobStore');
+    await clearBlobs();
   } catch { /* best effort */ }
 }

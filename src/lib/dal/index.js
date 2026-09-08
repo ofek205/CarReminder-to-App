@@ -35,6 +35,7 @@ import './commands/notifications';
 import './commands/emailAdmin';
 import './commands/telemetry';
 import './commands/cap';
+import './commands/storage';
 
 export const dal = {
   run: runCommand,
