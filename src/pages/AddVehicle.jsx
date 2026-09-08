@@ -53,8 +53,9 @@ import { isAiScanEnabled } from '@/lib/aiScanGate';
 import VesselScanWizard from "../components/vehicle/VesselScanWizard";
 import { toast } from "sonner";
 import { toastError } from "@/lib/userErrorReport";
-import { isVehicleCapError } from "@/lib/vehicleCapError";
+import { isVehicleCapError, vehicleCapKind } from "@/lib/vehicleCapError";
 import useVehicleCapacity from "@/hooks/useVehicleCapacity";
+import useAccountPlan from "@/hooks/useAccountPlan";
 import VehicleCapReachedModal from "@/components/vehicles/VehicleCapReachedModal";
 import { useAuth } from "../components/shared/GuestContext";
 import { C, getTheme } from '@/lib/designTokens';
@@ -292,7 +293,13 @@ export default function AddVehicle() {
   const [systemError, setSystemError] = useState(null);
   // Personal-vehicle-cap block. Shown when the server rejects the insert with
   // personal_vehicle_cap_reached (dormant while enforcement is gated off).
+  // Which cap refused, so the wall can show the right ceiling and the right
+  // remedy. null while no wall is open.
   const [capReached, setCapReached] = useState(false);
+  const [capKind, setCapKind] = useState("personal");
+  // Only read for the plan wall ceiling. Null before the phase-1 migration,
+  // which the modal renders as an em-dash rather than a wrong number.
+  const { plan: accountPlan } = useAccountPlan();
   const capacity = useVehicleCapacity();
 
   // AI scan gate — declared up top alongside the other UI flags, but
@@ -1054,11 +1061,18 @@ export default function AddVehicle() {
     } catch (err) {
       console.error('Vehicle save error:', err);
       hapticFeedback('heavy');
-      // Personal-vehicle-cap block — the account is full. Show the upgrade
-      // path instead of a generic error. Checked first: it is a deliberate
-      // policy stop, not a failure.
+      // A vehicle-cap block — the account is full. Show the wall instead of
+      // a generic error. Checked first: it is a deliberate policy stop, not
+      // a failure.
       if (isVehicleCapError(err)) {
         capacity.refetch?.();
+        // ⚠️ WHICH cap fired decides what the wall may say. Without this the
+        // plan cap would render the personal wall's ceiling
+        // (accounts.vehicle_cap, default 10) after a refusal at a plan cap
+        // of 5, and offer a business account that a paid plan already
+        // includes. Unknown falls back to 'personal', the pre-existing
+        // behaviour.
+        setCapKind(vehicleCapKind(err) || 'personal');
         setCapReached(true);
         return;
       }
@@ -1147,6 +1161,8 @@ export default function AddVehicle() {
 
       <VehicleCapReachedModal
         open={capReached}
+        kind={capKind}
+        planCap={accountPlan?.maxVehicles ?? null}
         onClose={() => setCapReached(false)}
         capacity={capacity}
       />

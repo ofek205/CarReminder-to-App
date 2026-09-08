@@ -84,3 +84,44 @@ export function canReferToWeb() {
 export function canMentionExternalPurchase() {
   return billingSurface() !== IAP;
 }
+
+/**
+ * What a "you hit the cap" wall is allowed to offer.
+ *
+ * ⚠️ TWO SEPARATE RULES MEET HERE AND BOTH CONSTRAIN THE ANSWER.
+ *
+ * 1. ANTI-STEERING. On iOS a wall may not carry a button, a link, a price,
+ *    or a mention of buying elsewhere. So for a PLAN cap on iOS the honest
+ *    output is no call to action at all, until StoreKit exists in phase 7.
+ *
+ * 2. NEVER OFFER AN ACTION THAT CANNOT BE FULFILLED. This is the documented
+ *    lesson from lib/aiScanGate.js, which deliberately ships no "try again"
+ *    button because the flag is admin-controlled and a per-user retry would
+ *    mislead. It applies twice over here:
+ *      - on iOS there is nothing to press, so pressing must not be implied
+ *      - and even on the web, /MyPlan is DISPLAY-ONLY until phase 6, so the
+ *        label must not promise an upgrade it cannot perform. It says "see
+ *        your plan and limits", which is exactly what happens.
+ *
+ * The `personal` kind is not platform-gated: its remedy is
+ * CreateBusinessWorkspace, an in-app admin-approval request rather than a
+ * purchase, so no store rule touches it.
+ *
+ * @param {'plan'|'personal'|null} kind  which cap refused
+ * @returns {{cta: 'plan'|'business'|null, mayMentionPlans: boolean}}
+ */
+export function capWallAction(kind) {
+  if (kind === 'personal') {
+    return { cta: 'business', mayMentionPlans: false };
+  }
+  const surface = billingSurface();
+  if (surface === IAP) {
+    // iOS: nothing about plans, prices, or the site. Not even as prose.
+    return { cta: null, mayMentionPlans: false };
+  }
+  if (surface === NONE) {
+    // Android: may say a paid plan exists, may not link to it.
+    return { cta: null, mayMentionPlans: true };
+  }
+  return { cta: 'plan', mayMentionPlans: true };
+}
