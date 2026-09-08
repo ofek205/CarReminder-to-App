@@ -35,6 +35,7 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { logSecurityEvent } from '../_shared/securityLog.ts';
 import { buildCorsHeaders, CAPACITOR_ORIGINS } from '../_shared/cors.ts';
+import { countsTowardAiQuota } from '../_shared/aiQuota.ts';
 
 const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE     = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -917,7 +918,46 @@ serve(async (req) => {
       ? body.surface
       : null;
 
+  // Monetization phase 3: count the advisor call. COUNTING ONLY, no refusal.
+  //
+  // ⚠️ SEPARATE FROM logAiUsage, AND THAT IS THE REQUIREMENT, NOT A STYLE
+  // CHOICE. logAiUsage checks app_config.ai_usage_tracking_enabled before it
+  // writes, so a quota built on ai_usage_logs would become INFINITE the
+  // moment analytics were switched off. The AC demand the opposite, so this
+  // write is deliberately outside that gate and reads no flag.
+  //
+  // Counted on SUCCESS only (§3.1 step 7): a provider that failed cost the
+  // user nothing and must not consume an allowance.
+  //
+  // Failures here are swallowed. Before the phase-3 migration the RPCs do
+  // not exist, and an advisor answer must never be lost because a counter
+  // could not be written. Phase 5 is where the decision moves in front of
+  // the call and a failure has to mean something.
+  const countAdvisorUsage = async () => {
+    if (!countsTowardAiQuota(requestSurface)) return;
+    try {
+      const { data: acct } = await supabase.rpc('resolve_usage_account', {
+        p_user_id: user.id,
+      });
+      if (!acct) return;
+      // Both horizons, because the free plan is bounded by a lifetime
+      // teaser while the paid plans are bounded by a daily ceiling, and
+      // phase 3 has to measure against whichever the plan turns out to use.
+      await supabase.rpc('bump_feature_usage', {
+        p_account_id: acct, p_user_id: user.id,
+        p_feature: 'ai_advisor', p_horizon: 'lifetime',
+      });
+      await supabase.rpc('bump_feature_usage', {
+        p_account_id: acct, p_user_id: user.id,
+        p_feature: 'ai_advisor', p_horizon: 'day',
+      });
+    } catch (e) {
+      console.warn('[ai-proxy] usage count failed:', (e as any)?.message);
+    }
+  };
+
   const respondAndLog = async (r: any) => {
+    await countAdvisorUsage();
     await logAiUsage(supabase, {
       user_id:           user.id,
       provider:          r?.provider,

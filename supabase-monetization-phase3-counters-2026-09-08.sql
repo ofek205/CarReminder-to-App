@@ -261,6 +261,60 @@ revoke all on function public.bump_my_feature_usage(uuid, text, text, int) from 
 grant execute on function public.bump_my_feature_usage(uuid, text, text, int) to authenticated;
 
 
+-- ── 4b. resolve_usage_account(): which account an AI call is charged to ───
+--
+-- ai-proxy authenticates a USER, but the quotas in the spec belong to an
+-- ACCOUNT, and the request body carries no account id. Something has to
+-- choose, and a user can be a live member of several accounts.
+--
+-- ⚠️ FULLY ORDERED, WITH NO TIE LEFT UNBROKEN. `limit 1` with a partial
+-- ORDER BY is the ג11 bug from the membership audit, where
+-- invite_account_member_by_email resolved a non-deterministic account and
+-- wrote to whichever one Postgres happened to return. A usage counter that
+-- drifts between accounts run to run produces numbers nobody can act on,
+-- so the ordering here ends in the primary key and cannot tie:
+--
+--   1. the PERSONAL account first, because that is where a solo user's
+--      quota belongs and it matches how my_vehicle_capacity() treats caps
+--   2. then the oldest, which for a multi-account user is the one they have
+--      actually been using
+--   3. then the id, so the answer is stable even for two accounts created
+--      in the same transaction
+--
+-- ⚠️ THIS IS NOT PER-WORKSPACE ATTRIBUTION. A user switching between a
+-- personal and a business workspace has both charged to the same resolved
+-- account. That is acceptable while phase 3 only MEASURES, and aggregate
+-- volume is unaffected. Phase 5 enforces, and by then the client has to
+-- send the active workspace as a hint and the server has to validate the
+-- membership before trusting it: a client-named account id is a client
+-- naming someone else's allowance to spend.
+create or replace function public.resolve_usage_account(p_user_id uuid)
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select m.account_id
+    from public.account_members m
+    join public.accounts a on a.id = m.account_id
+   where m.user_id = p_user_id
+     and m.status  = 'פעיל'
+   order by (a.type = 'personal') desc,
+            a.created_at asc nulls last,
+            m.account_id asc
+   limit 1;
+$$;
+
+comment on function public.resolve_usage_account(uuid) is
+  'Which account a user''s AI usage is charged to. Fully ordered, so the answer never drifts. See docs/plan-monetization-implementation.md §3.1.';
+
+-- Called by ai-proxy under the service role, never by a client.
+revoke all on function public.resolve_usage_account(uuid) from public;
+revoke all on function public.resolve_usage_account(uuid) from authenticated;
+revoke all on function public.resolve_usage_account(uuid) from anon;
+
+
 -- ── 5. my_feature_usage(): the read behind the meters ─────────────────────
 --
 -- Returns the account's consumption for the CURRENT periods, one row per
