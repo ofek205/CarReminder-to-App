@@ -11,10 +11,45 @@ import { isIOS } from '@/lib/capacitor';
 import { SignInWithApple } from '@capacitor-community/apple-sign-in';
 import { reportError } from '@/lib/crashReporter';
 import { resolveReauthMode } from '@/lib/reauthMode';
+import { useFeatureFlag } from '@/lib/featureFlags';
 
 // Last-resort gate for a user we have no way to actually verify: typing this
 // proves INTENT, not identity. See resolveReauthMode for when it applies.
 const CONFIRM_WORD = 'מחק';
+
+/**
+ * Did the user dismiss the Apple sheet, or did the sheet fail?
+ *
+ * The plugin surfaces cancellation as an error like every other failure, so
+ * the two have to be told apart by inspecting it. ASAuthorizationError
+ * canceled is code 1001; the message wording varies by iOS version, hence
+ * matching on both. Anything unrecognised is treated as a REAL failure, so
+ * a new error shape shows the user a message and reaches app_errors rather
+ * than vanishing into a silent no-op.
+ */
+function isAppleCancellation(err) {
+  const code = String(err?.code ?? '');
+  const msg = String(err?.message || err || '').toLowerCase();
+  return code === '1001'
+    || msg.includes('cancel')      // "canceled" / "cancelled"
+    || msg.includes('user cancel');
+}
+
+/**
+ * Is the native Apple sheet actually usable in this build?
+ *
+ * Guards against the plugin missing from the bundle or the capability never
+ * being configured. If it isn't usable, resolveReauthMode must not route
+ * the user to it — a strong gate that cannot open is worse than a weaker
+ * one that works, when the alternative is not being able to delete at all.
+ */
+function appleSheetUsable() {
+  try {
+    return isIOS && typeof SignInWithApple?.authorize === 'function';
+  } catch {
+    return false;
+  }
+}
 
 
 export default function DeleteAccount() {
@@ -38,7 +73,18 @@ export default function DeleteAccount() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
 
-  const reauthMode = resolveReauthMode(user, isIOS);
+  // Kill switch for the emailed-code branch, for the case where OTP
+  // delivery turns out to be broken in production. `defaultOnError: true`
+  // is deliberate and the opposite of this file's usual convention: a flag
+  // that cannot be read must leave the STRONG gate in place, because this
+  // switch weakens one. `enabled` is tri-state, and `null` (still loading)
+  // must also mean "keep OTP", hence `!== false`.
+  const { enabled: otpFlag } = useFeatureFlag('reauth_otp_enabled', { defaultOnError: true });
+
+  const reauthMode = resolveReauthMode(user, isIOS, {
+    appleSheetAvailable: appleSheetUsable(),
+    otpEnabled: otpFlag !== false,
+  });
 
   // Not logged in
   if (!isAuthenticated || isGuest) {
@@ -116,10 +162,18 @@ export default function DeleteAccount() {
         redirectURI: 'https://zuqvolqapwcxomuzoodu.supabase.co/auth/v1/callback',
         scopes: 'email name',
       });
-    } catch {
-      // Dismissing the sheet lands here too, and that is not a failure —
-      // the user simply changed their mind.
-      return { ok: false };
+    } catch (e) {
+      // Dismissing the sheet throws, and so does a plugin that is missing
+      // from the build, a capability that was never configured, and any
+      // native bridge error. Treating them all as "user changed their mind"
+      // meant a tap that did NOTHING — no message, no alternative branch,
+      // no way to delete the account. That is the same 5.1.1(v) dead end
+      // this screen was rewritten to remove, wearing a different hat.
+      if (isAppleCancellation(e)) return { ok: false };
+      // A real failure. Say so, and log it — a plugin or capability problem
+      // breaks EVERY iOS user identically and would otherwise be invisible.
+      reportError('apple_reauth_sheet_failed', e);
+      return { ok: false, message: 'ההזדהות מול Apple לא הושלמה. נסה שוב.' };
     }
     const idToken = result?.response?.identityToken;
     if (!idToken) return { ok: false, message: 'ההזדהות מול Apple לא הושלמה. נסה שוב.' };

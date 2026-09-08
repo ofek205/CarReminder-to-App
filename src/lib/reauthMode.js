@@ -43,8 +43,29 @@ export const APPLE_RELAY_DOMAIN = '@privaterelay.appleid.com';
  * - `null` means "still loading", so the caller renders a placeholder
  *   instead of flickering between branches.
  */
-export function resolveReauthMode(user, iosNative) {
+export function resolveReauthMode(user, iosNative, opts = {}) {
   if (!user) return null;
+
+  const {
+    // False when the Capacitor Apple plugin is not actually usable in this
+    // build. Routing to the Apple sheet when it cannot open leaves the user
+    // tapping a button that does nothing, with no other branch offered —
+    // the same "cannot delete my account" dead end this function exists to
+    // remove. Falling through to a weaker-but-working gate is better than a
+    // strong gate that never opens.
+    appleSheetAvailable = true,
+    // False turns the emailed-code branch off and lets those users through
+    // on the typed word instead. Only for the case where OTP delivery is
+    // broken in production (Supabase rate limits, or a Magic Link template
+    // in the dashboard that carries no {{ .Token }}), where the alternative
+    // is that they cannot delete at all.
+    //
+    // ⚠️ This DOWNGRADES a security gate: the word proves intent, not
+    // identity. Default is `true` so a missing or unreadable flag keeps the
+    // strong gate — fail closed, the opposite of this repo's usual
+    // `defaultOnError: false` flag convention. Do not invert it.
+    otpEnabled = true,
+  } = opts;
 
   const providers = new Set(
     [
@@ -58,9 +79,9 @@ export function resolveReauthMode(user, iosNative) {
   const emailDeliverable =
     !!email && !email.toLowerCase().endsWith(APPLE_RELAY_DOMAIN);
 
-  if (providers.has('apple') && iosNative) return 'apple';
+  if (providers.has('apple') && iosNative && appleSheetAvailable) return 'apple';
   if (providers.has('email')) return 'password';
-  if (emailDeliverable) return 'otp';
-  if (providers.size > 0) return 'word';
+  if (emailDeliverable && otpEnabled) return 'otp';
+  if (providers.size > 0 || emailDeliverable) return 'word';
   return 'unverifiable';
 }

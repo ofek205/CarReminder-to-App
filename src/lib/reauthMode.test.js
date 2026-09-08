@@ -83,6 +83,51 @@ describe('resolveReauthMode', () => {
     expect(resolveReauthMode({ email: 'a@b.com', app_metadata: {} }, false)).toBe('otp');
   });
 
+  // ── fallbacks when a strong gate cannot actually be completed ────────
+  //
+  // A gate that never opens is worse than a weaker one that works, because
+  // the alternative here is a user who cannot delete their account at all.
+
+  it('skips the Apple sheet when the plugin is not usable in this build', () => {
+    // Plugin missing from the bundle, or the capability never configured.
+    // Before this, the user got routed to a sheet that could not open and
+    // a tap that did nothing.
+    const appleUser = u('apple', 'a@b.com');
+    expect(resolveReauthMode(appleUser, true, { appleSheetAvailable: false })).toBe('otp');
+  });
+
+  it('falls all the way to the word when the sheet is unusable AND the address is a relay', () => {
+    const relay = u('apple', `abc${APPLE_RELAY_DOMAIN}`);
+    expect(resolveReauthMode(relay, true, { appleSheetAvailable: false })).toBe('word');
+  });
+
+  it('downgrades OTP to the word when the OTP kill switch is off', () => {
+    // Only for broken OTP delivery in production. It weakens the gate, so
+    // it must be an explicit false.
+    expect(resolveReauthMode(u('google', 'a@gmail.com'), false, { otpEnabled: false }))
+      .toBe('word');
+  });
+
+  it('keeps OTP when the flag is absent or still loading', () => {
+    // The switch weakens a gate, so anything other than an explicit false
+    // has to leave the strong branch in place. The caller passes
+    // `otpFlag !== false` for exactly this reason.
+    expect(resolveReauthMode(u('google', 'a@gmail.com'), false, {})).toBe('otp');
+    expect(resolveReauthMode(u('google', 'a@gmail.com'), false, { otpEnabled: true })).toBe('otp');
+  });
+
+  it('still refuses when OTP is off and there is nothing else to verify with', () => {
+    // Turning OTP off must not turn 'unverifiable' into a free pass.
+    expect(resolveReauthMode({ email: '', app_metadata: {}, identities: [] }, false, { otpEnabled: false }))
+      .toBe('unverifiable');
+  });
+
+  it('a password user is unaffected by either switch', () => {
+    const pw = u('email', 'a@b.com');
+    expect(resolveReauthMode(pw, true, { appleSheetAvailable: false, otpEnabled: false }))
+      .toBe('password');
+  });
+
   it('reads providers from identities when app_metadata is empty', () => {
     // Supabase populates both; a shape carrying only one must still resolve.
     const identityOnly = { email: 'a@b.com', identities: [{ provider: 'email' }] };
