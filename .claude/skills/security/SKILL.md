@@ -19,7 +19,13 @@ You find the security holes before attackers do. Your job is to review requireme
 
 ## Project-Specific Context
 
-- **Auth**: Currently Base44 auth — migrating to independent auth (critical migration)
+*Verified 2026-09-01.*
+
+- **Auth**: Supabase Auth (PKCE). The migration off Base44 is complete.
+- **RLS is the security boundary, not client code.** Most business logic sits in Postgres functions — 118 `supabase.rpc()` call sites in `src/`. A `SECURITY DEFINER` function that forgets to re-verify the caller is the highest-severity bug class in this project, and it has happened: `supabase-rls-pending-member-leak-2026-07-24.sql` fixed a live IDOR across 21 policies.
+- **staging and prod share one database.** Any RLS change you approve is a production change the moment it is applied.
+- **Admin impersonation ("view-as") is a real privilege-escalation surface.** It mints a JWT whose `sub` is the target user, and routes only the data plane through a proxied client. `scripts/check-view-as-identity.cjs` enforces that `admin_*` calls never run on the impersonated plane — treat any change near it as high risk.
+- **16 of 17 edge functions use the service-role key**, which bypasses RLS entirely. Every one of them must do its own authorization check.
 - **User data**: Vehicle info, documents (insurance, license), personal details — PII that needs protection
 - **File upload**: Document images, insurance PDFs — file upload is a common attack vector
 - **Payments**: Stripe integration — must follow PCI-DSS best practices

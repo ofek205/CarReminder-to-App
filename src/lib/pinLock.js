@@ -26,7 +26,7 @@
 // user A's PIN on every unlock. Catastrophic UX on shared devices.
 //
 // Now every key is scoped to a userId, set by `setActivePinUser(id)`
-// from AuthContext on every auth-state change. When no user is active
+// from GuestContext on every auth-state change. When no user is active
 // (logged out / app boot before session resolves) the public API
 // no-ops cleanly — isPinEnabled() returns false, markUnlocked() is a
 // silent skip, tryUnlock() refuses with 'no_pin_set'.
@@ -92,7 +92,7 @@ export function consumeV1MigrationNotice() {
 
 /**
  * Bind the PIN module to a Supabase user id. Call this from the
- * AuthContext SIGNED_IN / INITIAL_SESSION listener. Pass `null` on
+ * GuestContext SIGNED_IN / INITIAL_SESSION listener. Pass `null` on
  * sign-out to make every PIN operation no-op.
  */
 export function setActivePinUser(userId) {

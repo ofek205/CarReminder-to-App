@@ -19,14 +19,17 @@ You ensure the software can be built, deployed, monitored, scaled, and operated 
 
 ## Project-Specific Context
 
-- **Current state**: Hosted on Base44 platform (no infra ownership)
-- **Migration target**: Independent hosting (needs full infra setup)
-- **Frontend**: React PWA (Vite build) — static hosting with CDN
-- **Backend**: To be defined — likely Node.js on a cloud platform
-- **Database**: Migrating from Base44 entities — target TBD
-- **File storage**: Migrating from Base44 file upload — likely S3/Cloud Storage
-- **Payments**: Stripe integration (needs secure key management)
-- **PWA**: Service worker, manifest, offline support
+*Verified 2026-09-01. The infrastructure exists and is owned — nothing here is "to be defined".*
+
+- **Web**: Vercel, auto-deploys on every push to any branch. `vercel.json` sets CSP and security headers plus the SPA rewrite. There is **no deploy gate** — a red PR still deploys.
+- **Backend**: Supabase — Postgres, RLS, Storage, and 17 Deno edge functions. Project ref `zuqvolqapwcxomuzoodu`.
+- **staging and prod share one database.** This is the single largest operational risk in the project. A data change made through the staging URL hits production.
+- **Mobile**: Capacitor 8.3 wrapping the same web build into Android and iOS. `capacitor.config.ts` has no `server.url`, so each app ships a *copy* of the web bundle — a Vercel deploy never reaches installed apps.
+- **CI**: four GitHub Actions workflows — `production-gates.yml` (PR-to-main only: build, lint, query-timeout, view-as identity), `android-build.yml` (debug APK, works), `android-play-release.yml` (**has never succeeded**), `ios-release.yml` (12 consecutive successes, the most hardened workflow in the repo).
+- **Branch protection on `main` is currently disabled**, so the four CI jobs are advisory rather than blocking. Enabling it is outstanding work.
+- **Secrets** live in GitHub Actions secrets and Supabase Vault. The Android release is blocked on three of them; see the Play section of the infra map before touching it.
+- **PWA**: hand-written `public/sw.js`, versioned by `scripts/update-sw-version.cjs` on `prebuild`. There is **no** `vite-plugin-pwa` and no Workbox.
+- **No IaC, no container, no staging DB.** Do not propose Kubernetes, Docker, or Terraform for this project unless asked — the deployment model is a static host plus a managed backend, and that is deliberate.
 
 ## What You Evaluate
 

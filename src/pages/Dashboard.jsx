@@ -1026,7 +1026,13 @@ export default function Dashboard() {
         const sanitizeDateStr = (v) => { if (typeof v !== 'string') return undefined; return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined; };
         const storedVehicles = getStoredGuestVehicles().filter(v => !v._isDemo);
         if (storedVehicles.length > 0 && finalAccountId) {
-          for (const gv of storedVehicles.slice(0, 20)) {
+          // Raise the personal cap so the whole guest batch lands even when
+          // enforcement is on (P0-1). sync_personal_cap_to_count below then
+          // freezes it to the real count = greatest(count,10). Best-effort —
+          // never let a cap RPC hiccup block a signup migration.
+          const batch = storedVehicles.slice(0, 20);
+          try { await supabase.rpc('bump_personal_cap', { p_account_id: finalAccountId, p_headroom: batch.length }); } catch { /* cap sync best-effort */ }
+          for (const gv of batch) {
             await dal.run('vehicle.create', {
               account_id: finalAccountId,
               vehicle_type: sanitizeStr(gv.vehicle_type, 40) || 'רכב',
@@ -1042,6 +1048,7 @@ export default function Dashboard() {
             });
           }
           clearGuestData();
+          try { await supabase.rpc('sync_personal_cap_to_count', { p_account_id: finalAccountId }); } catch { /* cap sync best-effort */ }
           toast.success(`${storedVehicles.length} רכבים הועברו לחשבון שלך בהצלחה!`);
         }
       } catch (err) {

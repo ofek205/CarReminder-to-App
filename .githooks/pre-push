@@ -26,13 +26,50 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   esac
 done
 
+# Find bash before anything else needs it.
+#
+# The skip-if-no-npm guard below was written for GitHub Desktop's stripped PATH,
+# but it checked the wrong tool. npm IS on that PATH, so the guard passes and
+# `npm run lint` runs -- and npm is configured here with
+# script-shell=C:\Program Files\Git\bin\bash.exe, so it immediately dies with
+#
+#   /usr/bin/env: 'bash': No such file or directory
+#
+# which the hook then reported as "[BLOCKED] ESLint failed". ESLint never ran.
+# That misdiagnosis blocked every push from GitHub Desktop for six weeks while
+# the code was clean the whole time. Locate bash ourselves so the gates actually
+# execute, and never let a PATH problem masquerade as a code problem.
+if ! command -v bash >/dev/null 2>&1; then
+  GIT_BIN_DIR=""
+  if command -v git >/dev/null 2>&1; then
+    GIT_BIN_DIR="$(dirname "$(command -v git)")"
+  fi
+  for d in "$GIT_BIN_DIR" "/c/Program Files/Git/bin" "/c/Program Files (x86)/Git/bin"; do
+    [ -n "$d" ] || continue
+    if [ -x "$d/bash.exe" ] || [ -x "$d/bash" ]; then
+      PATH="$d:$PATH"; export PATH
+      warn "bash was not on PATH; added $d so npm scripts can run."
+      break
+    fi
+  done
+fi
+
 HAVE_NPM=0;  if command -v npm  >/dev/null 2>&1; then HAVE_NPM=1;  fi
 HAVE_NODE=0; if command -v node >/dev/null 2>&1; then HAVE_NODE=1; fi
+HAVE_BASH=0; if command -v bash >/dev/null 2>&1; then HAVE_BASH=1; fi
+
+# npm without a usable shell cannot run a single script. Skipping is correct
+# here -- CI enforces lint and build on every PR to main -- and it is far better
+# than blocking a clean push with a wrong reason.
+if [ "$HAVE_NPM" = 1 ] && [ "$HAVE_BASH" = 0 ]; then
+  warn "npm found but bash is not -- npm scripts cannot run. Skipping lint/build; CI enforces both on PR to main."
+  HAVE_NPM=0
+fi
 
 if [ "$HAVE_NPM" = 1 ]; then
   # 2. Full ESLint
   if [ -x node_modules/.bin/eslint ]; then
-    npm run -s lint || fail "ESLint failed. Fix with: npm run lint:fix"
+    npm run -s lint || fail "Lint step failed. If the output above shows a missing shell or command, that is an environment problem, not your code -- read it before running: npm run lint:fix"
     ok "eslint passed"
   fi
   # 3. Production build must succeed

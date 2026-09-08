@@ -53,6 +53,9 @@ import { isAiScanEnabled } from '@/lib/aiScanGate';
 import VesselScanWizard from "../components/vehicle/VesselScanWizard";
 import { toast } from "sonner";
 import { toastError } from "@/lib/userErrorReport";
+import { isVehicleCapError } from "@/lib/vehicleCapError";
+import useVehicleCapacity from "@/hooks/useVehicleCapacity";
+import VehicleCapReachedModal from "@/components/vehicles/VehicleCapReachedModal";
 import { useAuth } from "../components/shared/GuestContext";
 import { C, getTheme } from '@/lib/designTokens';
 import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
@@ -286,6 +289,10 @@ export default function AddVehicle() {
   });
   const { errors, validate, clearError } = useFormValidation();
   const [systemError, setSystemError] = useState(null);
+  // Personal-vehicle-cap block. Shown when the server rejects the insert with
+  // personal_vehicle_cap_reached (dormant while enforcement is gated off).
+  const [capReached, setCapReached] = useState(false);
+  const capacity = useVehicleCapacity();
 
   // AI scan gate — declared up top alongside the other UI flags, but
   // the effect lives down here because the deps array reads
@@ -1038,6 +1045,14 @@ export default function AddVehicle() {
     } catch (err) {
       console.error('Vehicle save error:', err);
       hapticFeedback('heavy');
+      // Personal-vehicle-cap block — the account is full. Show the upgrade
+      // path instead of a generic error. Checked first: it is a deliberate
+      // policy stop, not a failure.
+      if (isVehicleCapError(err)) {
+        capacity.refetch?.();
+        setCapReached(true);
+        return;
+      }
       // Postgres 23505 = unique_violation on vehicles_plate_unique_per_account.
       // Friendlier message than the generic "save failed" so the user knows
       // exactly what went wrong.
@@ -1119,6 +1134,12 @@ export default function AddVehicle() {
         open={showSignUp}
         onClose={() => setShowSignUp(false)}
         reason="הירשם כדי לשמור רכבים לצמיתות ולגשת אליהם מכל מכשיר"
+      />
+
+      <VehicleCapReachedModal
+        open={capReached}
+        onClose={() => setCapReached(false)}
+        capacity={capacity}
       />
 
       <VehicleScanWizard

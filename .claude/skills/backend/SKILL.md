@@ -19,14 +19,17 @@ You design and implement backend logic that is correct, secure, observable, and 
 
 ## Project-Specific Context
 
-- **Current state**: Backend is Base44 (entities, cloud functions, file storage, auth)
-- **Migration target**: Independent backend (to be defined — likely Node.js/Express or similar)
-- **Entities**: 20 Base44 entities (Vehicle, Document, MaintenanceLog, RepairLog, Account, etc.)
-- **Cloud functions**: Driver license reminder, document signed URL
-- **File upload**: Currently Base44 Core.UploadFile
-- **AI extraction**: Currently Base44 Core.ExtractDataFromUploadedFile
-- **Auth**: Currently Base44 auth, migrating to independent auth
-- **Payments**: Stripe integration
+*Verified 2026-09-01. The Base44 migration is complete — do not write plans that assume it is still in progress.*
+
+- **Backend is Supabase.** Postgres + RLS + 17 Deno edge functions under `supabase/functions/`. There is no Node/Express service and none is planned.
+- **Most business logic lives in Postgres functions.** `src/` holds 118 `supabase.rpc()` call sites against 69 `supabase.from()` — when you design a write path, the default home for the rule is a `SECURITY DEFINER` function, not client code.
+- **Three data-access layers coexist**, all live: raw `supabase.from/rpc` (187 sites), `db.<entity>.*` from `lib/supabaseEntities.js` (170), and `dal.run()` from `lib/dal/` (18). The DAL is Phase-0 routing groundwork for an offline outbox and covers only expenses, corkNotes, and vehicles. Prefer the entity layer for new reads; do not assume the DAL is the standard.
+- **Auth**: Supabase Auth, PKCE flow, with a platform-swapped storage adapter (`@capacitor/preferences` on native, `localStorage` on web) because Android WebView can clear localStorage.
+- **File upload / storage**: Supabase Storage. `useFileUpload()` is the entry point — never `FileReader.readAsDataURL`, which is the Base44-era base64-into-Postgres pattern the lint config warns against.
+- **AI extraction**: the `ai-proxy` edge function. Note the one surviving Base44 coupling: it still returns Base44's response envelope (`{ status, output?, details? }`) and `src/lib/aiExtract.js` mirrors it. That is a live contract — changing either side breaks the other.
+- **Payments**: Stripe is a declared dependency but currently unused in `src/`. Treat payment work as greenfield.
+- **RLS is the security boundary.** staging and prod share one database, so a policy mistake is a production mistake immediately.
+- **No migration runner.** SQL is applied by hand in the Supabase SQL editor; see the DB section of CLAUDE.md before proposing any schema change.
 
 ## What You Review For Every Backend Task
 

@@ -10,6 +10,7 @@ import { createPageUrl } from '@/utils';
 import PageHeader from '../components/shared/PageHeader';
 import LoadingSpinner from '../components/shared/LoadingSpinner';
 import { ListSkeleton } from '../components/shared/Skeletons';
+import VehicleCapMeter from '@/components/vehicles/VehicleCapMeter';
 import VehicleCardEnhanced from '../components/vehicles/VehicleCardEnhanced';
 import SignUpPromptDialog from '../components/shared/SignUpPromptDialog';
 import { useAuth } from '../components/shared/GuestContext';
@@ -448,6 +449,11 @@ function VehiclesContent({ vehicles, isLoading }) {
           </Link>
         }
       />
+
+      {/* Proactive personal-vehicle-cap nudge (self-hides for business /
+          guests / accounts far from the cap). Vehicles page only — the cap
+          is account-wide but the copy speaks of "רכבים". */}
+      {!isVesselPage && <VehicleCapMeter />}
 
       {/* Demo banner */}
       {filteredByPage.some(v => v._isDemo) && (

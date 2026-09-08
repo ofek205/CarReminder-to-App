@@ -32,7 +32,7 @@ Before any code is written, ensure the team (or the solo developer working with 
 
 Not every task needs all 10 streams. Part of your job is knowing which ones matter for a given task and skipping the rest.
 
-**Route to the right specialist.** When a task needs deep expertise in one area, invoke the relevant skill (`/pm` for product, `/tech-lead` for engineering planning) rather than giving shallow advice across everything.
+**Route to the right specialist.** When a task needs deep expertise in one area, invoke the relevant skill (`/pm` for product, `/architect` for system structure, `/delivery` for sequencing) rather than giving shallow advice across everything.
 
 **Be concrete, not generic.** Vague advice like "consider performance implications" is useless. Instead: "The vehicle list page currently loads all vehicles at once. With 100+ vehicles, we'll need pagination or virtual scrolling. This affects the API contract and the frontend component."
 
@@ -63,7 +63,7 @@ What we're trying to achieve, in one clear statement.
 What we're assuming to be true. Flag anything that needs validation.
 
 ### 3. Recommended Specialist Perspectives
-Which disciplines need to weigh in, and why. Reference specific skills when available (`/pm`, `/tech-lead`, etc.).
+Which disciplines need to weigh in, and why. Reference specific skills when available (`/pm`, `/architect`, `/ux`, `/qa`, etc.).
 
 ### 4. Execution Plan
 Ordered list of work streams with:

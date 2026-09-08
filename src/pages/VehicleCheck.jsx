@@ -11,6 +11,9 @@ import { toastError } from '@/lib/userErrorReport';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
+import useVehicleCapacity from '@/hooks/useVehicleCapacity';
+import { isVehicleCapError } from '@/lib/vehicleCapError';
+import VehicleCapReachedModal from '@/components/vehicles/VehicleCapReachedModal';
 import LicensePlate from '@/components/shared/LicensePlate';
 import MultipleMatchDialog from '@/components/vehicle/MultipleMatchDialog';
 import RecallCard from '@/components/vehicle/RecallCard';
@@ -78,6 +81,9 @@ export default function VehicleCheck() {
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [loadingIndex, setLoadingIndex] = useState(0);
+  // Personal-vehicle-cap block (dormant while enforcement is gated off).
+  const [capReached, setCapReached] = useState(false);
+  const capacity = useVehicleCapacity();
   const [limitLocked, setLimitLocked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -273,7 +279,11 @@ export default function VehicleCheck() {
         toast.success('הרכב נוסף לרכבים שלך');
       }
     } catch (err) {
-      if (err?.code === 'duplicate_vehicle') {
+      if (isVehicleCapError(err)) {
+        // Personal account is full — show the upgrade path, not an error.
+        capacity.refetch?.();
+        setCapReached(true);
+      } else if (err?.code === 'duplicate_vehicle') {
         // Duplicate is expected validation — show toast but don't report
         // as an error (toastError was triggering user_visible_error_spike
         // alerts for what is normal user flow).
@@ -310,6 +320,12 @@ export default function VehicleCheck() {
   return (
     <div dir="rtl" className="vehicle-check-root min-h-screen -m-4 lg:-m-8 px-4 py-6 sm:px-6 lg:px-10"
       style={{ background: 'linear-gradient(180deg, #F5FAF6 0%, #FFFFFF 52%)' }}>
+      <VehicleCapReachedModal
+        open={capReached}
+        onClose={() => setCapReached(false)}
+        capacity={capacity}
+      />
+
       <PrintStyles />
       <div className="vehicle-check-screen max-w-5xl mx-auto">
         <Header isAuthenticated={isAuthenticated} />

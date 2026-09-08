@@ -21,7 +21,17 @@
 
 **חריגה:** ה-`deny` קשיח — אפילו אישור בצ'אט **לא** עוקף אותו. כדי לאפשר לקלוד פעולה חיצונית חד-פעמית, Ofek מסיר זמנית את הכלל הרלוונטי מ-`permissions.deny` ב-`.claude/settings.json` (פעולה מודעת), ומחזיר אותו אחרי. זה במכוון — מאלץ צעד מפורש לכל פעולה חיצונית של קלוד.
 
-**אכיפה טכנית:** `permissions.deny` ב-`.claude/settings.json` חוסם פיזית `git push` / `gh` / deploy / native מהרצה ע"י קלוד.
+**אכיפה טכנית:** `permissions.deny` ב-`.claude/settings.json` חוסם פיזית — בשתי הצורות, `Bash(...)` ו-`PowerShell(...)`:
+
+`git push` · `gh` · `git remote add/set-url` · `npx cap` · `vercel` / `npx vercel` · `npm publish` · `gradlew` · `xcodebuild`
+
+> **הערה 2026-09-01 — למה זה נראה שבור וכן היה שבור, אבל לא כאן:**
+>
+> הסעיף הזה תמיד היה **נכון לגבי הריפו**. אבל על המכונה של Ofek התגלה דגל `skip-worktree` על `.claude/settings.json` — היחיד בכל הריפו. git התעלם לחלוטין מהקובץ בעץ העבודה, כך ש-`pull` מעולם לא עדכן אותו והוא נשאר קפוא על גרסה ישנה **שבה כללי ה-`git push` וה-`gh` לא היו קיימים**. כלומר האכיפה הייתה אמיתית ב-HEAD ולא-קיימת בפועל, ואף אחד לא יכול היה לראות את הפער. הדגל הוסר.
+>
+> בנוסף, `.claude/settings.local.json` היה מקומט ל-git עם ~80 כללים — 27 מהם מצביעים על מכונה אחרת — וביניהם `Bash(node -e ":*)` ו-`Bash(powershell -Command ":*)`. אלה היתרי הרצה שרירותית שעקפו את **כל** רשימת ה-deny: `node -e "require('child_process').execSync('git push')"` תואם allow ולא תואם שום deny. הקובץ נוקה לתשעה כללים, הורד מ-git, ונוסף ל-`.gitignore` — הרשאות ספציפיות למכונה אינן שייכות לריפו.
+>
+> **הלקח שכדאי לזכור:** `skip-worktree` על קובץ תצורה משותף יוצר פער שקט בין מה שהריפו אוכף לבין מה שרץ. אם צריך עקיפה מקומית — `settings.local.json`, לעולם לא דגל על הקובץ המשותף.
 
 > הרקע: כשקלוד מריץ git/npm בסביבת ה-agent נוצרים חיכוכים (אין npm ל-hooks, סיכון אבטחה בחיבור חיצוני). הפרדה נקייה — קלוד מקומי, Ofek חיצוני — פותרת את שניהם.
 
@@ -98,19 +108,35 @@ npm run build
 הסקיל commit-gatekeeper כבר רץ על כל commit, אבל בעלייה לפרודקשן הוא רץ פעם נוספת על ה-merge commit עצמו (סיכום מצטבר של כל ה-staging).
 
 ### שער 7 — Version + Tag + Merge
-1. בודק `package.json` — האם נדרש bump (semver)? אם כן, bump ב-staging קודם, commit, ואז ממשיך.
-2. יוצר tag annotated:
+
+**חלוקת עבודה:** קלוד מכין הכל עד ל-push. ה-push, ה-merge וה-tag על הרימוט הם של Ofek — כפי שחוק 0 דורש, וכפי ש-`permissions.deny` אוכף פיזית.
+
+**מה קלוד עושה:**
+1. בודק `package.json` — נדרש bump (semver)? אם כן, bump ב-staging, commit דרך commit-gatekeeper.
+
+**מה Ofek עושה:**
+
+2. דוחף את staging ופותח PR ל-main:
 ```
-git tag -a v2.X.Y -m "<summary>"
+git push origin staging
 ```
-3. merge ב-main ללא fast-forward:
+ואז PR ב-github.com מ-`staging` ל-`main`.
+
+> **חובה לעבור דרך PR.** `production-gates.yml` מופעל **אך ורק** על `pull_request` שמכוון ל-main. הנוסח הישן של השער הזה הורה `git push origin main` ישירות — כלומר ארבעת ה-jobs (build, lint, query-timeout, view-as identity) **לא רצו על אף שחרור אמיתי**. שתים-עשרה הריצות הירוקות בהיסטוריה הגיעו מ-PR-ים שנפתחו בנפרד ובמקרה. merge ישיר עוקף את כל האכיפה האוטומטית שיש לפרויקט.
+
+3. אחרי שכל ארבעת ה-jobs ירוקים — merge דרך ה-UI של GitHub (Create a merge commit, לא squash).
+4. tag על ה-merge commit:
 ```
-git checkout main
-git merge --no-ff staging -m "release: v2.X.Y"
-git push origin main
-git push origin v2.X.Y
+git checkout main && git pull
+git tag -a v6.X.Y -m "<summary>"
+git push origin v6.X.Y
 ```
-4. מאשר שה-deploy ב-Vercel main התחיל (בודק שה-Actions רצים נקי).
+5. מאשר שה-deploy ב-Vercel main התחיל.
+6. **מסנכרן את staging חזרה:**
+```
+git checkout staging && git merge main && git push origin staging
+```
+> בלי הצעד הזה staging נשאר מאחור. נכון ל-2026-09-01 staging פיגר 13 קומיטים אחרי origin/main — ובתוכם דווקא ה-workflows של אנדרואיד, כך ששיגור מ-staging שיחזר באג שכבר תוקן ב-main.
 
 ---
 
@@ -124,32 +150,49 @@ git push origin v2.X.Y
 - שער 2 (Build)
 - שער 3 (code-review)
 - שער 6 (commit-gatekeeper)
-- שער 7 (Version+Tag), אבל הסיומת תהיה `v2.X.Y-hotfix`
+- שער 7 (Version+Tag), אבל הסיומת תהיה `v6.X.Y-hotfix`
 
 **שערים שמדולגים:**
 - שער 1 (Diff Inventory) — רק שינוי בודד
 - שער 4 (QA Walkthrough)
 - שער 5 (DB Safety) — אסור hot-fix שכולל schema change
 
-**מנגנון:**
-- ה-hot-fix מתבצע על ענף קצר חיים `hotfix/<short-desc>` שיוצא מ-`main` (לא staging!).
-- אחרי merge ל-main, חובה לסנכרן staging:
+**מנגנון — ומי עושה מה:**
+
+ה-hot-fix מתבצע על ענף קצר חיים `hotfix/<short-desc>` שיוצא מ-`main` (לא staging!). **זה החריג היחיד לכלל „לעולם לא לגעת ב-main”, והוא של Ofek בלבד** — קלוד לא עושה checkout ל-main גם כאן.
+
+- **Ofek:** `git fetch && git checkout -b hotfix/<desc> origin/main`, ואז מוסר את הענף לקלוד.
+- **קלוד:** עורך על אותו ענף, מריץ build + code-review + commit-gatekeeper, ומקמט מקומית.
+- **Ofek:** דוחף, פותח PR ל-main, ממתין לשערי ה-CI, ממזג, מתייג, **ומסנכרן staging**:
 ```
-git checkout staging
-git merge main
-git push origin staging
+git checkout staging && git merge main && git push origin staging
 ```
-- חובה לפתוח issue ב-GitHub שמתעד את ה-hotfix.
+- **Ofek:** פותח issue ב-GitHub שמתעד את ה-hotfix. `gh` חסום לקלוד לפי חוק 0, אז זה תמיד ידני דרך github.com.
+
+> **הערה על סתירה שהייתה כאן:** הנוסח הישן הורה לקלוד לעשות `checkout` ל-main (שסעיף „מה Claude עושה תמיד בתחילת סשן” אוסר) ולפתוח issue ב-GitHub (שחוק 0 אוסר). שתי ההוראות היו בלתי-ניתנות לביצוע. החלוקה למעלה פותרת את שתיהן.
 
 ---
 
 ## מצב lint — נקי
 
-נכון ל-2026-05-12, `npm run lint` עובר נקי: **0 errors** (אלפי warnings בלבד, רובם אכיפת מערכת עיצוב — `no-restricted-syntax` על inline hex/rgb — שמתוכננת לשדרוג עתידי). חוב ה-lint שהיה כאן בעבר (`react-hooks/rules-of-hooks` + `typescript-eslint` חסר) **טופל**.
+נמדד ב-2026-09-01: `npm run lint` יוצא **exit 0** — **0 errors, 919 warnings**. רוב האזהרות הן אכיפת מערכת העיצוב (`no-restricted-syntax` על hex/rgb מוטבע), שמוגדרת בכוונה כ-`warn` כי הפיכה ל-`error` הייתה מפילה כ-200 מקומות. חוב ה-lint הישן (`react-hooks/rules-of-hooks` + `typescript-eslint` חסר) **טופל**.
 
-- **`git push origin staging`** — עובר ללא `--no-verify`. ה-pre-push hook (eslint + build + query-timeout gate) רץ מקומית ועובר.
+### מה באמת רץ, ואיפה
+
+| שכבה | מתי | מה |
+|---|---|---|
+| `.githooks/pre-commit` | כל commit מקומי | קבצי סוד (`.env`/`.pem`/`.key`), סמני קונפליקט, מפתחות מקודדים (`sk-`/`AKIA`/`ghp_`), eslint על הקבצים בסטייג' |
+| `.githooks/pre-push` | כל push מקומי | **חמש** בדיקות: אזהרת main, `npm run lint`, `npm run build`, שער query-timeout, שער זהות view-as |
+| `.claude/hooks/commit-gate.cjs` | commit/push של קלוד | דורש אסימון APPROVED טרי מ-commit-gatekeeper |
+| `production-gates.yml` | **PR ל-main בלבד** | **ארבעה** jobs: build, lint, query-timeout, view-as identity |
+
+- **`git push origin staging`** — עובר ללא `--no-verify`.
 - **`git push origin main`** — אסור `--no-verify`. ה-CI לעולם לא יעקוף.
-- **`commit-gatekeeper` hook** רץ תמיד ולא ניתן לעקוף (`--no-verify` עוקף את ה-pre-push, לא את ה-gatekeeper).
+- **`commit-gatekeeper`** — `--no-verify` עוקף את ה-githooks, **לא** את שער קלוד.
+
+> **שתי נקודות שהמסמך הזה תיאר בחסר עד 2026-09-01:** הוא כלל לא הזכיר שקיים `pre-commit` hook, ומנה שלוש בדיקות ב-pre-push ושלושה jobs ב-CI במקום חמש וארבעה. שער זהות ה-view-as (`scripts/check-view-as-identity.cjs`) קיים בשניהם ולא הוזכר באף אחד.
+
+> **ואזהרה שעדיין בתוקף:** הגנת הענף על `main` ב-GitHub **כבויה** (ה-ruleset קיים במצב `enforcement: disabled`). כלומר ארבעת ה-jobs של `production-gates.yml` הם כרגע מייעצים ולא חוסמים merge. יש להפעיל אותה.
 
 אם בעתיד יחזרו שגיאות lint — לתקן לפני push, לא לעקוף. `--no-verify` נשאר זמין כ-escape hatch לחירום מקומי בלבד, ולעולם לא בעלייה לפרודקשן.
 
@@ -171,13 +214,17 @@ no-undef נמחק שקטית מההגדרה.
 
 ## אכיפה אוטומטית — GitHub Actions
 
-ראה `.github/workflows/production-gates.yml`. ה-workflow רץ אוטומטית על כל PR שמטרתו `main`, ואוכף:
-- Build pass
+ראה `.github/workflows/production-gates.yml`. ה-workflow רץ אוטומטית על כל PR שמטרתו `main` — **ורק על PR**, אין לו טריגר `push`. הוא אוכף ארבעה jobs:
+- Build pass (עם `VITE_SUPABASE_*` אמיתיים מוזרקים)
 - Lint pass (כל הפרויקט)
 - **Query Timeout Gate** (ראה למטה)
-- חוסם merge ב-GitHub UI אם משהו נכשל
+- **View-As Identity Gate** — `scripts/check-view-as-identity.cjs`, מוודא שקריאות `admin_*` לא רצות על מישור ההתחזות
+
+חוסם merge ב-GitHub UI **רק כשהגנת הענף מופעלת** — נכון ל-2026-09-01 היא כבויה, ולכן ארבעת ה-jobs מייעצים בלבד.
 
 השערים הקוגניטיביים (3, 4, 5, 6) **לא** ניתנים לאוטומציה ב-Actions — הם דורשים סקילים של Claude. הם חייבים לרוץ בסשן Claude לפני יצירת ה-PR.
+
+> **שער 5 (DB Safety) הוא החור הגדול ביותר.** `scripts/check-sql-hazards.cjs` נכתב בדיוק בשבילו — והוא לא מקומט, לא מחובר לשום hook או workflow, וה-docblock שלו *מצהיר* שהוא מחובר ל-pre-push ול-CI. שתי ההצהרות שקריות. בהרצה הוא מוצא **236 סכנות ב-80 קבצים**, כי אין לו baseline. לפני שמחברים אותו חובה להריץ `--update-baseline` פעם אחת, אחרת הוא יחסום כל push מיידית.
 
 ---
 
@@ -220,6 +267,45 @@ const { data, isLoading, isError, refetch } = useQuery({
 
 ---
 
+## Playbook — שינויי UI
+
+שרשרת הסקילים לכל עבודת פרונט. `.claude/hooks/design-nudge.cjs` מזכיר אותה אוטומטית כשפרומפט או עריכה נוגעים בחזית.
+
+```
+pm  →  ux  →  designer  →  copywriter  →  frontend-design  →  qa
+```
+
+| שלב | אחראי על | לא אחראי על |
+|---|---|---|
+| `pm` | למה בונים, למי, ומה מחוץ ל-scope | איך זה נראה |
+| `ux` | flow, כל המצבים, wireframe, מיקרו-אינטראקציות | פלטה, טיפוגרפיה |
+| `designer` | כיוון אסתטי, היררכיה, מערכת ויזואלית | הניסוח, הקוד |
+| `copywriter` | כל מילה שהמשתמש רואה, בעברית | פריסה |
+| `frontend-design` | המימוש בפועל + אימות ב-preview | החלטות שנקבעו למעלה |
+| `qa` | תרחישים, מקרי קצה, GO / NO-GO | תיקון הבאגים שמצא |
+
+### כללי הדילוג
+
+דילוג מותר **רק** באחד משלושת המקרים האלה:
+
+1. **תיקון מיקרו** — typo, padding בודד, צבע יחיד, יישור. ישר ל-`frontend-design`.
+2. **שינוי copy בלבד** — הטקסט משתנה, המבנה לא. `copywriter` → `frontend-design`.
+3. **באג ב-flow קיים** — ההתנהגות המיועדת ידועה ומתועדת, היא פשוט לא עובדת. `debug` → `frontend-design`.
+
+**כל השאר עובר את השרשרת המלאה.** שינוי layout, קומפוננטה חדשה, או state חדש בלי `ux` ו-`designer` — זה BLOCK עצמי, גם אם הבקשה נשמעת קטנה.
+
+### חובה בכל שינוי UI, בלי יוצא מן הכלל
+
+- **כל המצבים:** default, loading, empty, error, offline. „לא הגענו לזה” = לא סיימת.
+- **עברית RTL** — כולל מספרים, תאריכים, ואייקונים כיווניים.
+- **mobile-first** בטווח האגודל. זו PWA שרוב השימוש בה בטלפון.
+- **אימות ב-preview** לפני שמכריזים על סיום. לא „אמור לעבוד”.
+- **אף פעם לא ספינר נצחי** — ראה שער ה-Query Timeout למטה.
+
+> **הערה:** עד 2026-09-01 הסעיף הזה לא היה קיים. שני ה-hooks הורו „זכור Playbook ב-CLAUDE.md”, וחיפוש בקובץ אחרי `Playbook` החזיר אפס תוצאות. ההגדרה היחידה חיה ב-`designer/SKILL.md` והייתה בת חמישה שלבים בלבד (בלי `qa`), בעוד ש-`docs/plan-business-personal-membership-separation.md` ו-`docs/spec-vehicle-cap-and-personal-to-business-transfer.md` ציטטו את גרסת ששת השלבים כאילו הייתה מקור סמכות. כללי הדילוג לא היו כתובים בשום מקום. הגרסה כאן — ששה שלבים — היא כעת המקור היחיד.
+
+---
+
 ## מה Claude עושה תמיד בתחילת סשן
 
 1. בודק על איזה ענף אנחנו: `git status`. אם זה לא `staging`, מחליף ל-staging.
@@ -231,6 +317,44 @@ const { data, isLoading, isError, refetch } = useQuery({
 
 ## הערה על DB
 
-נכון להיום (אפריל 2026), staging ו-prod חולקים את אותו מסד נתונים בסופהבייס. שינויי data שעושה משתמש על ה-staging URL **משפיעים על production**. לטסטים יש להשתמש בחשבונות ייעודיים (`natanzone2024@gmail.com` וכד׳).
+נכון ל-2026-09-01, staging ו-prod עדיין **חולקים את אותו מסד נתונים** בסופהבייס. שינויי data שעושה משתמש על ה-staging URL **משפיעים על production**. לטסטים יש להשתמש בחשבונות הייעודיים בלבד (ראה את רשימת חשבונות הבדיקה אצל Ofek — לא מתועדת כאן).
 
 כש-DB ייפרד בעתיד, החוקים האלה נשארים בתוקף — שער 5 (DB Safety) פשוט יחייב הרצה כפולה במקום אחת.
+
+### אין migration runner — ואי אפשר להריץ replay
+
+כל ה-SQL מוחל **ידנית** ב-SQL editor של סופהבייס. אין `supabase/migrations/`, אין `config.toml` — הפרויקט קושר ב-CLI אך מעולם לא אותחל. בשורש הריפו יושבים **199 קבצי `.sql`** בלי סדר ובלי פנקס של מה הוחל ומתי.
+
+**אסור להריץ replay של הקבצים האלה, גם לא „רק כדי לסנכרן”.** 91% מהם בטוחים להרצה חוזרת, וזו בדיוק המלכודת: הסדר בלתי-ניתן לשחזור (70 קבצים חולקים קומיט עם קובץ SQL אחר), ו-**45 פונקציות מוגדרות מחדש ביותר מקובץ אחד** — `email_dispatch_candidates()` לבדה נכתבת בשישה. replay שרץ 91% נקי ומחזיר בשקט תריסר פונקציות מוקשחות-אבטחה גרוע מאין replay בכלל, כי הוא נראה כאילו הצליח.
+
+**ו-16 קבצים הם פעולות נתונים חד-פעמיות שאסור לגעת בהן לעולם** — ביניהם `supabase-seed-fake-fleet-ofek.sql`, 30KB של צי רכבים מזויף שיישפך ישר לפרודקשן.
+
+### הפנקס — מה עושים מעכשיו
+
+הכלים קיימים מ-2026-09-01. **כל החלה של SQL חייבת להירשם.**
+
+```bash
+node scripts/sql-ledger.cjs scan            # מסווג את כל קבצי ה-SQL
+node scripts/sql-ledger.cjs record <file>   # מייצר את קריאת הרישום להדבקה
+node scripts/sql-ledger.cjs drift           # מה השתנה מאז שהוחל
+```
+
+**התהליך:** מריצים את הקובץ ב-SQL editor → מריצים `record` → מדביקים את הפלט → ממלאים `p_notes` במה שאימתת בפועל.
+
+הטבלה היא `public.sql_ledger` (ראה `supabase-sql-ledger-2026-09-01.sql`, טרם הוחל). **השדה הנושא הוא `sha256`** — שם קובץ לא מוכיח כלום אם הקובץ השתנה אחרי ההחלה. ה-hash מצמיד את הבייטים המדויקים שרצו, וזה מה שמאפשר ל-`drift` לענות על „האם המסד הריץ את מה שהקובץ אומר היום”.
+
+**שלוש רמות סיווג:**
+
+| | מה זה | מה עושים |
+|---|---|---|
+| `REPLAY_SAFE` | 169 קבצים, מוגנים לאורך כל הדרך | אפשר להריץ שוב |
+| `NEEDS_REVIEW` | 10 — נזרקים באמצע, או רושמים cron | להסתכל לפני |
+| `ONE_TIME_DATA` | 20 — כותבים או משכפלים שורות | **לעולם לא שוב** |
+
+המסווג **שמרן בכוונה**. `supabase-vehicle-cap-2026-07-25.sql` מסומן `ONE_TIME_DATA` בגלל `UPDATE` חשוף, אבל קריאה מעמיקה מראה שהוא בטוח כי `greatest()` רק מעלה את המכסה. הכלי מסמן; אדם מכריע.
+
+### ⚠️ `scripts/build-staging-init.sh` — אל תריץ
+
+הוא משרשר רשימה קשיחה של קבצי SQL לקובץ אחד, ומתחיל ב-`supabase-base44-migration.sql` — היחיד עם `CREATE TABLE` חשוף. זהו בדיוק ה-replay שאסור: הוא ייראה כאילו הצליח בזמן שהוא מחזיר לאחור פונקציות מוקשחות. שום דבר לא מפנה אליו. **מועמד למחיקה.**
+
+הצעד שנותר: `pg_dump --schema-only` מפרודקשן כ-baseline, וארכוב 199 הקבצים כתיעוד פורנזי.
