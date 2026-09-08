@@ -1,5 +1,11 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
+// defaultExclude is imported rather than hardcoded so a future vitest that
+// adds a default exclusion keeps it. In vitest 5 it is exactly
+// ['**/node_modules/**', '**/.git/**']. Safe at config time: this file
+// already imports @vitejs/plugin-react, so devDependencies are required
+// here regardless.
+import { defaultExclude } from 'vitest/config'
 import path from 'path'
 import { readFileSync } from 'fs'
 
@@ -63,6 +69,34 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       react(),
     ],
+    // ── vitest ───────────────────────────────────────────────────────
+    //
+    // ⚠️ WHY THIS BLOCK HAD TO EXIST. There was no `test` config at all,
+    // so vitest ran on bare defaults, and its default exclude is only
+    // node_modules and .git. It therefore collected every git worktree
+    // under .claude/worktrees/ as if it were application code. Naming
+    // eight test files ran eighteen, because ten were duplicates out of
+    // other branches' checkouts.
+    //
+    // That is not just noise. `.githooks/pre-push` and
+    // `production-gates.yml` both run `npm test`, so a failing test in a
+    // worktree nobody has touched in weeks could block a push or a PR to
+    // main, pointing at a file path the author does not recognise. And
+    // one of those directories (dreamy-boyd-e8d3d9) is not even in
+    // `git worktree list` any more: an orphaned checkout still being
+    // graded.
+    //
+    // NARROW ON PURPOSE. `**/.claude/**` would have been simpler and
+    // wrong: .claude/hooks/commit-gate.test.js is a real test for the
+    // gate that guards every commit in this repo, and a broad exclude
+    // would have silently stopped running it. Only the worktrees go.
+    //
+    // Spreading defaultExclude matters too: setting `exclude` REPLACES
+    // vitest's defaults rather than adding to them, so omitting the
+    // spread would start walking node_modules.
+    test: {
+      exclude: [...defaultExclude, '**/.claude/worktrees/**'],
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
