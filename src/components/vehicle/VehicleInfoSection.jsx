@@ -186,6 +186,11 @@ function RenewalDialog({ open, onClose, dateField, vehicle, vesselMode, T }) {
         case 'NO_SESSION':           msg = 'ההתחברות פגה. יש להתחבר מחדש.'; break;
         case 'PROVIDER_UNAVAILABLE':
         case 'AI_UNAVAILABLE':       msg = 'שירות הסריקה לא זמין כרגע. אפשר להזין ידנית.'; break;
+        // Consent errors carry their own user-facing copy. Without this
+        // case they land on `default`, which tells someone who declined
+        // permission that the scan failed.
+        case 'AI_CONSENT_DECLINED':
+        case 'AI_CONSENT_UNAVAILABLE': msg = err.message; break;
         default:                     msg = 'הסריקה לא הצליחה. אפשר להזין ידנית.';
       }
       setError(msg);

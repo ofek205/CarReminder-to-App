@@ -48,6 +48,7 @@ const JoinInvite = React.lazy(() => import('./pages/JoinInvite'));
 const MaintenanceTemplates = React.lazy(() => import('./pages/MaintenanceTemplates'));
 const Notifications = React.lazy(() => import('./pages/Notifications'));
 const ReminderSettingsPage = React.lazy(() => import('./pages/ReminderSettingsPage'));
+const AiServices = React.lazy(() => import('./pages/AiServices'));
 const RepairTypes = React.lazy(() => import('./pages/RepairTypes'));
 const UserProfile = React.lazy(() => import('./pages/UserProfile'));
 const AiAssistant = React.lazy(() => import('./pages/AiAssistant'));
@@ -125,6 +126,7 @@ export const PAGES = {
     "MaintenanceTemplates": MaintenanceTemplates,
     "Notifications": Notifications,
     "ReminderSettingsPage": ReminderSettingsPage,
+    "AiServices": AiServices,
     "RepairTypes": RepairTypes,
     "UserProfile": UserProfile,
     "VehicleDetail": VehicleDetail,

@@ -355,6 +355,12 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
         case 'NO_SESSION':           msg = 'ההתחברות פגה. יש להתחבר מחדש'; break;
         case 'PROVIDER_UNAVAILABLE':
         case 'AI_UNAVAILABLE':       msg = 'שירות AI לא זמין כרגע'; break;
+        // The consent gate raises these with copy already written for the
+        // user. Without the case they fall to `default` and the user who
+        // declined permission is told the document was unreadable, which
+        // blames their photo for their own choice.
+        case 'AI_CONSENT_DECLINED':
+        case 'AI_CONSENT_UNAVAILABLE': msg = err.message; break;
         default:                     msg = 'שגיאה בסריקת המסמך';
       }
       toastError(msg, { action: 'doc_ai_scan' });

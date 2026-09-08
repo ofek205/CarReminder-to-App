@@ -151,6 +151,7 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
     // hallucinate plausible-but-wrong fields).
     let raw = null;
     let aiErrorCode = null;
+    let aiErrorMessage = '';
     try {
       const mimeMatch = fileUrl.match(/^data:([^;]+);base64,/);
       const mediaType = mimeMatch?.[1] || 'image/jpeg';
@@ -200,6 +201,10 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
       // said "I couldn't read the document", which was misleading when
       // the real cause was network / auth / quota.
       aiErrorCode = err?.code || 'UNKNOWN';
+      // Kept because the consent gate raises errors whose message is
+      // already the copy we want to show, and `err` is out of scope by
+      // the time the switch below runs.
+      aiErrorMessage = err?.message || '';
       console.warn('Scan error:', aiErrorCode, err?.message);
     }
 
@@ -231,6 +236,13 @@ export default function VehicleScanWizard({ open, onClose, vehicles = [], accoun
         case 'PROVIDER_UNAVAILABLE':
         case 'AI_UNAVAILABLE':
           msg = 'שירות AI לא זמין כרגע. נסה שוב בעוד רגע.'; break;
+        // Consent errors arrive with copy meant for the user. Falling
+        // through to `default` would tell someone who declined
+        // permission that their photo was not sharp enough, blaming
+        // their picture for their own choice.
+        case 'AI_CONSENT_DECLINED':
+        case 'AI_CONSENT_UNAVAILABLE':
+          msg = aiErrorMessage || 'שיתוף עם שירות AI לא אושר. אפשר לאשר בהגדרות.'; break;
         default:
           // No error code → AI replied but couldn't extract. The
           // document itself was the problem, not the plumbing.

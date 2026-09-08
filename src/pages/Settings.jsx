@@ -15,7 +15,7 @@
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { User, Users, Bell, Shield, ChevronLeft, UserCog, Briefcase } from 'lucide-react';
+import { User, Users, Bell, Shield, ChevronLeft, UserCog, Briefcase, Sparkles } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { PageShell, Card } from '@/components/business/system';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
@@ -37,6 +37,11 @@ export default function Settings() {
     { to: 'UserProfile', icon: User, label: 'פרופיל ורישיון', sub: 'פרטים אישיים ורישיון נהיגה' },
     !isBusiness && { to: 'AccountSettings', icon: Users, label: 'חשבון משותף', sub: 'שיתוף רכבים עם בני משפחה' },
     { to: 'ReminderSettingsPage', icon: Bell, label: 'התראות ותזכורות', sub: 'מה ומתי לקבל תזכורות' },
+    // Not admin-gated and not behind the ai_consent_enforced flag: this is
+    // where a consent gets WITHDRAWN, so it has to be reachable whenever a
+    // consent can exist. Gating it would make refusing the sheet a one-way
+    // door for anyone who reached it before the gate opened.
+    { to: 'AiServices', icon: Sparkles, label: 'שירותי AI', sub: 'מה מותר לשלוח לשירותי ה-AI' },
     showSafetyEntry && { to: 'SafetyReminder', icon: Shield, label: 'בטיחות ילדים', sub: 'תזכורת שלא לשכוח ילד ברכב בסוף נסיעה' },
   ].filter(Boolean);
 
