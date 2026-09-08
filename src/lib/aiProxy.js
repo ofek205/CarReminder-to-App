@@ -266,7 +266,7 @@ export async function aiRequest(body) {
       const enabled = await isAiScanEnabled();
       if (!enabled) {
         emitAiScanDisabled();
-        const e = new Error('שירות הסריקה הוסט זמנית. אפשר למלא את הפרטים ידנית.');
+        const e = new Error('שירות הסריקה מושבת זמנית. אפשר למלא את הפרטים ידנית.');
         e.code = 'SCAN_EXTRACTION_DISABLED';
         throw e;
       }
