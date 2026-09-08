@@ -38,18 +38,56 @@
 // SECRETS (Supabase → Edge Functions → Secrets; these are NOT the same place
 // as the Auth → Providers → Apple form, which the function cannot read)
 //   APPLE_SIWA_PRIVATE_KEY   full .p8 contents, PEM header/footer included
-//   APPLE_SIWA_KEY_ID        10 chars, from the key you created
-//   APPLE_TEAM_ID            10 chars, Membership Details
+//   APPLE_SIWA_KEY_ID        10 chars. Currently LQ275YW4QP — see the
+//                            constants in scripts/generate-apple-jwt.cjs
+//   APPLE_TEAM_ID            10 chars. Currently L36CBSRNZT — same place
 //   APPLE_BUNDLE_ID          optional, defaults to com.carreminders.app
+//   APPLE_SERVICES_ID        optional ESCAPE HATCH. Set it to
+//                            com.carreminders.app.signin to retry against
+//                            the Services ID without redeploying, if the
+//                            bundle ID turns out to be the wrong client
+//                            for the code being exchanged. Takes priority
+//                            over APPLE_BUNDLE_ID when set.
 //
 //   All four already exist for this project: the .p8, Key ID and Team ID were
 //   created in docs/apple-4.8-sign-in-with-apple-setup.md steps 1.12–1.16 and
 //   pasted into the Auth provider config. They just need copying here.
 //
-// NOTE ON client_id
-//   The native sheet authorizes against the app's BUNDLE ID, so the token
-//   exchange and the revoke must both use the bundle ID — not the
-//   `com.carreminders.app.signin` Services ID, which is for the web callback.
+// 🔴 client_id IS THE FIRST THING TO CHECK IF APPLE REJECTS THIS
+//
+//   There are TWO Apple client identifiers in this project and they are not
+//   interchangeable. Apple requires the client_id used in the token exchange
+//   to match the client the authorizationCode was ISSUED for, and a mismatch
+//   comes back as `invalid_client` or `invalid_grant` — which reads exactly
+//   like a broken signature and sends you debugging the wrong thing.
+//
+//     com.carreminders.app          Bundle ID.    ← what THIS function uses
+//                                   The native iOS sheet authorizes against
+//                                   it, so a code from that sheet must be
+//                                   exchanged against it.
+//
+//     com.carreminders.app.signin   Services ID.  Used by
+//                                   scripts/generate-apple-jwt.cjs, because
+//                                   that JWT is for Supabase's Auth provider
+//                                   config, where the flow runs through
+//                                   Supabase's WEB callback.
+//
+//   Override with APPLE_SERVICES_ID (see below) if the bundle ID turns out
+//   to be wrong for your flow — no redeploy of this file needed.
+//
+// TO ISOLATE A FAILURE, sign a JWT with the existing script first:
+//     node scripts/generate-apple-jwt.cjs <path-to-.p8>
+//   If Supabase accepts that JWT, the key and the ES256 signing are fine and
+//   the problem is the client_id, not the crypto. That script also carries
+//   the real TEAM_ID (L36CBSRNZT) and KEY_ID (LQ275YW4QP) as constants, so
+//   you do not have to hunt for them.
+//
+// ON THE SIGNATURE ITSELF
+//   JWS ES256 wants the raw r‖s pair. Node's crypto.sign returns DER and
+//   needs `dsaEncoding: 'ieee-p1363'` to produce it — a trap the script
+//   above documents having hit. WebCrypto (used here) returns r‖s natively,
+//   so there is nothing to convert. Do not "modernise" this to a Node-style
+//   signing library.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
@@ -64,7 +102,14 @@ const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? SERVICE_ROLE;
 const APPLE_PRIVATE_KEY = Deno.env.get('APPLE_SIWA_PRIVATE_KEY') || '';
 const APPLE_KEY_ID = Deno.env.get('APPLE_SIWA_KEY_ID') || '';
 const APPLE_TEAM_ID = Deno.env.get('APPLE_TEAM_ID') || '';
-const APPLE_CLIENT_ID = Deno.env.get('APPLE_BUNDLE_ID') || 'com.carreminders.app';
+// APPLE_SERVICES_ID first: it is the deliberate override for the case where
+// the bundle ID is the wrong client for the code being exchanged. Leaving it
+// unset keeps the bundle ID, which is correct for a code from the native
+// sheet. See the client_id note in the header before changing either.
+const APPLE_CLIENT_ID =
+  Deno.env.get('APPLE_SERVICES_ID') ||
+  Deno.env.get('APPLE_BUNDLE_ID') ||
+  'com.carreminders.app';
 
 const APPLE_AUD = 'https://appleid.apple.com';
 
@@ -195,12 +240,22 @@ serve(async (req) => {
       // Apple's error strings name the reason (invalid_client,
       // invalid_grant for a reused/expired code) and carry no user data,
       // so they are safe and genuinely useful to record.
+      // Record WHICH client_id was used. `invalid_client` / `invalid_grant`
+      // here is far more often a bundle-vs-Services ID mismatch than a bad
+      // signature, and without this the log cannot tell the two apart.
       await reportEdgeError({
         fn: 'apple-revoke',
         action: 'token_exchange_failed',
         error: new Error(`apple /auth/token ${tokenRes.status}: ${tokenBody?.error || 'unknown'}`),
         severity: 'error',
         userId,
+        extra: {
+          client_id: APPLE_CLIENT_ID,
+          client_id_source: Deno.env.get('APPLE_SERVICES_ID')
+            ? 'APPLE_SERVICES_ID'
+            : (Deno.env.get('APPLE_BUNDLE_ID') ? 'APPLE_BUNDLE_ID' : 'default'),
+          hint: 'invalid_client/invalid_grant usually means the code was issued for the OTHER Apple client id, not that signing is broken',
+        },
       });
       return json({ error: 'token_exchange_failed', apple: tokenBody?.error ?? null }, 502);
     }
