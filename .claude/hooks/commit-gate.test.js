@@ -76,6 +76,16 @@ describe('commit gate matcher', () => {
     expect(isGated(command)).toBe(false);
   });
 
+  it('still gates a compound command that merely contains an unwind', () => {
+    // The documented cost of anchoring the exemption to the whole command, found
+    // by running exactly this and being blocked. Loosening it to allow a prefix
+    // would also allow `git merge --abort && git commit -m x`, so the unwind is
+    // run bare instead.
+    expect(isGated('cd /repo && git merge --abort')).toBe(true);
+    expect(isGated('git merge --abort; echo done')).toBe(true);
+    expect(isGated('git merge --abort')).toBe(false);
+  });
+
   it('treats a non-string command as nothing to judge', () => {
     // A tool call whose input is shaped differently carries no command. main()
     // already exits 0 before reaching the matcher; this keeps the predicate

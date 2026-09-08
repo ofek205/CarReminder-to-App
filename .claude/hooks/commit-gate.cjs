@@ -62,6 +62,14 @@ const GIT_WRITE = /(^|[;&|`]\s*|\$\(\s*)git(\s+(-[^\s]+|--[^\s]+)(\s+[^\s]+)?)*\
  * Anchored to the WHOLE command deliberately. Matching loosely would exempt
  * `git merge --abort && git commit -m x` and hand back the very bypass this
  * change closes.
+ *
+ * The cost, learned by tripping over it within a minute of shipping this: a
+ * COMPOUND command carrying an unwind is still blocked, so `cd /repo && git
+ * merge --abort` needs a token while a bare `git merge --abort` does not. Run
+ * the unwind on its own; the Bash tool's working directory persists, so the
+ * `cd` is not needed anyway. Teaching this exemption to parse shell segments
+ * would put quote handling in the path of a decision that must fail closed,
+ * which is a bad trade for saving one keystroke.
  */
 const MERGE_UNWIND_ONLY = /^\s*git\s+merge\s+--(abort|quit)\s*$/;
 

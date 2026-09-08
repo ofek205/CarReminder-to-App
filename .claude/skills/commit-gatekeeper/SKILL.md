@@ -170,7 +170,7 @@ If **BLOCKED**, add:
 
 ## Hook integration — IMPORTANT
 
-`.claude/settings.json` runs `.claude/hooks/commit-gate.cjs` as a `PreToolUse` hook on **both** `Bash` and `PowerShell`. It blocks any `git commit`, `git push` or `git merge` unless a fresh approval token exists. `git merge --abort` and `--quit` are exempt, since neither can create a commit and needing a token to escape a half-finished merge would be a trap. `merge-base` and `merge-tree` stay allowed too, being read-only.
+`.claude/settings.json` runs `.claude/hooks/commit-gate.cjs` as a `PreToolUse` hook on **both** `Bash` and `PowerShell`. It blocks any `git commit`, `git push` or `git merge` unless a fresh approval token exists. `git merge --abort` and `--quit` are exempt, since neither can create a commit and needing a token to escape a half-finished merge would be a trap. Run either as the WHOLE command: the exemption is anchored, so `cd /repo && git merge --abort` is still blocked, and that anchoring is exactly what stops `--abort && commit` being a bypass. `merge-base` and `merge-tree` stay allowed too, being read-only.
 
 **After producing the APPROVED verdict (and ONLY then), you MUST write the approval token:**
 
