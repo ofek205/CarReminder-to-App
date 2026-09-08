@@ -35,8 +35,8 @@
 
 **לכן יש שתי פעולות, לא אחת:**
 
-- [ ] **פעולה א** — לרשום את המקורות של Resend אצל אפל (§3 כאן)
-- [ ] **פעולה ב** — להגדיר **Authentication → SMTP Settings** בדשבורד של Supabase עם פרטי ה-SMTP של Resend, כדי שמיילי ה-Auth ייצאו גם הם מ-`car-reminder.app`
+- [ ] **פעולה א**: לרשום את המקורות של Resend אצל אפל (§3 כאן)
+- [ ] **פעולה ב**: להגדיר **Authentication → SMTP Settings** בדשבורד של Supabase עם פרטי ה-SMTP של Resend, כדי שמיילי ה-Auth ייצאו גם הם מ-`car-reminder.app`
 
 בלי ב', חצי מהבעיה נשארת.
 
@@ -109,7 +109,7 @@ where from_email is not null;
 **לא להסתמך על "הרישום נשמר".** צריך מסירה אמיתית.
 
 1. לשלוח `reminder_test` לכתובת relay אמיתית של אחד מ-5 המשתמשים, או לחשבון בדיקה שנרשם דרך Apple עם "Hide My Email"
-2. לבדוק בטבלת `email_events` — ה-webhook של Resend כבר מוזן לשם ([resend-webhook](../supabase/functions/resend-webhook/index.ts)):
+2. לבדוק בטבלת `email_events`, ה-webhook של Resend כבר מוזן לשם ([resend-webhook](../supabase/functions/resend-webhook/index.ts)):
 
 ```sql
 select status, count(*), max(created_at)
@@ -119,7 +119,7 @@ group by status;
 ```
 
 3. הסטטוס צריך להיות **`delivered`** ולא `bounced`
-4. אם עוד `bounced` עם **`5.7.1`** או **"Unauthorized Sender"** — יש מקור שלא נרשם. כמעט תמיד זה ה-Return-Path מ-§2.2
+4. אם עוד `bounced` עם **`5.7.1`** או **"Unauthorized Sender"**, יש מקור שלא נרשם. כמעט תמיד זה ה-Return-Path מ-§2.2
 
 ### מדידת ההצלחה האמיתית
 
@@ -134,6 +134,45 @@ where u.deleted_at is null;
 ```
 
 לפני הרישום: `delivered` אמור להיות 0 עבור משתמשי relay. אחריו, גדול מ-0.
+
+---
+
+## 4.5 אחרי שהמסירה עובדת: לשחזר את מה שהוחמץ
+
+הרישום מתקן את המסירה **קדימה**. הוא לא מחזיר את המיילים שכבר נכשלו, ומשתמשי ה-relay הקיימים מעולם לא קיבלו welcome.
+
+**וזה כן ניתן לתיקון**, כי המעקב הוא בצד השרת:
+
+- `dispatchOAuthWelcomeEmail` ([GuestContext.jsx:44](../src/components/shared/GuestContext.jsx#L44)) מסמן דגל ב-`localStorage` **לפני** השליחה, ומתעד בהערה ש"a failed send won't retry". כלומר במכשיר של משתמש relay הדגל נדלק והמייל נכשל, ולא יהיה ניסיון נוסף משם.
+- אבל [backfill-welcome](../supabase/functions/backfill-welcome/index.ts) עוקב ב-**`email_send_log`** עם `notification_key: 'welcome'`, כלומר ברשומה בשרת ולא בדגל בדפדפן. הוא גם **אינו מדלג** על כתובות relay.
+
+לכן, **רק אחרי שאימות המסירה ב-§4 עבר**:
+
+```sql
+-- מי מהמשתמשים לא קיבל welcome, ומהם כמה הם relay
+select
+  count(*)                                                              as never_got_welcome,
+  count(*) filter (where u.email like '%@privaterelay.appleid.com')      as of_which_relay
+from auth.users u
+where u.deleted_at is null
+  and not exists (
+    select 1 from public.email_send_log l
+    where l.notification_key = 'welcome' and l.recipient = u.email
+  );
+```
+
+ואז להריץ את הפונקציה, **קודם ב-dry run**:
+
+```
+POST backfill-welcome  { "dry_run": true }    ← לראות למי זה ילך
+POST backfill-welcome  { "dry_run": false }   ← לשלוח בפועל
+```
+
+אימות: `X-Dispatch-Secret`, לא JWT.
+
+> ⚠️ **לא להריץ לפני שהמסירה אומתה.** ריצה מוקדמת תשלח לכל אותם משתמשים, הכל ייכשל שוב, ו-`email_send_log` יתמלא ברשומות שיסתירו מי באמת צריך לקבל. ה-dry run קיים בדיוק בשביל זה.
+>
+> ושים לב שיש **החלטה מוצרית קיימת** לא לעשות backfill ל-45 משתמשי יום ההשקה. השאילתה למעלה תכלול גם אותם, ולכן שווה להסתכל על הפילוח לפני שמריצים בלי dry run.
 
 ---
 
@@ -157,6 +196,11 @@ where u.deleted_at is null;
 - [ ] `reminder_test` לכתובת relay
 - [ ] `email_events` מציג `delivered`
 - [ ] שאילתת המדידה מחזירה `delivered > 0` למשתמשי relay
+
+**שחזור מה שהוחמץ (§4.5), רק אחרי שהאימות עבר**
+- [ ] שאילתת `never_got_welcome` להסתכל על הפילוח
+- [ ] `backfill-welcome` עם `dry_run: true`
+- [ ] `backfill-welcome` עם `dry_run: false`
 
 ---
 
