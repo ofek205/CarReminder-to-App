@@ -113,8 +113,9 @@ These are the ones where a wrong param does unrecoverable damage.
 
 | # | Scenario | Must see | Priority |
 |---|---|---|---|
-| D1 | Delete a vehicle that **is shared** with someone | Cascade dialog appears; after confirm the sharee loses access and is notified | P0 |
-| D2 | Delete an **unshared** vehicle | Plain delete, no cascade dialog | P0 |
+| D1 | Delete a vehicle that **is shared** with someone | Sharee loses access **and gets a notification** | P0 |
+| D2 | Delete an **unshared** vehicle | Deletes cleanly (now also via the cascade RPC — that is intended) | P0 |
+| D2b | Open a **shared** vehicle and hit delete **immediately**, before the "shared with N" pill appears | Still notifies the sharee. The dialog text must NOT say the deletion affects only you | P0 |
 | D3 | Revoke a share | That person loses access | P0 |
 | D4 | Remove a team member / change their role | Correct member affected, correct new role | P0 |
 | D5 | Transfer ownership | Ownership moves to the intended person | P0 |
