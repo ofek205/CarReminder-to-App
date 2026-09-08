@@ -10,55 +10,12 @@ import { C } from '@/lib/designTokens';
 import { isIOS } from '@/lib/capacitor';
 import { SignInWithApple } from '@capacitor-community/apple-sign-in';
 import { reportError } from '@/lib/crashReporter';
+import { resolveReauthMode } from '@/lib/reauthMode';
 
 // Last-resort gate for a user we have no way to actually verify: typing this
 // proves INTENT, not identity. See resolveReauthMode for when it applies.
 const CONFIRM_WORD = 'מחק';
 
-// Apple's "Hide My Email" relay. Mail to these addresses bounces unless the
-// sending domain is registered with Apple, so we cannot rely on an emailed
-// code reaching the user.
-const APPLE_RELAY_DOMAIN = '@privaterelay.appleid.com';
-
-/**
- * Which re-auth branch applies to this user.
- *
- * Deletion is irreversible, so this picks the STRONGEST gate the user can
- * actually complete — never the most convenient one. Two consequences:
- *
- *  - An `apple` identity on native iOS goes through the Apple sheet even
- *    when the user also has a password, because that sheet is the only
- *    place we can obtain a fresh `authorizationCode`, and without it we
- *    cannot revoke the Apple token as Guideline 5.1.1(v) requires.
- *  - An OAuth user with no password still gets real proof of identity via
- *    an emailed code. Typing a word is NOT that, so `word` is reachable
- *    only when there is no deliverable address, and is never a default.
- *
- * Anything we cannot verify at all returns 'unverifiable' rather than
- * silently degrading to the weakest gate: on a destructive path an
- * unrecognised account shape must fail closed.
- *
- * Returns null while `user` is still loading, so the gate renders a
- * placeholder instead of flickering between branches.
- */
-export function resolveReauthMode(user, iosNative = isIOS) {
-  if (!user) return null;
-  const providers = new Set(
-    [
-      user.app_metadata?.provider,
-      ...(user.app_metadata?.providers || []),
-      ...(user.identities || []).map((i) => i?.provider),
-    ].filter(Boolean),
-  );
-  const email = String(user.email || '');
-  const emailDeliverable = !!email && !email.toLowerCase().endsWith(APPLE_RELAY_DOMAIN);
-
-  if (providers.has('apple') && iosNative) return 'apple';
-  if (providers.has('email')) return 'password';
-  if (emailDeliverable) return 'otp';
-  if (providers.size > 0) return 'word';
-  return 'unverifiable';
-}
 
 export default function DeleteAccount() {
   const { isAuthenticated, user, isGuest } = useAuth();
@@ -81,7 +38,7 @@ export default function DeleteAccount() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
 
-  const reauthMode = resolveReauthMode(user);
+  const reauthMode = resolveReauthMode(user, isIOS);
 
   // Not logged in
   if (!isAuthenticated || isGuest) {
