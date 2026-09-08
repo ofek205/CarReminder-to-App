@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * PreToolUse gate — blocks `git commit` / `git push` issued by Claude Code
- * unless the commit-gatekeeper skill has just produced an APPROVED verdict.
+ * PreToolUse gate — blocks `git commit` / `git push` / `git merge` issued by
+ * Claude Code unless the commit-gatekeeper skill has just produced an
+ * APPROVED verdict.
  *
  * WHY THIS IS NODE AND NOT SHELL
  * ------------------------------
@@ -35,8 +36,41 @@ const path = require('path');
 const TOKEN_PATH = path.join(os.tmpdir(), 'carreminder-gatekeeper-approved');
 const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes, single use
 
-/** Matches `git commit` / `git push` including `git -C <dir> push`, `git --no-pager commit`, etc. */
-const GIT_WRITE = /(^|[;&|`]\s*|\$\(\s*)git(\s+(-[^\s]+|--[^\s]+)(\s+[^\s]+)?)*\s+(commit|push)(\s|$)/;
+/**
+ * Matches `git commit` / `git push` / `git merge`, including `git -C <dir> push`
+ * and `git --no-pager commit`.
+ *
+ * `merge` is here because it CREATES A COMMIT and was not matched before, so a
+ * merge commit could enter history with no gatekeeper review at all, while
+ * CLAUDE.md described the gate as covering every commit Claude makes. Found
+ * 2026-09-08, when a sync merge sailed straight through it.
+ *
+ * `merge-base` and `merge-tree` are read-only and must keep working. The
+ * trailing (\s|$) is what excludes them, since both continue with a hyphen.
+ *
+ * STILL OPEN, by decision rather than oversight: pull (which is fetch + merge),
+ * rebase, cherry-pick, revert and am all create or rewrite commits and are NOT
+ * matched. Each is one word here. If you add one, fix this comment too.
+ */
+const GIT_WRITE = /(^|[;&|`]\s*|\$\(\s*)git(\s+(-[^\s]+|--[^\s]+)(\s+[^\s]+)?)*\s+(commit|push|merge)(\s|$)/;
+
+/**
+ * `git merge --abort` and `--quit` unwind a merge and cannot create a commit.
+ * Needing a fresh gatekeeper token merely to escape a half-finished merge would
+ * be a trap, so they are exempt.
+ *
+ * Anchored to the WHOLE command deliberately. Matching loosely would exempt
+ * `git merge --abort && git commit -m x` and hand back the very bypass this
+ * change closes.
+ */
+const MERGE_UNWIND_ONLY = /^\s*git\s+merge\s+--(abort|quit)\s*$/;
+
+/** The whole decision, exported so it can be tested instead of trusted. */
+function isGated(command) {
+  if (typeof command !== 'string') return false;
+  if (MERGE_UNWIND_ONLY.test(command)) return false;
+  return GIT_WRITE.test(command);
+}
 
 function block(message) {
   process.stderr.write(`\n=== BLOCKED by commit-gatekeeper ===\n\n${message}\n`);
@@ -79,8 +113,8 @@ function main() {
   // (e.g. a tool whose input is shaped differently). Nothing to gate.
   if (typeof command !== 'string') process.exit(0);
 
-  // Not a git write — allow, and say nothing.
-  if (!GIT_WRITE.test(command)) process.exit(0);
+  // Not a gated git command — allow, and say nothing.
+  if (!isGated(command)) process.exit(0);
 
   let stamp;
   try {
@@ -118,7 +152,7 @@ function main() {
 
   block(
     `${why}\n\n` +
-      'Before retrying this git commit/push you MUST:\n' +
+      'Before retrying this git commit/push/merge you MUST:\n' +
       '  1. Invoke the commit-gatekeeper skill (Skill tool)\n' +
       '  2. Run the full 10-stage review on the staged diff\n' +
       '  3. Output the mandatory final-format verdict\n' +
@@ -130,8 +164,24 @@ function main() {
   );
 }
 
-try {
-  main();
-} catch (err) {
-  block(`The gate threw an unexpected error and is failing closed:\n${err && err.stack}`);
+if (require.main === module) {
+  try {
+    main();
+  } catch (err) {
+    block(`The gate threw an unexpected error and is failing closed:\n${err && err.stack}`);
+  }
 }
+
+// Exported for .claude/hooks/commit-gate.test.js. Requiring this file must not
+// run the gate, which is what the require.main guard above is for.
+//
+// Know what that guard costs: if this file is ever REQUIRED instead of executed,
+// the gate does nothing and allows silently. That only happens if the command in
+// settings.json stops being `node .claude/hooks/commit-gate.cjs`, and anyone able
+// to rewrite that could remove the hook outright, so it buys testability without
+// widening the real threat. Splitting the matcher into a sibling module was the
+// alternative and is worse: a missing sibling throws at require time, outside the
+// try/catch, exiting 1 rather than 2, which the runner treats as ALLOW.
+// Only the decision is exported. The two regexes are implementation detail, and
+// a security boundary should expose as little as it can get away with.
+module.exports = { isGated };

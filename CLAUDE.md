@@ -183,7 +183,7 @@ git checkout staging && git merge main && git push origin staging
 |---|---|---|
 | `.githooks/pre-commit` | כל commit מקומי | קבצי סוד (`.env`/`.pem`/`.key`), סמני קונפליקט, מפתחות מקודדים (`sk-`/`AKIA`/`ghp_`), eslint על הקבצים בסטייג' |
 | `.githooks/pre-push` | כל push מקומי | **שש** בדיקות: אזהרת main, `npm run lint`, `npm test`, `npm run build`, שער query-timeout, שער זהות view-as |
-| `.claude/hooks/commit-gate.cjs` | commit/push של קלוד | דורש אסימון APPROVED טרי מ-commit-gatekeeper |
+| `.claude/hooks/commit-gate.cjs` | commit/push/merge של קלוד | דורש אסימון APPROVED טרי מ-commit-gatekeeper |
 | `production-gates.yml` | **PR ל-main בלבד** | **ארבעה** jobs: build, lint, query-timeout, view-as identity |
 
 - **`git push origin staging`** — עובר ללא `--no-verify`.

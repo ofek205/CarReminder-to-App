@@ -1,6 +1,6 @@
 ---
 name: commit-gatekeeper
-description: Final production gatekeeper — MUST run before ANY git commit or git push. Acts as senior engineer + QA + security + product owner reviewing staged changes through 10 mandatory stages and producing an APPROVED/BLOCKED verdict. Trigger automatically whenever the user asks to commit, push, "ready to ship", "ready to commit", "let's commit this", or any Hebrew equivalent (לקמיט, לדחוף, מוכן לקומיט, מוכן לפוש, לעלות לפרודקשן). Also trigger BEFORE running any `git commit` or `git push` Bash command — the project has a hook that blocks these commands until this skill produces an APPROVED verdict.
+description: Final production gatekeeper — MUST run before ANY git commit or git push. Acts as senior engineer + QA + security + product owner reviewing staged changes through 10 mandatory stages and producing an APPROVED/BLOCKED verdict. Trigger automatically whenever the user asks to commit, push, "ready to ship", "ready to commit", "let's commit this", or any Hebrew equivalent (לקמיט, לדחוף, מוכן לקומיט, מוכן לפוש, לעלות לפרודקשן). Also trigger BEFORE running any `git commit`, `git push` or `git merge` Bash command — the project has a hook that blocks these commands until this skill produces an APPROVED verdict.
 ---
 
 # Commit Gatekeeper
@@ -170,7 +170,7 @@ If **BLOCKED**, add:
 
 ## Hook integration — IMPORTANT
 
-`.claude/settings.json` runs `.claude/hooks/commit-gate.cjs` as a `PreToolUse` hook on **both** `Bash` and `PowerShell`. It blocks any `git commit` or `git push` unless a fresh approval token exists.
+`.claude/settings.json` runs `.claude/hooks/commit-gate.cjs` as a `PreToolUse` hook on **both** `Bash` and `PowerShell`. It blocks any `git commit`, `git push` or `git merge` unless a fresh approval token exists. `git merge --abort` and `--quit` are exempt, since neither can create a commit and needing a token to escape a half-finished merge would be a trap. `merge-base` and `merge-tree` stay allowed too, being read-only.
 
 **After producing the APPROVED verdict (and ONLY then), you MUST write the approval token:**
 
