@@ -981,16 +981,24 @@ export default function AuthPage() {
         // before dead-code elimination). Renamed to DEV_EMAIL/DEV_PASSWORD
         // (no VITE_ prefix) which Vite does not expose at all.
         if (import.meta.env.DEV && email === '00' && password === '00') {
-          // In dev mode, read from a well-known local dev credential.
-          // Set DEV_EMAIL and DEV_PASSWORD in .env.local (no VITE_ prefix).
-          // Since Vite only exposes VITE_* vars, we read them via a
-          // different mechanism: the dev server can inject them, or
-          // developers set them as window globals in a dev-only script.
-          // Simplest fallback: hardcode the shared dev-test account.
-          const devEmail = 'devtest+cr@gmail.com';
-          const devPass = 'DevTest!2026';
-          effectiveEmail = devEmail;
-          effectivePassword = devPass;
+          // Credentials come from DEV_EMAIL / DEV_PASSWORD in .env.local,
+          // injected as `__DEV_CREDS__` by vite.config.js — which emits
+          // the literal `null` for any non-development build, so nothing
+          // lands in `dist`. See the long comment in vite.config.js for
+          // why they cannot simply be VITE_* vars.
+          //
+          // Previously this branch hardcoded a fallback account because
+          // the non-prefixed vars were unreadable from the client. That
+          // account went stale and the dev login silently broke: typing
+          // 00/00 just returned "אימייל או סיסמה שגויים".
+          if (__DEV_CREDS__?.email && __DEV_CREDS__?.password) {
+            effectiveEmail = __DEV_CREDS__.email;
+            effectivePassword = __DEV_CREDS__.password;
+          } else {
+            setError('התחברות הפיתוח לא מוגדרת. הוסף DEV_EMAIL ו-DEV_PASSWORD ל-.env.local והפעל מחדש את vite.');
+            setLoading(false);
+            return;
+          }
         }
         const { error } = await supabase.auth.signInWithPassword({ email: effectiveEmail, password: effectivePassword });
         if (error) setError(error.message.includes('Invalid login credentials') ? 'אימייל או סיסמה שגויים' : error.message);

@@ -65,6 +65,10 @@ export default [
         // any new `__VITE_FOO__`-style constants from vite.config.js
         // here too.
         __APP_VERSION__: "readonly",
+        // Dev-login credentials from .env.local, injected by
+        // vite.config.js. Emitted as the literal `null` in any
+        // non-development build, so reads must be optional-chained.
+        __DEV_CREDS__: "readonly",
       },
       parserOptions: {
         ecmaVersion: 2022,
