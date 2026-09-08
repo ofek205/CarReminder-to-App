@@ -19,6 +19,7 @@
 import { get, set, del } from 'idb-keyval';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { isPersistableQueryKey } from './query-persist-allowlist';
+import { isViewAs } from './viewAsState';
 
 const IDB_KEY = 'cr-rq-cache';
 
@@ -97,7 +98,9 @@ function stripSignedUrls(value) {
 
   let next = value;
   for (const field of STRIPPED_FIELDS) {
-    if (field in next) {
+    // hasOwnProperty, not `in`: a future STRIPPED_FIELDS entry that collided
+    // with an Object.prototype name would otherwise copy every object it walks.
+    if (Object.prototype.hasOwnProperty.call(next, field)) {
       if (next === value) next = { ...value };
       delete next[field];
     }
@@ -142,9 +145,41 @@ export const idbPersister = createAsyncStoragePersister({
   },
 });
 
-/** Only successful, allowlisted reads are written to disk. */
+/**
+ * Only successful, allowlisted reads are written to disk — and nothing at all
+ * while an admin is impersonating a customer.
+ *
+ * The view-as check is not belt-and-braces. During a session the allowlisted
+ * queries hold the CUSTOMER's rows (their vehicles, documents, service
+ * history), and writing those to the admin's device leaves another person's
+ * data at rest, unencrypted, behind no PIN and no auth check. The enter/exit
+ * clears only cover a clean exit: a crash, a force-quit or a closed tab
+ * mid-session leaves it there, and because every later write re-stamps the
+ * snapshot timestamp, maxAge never trims it while the admin keeps using the
+ * app. The localStorage vehicle cache was hardened against exactly this
+ * (src/lib/vehiclesCache.js) and this layer, added later and holding strictly
+ * more data, had no equivalent. `isViewAs()` is a synchronous module read
+ * designed for non-React callers like this one.
+ */
 export function shouldDehydrateQuery(query) {
+  if (isViewAs()) return false;
   return query.state.status === 'success' && isPersistableQueryKey(query.queryKey);
+}
+
+/**
+ * Never persist mutations.
+ *
+ * React Query's default dehydrates any PAUSED mutation, which would put
+ * arbitrary write payloads on disk with no allowlist. Worse, nothing in this
+ * app calls setMutationDefaults, so a rehydrated mutation has no mutationFn:
+ * the next reconnect calls resumePausedMutations(), it rejects, and
+ * MutationCache.onError reports it as a user-visible error — firing the exact
+ * spurious alert spike that the comment above the query handler in
+ * query-client.js was written to prevent, for a write from a previous session.
+ * Offline writes get a real outbox in Phase 3; until then, persist none.
+ */
+export function shouldDehydrateMutation() {
+  return false;
 }
 
 /**

@@ -2,7 +2,7 @@ import React from 'react'
 import { Toaster as SonnerToaster } from "sonner"
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { queryClientInstance } from '@/lib/query-client'
-import { idbPersister, PERSIST_MAX_AGE, shouldDehydrateQuery } from '@/lib/query-persister'
+import { idbPersister, PERSIST_MAX_AGE, shouldDehydrateQuery, shouldDehydrateMutation } from '@/lib/query-persister'
 import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
@@ -244,7 +244,7 @@ function App() {
             // automatically. That protects against a query's row shape
             // changing under a snapshot written by an older build.
             buster: typeof __APP_VERSION__ !== 'undefined' ? String(__APP_VERSION__) : 'dev',
-            dehydrateOptions: { shouldDehydrateQuery },
+            dehydrateOptions: { shouldDehydrateQuery, shouldDehydrateMutation },
           }}
         >
           {/* AppUpdateGate sits high in the tree so it can hide the
