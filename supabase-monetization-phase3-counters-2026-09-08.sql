@@ -84,8 +84,28 @@ create table if not exists public.feature_usage_counters (
   primary key (account_id, user_id, feature, period_key),
   constraint feature_usage_counters_count_chk check (count >= 0),
   constraint feature_usage_counters_feature_chk
-    check (feature in ('ai_advisor', 'plate_check', 'vehicle_share'))
+    check (feature in ('ai_advisor', 'ai_forum', 'plate_check', 'vehicle_share'))
 );
+
+-- ⚠️ ADDING A FEATURE NAME REQUIRES EDITING THE CHECK ABOVE, and forgetting
+-- to is SILENT. bump_feature_usage would raise 23514, ai-proxy's counter
+-- swallows its errors on purpose (an advisor answer must not be lost because
+-- a counter could not be written), and the feature would simply never be
+-- counted while every screen kept reporting zero.
+--
+-- 'ai_forum' is the community forum's expert reply, kept separate from
+-- 'ai_advisor' because only the advisor bucket is measured against the free
+-- plan's lifetime teaser: a forum reply fires when a user POSTS rather than
+-- when they ask, so charging it to the teaser would spend a free user's only
+-- question on something they never requested. Paid plans' daily ceiling sums
+-- both. The routing lives in supabase/functions/_shared/aiQuota.ts.
+--
+-- If the table already exists when you run this file, the idempotent
+-- creation above will NOT amend the constraint. Add the value explicitly:
+--   alter table public.feature_usage_counters
+--     drop constraint feature_usage_counters_feature_chk,
+--     add  constraint feature_usage_counters_feature_chk
+--          check (feature in ('ai_advisor','ai_forum','plate_check','vehicle_share'));
 
 comment on table public.feature_usage_counters is
   'Monetization usage counters. Writes are immune to ai_usage_tracking_enabled by design. See docs/plan-monetization-implementation.md §1.3.';
@@ -196,6 +216,18 @@ end $$;
 revoke all on function public.bump_feature_usage(uuid, uuid, text, text, int) from public;
 revoke all on function public.bump_feature_usage(uuid, uuid, text, text, int) from authenticated;
 revoke all on function public.bump_feature_usage(uuid, uuid, text, text, int) from anon;
+-- ⚠️ AND GRANTED TO service_role, WITHOUT WHICH THIS SILENTLY DOES NOTHING.
+--   ai-proxy calls this under the service role. Revoking from PUBLIC removes
+--   the default grant that PUBLIC gets on every new function, and nothing
+--   restores it for service_role, so the call would fail with "permission
+--   denied for function" — get swallowed by the try/catch in
+--   countAdvisorUsage, log a warning, and leave the counter at zero forever.
+--   A quota built on a counter that never increments is a quota that never
+--   fires.
+--
+--   This is the project's convention, not an invention: see
+--   supabase-device-tokens.sql:80 and supabase-phase9-driver-reminders.sql:153.
+grant execute on function public.bump_feature_usage(uuid, uuid, text, text, int) to service_role;
 
 
 -- ── 4. bump_my_feature_usage(): the client entry point ────────────────────
@@ -313,6 +345,9 @@ comment on function public.resolve_usage_account(uuid) is
 revoke all on function public.resolve_usage_account(uuid) from public;
 revoke all on function public.resolve_usage_account(uuid) from authenticated;
 revoke all on function public.resolve_usage_account(uuid) from anon;
+-- Same reasoning as bump_feature_usage above: ai-proxy resolves the account
+-- under the service role, and without this grant it cannot.
+grant execute on function public.resolve_usage_account(uuid) to service_role;
 
 
 -- ── 5. my_feature_usage(): the read behind the meters ─────────────────────
@@ -365,9 +400,18 @@ begin
   return query
   -- One row per feature at the horizon that feature actually uses:
   --   ai_advisor    lifetime (the free teaser) AND today (fair use)
+  --   ai_forum      today, and it is the caller's job to ADD it to
+  --                 ai_advisor when drawing the daily meter: the daily
+  --                 ceiling is enforced against the two together, so a meter
+  --                 showing the advisor alone would sit below the cap it is
+  --                 drawn against. The lifetime teaser deliberately excludes
+  --                 it. /MyPlan does this via useFeatureUsage's usedSum().
   --   plate_check   this month
   --   vehicle_share is a live count of rows, not a counter, so it is not
   --                 here. The share cap is a trigger on vehicle_shares.
+  --
+  -- Deliberately NOT filtered by feature, only by period: a new bucket shows
+  -- up here the moment it is written, with no edit to this function.
   select c.feature,
          case c.period_key
            when 'lifetime'                     then 'lifetime'

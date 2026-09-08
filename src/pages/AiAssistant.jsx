@@ -756,6 +756,18 @@ ${selectedVehicle ? `הנתונים המלאים של ${itemWord} מופיעים
           userMsg = 'אין חיבור לאינטרנט. בדוק את הרשת ונסה שוב.'; break;
         case 'RATE_LIMIT':
           userMsg = 'יותר מדי בקשות. המתן דקה ונסה שוב.'; break;
+        // ⚠️ NEITHER OF THE NEXT TWO MAY SAY "המתן דקה". One is a paywall
+        // and one resets tomorrow; the rate-limiter copy above is wrong for
+        // both and would promise a wait that changes nothing.
+        case 'AI_REQUIRES_PAID_PLAN':
+          // The proxy already writes plan-appropriate copy. Reusing it keeps
+          // one wording for the paywall instead of two that can drift.
+          // Fallback only if the proxy somehow sent no message. Deliberately
+          // says nothing about plans, since this branch cannot consult the
+          // platform and iOS must never see one named.
+          userMsg = err?.message || 'נוצלה שאלת ההתרשמות ביועץ.'; break;
+        case 'AI_DAILY_CAP_REACHED':
+          userMsg = err?.message || 'הגעת למספר שאלות היועץ להיום. המכסה מתאפסת מחר.'; break;
         case 'UNAUTHORIZED':
         case 'NO_SESSION':
           userMsg = 'ההתחברות פגה. התחבר מחדש ונסה שוב.'; break;

@@ -22,6 +22,14 @@ import { withTimeout } from '@/lib/supabaseQuery';
 // row's name. Getting it wrong is silent, not exploitable: an undefined
 // feature matches no row and the meter reads a permanent zero.
 export const AI_ADVISOR = 'ai_advisor';
+// The community forum's expert reply. A separate bucket from AI_ADVISOR
+// because the free plan's lifetime teaser is measured against the advisor
+// alone: the forum reply fires when a user posts rather than when they ask,
+// so charging it to the teaser would spend a free user's single question on
+// something they never requested. The paid plans' daily ceiling sums both,
+// which is why /MyPlan's daily meter reads them together. The routing lives
+// in supabase/functions/_shared/aiQuota.ts, where it is enforced.
+export const AI_FORUM = 'ai_forum';
 export const PLATE_CHECK = 'plate_check';
 
 

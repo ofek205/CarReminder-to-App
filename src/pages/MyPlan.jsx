@@ -38,7 +38,7 @@ import { C } from '@/lib/designTokens';
 import useAccountPlan, { usagePercent, usageLevel, ACCOUNT_PLAN_QUERY_KEY } from '@/hooks/useAccountPlan';
 import useVehicleCapacity from '@/hooks/useVehicleCapacity';
 import useFeatureUsage, { LIFETIME, MONTH, DAY } from '@/hooks/useFeatureUsage';
-import { AI_ADVISOR, PLATE_CHECK } from '@/lib/usageCounters';
+import { AI_ADVISOR, AI_FORUM, PLATE_CHECK } from '@/lib/usageCounters';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { canMentionExternalPurchase, canReferToWeb } from '@/lib/billingGate';
@@ -319,7 +319,11 @@ export default function MyPlan() {
   // (including a genuine 0), or null while loading or after a failure.
   const usedPlate       = usage.used(PLATE_CHECK, MONTH);
   const usedAiLifetime  = usage.used(AI_ADVISOR, LIFETIME);
-  const usedAiToday     = usage.used(AI_ADVISOR, DAY);
+  // BOTH buckets, because the daily ceiling is enforced in SQL against
+  // ai_advisor + ai_forum together. Reading only the advisor here would draw
+  // a smaller number against the same cap, and the user would be refused at
+  // what this screen showed as room to spare.
+  const usedAiToday     = usage.usedSum([AI_ADVISOR, AI_FORUM], DAY);
   // The AI row's meter tracks whichever ceiling the plan actually uses: a
   // one-question teaser on free, a daily fair-use cap on the paid plans.
   const aiCap  = isFree ? plan.aiLifetimeTeaser : plan.aiDailyCap;

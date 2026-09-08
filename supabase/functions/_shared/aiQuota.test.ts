@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { countsTowardAiQuota, EXEMPT_SCAN_SURFACES } from './aiQuota';
+import {
+  countsTowardAiQuota,
+  EXEMPT_SCAN_SURFACES,
+  aiQuotaFeature,
+  NON_TEASER_SURFACES,
+  FEATURE_ADVISOR,
+  FEATURE_FORUM,
+} from './aiQuota';
 
 // The 11 values ai-proxy's ALLOWED_SURFACES accepts (index.ts:186-198).
 // Anything else is sanitised to null before this function sees it.
@@ -50,10 +57,9 @@ describe('countsTowardAiQuota', () => {
     expect(countsTowardAiQuota('')).toBe(true);
   });
 
-  it('counts a missing surface, which is what the untagged paths send', () => {
-    // PostCreateDialog's first expert reply and getVesselAdvice send no
-    // feature and no surface. They must be charged without anyone
-    // remembering to tag them.
+  it('counts a missing surface, which is what the untagged path sends', () => {
+    // getVesselAdvice sends no feature and no surface. It must be charged
+    // without anyone remembering to tag it.
     expect(countsTowardAiQuota(null)).toBe(true);
     expect(countsTowardAiQuota(undefined)).toBe(true);
   });
@@ -76,5 +82,58 @@ describe('countsTowardAiQuota', () => {
 
   it('keeps the list frozen so it cannot be widened at runtime', () => {
     expect(Object.isFrozen(EXEMPT_SCAN_SURFACES)).toBe(true);
+  });
+});
+
+describe('aiQuotaFeature', () => {
+  it('routes the forum reply away from the teaser bucket', () => {
+    // The whole point of the split: a forum reply the user never asked for
+    // must not spend the free plan's single lifetime advisor question.
+    expect(aiQuotaFeature('community_reply')).toBe(FEATURE_FORUM);
+  });
+
+  it('routes the real advisor to the teaser bucket', () => {
+    expect(aiQuotaFeature('chat_assistant')).toBe(FEATURE_ADVISOR);
+  });
+
+  it('routes an untagged call to the teaser bucket', () => {
+    // getVesselAdvice sends nothing, and it IS a user-requested advisor
+    // question, so the strict default is also the correct answer here.
+    expect(aiQuotaFeature(null)).toBe(FEATURE_ADVISOR);
+    expect(aiQuotaFeature(undefined)).toBe(FEATURE_ADVISOR);
+    expect(aiQuotaFeature('')).toBe(FEATURE_ADVISOR);
+  });
+
+  // ── the direction of the default is the security property ────────────
+  //
+  // If an unknown surface fell into FEATURE_FORUM, sending
+  // `surface: 'anything'` from DevTools would exempt every call from the
+  // lifetime teaser and hand out unlimited free advisor questions. The
+  // default must be the bucket the teaser MEASURES.
+
+  it('sends a forged surface to the teaser bucket, not the exempt one', () => {
+    expect(aiQuotaFeature('x')).toBe(FEATURE_ADVISOR);
+    expect(aiQuotaFeature('ai_forum')).toBe(FEATURE_ADVISOR);
+    expect(aiQuotaFeature('community_reply ')).toBe(FEATURE_ADVISOR);
+    expect(aiQuotaFeature('Community_Reply')).toBe(FEATURE_ADVISOR);
+  });
+
+  it('sends a non-string to the teaser bucket', () => {
+    expect(aiQuotaFeature(0)).toBe(FEATURE_ADVISOR);
+    expect(aiQuotaFeature({})).toBe(FEATURE_ADVISOR);
+    expect(aiQuotaFeature(['community_reply'])).toBe(FEATURE_ADVISOR);
+  });
+
+  it('never routes an exempt scan anywhere, because it has no bucket', () => {
+    // Guards the contract stated in the docblock: the two lists must not
+    // overlap, or a scan would be both exempt from the quota AND assigned a
+    // counter bucket, and the two answers would disagree.
+    for (const s of NON_TEASER_SURFACES) {
+      expect(countsTowardAiQuota(s), s).toBe(true);
+    }
+  });
+
+  it('keeps the non-teaser list frozen', () => {
+    expect(Object.isFrozen(NON_TEASER_SURFACES)).toBe(true);
   });
 });

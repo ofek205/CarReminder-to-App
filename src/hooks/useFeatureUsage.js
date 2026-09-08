@@ -32,6 +32,50 @@ import { useAuth } from '@/components/shared/GuestContext';
 export const FEATURE_USAGE_QUERY_KEY = 'feature-usage';
 
 /**
+ * pickUsed(rows, feature, horizon) -> number | null
+ *
+ * Exported as a pure function so the null-vs-zero rule above can be tested
+ * without rendering the hook. The hook's used() just delegates here.
+ */
+export function pickUsed(rows, feature, horizon) {
+  if (!Array.isArray(rows)) return null;            // loading or failed
+  const row = rows.find((r) => r?.feature === feature && r?.horizon === horizon);
+  // No row is a genuine zero: a counter row only exists once used.
+  if (!row) return 0;
+  const n = Number(row.used);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * sumUsed(rows, features, horizon) -> number | null
+ *
+ * The same contract as pickUsed, over several buckets at once.
+ *
+ * Needed because one displayed meter can be bounded by more than one
+ * counter: the paid plans' daily AI ceiling is checked in SQL against
+ * ai_advisor AND ai_forum together, so a meter reading only ai_advisor would
+ * show a smaller number than the ceiling it is drawn against, and the user
+ * would be refused at what the screen showed as room to spare.
+ *
+ * Keeps null meaning "not read" rather than collapsing to 0, exactly as
+ * pickUsed does: a partial sum is still an unknown sum. An empty feature
+ * list is also null, not 0, because summing nothing is not evidence of zero
+ * usage.
+ */
+export function sumUsed(rows, features, horizon) {
+  if (!Array.isArray(rows)) return null;            // loading or failed
+  if (!Array.isArray(features) || features.length === 0) return null;
+  let total = 0;
+  for (const f of features) {
+    const row = rows.find((r) => r?.feature === f && r?.horizon === horizon);
+    if (!row) continue;                              // genuine zero
+    const n = Number(row.used);
+    if (Number.isFinite(n)) total += n;
+  }
+  return total;
+}
+
+/**
  * Horizons, matching the `horizon` label my_feature_usage() returns.
  *
  * ⚠️ MATCHED ON THE LABEL, NEVER ON period_key. ai_advisor comes back as
@@ -75,14 +119,9 @@ export default function useFeatureUsage() {
      * row. null ONLY when the read has not succeeded, which the caller must
      * render as no number rather than as zero.
      */
-    used: (feature, horizon) => {
-      if (!Array.isArray(rows)) return null;          // loading or failed
-      const row = rows.find((r) => r?.feature === feature && r?.horizon === horizon);
-      // No row is a genuine zero: a counter row only exists once used.
-      if (!row) return 0;
-      const n = Number(row.used);
-      return Number.isFinite(n) ? n : 0;
-    },
+    used: (feature, horizon) => pickUsed(rows, feature, horizon),
+    /** Several buckets at once. See sumUsed above for why this exists. */
+    usedSum: (features, horizon) => sumUsed(rows, features, horizon),
     isLoading: query.isLoading,
     isError:   query.isError,
     refetch:   query.refetch,

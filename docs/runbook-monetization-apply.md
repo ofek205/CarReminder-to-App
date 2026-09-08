@@ -49,11 +49,20 @@ node scripts/sql-ledger.cjs drift
 0. supabase-sql-ledger-2026-09-01.sql        ← תנאי מקדים לכל record
 1. supabase-ai-consents-2026-09-08.sql       ← עצמאי
 2. supabase-monetization-phase1-plans-2026-09-08.sql
-3. supabase-monetization-phase2b-admin-2026-09-08.sql   ← preflight דורש 2
-4. supabase-monetization-phase3-counters-2026-09-08.sql ← preflight דורש 2
+3. supabase-monetization-phase2b-admin-2026-09-08.sql    ← preflight דורש 2
+4. supabase-monetization-phase3-counters-2026-09-08.sql  ← preflight דורש 2
+5. supabase-monetization-phase4-vehicle-cap-2026-09-08.sql  ← preflight דורש 2, דגל כבוי
+6. supabase-monetization-phase5a-share-cap-2026-09-08.sql   ← preflight דורש 2, דגל כבוי
+7. supabase-monetization-phase5b-ai-quota-2026-09-08.sql    ← preflight דורש 2 **ו-4**, דגל כבוי
 ```
 
 3 ו-4 עצמאיים זה מזה. שניהם נעצרים לפני שהם יוצרים משהו אם 2 חסר, כך שסדר שגוי נכשל בבטחה ולא חצי-מוחל.
+
+**5, 6 ו-7 מגיעים עם דגל אכיפה כבוי** (`vehicle_cap_enforced`, `share_cap_enforced`, `ai_quota_enforced`). כלומר החלה של שלושתם **לא משנה שום התנהגות** עד הדלקה מפורשת. אפשר להחיל בבטחה ולהדליק בנפרד.
+
+⚠️ **7 דורש את 4, לא רק את 2.** `ai_quota_check` קורא ל-`feature_usage_count`, שקורא ל-`usage_period_key` וקורא את `feature_usage_counters` — כולם משלב 4. ה-preflight שלו בודק את זה ונעצר לפני שהוא יוצר משהו.
+
+⚠️ **אם `feature_usage_counters` כבר קיימת אצלך** (כלומר החלת גרסה מוקדמת של שלב 4 לפני 2026-09-09), ה-`create table if not exists` **לא** יעדכן את ה-CHECK, והדלי החדש `ai_forum` יידחה ב-23514. הבאמפ נבלע בשקט ב-`ai-proxy` במכוון, כך שהתוצאה היא מונה שלא זז ואף שגיאה שתגיד למה. ה-`alter table` המדויק לתיקון כתוב כהערה בתוך `supabase-monetization-phase3-counters-2026-09-08.sql` עצמו, מיד מתחת ל-CHECK.
 
 ⚠️ **staging ו-prod חולקים מסד** (שער 5 ב-CLAUDE.md). כל הקבצים additive: טבלאות ופונקציות חדשות בלבד, אפס שינוי בקיים.
 
