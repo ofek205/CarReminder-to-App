@@ -376,10 +376,23 @@ serve(async (req) => {
   if ('data' in outcome) {
     const els = (outcome.data as { elements?: unknown[] })?.elements;
     const count = Array.isArray(els) ? els.length : 0;
+
+    // An empty answer while we hold a non-empty stale row: prefer the stale
+    // row. Without this the ONE caller elected to do the refresh work gets a
+    // worse answer than everyone being served from cache alongside it —
+    // "לא נמצאו תוצאות" for them, results for everybody else. A mirror that
+    // soft-timed out and a genuinely emptied area are indistinguishable
+    // here, so the next refresh is the right place to notice a real change.
+    if (count === 0 && cached) {
+      return json(cached.payload, 200, req, {
+        'X-Overpass-Cache': 'STALE-FALLBACK',
+        'X-Overpass-Age':   ageSeconds(cached.fetched_at),
+      });
+    }
+
     // Empty answers are never cached — see the constraint and its comment in
-    // supabase-overpass-cache-2026-09-08.sql. A soft-timed-out mirror and an
-    // genuinely empty area are indistinguishable at this layer, so we let the
-    // next request re-ask rather than pin "no results" for a day.
+    // supabase-overpass-cache-2026-09-08.sql. cachePut declines count <= 0,
+    // so the next request re-asks rather than pinning "no results" for a day.
     await cachePut(key, canonical, outcome.data, count);
     return json(outcome.data, 200, req, {
       'X-Overpass-Cache': cached ? 'REVALIDATED' : 'MISS',

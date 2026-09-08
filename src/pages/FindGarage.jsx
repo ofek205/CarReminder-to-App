@@ -556,10 +556,20 @@ export default function FindGarage() {
       // wait itself, so a hung edge request left `fetching` true forever
       // and the page sat on the skeleton with no error and no way out.
       // That is the "ספינר נצחי" failure mode the project bans outright.
-      // 15s is ~4x the measured worst case for the fixed query (3.5s at
-      // the 25km max radius), so it only trips on a genuinely stuck call.
-      const PROXY_TIMEOUT_MS = 15_000;
+      //
+      // 30s, and deliberately NOT less. The proxy's own per-mirror ceiling
+      // is 27s (MIRROR_TIMEOUT_MS), so any deadline below that aborts
+      // requests the server was still going to answer. Measured end-to-end
+      // through the deployed proxy on a cold miss: 4.5s / 9.7s / 14.6s — so
+      // the 15s this was first written with would have cut the third one
+      // off and sent a duplicate query into the two upstream slots this
+      // whole change exists to protect. The deadline is here to rule out an
+      // infinite spinner, not to enforce an SLA.
+      const PROXY_TIMEOUT_MS = 30_000;
 
+      // Returns { data } on success, or { failed: 'deadline' | 'transport' |
+      // 'aborted' }. The caller needs to tell these apart: only a fast
+      // transport failure is worth a second attempt.
       const callProxyOnce = async (q) => {
         // Own controller per attempt, chained to the outer one. A
         // superseded request must still die instantly on location/radius
@@ -570,7 +580,14 @@ export default function FindGarage() {
         const onOuterAbort = () => attemptCtrl.abort();
         if (signal.aborted) attemptCtrl.abort();
         else signal.addEventListener('abort', onOuterAbort, { once: true });
-        const timer = setTimeout(() => attemptCtrl.abort(), PROXY_TIMEOUT_MS);
+        // Local to this invocation, NOT shared: the car and marine queries
+        // run concurrently through Promise.all, so a flag hoisted out of
+        // this function would be mutated by two chains at once.
+        let deadlineFired = false;
+        const timer = setTimeout(
+          () => { deadlineFired = true; attemptCtrl.abort(); },
+          PROXY_TIMEOUT_MS,
+        );
         try {
           const res = await fetch(OVERPASS_PROXY_URL, {
             method: 'POST',
@@ -587,41 +604,40 @@ export default function FindGarage() {
           if (!res.ok) {
             // 502 all_mirrors_unavailable lands here too — treat as no data.
             console.warn(`overpass-proxy: HTTP ${res.status}`);
-            return null;
+            return { failed: 'transport' };
           }
           const ct = res.headers.get('content-type') || '';
-          if (!ct.includes('json')) return null;
-          return await res.json();
+          if (!ct.includes('json')) return { failed: 'transport' };
+          return { data: await res.json() };
+        } catch (err) {
+          // A user abort (location/radius change, unmount) and our own
+          // deadline both surface as AbortError on WebViews that ignore
+          // abort(reason), so the outer signal and the local flag are the
+          // only reliable way to tell the three cases apart.
+          if (signal.aborted) return { failed: 'aborted' };
+          console.warn('overpass-proxy fetch failed:', err?.message);
+          return { failed: deadlineFired ? 'deadline' : 'transport' };
         } finally {
           clearTimeout(timer);
           signal.removeEventListener('abort', onOuterAbort);
         }
       };
 
-      // The proxy already retries transient upstream 504s once, but in the
-      // rare case overpass-api.de 504s on BOTH server-side attempts while
-      // the redundancy mirrors hang, the proxy returns a 502. One more
-      // client retry (~700ms apart) collapses that residual flicker — the
-      // observed end-to-end success rate goes from ~90% to ~100% without
-      // the user ever seeing the error state. Aborts bail immediately.
+      // The proxy already retries transient upstream 504s once, but a
+      // Supabase gateway hiccup fails before any of that server-side logic
+      // runs. One client retry (~700ms apart) covers that residual case.
+      //
+      // It retries ONLY a fast transport failure. Retrying our own 30s
+      // deadline would make the user wait 60s for the same error and would
+      // put a second query into the two upstream slots — so a deadline is
+      // terminal. A user abort is terminal too: a fresh fetch is already
+      // queued behind it.
       const fetchFromServers = async (q) => {
         for (let attempt = 0; attempt < 2; attempt++) {
-          try {
-            const data = await callProxyOnce(q);
-            // Got real data, or a valid empty result → done. Only a null
-            // (proxy 502 / network) is worth retrying.
-            if (data) return data;
-          } catch (err) {
-            // Two aborts reach here and they mean opposite things. A user
-            // abort (location/radius change, unmount) means a fresh fetch
-            // is already queued — bail, don't retry. Our own 15s deadline
-            // is just a slow attempt, and deserves the retry below. The
-            // outer signal is the only reliable way to tell them apart:
-            // `err.name` is 'AbortError' for both on WebViews that ignore
-            // abort(reason).
-            if (signal.aborted) return null;
-            console.warn('overpass-proxy fetch failed:', err?.message);
-          }
+          const out = await callProxyOnce(q);
+          // Real data, or a valid empty result, both count as an answer.
+          if (out.data) return out.data;
+          if (out.failed !== 'transport') return null;
           if (signal.aborted) return null;
           if (attempt === 0) await new Promise((r) => setTimeout(r, 700));
         }
