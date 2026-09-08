@@ -349,11 +349,18 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
         note:   issueText.trim(),
       });
       if (statusErr) throw statusErr;
-      await dal.run('route.addStopDocumentation', {
+      // Check this envelope too. It was the one call in this function that
+      // didn't, so a failed documentation write still produced the success
+      // toast below: the user was told the issue was documented and that the
+      // manager would see it, while nothing had been recorded. The status
+      // update above has already landed at this point, so surfacing the error
+      // leaves an honest partial state rather than a false success.
+      const { error: docErr } = await dal.run('route.addStopDocumentation', {
         stopId:  stop.id,
         kind:    'issue',
         payload: { text: issueText.trim() },
       });
+      if (docErr) throw docErr;
       toast.success('התקלה תועדה. המנהל יראה את הדיווח ביומן הפעילות.');
       setIssueText('');
       setIssueOpen(false);

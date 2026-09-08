@@ -324,7 +324,13 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     if (trimmed === post.body) { setEditing(false); return; }
     setSavingEdit(true);
     try {
-      await dal.run('community.postUpdateBody', { id: post.id, body: trimmed });
+      // postUpdateBody returns an envelope, so a server-side failure RESOLVES
+      // with { error } instead of throwing — the catch below could never fire
+      // for it. Without this check the editor closed on a failed save and the
+      // user was told nothing, so their edit was silently lost and reverted on
+      // the next refetch.
+      const { error } = await dal.run('community.postUpdateBody', { id: post.id, body: trimmed });
+      if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ['community_posts', post.domain] });
       setEditing(false);
     } catch (err) {
