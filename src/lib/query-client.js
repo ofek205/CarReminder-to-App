@@ -1,5 +1,7 @@
 import { QueryClient, QueryCache, MutationCache, onlineManager } from '@tanstack/react-query';
 import { reportError, reportUserError } from './crashReporter';
+import { initNativeConnectivity } from './nativeConnectivity';
+import { isOfflineError } from './dal/errors';
 
 // Seed connectivity from the browser BEFORE any query runs.
 //
@@ -17,6 +19,10 @@ import { reportError, reportUserError } from './crashReporter';
 if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean') {
 	onlineManager.setOnline(navigator.onLine);
 }
+
+// On native, replace that browser-level guess with the OS-level signal. No-op
+// on web, and fully guarded so a missing plugin cannot affect boot.
+initNativeConnectivity();
 
 export const queryClientInstance = new QueryClient({
 	queryCache: new QueryCache({
@@ -36,6 +42,15 @@ export const queryClientInstance = new QueryClient({
 	}),
 	mutationCache: new MutationCache({
 		onError: (error, variables, _context, mutation) => {
+			// A write refused because the device is offline is EXPECTED
+			// behaviour, not an incident. reportUserError forces
+			// visible:true, so recording every offline refusal here would
+			// write a user-visible row to app_errors per attempt and feed
+			// the user_visible_error_spike alert — the same false-positive
+			// class the queryCache comment above describes. The user
+			// already has the offline banner and a toast; observability
+			// gains nothing from logging "no internet" as an app error.
+			if (isOfflineError(error)) return;
 			// Mutations that fail are generally user-visible (the user
 			// clicked save/delete and it didn't work), so keep visible.
 			reportUserError('mutation_failed', error, {

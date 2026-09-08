@@ -24,6 +24,7 @@
 import { toast } from 'sonner';
 import { reportVisibleError } from './crashReporter';
 import { crumb } from './breadcrumbs';
+import { isOfflineError } from './dal/errors';
 
 /**
  * Show a user-visible error toast AND log it to app_errors.
@@ -48,6 +49,14 @@ export function toastError(message, opts = {}) {
 
   // Drop a breadcrumb so the next error includes "user saw error toast: X".
   try { crumb.toast(`error: ${message}`, action ? { action } : undefined); } catch {}
+
+  // An offline refusal is expected behaviour, not an incident: the user keeps
+  // the toast and the breadcrumb above, but it does NOT become a user-visible
+  // row in app_errors. Since the offline write guard landed (see
+  // src/lib/dal/run.js), every refused write offline produces one of these, so
+  // logging them would bury real errors and trigger the
+  // user_visible_error_spike alert for a user who is simply in a tunnel.
+  if (isOfflineError(err)) return;
 
   // Log to app_errors. If we got a real Error object, prefer its stack —
   // otherwise the message-only entry still captures the human-visible text.
