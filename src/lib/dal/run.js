@@ -14,6 +14,7 @@
  */
 import { onlineManager } from '@tanstack/react-query';
 import { getCommand } from './registry';
+import { canQueue, queueWrite } from './queueWrite';
 import {
   OfflineError,
   OFFLINE_QUEUEABLE_MESSAGE,
@@ -36,6 +37,25 @@ export async function runCommand(name, payload) {
   // rather than navigator.onLine directly is what keeps this guard, the paused
   // reads, and the offline banner from ever disagreeing.
   if (!onlineManager.isOnline()) {
+    // Phase 3: if this write can be queued, queue it instead of refusing.
+    //
+    // Only a narrow, deliberate set qualifies today — see OUTBOX_COMMANDS in
+    // ./queueWrite.js for why, which comes down to the two open DB
+    // prerequisites (no `updated_at` means no conflict detection, so queueing
+    // an UPDATE to a server row could silently clobber newer data). Everything
+    // else still takes the Phase 2 refusal below, unchanged.
+    if (canQueue(name, payload)) {
+      const { queued, result } = await queueWrite(name, payload);
+      if (queued) {
+        // The call site gets the shape it already handles, so a queued write
+        // looks like the success it is: the row is durably saved, just not on
+        // the server yet.
+        return cmd.returnsEnvelope ? { data: result, error: null } : result;
+      }
+      // Could not queue (no session, IndexedDB unavailable). Fall through and
+      // refuse honestly rather than claim it was saved.
+    }
+
     const queueable = !!cmd.offlineCapable;
     const err = new OfflineError(
       queueable ? OFFLINE_QUEUEABLE_MESSAGE : OFFLINE_REQUIRED_MESSAGE,

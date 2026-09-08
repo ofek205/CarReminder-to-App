@@ -16,9 +16,13 @@
 import { defineCommand } from '../registry';
 import { db } from '@/lib/supabaseEntities';
 
+// `invalidates` is consumed by the outbox drain (dal/sync.js) after a queued
+// create finally reaches the server: refetching is what replaces the optimistic
+// row's `local_` id with the real one the server assigned.
 defineCommand('corkNote.create', {
   offlineCapable: true,
   table: 'cork_notes',
+  invalidates: () => [['cork-notes']],
   run: (payload) => db.cork_notes.create(payload),
 });
 
@@ -37,6 +41,7 @@ defineCommand('corkNote.delete', {
 defineCommand('task.create', {
   offlineCapable: true,
   table: 'cork_notes',
+  invalidates: () => [['tasks-v2']],
   run: (payload) => db.cork_notes.create(payload),
 });
 

@@ -2,6 +2,7 @@ import { QueryClient, QueryCache, MutationCache, onlineManager } from '@tanstack
 import { reportError, reportUserError } from './crashReporter';
 import { initNativeConnectivity } from './nativeConnectivity';
 import { isOfflineError } from './dal/errors';
+import { startOutboxSync } from './dal/sync';
 
 // Seed connectivity from the browser BEFORE any query runs.
 //
@@ -23,6 +24,12 @@ if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean') {
 // On native, replace that browser-level guess with the OS-level signal. No-op
 // on web, and fully guarded so a missing plugin cannot affect boot.
 initNativeConnectivity();
+
+// Drain the offline write queue whenever connectivity returns. Started here
+// because this module already owns connectivity setup and runs once before the
+// tree mounts. It only subscribes — the identity is resolved at drain time, so
+// starting before auth exists is fine.
+startOutboxSync();
 
 export const queryClientInstance = new QueryClient({
 	queryCache: new QueryCache({

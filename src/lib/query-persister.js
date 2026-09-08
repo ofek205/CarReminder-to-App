@@ -292,4 +292,21 @@ export async function clearPersistedCache() {
     queryClientInstance.clear();
   } catch { /* best effort — the disk wipe below still runs */ }
   try { await race(del(IDB_KEY), undefined); } catch { /* best effort */ }
+  // The outbox is customer data at rest too (spec §6), so it is wiped at the
+  // same boundaries. It lives HERE rather than at the five call sites for the
+  // same reason the memory-then-disk order does: a future call site cannot
+  // forget half of it.
+  //
+  // 🛑 This DISCARDS unsynced writes, which is the §10.1 decision ("warn +
+  // discard"). The warning does not exist yet — it is UI, and Phase 6 owns it.
+  // Two things keep that from being a silent data-loss path today: the queue
+  // drains automatically the moment connectivity returns, so it is normally
+  // empty, and the caller in GuestContext deliberately skips this whole
+  // function for a null-session INITIAL_SESSION, so an offline token expiry
+  // does NOT wipe queued work. Before any further command is added to
+  // OUTBOX_COMMANDS, the warning is a prerequisite.
+  try {
+    const { clearOutbox } = await import('./dal/outbox');
+    await clearOutbox();
+  } catch { /* best effort */ }
 }
