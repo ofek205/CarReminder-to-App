@@ -119,7 +119,10 @@ function hasActiveSession() {
   }
 }
 
-function stripSignedUrls(value) {
+// Exported for query-persister.test.js. This walk is the only thing standing
+// between a forbidden field and the disk, so it is pinned by tests rather than
+// left to a manual in-browser check.
+export function stripSignedUrls(value) {
   if (Array.isArray(value)) return value.map(stripSignedUrls);
   if (!value || typeof value !== 'object') return value;
   // Date/Map/etc. would be mangled by a naive rebuild; Supabase rows are plain

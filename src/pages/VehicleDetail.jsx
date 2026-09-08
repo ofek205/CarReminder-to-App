@@ -722,9 +722,9 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         toast.success('הרכב נמחק');
       } else if (isSharedWithMe) {
         // Sharee leaves the share — vehicle stays with the owner.
-        const { error } = await supabase.rpc('delete_vehicle_with_share_choice', {
-          p_vehicle_id: vehicleId,
-          p_mode: 'self_leave',
+        const { error } = await dal.run('vehicle.deleteWithShareChoice', {
+          vehicleId,
+          mode: 'self_leave',
         });
         if (error) throw error;
         toast.success('הוסרת מהשיתוף');

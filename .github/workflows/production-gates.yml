@@ -52,6 +52,27 @@ jobs:
       # pushes to the `staging` branch, never on PRs into `main`.
       - run: npm run lint
 
+  tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      # Pins invariants that a build and a lint run cannot see:
+      #   - which fields may reach the offline cache on disk (role, signed URLs,
+      #     third-party PII) — a privacy rule that a new column silently breaks
+      #   - the DAL's envelope-vs-throw contract, which is what let the offline
+      #     write guard land without editing ~200 call sites
+      #   - every dal.run('name') resolving to a registered command, since the
+      #     name is a string and no type or lint check can catch a typo
+      #   - no screen writing to supabase directly, the seam's one invariant
+      # Needs no secrets: everything here is pure logic or a source scan.
+      - run: npm test
+
   query-timeouts:
     name: Query timeout gate
     runs-on: ubuntu-latest

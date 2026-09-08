@@ -124,7 +124,7 @@ git push origin staging
 
 > **חובה לעבור דרך PR.** `production-gates.yml` מופעל **אך ורק** על `pull_request` שמכוון ל-main. הנוסח הישן של השער הזה הורה `git push origin main` ישירות — כלומר ארבעת ה-jobs (build, lint, query-timeout, view-as identity) **לא רצו על אף שחרור אמיתי**. שתים-עשרה הריצות הירוקות בהיסטוריה הגיעו מ-PR-ים שנפתחו בנפרד ובמקרה. merge ישיר עוקף את כל האכיפה האוטומטית שיש לפרויקט.
 
-3. אחרי שכל ארבעת ה-jobs ירוקים — merge דרך ה-UI של GitHub (Create a merge commit, לא squash).
+3. אחרי שכל ה-jobs ירוקים — merge דרך ה-UI של GitHub (Create a merge commit, לא squash).
 4. tag על ה-merge commit:
 ```
 git checkout main && git pull
@@ -182,7 +182,7 @@ git checkout staging && git merge main && git push origin staging
 | שכבה | מתי | מה |
 |---|---|---|
 | `.githooks/pre-commit` | כל commit מקומי | קבצי סוד (`.env`/`.pem`/`.key`), סמני קונפליקט, מפתחות מקודדים (`sk-`/`AKIA`/`ghp_`), eslint על הקבצים בסטייג' |
-| `.githooks/pre-push` | כל push מקומי | **חמש** בדיקות: אזהרת main, `npm run lint`, `npm run build`, שער query-timeout, שער זהות view-as |
+| `.githooks/pre-push` | כל push מקומי | **שש** בדיקות: אזהרת main, `npm run lint`, `npm test`, `npm run build`, שער query-timeout, שער זהות view-as |
 | `.claude/hooks/commit-gate.cjs` | commit/push של קלוד | דורש אסימון APPROVED טרי מ-commit-gatekeeper |
 | `production-gates.yml` | **PR ל-main בלבד** | **ארבעה** jobs: build, lint, query-timeout, view-as identity |
 
@@ -192,7 +192,7 @@ git checkout staging && git merge main && git push origin staging
 
 > **שתי נקודות שהמסמך הזה תיאר בחסר עד 2026-09-01:** הוא כלל לא הזכיר שקיים `pre-commit` hook, ומנה שלוש בדיקות ב-pre-push ושלושה jobs ב-CI במקום חמש וארבעה. שער זהות ה-view-as (`scripts/check-view-as-identity.cjs`) קיים בשניהם ולא הוזכר באף אחד.
 
-> **ואזהרה שעדיין בתוקף:** הגנת הענף על `main` ב-GitHub **כבויה** (ה-ruleset קיים במצב `enforcement: disabled`). כלומר ארבעת ה-jobs של `production-gates.yml` הם כרגע מייעצים ולא חוסמים merge. יש להפעיל אותה.
+> **ואזהרה שעדיין בתוקף:** הגנת הענף על `main` ב-GitHub **כבויה** (ה-ruleset קיים במצב `enforcement: disabled`). כלומר ה-jobs של `production-gates.yml` הם כרגע מייעצים ולא חוסמים merge. יש להפעיל אותה.
 
 אם בעתיד יחזרו שגיאות lint — לתקן לפני push, לא לעקוף. `--no-verify` נשאר זמין כ-escape hatch לחירום מקומי בלבד, ולעולם לא בעלייה לפרודקשן.
 
@@ -214,13 +214,14 @@ no-undef נמחק שקטית מההגדרה.
 
 ## אכיפה אוטומטית — GitHub Actions
 
-ראה `.github/workflows/production-gates.yml`. ה-workflow רץ אוטומטית על כל PR שמטרתו `main` — **ורק על PR**, אין לו טריגר `push`. הוא אוכף ארבעה jobs:
+ראה `.github/workflows/production-gates.yml`. ה-workflow רץ אוטומטית על כל PR שמטרתו `main` — **ורק על PR**, אין לו טריגר `push`. הוא אוכף **חמישה** jobs:
 - Build pass (עם `VITE_SUPABASE_*` אמיתיים מוזרקים)
 - Lint pass (כל הפרויקט)
+- **Unit tests** — `npm test` (vitest). נוסף 2026-09-08. מקבע אינווריאנטים ש-build ו-lint לא רואים: אילו שדות מותר שיגיעו ל-cache האופליין על הדיסק (`role`, URL חתום, PII של צד שלישי), חוזה ה-envelope-מול-throw של ה-DAL, שכל `dal.run('name')` נפתר לפקודה רשומה (השם הוא מחרוזת, אז אין type או lint שיתפוס שגיאת כתיב), ושאף מסך לא כותב ל-supabase ישירות. לא דורש secrets.
 - **Query Timeout Gate** (ראה למטה)
 - **View-As Identity Gate** — `scripts/check-view-as-identity.cjs`, מוודא שקריאות `admin_*` לא רצות על מישור ההתחזות
 
-חוסם merge ב-GitHub UI **רק כשהגנת הענף מופעלת** — נכון ל-2026-09-01 היא כבויה, ולכן ארבעת ה-jobs מייעצים בלבד.
+חוסם merge ב-GitHub UI **רק כשהגנת הענף מופעלת** — נכון ל-2026-09-01 היא כבויה, ולכן ה-jobs מייעצים בלבד.
 
 השערים הקוגניטיביים (3, 4, 5, 6) **לא** ניתנים לאוטומציה ב-Actions — הם דורשים סקילים של Claude. הם חייבים לרוץ בסשן Claude לפני יצירת ה-PR.
 

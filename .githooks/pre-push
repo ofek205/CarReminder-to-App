@@ -72,7 +72,15 @@ if [ "$HAVE_NPM" = 1 ]; then
     npm run -s lint || fail "Lint step failed. If the output above shows a missing shell or command, that is an environment problem, not your code -- read it before running: npm run lint:fix"
     ok "eslint passed"
   fi
-  # 3. Production build must succeed
+  # 3. Unit tests. Run BEFORE the build: the suite takes well under a second
+  # and pins invariants the build cannot see (what may reach the offline cache,
+  # the seam's envelope-vs-throw contract, every dal.run name resolving), so
+  # failing here saves waiting ~30s for a build that was never the problem.
+  if [ -x node_modules/.bin/vitest ]; then
+    npm run -s test || fail "Unit tests failed. These pin offline-cache privacy and the DAL contract - read the failure before pushing."
+    ok "unit tests passed"
+  fi
+  # 4. Production build must succeed
   if [ -x node_modules/.bin/vite ]; then
     npm run -s build || fail "Production build failed."
     ok "build passed"
