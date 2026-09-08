@@ -108,8 +108,16 @@ jobs:
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
             echo "ERROR: ANDROID_KEYSTORE_BASE64 secret is empty."; exit 1
           fi
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload-keystore.jks"
-          echo "Keystore written ($(stat -c%s "$RUNNER_TEMP/upload-keystore.jks") bytes)"
+          # Strip any CR/LF/spaces (secrets pasted from Windows-generated base64
+          # carry CRLF, which GNU `base64 -d` rejects as "invalid input"), then
+          # ignore any residual non-alphabet chars.
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 -d --ignore-garbage > "$RUNNER_TEMP/upload-keystore.jks" || {
+            echo "ERROR: ANDROID_KEYSTORE_BASE64 is not valid base64. Re-create the secret with no line wrapping, e.g.:  base64 -w0 your-keystore.jks   (Linux) or  [Convert]::ToBase64String([IO.File]::ReadAllBytes('your-keystore.jks'))  (PowerShell)."; exit 1; }
+          SZ=$(stat -c%s "$RUNNER_TEMP/upload-keystore.jks")
+          echo "Keystore decoded: $SZ bytes"
+          if [ "$SZ" -lt 1000 ]; then
+            echo "ERROR: decoded keystore is only $SZ bytes — the secret content looks wrong (a real .jks is several KB)."; exit 1
+          fi
 
       - name: Build signed release AAB
         working-directory: android
