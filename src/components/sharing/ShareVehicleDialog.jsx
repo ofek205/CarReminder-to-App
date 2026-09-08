@@ -62,14 +62,42 @@ const VEHICLE_ROLES = [
 // Errors raised by share_vehicle_with_email — translate to Hebrew so we
 // don't dump raw codes in the UI. Anything not on the list falls back
 // to a generic message; we still surface the raw error in DEV console.
+// ⚠️ FOUR OF THESE KEYS DID NOT MATCH THE DEPLOYED FUNCTION.
+//
+// Verified against the live pg_get_functiondef on 2026-09-08. The installed
+// share_vehicle_with_email raises `max_shares_per_vehicle`,
+// `cannot_share_with_self`, `forbidden_not_owner` and `unauthenticated`,
+// while this map only had `vehicle_share_cap_exceeded`,
+// `not_vehicle_owner` and `not_authenticated`, and nothing at all for
+// self-share. Since the lookup key is scraped out of error.message, every
+// one of those fell through to the generic branch and printed the RAW CODE
+// at the user: "שגיאה בשיתוף: max_shares_per_vehicle".
+//
+// That is the most likely error in this dialog, not an edge case: it is what
+// a user sees the moment a vehicle already has three recipients. The whole
+// stated purpose of this map is "so we don't dump raw codes in the UI".
+//
+// The older keys are kept as aliases rather than deleted. They cost nothing,
+// and the repo contains four competing CREATE OR REPLACE bodies for this
+// RPC, so another environment may still be running one of them.
 const VEHICLE_ERROR_COPY = {
-  not_authenticated:    'צריך להתחבר כדי לשתף רכב',
-  not_vehicle_owner:    'רק בעלי הרכב יכולים לשתף אותו',
-  vehicle_not_found:    'הרכב לא נמצא',
-  share_already_exists: 'הרכב כבר משותף עם המייל הזה',
-  vehicle_share_cap_exceeded: 'הרכב כבר משותף עם 3 משתמשים — המקסימום. כדי להוסיף חדש, צריך לבטל אחד קיים.',
-  invalid_email:        'כתובת מייל לא תקינה',
-  invalid_role:         'הרשאה לא תקינה',
+  // Codes the DEPLOYED function actually raises.
+  unauthenticated:       'צריך להתחבר כדי לשתף רכב',
+  forbidden_not_owner:   'רק בעלי הרכב יכולים לשתף אותו',
+  vehicle_not_found:     'הרכב לא נמצא',
+  max_shares_per_vehicle: 'הרכב כבר משותף עם 3 משתמשים, שזה המקסימום. כדי להוסיף עוד, צריך לבטל שיתוף קיים.',
+  cannot_share_with_self: 'זו כתובת המייל שלך. אפשר לשתף רק עם מישהו אחר.',
+  invalid_email:         'כתובת מייל לא תקינה',
+  invalid_role:          'הרשאה לא תקינה',
+
+  // Aliases from earlier versions of the RPC.
+  not_authenticated:     'צריך להתחבר כדי לשתף רכב',
+  not_vehicle_owner:     'רק בעלי הרכב יכולים לשתף אותו',
+  vehicle_share_cap_exceeded: 'הרכב כבר משותף עם 3 משתמשים, שזה המקסימום. כדי להוסיף עוד, צריך לבטל שיתוף קיים.',
+  // Dead against the deployed version, which REUSES a live pending row for
+  // the same (vehicle, email) instead of refusing, so a re-invite just
+  // refreshes the token. Kept for the older bodies.
+  share_already_exists:  'הרכב כבר משותף עם המייל הזה',
 };
 
 export default function ShareVehicleDialog({ open, onOpenChange, vehicle }) {
