@@ -283,9 +283,9 @@ function RequestForm({ mode, latestRequest, onRequested }) {
       // ── At-cap → immediate creation (auto-approved). ──────────────────────
       if (atCap) {
         meta.origin = 'cap_upgrade';
-        const { data: newId, error } = await supabase.rpc('create_business_workspace_from_cap', {
-          p_name:          cleanName,
-          p_business_meta: meta,
+        const { data: newId, error } = await dal.run('cap.createBusinessWorkspace', {
+          name:         cleanName,
+          businessMeta: meta,
         });
         if (error) throw error;
         // Enter the new business account right away, then fire the pre-attached

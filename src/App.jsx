@@ -15,6 +15,8 @@ import RootGate from './components/shared/RootGate';
 import PageErrorBoundary from '@/components/shared/PageErrorBoundary';
 import ReportBugDialog from '@/components/shared/ReportBugDialog';
 import { C } from '@/lib/designTokens';
+import { useIsRestoring } from '@tanstack/react-query';
+import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -89,6 +91,37 @@ const SuspenseFallback = () => {
       </div>
     </div>
   );
+};
+
+/**
+ * Hold page content until the persisted cache has finished restoring.
+ *
+ * The bug this fixes: while PersistQueryClientProvider restores, React Query
+ * holds every query in `pending` with `fetchStatus: 'idle'`, so `isLoading` is
+ * FALSE and `data` is undefined. Screens that gate their skeleton on isLoading
+ * therefore fall straight through to their empty state, and a user who opens
+ * the app offline is told "אין רכבים" / "אין מסמכים" — which reads as "the app
+ * lost my data" at the exact moment the offline cache is about to prove
+ * otherwise. It affects 14+ screens.
+ *
+ * Gating here fixes all of them in one place instead of auditing every screen's
+ * loading condition. The cost is showing the house spinner for the length of a
+ * single IndexedDB read (raced to 2.5s in query-persister.js) instead of a
+ * wrong empty state, so there is no real trade to make.
+ *
+ * Two deliberate scoping decisions:
+ *   - It wraps ONLY the routed pages, never `/`. That route renders RootGate,
+ *     whose whole purpose is a synchronous redirect decision that avoids the
+ *     login-screen flash on cold launch (see the comment on the `/` route);
+ *     delaying it would reintroduce that bug.
+ *   - It renders LoadingSpinner, NOT SuspenseFallback. The Suspense fallback
+ *     hard-reloads the WebView after 8s to escape WKWebView's stuck
+ *     module-loader, which is the right recovery for a missing chunk and quite
+ *     wrong for a cache read — a slow restore must never trigger a reload.
+ */
+const RestoreGate = ({ children }) => {
+  const isRestoring = useIsRestoring();
+  return isRestoring ? <LoadingSpinner /> : children;
 };
 
 const LayoutWrapper = ({ children, currentPageName }) => {
@@ -286,7 +319,9 @@ function App() {
                             hidden link is not a guard — /AdminHome was fully
                             reachable by URL mid-session. */}
                         <ViewAsRouteGuard routeName={path}>
-                          <Page />
+                          <RestoreGate>
+                            <Page />
+                          </RestoreGate>
                         </ViewAsRouteGuard>
                       </PageErrorBoundary>
                     </LayoutWrapper>

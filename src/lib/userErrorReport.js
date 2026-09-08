@@ -40,15 +40,26 @@ import { isOfflineError } from './dal/errors';
 export function toastError(message, opts = {}) {
   const { action, err, severity, toastOpts, context } = opts;
 
+  // An OfflineError explains the failure better than the call site's generic
+  // copy can. Call sites pass a fixed string decided long before the attempt
+  // ("שמירה נכשלה"), which offline tells the user only that something broke;
+  // the OfflineError says what broke and whether retrying later will help. Its
+  // message is written to be user-facing for exactly this reason, so prefer it.
+  //
+  // Doing it here means the ~30 call sites that branch on an envelope's `error`
+  // need no change at all, which is the whole point of routing writes through
+  // one seam: the improvement lands everywhere at once instead of as a sweep.
+  const shown = isOfflineError(err) ? err.message : message;
+
   // Show the toast — same UX as before.
   try {
-    toast.error(message, toastOpts);
+    toast.error(shown, toastOpts);
   } catch {
     // sonner not mounted (test environment, error during boot) — ignore.
   }
 
   // Drop a breadcrumb so the next error includes "user saw error toast: X".
-  try { crumb.toast(`error: ${message}`, action ? { action } : undefined); } catch {}
+  try { crumb.toast(`error: ${shown}`, action ? { action } : undefined); } catch {}
 
   // An offline refusal is expected behaviour, not an incident: the user keeps
   // the toast and the breadcrumb above, but it does NOT become a user-visible

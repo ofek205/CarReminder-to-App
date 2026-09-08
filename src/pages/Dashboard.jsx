@@ -1031,7 +1031,7 @@ export default function Dashboard() {
           // freezes it to the real count = greatest(count,10). Best-effort —
           // never let a cap RPC hiccup block a signup migration.
           const batch = storedVehicles.slice(0, 20);
-          try { await supabase.rpc('bump_personal_cap', { p_account_id: finalAccountId, p_headroom: batch.length }); } catch { /* cap sync best-effort */ }
+          try { await dal.run('cap.bumpPersonal', { accountId: finalAccountId, headroom: batch.length }); } catch { /* cap sync best-effort */ }
           for (const gv of batch) {
             await dal.run('vehicle.create', {
               account_id: finalAccountId,
@@ -1048,7 +1048,7 @@ export default function Dashboard() {
             });
           }
           clearGuestData();
-          try { await supabase.rpc('sync_personal_cap_to_count', { p_account_id: finalAccountId }); } catch { /* cap sync best-effort */ }
+          try { await dal.run('cap.syncToCount', { accountId: finalAccountId }); } catch { /* cap sync best-effort */ }
           toast.success(`${storedVehicles.length} רכבים הועברו לחשבון שלך בהצלחה!`);
         }
       } catch (err) {

@@ -14,7 +14,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 import { MEMBER_STATUS } from '@/lib/enums';
@@ -383,7 +382,7 @@ export function GuestDataProvider({ children }) {
 
       // Raise the personal cap so the whole guest batch lands even when
       // enforcement is on (P0-1); sync below freezes it to greatest(count,10).
-      try { await supabase.rpc('bump_personal_cap', { p_account_id: accountId, p_headroom: toMigrate.length }); } catch { /* cap sync best-effort */ }
+      try { await dal.run('cap.bumpPersonal', { accountId, headroom: toMigrate.length }); } catch { /* cap sync best-effort */ }
 
       let migrated = 0;
       const idMap = {}; // guest vehicle id → new server id (C4: remap dependent data)
@@ -414,7 +413,7 @@ export function GuestDataProvider({ children }) {
       }
 
       // Freeze the personal cap to the real vehicle count (greatest(count,10)).
-      try { await supabase.rpc('sync_personal_cap_to_count', { p_account_id: accountId }); } catch { /* cap sync best-effort */ }
+      try { await dal.run('cap.syncToCount', { accountId }); } catch { /* cap sync best-effort */ }
 
       if (migrated > 0) {
         localStorage.removeItem(STORAGE_KEY);
