@@ -94,6 +94,31 @@ const STRIPPED_FIELDS = [
   'other_driver_name', 'other_driver_phone', 'witnesses',
 ];
 
+/**
+ * Is anyone signed in right now?
+ *
+ * `cr_has_session` is written by GuestContext on SIGNED_IN / INITIAL_SESSION and
+ * removed on SIGNED_OUT. It is the only session signal readable SYNCHRONOUSLY on
+ * every platform: on Capacitor the Supabase token lives in native Preferences,
+ * not localStorage, so the `sb-*-auth-token` key RootGate looks for first is
+ * simply absent there.
+ *
+ * It is used here rather than the user's id because the id is not knowable
+ * synchronously on native, and this check does not need it: the question is
+ * "may anything be written to disk at all", not "whose data is this".
+ *
+ * Fails CLOSED. If localStorage throws (private mode, restrictive settings) we
+ * persist nothing, which is the safe direction — the persisted cache is
+ * documented as best-effort and disposable, so losing it costs a cold fetch.
+ */
+function hasActiveSession() {
+  try {
+    return localStorage.getItem('cr_has_session') === '1';
+  } catch {
+    return false;
+  }
+}
+
 function stripSignedUrls(value) {
   if (Array.isArray(value)) return value.map(stripSignedUrls);
   if (!value || typeof value !== 'object') return value;
@@ -144,6 +169,22 @@ export const idbPersister = createAsyncStoragePersister({
   deserialize: (cached) => {
     try {
       if (!cached) return undefined;
+      // NOTE: deliberately NOT gated on hasActiveSession().
+      //
+      // Gating the READ side looks symmetric with the write gate, and it was
+      // written and then removed on purpose. `cr_has_session` is dropped by
+      // GuestContext for ANY session-less auth event (GuestContext.jsx:323),
+      // including the null-session INITIAL_SESSION that Supabase emits when it
+      // cannot validate a stored token OFFLINE. clearPersistedCache() is
+      // deliberately skipped in that exact case, because as the comment there
+      // puts it, clearing "would destroy a user's offline data the moment their
+      // token expired while they had no connection, which is precisely when
+      // they need it". A read gate races that same event, and losing the race
+      // denies the user their cache for that very reason.
+      //
+      // It would also buy little: a signed-out viewer lands on AuthPage, which
+      // mounts no Layout and renders none of the cached account data. The write
+      // gate in shouldDehydrateQuery is what actually closes the leak.
       const parsed = JSON.parse(cached);
       // Reject a snapshot stamped in the FUTURE.
       //
@@ -184,6 +225,24 @@ export const idbPersister = createAsyncStoragePersister({
  */
 export function shouldDehydrateQuery(query) {
   if (isViewAs()) return false;
+  // Nothing reaches disk unless a session exists (D-3).
+  //
+  // This closes the tab-clobbering hole: sign out in one tab and
+  // clearPersistedCache() wipes memory and disk, but a BACKGROUND tab still
+  // holds the previous identity's rows in memory and has not yet processed
+  // SIGNED_OUT. Its next throttled write — a GC tick, a failed refetch, or a
+  // write already queued when the clear ran — put that data straight back on
+  // disk, after the user had signed out.
+  //
+  // localStorage is shared across tabs of an origin, so the moment any tab
+  // signs out every tab stops persisting. The late writer still fires, but it
+  // can now only write a snapshot with no queries in it.
+  //
+  // It also settles the Phase-1 open question of guest-mode persistence: a
+  // guest has no session, so account-scoped queries no longer reach disk in
+  // guest mode either. Little is lost, since guest data lives in localStorage
+  // via GuestDataContext.
+  if (!hasActiveSession()) return false;
   return query.state.status === 'success' && isPersistableQueryKey(query.queryKey);
 }
 
