@@ -155,6 +155,48 @@ export function buildCommunitySystemPrompt(expert, { vehicleContext = '', hasIma
 }
 
 /**
+ * Attachment guidance for the 1:1 expert chat (AiAssistant), as opposed
+ * to IMAGE_GUIDE above which serves the community forum.
+ *
+ * Why the chat needs its own block at all: it had none until
+ * 2026-09-08, and users reported "the expert doesn't read my images".
+ * The pipeline was never at fault — ai_usage_logs showed the image
+ * reaching Gemini (had_attachment=true, provider=gemini, ~3.2k prompt
+ * tokens against ~1.8k for text-only) and the reply ignored it anyway,
+ * because nothing in the chat system prompt ever mentioned that a file
+ * was attached. The model had a photo and no instruction to use it.
+ *
+ * Kept separate from IMAGE_GUIDE because the two prompts differ in
+ * what they still need to be told. The forum reply is one-shot, so
+ * IMAGE_GUIDE only has to say "describe what you see". The chat is a
+ * conversation with a vehicle context block, so this version also has
+ * to forbid answering as if nothing was attached and has to say what
+ * happens when the file is unclear.
+ *
+ * @param {boolean} [isImage] — true for a photo, false for a PDF
+ * @returns {string} a block to append to the chat system prompt
+ */
+export function buildChatAttachmentGuide(isImage = true) {
+  const what = isImage ? 'תמונה' : 'מסמך';
+  const openLine = isImage
+    ? 'פתח בתיאור מה שאתה רואה בפועל ("אני רואה שנדלקה נורית...", "בצילום מופיע דוח עם...").'
+    : 'פתח במה שזיהית במסמך: איזה סוג מסמך זה ומה הפרטים המרכזיים בו.';
+  const softEdge = isImage
+    ? 'אם התמונה לא חדה או חלקית, אמור מה כן זיהית ותן את האבחנה הסבירה על בסיס זה. אל תבקש תמונה אחרת כתנאי לתשובה.'
+    : 'אם המסמך חלקי או לא קריא, אמור מה כן הצלחת לקרוא ותן מענה על בסיס זה.';
+
+  return `
+
+== צורפה ${what} ==
+ה${what} היא מושא השאלה, לא תוספת. סדר התשובה:
+1. ${openLine}
+2. תן את האבחנה או המענה מיד, כולל דחיפות והצעד הבא.
+3. רק אחרי שנתת מענה, ואם באמת חסר נתון קריטי, שאל שאלה אחת ממוקדת.
+${softEdge}
+אל תתעלם מה${what} בתשובה, ואל תענה כאילו לא צורף דבר.`;
+}
+
+/**
  * Soft, value-framed invitation to continue in the private 1:1 chat —
  * shown after a community thread has gone a few turns. NOT a "you hit a
  * limit" wall: the community gave real value, this is "want ongoing

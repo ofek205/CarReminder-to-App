@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '../components/shared/GuestContext';
-import { aiRequest } from '@/lib/aiProxy';
+import { aiRequest, VISION_IMAGE_MIME } from '@/lib/aiProxy';
 import { hapticFeedback } from '@/lib/capacitor';
 import { C, getVehicleVisual, getVehicleCategory } from '@/lib/designTokens';
 import VehicleIcon from '../components/shared/VehicleIcon';
 import VehicleImage, { hasVehiclePhoto } from '../components/shared/VehicleImage';
 import { isVessel, getDateStatus, getVehicleLabels } from '../components/shared/DateStatusUtils';
-import { getAiExpert } from '@/lib/aiExpert';
+import { getAiExpert, buildChatAttachmentGuide } from '@/lib/aiExpert';
 import { Send, Wrench, Loader2, Sparkles, Trash2, AlertTriangle, Check, ChevronDown, X, Copy, RotateCcw, Info, Paperclip, FileText, Camera } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -448,6 +448,16 @@ export default function AiAssistant() {
       toast.error('ניתן לצרף רק תמונות או קבצי PDF.');
       return;
     }
+    // `image/*` is broader than what the vision providers read. An
+    // iPhone library photo is often image/heic, which Gemini rejects
+    // with a 400 — and because hasImages is true server-side, the auto
+    // ladder skips the text-only Groq fallback, so the user got a bare
+    // "שירות ה-AI לא זמין" that blamed the service instead of the file.
+    // Catch it here where we can name the actual problem.
+    if (isImage && !VISION_IMAGE_MIME.test(file.type)) {
+      toast.error('הפורמט הזה לא נתמך. שמור את התמונה כ-JPG או PNG ונסה שוב.');
+      return;
+    }
     if (file.size === 0) {
       toast.error('הקובץ ריק.');
       return;
@@ -572,7 +582,6 @@ export default function AiAssistant() {
 - "האם הרכב ביצע לאחרונה טיפול?"`;
 
       const itemWord     = isVesselExpert ? 'כלי השייט' : 'הרכב';
-      const itemWordRef  = isVesselExpert ? 'כלי השייט שצוין למטה' : 'הרכב שצוין למטה';
       const usageMetric  = isVesselExpert ? 'שעות המנוע' : 'הקילומטראז';
       const fallbackPlace = isVesselExpert
         ? 'מומלץ לבדוק עם טכנאי כלי שייט מוסמך / מספנה'
@@ -580,61 +589,100 @@ export default function AiAssistant() {
       const finalDisclaimer = isVesselExpert
         ? 'התשובה לצורך התרשמות בלבד - מומלץ להתייעץ עם טכנאי כלי שייט / מספנה מוסמכת'
         : 'התשובה לצורך התרשמות בלבד - מומלץ להתייעץ עם מוסך מוסמך';
-      const workStyleLabel = isVesselExpert
-        ? 'אופן עבודה, כמו טכנאי כלי שייט מנוסה'
-        : 'אופן עבודה, כמו מוסכניק אמיתי';
+      // Answer-shaped, not question-shaped. This used to read
+      // "כשאתה שואל לקוח שנכנס למוסך", which was coherent only while
+      // the prompt opened by interrogating the user. Now that the
+      // prompt answers first, a tone anchored on asking pulled against
+      // it — so the scene is a professional explaining a finding.
       const workStyleScene = isVesselExpert
-        ? 'כשהבעלים מתאר תקלה במספנה'
-        : 'כשאתה שואל לקוח שנכנס למוסך';
+        ? 'טכנאי שמסביר לבעלים במספנה מה מצא'
+        : 'מוסכניק שמסביר ללקוח מה מצא';
 
-      // System prompt structure (Wave 4 #5):
-      //   1. Identity + domain expertise.
-      //   2. Two response modes — diagnostic flow vs general info.
-      //   3. Explicit data-utilization rules so the model actually
-      //      uses the vehicle row and maintenance history attached
-      //      below instead of giving generic answers.
-      //   4. Output template — diagnosis / cause / urgency / cost /
-      //      next step. Helps the model give consistently structured
-      //      replies the user can scan.
-      //   5. Confidence calibration — explicit "say if you're not
-      //      sure" rule so the model stops inventing facts.
-      //   6. Style rules — Hebrew only, warm-professional tone.
+      // System prompt structure. Rewritten 2026-09-08 after the reply
+      // quality complaint ("חופר הרבה מסביב והתשובה לא ממוקדת").
+      //
+      // Three things were wrong, and none of them was missing data —
+      // buildVehicleContext() below already ships specs, mileage/hours,
+      // licensing status and the last 8 service records with dates,
+      // km and cost:
+      //
+      //   1. NO LENGTH CAP on the diagnostic mode. Mode ב capped
+      //      itself at 3-6 lines; mode א capped only the *questions*
+      //      it was allowed to ask, so a 5-section template with an
+      //      open-ended envelope sprawled. Both modes are capped now.
+      //   2. QUESTIONS BEFORE ANSWERS. "אל תענה מיד. שאל 2-4 שאלות"
+      //      made every symptom start an interrogation, which is what
+      //      reads as digging around — and it is the same rule that
+      //      made an attached photo produce questions about the photo
+      //      (see buildChatAttachmentGuide). Inverted: answer with
+      //      what is known, cover the branches inline the way
+      //      FORUM_CORE already does, and allow at most one question
+      //      at the end.
+      //   3. DATA USE WAS OPTIONAL IN PRACTICE. "חובה להזכיר לפחות
+      //      אחד מהם" is satisfiable by naming the manufacturer once.
+      //      Model+year and the usage metric are now separately
+      //      mandatory, and service history has to be used as
+      //      evidence rather than merely not-contradicted.
+      //
+      // Also fixed: the old text mixed masculine and feminine
+      // imperatives (שאל/תן next to צייני/תני/אמרי) although both
+      // personas, ברוך and יוסי, are male. Mixed grammatical gender in
+      // the instructions leaks into the model's own Hebrew.
       const systemPrompt = `אתה ${expert.fullName}, ${expert.role}. ${expertise}.
 
-## שני מצבי תשובה:
+## חוק ראשון: ענה על מה שנשאל
+זהה את השאלה המדויקת וענה עליה בלבד. אל תרחיב לנושאים שלא נשאלו, אל תוסיף המלצות על דברים שלא קשורים לשאלה, ואל תחזור על מה שהמשתמש כתב.
 
-### א. שאלת אבחון (בעיה, תסמין, תקלה, רעש, נורית, דלף, ריח, רעידה)
-אל תענה מיד. שאל **2-4 שאלות ממוקדות** שמכוונות לאבחון בפועל, כמו ${workStyleScene}.
+## אורך התשובה
+- שאלה כללית: 3-6 שורות.
+- אבחון מלא: עד 10 שורות, כולל הכל.
+- אל תעבור את התקרה. אם נשאר עוד מה להגיד, סיים בשורה אחת שמציעה להעמיק.
+
+## מצב א: תקלה או תסמין (רעש, נורית, דלף, ריח, רעידה, התנהגות חריגה)
+ענה מיד. אל תפתח בשאלות.
+1. **מה זה כנראה** — הסיבה בשם המקצועי (לא "תקלה במנוע" אלא "סבירות גבוהה למסנן דלק סתום"), עם רמת ביטחון: גבוהה / בינונית / צריך בדיקה.
+2. **למה דווקא זה** — שורה אחת שמקשרת לנתון קונקרטי מהנתונים למטה: הדגם והשנה, ${usageMetric}, או טיפול מההיסטוריה.
+3. **דחיפות** — בטיחותי ומיידי / לטפל בשבועיים / יכול לחכות.
+4. **עלות בישראל** — טווח ₪ ריאלי, חלפים ועבודה בנפרד כשידוע.
+5. **הצעד הבא** — משפט אחד.
+
+אם התסמין יכול לנבוע מכמה דברים, כסה אותם בשורה אחת ("אם זה רק בבלימה, כנראה רפידות; אם גם בנסיעה, מסבים") במקום לשאול. שאלה מותרת רק בסוף, אחת בלבד, ורק אם בלעדיה באמת אי אפשר להתקדם.
 
 ${isVesselExpert ? vesselExamples : carExamples}
 
-אחרי שקיבלת תשובות, תן אבחון בפורמט:
-1. **תסמינים תואמים** — שורה אחת. מה זיהית מהמידע.
-2. **סיבה סבירה** — שורה-שתיים. הסיבה הטכנית בשם המקצועי (לא רק "תקלה במנוע", אלא "סבירות גבוהה לבעיה במסנן דלק") + ציון רמת הביטחון (גבוהה / בינונית / נדרשת בדיקה).
-3. **דחיפות** — דחוף בטיחותית / לטפל בשבועיים / לא דחוף.
-4. **הערכת עלות** — טווח שקלים ישראלי ריאלי, אם רלוונטי (חלפים + עבודה בנפרד כשהמידע ידוע).
-5. **הצעד הבא** — מה לעשות כעת. בדיקה? נסיעה למוסך? להמתין?
+## מצב ב: שאלה כללית (מחיר, תדירות, "מתי להחליף X")
+ענה ישירות, בלי שאלות הכנה.
 
-### ב. שאלה כללית/אינפורמטיבית (מחיר, תדירות, "מתי להחליף X")
-ענה ישירות, ללא שאלות הכנה, 3-6 שורות.
+## שימוש בנתונים — חובה
+${selectedVehicle ? `הנתונים המלאים של ${itemWord} מופיעים למטה. בכל תשובה אבחונית:
+- **חובה** לנקוב בדגם ובשנה, ולקשר אותם לתשובה: תקלות ידועות לדגם הזה בשנים האלה.
+- **חובה** להתייחס לנתון השימוש (${usageMetric}) כשהוא קיים: מה הוא אומר על התסמין ומה מתבקש בטווח הזה.
+- **אסור** להמליץ על טיפול שמופיע בהיסטוריה מ-6 החודשים האחרונים. השתמש בו כראיה במקום ("השמן הוחלף לפני 3 חודשים, אז הרעש הזה לא משמן").
+- אם ההיסטוריה ריקה, אמור זאת פעם אחת בקצרה ואל תחזור לזה.
+- גיל מעל 10 שנים או שימוש גבוה: התייחס לעלות ביחס לשווי.
+אל תמציא נתון שלא מופיע למטה. אם נתון חסר, אל תניח מספר במקומו.` : `לא נבחר כלי תחבורה לשיחה. ענה תשובה כללית ואל תמציא דגם, שנה או נתוני שימוש. אם הדגם קריטי לתשובה, אמור מה משתנה לפיו ובקש אותו בשורה אחת.`}
 
-## שימוש בנתונים — חובה:
-${selectedVehicle ? `- ל${itemWord} שצורף יש נתונים מלאים למטה (יצרן, דגם, שנה, ${usageMetric}, היסטוריית טיפולים). **חובה** להזכיר לפחות אחד מהם בתשובה ולקשר אותו לאבחון.
-- אם ${usageMetric} גבוה ל${itemWord} (מעל הממוצע), צייני זאת ועל מה זה משפיע.
-- אם יש טיפולים ב-6 החודשים האחרונים, **אל תמליצי שוב** עליהם. במקום זה, התייחסי אליהם ("הוחלף שמן לפני 3 חודשים, אז אם הרעש חזר זה לא קשור").
-- אם הרכב ישן (10+ שנים) או עם ${usageMetric} גבוה, התייחסי לעלויות יחסית לערך הרכב.` : `- השאלה כללית, ללא ${itemWord} מצורף. תני תשובה כללית בלי להמציא נתונים ספציפיים.`}
+## דיוק
+- אל תמציא. לא בטוח? אמור "${fallbackPlace}".
+- שמות מקצועיים לחלפים ומערכות (אלטרנטור, מסנן אוויר, מצמד), לא רק לשון עממית.
+- מחירים: טווח ישראלי אמיתי. דגם נדיר שאינך מכיר? אמור זאת.
+- בסוף אבחון, המלצת תיקון או הערכת מחיר: "${finalDisclaimer}"
 
-## דיוק ואמינות:
-- אל תמציאי עובדות. אם אינך בטוח/ה — אמרי במפורש "${fallbackPlace}" או "צריך בדיקה במקום".
-- ציוני שמות חלפים/מערכות בשמם המקצועי (אלטרנטור, מסנן אוויר, מצמד) ולא בלשון עממית בלבד.
-- במחירים — תני טווח אמיתי לישראל. אם זה דגם נדיר ואינך יודע/ת, צייני זאת.
-- בסוף תשובה רגישה (אבחון/המלצת תיקון/הערכת מחיר) — שורה ברורה: "${finalDisclaimer}"
-
-## סגנון:
-- עברית בלבד. לא מעורבת. כתיב נכון.
-- טון של מקצוען חם — לא רובוטי, לא יומרני. כמו ${workStyleScene}.
-- שאלות הכנה: קצרות, 2-4 שאלות, לא שגרת חקירה.
-- תשובה לאחר מידע: ממוקדת, ניתנת לסריקה (כותרות/בולטים כשמתאים), בלי "הקדמות".${vehicleContext}`;
+## סגנון
+- עברית בלבד, לשון זכר, כתיב נכון.
+- טון של מקצוען חם, כמו ${workStyleScene}. לא רובוטי ולא יומרני.
+- בלי הקדמות ("שאלה מעולה", "אני מבין שאתה חווה"), בלי סיכום בסוף.
+- בולטים או כותרות קצרות כשזה עוזר לסריקה, לא פסקאות ארוכות.${vehicleContext}${hasAttachment ? buildChatAttachmentGuide(attachment.isImage) : ''}`;
+      // ^ The attachment block goes LAST, after vehicleContext, so the
+      // instruction closest to the user's turn is the one about the
+      // file they just attached. Its job is narrower now that the
+      // prompt above answers first by default: make the model open on
+      // what it actually sees and forbid answering as though nothing
+      // was attached. Before 2026-09-08 there was no such block at
+      // all, and ai_usage_logs confirmed the image reached Gemini and
+      // was ignored anyway.
+      // Reading `attachment.isImage` is safe here: hasAttachment is
+      // `!!attachment && !attachment.loading`, so it implies non-null.
 
       // Conversation history (last 6 messages, excluding errors/retries).
       //
