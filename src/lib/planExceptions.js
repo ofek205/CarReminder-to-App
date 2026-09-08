@@ -134,3 +134,60 @@ export function summarise(rows) {
   }
   return { total: list.length, never, expired, soon, overCap };
 }
+
+/**
+ * Turn what an admin chose in the UI into the value the RPC expects.
+ *
+ * ⚠️ THE ADMIN MUST NEVER SEE OR TYPE -1. The sentinel is a storage detail
+ * born of NULL meaning two opposite things in two tables; asking a human to
+ * remember it is how you get a -1 typed into a field that wanted a count,
+ * or a genuine "1" turned into unlimited by a stray minus. So the UI offers
+ * a choice ("unlimited" or a number) and this function does the translation
+ * in one place, mirroring plan_ovr() on the server.
+ *
+ * @param {{unlimited?: boolean, value?: string|number}} choice
+ * @returns {number|null} -1 for unlimited, an integer, or null for "clear
+ *   this override" (which the RPC reads as inherit-from-plan)
+ * @throws {Error} on a value that is not a non-negative integer
+ */
+export function toWireOverride(choice) {
+  if (!choice) return null;
+  if (choice.unlimited) return -1;
+
+  const raw = choice.value;
+  if (raw === '' || raw === null || raw === undefined) return null;
+
+  const n = Number(raw);
+  if (!Number.isInteger(n)) {
+    throw new Error('הערך חייב להיות מספר שלם');
+  }
+  // Negative input is refused rather than passed through, so a typed "-1"
+  // cannot become "unlimited" by accident. Unlimited is a deliberate
+  // choice, never a side effect of a minus sign.
+  if (n < 0) {
+    throw new Error('הערך לא יכול להיות שלילי. לביטול מגבלה יש לבחור „ללא הגבלה”');
+  }
+  return n;
+}
+
+/**
+ * Turn a date-input value ("2026-12-31") into the ISO instant the RPC wants.
+ *
+ * ⚠️ END OF THE CHOSEN DAY, IN LOCAL TIME. `new Date('2026-12-31')` parses
+ * as UTC midnight, which in Israel is 02:00 or 03:00 on the 31st: an
+ * exception granted "until 31 December" would die at 2am that morning,
+ * effectively a day short. Worse, picking TODAY would land in the past and
+ * be refused outright by the RPC's expiry_in_the_past check.
+ *
+ * Appending the time with no Z makes the runtime interpret it in the local
+ * zone, which is the zone the admin picked the date in.
+ *
+ * @param {string} dateStr  yyyy-mm-dd, or empty
+ * @returns {string|null}   ISO instant, or null for no date
+ */
+export function endOfDayIso(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(`${dateStr}T23:59:59`);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}

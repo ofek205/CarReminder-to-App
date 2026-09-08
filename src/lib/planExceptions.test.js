@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  limitText, describeOverrides, exceptionUrgency, daysUntil, isOverCap, summarise,
+  limitText, describeOverrides, exceptionUrgency, daysUntil, isOverCap, summarise, toWireOverride, endOfDayIso,
 } from './planExceptions';
 
 const DAY = 86_400_000;
@@ -168,5 +168,79 @@ describe('summarise', () => {
   it('returns zeroes for a missing list rather than throwing', () => {
     expect(summarise(null).total).toBe(0);
     expect(summarise(undefined).never).toBe(0);
+  });
+});
+
+describe('toWireOverride', () => {
+  it('sends -1 only for a deliberate unlimited choice', () => {
+    expect(toWireOverride({ unlimited: true })).toBe(-1);
+    expect(toWireOverride({ unlimited: true, value: '7' })).toBe(-1);
+  });
+
+  it('passes a plain count through', () => {
+    expect(toWireOverride({ value: '15' })).toBe(15);
+    expect(toWireOverride({ value: 15 })).toBe(15);
+    expect(toWireOverride({ value: '0' })).toBe(0);   // a real limit of zero
+  });
+
+  it('returns null for an empty field, meaning inherit', () => {
+    expect(toWireOverride({ value: '' })).toBeNull();
+    expect(toWireOverride({})).toBeNull();
+    expect(toWireOverride(null)).toBeNull();
+  });
+
+  // ── the sentinel must never be reachable by typing ──────────────────
+  //
+  // -1 exists because NULL means "unlimited" in plan_limits and "inherit"
+  // in the override columns. Letting a human type it means a stray minus
+  // silently converts a limit of 1 into no limit at all.
+
+  it('refuses a typed negative rather than treating it as unlimited', () => {
+    expect(() => toWireOverride({ value: '-1' })).toThrow();
+    expect(() => toWireOverride({ value: -5 })).toThrow();
+  });
+
+  it('refuses a non-integer', () => {
+    expect(() => toWireOverride({ value: '1.5' })).toThrow();
+    expect(() => toWireOverride({ value: 'abc' })).toThrow();
+  });
+});
+
+describe('endOfDayIso', () => {
+  it('is null for an empty or invalid date', () => {
+    expect(endOfDayIso('')).toBeNull();
+    expect(endOfDayIso(null)).toBeNull();
+    expect(endOfDayIso('not-a-date')).toBeNull();
+  });
+
+  // ── the off-by-one that would shorten every grant ───────────────────
+  //
+  // new Date('2026-12-31') is UTC midnight. In Israel (UTC+2/+3) that is
+  // 02:00 or 03:00 ON the 31st, so an exception granted "until 31 December"
+  // would lapse that morning. And picking TODAY would already be in the
+  // past, which the RPC refuses outright.
+
+  it('lands at the END of the chosen local day, not its start', () => {
+    const iso = endOfDayIso('2026-12-31');
+    const naiveStart = new Date('2026-12-31').getTime();
+    expect(new Date(iso).getTime()).toBeGreaterThan(naiveStart);
+  });
+
+  it('keeps the chosen day in local time', () => {
+    const d = new Date(endOfDayIso('2026-12-31'));
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(11);
+    expect(d.getDate()).toBe(31);
+    expect(d.getHours()).toBe(23);
+  });
+
+  it('makes today a usable expiry rather than an instant rejection', () => {
+    const today = new Date();
+    const ymd = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0'),
+    ].join('-');
+    expect(new Date(endOfDayIso(ymd)).getTime()).toBeGreaterThan(Date.now());
   });
 });

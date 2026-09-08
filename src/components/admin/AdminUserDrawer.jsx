@@ -18,7 +18,7 @@ import {
   X, Mail, Phone, Calendar, Truck, FileText, Users,
   Activity, Wrench, Shield, AlertTriangle, Briefcase,
   Copy, Anchor, TrendingUp, Trash2, UserCog, Pencil, Send,
-  CheckSquare, Square, ListChecks, ChevronDown, ChevronUp, LogIn,
+  CheckSquare, Square, ListChecks, ChevronDown, ChevronUp, LogIn, CreditCard,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -32,6 +32,10 @@ import { viewAsErrorText } from '@/lib/viewAsError';
 import { buildEmailHtml, escapeHtml } from '@/lib/emailTemplates';
 import { isVessel } from '@/components/shared/DateStatusUtils';
 import { C } from '@/lib/designTokens';
+import { withTimeout } from '@/lib/supabaseQuery';
+import {
+  describeOverrides, daysUntil, toWireOverride, endOfDayIso, OVERRIDE_FIELDS,
+} from '@/lib/planExceptions';
 
 // Format an ILS amount with no decimals — same convention as /Reports.
 const fmtMoney = (n) => new Intl.NumberFormat('he-IL', {
@@ -868,6 +872,19 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
 
       {/* SEND EMAIL ────────────────────────────────────────────────── */}
       <SendEmailForm email={owner?.email} userId={owner?.id} />
+
+      {/* PLAN & BILLING ────────────────────────────────────────────── */}
+      {/* Above ADMIN ACTIONS on purpose: this is routine commercial work,
+          while that card is destructive (delete account, toggle admin). */}
+      {/* ⚠️ account?.id, NOT accountProp?.id. accountProp is the account the
+          drawer was OPENED with; `account` comes from `data` and follows the
+          AccountSwitcher above. Passing the opened id meant an admin who
+          switched to another account saw that account's name in the header
+          while this section read the FIRST account's plan and granted to it.
+          A paid plan on the wrong customer, with an audit entry that looks
+          right. (AdminActions below keeps accountProp deliberately: "delete
+          the account you opened" is a different intent.) */}
+      <AdminPlanSection accountId={account?.id ?? accountProp?.id} qc={qc} />
 
       {/* ADMIN ACTIONS ─────────────────────────────────────────────── */}
       <AdminActions
@@ -1860,6 +1877,311 @@ function DrawerSkeleton() {
       <div className="rounded-2xl h-32" style={{ background: C.bgSubtle }} />
       <div className="rounded-2xl h-32" style={{ background: C.bgSubtle }} />
     </div>
+  );
+}
+
+/**
+ * AdminPlanSection — grant a plan, set a bespoke limit, or extend grace,
+ * for the one account the admin is already looking at.
+ *
+ * Monetization phase 2b, §3.5.8. The cross-cutting view lives at
+ * /AdminPlans; this is the per-customer entry point, because an admin
+ * handling a customer is already here.
+ *
+ * ⚠️ THE ADMIN NEVER SEES OR TYPES -1. That sentinel exists only because
+ * NULL means "unlimited" in plan_limits and "inherit" in the override
+ * columns. Exposing it would let a stray minus turn a limit of 1 into no
+ * limit at all, so the UI offers a checkbox and toWireOverride() does the
+ * translation, mirroring plan_ovr() as the single translator on the server.
+ *
+ * Every action needs a written reason, which the RPC also enforces: a grant
+ * nobody can justify in a year is what the audit trail exists to prevent.
+ */
+function AdminPlanSection({ accountId, qc }) {
+  const [mode, setMode] = useState(null);   // grant | limit | grace | null
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [state, setState] = useState({ loading: true, error: null, sub: null, plan: null, plans: [] });
+
+  const [grantPlan, setGrantPlan] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [reverts, setReverts] = useState('');
+  const [limitKey, setLimitKey] = useState('max_vehicles');
+  const [limitValue, setLimitValue] = useState('');
+  const [unlimited, setUnlimited] = useState(false);
+  const [graceUntil, setGraceUntil] = useState('');
+
+  // ⚠️ Guards against a stale response, because the drawer switches accounts
+  // IN PLACE. Switching fires a second load while the first is still in
+  // flight, and whichever resolves last wins: a slow read for the previous
+  // account would overwrite the one now on screen. Same `cancelled` pattern
+  // the drawer's own fetch uses.
+  const liveRef = useRef(0);
+
+  const load = React.useCallback(async () => {
+    if (!accountId) return;
+    const ticket = ++liveRef.current;
+    setState(s => ({ ...s, loading: true, error: null }));
+    try {
+      // account_subscriptions is admin-readable through its RLS policy, and
+      // my_account_plan() accepts an admin for any account. Both wrapped so
+      // a hung call cannot pin this section on a spinner.
+      const [subRes, planRes, plansRes] = await Promise.all([
+        withTimeout(supabase.from('account_subscriptions')
+          .select('*').eq('account_id', accountId).maybeSingle(), 'admin_sub'),
+        withTimeout(supabase.rpc('my_account_plan', { p_account_id: accountId }), 'admin_eff_plan'),
+        withTimeout(supabase.from('plan_limits').select('*').order('sort_order'), 'plan_limits'),
+      ]);
+      if (subRes.error) throw subRes.error;
+      if (planRes.error) throw planRes.error;
+      if (plansRes.error) throw plansRes.error;
+      if (ticket !== liveRef.current) return;   // a newer load superseded us
+      const eff = Array.isArray(planRes.data) ? planRes.data[0] : planRes.data;
+      const sub = subRes.data || null;
+      setState({ loading: false, error: null, sub, plan: eff || null, plans: plansRes.data || [] });
+      // Pre-fill the expiry from the row.
+      //
+      // ⚠️ THERE IS ONE EXPIRY PER EXCEPTION, SHARED BY EVERY OVERRIDE ON
+      // IT. Starting this field empty meant an admin who had set
+      // max_vehicles=15 expiring 31 December, and later added max_shares=5
+      // without touching the date, silently converted the whole exception
+      // to never-expiring and extended the vehicles grant indefinitely.
+      // That is the exact silent leak this phase is built to stop, so the
+      // shared field has to be visible and carried forward.
+      if (sub?.ovr_expires_at) {
+        setExpiry(new Date(sub.ovr_expires_at).toISOString().slice(0, 10));
+      }
+    } catch (e) {
+      if (ticket !== liveRef.current) return;
+      // Before the phase-1 migration these objects do not exist. That is a
+      // legible state, not a crash: the section says so and offers a retry.
+      setState({ loading: false, error: e?.message || 'error', sub: null, plan: null, plans: [] });
+    }
+  }, [accountId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const reset = () => {
+    setMode(null); setNote(''); setGrantPlan(''); setExpiry('');
+    setReverts(''); setLimitValue(''); setUnlimited(false); setGraceUntil('');
+  };
+
+  const run = async () => {
+    if (busy || !note.trim()) return;
+    setBusy(true);
+    try {
+      let rpc, args;
+      if (mode === 'grant') {
+        if (!grantPlan) throw new Error('יש לבחור מסלול');
+        rpc = 'admin_set_account_plan';
+        args = {
+          p_account_id: accountId,
+          p_plan: grantPlan,
+          p_note: note.trim(),
+          p_source: 'admin_grant',
+          p_expires_at: endOfDayIso(expiry),
+          p_reverts_to: reverts || null,
+        };
+      } else if (mode === 'limit') {
+        // Throws on a typed negative or a non-integer, so a bad value never
+        // reaches the RPC looking valid.
+        const wire = toWireOverride({ unlimited, value: limitValue });
+        if (wire === null) throw new Error('יש להזין ערך, או לסמן ללא הגבלה');
+        rpc = 'admin_set_account_overrides';
+        args = {
+          p_account_id: accountId,
+          p_overrides: { [limitKey]: wire },
+          p_note: note.trim(),
+          p_expires_at: endOfDayIso(expiry),
+        };
+      } else {
+        if (!graceUntil) throw new Error('יש לבחור תאריך');
+        rpc = 'admin_extend_grace';
+        args = { p_account_id: accountId, p_until: endOfDayIso(graceUntil), p_note: note.trim() };
+      }
+      const { error } = await withTimeout(supabase.rpc(rpc, args), rpc);
+      if (error) throw error;
+      toast.success('בוצע. הפעולה נרשמה ביומן הפעולות.');
+      reset();
+      await load();
+      qc?.invalidateQueries({ queryKey: ['admin-plan-exceptions'] });
+    } catch (e) {
+      toast.error(e?.message || 'הפעולה נכשלה');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!accountId) return null;
+
+  const { loading, error, sub, plan, plans } = state;
+  // describeOverrides reads ovr_* straight off the row, which is the shape
+  // account_subscriptions already has.
+  const overrides = sub
+    ? describeOverrides(sub, plans.find(p => p.plan === sub.plan) || null)
+    : [];
+  const graceLeft = daysUntil(sub?.grace_until);
+  const inputStyle = { border: `1px solid ${C.bgSage}` };
+
+  return (
+    <Card accent="blue">
+      <SectionHeader icon={CreditCard} title="מסלול וחיוב" />
+
+      {loading ? (
+        <div className="animate-pulse rounded-lg" style={{ height: 48, background: C.bgSubtle }} />
+      ) : error ? (
+        <div className="text-center py-3">
+          <p className="text-[11px] mb-2" style={{ color: C.mutedAlt }}>
+            לא הצלחנו לטעון את המסלול. ייתכן שמיגרציית המסלולים עוד לא הורצה.
+          </p>
+          <button type="button" onClick={load}
+            className="text-[11px] font-bold px-3 py-2 rounded-lg"
+            style={{ ...inputStyle, color: C.primaryDark }}>
+            נסה שוב
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            <span className="text-[12px] font-bold" style={{ color: C.primaryDark }}>
+              {plan?.label_he || sub?.plan || 'חינם'}
+            </span>
+            {sub?.source && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full" dir="ltr"
+                style={{ background: C.bgSubtle, color: C.mutedAlt }}>
+                {sub.source}
+              </span>
+            )}
+            {graceLeft !== null && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full"
+                style={{ background: C.warnSubtle, color: C.warnDark }}>
+                חסד: {graceLeft} ימים
+              </span>
+            )}
+          </div>
+
+          {overrides.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {overrides.map(o => (
+                <span key={o.label} className="text-[10px] px-1.5 py-0.5 rounded"
+                  style={{ background: C.infoSubtle, color: C.infoDark }}>
+                  {o.label}: {o.now}{o.was !== null ? ` (במקום ${o.was})` : ''}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {!mode ? (
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { key: 'grant', label: 'הענק מסלול' },
+                { key: 'limit', label: 'מגבלה מותאמת' },
+                { key: 'grace', label: 'הארך חסד' },
+              ].map(b => (
+                <button key={b.key} type="button" onClick={() => { reset(); setMode(b.key); }}
+                  className="text-[11px] font-bold rounded-lg py-2.5"
+                  style={{ ...inputStyle, color: C.primaryDark }}>
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {mode === 'grant' && (
+                <>
+                  <select value={grantPlan} onChange={e => setGrantPlan(e.target.value)}
+                    className="w-full text-[12px] rounded-lg p-2" style={inputStyle}>
+                    <option value="">בחר מסלול</option>
+                    {plans.map(p => <option key={p.plan} value={p.plan}>{p.label_he}</option>)}
+                  </select>
+                  <select value={reverts} onChange={e => setReverts(e.target.value)}
+                    className="w-full text-[12px] rounded-lg p-2" style={inputStyle}>
+                    <option value="">בתום התוקף, חזרה לחינם</option>
+                    {plans.map(p => (
+                      <option key={p.plan} value={p.plan}>בתום התוקף, {p.label_he}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+
+              {mode === 'limit' && (
+                <>
+                  <select value={limitKey} onChange={e => setLimitKey(e.target.value)}
+                    className="w-full text-[12px] rounded-lg p-2" style={inputStyle}>
+                    {OVERRIDE_FIELDS.filter(f => f.key !== 'business_ui').map(f => (
+                      <option key={f.key} value={f.key}>{f.label}</option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <input type="number" min="0" inputMode="numeric" dir="ltr"
+                      value={limitValue} onChange={e => setLimitValue(e.target.value)}
+                      disabled={unlimited} placeholder="כמה"
+                      className="flex-1 text-[12px] rounded-lg p-2 disabled:opacity-50"
+                      style={inputStyle} />
+                    {/* The ONLY way to express unlimited. No -1 anywhere in
+                        the UI, by design. */}
+                    <label className="flex items-center gap-1.5 text-[11px] shrink-0"
+                      style={{ color: C.primaryDark }}>
+                      <input type="checkbox" checked={unlimited}
+                        onChange={e => { setUnlimited(e.target.checked); if (e.target.checked) setLimitValue(''); }} />
+                      ללא הגבלה
+                    </label>
+                  </div>
+                </>
+              )}
+
+              {(mode === 'grant' || mode === 'limit') && (
+                <>
+                  <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)}
+                    min={new Date().toISOString().slice(0, 10)}
+                    className="w-full text-[12px] rounded-lg p-2" style={inputStyle} dir="ltr" />
+                  {!expiry && (
+                    /* Said plainly, because a grant with no end date is the
+                       one that leaks: nothing ever reminds anyone of it. */
+                    <p className="text-[10px]" style={{ color: C.warn }}>
+                      בלי תאריך סיום החריגה תישאר לתמיד ולא תזכיר על עצמה
+                    </p>
+                  )}
+                </>
+              )}
+
+              {mode === 'grace' && (
+                <input type="date" value={graceUntil} onChange={e => setGraceUntil(e.target.value)}
+                  min={new Date().toISOString().slice(0, 10)}
+                  className="w-full text-[12px] rounded-lg p-2" style={inputStyle} dir="ltr" />
+              )}
+
+              {/* §3.5.9: granting over a live external subscription does not
+                  stop the charge. Shown only when there IS one, so the
+                  warning keeps its meaning. */}
+              {mode === 'grant' && sub?.external_subscription_id && (
+                <p className="text-[10px] rounded-lg p-2"
+                  style={{ background: C.warnSubtle, color: C.warnDark }}>
+                  לחשבון יש מנוי חיצוני פעיל. הענקה כאן <strong>לא עוצרת את החיוב</strong> אצל ספק התשלומים.
+                </p>
+              )}
+
+              <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
+                placeholder="סיבה (חובה). למשל: פיילוט עד סוף השנה"
+                className="w-full text-[12px] rounded-lg p-2 resize-none" style={inputStyle} />
+
+              <div className="flex gap-2">
+                <button type="button" onClick={run} disabled={busy || !note.trim()}
+                  className="flex-1 text-[12px] font-bold rounded-lg py-2.5 text-white disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                  style={{ background: C.primary }}>
+                  {busy && <LoadingDot />} אישור
+                </button>
+                <button type="button" onClick={reset} disabled={busy}
+                  className="text-[12px] font-bold rounded-lg py-2.5 px-3"
+                  style={{ ...inputStyle, color: C.mutedAlt }}>
+                  ביטול
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
   );
 }
 
