@@ -76,6 +76,42 @@ async function storeMatchedShell(html) {
   }));
 }
 
+/**
+ * Fill the asset cache from the build manifest, in the background.
+ *
+ * storeMatchedShell only caches what index.html REFERENCES, which is enough
+ * to boot but not to navigate: the app code-splits per route, so this build
+ * emits ~258 assets while index.html names 6. Without this, opening a page
+ * offline that was never visited online finds no chunk, Suspense hangs, and
+ * the 8s recovery reloads straight into the same failure.
+ *
+ * A worker cannot list a directory, so scripts/build-precache-manifest.cjs
+ * writes the list at build time (postbuild).
+ *
+ * Sequential on purpose: 258 parallel requests would be hostile on mobile.
+ * Skips anything already cached, so a redeploy only fetches what changed.
+ * Silently gives up on any failure — this is an enhancement, and half a
+ * cache is still better than none.
+ */
+async function fillPrecacheFromManifest() {
+  let list;
+  try {
+    const res = await fetch(new Request('./precache-manifest.json', { cache: 'no-cache' }));
+    if (!res.ok) return;
+    list = await res.json();
+  } catch { return; }
+  if (!Array.isArray(list)) return;
+
+  const cache = await caches.open(ASSETS);
+  for (const u of list) {
+    try {
+      if (await cache.match(u)) continue;
+      const r = await fetch(new Request(u, { cache: 'no-cache' }));
+      if (r.ok) await cache.put(u, r);
+    } catch { /* keep going; one missing chunk is not fatal */ }
+  }
+}
+
 async function precacheMatchedShell() {
   // `cache: 'reload'` bypasses the HTTP cache so we parse what is actually
   // deployed, not a copy the browser is still holding.
@@ -108,6 +144,9 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(keys.filter(k => !k.startsWith(CACHE_VERSION)).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
+      // Background top-up. Pages are already claimed, so this delays
+      // nothing the user is waiting on.
+      .then(() => fillPrecacheFromManifest())
   );
 });
 

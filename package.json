@@ -23,7 +23,8 @@
     "test:trip-window": "node ./scripts/test-trip-window.cjs",
     "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "postbuild": "node ./scripts/build-precache-manifest.cjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^7.0.0",
