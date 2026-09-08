@@ -44,6 +44,14 @@ describe('commit gate matcher', () => {
     ['git rebase -i HEAD~3', 'an interactive rebase'],
     ['git rebase --continue', 'continuing a rebase, which commits'],
     ['git rebase --skip', 'skipping a patch, which carries on committing'],
+    ['git cherry-pick abc123', 'a cherry-pick'],
+    ['git cherry-pick --continue', 'continuing a cherry-pick, which commits'],
+    ['git cherry-pick --skip', 'skipping within a cherry-pick, which carries on'],
+    ['git revert HEAD', 'a revert, which writes a new commit'],
+    ['git revert --continue', 'continuing a revert'],
+    ['git am patch.mbox', 'applying a mailbox of patches'],
+    ['git am --continue', 'continuing an am'],
+    ['git am --skip', 'skipping a patch and carrying on'],
 
     // Compound commands: the gate must see past the first segment.
     ['echo hi && git merge foo', 'a merge after &&'],
@@ -60,6 +68,7 @@ describe('commit gate matcher', () => {
     // the safe path more expensive than the unsafe one.
     ['git merge-base --is-ancestor a b', 'merge-base is read-only'],
     ['git merge-tree --write-tree staging origin/staging', 'merge-tree is a dry run'],
+    ['git cherry -v main', 'cherry is read-only and is NOT cherry-pick'],
 
     // Unwinding a merge cannot create a commit, and needing a token to escape a
     // broken merge would be a trap.
@@ -68,6 +77,12 @@ describe('commit gate matcher', () => {
     ['  git merge --abort  ', 'aborting, with surrounding whitespace'],
     ['git rebase --abort', 'aborting a rebase'],
     ['git rebase --quit', 'quitting a rebase'],
+    ['git cherry-pick --abort', 'aborting a cherry-pick'],
+    ['git cherry-pick --quit', 'quitting a cherry-pick'],
+    ['git revert --abort', 'aborting a revert'],
+    ['git revert --quit', 'quitting a revert'],
+    ['git am --abort', 'aborting an am'],
+    ['git am --quit', 'quitting an am'],
 
     // Ordinary read-only git and non-git work.
     ['git status --short', 'status'],
@@ -96,6 +111,23 @@ describe('commit gate matcher', () => {
     expect(isGated('git merge --abort')).toBe(false);
     expect(isGated('cd /repo && git rebase --abort')).toBe(true);
     expect(isGated('git rebase --abort')).toBe(false);
+    expect(isGated('cd /repo && git cherry-pick --abort')).toBe(true);
+    expect(isGated('git cherry-pick --abort')).toBe(false);
+  });
+
+  it('does not reach a verb that is not the first non-option token', () => {
+    // Why the short `am` token is safe. The option-consuming group skips only
+    // dash-prefixed words, so a subcommand like `checkout` or `branch` ends
+    // the match before the alternation is ever tried. I asserted the opposite
+    // first, claiming `git checkout -- am` was an accepted false positive, and
+    // this test disproved it.
+    expect(isGated('git checkout -- am')).toBe(false);
+    expect(isGated('git branch am')).toBe(false);
+    expect(isGated('git log -- revert')).toBe(false);
+    expect(isGated('git checkout -- amount.js')).toBe(false);
+    // A real invocation, and the global-option form, both still match.
+    expect(isGated('git am patch.mbox')).toBe(true);
+    expect(isGated('git --no-pager am patch.mbox')).toBe(true);
   });
 
   it('treats a non-string command as nothing to judge', () => {

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * PreToolUse gate — blocks the git commands that create or rewrite commits
- * (commit, push, merge, pull, rebase) when issued by Claude Code, unless the
- * commit-gatekeeper skill has just produced an APPROVED verdict.
+ * (commit, push, merge, pull, rebase, cherry-pick, revert, am) when issued by
+ * Claude Code, unless the commit-gatekeeper skill has just produced an
+ * APPROVED verdict.
  *
  * WHY THIS IS NODE AND NOT SHELL
  * ------------------------------
@@ -37,8 +38,8 @@ const TOKEN_PATH = path.join(os.tmpdir(), 'carreminder-gatekeeper-approved');
 const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes, single use
 
 /**
- * Matches commit, push, merge, pull and rebase, including forms like
- * `git -C <dir> push` and `git --no-pager commit`.
+ * Matches commit, push, merge, pull, rebase, cherry-pick, revert and am,
+ * including forms like `git -C <dir> push` and `git --no-pager commit`.
  *
  * Everything past commit and push is here because it CREATES OR REWRITES a
  * commit, and none of it was matched before, so such a commit could enter
@@ -49,17 +50,37 @@ const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes, single use
  *
  * `merge-base` and `merge-tree` are read-only and must keep working. The
  * trailing (\s|$) is what excludes them, since both continue with a hyphen.
+ * `git cherry` survives the same way but for the opposite reason: it is a
+ * real read-only command, and the alternation demands the whole `cherry-pick`
+ * token, so plain `cherry` never matches.
  *
- * STILL OPEN, by decision rather than oversight: cherry-pick, revert and am
- * also create or rewrite commits and are NOT matched. Each is one word here.
- * If you add one, fix this comment too.
+ * `am` is the shortest token here, so it looks like the most collision-prone,
+ * and it is not. The option-consuming group above only skips DASH-PREFIXED
+ * tokens, which makes the verb the first non-option word after `git`. So
+ * `git checkout -- am` and `git branch am` never reach the alternation at
+ * all, and only a real `git am` matches. Measured, not assumed: I asserted
+ * the opposite here first and the test caught me.
+ *
+ * That is every PORCELAIN command that creates or rewrites a commit. Resist
+ * reading it as total coverage, which is the overclaim this file has already
+ * been burned by. Still unmatched, and out of scope by design:
+ *   - `commit-tree`, plumbing that writes a commit OBJECT which no branch
+ *     points at until `update-ref` moves something.
+ *   - `update-ref`, which moves a branch to an existing commit.
+ *   - `reset`, which moves a branch and can discard uncommitted work. It
+ *     creates nothing, so this gate is NOT protection against it.
+ * None of these puts an unreviewed commit into history through the normal
+ * path. If that ever stops being true, add them and fix this comment.
  */
-const GIT_WRITE = /(^|[;&|`]\s*|\$\(\s*)git(\s+(-[^\s]+|--[^\s]+)(\s+[^\s]+)?)*\s+(commit|push|merge|pull|rebase)(\s|$)/;
+const GIT_WRITE = /(^|[;&|`]\s*|\$\(\s*)git(\s+(-[^\s]+|--[^\s]+)(\s+[^\s]+)?)*\s+(commit|push|merge|pull|rebase|cherry-pick|revert|am)(\s|$)/;
 
 /**
- * `--abort` and `--quit`, on merge and on rebase, unwind the operation and
- * cannot create a commit. Needing a fresh gatekeeper token merely to escape a
- * half-finished merge or rebase would be a trap, so they are exempt.
+ * `--abort` and `--quit` unwind a half-finished operation and cannot create a
+ * commit, on any of the five that can be interrupted: merge, rebase,
+ * cherry-pick, revert and am. Needing a fresh gatekeeper token merely to
+ * escape one of those would be a trap, so they are exempt. `pull` is absent
+ * deliberately: it has no abort of its own, you unwind the merge or rebase
+ * underneath it.
  *
  * `--continue` and `--skip` are deliberately NOT exempt. Both go on to create
  * commits, which is the whole thing being gated.
@@ -76,7 +97,7 @@ const GIT_WRITE = /(^|[;&|`]\s*|\$\(\s*)git(\s+(-[^\s]+|--[^\s]+)(\s+[^\s]+)?)*\
  * would put quote handling in the path of a decision that must fail closed,
  * which is a bad trade for saving one keystroke.
  */
-const UNWIND_ONLY = /^\s*git\s+(merge|rebase)\s+--(abort|quit)\s*$/;
+const UNWIND_ONLY = /^\s*git\s+(merge|rebase|cherry-pick|revert|am)\s+--(abort|quit)\s*$/;
 
 /** The whole decision, exported so it can be tested instead of trusted. */
 function isGated(command) {
