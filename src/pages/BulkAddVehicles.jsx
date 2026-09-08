@@ -27,6 +27,8 @@ import { dal } from '@/lib/dal';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import { countPlateLookup } from '@/lib/usageCounters';
+import { checkPlateQuota, isPlateQuotaRefusal } from '@/lib/plateQuotaGate';
+import PlateQuotaNotice from '@/components/shared/PlateQuotaNotice';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { lookupVehicleByPlate } from '@/services/vehicleLookup';
 import { LEASING_COMPANIES, canonicalizeLeasingCompany } from '@/constants/leasingCompanies';
@@ -301,6 +303,16 @@ export default function BulkAddVehicles() {
   const queryClient = useQueryClient();
 
   const [step, setStep]       = useState('input'); // 'input' | 'review' | 'result'
+  // Set when the plan quota refuses this import. Cleared on every new
+  // attempt so a trimmed list is not judged by the previous refusal.
+  const [quotaVerdict, setQuotaVerdict] = useState(null);
+  // ⚠️ GUARDS A DOUBLE-SUBMIT THAT THE QUOTA CHECK INTRODUCED. startReview
+  // used to advance the step synchronously on click; it now awaits the quota
+  // read first, which leaves a window where the button is still live and the
+  // screen has not changed. Two clicks in that window would run the whole
+  // import twice.
+  const [checkingQuota, setCheckingQuota] = useState(false);
+  const checkingQuotaRef = useRef(false);
   const [matrix, setMatrix]   = useState([]);      // raw parsed cells (rows × columns)
   const [mapping, setMapping] = useState(null);    // { plateCol, nicknameCol, kmCol, hasHeader }
   const [rows, setRows]       = useState([]);      // [{plate, nickname, current_km, data, status, included, ...}]
@@ -358,6 +370,37 @@ export default function BulkAddVehicles() {
 
   const startReview = async () => {
     if (inputRows.length === 0) { toastError('הוסף לפחות מספר רישוי אחד', { action: 'bulk_add_no_plates' }); return; }
+    // The ref, not the state, is the guard: setCheckingQuota does not update
+    // this closure, so two clicks inside one tick would both read false and
+    // both run the import. The state exists only to disable the button.
+    // Checked BEFORE clearing the notice, or a second click would blank the
+    // explanation the user is still reading.
+    if (checkingQuotaRef.current) return;
+    checkingQuotaRef.current = true;
+    setQuotaVerdict(null);
+    setCheckingQuota(true);
+
+    // Monetization phase 5c. CHECKED AS N, NOT AS 1, and checked BEFORE the
+    // step advances. Asking "may I do one more" for a 200-row import would
+    // let a 3-a-month account consume 200 and stay nominally inside its cap:
+    // the same hole p_delta was added to close on the counting side.
+    //
+    // The whole batch is refused rather than partially run. A partial import
+    // would leave the user staring at a review screen where an arbitrary
+    // subset resolved, with no way to tell a plate that failed lookup from
+    // one that was never attempted.
+    let verdict;
+    try {
+      verdict = await checkPlateQuota(inputRows.length);
+    } finally {
+      checkingQuotaRef.current = false;
+      setCheckingQuota(false);
+    }
+    if (isPlateQuotaRefusal(verdict)) {
+      setQuotaVerdict(verdict);
+      return;
+    }
+
     setStep('review');
     setProgress({ done: 0, total: inputRows.length, phase: 'lookup' });
 
@@ -542,14 +585,27 @@ export default function BulkAddVehicles() {
       <Stepper current={step} />
 
       {step === 'input' && (
-        <InputStep
-          onMatrixParsed={(m) => { setMatrix(m); setMapping(detectColumns(m)); }}
-          onMappingChange={setMapping}
-          onContinue={startReview}
-          matrix={matrix}
-          mapping={mapping}
-          inputRows={inputRows}
-        />
+        <>
+          <InputStep
+            onMatrixParsed={(m) => { setMatrix(m); setMapping(detectColumns(m)); }}
+            onMappingChange={setMapping}
+            onContinue={startReview}
+          busy={checkingQuota}
+            matrix={matrix}
+            mapping={mapping}
+            inputRows={inputRows}
+          />
+          {/* Stays on the input step, below the button the user just
+              pressed, so the plate list they pasted is still on screen and
+              they can trim it to what their remaining allowance covers
+              instead of starting over. */}
+          {quotaVerdict && (
+            <PlateQuotaNotice
+              verdict={quotaVerdict}
+              tail={`בקשת לבדוק ${inputRows.length} מספרי רישוי בייבוא הזה.`}
+            />
+          )}
+        </>
       )}
 
       {step === 'review' && (
@@ -639,7 +695,7 @@ function Stepper({ current }) {
 
 // ---------- Step 1: Input --------------------------------------------
 
-function InputStep({ onMatrixParsed, onMappingChange, onContinue, matrix, mapping, inputRows }) {
+function InputStep({ onMatrixParsed, onMappingChange, onContinue, matrix, mapping, inputRows, busy }) {
   const [mode, setMode]   = useState('paste');
   const [text, setText]   = useState('');
   const [fileName, setFileName] = useState('');
@@ -770,7 +826,7 @@ function InputStep({ onMatrixParsed, onMappingChange, onContinue, matrix, mappin
         <button
           type="button"
           onClick={onContinue}
-          disabled={inputRows.length === 0}
+          disabled={inputRows.length === 0 || busy}
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
           style={{
             background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,

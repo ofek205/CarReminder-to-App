@@ -54,6 +54,7 @@ node scripts/sql-ledger.cjs drift
 5. supabase-monetization-phase4-vehicle-cap-2026-09-08.sql  ← preflight דורש 2, דגל כבוי
 6. supabase-monetization-phase5a-share-cap-2026-09-08.sql   ← preflight דורש 2, דגל כבוי
 7. supabase-monetization-phase5b-ai-quota-2026-09-08.sql    ← preflight דורש 2 **ו-4**, דגל כבוי
+8. supabase-monetization-phase5c-plate-quota-2026-09-09.sql ← preflight דורש 2, 4 **ו-7**, דגל כבוי
 ```
 
 3 ו-4 עצמאיים זה מזה. שניהם נעצרים לפני שהם יוצרים משהו אם 2 חסר, כך שסדר שגוי נכשל בבטחה ולא חצי-מוחל.
@@ -63,6 +64,10 @@ node scripts/sql-ledger.cjs drift
 ⚠️ **7 דורש את 4, לא רק את 2.** `ai_quota_check` קורא ל-`feature_usage_count`, שקורא ל-`usage_period_key` וקורא את `feature_usage_counters` — כולם משלב 4. ה-preflight שלו בודק את זה ונעצר לפני שהוא יוצר משהו.
 
 ⚠️ **אם `feature_usage_counters` כבר קיימת אצלך** (כלומר החלת גרסה מוקדמת של שלב 4 לפני 2026-09-09), ה-`create table if not exists` **לא** יעדכן את ה-CHECK, והדלי החדש `ai_forum` יידחה ב-23514. הבאמפ נבלע בשקט ב-`ai-proxy` במכוון, כך שהתוצאה היא מונה שלא זז ואף שגיאה שתגיד למה. ה-`alter table` המדויק לתיקון כתוב כהערה בתוך `supabase-monetization-phase3-counters-2026-09-08.sql` עצמו, מיד מתחת ל-CHECK.
+
+⚠️ **8 קורא ל-`feature_usage_count` שנוצר ב-7**, ולכן ה-preflight שלו דורש גם אותו. זה במכוון: עדיף להיעצר מלייצר עותק שני של אותה פונקציית קריאה, שהיה נסחף מ-7 בהמשך.
+
+⚠️ **ואת 8 אי אפשר לאמת ב-SQL editor.** `my_plate_quota()` נגזרת מ-`auth.uid()`, שהוא NULL כשמריצים כ-postgres, ולכן **כל** קריאה שם תזרוק `not_authenticated`. זו לא תקלה אלא הנקודה: פונקציה שהדפדפן קורא לה לא יכולה לקבל `p_user_id`, אחרת כל משתמש מחובר היה יכול לקרוא את המכסה של כל אחד אחר. לאימות: מהאפליקציה, או מ-console של הדפדפן.
 
 ⚠️ **staging ו-prod חולקים מסד** (שער 5 ב-CLAUDE.md). כל הקבצים additive: טבלאות ופונקציות חדשות בלבד, אפס שינוי בקיים.
 

@@ -12,6 +12,7 @@ import { createPageUrl } from '@/utils';
 import { useAuth } from '@/components/shared/GuestContext';
 import useAccountRole from '@/hooks/useAccountRole';
 import { countPlateLookup } from '@/lib/usageCounters';
+import { checkPlateQuota, isPlateQuotaRefusal, plateQuotaCopy } from '@/lib/plateQuotaGate';
 import useVehicleCapacity from '@/hooks/useVehicleCapacity';
 import { isVehicleCapError, vehicleCapKind } from '@/lib/vehicleCapError';
 import useAccountPlan from '@/hooks/useAccountPlan';
@@ -26,6 +27,7 @@ import {
 import {
   QUICK_CHECK_RETURN_KEY,
   hasUsedQuickCheck,
+  isPlateCached,
   lookupVehicleQuickCheck,
   markQuickCheckUsed,
   normalizeQuickCheckPlate,
@@ -89,6 +91,9 @@ export default function VehicleCheck() {
   const { plan: accountPlan } = useAccountPlan();
   const capacity = useVehicleCapacity();
   const [limitLocked, setLimitLocked] = useState(false);
+  // The plan quota refusal, or null. Holds the VERDICT rather than a boolean
+  // so the card can show the real numbers instead of a generic message.
+  const [planLocked, setPlanLocked] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [reportMode, setReportMode] = useState(null);
@@ -144,6 +149,7 @@ export default function VehicleCheck() {
     setPlate(clean);
     setError('');
     setLimitLocked(false);
+    setPlanLocked(null);
     setSaved(false);
   };
 
@@ -167,6 +173,7 @@ export default function VehicleCheck() {
     if (isBusy) return;
     setError('');
     setLimitLocked(false);
+    setPlanLocked(null);
     setSaved(false);
 
     const v = validateQuickCheckPlate(plate);
@@ -184,24 +191,33 @@ export default function VehicleCheck() {
     setStatus('loading');
     setLoadingIndex(0);
     try {
+      // Monetization phase 5c. A RE-VIEW INSIDE THE CACHE WINDOW IS FREE,
+      // which is what phase 3's note here said had to happen "before phase
+      // 5, where the same call becomes a charge". Now it is a charge, so a
+      // back-button must not spend one of a free account's three monthly
+      // checks on a result the app did not even re-fetch.
+      //
+      // Read BEFORE the lookup, because the lookup is what populates the
+      // cache; asking afterwards would always answer "cached".
+      const fromCache = isPlateCached(v.plate);
+
+      // The plan gate. Guests are handled above by their own one-check
+      // rule, so this only applies to signed-in users, and it is skipped
+      // entirely for a cached re-view: refusing a result already on screen
+      // would be indefensible.
+      if (isAuthenticated && !fromCache) {
+        const verdict = await checkPlateQuota(1);
+        if (isPlateQuotaRefusal(verdict)) {
+          setPlanLocked(verdict);
+          setStatus('idle');
+          return;
+        }
+      }
+
       const data = await lookupVehicleQuickCheck(v.plate);
-      // Monetization phase 3: count, never block. Not awaited, so a counter
-      // failure can never cost the user their result.
-      //
-      // ⚠️ THIS COUNTS CACHE HITS TOO. lookupVehicleQuickCheck keeps a
-      // 10-minute module-level cache and returns from it at
-      // vehicleQuickCheck.js:216 with NO signal that it did, so there is
-      // nothing here to branch on. §3.2 recommends the opposite (a re-view
-      // inside the window should be free, "so nobody complains they paid
-      // twice for the same vehicle"), and doing that properly needs the
-      // service to report a hit; approximating it with a second cache here
-      // would just be two caches disagreeing.
-      //
-      // Acceptable for phase 3 because nothing is charged yet, and because
-      // over-counting demand errs toward a MORE generous cap rather than a
-      // tighter one. It must be revisited before phase 5, where the same
-      // call becomes a charge.
-      countPlateLookup(accountId, 'vehicle_check');
+      // Count, never block. Not awaited, so a counter failure can never
+      // cost the user their result.
+      if (!fromCache) countPlateLookup(accountId, 'vehicle_check');
       if (!isAuthenticated) markQuickCheckUsed();
       if (!data) {
         setResult(null);
@@ -332,6 +348,7 @@ export default function VehicleCheck() {
     setStatus('idle');
     setError('');
     setLimitLocked(false);
+    setPlanLocked(null);
     setSaved(false);
     setLoadingIndex(0);
     setReportMode(null);
@@ -420,6 +437,7 @@ export default function VehicleCheck() {
         )}
 
         {limitLocked && <GuestLimitCard onAuth={goToAuth} />}
+        {planLocked && <PlateQuotaCard verdict={planLocked} />}
         {isBusy && <SmartLoading text={loadingMessages[loadingIndex]} />}
         {status === 'not_found' && (
           <StateCard
@@ -1177,6 +1195,41 @@ function GuestLimitCard({ onAuth }) {
           חזרה לבית
         </Link>
       </div>
+    </section>
+  );
+}
+
+/**
+ * The plan quota wall. Same visual language as GuestLimitCard above, on
+ * purpose: both are "you have run out of checks", and a second look for the
+ * same message would read as a different kind of problem.
+ *
+ * The words and the platform rule come from plateQuotaCopy, NOT from here.
+ * Four surfaces can show this refusal, and App Store Guideline 3.1.1(a)
+ * covers prose rather than only controls, so "a paid plan exists" is itself
+ * steering on iOS. Deciding that per screen is four chances to get it wrong,
+ * and the one that is wrong is a review rejection.
+ */
+function PlateQuotaCard({ verdict }) {
+  const { title, body, cta } = plateQuotaCopy(verdict);
+
+  return (
+    <section className="bg-white border border-yellow-100 rounded-3xl p-5 mb-5 shadow-sm text-center">
+      <LockKeyhole className="h-9 w-9 text-yellow-700 mx-auto mb-3" />
+      <h2 className="text-lg font-bold text-gray-900 mb-1">{title}</h2>
+      <p className="text-sm text-gray-500 mb-4">{body}</p>
+      {/* Web only. The label points at what the screen actually does: /MyPlan
+          shows the plan and its limits, it does not take a payment, and a
+          button reading "שדרג" would promise a checkout that is not there. */}
+      {cta === 'plan' && (
+        <Link
+          to={createPageUrl('MyPlan')}
+          className="inline-flex items-center justify-center px-4 py-2 rounded-2xl font-bold text-white min-h-[44px]"
+          style={{ background: C.primary }}
+        >
+          המסלול והמגבלות שלי
+        </Link>
+      )}
     </section>
   );
 }

@@ -63,6 +63,8 @@ import SignUpPromptDialog from "../components/shared/SignUpPromptDialog";
 import { useQueryClient } from '@tanstack/react-query';
 import useAccountRole from '@/hooks/useAccountRole';
 import { countPlateLookup } from '@/lib/usageCounters';
+import { checkPlateQuota, isPlateQuotaRefusal } from '@/lib/plateQuotaGate';
+import PlateQuotaNotice from '@/components/shared/PlateQuotaNotice';
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import { isViewOnly } from '@/lib/permissions';
 import CountryFlagSelect from '../components/vehicle/CountryFlagSelect';
@@ -205,6 +207,9 @@ export default function AddVehicle() {
   const [shipyardQuestion, setShipyardQuestion] = useState(null);
   const [plateQuery, setPlateQuery] = useState('');
   const [lookupStatus, setLookupStatus] = useState('idle');
+  // The plan-quota verdict behind lookupStatus === 'quota'. Held so the
+  // notice can state the real numbers rather than a generic sentence.
+  const [quotaVerdict, setQuotaVerdict] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);    // one of VEHICLE_CATEGORIES
   const [selectedSubcategory, setSelectedSubcategory] = useState(null); // one of SPECIAL_SUBCATEGORIES
   const [customSubcategories, setCustomSubcategories] = useState({}); // { categoryLabel: [{label,dbName,usageMetric}] }
@@ -788,13 +793,23 @@ export default function AddVehicle() {
     if (!plateQuery.trim()) return;
     setLookupStatus('loading');
     try {
+      // Monetization phase 5c. §3.2 calls THIS the biggest hole in the
+      // plate quota: an explicit lookup that returns the full
+      // specification, reachable by opening /AddVehicle and searching
+      // without ever saving a vehicle. Phase 3 counted it; this refuses it.
+      //
+      // No cache exemption here, unlike VehicleCheck: this path calls
+      // lookupVehicleByPlate directly and never touches the 10-minute
+      // quick-check cache, so every search really is a fresh request.
+      const verdict = await checkPlateQuota(1);
+      if (isPlateQuotaRefusal(verdict)) {
+        setQuotaVerdict(verdict);
+        setLookupStatus('quota');
+        return;
+      }
+
       const result = await lookupVehicleByPlate(plateQuery.trim());
-      // Monetization phase 3: count, never block. §3.2 calls this the
-      // BIGGEST hole in the plate quota: an explicit user-initiated lookup
-      // that returns the full specification, reachable by opening
-      // /AddVehicle and searching without ever saving a vehicle. Leaving it
-      // uncounted would make free full-spec lookups effectively unlimited
-      // and would set the eventual cap from numbers that were wrong.
+      // Count, never block.
       // Counted even on a miss: the request went to data.gov.il either way.
       countPlateLookup(accountId, 'add_vehicle_search');
       if (!result) { setLookupStatus('not_found'); return; }
@@ -1653,6 +1668,12 @@ export default function AddVehicle() {
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   אירעה שגיאה בשליפת הנתונים, ניתן להזין ידנית
                 </div>
+              )}
+              {lookupStatus === 'quota' && (
+                <PlateQuotaNotice
+                  verdict={quotaVerdict}
+                  tail="אפשר להמשיך ולמלא את הפרטים ידנית למטה."
+                />
               )}
             </div>
           )}
