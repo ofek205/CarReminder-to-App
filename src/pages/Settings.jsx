@@ -60,8 +60,37 @@ export default function Settings() {
         <SettingsGroup title={`עסקי · ${businessName}`} rows={businessRows} accent />
       )}
 
+      {/* Legal documents: App Store Guideline 5.1.1(i) requires the privacy
+          policy to be reachable "within the app in an easily accessible
+          manner", and until now the only link lived on AuthPage, so a
+          signed-in user had no path to it at all.
+          These are reference documents rather than settings, so they sit in
+          the footer instead of the grouped list above. Both routes are in
+          PUBLIC_PAGES, so guests reach them too. Padding keeps each tap
+          target ~44px for thumb reach. */}
+      <nav
+        className="flex items-center justify-center gap-0.5 mt-6"
+        aria-label="מסמכים משפטיים"
+      >
+        <Link
+          to={createPageUrl('PrivacyPolicy')}
+          className="px-3 py-2.5 text-[13px] underline rounded-lg transition-colors hover:bg-gray-50"
+          style={{ color: C.mutedAlt }}
+        >
+          מדיניות פרטיות
+        </Link>
+        <span className="text-[13px]" aria-hidden="true" style={{ color: C.gray300 }}>&middot;</span>
+        <Link
+          to={createPageUrl('TermsOfService')}
+          className="px-3 py-2.5 text-[13px] underline rounded-lg transition-colors hover:bg-gray-50"
+          style={{ color: C.mutedAlt }}
+        >
+          תנאי שימוש
+        </Link>
+      </nav>
+
       {/* Version footer — shown for every user (support triage). */}
-      <p className="text-center text-[11px] mt-6 mb-2" style={{ color: C.gray400 }}>
+      <p className="text-center text-[11px] mt-1 mb-2" style={{ color: C.gray400 }}>
         CarReminder &middot; גרסה {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—'}
       </p>
     </PageShell>
