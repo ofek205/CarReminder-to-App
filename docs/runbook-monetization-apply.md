@@ -9,9 +9,33 @@
 
 ## שני התיקונים שאסור לאבד
 
-### 1. הפנקס חייב לרוץ ראשון
+### 1. הפנקס — ✅ נבדק 2026-09-08, הוא **כבר** חי
 
-`node scripts/sql-ledger.cjs record <file>` מפיק קריאה ל-**`public.sql_ledger_record(...)`**. הטבלה והפונקציה מוגדרות ב-`supabase-sql-ledger-2026-09-01.sql`, ש-CLAUDE.md מתעד כ**טרם הוחל**. בלי להחיל אותו קודם, כל `record` נכשל ב-`function does not exist`.
+`node scripts/sql-ledger.cjs record <file>` מפיק קריאה ל-**`public.sql_ledger_record(...)`**, ולכן הטבלה חייבת להתקיים.
+
+**היא קיימת.** `select count(*) from public.sql_ledger` החזיר **4** — כלומר הפנקס הוחל לפני 2026-09-08 וארבעה קבצים כבר רשומים בו. הקובץ עצמו לא זורע שורות (ה-`insert` היחיד שבו יושב בתוך גוף `sql_ledger_record`), ולכן ארבע השורות הן רישומים אמיתיים.
+
+> **שני תיקונים לגרסה קודמת של הקובץ הזה:**
+> 1. כתבתי ש-`0` היא „התשובה הנכונה” לשאילתת הבדיקה. **זה היה שגוי** והיה גורם לתוצאה תקינה להיראות כתקלה. כל מספר ≥ 0 תקין; מה שנבדק הוא שהשאילתה **לא זורקת שגיאה**.
+> 2. הסתמכתי על ההערה ב-CLAUDE.md שהקובץ „טרם הוחל”. ההערה **מיושנת**. זה בדיוק הפער בין תיעוד למציאות שה-CLAUDE.md עצמו מזהיר עליו שוב ושוב.
+
+הרצה חוזרת של הקובץ **בלתי-מזיקה** (`create table if not exists` + `create or replace function`), אך אינה נדרשת.
+
+**מה כן כדאי לראות לפני שממשיכים** — מה בדיוק רשום, כי בריפו הזה הפנקס הוא העדות היחידה למה שהוחל:
+
+```sql
+select filename, verdict, target_database,
+       applied_at::date as applied,
+       applied_by_email as who,
+       left(coalesce(notes, ''), 60) as notes
+  from public.sql_ledger
+ where rolled_back_at is null
+ order by applied_at;
+```
+
+```bash
+node scripts/sql-ledger.cjs drift
+```
 
 ### 2. הדגלים דורשים upsert, לא `UPDATE`
 
@@ -35,15 +59,17 @@
 
 ---
 
-## שלב 0 — הפנקס
+## שלב 0 — הפנקס ✅ כבר בוצע
 
-הדבק את `supabase-sql-ledger-2026-09-01.sql` במלואו.
+**אין מה להריץ כאן.** נבדק ב-2026-09-08: הפנקס חי ובו 4 רישומים. ראה תיקון 1 למעלה.
+
+אם בסביבה אחרת הוא כן חסר, השאילתה הזו זורקת שגיאה, ואז מדביקים את `supabase-sql-ledger-2026-09-01.sql` במלואו:
 
 ```sql
-select count(*) as ledger_ready from public.sql_ledger;
+select count(*) as ledger_rows from public.sql_ledger;
 ```
 
-**`0` היא התשובה הנכונה.** שגיאה = הקובץ לא נתפס.
+**מה שנבדק הוא שהשאילתה לא זורקת שגיאה.** המספר עצמו אינו אבחנתי.
 
 ---
 
