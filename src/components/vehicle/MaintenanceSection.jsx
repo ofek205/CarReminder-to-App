@@ -117,7 +117,12 @@ export default function MaintenanceSection({ vehicle }) {
       });
       const text = json?.content?.[0]?.text || '';
       const match = text.match(/\{[\s\S]*\}/);
-      if (!match) return null;
+      if (!match) {
+        // The model answered but not with JSON. Distinct from a
+        // transport failure, and it used to return null in silence.
+        toastError('לא הצלחנו לקרוא את הקבלה. אפשר למלא את הפרטים ידנית.', { action: 'maint_receipt_unparsed' });
+        return null;
+      }
       const parsed = JSON.parse(match[0]);
       const safeStr = (v) => typeof v === 'string' ? v.replace(/<[^>]*>/g, '').trim().slice(0, 100) : '';
       // Normalize keys to match the SCAN_REVIEW_SCHEMA below.
@@ -129,6 +134,24 @@ export default function MaintenanceSection({ vehicle }) {
       };
     } catch (err) {
       console.error('Receipt scan error:', err);
+      // Until 2026-09-08 this returned null with no user-facing message
+      // at all, and handleScanConfirm below then reset to idle in
+      // silence. The user tapped "כן, סרוק", watched a spinner, and the
+      // dialog just closed — no way to tell a provider outage from
+      // "my receipt was rejected". This is the only scan surface that
+      // swallowed its errors, and CLAUDE.md requires every state to be
+      // rendered.
+      //
+      // The one case that must stay quiet is the kill switch: aiRequest
+      // fires emitAiScanDisabled() before throwing, and the singleton
+      // AiScanUnavailableDialog at Layout.jsx:1009 already explains it.
+      // A toast on top of that dialog would be a duplicate.
+      if (err?.code !== 'SCAN_EXTRACTION_DISABLED') {
+        toastError(
+          err?.message || 'סריקת הקבלה נכשלה. אפשר למלא את הפרטים ידנית.',
+          { action: 'maint_receipt_scan', err },
+        );
+      }
       return null;
     } finally { setAiScanning(false); }
   };
@@ -182,8 +205,11 @@ export default function MaintenanceSection({ vehicle }) {
     setScanStep('scanning');
     const out = await _extractReceiptFromBase64(pendingScanBase64);
     if (!out) {
-      // Quiet failure — keep the receipt attached, let the user fill
-      // the form manually. The original code did the same.
+      // Keep the receipt attached so the user can fill the form
+      // manually. No longer a QUIET failure: the reason has already
+      // been surfaced by _extractReceiptFromBase64 (a toast, or the
+      // Layout-level AiScanUnavailableDialog when the kill switch is
+      // off), so all that is left here is resetting the dialog.
       setScanStep('idle');
       setPendingScanFile(null);
       setPendingScanBase64('');

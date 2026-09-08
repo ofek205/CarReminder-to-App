@@ -133,8 +133,15 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
       // Fetch the attached photo (if any) and ship it to the vision model.
       // The whole point of "what does this warning light mean" is the
-      // image — the old code never sent it, leaving the AI blind. Public
-      // bucket so no auth needed; degrades to text-only on any failure.
+      // image — the old code never sent it, leaving the AI blind.
+      // Degrades to text-only on any failure.
+      //
+      // NOT a public bucket, despite what this comment claimed until
+      // 2026-09-08: supabaseStorage.js uploads to the PRIVATE
+      // vehicle-files bucket and hands back a signed URL with a 7-day
+      // TTL. It works here because this runs seconds after the upload.
+      // It does mean the photo (and any later re-read of it) dies with
+      // the signature — see the note in supabaseStorage.js.
       const imagePart = post.image_url ? await urlToImagePart(post.image_url) : null;
 
       const systemPrompt = buildCommunitySystemPrompt(expert, {
@@ -151,6 +158,15 @@ export default function PostCreateDialog({ open, onClose, domain, vehicles, T })
 
       const json = await aiRequest({
         model: 'llama-3.3-70b-versatile',
+        // Both of these were missing. Without `feature` the Edge
+        // Function never calls get_ai_provider(), so `preferred` stays
+        // 'auto' and the provider an admin picked for community_expert
+        // in AdminAiSettings was silently ignored — the setting looked
+        // live and did nothing. Without `surface` every forum reply
+        // logged surface=NULL, so AdminAiUsage under-counted the
+        // community and the cost of these calls looked like zero.
+        feature: 'community_expert',
+        surface: 'community_reply',
         // 1500 matches the global default and gives room for a thorough
         // forum answer with price ranges in Hebrew (denser tokenization).
         // The prompt steers toward 4-7 sentences so replies stay focused.

@@ -27,6 +27,23 @@ const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const REQUEST_TIMEOUT_MS = 45_000;
 
 /**
+ * Image formats the vision providers actually accept.
+ *
+ * This lives next to the proxy contract because BOTH attachment paths
+ * need the same answer, and they used to disagree. urlToBase64.js (the
+ * community path) filtered to exactly this set; AiAssistant.jsx accepted
+ * any `image/*`. An iPhone photo picked from the library is frequently
+ * image/heic: the chat happily base64'd it, Gemini answered 400,
+ * callGemini returned null, and the auto-ladder then SKIPPED Groq
+ * because hasImages was true and Claude has no key in this deployment.
+ * Net effect was a bare "שירות ה-AI לא זמין" with nothing pointing at
+ * the file format. Rejecting it in the picker costs one toast instead.
+ *
+ * HEIC is deliberately absent: no provider in the ladder reads it.
+ */
+export const VISION_IMAGE_MIME = /^image\/(jpe?g|png|webp|gif)$/i;
+
+/**
  * AbortController-wrapped fetch. Throws a domain-specific error on
  * timeout so callers can distinguish it from network failures.
  */
@@ -249,7 +266,7 @@ export async function aiRequest(body) {
       const enabled = await isAiScanEnabled();
       if (!enabled) {
         emitAiScanDisabled();
-        const e = new Error('שירות הסריקה הוסט זמנית. אפשר למלא את הפרטים ידנית.');
+        const e = new Error('שירות הסריקה מושבת זמנית. אפשר למלא את הפרטים ידנית.');
         e.code = 'SCAN_EXTRACTION_DISABLED';
         throw e;
       }

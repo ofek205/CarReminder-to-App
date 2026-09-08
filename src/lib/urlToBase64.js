@@ -3,7 +3,8 @@
  * content part for the ai-proxy (Gemini inline_data) pipeline.
  *
  * Why this exists: community posts attach a dashboard / fault-light photo
- * uploaded to a PUBLIC Supabase Storage bucket (community/*). The AI
+ * uploaded to the private vehicle-files bucket under community/*, and
+ * reachable only through the signed URL stored on the post. The AI
  * mechanic needs to SEE that photo to answer "what does this warning
  * mean" — but the old code only sent the post text, leaving the model
  * blind to the exact thing the user asked about (2026-05-31 fix).
@@ -13,6 +14,8 @@
  * so this util returns exactly that shape (or null on any failure —
  * callers degrade gracefully to a text-only request).
  */
+
+import { VISION_IMAGE_MIME } from './aiProxy';
 
 // Hard cap on the image we'll base64-encode and ship to the model.
 // Community images are compressed to ~150-400KB WebP at upload (1280px,
@@ -41,8 +44,11 @@ export async function urlToImagePart(url) {
     }
 
     const mediaType = blob.type || 'image/jpeg';
-    // Only ship formats the vision models accept.
-    if (!/^image\/(jpe?g|png|webp|gif)$/i.test(mediaType)) return null;
+    // Only ship formats the vision models accept. Shared with the chat
+    // picker in AiAssistant.jsx — this list used to be duplicated here
+    // as a literal and simply absent there, which is how HEIC reached
+    // Gemini from the chat and never from the forum.
+    if (!VISION_IMAGE_MIME.test(mediaType)) return null;
 
     const dataUrl = await blobToDataUrl(blob);
     if (!dataUrl) return null;

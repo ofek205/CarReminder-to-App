@@ -40,6 +40,21 @@ const REASON_META = {
   [TRIP_GUARD_REASONS.BATTERY]: { label: 'חיסכון הסוללה עלול לחסום פעולה ברקע', fixable: false },
 };
 
+// Which blocker to surface when several apply at once. This is DELIBERATELY not
+// the order the platform emits: native getStatus() lists NO_DEVICE before
+// BT_PERM, and NO_DEVICE is not fixable — so a missing Bluetooth permission hid
+// behind "עדיין לא בחרת רכב" with no "תקן" button, while the paired-device list
+// stayed empty *because of* that same missing permission. The user could never
+// escape. A prerequisite must always outrank the symptom it causes.
+const REASON_PRIORITY = [
+  TRIP_GUARD_REASONS.DISABLED,
+  TRIP_GUARD_REASONS.BT_PERM,
+  TRIP_GUARD_REASONS.BT_OFF,
+  TRIP_GUARD_REASONS.NOTIF_PERM,
+  TRIP_GUARD_REASONS.NO_DEVICE,
+  TRIP_GUARD_REASONS.BATTERY,
+];
+
 function looksLikeEarbuds(name) {
   return /airpod|buds|headphone|אוזני/i.test(name || '');
 }
@@ -333,8 +348,15 @@ export default function SafetyReminder() {
   }
 
   const ready = status && status.ready;
-  const topReason = status && status.reasons && status.reasons.length > 0 ? status.reasons[0] : null;
+  const reasons = (status && status.reasons) || [];
+  // Pick by REASON_PRIORITY, not by emitted order — see the note on that list.
+  const topReason = reasons.length > 0
+    ? (REASON_PRIORITY.find((r) => reasons.includes(r)) || reasons[0])
+    : null;
   const reasonMeta = topReason ? REASON_META[topReason] : null;
+  // Drives the device-picker copy: an empty list caused by a missing permission
+  // must not be reported as "you never paired anything".
+  const btPermMissing = reasons.includes(TRIP_GUARD_REASONS.BT_PERM);
 
   return (
     <div className="max-w-xl mx-auto p-4 pb-24" dir="rtl">
@@ -416,8 +438,10 @@ export default function SafetyReminder() {
           סמן את מערכת השמע של הרכב מתוך המכשירים שחיברת ל-Bluetooth.
         </p>
         {devices.length === 0 ? (
-          <p className="text-sm py-2" style={{ color: C.muted }}>
-            עדיין לא חיברת מכשירי Bluetooth. התחבר לרכב פעם אחת וחזור לכאן.
+          <p className="text-sm py-2" style={{ color: btPermMissing ? C.warnMid : C.muted }}>
+            {btPermMissing
+              ? 'אין לנו הרשאת Bluetooth, ולכן אנחנו לא רואים את המכשירים המזווגים שלך. אשר/י את ההרשאה בכפתור "תקן עכשיו" למעלה, והרכבים יופיעו כאן.'
+              : 'עדיין לא חיברת מכשירי Bluetooth. התחבר לרכב פעם אחת וחזור לכאן.'}
           </p>
         ) : (
           <div className="space-y-2">
