@@ -1,6 +1,22 @@
-import { describe, it, expect } from 'vitest';
-import { requestCarriesImage, kindsForRequest } from './aiConsentGate';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { requestCarriesImage, kindsForRequest, requireAiConsent } from './aiConsentGate';
 import { AI_TEXT, AI_IMAGES } from './aiConsent';
+
+// Mocked so the enforcement decisions can be tested without a database.
+// The classification tests below need none of this.
+const flagEnabled = vi.fn();
+const consents = vi.fn();
+
+vi.mock('./featureFlags', () => ({
+  isFeatureEnabled: (...a) => flagEnabled(...a),
+}));
+vi.mock('./supabase', () => ({
+  supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'u1' } } } }) } },
+}));
+vi.mock('./aiConsent', async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchConsents: (...a) => consents(...a),
+}));
 
 // Bodies copied from the shapes the real call sites build, so these tests
 // break if a call site changes shape rather than passing on a fiction.
@@ -151,5 +167,69 @@ describe('kindsForRequest', () => {
     // including a typo of an existing one, needs text consent.
     expect(kindsForRequest({ feature: 'scan_extractio', messages: [] })).toContain(AI_TEXT);
     expect(kindsForRequest({ feature: 'brand_new_thing', messages: [] })).toContain(AI_TEXT);
+  });
+});
+
+describe('requireAiConsent', () => {
+  beforeEach(() => {
+    flagEnabled.mockReset();
+    consents.mockReset();
+  });
+
+  const textOnly = { feature: 'yossi_chat', messages: [{ role: 'user', content: 'שאלה' }] };
+
+  it('does nothing at all while the flag is off', async () => {
+    flagEnabled.mockResolvedValue(false);
+    await expect(requireAiConsent(textOnly)).resolves.toBeUndefined();
+    // Must not even read the consent table: before the migration is
+    // applied that read fails, and a flag that is off has to mean the
+    // whole feature is absent rather than merely quiet.
+    expect(consents).not.toHaveBeenCalled();
+  });
+
+  it('reads the flag with ignoreAdmin, never the admin bypass', async () => {
+    // The bypass would enrol admins in a fail-closed restriction before
+    // anyone turned it on, and take AI away from them in production.
+    flagEnabled.mockResolvedValue(false);
+    await requireAiConsent(textOnly);
+    expect(flagEnabled).toHaveBeenCalledWith(expect.any(String), { ignoreAdmin: true });
+  });
+
+  it('passes silently when the consent is granted', async () => {
+    flagEnabled.mockResolvedValue(true);
+    consents.mockResolvedValue({ [AI_TEXT]: 'granted', [AI_IMAGES]: 'granted' });
+    await expect(requireAiConsent(textOnly)).resolves.toBeUndefined();
+  });
+
+  it('throws a NON-RETRYABLE error when the user declined', async () => {
+    flagEnabled.mockResolvedValue(true);
+    consents.mockResolvedValue({ [AI_TEXT]: 'denied', [AI_IMAGES]: 'denied' });
+    const err = await requireAiConsent(textOnly).catch((e) => e);
+    expect(err.code).toBe('AI_CONSENT_DECLINED');
+    // The contract PlateScanButton relies on. Without it an automatic
+    // retry re-raises the sheet the instant the user dismisses it.
+    expect(err.retryable).toBe(false);
+  });
+
+  it('throws a NON-RETRYABLE error when the consent could not be read', async () => {
+    flagEnabled.mockResolvedValue(true);
+    consents.mockResolvedValue({ [AI_TEXT]: 'unknown', [AI_IMAGES]: 'unknown' });
+    const err = await requireAiConsent(textOnly).catch((e) => e);
+    expect(err.code).toBe('AI_CONSENT_UNAVAILABLE');
+    expect(err.retryable).toBe(false);
+  });
+
+  it('blocks a photo in chat when only text was granted', async () => {
+    // The hole a feature -> kind map would leave: text consent carrying
+    // a photographed licence through the chat attachment.
+    flagEnabled.mockResolvedValue(true);
+    consents.mockResolvedValue({ [AI_TEXT]: 'granted', [AI_IMAGES]: 'denied' });
+    const withPhoto = {
+      feature: 'yossi_chat',
+      messages: [{ role: 'user', content: [{ type: 'image', source: { data: 'A' } }] }],
+    };
+    const err = await requireAiConsent(withPhoto).catch((e) => e);
+    expect(err.code).toBe('AI_CONSENT_DECLINED');
+    expect(err.consentKind).toBe(AI_IMAGES);
   });
 });

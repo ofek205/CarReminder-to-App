@@ -164,7 +164,12 @@ export default function PlateScanButton({ onPlateDetected, disabled = false, siz
       };
 
       let { raw, plate: cleaned, error: lastError } = await safeAttempt();
-      if (!cleaned || cleaned.length < 5) {
+      // Retry only what a second attempt could plausibly fix. The consent
+      // gate marks its errors retryable:false, because re-calling
+      // aiRequest after the user dismissed the permission sheet raises
+      // that sheet again immediately — punishing the one gesture that
+      // means "not now". A refusal is an answer, not a transient fault.
+      if ((!cleaned || cleaned.length < 5) && lastError?.retryable !== false) {
         const second = await safeAttempt();
         // Prefer whichever attempt produced the longer plausible read —
         // guards against attempt #1 truncating and #2 over-reading.
