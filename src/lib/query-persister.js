@@ -148,13 +148,30 @@ export function shouldDehydrateQuery(query) {
 }
 
 /**
- * Wipe the on-disk cache.
+ * Wipe the cache on an identity boundary — sign-out, account switch, entering
+ * or leaving admin view-as, account deletion.
  *
- * MUST be called on every identity boundary — sign-out, account switch,
- * entering/leaving admin view-as, account deletion. `queryClient.clear()` only
- * empties memory; without this the next session rehydrates the PREVIOUS
- * identity's data from disk. See docs/offline-architecture-spec.md §6.
+ * It clears MEMORY FIRST, then disk, and that order is the whole point.
+ *
+ * Deleting only the IndexedDB key does not work, and this was reproduced: the
+ * persister subscribes to query-cache changes and writes on a 1s throttle, so
+ * with the previous identity's rows still sitting in memory, the very next
+ * cache activity — a query mounting on the login screen, a GC tick, a failed
+ * refetch, or simply a write that was already throttled when the clear ran —
+ * re-persists that data straight back to disk. The teardown appeared to work
+ * and then silently undid itself.
+ *
+ * Clearing memory first means any write that lands afterwards can only persist
+ * an empty snapshot. Callers that already call queryClient.clear() themselves
+ * are unaffected; clearing twice is harmless. Keeping both halves inside this
+ * one function is deliberate, so a future call site cannot get the order wrong.
  */
 export async function clearPersistedCache() {
+  // Imported lazily: this module is loaded from contexts that sit outside the
+  // React tree, and a static import would couple them to the client instance.
+  try {
+    const { queryClientInstance } = await import('./query-client');
+    queryClientInstance.clear();
+  } catch { /* best effort — the disk wipe below still runs */ }
   try { await race(del(IDB_KEY), undefined); } catch { /* best effort */ }
 }
