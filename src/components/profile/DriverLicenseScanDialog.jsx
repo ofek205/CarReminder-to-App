@@ -1,14 +1,15 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { uploadScanFile, deleteFile } from '@/lib/supabaseStorage';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
+import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { validateUploadFile } from '@/lib/securityUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Upload, Check, ScanLine, Camera } from "lucide-react";
+import { Loader2, Upload, Check, ScanLine, Camera, Info } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 
 function parseDate(str) {
@@ -32,6 +33,11 @@ export default function DriverLicenseScanDialog({ open, onClose, onSave }) {
   const [fileUrl, setFileUrl] = useState('');
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
+  // Mirror of app_config.scan_extraction_enabled. Starts false so the AI
+  // label never flashes in and then swaps on a slow network, matching the
+  // pattern in VehicleInfoSection.jsx. Admins always resolve true, so QA
+  // can still exercise the scan while it is off for users.
+  const [aiScanAllowed, setAiScanAllowed] = useState(false);
   const [fields, setFields] = useState({
     full_name: '',
     birth_date: '',
@@ -44,6 +50,27 @@ export default function DriverLicenseScanDialog({ open, onClose, onSave }) {
   // blob so we don't pay for abandoned uploads forever.
   const storagePathRef = useRef(null);
   const savedRef = useRef(false);
+
+  // Re-read the gate every time the dialog opens rather than once on
+  // mount: the flag is cached for 60s and an admin can flip it while the
+  // app is open, so a mount-only read would go stale for the session.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    isAiScanEnabled().then(v => { if (!cancelled) setAiScanAllowed(!!v); });
+    return () => { cancelled = true; };
+  }, [open]);
+
+  // Straight to the editable form with empty fields, no AI call. This is
+  // the same transition handleExtract already makes when extraction
+  // fails, reused here so the scan being switched off cannot dead-end
+  // the user: before this, EVERY route to step 'confirm' ran through
+  // handleExtract, so a disabled scan button would have left the dialog
+  // with no way forward at all.
+  const skipToManual = () => {
+    setError('');
+    setStep('confirm');
+  };
 
   const reset = () => {
     setStep('upload'); setUploading(false); setExtracting(false);
@@ -172,9 +199,29 @@ export default function DriverLicenseScanDialog({ open, onClose, onSave }) {
 
             {error && <p className="text-sm text-red-500 bg-red-50 p-2 rounded-lg">{error}</p>}
 
+            {/* Quiet notice, not an alarm — appears only when an admin has
+                switched scan extraction off. Without it the button below
+                silently changes meaning and the user has no idea why. */}
+            {!aiScanAllowed && (
+              <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 p-2.5 rounded-lg flex items-start gap-2">
+                <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>סריקה אוטומטית כרגע לא זמינה. הקובץ יישמר, ואת הפרטים אפשר למלא ידנית.</span>
+              </p>
+            )}
+
             <div className="flex gap-2">
-              <Button onClick={handleExtract} disabled={!fileUrl || extracting || uploading} className="flex-1 bg-[#2D5233] hover:bg-[#1E3D24] text-white">
-                {extracting ? <><Loader2 className="h-4 w-4 animate-spin ml-2" />מחלץ פרטים...</> : 'חלץ פרטים בAI'}
+              {/* One button, two meanings. With the gate off it goes straight
+                  to the editable form instead of being disabled: every route
+                  to step 'confirm' used to run through handleExtract, so a
+                  disabled button here would dead-end the dialog entirely. */}
+              <Button
+                onClick={aiScanAllowed ? handleExtract : skipToManual}
+                disabled={!fileUrl || extracting || uploading}
+                className="flex-1 bg-[#2D5233] hover:bg-[#1E3D24] text-white"
+              >
+                {extracting
+                  ? <><Loader2 className="h-4 w-4 animate-spin ml-2" />מחלץ פרטים...</>
+                  : aiScanAllowed ? 'חלץ פרטים בAI' : 'המשך להזנה ידנית'}
               </Button>
               <Button variant="outline" onClick={handleClose}>ביטול</Button>
             </div>
