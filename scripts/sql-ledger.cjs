@@ -113,20 +113,68 @@ function stripBodiesAndComments(sql) {
  *
  * UPDATE / DELETE / TRUNCATE have no guarded form. They always count.
  */
+/**
+ * The mutations a SINGLE statement performs.
+ *
+ * ⚠️ A DATA-MODIFYING CTE HIDES THE VERB, AND THAT WAS A REAL BLIND SPOT.
+ *   Both of these write rows, and both begin with the word WITH:
+ *     WITH x AS (...) UPDATE t SET ...
+ *     WITH x AS (INSERT INTO t ... RETURNING *) SELECT ...
+ *   The `^VERB` anchors below therefore never saw them. Two monetization
+ *   files use exactly that form (phase 1's grace backfill and the 2026-09-09
+ *   grandfather freeze) and were both reported REPLAY_SAFE without their
+ *   writes ever being looked at. They happen to be safe, but this function
+ *   is not what established that, which is the worst way for a classifier to
+ *   be right.
+ *
+ *   For a WITH statement the verbs are collected from ANYWHERE in it, at any
+ *   paren depth: a mutation inside a CTE body mutates exactly as much as one
+ *   in the main clause.
+ *
+ * ⚠️ AND `UPDATE` IS A KEYWORD IN TWO PLACES THAT WRITE NOTHING.
+ *     SELECT ... FOR UPDATE / FOR NO KEY UPDATE   row locking
+ *     INSERT ... ON CONFLICT DO UPDATE            the upsert form
+ *   Searching a whole statement for \bUPDATE\b without removing those first
+ *   turns every row lock into a reported write. phase 2b locks rows that way
+ *   on purpose, so this is not hypothetical.
+ */
+function mutationsIn(s) {
+  const out = [];
+  // Neutralise the non-mutating uses of the UPDATE keyword before looking.
+  const clean = s
+    .replace(/\bFOR\s+(NO\s+KEY\s+)?UPDATE\b/gi, ' ')
+    .replace(/\bDO\s+UPDATE\b/gi, ' ');
+  const guarded = /\bON\s+CONFLICT\b/i.test(s);
+  const notSearchPath = !/\bSET\s+search_path\b/i.test(clean);
+
+  if (/^WITH\b/i.test(clean)) {
+    // Unanchored: the verb can sit before or inside the CTE parens.
+    if (/\bINSERT\s+INTO\b/i.test(clean) && !guarded) out.push('INSERT');
+    if (/\bUPDATE\b/i.test(clean) && notSearchPath) out.push('UPDATE');
+    if (/\bDELETE\s+FROM\b/i.test(clean)) out.push('DELETE');
+    if (/\bTRUNCATE\b/i.test(clean)) out.push('TRUNCATE');
+    return out;
+  }
+
+  // Plain statement: the leading verb decides, as before.
+  if (/^INSERT\s+INTO\b/i.test(clean)) {
+    if (!guarded) out.push('INSERT');
+  } else if (/^UPDATE\b/i.test(clean) && notSearchPath) {
+    out.push('UPDATE');
+  } else if (/^DELETE\s+FROM\b/i.test(clean)) {
+    out.push('DELETE');
+  } else if (/^TRUNCATE\b/i.test(clean)) {
+    out.push('TRUNCATE');
+  }
+  return out;
+}
+
 function unguardedMutations(code) {
   const found = [];
   for (const stmt of code.split(';')) {
     const s = stmt.trim();
     if (!s) continue;
-    if (/^INSERT\s+INTO\b/i.test(s)) {
-      if (!/\bON\s+CONFLICT\b/i.test(s)) found.push('INSERT');
-    } else if (/^UPDATE\b/i.test(s) && !/\bSET\s+search_path\b/i.test(s)) {
-      found.push('UPDATE');
-    } else if (/^DELETE\s+FROM\b/i.test(s)) {
-      found.push('DELETE');
-    } else if (/^TRUNCATE\b/i.test(s)) {
-      found.push('TRUNCATE');
-    }
+    found.push(...mutationsIn(s));
   }
   return found;
 }
@@ -315,15 +363,26 @@ function cmdDrift() {
   return changed.length ? 1 : 0;
 }
 
-const [cmd, arg] = process.argv.slice(2);
-let code = 0;
-switch (cmd) {
-  case 'scan':   code = cmdScan(arg === '--json'); break;
-  case 'hash':   code = cmdHash(arg); break;
-  case 'record': code = cmdRecord(arg); break;
-  case 'drift':  code = cmdDrift(); break;
-  default:
-    console.log('usage: node scripts/sql-ledger.cjs <scan [--json] | hash <file> | record <file> | drift>');
-    code = 1;
+// ⚠️ GUARDED, SO THIS FILE CAN BE REQUIRED BY A TEST. Unguarded, the
+// dispatch ran on import and then called process.exit, which kills the
+// vitest worker rather than failing a test. The classifier had no coverage
+// at all until 2026-09-09, which is how a data-modifying CTE went unseen;
+// the exports below are what let sql-ledger.test.js reach the logic.
+// require.main === module is still true for every CLI invocation, so
+// nothing about running it by hand changes.
+if (require.main === module) {
+  const [cmd, arg] = process.argv.slice(2);
+  let code = 0;
+  switch (cmd) {
+    case 'scan':   code = cmdScan(arg === '--json'); break;
+    case 'hash':   code = cmdHash(arg); break;
+    case 'record': code = cmdRecord(arg); break;
+    case 'drift':  code = cmdDrift(); break;
+    default:
+      console.log('usage: node scripts/sql-ledger.cjs <scan [--json] | hash <file> | record <file> | drift>');
+      code = 1;
+  }
+  process.exit(code);
 }
-process.exit(code);
+
+module.exports = { mutationsIn, unguardedMutations, stripBodiesAndComments };
