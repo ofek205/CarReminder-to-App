@@ -24,6 +24,7 @@ export const OUTCOME = {
   RETRY: 'retry',          // transient; keep PENDING, try the next drain
   TERMINAL: 'terminal',    // will never succeed; keep for review
   PAUSE: 'pause',          // stop the whole drain (auth expired / offline again)
+  CONFLICT: 'conflict',    // the row moved under the edit; kept for a decision
 };
 
 /**
@@ -70,6 +71,10 @@ function isAuthProblem(err) {
 export function classify(error) {
   if (!error) return OUTCOME.SUCCESS;
   if (isAuthProblem(error)) return OUTCOME.PAUSE;
+  // Checked BEFORE the code table on purpose. A conditional-update miss must
+  // never fall through to PGRST116, which is TERMINAL: that would file a still
+  // valid edit as unfixable.
+  if (error?.isConflict) return OUTCOME.CONFLICT;
   const code = error?.code ?? error?.details?.code;
   if (code && ALREADY_APPLIED_CODES.has(String(code))) return OUTCOME.SUCCESS;
   if (code && TERMINAL_CODES.has(String(code))) return OUTCOME.TERMINAL;
@@ -100,7 +105,7 @@ let draining = false;
 export async function drainOutbox(userId) {
   if (draining || !userId) return { skipped: true, synced: 0, failed: 0, remaining: 0 };
   draining = true;
-  const summary = { skipped: false, synced: 0, failed: 0, remaining: 0, paused: false };
+  const summary = { skipped: false, synced: 0, failed: 0, conflicted: 0, remaining: 0, paused: false };
   try {
     const items = await listPending(userId);
     for (const item of items) {
@@ -132,6 +137,14 @@ export async function drainOutbox(userId) {
       } else if (outcome === OUTCOME.PAUSE) {
         summary.paused = true;
         break;
+      } else if (outcome === OUTCOME.CONFLICT) {
+        // Kept, and marked so it is not reported as a permanent failure. The
+        // edit is still valid; it just no longer applies to the row as it
+        // stands. Resolving it is Phase 6 UI — until that exists the item is
+        // held rather than replayed, because a blind retry would either fail
+        // forever or, once the base matched again, overwrite the newer value.
+        await recordFailure(item.opId, error, { terminal: true, conflict: true });
+        summary.conflicted += 1;
       } else if (outcome === OUTCOME.TERMINAL) {
         await recordFailure(item.opId, error, { terminal: true });
         summary.failed += 1;

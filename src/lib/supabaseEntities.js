@@ -204,6 +204,40 @@ function makeEntity(table) {
       return data;
     },
 
+    /**
+     * Update a row ONLY if its `updated_at` still matches what the caller last
+     * saw. This is the conflict check behind offline updates: the write was
+     * composed against a snapshot, and the server row may have moved since.
+     *
+     * Deliberately NOT `.single()`. That raises PGRST116 on a zero-row match,
+     * and PGRST116 is already in sync.js's TERMINAL_CODES — a conflict would be
+     * mislabelled "will never succeed" and the user's edit filed as a permanent
+     * failure. Counting rows keeps the two apart.
+     *
+     * Zero rows can mean the row changed, was deleted, or is no longer visible
+     * under RLS. All three mean the same thing to the caller: this edit cannot
+     * be applied as composed. It is reported as a conflict and kept, never
+     * silently dropped.
+     */
+    async updateIfUnchanged(id, changes, baseUpdatedAt) {
+      if (!id) throw new Error('Update requires an id');
+      if (!baseUpdatedAt) throw new Error('updateIfUnchanged requires the base updated_at');
+      const { data, error } = await withTimeout(
+        supabase.from(table).update(sanitizeRow(changes))
+          .eq('id', id).eq('updated_at', baseUpdatedAt).select(),
+        `${table}.updateIfUnchanged`,
+      );
+      if (error) throw error;
+      if (!Array.isArray(data) || data.length === 0) {
+        const conflict = new Error(`${table}: the row changed elsewhere since this edit was made`);
+        conflict.isConflict = true;
+        conflict.table = table;
+        conflict.rowId = id;
+        throw conflict;
+      }
+      return data[0];
+    },
+
     /** Delete a row by id. */
     async delete(id) {
       if (!id) throw new Error('Delete requires an id');

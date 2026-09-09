@@ -158,7 +158,7 @@ export async function remove(opId) {
  * a row that no longer exists) becomes FAILED and waits for a human. Either
  * way the item and its error survive — see property 1 at the top of this file.
  */
-export async function recordFailure(opId, error, { terminal = false } = {}) {
+export async function recordFailure(opId, error, { terminal = false, conflict = false } = {}) {
   const message = String(error?.message || error || 'unknown error').slice(0, 500);
   await race(
     update(QUEUE_KEY, (rows) => (Array.isArray(rows) ? rows : []).map((r) => (
@@ -167,6 +167,11 @@ export async function recordFailure(opId, error, { terminal = false } = {}) {
           ...r,
           attempts: (r.attempts || 0) + 1,
           lastError: message,
+          // A flag rather than a third OUTBOX_STATUS value: items already on
+          // disk have no such status, and a reader that does not know about it
+          // still sees a FAILED item, which is the correct conservative
+          // fallback. Sticky, so a later retry cannot erase the reason.
+          conflict: conflict || r.conflict || false,
           status: terminal ? OUTBOX_STATUS.FAILED : OUTBOX_STATUS.PENDING,
         }
         : r

@@ -77,8 +77,18 @@ export function canQueue(commandName, payload) {
   const cmd = getCommand(commandName);
   if (!cmd?.offlineCapable) return false;   // the declared flag still governs
   if (cmd.outboxOp === 'insert') return true;
-  // An update or delete is queueable ONLY against a row that has not been sent
-  // yet. Against a real server id it would need conflict detection.
+  // A SERVER row may be updated offline only when the command opts into
+  // conflict detection AND the caller supplied the version the edit was
+  // composed against. Without a base version there is no way to tell a stale
+  // overwrite from a fresh one, so it falls through to the honest refusal.
+  // The base rides in the payload, which enqueue already persists whole, so
+  // the outbox needs no new field for it.
+  if (cmd.outboxOp === 'update' && cmd.conflict === 'detect' && !isLocalId(payload?.id)) {
+    return typeof payload?.baseUpdatedAt === 'string' && payload.baseUpdatedAt.length > 0;
+  }
+  // Everything else: queueable ONLY against a row that has not been sent yet.
+  // A delete of a server row is still refused — it has no conflict story, and
+  // "the row moved" means something different for a delete than for an edit.
   if (cmd.outboxOp === 'update' || cmd.outboxOp === 'delete') return isLocalId(payload?.id);
   return false;   // no declared op → not queueable, whatever the set says
 }

@@ -191,3 +191,55 @@ describe('runCommand ONLINE', () => {
     expect(await listPending('user-a')).toEqual([]);
   });
 });
+
+/**
+ * Phase 3's remaining boundary: a SERVER row. Until 2026-09-09 this was refused
+ * outright because no table had `updated_at`; the migration added it to all 16
+ * offline-write tables, so the gate is now about whether the command opted in
+ * and whether the caller told us which version it edited.
+ *
+ * corkNote.update is re-registered in each test below. It is already on the
+ * allowlist, so it exercises the new branch WITHOUT switching a real command
+ * on — defineCommand overwrites by design, for HMR.
+ */
+describe('canQueue — a server row needs opt-in AND a base version', () => {
+  const SERVER_ID = 'a3f1c8e2-0000-4000-8000-000000000001';
+  const BASE = '2026-09-09T10:00:00.000Z';
+  const register = (extra) => defineCommand('corkNote.update', {
+    offlineCapable: true, outboxOp: 'update', table: T,
+    run: () => Promise.resolve({}), ...extra,
+  });
+
+  it('allows it when the command opts in and a base version is supplied', () => {
+    register({ conflict: 'detect' });
+    expect(canQueue('corkNote.update', { id: SERVER_ID, baseUpdatedAt: BASE })).toBe(true);
+  });
+
+  it('refuses without a base version, since a stale overwrite would be indistinguishable', () => {
+    register({ conflict: 'detect' });
+    expect(canQueue('corkNote.update', { id: SERVER_ID })).toBe(false);
+    expect(canQueue('corkNote.update', { id: SERVER_ID, baseUpdatedAt: '' })).toBe(false);
+    expect(canQueue('corkNote.update', { id: SERVER_ID, baseUpdatedAt: null })).toBe(false);
+  });
+
+  it('refuses when the command never opted in, even with a base version', () => {
+    // The column existing database-wide must not be enough on its own. Opting
+    // in is per command, because each one has to answer what a conflict MEANS
+    // for its screen.
+    register({});
+    expect(canQueue('corkNote.update', { id: SERVER_ID, baseUpdatedAt: BASE })).toBe(false);
+  });
+
+  it('leaves the local-row path alone, which needs no base version', () => {
+    register({ conflict: 'detect' });
+    expect(canQueue('corkNote.update', { id: `${LOCAL_ID_PREFIX}abc` })).toBe(true);
+  });
+
+  it('does not open deletes of server rows, which have no conflict story yet', () => {
+    defineCommand('corkNote.delete', {
+      offlineCapable: true, outboxOp: 'delete', conflict: 'detect', table: T,
+      run: () => Promise.resolve({}),
+    });
+    expect(canQueue('corkNote.delete', { id: SERVER_ID, baseUpdatedAt: BASE })).toBe(false);
+  });
+});

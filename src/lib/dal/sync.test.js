@@ -184,3 +184,56 @@ describe('drainOutbox', () => {
     expect(ran).toEqual([]);
   });
 });
+
+/**
+ * A conflict is NOT a permanent failure, and the distinction is easy to lose.
+ * The conditional write could raise PGRST116 (that is what `.single()` does on
+ * a zero-row match) and PGRST116 is in TERMINAL_CODES above — which would file
+ * a still valid edit as unfixable and tell the user their change is dead.
+ */
+describe('classify — a conflict is held, not buried', () => {
+  it('classifies a conditional-update miss as CONFLICT', () => {
+    const err = new Error('vehicles: the row changed elsewhere since this edit was made');
+    err.isConflict = true;
+    expect(classify(err)).toBe(OUTCOME.CONFLICT);
+  });
+
+  it('is not shadowed by PGRST116, the code that would otherwise make it terminal', () => {
+    const err = new Error('row changed');
+    err.isConflict = true;
+    err.code = 'PGRST116';
+    expect(classify(err)).toBe(OUTCOME.CONFLICT);
+    // And the bare code, with no conflict flag, must stay TERMINAL.
+    const plain = new Error('no rows');
+    plain.code = 'PGRST116';
+    expect(classify(plain)).toBe(OUTCOME.TERMINAL);
+  });
+
+  it('still PAUSEs on an auth problem, which is checked first', () => {
+    // A 401 mid-drain is not a conflict. If this returned CONFLICT the drain
+    // would keep going and burn an attempt on every remaining item.
+    const err = new Error('JWT expired');
+    err.isConflict = true;
+    expect(classify(err)).toBe(OUTCOME.PAUSE);
+  });
+
+  it('leaves an unflagged error on the safe default', () => {
+    expect(classify(new Error('socket hang up'))).toBe(OUTCOME.RETRY);
+  });
+
+  it('keeps the conditional write off .single(), which is what makes the above hold', async () => {
+    // A source-level guard rather than a behavioural one: the classification
+    // above is only safe while updateIfUnchanged reports a miss as a counted
+    // zero-row result. Switching it to .single() would silently reroute every
+    // conflict into TERMINAL, and no unit test of classify() would notice.
+    const { readFileSync } = await import('node:fs');
+    const { cwd } = await import('node:process');
+    const path = await import('node:path');
+    const src = readFileSync(path.join(cwd(), 'src/lib/supabaseEntities.js'), 'utf8');
+    const body = src.slice(src.indexOf('async updateIfUnchanged'));
+    const method = body.slice(0, body.indexOf('},'));
+    expect(method).toContain('.select()');
+    expect(method).not.toContain('.single()');
+    expect(method).toContain('isConflict');
+  });
+});
