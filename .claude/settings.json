@@ -57,7 +57,11 @@
       "PowerShell(gradlew:*)",
       "PowerShell(.\\gradlew:*)",
       "Bash(xcodebuild:*)",
-      "PowerShell(xcodebuild:*)"
+      "PowerShell(xcodebuild:*)",
+      "Bash(supabase:*)",
+      "Bash(npx supabase:*)",
+      "PowerShell(supabase:*)",
+      "PowerShell(npx supabase:*)"
     ]
   }
 }

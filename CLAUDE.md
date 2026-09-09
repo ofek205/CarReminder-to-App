@@ -16,6 +16,7 @@
 - `gh` — PR, merge, issues — דרך github.com בדפדפן
 - deploy ל-Vercel — אוטומטי על push, אין צעד ידני
 - native build — Android Studio / Xcode / `gradlew` / `npx cap`
+- **סופהבייס** — `supabase functions deploy`, `secrets set`, וכל שאר ה-CLI. גם ה-SQL מוחל ידנית ב-SQL editor (ראה „הערה על DB”). פריסת Edge Function משנה קוד שרץ בפרודקשן ברגע זה, ולכן היא חיצונית בכל מובן. מאז 2026-09-08 יש workflow שעושה זאת מהדפדפן: `.github/workflows/edge-function-deploy.yml`
 
 מה שקלוד **כן** מכין עד (ולא כולל) ה-push: עריכות, `git add`, `git commit` מקומי, `commit-gatekeeper`, ואימות `build` כשאפשר. ה-**Push עצמו תמיד של Ofek**.
 
@@ -23,7 +24,11 @@
 
 **אכיפה טכנית:** `permissions.deny` ב-`.claude/settings.json` חוסם פיזית — בשתי הצורות, `Bash(...)` ו-`PowerShell(...)`:
 
-`git push` · `gh` · `git remote add/set-url` · `npx cap` · `vercel` / `npx vercel` · `npm publish` · `gradlew` · `xcodebuild`
+`git push` · `gh` · `git remote add/set-url` · `npx cap` · `vercel` / `npx vercel` · `npm publish` · `gradlew` · `xcodebuild` · `supabase` / `npx supabase`
+
+> **הערה 2026-09-08 — פער שנסגר:** `supabase` **לא** היה ברשימה, בזמן שכותרת החוק הזה אומרת „כל פעולה חיצונית”. כלומר קלוד היה יכול להריץ `npx supabase functions deploy` ולשנות קוד שרץ בפרודקשן, בלי שדבר יעצור אותו. הפער התגלה כשקלוד נשאל לפרוס ובדק את רשימת ה-deny לפני שנגע בה. זה אותו סוג בעיה כמו ה-`skip-worktree` למטה: החוק היה נכון והאכיפה לא כיסתה אותו.
+>
+> **הלקח הכללי:** רשימת ה-deny היא רשימה מפורשת, ולכן כל כלי CLI חדש שנכנס לפרויקט ומדבר עם שירות חיצוני צריך להיכנס אליה **באותו קומיט** שמכניס את הכלי. אחרת ההגנה נשארת מאחור בשקט, וזה נגלה רק כשמישהו מנסה.
 
 > **הערה 2026-09-01 — למה זה נראה שבור וכן היה שבור, אבל לא כאן:**
 >
