@@ -229,6 +229,41 @@ const IMAGE_ACCEPT_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.he
  * ignored `accept` outright and quietly served images to callers asking
  * for documents.
  */
+/**
+ * Read the real mime type out of a base64 data URL.
+ *
+ * Callers that ship a picked file to the AI proxy need this: the proxy
+ * forwards media_type straight through to Gemini as inline_data
+ * mime_type, so a guessed value is a wrong value on the wire. The
+ * maintenance receipt scan used to guess "png, or else jpeg", which
+ * mislabelled every WebP that compressImage produces and would have
+ * declared a PDF to be a JPEG.
+ *
+ * Falls back to image/jpeg on anything unparseable, so a malformed input
+ * still sends a type the document allowlist permits rather than nothing.
+ */
+export function dataUrlMimeType(dataUrl) {
+  return dataUrl?.match(/^data:([^;,]+)/)?.[1] || 'image/jpeg';
+}
+
+/**
+ * Is this file reference a PDF rather than something an <img> can render?
+ *
+ * Screens hold a receipt or attachment in one of two shapes: a base64 data
+ * URL for a file the user just picked, and the stored URL when an existing
+ * record is reopened. Both have to be recognised.
+ *
+ * Phrased as "is it a PDF" rather than "is it an image" on purpose. The
+ * document allowlist is images plus PDF and nothing else, so the two are
+ * equivalent, but this direction means a stored URL with no recognisable
+ * extension keeps rendering as an image the way it does today instead of
+ * silently degrading to a file pill.
+ */
+export function isPdfFileRef(ref) {
+  if (!ref) return false;
+  return ref.startsWith('data:application/pdf') || /\.pdf(\?|$)/i.test(ref);
+}
+
 export function acceptsNonImage(accept) {
   if (!accept) return false;
   return accept

@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   DOC_OR_IMAGE_ACCEPT,
   acceptsNonImage,
+  isPdfFileRef,
+  dataUrlMimeType,
   ALLOWED_DOC_MIME_TYPES,
 } from './securityUtils';
 
@@ -77,5 +79,70 @@ describe('acceptsNonImage', () => {
     // gallery shortcut stays. Must not crash on undefined.
     expect(acceptsNonImage(undefined)).toBe(false);
     expect(acceptsNonImage('')).toBe(false);
+  });
+});
+
+describe('isPdfFileRef', () => {
+  it('recognises a freshly picked file, which arrives as a data URL', () => {
+    expect(isPdfFileRef('data:application/pdf;base64,JVBERi0x')).toBe(true);
+    expect(isPdfFileRef('data:image/webp;base64,UklGRg')).toBe(false);
+    // compressImage prefers WebP, so this is the common real case.
+    expect(isPdfFileRef('data:image/jpeg;base64,/9j/4AA')).toBe(false);
+  });
+
+  it('recognises a stored record, which arrives as a URL', () => {
+    expect(isPdfFileRef('https://x.supabase.co/o/receipts/a.pdf')).toBe(true);
+    expect(isPdfFileRef('https://x.supabase.co/o/receipts/a.PDF?token=e30')).toBe(true);
+    expect(isPdfFileRef('https://x.supabase.co/o/receipts/a.jpg?token=e30')).toBe(false);
+  });
+
+  it('leaves an unrecognisable reference rendering as an image', () => {
+    // Deliberate: every receipt stored before PDFs were allowed is an
+    // image, so an extensionless URL must keep its thumbnail rather than
+    // regress to a file pill. Only a positive PDF signal switches it.
+    expect(isPdfFileRef('https://x.supabase.co/o/receipts/abc123')).toBe(false);
+    expect(isPdfFileRef(null)).toBe(false);
+    expect(isPdfFileRef(undefined)).toBe(false);
+    expect(isPdfFileRef('')).toBe(false);
+  });
+
+  it('does not fire on a pdf that is only part of the path', () => {
+    // "pdf" inside a directory or filename stem is not a PDF file.
+    expect(isPdfFileRef('https://x.supabase.co/pdf/receipt.jpg')).toBe(false);
+    expect(isPdfFileRef('https://x.supabase.co/o/my-pdf-scan.png')).toBe(false);
+  });
+});
+
+describe('dataUrlMimeType', () => {
+  // The receipt scan used to do
+  // `startsWith('data:image/png') ? 'image/png' : 'image/jpeg'`, which
+  // mislabelled every WebP compressImage produces and would have called a
+  // PDF a JPEG. The proxy forwards media_type to Gemini as inline_data
+  // mime_type, so a wrong label is wrong on the wire.
+  it('reads the real type instead of guessing', () => {
+    expect(dataUrlMimeType('data:image/webp;base64,UklGRg')).toBe('image/webp');
+    expect(dataUrlMimeType('data:image/png;base64,iVBOR')).toBe('image/png');
+    expect(dataUrlMimeType('data:application/pdf;base64,JVBERi0x')).toBe('application/pdf');
+  });
+
+  it('handles a data URL with no base64 marker', () => {
+    expect(dataUrlMimeType('data:application/pdf,rawbytes')).toBe('application/pdf');
+  });
+
+  it('falls back to jpeg on bad input rather than sending an empty type', () => {
+    expect(dataUrlMimeType('not-a-data-url')).toBe('image/jpeg');
+    expect(dataUrlMimeType('')).toBe('image/jpeg');
+    expect(dataUrlMimeType(undefined)).toBe('image/jpeg');
+  });
+
+  it('only ever claims a type the document allowlist permits', () => {
+    for (const url of [
+      'data:image/webp;base64,x',
+      'data:image/png;base64,x',
+      'data:application/pdf;base64,x',
+      'garbage',
+    ]) {
+      expect(ALLOWED_DOC_MIME_TYPES).toContain(dataUrlMimeType(url));
+    }
   });
 });
