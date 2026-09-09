@@ -3,7 +3,7 @@ import { isAiScanEnabled } from '@/lib/aiScanGate';
 import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
-import { openFileUrlSafely, reserveFileTab } from '@/lib/securityUtils';
+import { openFileUrlSafely, reserveFileTab, DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 import { MEMBER_STATUS } from '@/lib/enums';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
@@ -471,7 +471,7 @@ function DocUploadDialog({ open, onClose, onSave, vehicleIdParam, vehicles, savi
                         is enforced in handleFile. */}
                     <input
                       type="file"
-                      accept="application/pdf,image/*"
+                      accept={DOC_OR_IMAGE_ACCEPT}
                       multiple
                       disabled={!canAddMore}
                       className="hidden"

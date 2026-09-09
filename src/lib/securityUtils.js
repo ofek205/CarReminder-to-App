@@ -195,6 +195,50 @@ const ALLOWED_DOC_EXTENSIONS   = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.h
 const ALLOWED_PHOTO_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'];
 
 /**
+ * `accept` value for any upload that takes a document OR a photo.
+ *
+ * THE ORDER IS LOAD-BEARING ON ANDROID. Do not "tidy" it to put images
+ * first. Android WebView builds the chooser intent in
+ * FileChooserParams.createIntent() by calling setType() with the FIRST
+ * entry of `accept` and nothing else; Capacitor's BridgeWebChromeClient
+ * then attaches the remaining entries as EXTRA_MIME_TYPES. Since
+ * Android 13, the platform intercepts ACTION_GET_CONTENT whose type is a
+ * media type and hands it to the system photo picker, which can only
+ * return images and videos. PDFs are then unreachable no matter what
+ * EXTRA_MIME_TYPES says.
+ *
+ * Verified on an API 34 emulator:
+ *   type=image/*        -> media.module/...PhotoPickerGetContentActivity
+ *   type=application/pdf -> documentsui/...picker.PickActivity
+ *
+ * DocumentsUI honours EXTRA_MIME_TYPES, so leading with the PDF type
+ * still lets the user pick an image; leading with the image type does
+ * not let them pick a PDF. Keep a non-media type first.
+ */
+export const DOC_OR_IMAGE_ACCEPT = 'application/pdf,image/*';
+
+const IMAGE_ACCEPT_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.gif', '.bmp'];
+
+/**
+ * Does `accept` ask for anything a photo-gallery picker cannot hand back?
+ *
+ * Used to decide whether a Capacitor screen may take the native
+ * Camera.getPhoto(CameraSource.Photos) shortcut. That returns one image
+ * and only an image, so a caller that also wants PDFs must go through a
+ * real <input type="file"> instead. Before this existed the native path
+ * ignored `accept` outright and quietly served images to callers asking
+ * for documents.
+ */
+export function acceptsNonImage(accept) {
+  if (!accept) return false;
+  return accept
+    .split(',')
+    .map(t => t.trim().toLowerCase())
+    .filter(Boolean)
+    .some(t => !t.startsWith('image/') && !IMAGE_ACCEPT_EXTENSIONS.includes(t));
+}
+
+/**
  * Validate a File object before uploading.
  * Checks MIME type, file extension, and size.
  *
