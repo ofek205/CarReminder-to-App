@@ -446,7 +446,14 @@ export default function MaintenanceSection({ vehicle }) {
 
       let savedRowId = editingId;
       if (editingId) {
-        await dal.run('maintenance.update', { ...row, id: editingId });
+        // The version this edit was composed against, taken from the very row
+        // the user opened. Offline it is stored with the queued write and
+        // checked when the queue drains, so an edit made three hours ago
+        // cannot overwrite a newer value. Undefined (a row fetched before
+        // updated_at existed) falls back to a plain update rather than
+        // refusing to save.
+        const baseUpdatedAt = logs.find((l) => l.id === editingId)?.updated_at;
+        await dal.run('maintenance.update', { ...row, id: editingId, baseUpdatedAt });
       } else {
         const inserted = await dal.run('maintenance.create', row);
         savedRowId = inserted?.id || null;

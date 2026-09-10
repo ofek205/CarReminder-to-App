@@ -156,4 +156,24 @@ describe('DAL registry integrity', () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  it('never lets a conflict-aware command send its base version as a column', () => {
+    // baseUpdatedAt is the version being CHECKED, not a field to write. Left in
+    // the changes object it reaches sanitizeRow (which validates key NAMES and
+    // passes everything through) and then Postgres, as an unknown column. The
+    // write fails at the worst moment: on the drain, hours after the user
+    // thought it was saved. So every opted-in command must destructure it out.
+    const offenders = [];
+    for (const file of readdirSync(COMMANDS_DIR)) {
+      if (!file.endsWith('.js')) continue;
+      const src = readFileSync(path.join(COMMANDS_DIR, file), 'utf8');
+      for (const block of src.split('defineCommand(').slice(1)) {
+        const body = block.split(String.fromCharCode(10) + '});')[0];
+        if (!/conflict:\s*'detect'/.test(body)) continue;
+        const name = (block.match(/^\s*'([^']+)'/) || [])[1] || '(unnamed)';
+        if (!/run:\s*\(\{[^}]*baseUpdatedAt/.test(body)) offenders.push(name);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
 });

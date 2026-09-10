@@ -243,3 +243,75 @@ describe('canQueue — a server row needs opt-in AND a base version', () => {
     expect(canQueue('corkNote.delete', { id: SERVER_ID, baseUpdatedAt: BASE })).toBe(false);
   });
 });
+
+/**
+ * The first offline write against a SERVER row. Every earlier queued command
+ * writes a row that exists only on this device, where nothing can be
+ * clobbered. This one edits a row the server already has, which is why it had
+ * to wait for updated_at (2026-09-09) and the conflict layer.
+ */
+describe('maintenance.update — the first server-row write', () => {
+  const SERVER_ID = 'b7c2d1a4-0000-4000-8000-00000000000f';
+  const BASE = '2026-09-10T08:00:00.000Z';
+  const edit = (extra) => ({ id: SERVER_ID, vehicle_id: 'veh-1', title: 'oil change', ...extra });
+
+  beforeEach(() => {
+    onlineManager.setOnline(false);
+    defineCommand('maintenance.update', {
+      offlineCapable: true,
+      outboxOp: 'update',
+      conflict: 'detect',
+      table: 'maintenance_logs',
+      invalidates: (p) => [['maintenance-logs-v2', p?.vehicle_id]],
+      run: (p) => { serverCalls.push(p); return Promise.resolve({}); },
+    });
+  });
+
+  it('queues the edit instead of refusing it, and never reaches the server', async () => {
+    await runCommand('maintenance.update', edit({ baseUpdatedAt: BASE }));
+    expect(await listPending('user-a')).toHaveLength(1);
+    expect(serverCalls).toHaveLength(0);
+  });
+
+  it('stores the base version, because the check happens at drain and not now', async () => {
+    await runCommand('maintenance.update', edit({ baseUpdatedAt: BASE }));
+    const [item] = await listPending('user-a');
+    expect(item.payload.baseUpdatedAt).toBe(BASE);
+    expect(item.table).toBe('maintenance_logs');
+  });
+
+  it('refuses when no base version is supplied, rather than queueing a blind overwrite', async () => {
+    await expect(runCommand('maintenance.update', edit())).rejects.toThrow();
+    expect(await listPending('user-a')).toHaveLength(0);
+  });
+});
+
+/**
+ * The queued edit is only useful if the drain refetches the list the screen
+ * actually reads. The key is written twice — once in the command's
+ * `invalidates`, once where MaintenanceSection invalidates by hand — and there
+ * is no shared builder for it, so the two are pinned against each other here.
+ */
+describe('maintenance list key — the command and the screen must agree', () => {
+  it('uses the same query key in both places', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { cwd } = await import('node:process');
+    const path = await import('node:path');
+    const read = (rel) => readFileSync(path.join(cwd(), rel), 'utf8');
+
+    const KEY = "'maintenance-logs-v2'";
+    expect(read('src/lib/dal/commands/maintenance.js')).toContain(KEY);
+    expect(read('src/components/vehicle/MaintenanceSection.jsx')).toContain(KEY);
+  });
+
+  it('has the screen supply the base version at its one call site', async () => {
+    // If this call site stops passing it, the command silently falls back to a
+    // plain update and offline editing stops queueing — with no error anywhere.
+    const { readFileSync } = await import('node:fs');
+    const { cwd } = await import('node:process');
+    const path = await import('node:path');
+    const src = readFileSync(path.join(cwd(), 'src/components/vehicle/MaintenanceSection.jsx'), 'utf8');
+    const flat = src.replace(/\s+/g, '');
+    expect(flat).toContain("dal.run('maintenance.update',{...row,id:editingId,baseUpdatedAt}");
+  });
+});

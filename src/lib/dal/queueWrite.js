@@ -69,6 +69,10 @@ export const OUTBOX_ENABLED = new Set([
   'corkNote.delete',
   'task.toggleDone',
   'task.delete',
+  // First server-row update. Needs the conflict layer, which is why it could
+  // not be here before 2026-09-09: it carries `conflict: 'detect'` and its one
+  // call site supplies the version the edit was composed against.
+  'maintenance.update',
 ]);
 
 /** Is there an offline path for this command and payload? */
@@ -123,8 +127,31 @@ export async function queueWrite(commandName, payload) {
   if (!cmd || !userId) return { queued: false };
 
   if (cmd.outboxOp === 'update' || cmd.outboxOp === 'delete') {
-    const handled = await mutatePendingCreate(cmd, payload, userId);
-    return handled ? { queued: true, result: payload } : { queued: false };
+    // A row that exists only on this device: fold the edit into its pending
+    // create, or cancel it. Never a queue item of its own — see the header.
+    if (isLocalId(payload?.id)) {
+      const handled = await mutatePendingCreate(cmd, payload, userId);
+      return handled ? { queued: true, result: payload } : { queued: false };
+    }
+
+    // A SERVER row. canQueue only reaches here for a conflict-aware update
+    // carrying a base version, and this re-checks rather than trusting that:
+    // queueWrite is reachable from anywhere, and a delete or an opt-out
+    // command must not fall into the insert path below and be queued as a
+    // create.
+    if (cmd.outboxOp !== 'update' || cmd.conflict !== 'detect') return { queued: false };
+
+    // Its own queue item: there is no pending create to fold into, and what
+    // makes it safe is the conditional write at drain, not folding.
+    const updateOpId = await enqueue({ command: commandName, payload, userId, table: cmd.table });
+    if (!updateOpId) return { queued: false };
+
+    // Show the edit now. baseUpdatedAt is stripped: it is the version being
+    // checked against, not a field of the row, and leaving it in would put a
+    // non-column onto the cached row.
+    const { id: rowId, baseUpdatedAt: _base, ...changes } = payload;
+    await patchOptimistic(cmd, payload, rowId, { ...changes, _pendingSync: true });
+    return { queued: true, result: { ...payload, _pendingSync: true } };
   }
 
   const localId = `${LOCAL_ID_PREFIX}${crypto.randomUUID()}`;
