@@ -19,6 +19,21 @@ import Dashboard from './pages/Dashboard';
 import AuthPage from './pages/AuthPage';
 import { marketingRoutes } from './lib/marketingContent';
 const Marketing = React.lazy(() => import('./pages/Marketing'));
+// Entry point for the marketing site's read-only preview: redirects to the
+// app's home screen, with demo mode already on (lib/demoMode reads it from
+// the URL at import time).
+//
+// TOP-LEVEL '/demo', not '/website/demo', and the flat path is load-bearing.
+// The build sets `base: './'`, so dist/index.html references its bundle as
+// './assets/x.js'. Served from a nested path that resolves to
+// /website/assets/x.js, a 404, and the frame sat on "טוען..." forever. The
+// prerendered marketing pages escape this because the prerender rewrites
+// '="./' to '="/', and this route is deliberately not prerendered. Same trap
+// as the './sw.js' registration in main.jsx.
+//
+// Deliberately NOT in marketingRoutes: those become crawlable HTML listed in
+// the sitemap, and this is neither a page nor something to index.
+const MarketingDemo = React.lazy(() => import('./pages/MarketingDemo'));
 import __Layout from './Layout.jsx';
 
 // Vehicles / VehicleDetail are still lazy: they're not the landing
@@ -110,6 +125,7 @@ export const PAGES = {
     "Accidents": Accidents,
     "AccountSettings": AccountSettings,
     ...Object.fromEntries(marketingRoutes.map(path => [path.slice(1), Marketing])),
+    "demo": MarketingDemo,
     "AiAssistant": AiAssistant,
     "AddAccident": AddAccident,
     "Auth": AuthPage,

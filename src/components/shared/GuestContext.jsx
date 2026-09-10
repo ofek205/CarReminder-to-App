@@ -93,17 +93,43 @@ function normalizeUser(supabaseUser) {
  * Inner auth provider. MUST be rendered inside <GuestDataProvider>
  * so it can access migrateGuestDataIfNeeded via context.
  */
-function AuthInner({ children }) {
+function AuthInner({ children, forceGuest = false }) {
   // Access guest data context via ref so the mount-time useEffect
   // closure always sees the latest context value.
   const guestData = useContext(GuestDataCtx);
   const guestDataRef = useRef(guestData);
   guestDataRef.current = guestData;
 
-  const [authState, setAuthState] = useState('loading');
+  const [authState, setAuthState] = useState(forceGuest ? 'guest' : 'loading');
   const [user, setUser] = useState(null);
 
   useEffect(() => {
+    // forceGuest is the marketing site's read-only demo (/website/demo,
+    // rendered inside an iframe on the same origin as the real app).
+    //
+    // It returns BEFORE any auth work rather than flipping state after it,
+    // and the difference is the whole point. Everything below this line
+    // reads or mutates the visitor's real session: getSession() restores
+    // it, onAuthStateChange() subscribes to it, account.ensure writes a
+    // membership row, and the recovery branch clears sessionStorage keys.
+    // A demo that ran all that and then set authState='guest' would show
+    // a signed-in visitor their own vehicles inside a marketing page, and
+    // could log them out of the tab they left open. Skipping the effect
+    // makes both impossible by construction instead of by care.
+    //
+    // authState is already 'guest' from useState above, but the resolved-at
+    // stamp still has to be set: main.jsx polls window.__crAuthResolvedAt to
+    // decide whether a launch reached a usable screen, and after 7s without
+    // it, it paints the "הפתיחה לוקחת יותר מהרגיל" recovery overlay over the
+    // app. Every other branch below stamps it, and the first version of this
+    // guard did not, so the preview booted correctly and was then buried by
+    // the watchdog. That is what makes it part of finishing auth, not a
+    // detail of the branch that happens to be taken.
+    if (forceGuest) {
+      try { window.__crAuthResolvedAt = Date.now(); } catch { /* non-DOM host */ }
+      return undefined;
+    }
+
     // ensure_user_account is idempotent: returns the existing account
     // for already-provisioned users, atomically creates one for first-
     // timers. Calling it from the single auth chokepoint here means
@@ -360,7 +386,7 @@ function AuthInner({ children }) {
       if (hardFallbackTimer) clearTimeout(hardFallbackTimer);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [forceGuest]);
 
   //  User refresh
   const refreshUser = async () => {
@@ -390,10 +416,10 @@ function AuthInner({ children }) {
  * Public provider — wraps GuestDataProvider + AuthInner.
  * Drop-in replacement for the old monolithic GuestProvider.
  */
-export function GuestProvider({ children }) {
+export function GuestProvider({ children, forceGuest = false }) {
   return (
     <GuestDataProvider>
-      <AuthInner>{children}</AuthInner>
+      <AuthInner forceGuest={forceGuest}>{children}</AuthInner>
     </GuestDataProvider>
   );
 }

@@ -1,6 +1,6 @@
-import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Pencil, BellRing, BriefcaseBusiness, Car, FileText, Menu, Search, ShieldCheck, Ship, Sparkles, Users, Wallet, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, BellRing, BriefcaseBusiness, Car, FileText, Menu, Search, ShieldCheck, Ship, Sparkles, Users, Wallet, X } from 'lucide-react';
 import { guides, productPages } from '@/lib/marketingContent';
 import { businessFeatures, specialtyPages } from '@/lib/marketingSpecialties';
 import MarketingProductPage from '@/components/MarketingProductPage';
@@ -11,15 +11,39 @@ const logo = '/marketing/logo.webp';
 import './Marketing.css';
 import { applyMarketingSeo } from '@/lib/marketingSeo';
 import { marketingEvent } from '@/lib/marketingEvents';
+import { DEMO_HOME_ID } from '@/lib/demoScreens';
+import { onDemoMessage, DEMO_MSG_SCREEN } from '@/lib/demoBridge';
+import MarketingDemoEmbed from '@/components/MarketingDemoEmbed';
 
 const VehicleCheck = lazy(() => import('./VehicleCheck'));
+/**
+ * The selector's five items, keyed by the screen IDs in lib/demoScreens.
+ *
+ * `מצא מוסך` and `שאלות על הרכב` used to be here and were removed once the
+ * selector started driving a live app instead of swapping pictures: FindGarage
+ * asks for geolocation, queries Overpass through the shared proxy and sweeps
+ * the visitor's cache keys, all on mount, and the AI surface has no demo gate
+ * and costs money per question. Both keep their own sections on this page.
+ *
+ * `image` is only ever seen in the degraded states (loading, failed, offline,
+ * dismissed); when the frame is live the real screen is showing.
+ *   - vessels reuses vehicles.webp honestly: the vessel screen IS the vehicle
+ *     list, filtered.
+ *   - detail has no accurate asset. A VehicleDetail screenshot is OWED; until
+ *     then the vehicle list stands in, which is a mismatch a visitor can only
+ *     ever hit with a dead frame.
+ */
 const screens = [
-  { name: 'מצא מוסך', title: 'מוצאים מוסך וממשיכים אליו', text: 'מחפשים לפי עיר וסוג שירות, משווים את התוצאות ופותחים ניווט ב־Waze או ב־Google Maps. כשמספר טלפון זמין, אפשר להתקשר ישירות מכרטיס העסק.', image: 'garage-cards-live', extension: 'jpg', icon: Search },
-  { name: 'שאלות על הרכב', title: 'לפני שמתקשרים למוסך, מבינים קצת יותר', text: 'שאלות על טיפולים, תקלות או קניית רכב? בצ׳אט עם עוזר ה־AI אפשר לנסח שאלה ולצרף תמונה או מסמך. התשובות עשויות לטעות ואינן מחליפות בדיקה במוסך.', image: 'ai-live', extension: 'jpg', icon: Sparkles },
-  { name: 'מה מתקרב', title: 'הרכבים והמועדים הקרובים', text: 'הרכבים, כלי השיט והמועדים החשובים מרוכזים במקום אחד.', image: 'dashboard', icon: BellRing },
-  { name: 'הרכבים שלי', title: 'פרטי הרכב זמינים כשצריך', text: 'פרטי הרכב ומועדי החידוש זמינים כשצריך אותם.', image: 'vehicles', icon: Car },
-  { name: 'המסמכים שלי', title: 'רישיון, ביטוח וקבלות', text: 'רישיון, ביטוח וקבלות מסודרים לצד הרכב שאליו הם שייכים.', image: 'documents', icon: FileText },
+  { id: 'dashboard', name: 'מה מתקרב', title: 'המועדים הקרובים, במסך הראשון', text: 'הכלים ומה שמתקרב לכל אחד מהם, מרוכזים במסך שנפתח ראשון. טיפול, טסט או ביטוח, לפי מה שקרוב.', image: 'dashboard', icon: BellRing },
+  { id: 'vehicles', name: 'הרכבים שלי', title: 'כל הכלים ברשימה אחת', text: 'רשימת הכלים עם המצב של כל אחד. אפשר לפתוח כלי ולראות את הפרטים שלו.', image: 'vehicles', icon: Car },
+  { id: 'detail', name: 'כרטיס רכב', title: 'כל מה שידוע על כלי אחד', text: 'שנת ייצור, קילומטראז׳, מועדים, מסמכים והיסטוריית טיפולים, בכרטיס אחד לכל כלי.', image: 'vehicles', icon: FileText },
+  { id: 'documents', name: 'המסמכים שלי', title: 'רישיון, ביטוח וקבלות', text: 'כל מסמך שמור לצד הכלי שאליו הוא שייך, עם תאריך התוקף שלו.', image: 'documents', icon: FileText },
+  { id: 'vessels', name: 'כלי שייט', title: 'גם מה שלא נוסע על כביש', text: 'סירה או אופנוע ים מנוהלים כמו כל כלי אחר, עם שעות מנוע במקום קילומטרים.', image: 'vehicles', icon: Ship },
 ];
+const OFF_LIST_COPY = {
+  title: 'אתם מנווטים באפליקציה בעצמכם',
+  text: 'המסך שפתוח כרגע אינו אחד מהחמישה שברשימה. אפשר להמשיך, או לבחור מהרשימה כדי לחזור להסבר.',
+};
 const categoryArt = {
   offroad: { title: 'אופנועים וכלי שטח', text: 'שעות מנוע, טיפולים וכל מה שצריך לפני היציאה לשטח.', image: '/marketing/hero-ktm.webp' },
   trucks: { title: 'משאיות ורכבי עבודה', text: 'תיקי רכב, נהגים ומסמכים במקום אחד.', image: '/marketing/category-full-trailer.webp' },
@@ -56,8 +80,88 @@ export default function Marketing() {
   const plateInput = useRef(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [screen, setScreen] = useState(0);
   const dialog = useRef(null);
+  const selectRef = useRef(null);
+
+  /**
+   * Selector state. Three pieces, because the mark means exactly one thing:
+   * "this is what the device is showing now".
+   *
+   *   selectedId  what the visitor last chose. Drives the copy and the
+   *               screenshot whenever the frame is NOT live, which is also
+   *               the whole of the old behaviour.
+   *   deviceId    what the frame reports it is showing. null means the
+   *               visitor navigated somewhere off the list of five.
+   *   requestedId a screen asked for but not yet confirmed by the frame.
+   *               Non-null IS the pending state.
+   */
+  const [selectedId, setSelectedId] = useState(DEMO_HOME_ID);
+  const [deviceId, setDeviceId] = useState(null);
+  const [requestedId, setRequestedId] = useState(null);
+  const [demoStatus, setDemoStatus] = useState('resting');
+
+  const demoLive = demoStatus === 'live';
+  // `loading` counts: a click then has somewhere to land once the frame boots.
+  const demoCanDrive = demoLive || demoStatus === 'loading';
+  const markedId = demoLive ? deviceId : selectedId;
+  const pendingId = demoCanDrive ? requestedId : null;
+  // Pending wins over the device, so the copy describes where you are going
+  // rather than the screen you are leaving.
+  const copyId = pendingId || (demoLive ? deviceId : selectedId);
+  const activeScreen = screens.find(s => s.id === copyId) || screens[0];
+  const offList = demoLive && !deviceId && !pendingId;
+
+  const onDemoStatus = useCallback(status => setDemoStatus(status), []);
+
+  // No effect keeps the marked chip in view any more, and that absence is the
+  // point. The mobile chips WRAP instead of scrolling horizontally, so every
+  // one of the five is always on screen and there is nothing to scroll to.
+  // The scrolling version needed such an effect, and it was removed with the
+  // strip: scrollLeft could not be moved on that RTL snap container at all,
+  // and the effect fought the vertical scroll that brings the device into
+  // view, cancelling it out exactly. See the note in Marketing.css.
+
+  // The frame reporting in is the reverse direction of the sync. Clearing
+  // `requestedId` on a match is what ends the pending state; without it, a
+  // later in-frame navigation would look pending again forever.
+  useEffect(() => onDemoMessage(DEMO_MSG_SCREEN, screenId => {
+    setDeviceId(screenId);
+    if (screenId) setSelectedId(screenId);
+    setRequestedId(current => (current === screenId ? null : current));
+  }), []);
+
+  const pickScreen = useCallback(id => {
+    setSelectedId(id);
+    // Already there: no request, and drop anything still in flight. Without
+    // the first half this asked the frame to navigate to the screen it was
+    // already on, which is not a location change and so produced no
+    // confirmation; the item sat pending forever. The bridge now answers
+    // every request too, so this is the cheap half of a two-sided fix.
+    if (demoCanDrive) setRequestedId(id === deviceId ? null : id);
+    marketingEvent('demo_screen', 'home');
+    // On mobile the selector sits ABOVE the device, so without this the tap
+    // changes something below the fold and reads as a dead click.
+    //
+    // Queried rather than held in a ref. The ref was forwarded down to the
+    // embed and read back null here every single time, while the very same
+    // node scrolled 1788px when the identical call was made by hand, so the
+    // plumbing was the fault and not the scroll. There is exactly one of
+    // these on the page.
+    // `behavior: 'auto'`, and it is not a preference. Smooth was written
+    // first and measured moving the page exactly 0px, while the identical
+    // call with 'auto' on the same node moved it 2738px: smooth scrolling
+    // does not work on this page, most likely because the scroll crosses
+    // .cm-site's overflow-x:clip. Instant is also the better behaviour here,
+    // since the visitor just tapped and wants the result now, so there is no
+    // reduced-motion branch to make: this is already the reduced-motion path.
+    if (window.innerWidth <= 900) {
+      document.querySelector('.cm-demo-host')?.scrollIntoView({
+        block: 'nearest',
+        behavior: 'auto',
+      });
+    }
+  }, [demoCanDrive, deviceId]);
+
   const checkPage = pathname === '/website/vehicle-check';
   const businessPage = pathname === '/website/business';
   const article = guides.find(item => pathname === `/website/guides/${item.slug}`);
@@ -113,7 +217,7 @@ export default function Marketing() {
           <details className="cm-check-fineprint"><summary>מה חשוב לדעת לפני הבדיקה?</summary><p>לבדיקת רכב נוסף או לשמירה בחשבון יש להתחבר. המידע עשוי להיות חלקי או לא מעודכן ואינו מחליף בדיקה מקצועית.</p></details>
         </form></div></section>
         <section id="how" className="cm-section"><div className="cm-wrap"><div className="cm-section-heading"><span className="cm-kicker">מהבדיקה הראשונה לשגרה מסודרת</span><h2>איך מתחילים<br /><em>לנהל את הרכב?</em></h2></div><div className="cm-steps">{[['01', 'מוסיפים את הרכב', 'מרכזים את פרטי הכלי בחשבון שלכם.'], ['02', 'משלימים את מה שחשוב', 'מועדים, מסמכים והוצאות, כל אחד במקום שלו.'], ['03', 'רואים מה מגיע בהמשך', 'מגדירים תזכורות ובודקים שהרשאות ההתראה פעילות.']].map(([num, title, text]) => <div key={num}><span>{num}</span><h3>{title}</h3><p>{text}</p></div>)}</div></div></section>
-        <section id="features" className="cm-section cm-product"><div className="cm-wrap cm-product-grid"><div><span className="cm-kicker">המסכים שתשתמשו בהם</span><h2>{screens[screen].title}</h2><p>{screens[screen].text}</p><div className="cm-screen-select" aria-label="בחירת תצוגה">{screens.map((item, index) => <button key={item.image} aria-pressed={screen === index} onClick={() => setScreen(index)}><item.icon size={19} /><span>{item.name}</span><ArrowLeft size={17} /></button>)}</div><div className="cm-product-links"><Link to="/website/reminders">על התזכורות</Link><Link to="/website/documents">מסמכים והוצאות</Link></div><div className="cm-benefits">{[[BellRing, 'מועדים ותזכורות'], [FileText, 'מסמכים זמינים'], [Wallet, 'מעקב הוצאות'], [Users, 'שיתוף והרשאות']].map(([Icon, text]) => <span key={text}><Icon size={19} />{text}</span>)}</div></div><div className="cm-product-screen cm-unified-screen"><button onClick={() => dialog.current?.showModal()} aria-label={`הגדלת מסך ${screens[screen].name}`}><MarketingPhone src={`/marketing/${screens[screen].image}.${screens[screen].extension || 'webp'}`} alt={`${screens[screen].name} באפליקציה, במסגרת להמחשה`} /></button><small>מסך מהאפליקציה במסגרת להמחשה · לחצו להגדלה</small></div></div></section>
+        <section id="features" className="cm-section cm-product"><div className="cm-wrap cm-product-grid"><div><span className="cm-kicker">המסכים שתשתמשו בהם</span><h2>{offList ? OFF_LIST_COPY.title : activeScreen.title}</h2><p>{offList ? OFF_LIST_COPY.text : activeScreen.text}</p><div ref={selectRef} className="cm-screen-select" role="group" aria-label="בחירת מסך להדגמה">{screens.map(item => { const isMarked = markedId === item.id; const isPending = pendingId === item.id; return <button key={item.id} type="button" aria-pressed={isMarked} data-state={isPending ? 'pending' : isMarked ? 'marked' : 'plain'} onClick={() => pickScreen(item.id)}><item.icon size={19} /><span>{item.name}</span><i className="cm-screen-slot" aria-hidden="true">{isPending ? <Loader2 size={16} className="cm-screen-spin" /> : <ArrowLeft size={17} />}</i></button>; })}</div><p className="cm-sr-live" role="status" aria-live="polite">{pendingId ? 'טוענים את המסך…' : ''}</p><div className="cm-product-links"><Link to="/website/reminders">על התזכורות</Link><Link to="/website/documents">מסמכים והוצאות</Link></div><div className="cm-benefits">{[[BellRing, 'מועדים ותזכורות'], [FileText, 'מסמכים זמינים'], [Wallet, 'מעקב הוצאות'], [Users, 'שיתוף והרשאות']].map(([Icon, text]) => <span key={text}><Icon size={19} />{text}</span>)}</div></div><MarketingDemoEmbed gotoScreen={requestedId} onStatusChange={onDemoStatus} src={`/marketing/${activeScreen.image}.${activeScreen.extension || 'webp'}`} alt={`${activeScreen.name} באפליקציה, במסגרת להמחשה`} screenName={activeScreen.name} onEnlarge={() => dialog.current?.showModal()} /></div></section>
         <section className="cm-section"><div className="cm-wrap cm-special-grid"><article id="vessels" className="cm-vessel"><Ship size={36} /><span className="cm-kicker">גם על המים</span><h2>גם לכלי השיט<br />יש מקום משלו.</h2><p>שמרו מסמכים, מועדים ושעות מנוע תחת כלי השיט המתאים.</p><Link to="/website/vessels" className="cm-text-link">לניהול כלי שיט <ArrowLeft size={18} /></Link></article><article className="cm-intelligence"><Sparkles size={32} /><span className="cm-kicker">פחות עבודה ידנית</span><h2>סריקת מסמכים<br />ועזרה בשאלות על הרכב</h2><p>סריקת מסמכים ועוזר חכם כחלק מניהול הרכב. בודקים את הפרטים שמתקבלים ומאשרים לפני שממשיכים.</p><ol><li>מעלים מסמך</li><li>בודקים את הפרטים שחולצו</li><li>מאשרים ושומרים</li></ol><Link to="/Auth" className="cm-text-link">לכניסה למערכת <ArrowLeft size={18} /></Link></article></div></section>
         <section id="child-reminder" className="cm-section cm-child-reminder"><div className="cm-wrap cm-child-grid"><div><span className="cm-kicker">בפיתוח ובבדיקות · טרם פתוח לכל המשתמשים</span><h2>בסוף הנסיעה,<br /><em>זוכרים לבדוק מאחור.</em></h2><p>אנחנו עובדים על תזכורת לבדוק שכל הילדים יצאו מהרכב. היא מיועדת לפעול בטלפון בעקבות ניתוק מחיבור ה־Bluetooth של הרכב, לפי ההגדרות שבחרתם.</p><p className="cm-child-note">זו תזכורת בלבד: אין זיהוי של תינוק או ילד ברכב, והיא אינה מחליפה בדיקה שלכם. הפעולה תלויה בהרשאות, בחיבור ובהגדרות הטלפון.</p></div><details className="cm-child-steps"><summary>איך התזכורת אמורה לעבוד?</summary><ol><li><strong>בוחרים את הרכב</strong><p>מסמנים את חיבור ה־Bluetooth של הרכב ומאפשרים את ההרשאות הנדרשות.</p></li><li><strong>מגדירים מתי להזכיר</strong><p>בוחרים ימים ושעות ומפעילים את התזכורת בחשבון האישי.</p></li><li><strong>מקבלים תזכורת בסיום</strong><p>לאחר נסיעה שעומדת בתנאי ההגדרה, הניתוק מהרכב מפעיל התראה לבדוק שכל הילדים יצאו.</p></li><li><strong>בודקים ומאשרים</strong><p>מאשרים בהתראה לאחר שבדקתם. בגרסה הנבדקת קיימת גם תזכורת חוזרת אם לא התקבל אישור.</p></li></ol><small>הפיתוח הנוכחי מיועד ל־Android. התמיכה ב־iPhone עדיין אינה זמינה.</small></details></div></section>
         <section className="cm-section cm-specialties"><div className="cm-wrap"><span className="cm-kicker">לכל כלי יש דרך עבודה משלו</span><h2>לא רק רכב פרטי</h2><div className="cm-specialties-grid">{categoryCards.map(card => <Link key={card.slug} to={card.href}><div className="cm-category-art"><img src={card.image} alt="" loading="lazy" width="1672" height="941" /></div><h3>{card.title}</h3><p>{card.text}</p><span>לפרטים <ArrowLeft size={17} /></span></Link>)}</div></div></section>
@@ -128,7 +232,7 @@ export default function Marketing() {
       {!checkPage && <section id="download" className="cm-download"><div className="cm-wrap cm-download-grid"><div><img src={logo} width="64" height="64" alt="" loading="lazy" /><span className="cm-kicker">הצעד הבא שלכם</span><h2>מתחילים עם<br /><em>הרכב שלכם.</em></h2><p className="cm-download-lead">המועדים, המסמכים והטיפולים שלכם, במקום שקל לחזור אליו.</p><StoreLinks /><Link className="cm-text-link" to="/Auth">מעדיפים דפדפן? לכניסה באתר <ArrowLeft size={17} /></Link></div><div className="cm-download-phone"><MarketingPhone src="/marketing/documents.webp" alt="מסמכי הרכב באפליקציה עם נתוני הדגמה" /><small>נתוני הדגמה</small></div></div></section>}
     </main>
     <footer className="cm-footer"><div className="cm-wrap"><Link className="cm-brand" to="/website"><img src={logo} width="35" height="35" alt="" />Car Reminder</Link><nav aria-label="מידע וקשר"><Link to="/Contact">יצירת קשר</Link><Link to="/PrivacyPolicy">פרטיות</Link><Link to="/TermsOfService">תנאי שימוש</Link><Link to="/Auth">כניסה לחשבון</Link></nav><span>כל מה שחשוב, איתך בדרך.</span></div></footer>
-    <dialog ref={dialog} className="cm-lightbox" aria-label="צילום מסך מהאפליקציה"><button autoFocus onClick={() => dialog.current?.close()} aria-label="סגירת צילום המסך"><X /></button><MarketingPhone src={`/marketing/${screens[screen].image}.${screens[screen].extension || 'webp'}`} alt={`${screens[screen].name} באפליקציה, במסגרת להמחשה`} /></dialog>
+    <dialog ref={dialog} className="cm-lightbox" aria-label="צילום מסך מהאפליקציה"><button autoFocus onClick={() => dialog.current?.close()} aria-label="סגירת צילום המסך"><X /></button><MarketingPhone src={`/marketing/${activeScreen.image}.${activeScreen.extension || 'webp'}`} alt={`${activeScreen.name} באפליקציה, במסגרת להמחשה`} /></dialog>
   </div>;
 }
 

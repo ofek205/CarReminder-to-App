@@ -32,6 +32,15 @@ import { AccessibilityProvider } from "@/components/shared/AccessibilityContext"
 import AccessibilityPanel from "@/components/shared/AccessibilityPanel";
 import BottomNav from "@/components/shared/BottomNav";
 import StagingBanner from "@/components/shared/StagingBanner";
+import { isDemoMode, isWriteOnlyRoute, isForbiddenDemoRoute } from "@/lib/demoMode";
+import { DEMO_HOME_ID, pathForScreen } from "@/lib/demoScreens";
+import MarketingDemoProvider from "@/components/MarketingDemoProvider";
+import MarketingDemoGate from "@/components/MarketingDemoGate";
+import MarketingDemoBridge from "@/components/MarketingDemoBridge";
+
+// One source for where the preview goes home, shared with the entry route and
+// the marketing selector so the three can never disagree.
+const DEMO_HOME_PATH = pathForScreen(DEMO_HOME_ID);
 import OfflineBanner from "@/components/shared/OfflineBanner";
 import useIsAdmin from "@/hooks/useIsAdmin";
 import useViewAs from "@/hooks/useViewAs";
@@ -958,11 +967,22 @@ function LayoutInner({ children }) {
   }, [isAuthenticated]);
 
   // Guest guard: if guest hasn't confirmed entry via Auth screen, redirect there (skip public pages)
+  //
+  // Exempt for the marketing preview, and it cannot be satisfied instead of
+  // exempted. The guard asks "did this person choose guest mode?", which the
+  // preview's visitor never did: the frame forced it on them. Writing
+  // `guest_confirmed` to satisfy it would be worse than the redirect, because
+  // sessionStorage is shared across the whole origin, so a marketing page
+  // would be silently changing how the real app treats the visitor's next
+  // visit. Without this the preview redirected to /Auth on its first hop and
+  // showed a sign-in screen, which the spec forbids outright.
+  const demoMode = isDemoMode();
   useEffect(() => {
+    if (demoMode) return;
     if (isGuest && !isAuthRoute && !isPublicRoute && !sessionStorage.getItem('guest_confirmed')) {
       navigate(createPageUrl('Auth'), { replace: true });
     }
-  }, [isGuest, isAuthRoute, isPublicRoute, navigate]);
+  }, [demoMode, isGuest, isAuthRoute, isPublicRoute, navigate]);
 
   // Auth page + public legal pages render standalone - no chrome, no auth required
   const STANDALONE_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components'];
@@ -999,8 +1019,20 @@ function LayoutInner({ children }) {
       {/* Directly below StagingBanner so on a staging preview the two stack
           instead of overlapping. Renders null whenever the user is online. */}
       <OfflineBanner />
+      {/* Every app popup is suppressed in the marketing preview. They are all
+          written for someone who chose to be here: a welcome, a what's-new,
+          a review request, an admin campaign. Inside a 390px frame on a
+          marketing page they are an interruption on top of an interruption,
+          and the preview already has exactly one thing it wants to say, the
+          conversion dialog.
+          GuestWelcomePopup is the one that would certainly fire, since the
+          preview is a guest by construction, and PopupEngine is the one that
+          could fire with anything: admin campaigns can target user_type
+          'guest', so an unrelated promo could appear inside the phone. Its
+          onClose here also writes to sessionStorage, which is shared with the
+          real app on this origin, so suppressing it avoids that too. */}
       <SafeComponent label="GuestWelcomePopup">
-        <GuestWelcomePopup open={isGuest && !guestPopupClosed} onClose={() => { setGuestPopupClosed(true); sessionStorage.setItem('guest_popup_closed', '1'); }} />
+        <GuestWelcomePopup open={!demoMode && isGuest && !guestPopupClosed} onClose={() => { setGuestPopupClosed(true); sessionStorage.setItem('guest_popup_closed', '1'); }} />
       </SafeComponent>
       <SafeComponent label="WelcomePopup">
         <WelcomePopup open={welcomeState !== null} isReturningUser={welcomeState?.isReturning ?? false} userName={welcomeState?.userName ?? ''} onClose={() => setWelcomeState(null)} />
@@ -1053,9 +1085,15 @@ function LayoutInner({ children }) {
           contained — useUpdateAvailable handles all the gating;
           mounting it everywhere is fine because it returns null when
           there's nothing to show. */}
-      <SafeComponent label="UpdateAvailableBanner">
-        <UpdateAvailableBanner />
-      </SafeComponent>
+      {/* Suppressed in the preview: "a new version is available, reload" is
+          addressed to someone running the app, and inside the marketing frame
+          it is both meaningless and a reload invitation that would drop demo
+          mode (the flag is URL-derived and does not survive a reload). */}
+      {!demoMode && (
+        <SafeComponent label="UpdateAvailableBanner">
+          <UpdateAvailableBanner />
+        </SafeComponent>
+      )}
       {isAuthenticated && mileageCheckDone && <SafeComponent label="ReviewManager"><ReviewManager /></SafeComponent>}
       {/* Scheduled review prompt.
        *
@@ -1077,7 +1115,7 @@ function LayoutInner({ children }) {
        * welcome popup. The engine itself enforces a 15-minute global
        * throttle + per-popup frequency, so even with many active popups
        * the user sees at most one at a time. */}
-      {(isAuthenticated || isGuest) && welcomeState === null && mileageCheckDone && !releaseAnn.show && (
+      {!demoMode && (isAuthenticated || isGuest) && welcomeState === null && mileageCheckDone && !releaseAnn.show && (
         <SafeComponent label="PopupEngine">
           <PopupEngine />
         </SafeComponent>
@@ -1133,7 +1171,13 @@ function LayoutInner({ children }) {
         background: C.primary,
         zIndex: 9998,
       }}>
-        {isGuest && <GuestBanner />}
+        {/* Suppressed in the preview, and this was a real escape hatch rather
+            than cosmetics. The banner carries a "יש לי חשבון" Link straight to
+            /Auth plus a "הירשם" button, on EVERY screen, so the preview was one
+            tap from a sign-in screen that a marketing visitor can neither use
+            nor leave. It also competed with the conversion dialog, which the
+            previous round settled as the preview's single conversion moment. */}
+        {isGuest && !demoMode && <GuestBanner />}
         <div className="bg-white border-b border-gray-100 px-3 py-2 flex items-center gap-2.5" dir="rtl">
           {(() => {
             // Ref prevents race condition: overlay close + button toggle fighting
@@ -1199,7 +1243,11 @@ function LayoutInner({ children }) {
         layout vertical scroll behaviour on every WebView, while the
         body-level overflow-x:hidden still catches horizontal bleed.
       */}
-      <main className={`flex-1 min-w-0 lg:mr-64 ${isGuest ? 'pt-24 lg:pt-10' : 'pt-14 lg:pt-0'} pb-0`}>
+      {/* The extra top padding exists to clear the GuestBanner, so it has to
+          follow the banner rather than `isGuest`. In the preview the banner is
+          suppressed while isGuest stays true, and without this the pt-24 left
+          a strip of dead space above every screen in the frame. */}
+      <main className={`flex-1 min-w-0 lg:mr-64 ${isGuest && !demoMode ? 'pt-24 lg:pt-10' : 'pt-14 lg:pt-0'} pb-0`}>
         <ViewAsBanner />
         <div className="max-w-5xl mx-auto p-4 lg:p-8 min-w-0">
           {children}
@@ -1222,13 +1270,74 @@ function LayoutInner({ children }) {
 }
 
 export default function Layout({ children }) {
+  // The marketing preview needs its decision made HERE, above GuestProvider,
+  // not inside a screen. forceGuest stops the auth bootstrap from ever
+  // running, and MarketingDemoProvider shadows the localStorage-backed guest
+  // store, so a signed-in visitor can neither see their own data in the
+  // frame nor have their session touched by it. Both guarantees come from
+  // the provider tree rather than from screens remembering to check.
+  const demo = isDemoMode();
+  const [gateOpen, setGateOpen] = React.useState(false);
+  const demoLocation = useLocation();
+  const demoNavigate = useNavigate();
+
+  // Stop the preview at the door of a write-only screen instead of letting
+  // the visitor fill a form that can never be submitted. Bouncing back to
+  // the home screen keeps them somewhere they can keep exploring, rather
+  // than on a form skeleton behind a modal.
+  React.useEffect(() => {
+    if (!demo) return;
+    if (!isWriteOnlyRoute(demoLocation.pathname)) return;
+    setGateOpen(true);
+    demoNavigate(DEMO_HOME_PATH, { replace: true });
+  }, [demo, demoLocation.pathname, demoNavigate]);
+
+  /**
+   * A forbidden route bounces home AND opens the conversion dialog.
+   *
+   * This started out silent, on the reasoning that a visitor who arrived at a
+   * sign-in screen by accident should not be sold anything. Then the audit
+   * found how they actually get there, and it is not by accident: the app
+   * scatters guest conversion prompts across its screens, "הירשם / התחבר" on
+   * every one, plus "הירשם לשמירת הנתונים" and "הירשם כדי לשמור לצמיתות". All
+   * of them head for /Auth, and all of them are deliberate taps.
+   *
+   * Silently bouncing turned every one into a button that visibly does
+   * nothing. Answering with the dialog turns them into what they were always
+   * trying to be, and it covers prompts nobody has found yet, including ones
+   * added later, without having to hunt each one down at its source.
+   */
+  React.useEffect(() => {
+    if (!demo) return;
+    if (!isForbiddenDemoRoute(demoLocation.pathname)) return;
+    setGateOpen(true);
+    demoNavigate(DEMO_HOME_PATH, { replace: true });
+  }, [demo, demoLocation.pathname, demoNavigate]);
+
+  // Stable identity: MarketingDemoProvider memoises its context value on this
+  // callback, so a new function each render would rebuild the value and
+  // re-render every screen in the preview.
+  const openDemoGate = React.useCallback(() => setGateOpen(true), []);
+  const closeDemoGate = React.useCallback(() => setGateOpen(false), []);
   return (
     <AccessibilityProvider>
       <FontScaleProvider>
-        <GuestProvider>
-          <WorkspaceProvider>
-            <LayoutInner>{children}</LayoutInner>
-          </WorkspaceProvider>
+        <GuestProvider forceGuest={demo}>
+          {demo ? (
+            <MarketingDemoProvider onBlockedWrite={openDemoGate}>
+              <WorkspaceProvider>
+                <LayoutInner>{children}</LayoutInner>
+                <MarketingDemoGate open={gateOpen} onClose={closeDemoGate} />
+                {/* Renders nothing. Reports this frame's route to the
+                    marketing page and accepts its screen requests. */}
+                <MarketingDemoBridge />
+              </WorkspaceProvider>
+            </MarketingDemoProvider>
+          ) : (
+            <WorkspaceProvider>
+              <LayoutInner>{children}</LayoutInner>
+            </WorkspaceProvider>
+          )}
         </GuestProvider>
       </FontScaleProvider>
     </AccessibilityProvider>

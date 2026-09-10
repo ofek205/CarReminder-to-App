@@ -20,11 +20,24 @@ import React from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { isDemoMode } from '@/lib/demoMode';
+import { DEMO_HOME_ID, pathForScreen } from '@/lib/demoScreens';
 
 export default function MobileBackButton({ to = null, label = 'חזור', className = '' }) {
   const navigate = useNavigate();
 
   const handleClick = () => {
+    // In the marketing preview, "back" means the preview's home screen and
+    // never a history step. The frame is 390px wide, so the app renders its
+    // mobile chrome and this button appears; `history.length` inside an iframe
+    // counts the JOINT session history, measured at 29, so the guard below
+    // passed and navigate(-1) walked straight out of the preview and into a
+    // sign-in screen the visitor could neither use nor leave. A fixed
+    // destination cannot escape the frame no matter what the stack holds.
+    if (isDemoMode()) {
+      navigate(pathForScreen(DEMO_HOME_ID), { replace: true });
+      return;
+    }
     if (to) {
       // String: page name → /PageName URL
       // Object: explicit URL with optional query

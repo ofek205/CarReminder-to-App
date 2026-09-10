@@ -1,4 +1,4 @@
-const EVENTS = new Set(['store_click', 'web_signin_click', 'business_contact_click', 'check_submit', 'check_validation_error']);
+const EVENTS = new Set(['store_click', 'web_signin_click', 'business_contact_click', 'check_submit', 'check_validation_error', 'demo_open', 'demo_screen']);
 
 // An integration point, not an analytics service. No storage or network calls.
 // A future collector should subscribe only after its consent requirements
