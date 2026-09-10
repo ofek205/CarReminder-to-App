@@ -223,8 +223,12 @@ export default function MyPlan() {
               <p className="text-[13px] mt-1 leading-relaxed" style={{ color: C.gray500 }}>
                 במצב אורח הנתונים נשמרים במכשיר בלבד, ולכן אין מסלול להציג. הרכבים שהוספת יעברו לחשבון כשתירשם.
               </p>
+              {/* 'Auth', not 'AuthPage'. The COMPONENT is AuthPage; the
+                  registered page name in pages.config.js is 'Auth', and
+                  createPageUrl just prefixes a slash, so the component name
+                  produced /AuthPage and a 404 on the guest conversion CTA. */}
               <Link
-                to={createPageUrl('AuthPage')}
+                to={createPageUrl('Auth')}
                 className="inline-flex items-center mt-3 px-4 font-bold rounded-xl text-white"
                 style={{ height: 44, background: C.primary, fontSize: 14 }}
               >
