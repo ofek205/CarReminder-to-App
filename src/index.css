@@ -406,3 +406,16 @@ input[type="range"]::-moz-range-thumb {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Numbers carry the top weight, and they are the only thing that does.
+   designer: docs/design-app-typography-alignment.md
+
+   font-bold is retuned to 600 in tailwind.config.js so the app stops shouting
+   on every label. Numeric readouts are the exception: a figure needs more
+   weight than text to read as solid at the same optical size, and making the
+   number the single heaviest thing on a screen is what gives the eye somewhere
+   to land. tabular-nums is the reliable marker for "this is a figure, not
+   prose", so it is what the rule keys on. */
+.font-bold.tabular-nums {
+  font-weight: 700;
+}

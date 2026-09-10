@@ -37,6 +37,22 @@ module.exports = {
   			'cr-medium':   '500',
   			'cr-semibold': '600',
   			'cr-bold':     '700',
+
+			// Retune of Tailwind's OWN weight utilities, 2026-09-10.
+			// designer: docs/design-app-typography-alignment.md
+			//
+			// The app shipped 1780 font-bold call sites, 79% of every weight
+			// declaration in src/. When everything is bold nothing is, so the
+			// product had no typographic hierarchy at all. Redefining what the
+			// utility MEANS changes all 1780 at once with zero call-site edits,
+			// and this is the framework mechanism for exactly that, so it is not
+			// a stylesheet fighting the utilities.
+			//
+			// Safe against the accessibility layer: AccessibilityContext scales
+			// font-size (15 rules) and never font-weight (0 rules), verified.
+			// Reversible by deleting these two lines.
+			bold:      '600',
+			extrabold: '700',
   		},
   		colors: {
   			// CarReminder design tokens (sprint 1).

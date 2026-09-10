@@ -277,13 +277,13 @@ body:has(.cm-site) #cr-legal-footer{display:none}
 
 /* Make the plate unmistakably editable, without competing with the CTA. */
 .cm-site .cm-check-interactive{border:1px solid #b8c9ae;box-shadow:0 18px 48px #27473110;position:relative}
-.cm-check-form-heading{margin-bottom:26px}.cm-check-badge{display:inline-flex;gap:7px;align-items:center;padding:6px 10px;border-radius:8px;background:#edf3e8;color:#375d2f;font-size:12px;font-weight:500}.cm-site .cm-check-form-heading h3{font-size:26px;margin:15px 0 6px}.cm-check-form-heading p{font-size:15px;color:#52644b;margin:0}
+.cm-check-form-heading{margin-bottom:26px}.cm-site .cm-check-form-heading p{font-size:15px;color:#52644b;margin:0}
 .cm-site .cm-check-interactive label{display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:500;margin-bottom:10px}.cm-check-interactive label svg{color:#617557}
 .cm-check-interactive .cm-plate{height:78px;border:2px solid #627453;border-radius:12px;box-shadow:inset 0 2px 4px #5b501820;transition:box-shadow .18s,border-color .18s;background:#f8d45b}.cm-check-interactive .cm-plate>span{padding:10px 12px;font-size:17px;flex-shrink:0}
 .cm-site .cm-check-interactive .cm-plate input{min-width:0;flex:1;cursor:text;font-size:clamp(23px,2.2vw,31px);letter-spacing:1px;padding:0 10px;outline:0;direction:ltr}.cm-site .cm-check-interactive .cm-plate input:placeholder-shown{font-size:18px;letter-spacing:0;direction:rtl;font-weight:500}.cm-site .cm-check-interactive .cm-plate input::placeholder{color:#4c452b;opacity:1}.cm-check-interactive .cm-plate:focus-within{border-color:#31572c;box-shadow:0 0 0 5px #8bac733d,inset 0 2px 4px #5b501820}.cm-check-interactive .cm-plate.has-error{border-color:#a42520}.cm-check-interactive .cm-plate.has-error:focus-within{box-shadow:0 0 0 5px #a425201c}.cm-site .cm-check-interactive .cm-input-hint{font-size:12px;color:#617058;margin:10px 0 0;line-height:1.6}
 .cm-site .cm-check-interactive .cm-check-submit{margin-top:22px;min-height:56px;font-size:17px;border-radius:12px;justify-content:center;gap:12px}.cm-check-submit:focus-visible{outline:3px solid #8bac73;outline-offset:4px}.cm-check-submit:disabled{opacity:.7;cursor:wait}.cm-site .cm-check-interactive .cm-check-access{display:flex;align-items:center;justify-content:center;gap:7px;font-size:13px;color:#3f6337;margin-top:16px}
 .cm-check-fineprint{margin-top:17px;padding-top:15px;border-top:1px solid #e2e8dd;font-size:12px;color:#65725e}.cm-check-fineprint summary{cursor:pointer;min-height:24px}.cm-check-fineprint p{margin-top:10px;font-size:12px}.cm-check-fineprint summary:focus-visible{outline:2px solid #49663c;outline-offset:4px}
-@media(max-width:620px){.cm-check-form-heading{margin-bottom:22px}.cm-site .cm-check-form-heading h3{font-size:24px}.cm-site .cm-check-interactive .cm-plate input:placeholder-shown{font-size:16px}.cm-check-interactive .cm-plate{height:72px}.cm-check-interactive .cm-plate>span{padding:10px}.cm-site .cm-check-interactive .cm-check-submit{font-size:16px}}
+@media(max-width:620px){.cm-check-form-heading{margin-bottom:22px}.cm-site .cm-site .cm-check-interactive .cm-plate input:placeholder-shown{font-size:16px}.cm-check-interactive .cm-plate{height:72px}.cm-check-interactive .cm-plate>span{padding:10px}.cm-site .cm-check-interactive .cm-check-submit{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.cm-check-interactive .cm-plate{transition:none}}
 
 .cm-category-art{height:auto;aspect-ratio:16/9}.cm-category-art img{object-position:center}
@@ -321,3 +321,11 @@ body:has(.cm-site) #cr-legal-footer{display:none}
      which matches the spinner because it is the last child of its slot. */
   .cm-screen-select .cm-screen-spin{display:block}
 }
+
+/* The spelled-out list of supported vehicle types, under the specialties
+   heading. It exists for search: the category pages carry the big terms, but
+   the long tail (מחפרון, טליהנדלר, סירת גומי) appears nowhere else as crawlable
+   text. Secondary size and muted colour so it reads as a footnote to the cards
+   rather than competing with them. The grid below keeps its own 35px top
+   margin, so this only needs to clear the heading. */
+.cm-specialties p.cm-specialties-list{max-width:70ch;margin-top:16px;font-size:15px}

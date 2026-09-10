@@ -423,7 +423,7 @@ export default function BusinessDashboard() {
           className="font-extrabold leading-none tracking-tight truncate"
           style={{
             color: C.primaryDark,
-            fontWeight: 900,
+            fontWeight: 700,
             fontSize: 'clamp(1.75rem, 4vw, 2.5rem)',
             letterSpacing: '-0.025em',
           }}
@@ -487,7 +487,7 @@ export default function BusinessDashboard() {
                 style={{
                   color: '#FFFFFF',
                   fontSize: 'clamp(4rem, 11vw, 6.5rem)',
-                  fontWeight: 900,
+                  fontWeight: 700,
                   letterSpacing: '-0.05em',
                   lineHeight: 0.85,
                   textShadow: '0 2px 20px rgba(0,0,0,0.15)',

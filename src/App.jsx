@@ -211,7 +211,7 @@ class AppErrorBoundary extends React.Component {
       }
       return (
         <div dir="rtl" style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui' }}>
-          <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12 }}>משהו השתבש 😕</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>משהו השתבש 😕</h2>
           <p style={{ color: '#666', marginBottom: 8 }}>נסה לרענן את הדף</p>
           {this.state.errorMsg && (
             <p style={{ color: C.error, fontSize: 11, marginBottom: 16, direction: 'ltr', maxWidth: 300, margin: '0 auto 16px', wordBreak: 'break-all' }}>

@@ -1192,7 +1192,7 @@ export default function FindGarage() {
             const tc = ALL_TYPE_CONFIG[g.typeKey] || TYPE_CONFIG.garage;
             return (
               <div dir="rtl" style={{ minWidth: 160, fontFamily: 'inherit' }}>
-                <div style={{ fontWeight: 800, fontSize: 13, color: tc.color, marginBottom: 2 }}>{g.name}</div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: tc.color, marginBottom: 2 }}>{g.name}</div>
                 <div style={{ fontSize: 11, color: '#666' }}>{TYPE_DESC[g.typeKey] || tc.label}</div>
                 <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{g.distance.toFixed(1)} ק"מ ממך</div>
               </div>
