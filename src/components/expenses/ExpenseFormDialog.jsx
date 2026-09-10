@@ -19,7 +19,7 @@ import { MANUAL_EXPENSE_CATEGORIES } from '@/services/expenses';
 import { dal } from '@/lib/dal';
 import { uploadScanFile, deleteFile, refreshSignedUrl } from '@/lib/supabaseStorage';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
-import { validateUploadFile } from '@/lib/securityUtils';
+import { validateUploadFile, DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 import ScanConfirmDialog from '@/components/shared/ScanConfirmDialog';
 import ScanReviewSheet   from '@/components/shared/ScanReviewSheet';
 
@@ -709,7 +709,7 @@ export default function ExpenseFormDialog({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,application/pdf"
+              accept={DOC_OR_IMAGE_ACCEPT}
               onChange={handleFile}
               className="hidden"
             />

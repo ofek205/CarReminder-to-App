@@ -4,7 +4,7 @@ import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
 import { uploadVehicleFile, deleteFile } from '@/lib/supabaseStorage';
 import useAccountRole from '@/hooks/useAccountRole';
-import { validateUploadFile } from '@/lib/securityUtils';
+import { validateUploadFile, DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 import { compressImage } from '@/lib/imageCompress';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card } from "@/components/ui/card";
@@ -452,7 +452,7 @@ export default function RepairsSection({ vehicle }) {
               <Label>קבצים מצורפים</Label>
               <div className="mt-2">
                 <FileOrCameraUpload
-                  accept="image/*,.pdf"
+                  accept={DOC_OR_IMAGE_ACCEPT}
                   multiple
                   onChange={handleFileUpload}
                   label="העלה קבצים (תמונות, חשבוניות)"

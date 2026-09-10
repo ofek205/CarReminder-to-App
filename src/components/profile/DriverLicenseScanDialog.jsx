@@ -186,7 +186,10 @@ export default function DriverLicenseScanDialog({ open, onClose, onSave }) {
                   <span className="text-xs text-gray-400">JPG, PNG, PDF</span>
                 </>
               )}
-              <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" onChange={handleFile} />
+              {/* PDF first: Android routes a media-typed chooser intent to
+                  the photo picker, which would hide PDFs entirely. Matches
+                  VehicleScanWizard and VesselScanWizard. */}
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFile} />
             </label>
             {/* Camera capture */}
             {!uploading && (

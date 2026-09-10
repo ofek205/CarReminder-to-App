@@ -51,7 +51,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { uploadScanFile, deleteFile } from '@/lib/supabaseStorage';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
-import { validateUploadFile } from '@/lib/securityUtils';
+import { validateUploadFile, DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 import { reportUserError } from '@/lib/crashReporter';
 // Living Dashboard system - one language across all B2B pages.
 import {
@@ -808,7 +808,7 @@ function ReceiptScanCard({ receiptUrl, uploading, scanning, scanError, aiScanAll
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,.pdf"
+              accept={DOC_OR_IMAGE_ACCEPT}
               onChange={(e) => handleFileEvent(e, { thenScan: false })}
               className="hidden"
             />

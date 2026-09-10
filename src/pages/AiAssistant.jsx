@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '../components/shared/GuestContext';
 import { aiRequest, VISION_IMAGE_MIME } from '@/lib/aiProxy';
+import { DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 import { hapticFeedback } from '@/lib/capacitor';
 import { C, getVehicleVisual, getVehicleCategory } from '@/lib/designTokens';
 import VehicleIcon from '../components/shared/VehicleIcon';
@@ -38,7 +39,8 @@ const MIN_INTERVAL_MS = 1500; // rate limit between sends
 // are the modalities Gemini 2.5 Flash supports under the free tier
 // at the document-token rate.
 const ATTACHMENT_MAX_BYTES = 6 * 1024 * 1024;
-const ATTACHMENT_ACCEPT    = 'image/*,application/pdf';
+// Shared so the Android picker ordering stays correct in one place.
+const ATTACHMENT_ACCEPT    = DOC_OR_IMAGE_ACCEPT;
 
 function formatFileSize(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '';

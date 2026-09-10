@@ -2,7 +2,7 @@ import { toastError, toast } from '@/lib/userErrorReport';
 import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
-import { Wrench, Plus, Trash2, AlertTriangle, Settings, Camera, Image, X, Sparkles, Loader2, Edit } from 'lucide-react';
+import { Wrench, Plus, Trash2, AlertTriangle, Settings, Camera, Upload, FileText, X, Sparkles, Loader2, Edit } from 'lucide-react';
 import { C, getTheme } from '@/lib/designTokens';
 import { isVessel as checkVessel } from '../shared/DateStatusUtils';
 import { BLUR_CLOSE_DELAY_MS } from '@/lib/timingConstants';
@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { formatDateHe } from '../shared/DateStatusUtils';
 import { compressImage } from '@/lib/imageCompress';
-import { validateUploadFile } from '@/lib/securityUtils';
+import { validateUploadFile, DOC_OR_IMAGE_ACCEPT, isPdfFileRef, dataUrlMimeType } from '@/lib/securityUtils';
 import { uploadToBucket } from '@/lib/supabaseStorage';
 import { notifyVehicleChange } from '@/lib/notifyVehicleChange';
 import { getRecommendedInterval, computeNextReminder, reminderFireDate } from '@/lib/maintenanceRecommendations';
@@ -25,6 +25,13 @@ import { reportUserError } from '@/lib/crashReporter';
 import ManufacturerScheduleCard from './ManufacturerScheduleCard';
 import ScanConfirmDialog from '@/components/shared/ScanConfirmDialog';
 import ScanReviewSheet   from '@/components/shared/ScanReviewSheet';
+
+// Ceiling for a receipt we are willing to send to the scanner. ai-proxy
+// rejects a messages payload once JSON.stringify(body).length passes
+// 8MB, so this leaves headroom for the prompt and the JSON scaffolding
+// around the base64. Measured on the data URL, which is slightly longer
+// than the payload actually sent, so the check errs on the safe side.
+const SCAN_PAYLOAD_MAX_CHARS = 7.5 * 1024 * 1024;
 
 export default function MaintenanceSection({ vehicle }) {
   const T = getTheme(vehicle.vehicle_type, vehicle.nickname, vehicle.manufacturer);
@@ -103,7 +110,12 @@ export default function MaintenanceSection({ vehicle }) {
     setAiScanning(true);
     try {
       const { aiRequest } = await import('@/lib/aiProxy');
-      const mediaType = base64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      // Read the real mime off the data URL instead of guessing. The old
+      // "png, or else assume jpeg" mislabelled every WebP that
+      // compressImage produces (it prefers WebP where the browser can
+      // encode it), and would have declared a PDF to be a JPEG.
+      const mediaType = dataUrlMimeType(base64);
+      const isPdf = mediaType === 'application/pdf';
       const imageData = base64.split(',')[1];
       const json = await aiRequest({
         model: 'claude-sonnet-4-20250514',
@@ -111,7 +123,7 @@ export default function MaintenanceSection({ vehicle }) {
         feature:  'scan_extraction',
         surface:  'maintenance_log_scan',
         messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
+          { type: isPdf ? 'document' : 'image', source: { type: 'base64', media_type: mediaType, data: imageData } },
           { type: 'text', text: 'סרוק את הקבלה/חשבונית הזו וחלץ: 1) שם המוסך/עסק 2) סכום לתשלום 3) תאריך 4) תיאור קצר של העבודה. החזר JSON בלבד: {"garage":"","cost":"","date":"YYYY-MM-DD","description":""}. אם לא ניתן לזהות שדה - השאר ריק.' }
         ]}],
       });
@@ -168,16 +180,32 @@ export default function MaintenanceSection({ vehicle }) {
   const handleReceiptUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const v = validateUploadFile(file, 'photo', 10);
+    // 'doc' rather than 'photo': a receipt often arrives as a PDF from
+    // the garage by email, and the two modes differ only by that one
+    // type. Everything downstream of here handles it, see isPdfFileRef
+    // in the preview and the document branch in _extractReceiptFromBase64.
+    const v = validateUploadFile(file, 'doc', 10);
     if (!v.ok) { toastError(v.error, { action: 'maint_receipt_validate' }); return; }
     // Compress + read base64 in parallel with the bucket upload. Once
     // both ready we set the pendingScan state and open the confirm
     // dialog — same pattern as ExpenseFormDialog's pilot.
+    // compressImage returns non-images untouched by contract, so a PDF
+    // passes through at full size and is capped by the 10MB check above.
     const compressed = await compressImage(file, { maxWidth: 1400, maxHeight: 1400, quality: 0.78 });
     const reader = new FileReader();
     reader.onload = ev => {
       const base64 = ev.target.result;
       setReceiptPhoto(base64);
+      // A photo is always well under the ceiling because compressImage
+      // just shrank it. A PDF is not compressed at all, so a big one has
+      // to be attached without the scan offer: the proxy rejects a
+      // messages payload over 8MB of JSON with a 413 AND logs a security
+      // event, so letting it through would turn ordinary use into
+      // security-log noise and a failure after the fact.
+      if (base64.length > SCAN_PAYLOAD_MAX_CHARS) {
+        toast('הקבלה צורפה. הקובץ גדול מדי לסריקה אוטומטית, אפשר למלא את הפרטים ידנית.');
+        return;
+      }
       // Pause here for explicit confirmation instead of auto-scanning.
       setPendingScanFile(file);
       setPendingScanBase64(base64);
@@ -780,7 +808,24 @@ export default function MaintenanceSection({ vehicle }) {
 
               {receiptPhoto ? (
                 <div className="relative mt-1.5">
-                  <img src={receiptPhoto} alt="קבלה" className="w-full h-36 object-cover rounded-xl border" style={{ borderColor: T.border }} />
+                  {isPdfFileRef(receiptPhoto) ? (
+                    /* A PDF cannot go in an <img>. Same 36-height slot so
+                       the card doesn't reflow, and the same remove button
+                       and scanning overlay sit on top of it. */
+                    <div className="w-full h-36 rounded-xl border flex flex-col items-center justify-center gap-1.5"
+                      style={{ borderColor: T.border, background: C.gray50 }}>
+                      <FileText className="w-8 h-8" style={{ color: T.muted }} />
+                      <span className="text-[11px] font-bold" style={{ color: T.primary }}>מסמך קבלה מצורף</span>
+                      {receiptUrl && (
+                        <a href={receiptUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-[10px] underline" style={{ color: T.muted }}>
+                          פתח לצפייה
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <img src={receiptPhoto} alt="קבלה" className="w-full h-36 object-cover rounded-xl border" style={{ borderColor: T.border }} />
+                  )}
                   {aiScanning && (
                     <div className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-2">
                       <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#6366F1' }} />
@@ -796,14 +841,17 @@ export default function MaintenanceSection({ vehicle }) {
                 <div className="mt-1.5 rounded-xl p-3 text-center"
                   style={{ background: '#F8FAFC', border: `2px dashed ${T.border}` }}>
                   <p className="text-[11px] mb-2" style={{ color: T.muted }}>
-                    צלם קבלה וה-AI ימלא את הפרטים אוטומטית
+                    צלם או צרף קבלה וה-AI ימלא את הפרטים אוטומטית
                   </p>
                   <div className="flex gap-2 justify-center">
                     <label className="cursor-pointer">
-                      <input type="file" accept="image/*" className="hidden" onChange={handleReceiptUpload} />
+                      {/* Takes a PDF as well as a photo: garages email
+                          receipts as documents. The camera input below
+                          stays image-only, since a capture is always one. */}
+                      <input type="file" accept={DOC_OR_IMAGE_ACCEPT} className="hidden" onChange={handleReceiptUpload} />
                       <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-[0.95]"
                         style={{ background: '#fff', color: T.primary, border: `1.5px solid ${T.border}` }}>
-                        <Image className="w-3.5 h-3.5" /> גלריה
+                        <Upload className="w-3.5 h-3.5" /> בחר קובץ
                       </div>
                     </label>
                     <label className="cursor-pointer">
