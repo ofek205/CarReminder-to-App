@@ -119,17 +119,21 @@ select pg_get_functiondef(oid) from pg_proc where proname='share_vehicle_with_em
 | שלב | מצב |
 |---|---|
 | 0, מדידה | הצ'ארט קיים; גבול ה-30 עונה בשאילתת אימות 3 |
-| **1, תשתית** | ✅ **נכתב.** `supabase-monetization-phase1-plans-2026-09-08.sql`, **טרם הורץ** |
+| **1, תשתית** | ✅ **נכתב.** `supabase-monetization-phase1-plans-2026-09-08.sql`, ✅ **הוחל ונרשם 2026-09-10** |
 | **2א, תצוגה** | ✅ **נכתב.** `/MyPlan` + `useAccountPlan` + `billingGate`, מגודר ב-`monetization_ui_enabled` |
-| **2ב, אדמין** | ✅ **נכתב.** overrides + `plan_ovr()` + 6 RPCs מתועדים ביומן, מסך `/AdminPlans`, ופקדים בדראוור. `supabase-monetization-phase2b-admin-2026-09-08.sql`, **טרם הורץ** |
-| **3, ספירה** | ✅ **נכתב.** `feature_usage_counters` + מונים + מדים ב-`/MyPlan`. `supabase-monetization-phase3-counters-2026-09-08.sql`, **טרם הורץ** |
-| **4, תקרת רכבים** | ✅ **נכתב.** טריגר statement-level. `supabase-monetization-phase4-vehicle-cap-2026-09-08.sql`, **טרם הורץ**, דגל כבוי |
-| **5א, תקרת שיתופים** | ✅ **נכתב.** `supabase-monetization-phase5a-share-cap-2026-09-08.sql`, **טרם הורץ**, דגל כבוי |
-| **5ב, מכסת AI** | ✅ **נכתב.** `ai_quota_check` + פיצול 402/429 ב-`ai-proxy` ובלקוח. `supabase-monetization-phase5b-ai-quota-2026-09-08.sql`, **טרם הורץ**, דגל כבוי. ראה הכרעה 5ב למעלה |
-| **5ג, מכסת בדיקות רכב** | ✅ **נכתב.** `my_plate_quota` + `plateQuotaGate` + ארבעת המשטחים + פטור ל-cache. `supabase-monetization-phase5c-plate-quota-2026-09-09.sql`, **טרם הורץ**, דגל כבוי. ראה האזהרה למטה |
+| **2ב, אדמין** | ✅ **נכתב.** overrides + `plan_ovr()` + 6 RPCs מתועדים ביומן, מסך `/AdminPlans`, ופקדים בדראוור. `supabase-monetization-phase2b-admin-2026-09-08.sql`, ✅ **הוחל ונרשם 2026-09-10** |
+| **3, ספירה** | ✅ **נכתב.** `feature_usage_counters` + מונים + מדים ב-`/MyPlan`. `supabase-monetization-phase3-counters-2026-09-08.sql`, ✅ **הוחל ונרשם 2026-09-10** |
+| **4, תקרת רכבים** | ✅ **נכתב.** טריגר statement-level. `supabase-monetization-phase4-vehicle-cap-2026-09-08.sql`, ✅ **הוחל ונרשם 2026-09-10**, דגל כבוי |
+| **5א, תקרת שיתופים** | ✅ **נכתב.** `supabase-monetization-phase5a-share-cap-2026-09-08.sql`, ✅ **הוחל ונרשם 2026-09-10**, דגל כבוי |
+| **5ב, מכסת AI** | ✅ **נכתב.** `ai_quota_check` + פיצול 402/429 ב-`ai-proxy` ובלקוח. `supabase-monetization-phase5b-ai-quota-2026-09-08.sql`, ✅ **הוחל ונרשם 2026-09-10**, דגל כבוי. ראה הכרעה 5ב למעלה |
+| **5ג, מכסת בדיקות רכב** | ✅ **נכתב.** `my_plate_quota` + `plateQuotaGate` + ארבעת המשטחים + פטור ל-cache. `supabase-monetization-phase5c-plate-quota-2026-09-09.sql`, ✅ **הוחל ונרשם 2026-09-10**, דגל כבוי. ראה האזהרה למטה |
 | 6-7, תשלומים | חסום על החלטת החלופה ל-Stripe |
 
-⚠️ **שמונת קבצי ה-SQL האלה אף אחד מהם לא הורץ מעולם.** כל טענה עליהם בקבצים האלה מבוססת על קריאת קוד, לא על הרצה. סדר ההחלה המלא ב-[runbook](runbook-monetization-apply.md).
+✅ **תשעת קבצי ה-SQL הוחלו ונרשמו בפנקס (2026-09-10).** כל דגלי האכיפה כבויים, ולכן ההתנהגות למשתמשים לא השתנתה. מה שאומת בפועל רשום ב-p_notes של כל רשומה ב-public.sql_ledger, כולל מה ש**לא** אומת.
+
+⚠️ **שלב 2ב הוחל בשני מעברים.** הראשון נכשל על שורת update כפולה והשאיר החלה חלקית; תוקן ב-348a661 והורץ שוב. השער שמונע חזרה של זה הוא scripts/sql-duplicate-statements.cjs, ב-pre-push וב-npm test.
+
+✅ **הגרנדפאדר בוצע:** 21 חשבונות הוקפאו על הכמות שהחזיקו, 0 אי-התאמות. חמישה מהם הם כל השוק של ₪19 ו-₪49: עסקיים על 17, 26, 44 ו-86 רכבים, וחשבון **פרטי** על 53 שכמעט בוודאות עסק.
 
 ### §3.4.ו — לא מימשתי עקיפת אדמין ב-SQL, ובכוונה
 
