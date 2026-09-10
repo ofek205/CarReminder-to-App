@@ -9,22 +9,112 @@
 
 ## חוקי-על (defaults that NEVER change)
 
-### חוק 0 — קלוד לא נוגע בעולם החיצון (כל פעולה חיצונית = ידנית של Ofek)
+### חוק 0 — הפרדה לפי סיכון, לא לפי „פנים מול חוץ”
 
-קלוד עובד **אך ורק בתוך תיקיית הקוד**: קורא, כותב, עורך קבצים, ומריץ אימות מקומי (`build`/`lint`) כשהסביבה מאפשרת. כל פעולה ש**יוצאת החוצה** — Ofek מבצע ידנית, לעולם לא קלוד:
-- `git push` (לכל ענף) — דרך GitHub Desktop / הטרמינל של Ofek
-- `gh` — PR, merge, issues — דרך github.com בדפדפן
-- deploy ל-Vercel — אוטומטי על push, אין צעד ידני
-- native build — Android Studio / Xcode / `gradlew` / `npx cap`
-- **סופהבייס** — `supabase functions deploy`, `secrets set`, וכל שאר ה-CLI. גם ה-SQL מוחל ידנית ב-SQL editor (ראה „הערה על DB”). פריסת Edge Function משנה קוד שרץ בפרודקשן ברגע זה, ולכן היא חיצונית בכל מובן. מאז 2026-09-08 יש workflow שעושה זאת מהדפדפן: `.github/workflows/edge-function-deploy.yml`
+> ## ✅ בתוקף מ-2026-09-09. שתי שכבות האכיפה אומתו
+>
+> **1. ה-ruleset על main:** `Active`, `Applies to 1 target: main`, רשימת
+> עקיפה **ריקה** (אין פטור לאף אחד, כולל ל-Ofek), `Require a pull request
+> before merging`, `Require branches to be up to date`, `Block force
+> pushes`, וארבע בדיקות נדרשות: `Build`, `Lint`, `Query timeout gate`,
+> `View-as identity gate` (האחרונה קשורה ל-GitHub Actions ולא ל„כל מקור”,
+> כך שרק ה-workflow האמיתי יכול לדווח עליה).
+>
+> **2. `permissions.deny`:** 82 כללים, אומת בקריאת הקובץ החי.
+>
+> הסעיף נכתב **לפני** האכיפה, עם באנר „טרם בתוקף”, ורק אז הוחלף בזה. זה
+> היה מכוון: מסמך שמצהיר שהוא לא בתוקף הוא לא פער, מסמך שמבטיח יכולת שאין
+> הוא כן. ראה שתי ההערות ההיסטוריות למטה.
+>
+> **מה שנמצא בדרך, ולמה זה מצדיק את הסדר הזה:** ה-ruleset היה שבור בשתי
+> שכבות בלתי תלויות (`Disabled` **וגם** `targeting 0 branches`), ואחרי
+> התיקון הראשון אחת מארבע הבדיקות נשמרה בשם משובש
+> (`QueryView-as identity gate timeout gate`). שם בדיקה שלא קיים לעולם לא
+> מדווח, כלומר **כל מיזוג ל-main היה נחסם לנצח** ואף אחד לא היה מבין למה.
+> שלוש התקלות התגלו רק בהסתכלות על המסך עצמו, אחת אחרי השנייה.
 
-מה שקלוד **כן** מכין עד (ולא כולל) ה-push: עריכות, `git add`, `git commit` מקומי, `commit-gatekeeper`, ואימות `build` כשאפשר. ה-**Push עצמו תמיד של Ofek**.
+הקו הוא **הרגע שבו פעולה נהיית בלתי הפיכה**, לא הגבול בין המחשב לרשת.
 
-**חריגה:** ה-`deny` קשיח — אפילו אישור בצ'אט **לא** עוקף אותו. כדי לאפשר לקלוד פעולה חיצונית חד-פעמית, Ofek מסיר זמנית את הכלל הרלוונטי מ-`permissions.deny` ב-`.claude/settings.json` (פעולה מודעת), ומחזיר אותו אחרי. זה במכוון — מאלץ צעד מפורש לכל פעולה חיצונית של קלוד.
+**מה שקלוד עושה עצמאית:**
+- עריכות, `git add`, `git commit` מקומי — דרך `commit-gatekeeper`, בלי שינוי
+- `git push` של **ענף צדדי** — ענף שאף סביבה לא מריצה
+- `gh pr create` — פתיחת PR. היא לא משנה שום דבר, רק יוצרת מסך סקירה ומפעילה את השערים
+- `gh pr view` / `gh pr list` / `gh pr checks` — קריאת מצב השערים
+- `git push origin --delete <branch>` על ענף **שכבר מוזג**. הפיך: הקומיטים בפנים
 
-**אכיפה טכנית:** `permissions.deny` ב-`.claude/settings.json` חוסם פיזית — בשתי הצורות, `Bash(...)` ו-`PowerShell(...)`:
+**מה ש-Ofek עושה, תמיד:**
+- **ה-merge עצמו — גם ל-staging וגם ל-main.**
 
-`git push` · `gh` · `git remote add/set-url` · `npx cap` · `vercel` / `npx vercel` · `npm publish` · `gradlew` · `xcodebuild` · `supabase` / `npx supabase`
+  הסיבה טכנית ולא זהירות יתר: `gh pr merge` מקבל מספר PR, לא שם ענף. אין תבנית
+  שיכולה להתיר merge ל-staging ולאסור merge ל-main, זו אותה פקודה. או שקלוד יכול
+  למזג הכל או כלום. מכיוון ש-merge ל-main נפרס ללקוחות תוך שניות, התשובה היא כלום.
+- deploy ל-Vercel — קורה מעצמו על merge ל-main, אין צעד ידני
+- כל דבר בסופהבייס: `functions deploy`, `secrets set`, והרצת SQL. הסביבות חולקות
+  מסד, ולכן SQL נוגע בלקוחות (ראה „הערה על DB”)
+- native build והעלאה לחנות
+- הפעלת workflow ידנית
+
+**מה שחסום לתמיד, גם באישור מפורש בצ'אט:**
+`git push --force` / `-f` / `--force-with-lease` / `--all` / `--mirror` · דחיפה ישירה
+ל-main · מחיקת `main` או `staging` · `gh api` (גישה גולמית = בלי גבול) · `gh repo` ·
+`gh secret` · `gh ruleset` · `git remote add/set-url` · `npx cap` · `vercel` ·
+`npm publish` · `gradlew` · `xcodebuild` · `supabase`
+
+**קלוד לא עורך את `.claude/settings.json`.** גם כשמתבקש. הערך של הקובץ הוא בדיוק
+שהסוכן לא יכול לכתוב אליו: אם הוראה שמוטמעת בקוד של ספרייה, בדף אינטרנט או בתוצאת
+כלי מצליחה להשפיע על קלוד, ויכולת העריכה פתוחה, אותה הוראה פותחת לעצמה הכל בצעד
+אחד. קלוד מכין טיוטה, Ofek מחיל. זו ההבחנה מול הקובץ הזה, ש**כן** מותר לקלוד לערוך:
+עריכת `CLAUDE.md` לא מוסיפה לקלוד שום יכולת, עריכת רשימת ההרשאות מוסיפה.
+
+---
+
+#### שלוש רמות אכיפה, ולמה זה משנה
+
+| רמה | חוזק | מה היא מחזיקה |
+|---|---|---|
+| ruleset ב-GitHub | קשה, בשרת | אי אפשר להגיע ל-main בלי PR ובלי שערים ירוקים |
+| `permissions.deny` | קשה, בשכבת הכלים | אין deploy, אין merge, אין force-push |
+| `CLAUDE.md` | **רך**, התנהגותי | סדר פעולות, שיקול דעת, מתי לשאול |
+
+**כלל האצבע: כל דבר שטעות בו בלתי הפיכה לא יכול לחיות רק במסמך הזה.** המסמך עובד
+כי קלוד קורא אותו ומציית; זה אמיתי, אבל טעות, קריאה שגויה או סשן שאיבד הקשר שוברים
+אותו, ושתי הרמות האחרות לא תלויות בקלוד בכלל. הפער של `supabase` שלמטה הוא ההוכחה:
+כותרת החוק הייתה נכונה, והאכיפה פשוט לא כיסתה אותה.
+
+בחלוקה שלמעלה המסמך לא מחזיק לבד שום דבר קטסטרופלי. כל מה שבלתי הפיך יושב בשתי
+הרמות הקשות.
+
+#### למה ה-ruleset הוא התנאי, ולא רק המלצה
+
+התאמת התבניות ב-`deny` עובדת על **תחילת** הפקודה, ולכן לא יכולה לזהות דחיפה שהיעד
+שלה מוסתר באמצע. `git push origin main` ו-`git push origin HEAD:main` נראות לה שונות
+לגמרי ועושות אותו דבר, ו-`git push` יחף מענף שכבר עוקב אחרי main לא מזכיר את היעד
+בכלל. לכן חסימת „דחיפה ל-main” ברשימה היא **שכבה שנייה ונוחות בלבד**, והאכיפה
+האמיתית היא בשרת. בלי ה-ruleset, ההיתר לדחוף היה נשען על תבניות שאפשר לעקוף בטעות
+בניסוח.
+
+**ומכאן הכלל להמשך:** אם ה-ruleset אי פעם יכובה, ינוטרל, או יאבד את היעד שלו,
+ההיתרים ב-`deny` חייבים לחזור למצב הישן **באותו רגע**. שתי השכבות תלויות זו בזו.
+
+#### אכיפה טכנית: 82 כללים ב-`permissions.deny`
+
+בשתי הצורות, `Bash(...)` ו-`PowerShell(...)`.
+
+**חסום תמיד:** `git push --force` / `-f` / `--force-with-lease` / `--all` / `--mirror` ·
+`git push origin main` (וגם `HEAD:main`) · מחיקת `main` או `staging` (גם `--delete`
+וגם refspec ריק) · `gh pr merge` · `gh api` · `gh repo` · `gh secret` · `gh variable` ·
+`gh workflow` · `gh run` · `gh release` · `gh auth` · `gh config` · `gh alias` ·
+`gh extension` · `gh codespace` · `gh ssh-key` · `gh gpg-key` · `gh ruleset` ·
+`git remote add/set-url` · `npx cap` · `vercel` / `npx vercel` · `npm publish` ·
+`gradlew` · `xcodebuild` · `supabase` / `npx supabase`
+
+**מותר לקלוד:** `git push` של ענף צדדי · `git push origin staging` · `git push origin
+--delete <branch>` על ענף ממוזג · `gh pr create` / `view` / `list` / `checks`
+
+> **הערה על ההשלכה של חסימת `gh ruleset` ו-`gh api`:** קלוד **לא יכול לקרוא** את
+> הגדרות ה-ruleset, ולכן אימות שלהן יישאר תמיד דרך Ofek (צילום מסך או קריאה בדפדפן).
+> זו הגדרה שמשתנה פעם בשנה, אז זה מחיר סביר. אבל צריך לזכור אותו: כשקלוד אומר
+> „ה-ruleset תקין”, הוא מצטט את מה שנאמר לו, לא משהו שבדק.
 
 > **הערה 2026-09-08 — פער שנסגר:** `supabase` **לא** היה ברשימה, בזמן שכותרת החוק הזה אומרת „כל פעולה חיצונית”. כלומר קלוד היה יכול להריץ `npx supabase functions deploy` ולשנות קוד שרץ בפרודקשן, בלי שדבר יעצור אותו. הפער התגלה כשקלוד נשאל לפרוס ובדק את רשימת ה-deny לפני שנגע בה. זה אותו סוג בעיה כמו ה-`skip-worktree` למטה: החוק היה נכון והאכיפה לא כיסתה אותו.
 >
@@ -114,7 +204,7 @@ npm run build
 
 ### שער 7 — Version + Tag + Merge
 
-**חלוקת עבודה:** קלוד מכין הכל עד ל-push. ה-push, ה-merge וה-tag על הרימוט הם של Ofek — כפי שחוק 0 דורש, וכפי ש-`permissions.deny` אוכף פיזית.
+**חלוקת עבודה (עודכן 2026-09-09 לפי חוק 0 החדש):** קלוד מכין, דוחף את ענף השחרור, ופותח את ה-PR. **ה-merge ל-main וה-tag הם של Ofek**, ואת זה אוכפים גם `permissions.deny` (`gh pr merge` חסום) וגם ה-ruleset בשרת (אין דחיפה ישירה ל-main, ואין merge בלי ארבע הבדיקות הירוקות).
 
 **מה קלוד עושה:**
 1. בודק `package.json` — נדרש bump (semver)? אם כן, bump ב-staging, commit דרך commit-gatekeeper.
@@ -172,7 +262,7 @@ git checkout staging && git merge main && git push origin staging
 ```
 git checkout staging && git merge main && git push origin staging
 ```
-- **Ofek:** פותח issue ב-GitHub שמתעד את ה-hotfix. `gh` חסום לקלוד לפי חוק 0, אז זה תמיד ידני דרך github.com.
+- **תיעוד ה-hotfix ב-issue:** נכון ל-2026-09-09 `gh` **אינו מותקן** במכונה, אז זה ידני דרך github.com. אחרי התקנה (`winget install GitHub.cli`) קלוד יוכל לפתוח issue ו-PR, אבל לא למזג אותם.
 
 > **הערה על סתירה שהייתה כאן:** הנוסח הישן הורה לקלוד לעשות `checkout` ל-main (שסעיף „מה Claude עושה תמיד בתחילת סשן” אוסר) ולפתוח issue ב-GitHub (שחוק 0 אוסר). שתי ההוראות היו בלתי-ניתנות לביצוע. החלוקה למעלה פותרת את שתיהן.
 
