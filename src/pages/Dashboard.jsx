@@ -5,7 +5,6 @@ import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { MEMBER_STATUS, isActiveMember } from '@/lib/enums';
-import { isSafeFileUrl } from '@/lib/securityUtils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import usePullToRefresh from '@/hooks/usePullToRefresh';
 import PullToRefreshIndicator from '@/components/shared/PullToRefreshIndicator';
@@ -22,7 +21,6 @@ import { useAuth } from "../components/shared/GuestContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import useWorkspaceRole from '@/hooks/useWorkspaceRole';
 import useViewAs from '@/hooks/useViewAs';
-import { toast } from "sonner";
 import { daysUntil } from "../components/shared/ReminderEngine";
 import { usesHours, usesKm } from "../components/shared/DateStatusUtils";
 import { DEMO_VEHICLE, DEMO_VESSEL, DEMO_CORK_NOTES, DEMO_VESSEL_CORK_NOTES, DEMO_VESSEL_ISSUES, DEMO_DOCUMENTS, DEMO_VESSEL_DOCUMENTS } from "../components/shared/demoVehicleData";
@@ -838,8 +836,13 @@ function VehicleRow({ vehicle }) {
 import useNotificationScheduler from '@/hooks/useNotificationScheduler';
 
 export default function Dashboard() {
-  const { isAuthenticated, isGuest, isLoading, user, guestVehicles, getStoredGuestVehicles,
-    getStoredGuestDocuments, getStoredGuestReminderSettings, clearGuestData, isDemoDismissed } = useAuth();
+  // getStoredGuestVehicles / getStoredGuestDocuments /
+  // getStoredGuestReminderSettings / clearGuestData were dropped with the
+  // duplicate migration below: the last two were already dead, and keeping
+  // clearGuestData reachable from this screen is what made the data loss
+  // possible in the first place.
+  const { isAuthenticated, isGuest, isLoading, user, guestVehicles,
+    migrateGuestDataIfNeeded, isDemoDismissed } = useAuth();
   // Phase 9 step 5: when active workspace is business, route by role.
   //   manager / viewer / owner → /BusinessDashboard
   //   driver                   → /MyVehicles  (their assigned vehicles)
@@ -1020,36 +1023,48 @@ export default function Dashboard() {
         // This eliminates a redundant Supabase round-trip on every Dashboard
         // mount that was generating slow_query_storm alerts.
 
-        // Guest → authenticated migration
-        const sanitizeStr = (v, max = 200) => (typeof v === 'string' ? v.slice(0, max) : '');
-        const sanitizeNum = (v, min = 0, max = 9999999) => { const n = Number(v); return Number.isFinite(n) ? Math.min(Math.max(n, min), max) : undefined; };
-        const sanitizeDateStr = (v) => { if (typeof v !== 'string') return undefined; return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined; };
-        const storedVehicles = getStoredGuestVehicles().filter(v => !v._isDemo);
-        if (storedVehicles.length > 0 && finalAccountId) {
-          // Raise the personal cap so the whole guest batch lands even when
-          // enforcement is on (P0-1). sync_personal_cap_to_count below then
-          // freezes it to the real count = greatest(count,10). Best-effort —
-          // never let a cap RPC hiccup block a signup migration.
-          const batch = storedVehicles.slice(0, 20);
-          try { await dal.run('cap.bumpPersonal', { accountId: finalAccountId, headroom: batch.length }); } catch { /* cap sync best-effort */ }
-          for (const gv of batch) {
-            await dal.run('vehicle.create', {
-              account_id: finalAccountId,
-              vehicle_type: sanitizeStr(gv.vehicle_type, 40) || 'רכב',
-              manufacturer: sanitizeStr(gv.manufacturer, 60),
-              model: sanitizeStr(gv.model, 60),
-              year: sanitizeNum(gv.year, 1900, 2030),
-              nickname: sanitizeStr(gv.nickname, 60),
-              license_plate: sanitizeStr(gv.license_plate, 20),
-              current_km: sanitizeNum(gv.current_km, 0, 9999999),
-              test_due_date: sanitizeDateStr(gv.test_due_date),
-              insurance_due_date: sanitizeDateStr(gv.insurance_due_date),
-              ...(isSafeFileUrl(gv.vehicle_photo) ? { vehicle_photo: gv.vehicle_photo } : {}),
-            });
+        // Guest → authenticated migration.
+        //
+        // ⚠️ DELEGATED, NOT DUPLICATED, AND THE DUPLICATE WAS DESTROYING DATA.
+        //   This used to be a second, older copy of the migration: a
+        //   vehicles-only loop followed by clearGuestData(), which removes
+        //   documents, accidents, vessel issues, cork notes and reminder
+        //   settings that this path never migrated at all. That is the
+        //   pre-C4 behaviour. The fix to migrate dependents too landed in
+        //   GuestDataContext and this copy was left behind with the original
+        //   bug, still holding the giveaway: getStoredGuestDocuments and
+        //   getStoredGuestReminderSettings were destructured here and never
+        //   used.
+        //
+        //   It was reachable whenever this path won the race against the
+        //   auth-triggered migration, which is precisely when the account did
+        //   not exist yet at sign-in, so the loss hit NEW users only.
+        //
+        //   The old loop also had no per-vehicle catch: one refusal from the
+        //   phase 4 plan-cap trigger aborted the batch before clearGuestData,
+        //   stranding storage and re-inserting duplicates on the next mount
+        //   until the plate-unique constraint failed forever, silently.
+        //
+        // Safe to call again here, in all three states of the auth-triggered
+        // run: still in flight, its own re-entry guard makes this a no-op;
+        // already finished, there is nothing stored and it returns at once;
+        // aborted because no membership had appeared within ~9s, which is the
+        // case this call exists to rescue, its guard was reset on that abort.
+        // By this point the account has just been ensured, so the membership
+        // it waits for is already committed. It resolves its own account id,
+        // bumps and syncs the personal cap, and reports what did not fit.
+        if (user) {
+          if (typeof migrateGuestDataIfNeeded === 'function') {
+            await migrateGuestDataIfNeeded(user);
+          } else {
+            // Loud on purpose. useAuth() merges as { ...guestData, ...auth },
+            // so an `auth` key of the same name would shadow the real
+            // function and this delegation would become a no-op. The fallback
+            // loop that used to cover that case is gone, so a silent failure
+            // here means new users stop having their guest data migrated at
+            // all, and the enclosing catch would only console.error it.
+            console.error('[Dashboard] migrateGuestDataIfNeeded missing from useAuth(); guest data was NOT migrated');
           }
-          clearGuestData();
-          try { await dal.run('cap.syncToCount', { accountId: finalAccountId }); } catch { /* cap sync best-effort */ }
-          toast.success(`${storedVehicles.length} רכבים הועברו לחשבון שלך בהצלחה!`);
         }
       } catch (err) {
         console.error('Dashboard init error:', err);
