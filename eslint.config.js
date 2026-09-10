@@ -91,6 +91,20 @@ export default [
     rules: {
       "no-unused-vars": "off",
       "react/jsx-uses-vars": "error",
+      // The JSX half of the v5.4.1 lesson, and it was missing until
+      // 2026-09-10. `no-undef` below catches a bare identifier with no
+      // import, which is what broke production that day (`C.token` in 14
+      // files). It does NOT catch an undefined COMPONENT: `<Foo />` with no
+      // import passes lint, passes the build, and throws a ReferenceError
+      // only when that component first renders. In a codebase this
+      // component-heavy that is the far more likely shape of the same
+      // mistake.
+      //
+      // Turning it on found a live one immediately: Expenses.jsx rendered
+      // <ScanReviewSheet> with no import, so the B2B receipt-scan review
+      // would have crashed the page on open. One error across all of src/,
+      // fixed in the same commit.
+      "react/jsx-no-undef": "error",
       "react/jsx-uses-react": "error",
       "unused-imports/no-unused-imports": "error",
       "unused-imports/no-unused-vars": [

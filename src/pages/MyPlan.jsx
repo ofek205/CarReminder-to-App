@@ -28,7 +28,7 @@ import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   CreditCard, Car, Search, Share2, Sparkles,
-  AlertCircle, RotateCw, ShieldCheck, Info, UserPlus,
+  AlertCircle, RotateCw, ShieldCheck, Info, UserPlus, ChevronLeft,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import PageShell from '@/components/business/system/PageShell';
@@ -502,6 +502,23 @@ export default function MyPlan() {
               value={plan.businessUi ? 'כלול' : 'לא כלול'}
             />
           </div>
+
+          {/* The meters above explain a limit and, until now, had nowhere to
+              send anyone: "4 מתוך 5" states the boundary and offers no way to
+              understand what lies past it. /Plans is that destination.
+              Platform-independent on purpose: navigating INSIDE the app is
+              not steering, so this is permitted on iOS too, unlike the
+              external-purchase note below. */}
+          <Link
+            to={createPageUrl('Plans')}
+            className="flex items-center justify-between mt-4 pt-3 border-t"
+            style={{ borderColor: C.gray100, minHeight: 44 }}
+          >
+            <span className="text-[13px] font-bold" style={{ color: C.primary }}>
+              השוואת המסלולים
+            </span>
+            <ChevronLeft className="h-4 w-4 rtl:rotate-180" style={{ color: C.primary }} aria-hidden="true" />
+          </Link>
         </Card>
 
         {/* ⚠️ The only platform-dependent copy on the screen, and the reason

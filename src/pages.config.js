@@ -67,6 +67,7 @@ const Notifications = React.lazy(() => import('./pages/Notifications'));
 const ReminderSettingsPage = React.lazy(() => import('./pages/ReminderSettingsPage'));
 const AiServices = React.lazy(() => import('./pages/AiServices'));
 const MyPlan = React.lazy(() => import('./pages/MyPlan'));
+const Plans = React.lazy(() => import('./pages/Plans'));
 const RepairTypes = React.lazy(() => import('./pages/RepairTypes'));
 const UserProfile = React.lazy(() => import('./pages/UserProfile'));
 const AiAssistant = React.lazy(() => import('./pages/AiAssistant'));
@@ -149,6 +150,7 @@ export const PAGES = {
     "ReminderSettingsPage": ReminderSettingsPage,
     "AiServices": AiServices,
     "MyPlan": MyPlan,
+    "Plans": Plans,
     "RepairTypes": RepairTypes,
     "UserProfile": UserProfile,
     "VehicleDetail": VehicleDetail,

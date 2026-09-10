@@ -50,6 +50,7 @@ import { DateInput } from '@/components/ui/date-input';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { uploadScanFile, deleteFile } from '@/lib/supabaseStorage';
+import ScanReviewSheet from '@/components/shared/ScanReviewSheet';
 import { extractDataFromUploadedFile } from '@/lib/aiExtract';
 import { validateUploadFile, DOC_OR_IMAGE_ACCEPT } from '@/lib/securityUtils';
 import { reportUserError } from '@/lib/crashReporter';
