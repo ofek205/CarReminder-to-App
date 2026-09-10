@@ -2021,7 +2021,7 @@ function LeaderboardCard({ title, icon: Icon, accent = 'emerald', metricLabel, r
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <div className="flex items-center gap-1.5 min-w-0 flex-1">
                         <span
-                          className="text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center shrink-0 tabular-nums"
+                          className="text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center shrink-0 tabular-nums"
                           style={{ background: c.bg, color: c.icon }}
                         >
                           {idx + 1}
@@ -2030,7 +2030,7 @@ function LeaderboardCard({ title, icon: Icon, accent = 'emerald', metricLabel, r
                           {r.name}
                         </span>
                       </div>
-                      <span className="text-[11px] font-black tabular-nums shrink-0" style={{ color: c.icon }} dir="ltr">
+                      <span className="text-[11px] font-extrabold tabular-nums shrink-0" style={{ color: c.icon }} dir="ltr">
                         {value}
                         {sec !== null && sec > 0 && (
                           <span className="text-[10px] mr-1 font-bold" style={{ color: C.borderAlt }}>

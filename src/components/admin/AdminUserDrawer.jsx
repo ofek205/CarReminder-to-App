@@ -488,7 +488,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
       <Card accent="emerald">
         <div className="flex items-start gap-3">
           <div
-            className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-black"
+            className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-extrabold"
             style={{
               background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 80%, ${C.successMid} 100%)`,
               color: '#FFFFFF',
@@ -499,7 +499,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <p className="text-sm font-black truncate" style={{ color: C.primaryDark }}>
+              <p className="text-sm font-extrabold truncate" style={{ color: C.primaryDark }}>
                 {owner?.full_name || account?.name || 'ללא שם'}
               </p>
               {owner?.role === 'admin' && (
@@ -837,7 +837,7 @@ function DrawerContent({ data, account: accountProp, onClose, onAccountDeleted, 
           <div className="flex items-center justify-between mt-3 pt-2.5"
             style={{ borderTop: `1px solid ${C.bgSubtle}` }}>
             <span className="text-[11px] font-bold" style={{ color: C.primaryDark }}>סה״כ</span>
-            <span className="text-sm font-black tabular-nums" style={{ color: C.successDark }} dir="ltr">
+            <span className="text-sm font-extrabold tabular-nums" style={{ color: C.successDark }} dir="ltr">
               {fmtMoney(totals.spend_total)}
             </span>
           </div>
@@ -923,7 +923,7 @@ function KpiTile({ label, value, sub, tone = 'emerald' }) {
       <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: t.label }}>
         {label}
       </p>
-      <p className="text-base font-black tabular-nums truncate mt-0.5" style={{ color: t.value }} dir="ltr">
+      <p className="text-base font-extrabold tabular-nums truncate mt-0.5" style={{ color: t.value }} dir="ltr">
         {value}
       </p>
       {sub && (
@@ -1218,7 +1218,7 @@ function VehicleEditDialog({ vehicle, busy, onSave, onClose }) {
         onClick={(e) => e.stopPropagation()} style={{ boxShadow: '0 20px 50px rgba(11,41,18,0.3)' }}>
         <div className="flex items-center gap-2 mb-3">
           <Pencil className="w-4 h-4" style={{ color: C.primaryDark }} />
-          <p className="text-sm font-black" style={{ color: C.primaryDark }}>עריכת רכב</p>
+          <p className="text-sm font-extrabold" style={{ color: C.primaryDark }}>עריכת רכב</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <DrawerField label="יצרן" value={f.manufacturer} onChange={upd('manufacturer')} />
@@ -1286,7 +1286,7 @@ function OwnershipDialog({ members, currentOwnerId, accountName, busy, onApply, 
       <div className="absolute inset-0" style={{ background: 'rgba(11,41,18,0.5)' }} />
       <div className="relative w-full max-w-sm rounded-2xl p-5 bg-white" onClick={(e) => e.stopPropagation()}
         style={{ boxShadow: '0 20px 50px rgba(11,41,18,0.3)' }}>
-        <p className="text-sm font-black mb-1" style={{ color: C.primaryDark }}>ניהול בעלות</p>
+        <p className="text-sm font-extrabold mb-1" style={{ color: C.primaryDark }}>ניהול בעלות</p>
         <p className="text-[12px] mb-4" style={{ color: C.mutedAlt }}>{accountName || 'החשבון'}</p>
 
         <label className="block text-[11px] font-bold mb-1.5" style={{ color: C.textAlt }}>בעלים חדש</label>
@@ -1366,7 +1366,7 @@ function VehicleDeleteConfirm({ vehicle, busy, onConfirm, onClose }) {
         style={{ boxShadow: '0 20px 50px rgba(11,41,18,0.3)' }}>
         <div className="flex items-center gap-2 mb-2">
           <AlertTriangle className="w-5 h-5" style={{ color: C.errorDark }} />
-          <p className="text-sm font-black" style={{ color: C.errorDark }}>מחיקת רכב</p>
+          <p className="text-sm font-extrabold" style={{ color: C.errorDark }}>מחיקת רכב</p>
         </div>
         <p className="text-[13px] mb-1" style={{ color: C.textAlt }}>
           למחוק את <b>{label}</b>{v.license_plate ? <span dir="ltr"> ({v.license_plate})</span> : null}?
@@ -1398,7 +1398,7 @@ function BulkDeleteConfirm({ count, busy, onConfirm, onClose }) {
         style={{ boxShadow: '0 20px 50px rgba(11,41,18,0.3)' }}>
         <div className="flex items-center gap-2 mb-2">
           <AlertTriangle className="w-5 h-5" style={{ color: C.errorDark }} />
-          <p className="text-sm font-black" style={{ color: C.errorDark }}>מחיקת {count} כלי תחבורה</p>
+          <p className="text-sm font-extrabold" style={{ color: C.errorDark }}>מחיקת {count} כלי תחבורה</p>
         </div>
         <p className="text-[13px] mb-1" style={{ color: C.textAlt }}>
           למחוק <b>{count}</b> כלי תחבורה שנבחרו?
@@ -1484,7 +1484,7 @@ function MemberRow({ member: m }) {
       style={{ background: '#FFFFFF', border: `1px solid ${C.bgSage}` }}
     >
       <div
-        className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black"
+        className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-extrabold"
         style={{ background: tone.bg, color: tone.fg }}
       >
         {initials}

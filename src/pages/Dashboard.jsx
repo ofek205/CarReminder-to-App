@@ -130,7 +130,7 @@ function UrgentBanner({ reminders, onView }) {
     >
       {/* Big count block — RTL leading edge, separator on its left */}
       <div className="flex flex-col items-center justify-center shrink-0 pl-3 border-l border-white/25 leading-none">
-        <span className="text-white font-black text-4xl sm:text-5xl tabular-nums tracking-tight">
+        <span className="text-white font-extrabold text-4xl sm:text-5xl tabular-nums tracking-tight">
           {count}
         </span>
         <span className="text-white/85 text-[10px] font-semibold mt-1 tracking-wide">

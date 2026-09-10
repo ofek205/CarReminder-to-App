@@ -108,7 +108,7 @@ export default function UpdateAvailableBanner() {
           </div>
 
           <h2
-            className="text-xl font-black text-center mb-2"
+            className="text-xl font-extrabold text-center mb-2"
             style={{ color: C.primaryDark, letterSpacing: '-0.02em' }}
           >
             גרסה חדשה זמינה!
@@ -131,7 +131,7 @@ export default function UpdateAvailableBanner() {
                   <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.gray400 }}>
                     הגרסה שלך
                   </p>
-                  <p className="font-black tabular-nums mt-1" style={{ color: C.gray500, fontSize: '1rem' }} dir="ltr">
+                  <p className="font-extrabold tabular-nums mt-1" style={{ color: C.gray500, fontSize: '1rem' }} dir="ltr">
                     {currentVersion}
                   </p>
                 </div>
@@ -140,7 +140,7 @@ export default function UpdateAvailableBanner() {
                   <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.gray400 }}>
                     חדשה
                   </p>
-                  <p className="font-black tabular-nums mt-1" style={{ color: C.successDark, fontSize: '1rem' }} dir="ltr">
+                  <p className="font-extrabold tabular-nums mt-1" style={{ color: C.successDark, fontSize: '1rem' }} dir="ltr">
                     {latestVersion}
                   </p>
                 </div>

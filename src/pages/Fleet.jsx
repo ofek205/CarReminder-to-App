@@ -510,7 +510,7 @@ export default function Fleet() {
           מסננים ומיון
           {advancedFilterCount > 0 && (
             <span
-              className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white tabular-nums"
+              className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-extrabold text-white tabular-nums"
               style={{ background: C.successBright }}
               aria-label={`${advancedFilterCount} מסננים פעילים`}
             >

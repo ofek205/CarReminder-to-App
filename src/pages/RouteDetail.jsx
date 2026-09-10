@@ -403,7 +403,7 @@ function StopCard({ stop, isNext, canActAsDriver, canActAsManager, onChange }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span
-              className="w-6 h-6 rounded-full text-[11px] font-black flex items-center justify-center text-white tabular-nums"
+              className="w-6 h-6 rounded-full text-[11px] font-extrabold flex items-center justify-center text-white tabular-nums"
               style={{
                 background: colorForStop(stop.status),
                 boxShadow: '0 2px 8px rgba(15,40,28,0.18)',

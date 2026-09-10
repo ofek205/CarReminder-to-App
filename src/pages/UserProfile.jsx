@@ -162,7 +162,7 @@ function ProfileCompletionBanner({ fullName, phone, birthDate }) {
             "warning / nudge" tone. The percentage sits on top of a
             slim filled track so progress is readable at a glance. */}
         <div className="shrink-0 flex flex-col items-center gap-1">
-          <span className="text-lg font-black tabular-nums" style={{ color: C.warnDark }} dir="ltr">
+          <span className="text-lg font-extrabold tabular-nums" style={{ color: C.warnDark }} dir="ltr">
             {Math.round((filledCount / 3) * 100)}%
           </span>
           <div className="w-12 h-1.5 rounded-full overflow-hidden" style={{ background: C.warnBg }}>
@@ -499,7 +499,7 @@ function AuthUserProfile({ embedded = false }) {
               >
                 <ScanLine className="h-5 w-5" />
                 <span
-                  className="absolute -top-1 -left-1 text-[8px] font-black px-1 rounded-full"
+                  className="absolute -top-1 -left-1 text-[8px] font-extrabold px-1 rounded-full"
                   style={{
                     background: `linear-gradient(135deg, ${C.successDark} 0%, ${C.successBright} 100%)`,
                     color: '#FFFFFF',

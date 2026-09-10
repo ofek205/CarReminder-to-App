@@ -21,9 +21,19 @@ function getDeviceDefault() {
 // of the UI unchanged while their WebView's text zoom still enlarged
 // certain elements, so layout "lost its proportions" (v2.6.1 bug).
 //
-// Keeping only the --font-scale variable still lets our in-app slider
-// control size (via calc(1rem * var(--font-scale)) in globals.css)
-// while letting the OS control the rem baseline.
+// Keeping only the --font-scale variable lets the OS control the rem
+// baseline.
+//
+// NOTE 2026-09-10: nothing currently READS --font-scale. The rules that
+// consumed it lived in src/globals.css, a 110-line stylesheet that no
+// module ever imported, so none of it applied; it has been deleted.
+// FontScaleControls is not rendered anywhere either, so this provider is
+// inert on every leg: no CSS reader and no UI control. The live
+// accessibility scaling is --a11y-text-scale in AccessibilityContext.
+//
+// Do NOT wire this up without a design pass. getDeviceDefault() below
+// returns 0.7 on mobile and already persists it to localStorage, so making
+// the variable live would immediately render all mobile text at 70%.
 function applyFontScale(scale) {
   document.documentElement.style.setProperty('--font-scale', scale);
 }

@@ -208,7 +208,7 @@ export default function DevComponents() {
       <Section
         id="tokens-typography"
         title="טיפוגרפיה"
-        description="6 גדלים, 4 משקלים. סוף לערבוב text-[10px] / text-2xl / font-black."
+        description="6 גדלים, 4 משקלים. סוף לערבוב text-[10px] / text-2xl / font-extrabold."
       >
         <Card>
           <p className="text-cr-xs text-cr-text-secondary font-cr-semibold mb-2">גדלים</p>
@@ -232,7 +232,7 @@ export default function DevComponents() {
             ))}
           </div>
           <p className="mt-3 text-cr-xs text-cr-text-muted">
-            לא נשתמש ב-<code dir="ltr">font-black</code> ולא ב-<code dir="ltr">font-extrabold</code> בקוד חדש.
+            לא נשתמש ב-<code dir="ltr">font-extrabold</code> ולא ב-<code dir="ltr">font-extrabold</code> בקוד חדש.
           </p>
         </Card>
       </Section>
