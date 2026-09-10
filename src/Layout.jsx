@@ -1120,8 +1120,14 @@ function LayoutInner({ children }) {
           <PopupEngine />
         </SafeComponent>
       )}
-      <AccessibilityPanel open={a11yOpen} onOpenChange={setA11yOpen} />
-      <DraggableA11yButton onClick={() => { window.dispatchEvent(new CustomEvent('cr:close-popups')); setA11yOpen(true); }} />
+      {/* Both suppressed in the preview. The floating accessibility button is
+          a draggable control that belongs to someone using the app on their
+          own device, and the real page around the frame has its own
+          accessibility affordances, so inside a 390px marketing mockup it is
+          just a thing sitting on top of the screenshot. Removing the button
+          removes the only way to open the panel, so the panel goes with it. */}
+      {!demoMode && <AccessibilityPanel open={a11yOpen} onOpenChange={setA11yOpen} />}
+      {!demoMode && <DraggableA11yButton onClick={() => { window.dispatchEvent(new CustomEvent('cr:close-popups')); setA11yOpen(true); }} />}
       <div className="min-h-screen bg-white flex">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-64 bg-white border-l border-gray-100 flex-col fixed right-0 top-0 bottom-0 z-30">

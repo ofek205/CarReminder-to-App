@@ -82,7 +82,7 @@ body:has(.cm-site){overflow-x:visible}
    and 0.89 on mobile, which puts a 44px target at 39px. The earlier refusal
    to scale was measured against 390-into-255, a 0.65 scale and a 28px target,
    and that refusal was right for that box and wrong for this one. */
-.cm-demo-host{--cm-demo-vp-w:390px;--cm-demo-vp-h:844px;--cm-demo-bar-h:44px;--cm-demo-bezel:6px}
+.cm-demo-host{--cm-demo-vp-w:430px;--cm-demo-vp-h:932px;--cm-demo-bar-h:44px;--cm-demo-bezel:6px}
 .cm-demo-host>small{display:block;margin-top:17px;color:#5d6f53;font-size:12px;text-align:center}
 /* Same 402px box as the live device, so both states occupy identical space
    by construction. This is what replaced the calibrated aspect ratio. */
@@ -98,30 +98,26 @@ body:has(.cm-site){overflow-x:visible}
    appears exactly once in this whole flow, on the download button inside
    the conversion dialog, which is the only place it should mean "do this". */
 
-/* The ratio is a REAL DEVICE now, not a calibration. 402x900 is the app
-   viewport (390x844) plus the 44px control bar and the 6px bezels, so the
+/* The ratio is a REAL DEVICE now, not a calibration. 442x976 is the app
+   viewport (430x932) plus the 44px control bar and the 6px bezels, so the
    screen inside sits at 2.164, a phone. The old 645/1467 existed only to make
    the resting and live states the same height, and it is gone because they
    now share one box: CLS zero comes from the structure instead of from a
    magic number that needed recalibrating on every change. */
-.cm-demo-live{width:min(100%,402px);margin:auto;aspect-ratio:402/900;
-  container-type:inline-size;overflow:hidden;border-radius:29px;background:#fff;
+.cm-demo-live{width:min(100%,402px);margin:auto;aspect-ratio:442/976;
+  overflow:hidden;border-radius:29px;background:#fff;
   box-shadow:0 24px 60px #1e321c26}
-/* Fixed pixel stage, shrunk to fit. 100cqw resolves against .cm-demo-live
-   above, which is why container-type there is load-bearing: without it the
-   unit does not resolve and the scale computes to zero, i.e. no device. */
-.cm-demo-stage{width:402px;height:900px;flex-shrink:0;display:flex;flex-direction:column;
+/* Fixed pixel stage, shrunk to fit. The scale factor is set as a custom
+   property by a ResizeObserver in MarketingDemoEmbed, not computed in CSS:
+   scale() needs a number and calc(100cqw / 442) evaluates to a LENGTH, so
+   that version was dropped by the parser and the 442px stage overflowed its
+   347px box on mobile, cropped and unnoticed. */
+.cm-demo-stage{width:442px;height:976px;flex-shrink:0;display:flex;flex-direction:column;
   border:var(--cm-demo-bezel) solid var(--cm-device);border-radius:29px;overflow:hidden;
-  box-sizing:border-box;transform:scale(calc(100cqw / 402));
+  box-sizing:border-box;transform:scale(var(--cm-demo-scale,1));
   /* top RIGHT: in RTL the inline-start edge is the right one, and a left
      origin would push the device out of its own box. */
   transform-origin:top right}
-@supports not (container-type:inline-size){
-  /* Older engine: back to the fluid width that already shipped. Less exact
-     than a scaled mockup, and far better than a zero-sized one. */
-  .cm-demo-live{aspect-ratio:auto}
-  .cm-demo-stage{width:100%;height:auto;aspect-ratio:402/900;transform:none}
-}
 .cm-demo-bar{display:flex;align-items:center;gap:10px;height:var(--cm-demo-bar-h);flex-shrink:0;padding:0 12px;
   background:var(--cm-device);color:#e7efe4;font-size:13px;font-weight:400}
 /* `order` puts the ✕ on the visual LEFT in RTL, matching .cm-lightbox which

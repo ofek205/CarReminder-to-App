@@ -19,6 +19,17 @@ import { sendGoto } from '@/lib/demoBridge';
 
 const DEMO_URL = '/demo';
 
+// The device stage is this wide in CSS pixels: a 430px phone viewport plus a
+// 6px bezel on each side. The app inside always gets 430x932, whatever the
+// page has room for; the difference is absorbed by scaling this box.
+//
+// 430x932 is an iPhone 15 Pro Max, and it replaced 390x844 in order to zoom
+// the content OUT rather than to grow the device. The physical box stays
+// capped at the same 402px, so handing the app a wider phone fits more into
+// the same space and everything inside renders smaller. Its ratio is 2.167
+// against 390x844's 2.164, so the frame keeps the shape it already had.
+const STAGE_W = 442;
+
 /**
  * Did the frame actually render our page, or did the browser refuse it?
  *
@@ -59,6 +70,7 @@ export default function MarketingDemoEmbed({ src, alt, screenName, onEnlarge, go
   const [dismissed, setDismissed] = useState(false);
   const hostRef = useRef(null);
   const frameRef = useRef(null);
+  const liveRef = useRef(null);
 
   // The parent owns which screen is showing; this component owns whether the
   // frame can show one at all. It needs the full status and not just a
@@ -75,6 +87,37 @@ export default function MarketingDemoEmbed({ src, alt, screenName, onEnlarge, go
     if (state !== 'live' || !gotoScreen) return;
     sendGoto(frameRef.current?.contentWindow, gotoScreen);
   }, [state, gotoScreen]);
+
+  /**
+   * Fits the fixed 402px device stage into whatever width the section gives it.
+   *
+   * Measured in JS rather than in CSS, and that is a deliberate retreat.
+   * `transform: scale(calc(100cqw / 402))` was tried first and silently did
+   * nothing: scale() needs a NUMBER and dividing a length by a plain number
+   * yields a length, so the whole declaration was dropped and the 402px stage
+   * overflowed its 347px box on mobile, cropped by overflow:hidden. The
+   * length-by-length form that would type-check is too new to rely on, and
+   * this session has already lost time to smooth scrolling, scrollLeft in RTL
+   * and container units all failing quietly. A number I compute and can
+   * measure beats a declaration I have to trust.
+   */
+  useEffect(() => {
+    const box = liveRef.current;
+    if (!box) return undefined;
+    const fit = () => {
+      const w = box.getBoundingClientRect().width;
+      if (!w) return;
+      box.style.setProperty('--cm-demo-scale', String(Math.min(1, w / STAGE_W)));
+    };
+    fit();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', fit);
+      return () => window.removeEventListener('resize', fit);
+    }
+    const ro = new ResizeObserver(fit);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [state, dismissed]);
 
   const start = useCallback(() => {
     // Offline: the frame cannot boot, so do not try. The static screenshot is
@@ -159,7 +202,7 @@ export default function MarketingDemoEmbed({ src, alt, screenName, onEnlarge, go
           is a FIXED 402x900 that scales to fit it. Separating them is the whole
           fix: the app inside always gets a real 390x844 phone viewport, instead
           of whatever width happened to be free, which on a phone was 260px. */}
-      <div className="cm-demo-live">
+      <div ref={liveRef} className="cm-demo-live">
         <div className="cm-demo-stage">
           <div className="cm-demo-bar">
         {/* Close sits OUTSIDE the iframe. Inside it, a visitor who wandered
