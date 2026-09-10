@@ -28,6 +28,13 @@ import MapCore from '@/components/map/MapCore';
 import { useUserLocation } from '@/components/map/useUserLocation';
 import { NavButtonsCompact, NavButtonsRow } from '@/components/map/NavButtons';
 import { getAuthorizedGarageMatcher } from '@/lib/authorizedGarages';
+import {
+  haversineDistance,
+  snapToGrid,
+  queryRadiusFor,
+  canonicalCacheKey,
+  narrowToRadius,
+} from '@/lib/overpassQueryKey';
 
 //  Type definitions with colors & icons
 const TYPE_CONFIG = {
@@ -118,14 +125,6 @@ const TYPE_ICONS = {
   marine_parts: Anchor,
 };
 
-function haversineDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 function classifyType(tags, isMarine = false) {
   if (!tags) return isMarine ? 'boat_repair' : 'garage';
   // Marine types
@@ -177,6 +176,11 @@ function pickDisplayName(tags) {
 const RADIUS_MIN = 1000;
 const RADIUS_MAX = 25000;
 const RADIUS_STEP = 1000;
+
+// Query canonicalisation (snapped centre + laddered radius) lives in
+// @/lib/overpassQueryKey so the invariant that makes it safe — coarsening
+// the question can never hide a result that was in range — is pinned by
+// unit tests rather than by this comment. See the import at the top.
 
 const QUICK_CITIES = [
   { name: 'תל אביב', lat: 32.0853, lng: 34.7818 },
@@ -355,10 +359,17 @@ export default function FindGarage() {
   // regex from the Overpass query — the regex was pushing the merged
   // query past Overpass's 25s ceiling and every request came back with
   // `remark: timeout, elements: []`. The legacy `fetchFromServers`
-  // treated that 200-OK as success, cached the empty array, and v2
-  // users got "no results" for 24h until TTL expiry. v3 cache is
-  // populated only by responses that actually contained data.
-  const CACHE_VERSION = 'fg_v3';
+  // treated that 200-OK as success and cached the empty array, so v2
+  // users got "no results" for 24h until TTL expiry.
+  //
+  // v4 (2026-09-08): that same "cache the empty array" hole was still
+  // open — the v3 comment claimed the cache was "populated only by
+  // responses that actually contained data", but writeCache() ran
+  // unconditionally, so a single empty payload still pinned "no
+  // results" for 24h. The write is now guarded (see writeCache call
+  // below) and the version bump evicts any v3 row already poisoned by
+  // the `name~"פנצ"` timeout described in the query comment.
+  const CACHE_VERSION = 'fg_v4';
 
   // Sweep stale v1/v2 cache rows once per mount. localStorage on iOS
   // WebView has a tight quota — if we only bumped the key prefix without
@@ -369,18 +380,20 @@ export default function FindGarage() {
       const stale = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && (k.startsWith('fg_v1:') || k.startsWith('fg_v2:'))) stale.push(k);
+        if (k && (k.startsWith('fg_v1:') || k.startsWith('fg_v2:') || k.startsWith('fg_v3:'))) stale.push(k);
       }
       stale.forEach(k => localStorage.removeItem(k));
     } catch { /* no-op: quota errors / private mode */ }
   }, []);
   const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-  const cacheKey = (lat, lng, r, hasV) => {
-    // Round to ~0.01° (~1km) so minor GPS drift doesn't miss the cache
-    const la = Math.round(lat * 100) / 100;
-    const lo = Math.round(lng * 100) / 100;
-    return `${CACHE_VERSION}:${la}:${lo}:${r}:${hasV ? 1 : 0}`;
-  };
+  // Keyed on the CANONICAL query inputs (snapped centre, laddered radius),
+  // not on what the user asked for. That makes one local entry serve every
+  // radius on the same rung — dragging the slider between 1km and 4km is
+  // then instant and offline — and keeps the local key aligned with the
+  // server-side cache row, so the two layers agree on what "the same
+  // question" means.
+  const cacheKey = (qLat, qLng, qR, hasV) =>
+    canonicalCacheKey(CACHE_VERSION, qLat, qLng, qR, hasV);
   const readCache = (key) => {
     try {
       const raw = localStorage.getItem(key);
@@ -396,17 +409,26 @@ export default function FindGarage() {
 
   const fetchGarages = useCallback(async () => {
     if (!userLocation) return;
+    // `lat`/`lng` are the user's TRUE position and are used only for
+    // measuring distances. `qLat`/`qLng`/`qR` are the canonical, cache-
+    // shareable question we actually put on the wire. See the
+    // canonicalisation block above the component.
     const { lat, lng } = userLocation;
     const r = searchRadius;
-    const key = cacheKey(lat, lng, r, hasVessel);
+    const qLat = snapToGrid(lat);
+    const qLng = snapToGrid(lng);
+    const qR = queryRadiusFor(r);
+    const key = cacheKey(qLat, qLng, qR, hasVessel);
 
     // Clear previous error as soon as a new fetch starts
     setOverpassError(null);
 
-    // Show cached results immediately if we have them (stale-while-revalidate)
+    // Show cached results immediately if we have them (stale-while-revalidate).
+    // The cache holds the full over-fetched set, so narrow it to the radius
+    // this render is asking for.
     const cached = readCache(key);
     if (cached) {
-      setGarages(cached);
+      setGarages(narrowToRadius(cached, r, lat, lng));
       // don't block on spinner for revalidation
     } else {
       setFetching(true);
@@ -450,42 +472,68 @@ export default function FindGarage() {
       // unnamed rows never reach the UI. The extra ~10-50 unnamed
       // entries that come back per query are filtered in O(n) JS
       // and the response is fast.
-      // v4.5.0 — broadened the tire-shop coverage after users reported
-      // OSM in Israel under-tags `shop=tyres`. Three additional clauses:
-      //   • `craft=tyre` — re-introduced after the earlier removal.
-      //     Yes, internationally this also tags tyre manufacturers, but
+      // v4.5.0 broadened the tire-shop coverage after users reported OSM
+      // in Israel under-tags `shop=tyres`:
+      //   • `craft=tyre` — re-introduced after an earlier removal.
+      //     Internationally this also tags tyre manufacturers, but
       //     Israeli OSM uses it almost exclusively for "פנצריה" shops.
       //     classifyType() correctly maps `craft=tyre` → 'tire'.
-      //   • `name~"פנצ"` — Hebrew name regex. Catches places tagged with
-      //     a generic `shop=car_repair` (or no `shop=` at all) but whose
-      //     `name` starts with "פנצריית X" / "פנצרית X". Overpass `~`
-      //     is a regex match against the value.
       //   • `amenity=car_repair` — non-standard but common in Israeli
       //     contributor data (the canonical key is `shop=car_repair`).
-      //     The same row may then surface as tire shop if its name
-      //     matches the Hebrew regex inside classifyType.
+      //
+      // ⛔ REMOVED 2026-09-08 — `nwr["name"~"פנצ"](around:…)`. This one
+      // clause was the cause of "מצא מוסך finds nothing", and it has to
+      // stay removed. A value-regex on `name` is unindexed, so Overpass
+      // must scan every named object in the radius; the other eight
+      // clauses are key-indexed lookups. Measured against
+      // overpass-api.de at Tel Aviv centre:
+      //
+      //   radius  without the clause   with it        the clause alone
+      //   ------  ------------------   ------------   ----------------
+      //    5 km   0.9-2.9 s / 29 els   26.7 s / 30    38 s / 1 el
+      //   10 km       ~3 s / 88 els    115 s / 88          —
+      //   25 km       3.5 s / 164      31 s / 173          —
+      //
+      // At 5 km the merged query lands at ~26 s against its own
+      // `[timeout:25]` ceiling, so any load spike tips it over. Overpass
+      // then answers 200 + `remark: runtime error: Query timed out` with
+      // zero elements; overpass-proxy classifies that as a transient 504,
+      // retries, fails again, and returns 502 all_mirrors_unavailable.
+      // Verified live 2026-09-08: the deployed proxy returned 502 (three
+      // aborted mirrors) for this exact query, and 200 + 29 results for
+      // the same query minus this clause.
+      //
+      // And it bought nothing. The nine extra elements it contributed at
+      // 25 km were: "ככר פנצ'ו" ×7 (a public square), a paragliding
+      // launch pad, and one `shop=bicycle`. Zero real tire shops — and
+      // all nine rendered to the user as "מוסך", because classifyType
+      // falls through to 'garage' for anything it can't place.
+      //
+      // Hebrew-named tire shops are still classified correctly: the
+      // /פנצ[רי]/ test inside classifyType() promotes any row that came
+      // in through the indexed clauses, and that costs nothing because
+      // it runs over rows we already have.
       const carQuery = `[out:json][timeout:25];(`
-        + `nwr["shop"="car_repair"](around:${r},${lat},${lng});`
-        + `nwr["shop"="tyres"](around:${r},${lat},${lng});`
-        + `nwr["shop"="car_parts"](around:${r},${lat},${lng});`
-        + `nwr["craft"="tyre"](around:${r},${lat},${lng});`
-        + `nwr["amenity"="car_repair"](around:${r},${lat},${lng});`
-        + `nwr["name"~"פנצ"](around:${r},${lat},${lng});`
-        + `nwr["service:vehicle:car_repair"="yes"](around:${r},${lat},${lng});`
-        + `nwr["service:vehicle:tyres"="yes"](around:${r},${lat},${lng});`
-        + `nwr["service:vehicle:body_repair"="yes"](around:${r},${lat},${lng});`
+        + `nwr["shop"="car_repair"](around:${qR},${qLat},${qLng});`
+        + `nwr["shop"="tyres"](around:${qR},${qLat},${qLng});`
+        + `nwr["shop"="car_parts"](around:${qR},${qLat},${qLng});`
+        + `nwr["craft"="tyre"](around:${qR},${qLat},${qLng});`
+        + `nwr["amenity"="car_repair"](around:${qR},${qLat},${qLng});`
+        + `nwr["service:vehicle:car_repair"="yes"](around:${qR},${qLat},${qLng});`
+        + `nwr["service:vehicle:tyres"="yes"](around:${qR},${qLat},${qLng});`
+        + `nwr["service:vehicle:body_repair"="yes"](around:${qR},${qLat},${qLng});`
         + `);out center tags;`;
 
       // Marine query (only if user has vessels). Same logic — drop the
       // server-side name regex; `toRow` filters unnamed entries in JS.
       const marineQuery = hasVessel
         ? `[out:json][timeout:25];(`
-          + `nwr["leisure"="marina"](around:${r},${lat},${lng});`
-          + `nwr["shop"="boat"](around:${r},${lat},${lng});`
-          + `nwr["shop"="ship_chandler"](around:${r},${lat},${lng});`
-          + `nwr["craft"="boatbuilder"](around:${r},${lat},${lng});`
-          + `nwr["seamark:type"="harbour"](around:${r},${lat},${lng});`
-          + `nwr["shop"="fishing"](around:${r},${lat},${lng});`
+          + `nwr["leisure"="marina"](around:${qR},${qLat},${qLng});`
+          + `nwr["shop"="boat"](around:${qR},${qLat},${qLng});`
+          + `nwr["shop"="ship_chandler"](around:${qR},${qLat},${qLng});`
+          + `nwr["craft"="boatbuilder"](around:${qR},${qLat},${qLng});`
+          + `nwr["seamark:type"="harbour"](around:${qR},${qLat},${qLng});`
+          + `nwr["shop"="fishing"](around:${qR},${qLat},${qLng});`
           + `);out center tags;`
         : null;
 
@@ -503,48 +551,93 @@ export default function FindGarage() {
       // Returns the parsed Overpass JSON on success, or null on any
       // failure (network, non-2xx, non-JSON, or the proxy's 502
       // all_mirrors_unavailable) so the caller renders the error state.
+      // Per-attempt deadline. `signal` alone only fires when the user
+      // changes location/radius or leaves the page — nothing bounded the
+      // wait itself, so a hung edge request left `fetching` true forever
+      // and the page sat on the skeleton with no error and no way out.
+      // That is the "ספינר נצחי" failure mode the project bans outright.
+      //
+      // 30s, and deliberately NOT less. The proxy's own per-mirror ceiling
+      // is 27s (MIRROR_TIMEOUT_MS), so any deadline below that aborts
+      // requests the server was still going to answer. Measured end-to-end
+      // through the deployed proxy on a cold miss: 4.5s / 9.7s / 14.6s — so
+      // the 15s this was first written with would have cut the third one
+      // off and sent a duplicate query into the two upstream slots this
+      // whole change exists to protect. The deadline is here to rule out an
+      // infinite spinner, not to enforce an SLA.
+      const PROXY_TIMEOUT_MS = 30_000;
+
+      // Returns { data } on success, or { failed: 'deadline' | 'transport' |
+      // 'aborted' }. The caller needs to tell these apart: only a fast
+      // transport failure is worth a second attempt.
       const callProxyOnce = async (q) => {
-        const res = await fetch(OVERPASS_PROXY_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // --no-verify-jwt on the function, but the Supabase gateway
-            // still requires an apikey/Authorization header to route.
-            'apikey': supabaseAnonKey,
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-          },
-          body: JSON.stringify({ query: q }),
-          signal,
-        });
-        if (!res.ok) {
-          // 502 all_mirrors_unavailable lands here too — treat as no data.
-          console.warn(`overpass-proxy: HTTP ${res.status}`);
-          return null;
+        // Own controller per attempt, chained to the outer one. A
+        // superseded request must still die instantly on location/radius
+        // change, while the deadline is ours alone. AbortSignal.any()
+        // would say this in one line but isn't available on the older
+        // Android WebViews the Capacitor build still has to run on.
+        const attemptCtrl = new AbortController();
+        const onOuterAbort = () => attemptCtrl.abort();
+        if (signal.aborted) attemptCtrl.abort();
+        else signal.addEventListener('abort', onOuterAbort, { once: true });
+        // Local to this invocation, NOT shared: the car and marine queries
+        // run concurrently through Promise.all, so a flag hoisted out of
+        // this function would be mutated by two chains at once.
+        let deadlineFired = false;
+        const timer = setTimeout(
+          () => { deadlineFired = true; attemptCtrl.abort(); },
+          PROXY_TIMEOUT_MS,
+        );
+        try {
+          const res = await fetch(OVERPASS_PROXY_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              // --no-verify-jwt on the function, but the Supabase gateway
+              // still requires an apikey/Authorization header to route.
+              'apikey': supabaseAnonKey,
+              'Authorization': `Bearer ${supabaseAnonKey}`,
+            },
+            body: JSON.stringify({ query: q }),
+            signal: attemptCtrl.signal,
+          });
+          if (!res.ok) {
+            // 502 all_mirrors_unavailable lands here too — treat as no data.
+            console.warn(`overpass-proxy: HTTP ${res.status}`);
+            return { failed: 'transport' };
+          }
+          const ct = res.headers.get('content-type') || '';
+          if (!ct.includes('json')) return { failed: 'transport' };
+          return { data: await res.json() };
+        } catch (err) {
+          // A user abort (location/radius change, unmount) and our own
+          // deadline both surface as AbortError on WebViews that ignore
+          // abort(reason), so the outer signal and the local flag are the
+          // only reliable way to tell the three cases apart.
+          if (signal.aborted) return { failed: 'aborted' };
+          console.warn('overpass-proxy fetch failed:', err?.message);
+          return { failed: deadlineFired ? 'deadline' : 'transport' };
+        } finally {
+          clearTimeout(timer);
+          signal.removeEventListener('abort', onOuterAbort);
         }
-        const ct = res.headers.get('content-type') || '';
-        if (!ct.includes('json')) return null;
-        return await res.json();
       };
 
-      // The proxy already retries transient upstream 504s once, but in the
-      // rare case overpass-api.de 504s on BOTH server-side attempts while
-      // the redundancy mirrors hang, the proxy returns a 502. One more
-      // client retry (~700ms apart) collapses that residual flicker — the
-      // observed end-to-end success rate goes from ~90% to ~100% without
-      // the user ever seeing the error state. Aborts bail immediately.
+      // The proxy already retries transient upstream 504s once, but a
+      // Supabase gateway hiccup fails before any of that server-side logic
+      // runs. One client retry (~700ms apart) covers that residual case.
+      //
+      // It retries ONLY a fast transport failure. Retrying our own 30s
+      // deadline would make the user wait 60s for the same error and would
+      // put a second query into the two upstream slots — so a deadline is
+      // terminal. A user abort is terminal too: a fresh fetch is already
+      // queued behind it.
       const fetchFromServers = async (q) => {
         for (let attempt = 0; attempt < 2; attempt++) {
-          try {
-            const data = await callProxyOnce(q);
-            // Got real data, or a valid empty result → done. Only a null
-            // (proxy 502 / network) is worth retrying.
-            if (data) return data;
-          } catch (err) {
-            // Abort is expected when the user changes location/radius — the
-            // outer `if (signal.aborted) return` handles the bail.
-            if (err?.name === 'AbortError') return null;
-            console.warn('overpass-proxy fetch failed:', err?.message);
-          }
+          const out = await callProxyOnce(q);
+          // Real data, or a valid empty result, both count as an answer.
+          if (out.data) return out.data;
+          if (out.failed !== 'transport') return null;
           if (signal.aborted) return null;
           if (attempt === 0) await new Promise((r) => setTimeout(r, 700));
         }
@@ -630,9 +723,19 @@ export default function FindGarage() {
         seenIds.add(r.id);
         return true;
       });
-      results.sort((a, b) => a.distance - b.distance);
-      setGarages(results);
-      writeCache(key, results);
+      // Cache the FULL over-fetched set (everything inside qR), then narrow
+      // for display. Storing the narrowed set instead would defeat the
+      // radius ladder: the next radius on the same rung would read a cache
+      // entry that had already been trimmed to a smaller circle.
+      //
+      // Never cache an empty result. A single empty payload — a mirror that
+      // soft-timed out, or the proxy's valid-but-empty fallback from a
+      // regional extract — would otherwise pin "לא נמצאו תוצאות" for the
+      // full 24h TTL on this grid cell. An empty answer is exactly the case
+      // we want to re-ask on next mount. The server-side cache enforces the
+      // same rule as a CHECK constraint.
+      if (results.length > 0) writeCache(key, results);
+      setGarages(narrowToRadius(results, r, lat, lng));
     } catch (err) {
       // Aborted requests are expected — don't show an error
       if (err?.name === 'AbortError' || signal.aborted) return;
