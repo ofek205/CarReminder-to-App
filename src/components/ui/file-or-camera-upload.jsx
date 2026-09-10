@@ -2,21 +2,39 @@ import { Upload, Camera, Loader2 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isNative, takePhoto, pickImage, hapticFeedback } from "@/lib/capacitor";
+import { acceptsNonImage } from "@/lib/securityUtils";
 import { toast } from "sonner";
 
 /**
  * FileOrCameraUpload
  * Two side-by-side buttons: file/gallery picker + direct camera capture.
- * On native (Capacitor) uses the Camera plugin; on web falls back to <input>.
+ * The camera button always uses the native Camera plugin on Capacitor.
+ * The picker button uses the plugin only when the caller wants images
+ * and nothing else, because the plugin cannot return a document. See
+ * acceptsNonImage below.
  *
  * Props:
- *   accept     , accept string for the file picker (e.g. "image/*,.pdf")
+ *   accept     , accept string for the file picker (e.g. "application/pdf,image/*")
  *   onChange   , file input change handler (same for both inputs)
  *   multiple   , allow selecting multiple files (file picker only, web)
  *   disabled   , disable both inputs
  *   uploading  , show spinner / disable during upload
  *   label      , label for the file-picker button (default: "העלה קובץ")
  *   className  , extra classes on the wrapper div
+ */
+
+/*
+ * Why the picker button has two mechanisms:
+ *
+ * The native path calls pickImage(), i.e. Camera.getPhoto with
+ * CameraSource.Photos. That is a gallery picker: it returns one image, and
+ * only an image. So on native the `accept` prop used to be dead, and a
+ * caller asking for "image/*,application/pdf" silently got images only.
+ * `multiple` was dropped on that path too, for the same reason.
+ *
+ * When the caller wants documents as well, fall back to a real
+ * <input type="file"> so Capacitor's BridgeWebChromeClient opens the
+ * Android system chooser and honours `accept` and `multiple` properly.
  */
 
 /** Convert a data URL back into a File so onChange handlers don't need to know. */
@@ -60,21 +78,46 @@ export default function FileOrCameraUpload({
   if (isNative) {
     return (
       <div className={cn("flex gap-2", className)}>
-        <button
-          type="button"
-          disabled={isDisabled}
-          onClick={() => invokeNativeAndEmit('PHOTOS', onChange)}
-          aria-label={label}
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "flex-1 gap-2 justify-center",
-            isDisabled && "opacity-50 pointer-events-none"
-          )}>
-          {uploading
-            ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            : <Upload className="h-4 w-4" aria-hidden="true" />}
-          {uploading ? 'מעלה...' : label}
-        </button>
+        {acceptsNonImage(accept) ? (
+          /* Documents were asked for, so the gallery picker cannot serve
+             this caller. Same button, same label, same slot: only the
+             mechanism behind it changes to a real file input. */
+          <label
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "flex-1 cursor-pointer gap-2 justify-center",
+              isDisabled && "opacity-50 pointer-events-none"
+            )}>
+            <input
+              type="file"
+              accept={accept}
+              multiple={multiple}
+              className="hidden"
+              onChange={onChange}
+              disabled={isDisabled}
+            />
+            {uploading
+              ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              : <Upload className="h-4 w-4" aria-hidden="true" />}
+            {uploading ? 'מעלה...' : label}
+          </label>
+        ) : (
+          <button
+            type="button"
+            disabled={isDisabled}
+            onClick={() => invokeNativeAndEmit('PHOTOS', onChange)}
+            aria-label={label}
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "flex-1 gap-2 justify-center",
+              isDisabled && "opacity-50 pointer-events-none"
+            )}>
+            {uploading
+              ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              : <Upload className="h-4 w-4" aria-hidden="true" />}
+            {uploading ? 'מעלה...' : label}
+          </button>
+        )}
         <button
           type="button"
           disabled={isDisabled}
