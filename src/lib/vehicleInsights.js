@@ -346,12 +346,30 @@ function testCategoryInsight(vehicle, age) {
       'משטר טסט',
     );
   }
+  // תקנה 273ב, checked before the winter one because a 16-tonner triggers
+  // both and the brake obligation is the heavier commitment: twice a year,
+  // at an authorised garage, with two certificates at renewal.
+  if (pol.brakeInspection6m) {
+    const isBus = pol.category === 'bus';
+    return insight(
+      'test-brakes-6m',
+      'warning',
+      isBus ? 'אוטובוס, בדיקת בלמים' : 'משאית מעל 16 טון',
+      isBus
+        ? 'אוטובוס חייב בבדיקת בלמים במוסך מורשה כל שישה חודשים, ללא קשר למשקל, ובחידוש הרישיון מציגים שתי תעודות. ודא שהמוכר עומד בזה.'
+        : 'מעל 16 טון חלה בדיקת בלמים במוסך מורשה כל שישה חודשים, ובחידוש הרישיון מציגים שתי תעודות. זו חובה נפרדת מבדיקת החורף.',
+      'בדיקת בלמים',
+    );
+  }
   if (pol.winterInspection) {
+    const isBus = pol.category === 'bus';
     return insight(
       'test-winter',
       'warning',
-      'משאית מעל 10 טון',
-      'מעל 10 טון חלה בדיקת חורף חובה בין נובמבר למרץ, בנוסף לטסט השנתי, במוסך מורשה. ודא שהמוכר עבר את בדיקת החורף האחרונה.',
+      isBus ? 'אוטובוס, בדיקת חורף' : 'משאית מעל 10 טון',
+      isBus
+        ? 'אוטובוס חייב בבדיקת חורף בין נובמבר למרץ, ללא קשר למשקל, בנוסף לטסט. ודא שהמוכר עבר את בדיקת החורף האחרונה.'
+        : 'מעל 10 טון חלה בדיקת חורף חובה בין נובמבר למרץ, בנוסף לטסט השנתי, במוסך מורשה. ודא שהמוכר עבר את בדיקת החורף האחרונה.',
       'בדיקת חורף',
     );
   }
