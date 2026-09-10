@@ -22,7 +22,15 @@ export function isStagingHost() {
   return window.location.hostname.includes(STAGING_HOST_FRAGMENT);
 }
 
-export default function StagingBanner() {
+/**
+ * `sticky` exists for the marketing site, which brings its own sticky header
+ * at top:0. Two sticky elements competing for the same edge means the banner
+ * (z-index 9999) parks itself over the nav (z-index 40) for the whole scroll.
+ * Passing sticky={false} lets the banner scroll away after announcing the
+ * environment once, which is all a tester needs from it, and leaves the site
+ * header the top edge it was designed for.
+ */
+export default function StagingBanner({ sticky = true }) {
   if (!isStagingHost()) return null;
 
   return (
@@ -31,8 +39,8 @@ export default function StagingBanner() {
       aria-live="polite"
       dir="rtl"
       style={{
-        position: 'sticky',
-        top: 0,
+        position: sticky ? 'sticky' : 'static',
+        top: sticky ? 0 : undefined,
         zIndex: 9999,
         background: `linear-gradient(90deg,#FACC15 0%,${C.warnIcon} 100%)`,
         color: C.gray800,

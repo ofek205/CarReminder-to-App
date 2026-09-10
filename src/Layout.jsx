@@ -885,7 +885,8 @@ function LayoutInner({ children }) {
   // Apple 1.5 rejection (May 2026) was caused by an auth gate sending the reviewer
   // to /Auth instead of letting them see contact info.
   const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components', '/Contact'];
-  const isPublicRoute = PUBLIC_PAGES.includes(location.pathname);
+  const isMarketingRoute = location.pathname === '/website' || location.pathname.startsWith('/website/');
+  const isPublicRoute = PUBLIC_PAGES.includes(location.pathname) || isMarketingRoute;
   const isAuthRoute = location.pathname === '/Auth' || location.pathname === '/';
 
   // Unauthenticated non-guest users → redirect to Auth (except public pages)
@@ -968,10 +969,22 @@ function LayoutInner({ children }) {
   if (STANDALONE_PAGES.includes(location.pathname) && !isAuthenticated && !isGuest) {
     return <>{children}</>;
   }
+  // The marketing site renders without the app shell, but it must still say
+  // which environment it is. This early return sits ABOVE the StagingBanner
+  // in the main tree, so without this the staging preview served marketing
+  // pages that were pixel-identical to production, and the one place where
+  // "am I looking at prod?" is easiest to get wrong is a page that has no
+  // chrome to tell you apart. StagingBanner renders null unless the hostname
+  // contains `git-staging`, so production and localhost are untouched, which
+  // also keeps the QA screenshots clean. Non-sticky: see the prop's comment.
+  if (isMarketingRoute) {
+    return <><StagingBanner sticky={false} />{children}</>;
+  }
   // /dev/components is a developer-facing style guide. Render it raw —
   // no chrome, no welcome popup, no guest banner — even when the visitor
   // happens to be authenticated or in guest mode. Otherwise the screenshots
-  // and design checks get polluted with the app shell.
+  // and design checks get polluted with the app shell. It gets no staging
+  // banner either: a colour swatch page is graded on pixels.
   if (location.pathname === '/dev/components') {
     return <>{children}</>;
   }

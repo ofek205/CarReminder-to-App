@@ -36,6 +36,14 @@ export function useUserLocation({ fallback = TEL_AVIV } = {}) {
 
   useEffect(() => {
     let cancelled = false;
+    // Some browsers leave the permission prompt pending indefinitely.
+    // Keep city search available without requiring a GPS decision.
+    const timeout = setTimeout(() => {
+      if (cancelled) return;
+      cancelled = true;
+      setLocationState(fallback);
+      setLoading(false);
+    }, 12000);
     (async () => {
       try {
         const pos = await getCurrentPosition();
@@ -47,11 +55,13 @@ export function useUserLocation({ fallback = TEL_AVIV } = {}) {
         setDenied(isPermissionDenied(err));
         setLocationState(fallback);
       } finally {
+        clearTimeout(timeout);
         if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
     };
     // fallback is captured once on mount; intentionally not a dep.
      
