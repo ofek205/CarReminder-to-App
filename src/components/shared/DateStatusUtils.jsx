@@ -182,6 +182,48 @@ export const AGING_AGE_YEARS = 19;        // רכב מיושן threshold
 // for them we simply trust gov.il's date and show no Phase-1 frequency.
 const PRIVATE_TEST_TYPES = new Set(['רכב', 'אופנוע כביש', 'קטנוע']);
 
+// ── Brake certificate — תקנה 273(ה) ─────────────────────────────────────
+// "המבקש חידוש רשיון לרכב מנועי בתום 15 שנה לאחר שנת ייצורו יציג לפני
+//  הבדיקה תעודה מאת מוסך מורשה, המאשרת כי מערכת הבלמים ... נבדקה או תוקנה
+//  ונמצאה במצב תקין תוך שלושה חדשים לפני מועד הבדיקה."
+//
+// Two phrases in that text decide everything here:
+//
+//   "רכב מנועי" — a trailer has no engine, so it is not a motor vehicle and
+//   the obligation never reaches it. Until 2026-09-10 the reminder's only
+//   guard was "not a vessel", so owners of נגרר / גרור were told to go buy a
+//   certificate they are not required to hold. A wrong "go spend money on a
+//   certificate" is real harm, which is why the gate below is an ALLOW-list:
+//   a type we have not positively classified produces no reminder at all.
+//
+//   "לאחר שנת ייצורו" — the law counts in YEARS, not dates. So comparing
+//   whole years here matches the regulation rather than approximating it,
+//   and a date-precise calculation would actually be the wrong one.
+export const BRAKE_CERT_AGE_YEARS = 15;
+
+// Deliberately NOT in this set, and why:
+//   נגרר · גרור · מחרשה · קרוואן   towed, no engine → outside "רכב מנועי"
+//   מלגזה · רכב צמ"ה · טרקטור      engine-driven but under the צמ"ה regime
+//   רכב אספנות                     its own cycle under תקנה 281א
+//   off-road (טרקטורון, אנדורו…)   not road-registered, no מבחן רישוי
+//   vessels · aircraft · גנרטור    not road vehicles at all
+const BRAKE_CERT_TYPES = new Set([
+  'רכב', 'רכב מסחרי', 'אופנוע כביש', 'קטנוע',
+  'משאית', 'אוטובוס', 'רכב תפעולי',
+]);
+
+/**
+ * תקנה 273(ה): must this vehicle present a brake certificate before its test?
+ *
+ * @param {string} vehicleType  the app's canonical vehicle_type
+ * @param {number|string} year  year of manufacture
+ */
+export function requiresBrakeCertificate(vehicleType, year) {
+  if (!BRAKE_CERT_TYPES.has(vehicleType)) return false;
+  const age = getVehicleAge(year);
+  return age !== null && age >= BRAKE_CERT_AGE_YEARS;
+}
+
 // gov.il lookup results carry a `_detectedType` code (and a free-text
 // `_detectedTypeLabel` like "רכב מסחרי") rather than the app's saved
 // vehicle_type. Map the codes to the canonical app type so getTestPolicy

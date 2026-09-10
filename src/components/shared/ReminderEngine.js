@@ -5,7 +5,7 @@
  */
 
 import { differenceInDays, differenceInYears } from 'date-fns';
-import { getVehicleLabels, isVessel, getTestPolicy, usesHours, isGenerator } from './DateStatusUtils';
+import { getVehicleLabels, isVessel, getTestPolicy, usesHours, isGenerator, requiresBrakeCertificate } from './DateStatusUtils';
 
 //  Primitive helpers
 
@@ -378,13 +378,22 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
       }
     }
 
-    // 7. Brakes (15+ year vehicles)
+    // 7. Brakes — תקנה 273(ה), motor vehicles 15+ years old
     // Fires for upcoming AND overdue tests — the old guard (td > 0) muted
     // the alert the moment the test expired, which is the WORST time to
     // stop reminding the owner that their 15-year-old car still needs a
     // brakes certificate before the new test. Now it nags until the test
     // is renewed.
-    if (!isV && vehicleAge >= 15 && v.test_due_date) {
+    //
+    // The type gate lives in requiresBrakeCertificate, not here: the old
+    // condition was `!isV && vehicleAge >= 15`, i.e. everything that was not
+    // a boat, so trailers were told to buy a certificate that תקנה 273(ה)
+    // does not require of them ("רכב מנועי" — a trailer has no engine).
+    //
+    // 60 days is not arbitrary either: the certificate is only valid for
+    // three months before the test, so reminding much earlier would send
+    // the owner to buy one that expires before it is needed.
+    if (requiresBrakeCertificate(v.vehicle_type, v.year) && v.test_due_date) {
       const td = daysUntil(v.test_due_date);
       if (td !== null && td <= 60) {
         const overdue = td < 0;
