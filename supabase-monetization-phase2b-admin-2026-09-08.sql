@@ -538,7 +538,6 @@ begin
 
   s_old := public.admin_lock_subscription(p_account_id);
 
-  update public.account_subscriptions
   -- ⚠️ DOES NOT TOUCH ovr_note. That column answers "why is this account
   -- an exception", and the exceptions screen renders it as THE reason. An
   -- account whose note reads "pilot, 15 vehicles agreed with the customer"
