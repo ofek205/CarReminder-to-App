@@ -182,6 +182,48 @@ export const AGING_AGE_YEARS = 19;        // רכב מיושן threshold
 // for them we simply trust gov.il's date and show no Phase-1 frequency.
 const PRIVATE_TEST_TYPES = new Set(['רכב', 'אופנוע כביש', 'קטנוע']);
 
+// ── Brake certificate — תקנה 273(ה) ─────────────────────────────────────
+// "המבקש חידוש רשיון לרכב מנועי בתום 15 שנה לאחר שנת ייצורו יציג לפני
+//  הבדיקה תעודה מאת מוסך מורשה, המאשרת כי מערכת הבלמים ... נבדקה או תוקנה
+//  ונמצאה במצב תקין תוך שלושה חדשים לפני מועד הבדיקה."
+//
+// Two phrases in that text decide everything here:
+//
+//   "רכב מנועי" — a trailer has no engine, so it is not a motor vehicle and
+//   the obligation never reaches it. Until 2026-09-10 the reminder's only
+//   guard was "not a vessel", so owners of נגרר / גרור were told to go buy a
+//   certificate they are not required to hold. A wrong "go spend money on a
+//   certificate" is real harm, which is why the gate below is an ALLOW-list:
+//   a type we have not positively classified produces no reminder at all.
+//
+//   "לאחר שנת ייצורו" — the law counts in YEARS, not dates. So comparing
+//   whole years here matches the regulation rather than approximating it,
+//   and a date-precise calculation would actually be the wrong one.
+export const BRAKE_CERT_AGE_YEARS = 15;
+
+// Deliberately NOT in this set, and why:
+//   נגרר · גרור · מחרשה · קרוואן   towed, no engine → outside "רכב מנועי"
+//   מלגזה · רכב צמ"ה · טרקטור      engine-driven but under the צמ"ה regime
+//   רכב אספנות                     its own cycle under תקנה 281א
+//   off-road (טרקטורון, אנדורו…)   not road-registered, no מבחן רישוי
+//   vessels · aircraft · גנרטור    not road vehicles at all
+const BRAKE_CERT_TYPES = new Set([
+  'רכב', 'רכב מסחרי', 'אופנוע כביש', 'קטנוע',
+  'משאית', 'אוטובוס', 'רכב תפעולי',
+]);
+
+/**
+ * תקנה 273(ה): must this vehicle present a brake certificate before its test?
+ *
+ * @param {string} vehicleType  the app's canonical vehicle_type
+ * @param {number|string} year  year of manufacture
+ */
+export function requiresBrakeCertificate(vehicleType, year) {
+  if (!BRAKE_CERT_TYPES.has(vehicleType)) return false;
+  const age = getVehicleAge(year);
+  return age !== null && age >= BRAKE_CERT_AGE_YEARS;
+}
+
 // gov.il lookup results carry a `_detectedType` code (and a free-text
 // `_detectedTypeLabel` like "רכב מסחרי") rather than the app's saved
 // vehicle_type. Map the codes to the canonical app type so getTestPolicy
@@ -249,8 +291,22 @@ export function getTestPolicy(vehicle) {
     return {
       category: 'bus',
       frequencyMonths: sixMonthly ? 6 : 12,
-      requiredDocs: ['בדיקת רישוי'],
-      label: sixMonthly ? 'אוטובוס מעל 15 שנה' : '',
+      // תקנה 273ב and 273ד both reach a bus regardless of its weight, which
+      // is the trap here: the truck branch below gates on tonnage, and it
+      // would be natural to assume a bus does too. It does not.
+      requiredDocs: [
+        'בדיקת רישוי',
+        'שתי תעודות בדיקת בלמים ממוסך מורשה (תקנה 273ב)',
+        'בדיקת חורף (נובמבר עד מרץ)',
+      ],
+      // Never empty. VehicleInfoSection shows its badge when there is a
+      // label OR a winterInspection flag, and renders the label as the
+      // heading. Now that every bus carries the flag, an empty label would
+      // produce a badge with a blank bold line. A bus always has
+      // non-default duties (273ב and 273ד), so it always deserves a title.
+      label: sixMonthly ? 'אוטובוס מעל 15 שנה' : 'אוטובוס',
+      winterInspection: true,
+      brakeInspection6m: true,
     };
   }
 
@@ -261,15 +317,23 @@ export function getTestPolicy(vehicle) {
   if (type === 'משאית') {
     // total_weight is stored as a unit-suffixed string (e.g. "12000 ק\"ג"),
     // so Number() would yield NaN. Parse the leading digits before comparing.
-    const over10t = parseFloat(String(v.total_weight ?? '').replace(/[^\d.]/g, '')) > 10000;
+    // Two DIFFERENT thresholds apply, and conflating them is the easy error:
+    //   תקנה 273ד  > 10,000 kg → winter inspection, Nov–Mar
+    //   תקנה 273ב  ≥ 16,000 kg → brakes every 6 months, two certificates
+    const weightKg = parseFloat(String(v.total_weight ?? '').replace(/[^\d.]/g, ''));
+    const over10t = weightKg > 10000;
+    const over16t = weightKg >= 16000;
     return {
       category: 'heavy',
       frequencyMonths: 12,
-      requiredDocs: over10t
-        ? ['אישור תקינות שנתי ממוסך מורשה', 'בדיקת חורף (נובמבר עד מרץ)']
-        : ['בדיקת רישוי'],
+      requiredDocs: [
+        over10t ? 'אישור תקינות שנתי ממוסך מורשה' : 'בדיקת רישוי',
+        over10t && 'בדיקת חורף (נובמבר עד מרץ)',
+        over16t && 'שתי תעודות בדיקת בלמים ממוסך מורשה (תקנה 273ב)',
+      ].filter(Boolean),
       label: over10t ? 'משאית מעל 10 טון' : '',
       winterInspection: over10t,
+      brakeInspection6m: over16t,
     };
   }
 
@@ -281,7 +345,22 @@ export function getTestPolicy(vehicle) {
     return {
       category: 'aging',
       frequencyMonths: 6,
-      requiredDocs: ['אישור רכב מיושן (בלמים והיגוי) ממוסך מורשה'],
+      // TWO certificates, not one. They are cumulative and a 19+ vehicle
+      // owes both: תקנה 273(ה) from age 15 covers the brake system, and the
+      // מיושן certificate covers service brakes, auxiliary brakes AND
+      // steering. Verified 2026-09-10: "ברכב שגילו מעל 20 שנה, חובה להציג
+      // אישור בלמים + אישור רכב מיושן ממוסך מורשה."
+      //
+      // This used to read 'אישור רכב מיושן (בלמים והיגוי)', a single line
+      // whose parenthetical made the מיושן certificate look like it already
+      // included the brakes. A user with a 23-year-old car read exactly that
+      // and reported the separate brake reminder as a bug. The wording, not
+      // the reminder, was the defect: an owner who brings only one of the
+      // two is turned away at the test.
+      requiredDocs: [
+        'אישור בלמים ממוסך מורשה (חובה מגיל 15)',
+        'תעודת תקינות רכב מיושן: בלמי שירות, בלמי עזר והיגוי',
+      ],
       label: 'רכב מיושן',
     };
   }
