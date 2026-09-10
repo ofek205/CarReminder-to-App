@@ -98,3 +98,6 @@ sprint*-*.png
 scripts/welcome-recipients.json
 scripts/*-recipients.json
 scripts/*-recipients.csv
+
+# 196KB GitHub API dump, a working file that was swept in by a wildcard add.
+prs.json
