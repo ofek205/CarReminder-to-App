@@ -397,12 +397,23 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
       const td = daysUntil(v.test_due_date);
       if (td !== null && td <= 60) {
         const overdue = td < 0;
+        // From 19 the vehicle is also רכב מיושן, and that is a SECOND,
+        // separate certificate — the two are cumulative, not alternatives.
+        // Naming only the brakes here is what made a 23-year-old car's
+        // owner report this reminder as a bug: it looked wrong because it
+        // was incomplete. Someone who brings one of the two is sent home.
+        const alsoAging = testPolicy.category === 'aging';
         items.push({
           id: `brakes-${v.id}`, type: 'safety', emoji: '🛑',
-          typeName: 'בלמים', name: vName, vehicleId: v.id,
+          typeName: alsoAging ? 'בלמים ומיושן' : 'בלמים', name: vName, vehicleId: v.id,
           dueDate: v.test_due_date, daysLeft: td,
           status: overdue ? 'danger' : 'warn',
-          label: `${vLabels.vehicleWord || 'רכב'} ותיק (${vehicleAge} שנים), נדרש אישור בלמים`,
+          // "שני אישורים" sits early on purpose: NotificationBell renders
+          // this with `truncate`, one line, so the count has to survive the
+          // cut. The Notifications page wraps and shows the tail.
+          label: alsoAging
+            ? `${vLabels.vehicleWord || 'רכב'} מיושן (${vehicleAge} שנים), נדרשים שני אישורים: בלמים ורכב מיושן`
+            : `${vLabels.vehicleWord || 'רכב'} ותיק (${vehicleAge} שנים), נדרש אישור בלמים`,
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }

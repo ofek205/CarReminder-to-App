@@ -340,7 +340,22 @@ export function getTestPolicy(vehicle) {
     return {
       category: 'aging',
       frequencyMonths: 6,
-      requiredDocs: ['אישור רכב מיושן (בלמים והיגוי) ממוסך מורשה'],
+      // TWO certificates, not one. They are cumulative and a 19+ vehicle
+      // owes both: תקנה 273(ה) from age 15 covers the brake system, and the
+      // מיושן certificate covers service brakes, auxiliary brakes AND
+      // steering. Verified 2026-09-10: "ברכב שגילו מעל 20 שנה, חובה להציג
+      // אישור בלמים + אישור רכב מיושן ממוסך מורשה."
+      //
+      // This used to read 'אישור רכב מיושן (בלמים והיגוי)', a single line
+      // whose parenthetical made the מיושן certificate look like it already
+      // included the brakes. A user with a 23-year-old car read exactly that
+      // and reported the separate brake reminder as a bug. The wording, not
+      // the reminder, was the defect: an owner who brings only one of the
+      // two is turned away at the test.
+      requiredDocs: [
+        'אישור בלמים ממוסך מורשה (חובה מגיל 15)',
+        'תעודת תקינות רכב מיושן: בלמי שירות, בלמי עזר והיגוי',
+      ],
       label: 'רכב מיושן',
     };
   }
