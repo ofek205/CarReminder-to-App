@@ -291,8 +291,17 @@ export function getTestPolicy(vehicle) {
     return {
       category: 'bus',
       frequencyMonths: sixMonthly ? 6 : 12,
-      requiredDocs: ['בדיקת רישוי'],
+      // תקנה 273ב and 273ד both reach a bus regardless of its weight, which
+      // is the trap here: the truck branch below gates on tonnage, and it
+      // would be natural to assume a bus does too. It does not.
+      requiredDocs: [
+        'בדיקת רישוי',
+        'שתי תעודות בדיקת בלמים ממוסך מורשה (תקנה 273ב)',
+        'בדיקת חורף (נובמבר עד מרץ)',
+      ],
       label: sixMonthly ? 'אוטובוס מעל 15 שנה' : '',
+      winterInspection: true,
+      brakeInspection6m: true,
     };
   }
 
@@ -303,15 +312,23 @@ export function getTestPolicy(vehicle) {
   if (type === 'משאית') {
     // total_weight is stored as a unit-suffixed string (e.g. "12000 ק\"ג"),
     // so Number() would yield NaN. Parse the leading digits before comparing.
-    const over10t = parseFloat(String(v.total_weight ?? '').replace(/[^\d.]/g, '')) > 10000;
+    // Two DIFFERENT thresholds apply, and conflating them is the easy error:
+    //   תקנה 273ד  > 10,000 kg → winter inspection, Nov–Mar
+    //   תקנה 273ב  ≥ 16,000 kg → brakes every 6 months, two certificates
+    const weightKg = parseFloat(String(v.total_weight ?? '').replace(/[^\d.]/g, ''));
+    const over10t = weightKg > 10000;
+    const over16t = weightKg >= 16000;
     return {
       category: 'heavy',
       frequencyMonths: 12,
-      requiredDocs: over10t
-        ? ['אישור תקינות שנתי ממוסך מורשה', 'בדיקת חורף (נובמבר עד מרץ)']
-        : ['בדיקת רישוי'],
+      requiredDocs: [
+        over10t ? 'אישור תקינות שנתי ממוסך מורשה' : 'בדיקת רישוי',
+        over10t && 'בדיקת חורף (נובמבר עד מרץ)',
+        over16t && 'שתי תעודות בדיקת בלמים ממוסך מורשה (תקנה 273ב)',
+      ].filter(Boolean),
       label: over10t ? 'משאית מעל 10 טון' : '',
       winterInspection: over10t,
+      brakeInspection6m: over16t,
     };
   }
 

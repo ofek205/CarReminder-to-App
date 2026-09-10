@@ -420,7 +420,33 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
           typeName: 'בדיקת חורף', name: vName, vehicleId: v.id,
           dueDate: null, daysLeft: inWindow ? 0 : 30,
           status: inWindow ? 'warn' : 'upcoming',
-          label: 'נדרשת בדיקת חורף למשאית (נובמבר עד מרץ)',
+          // Was hardcoded to "למשאית". תקנה 273ד also covers every bus,
+          // weight regardless, so the wording follows the vehicle now.
+          label: `נדרשת בדיקת חורף ל${v.vehicle_type === 'אוטובוס' ? 'אוטובוס' : 'משאית'} (נובמבר עד מרץ)`,
+          linkTo: `VehicleDetail?id=${v.id}`,
+        });
+      }
+    }
+
+    // 7c. Brake inspection every six months — תקנה 273ב.
+    // Buses, taxis, tour vehicles and טיולית at any weight, plus commercial
+    // vehicles from 16,000 kg. Only אוטובוס and משאית exist as types here,
+    // so those are what this can reach; see the note in getTestPolicy.
+    //
+    // Anchored to the test rather than to a six-month clock ON PURPOSE: two
+    // certificates must be produced at licence renewal, and that is a date
+    // we actually hold. A true six-month cadence needs a stored
+    // last-brake-inspection date, which does not exist in the schema, and
+    // inventing one from the test date would be a guess presented as fact.
+    if (testPolicy.brakeInspection6m && v.test_due_date) {
+      const td = daysUntil(v.test_due_date);
+      if (td !== null && td <= 60) {
+        items.push({
+          id: `brakes6m-${v.id}`, type: 'safety', emoji: '🛑',
+          typeName: 'בדיקת בלמים', name: vName, vehicleId: v.id,
+          dueDate: v.test_due_date, daysLeft: td,
+          status: td < 0 ? 'danger' : 'warn',
+          label: 'נדרשות שתי תעודות בדיקת בלמים ממוסך מורשה (כל 6 חודשים)',
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }
