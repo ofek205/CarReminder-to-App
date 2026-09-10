@@ -89,7 +89,7 @@ else
   warn "npm not found (e.g. GitHub Desktop git env) - skipping local lint/build. CI enforces them on PR to main."
 fi
 
-# 4. Query-timeout gate - every Supabase call inside a useQuery must be wrapped
+# 5. Query-timeout gate - every Supabase call inside a useQuery must be wrapped
 # with withTimeout(...) or Promise.race(...). Only needs node, so run it whenever
 # node is present even if npm is not. See scripts/check-query-timeouts.cjs.
 if [ "$HAVE_NODE" = 1 ] && [ -f scripts/check-query-timeouts.cjs ]; then
@@ -99,7 +99,7 @@ elif [ "$HAVE_NODE" != 1 ]; then
   warn "node not found - skipping query-timeout gate. CI enforces it on PR to main."
 fi
 
-# 5. View-as identity gate - admin RPCs must go through adminSupabase, never the
+# 6. View-as identity gate - admin RPCs must go through adminSupabase, never the
 # impersonation-proxied `supabase`. On the proxied client they arrive as the
 # viewed user and fail is_admin(), usually silently. Fixed three times by hand in
 # one day before this gate existed. See scripts/check-view-as-identity.cjs.
@@ -108,6 +108,28 @@ if [ "$HAVE_NODE" = 1 ] && [ -f scripts/check-view-as-identity.cjs ]; then
   ok "view-as identity gate passed"
 elif [ "$HAVE_NODE" != 1 ]; then
   warn "node not found - skipping view-as identity gate. CI enforces it on PR to main."
+fi
+
+# 7. Duplicated-statement gate - the same SQL statement line twice with only
+# comments between the copies. On 2026-09-09 that shape made phase 2b of the
+# monetization work die with `syntax error at or near "public"` halfway
+# through, leaving it PARTIALLY APPLIED against the database staging shares
+# with production. Balance checks passed with the bug present, eslint does not
+# read SQL, and there is no Postgres here to parse it, so this is the only
+# place the class gets caught before it reaches a live database.
+#
+# Node-only, and that is the reason it is here as well as in `npm test`: the
+# npm block above is SKIPPED entirely on GitHub Desktop's stripped PATH, which
+# is exactly the environment where a hand-edited migration is likely to be
+# pushed. See scripts/sql-duplicate-statements.cjs.
+if [ "$HAVE_NODE" = 1 ] && [ -f scripts/sql-duplicate-statements.cjs ]; then
+  node scripts/sql-duplicate-statements.cjs || fail "sql duplicate-statement gate failed. A comment was probably inserted above a statement and the original line left behind - see the line numbers above."
+  ok "sql duplicate-statement gate passed"
+elif [ "$HAVE_NODE" != 1 ]; then
+  # Deliberately NOT claiming "CI enforces it", unlike the two gates above.
+  # In CI this only runs inside the `Unit tests` job, and that job is not
+  # among the ruleset's required checks, so there it is advisory.
+  warn "node not found - skipping sql duplicate-statement gate. NOT enforced by a required CI check; re-run it before merging."
 fi
 
 printf "${GRN}[ok] pre-push checks done${NC}\n"

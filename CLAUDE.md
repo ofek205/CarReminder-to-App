@@ -310,7 +310,7 @@ git checkout staging && git merge main && git push origin staging
 | שכבה | מתי | מה |
 |---|---|---|
 | `.githooks/pre-commit` | כל commit מקומי | קבצי סוד (`.env`/`.pem`/`.key`), סמני קונפליקט, מפתחות מקודדים (`sk-`/`AKIA`/`ghp_`), eslint על הקבצים בסטייג' |
-| `.githooks/pre-push` | כל push מקומי | **שש** בדיקות: אזהרת main, `npm run lint`, `npm test`, `npm run build`, שער query-timeout, שער זהות view-as |
+| `.githooks/pre-push` | כל push מקומי | **שבע** בדיקות: אזהרת main, `npm run lint`, `npm test`, `npm run build`, שער query-timeout, שער זהות view-as, שער statement משוכפל ב-SQL |
 | `.claude/hooks/commit-gate.cjs` | כל פקודת git שיוצרת או משכתבת קומיט של קלוד (commit/push/merge/pull/rebase/cherry-pick/revert/am) | דורש אסימון APPROVED טרי מ-commit-gatekeeper |
 | `production-gates.yml` | **PR ל-main בלבד** | **ארבעה** jobs: build, lint, query-timeout, view-as identity |
 
