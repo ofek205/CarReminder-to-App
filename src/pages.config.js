@@ -17,6 +17,8 @@ import React from 'react';
 // bugs that App Review repeatedly flagged as Guideline 2.1(a).
 import Dashboard from './pages/Dashboard';
 import AuthPage from './pages/AuthPage';
+import { marketingRoutes } from './lib/marketingContent';
+const Marketing = React.lazy(() => import('./pages/Marketing'));
 import __Layout from './Layout.jsx';
 
 // Vehicles / VehicleDetail are still lazy: they're not the landing
@@ -107,6 +109,7 @@ const DevComponents         = import.meta.env.DEV
 export const PAGES = {
     "Accidents": Accidents,
     "AccountSettings": AccountSettings,
+    ...Object.fromEntries(marketingRoutes.map(path => [path.slice(1), Marketing])),
     "AiAssistant": AiAssistant,
     "AddAccident": AddAccident,
     "Auth": AuthPage,

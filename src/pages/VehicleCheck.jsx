@@ -75,7 +75,7 @@ const TONE_TEXT = {
 };
 const QUICK_CHECK_PREFILL_KEY = 'vehicle_quick_check_prefill_plate';
 
-export default function VehicleCheck() {
+export default function VehicleCheck({ marketingPlate }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -113,6 +113,18 @@ export default function VehicleCheck() {
   const validation = useMemo(() => validateQuickCheckPlate(plate), [plate]);
 
   useEffect(() => {
+    if (marketingPlate) {
+      const requestedPlate = normalizeQuickCheckPlate(marketingPlate).slice(0, 8);
+      setPlate(requestedPlate);
+      const previousResult = readLastQuickCheckResult();
+      if (previousResult?.plate === requestedPlate) {
+        setResult(previousResult);
+        setStatus('success');
+        return;
+      }
+      setAutoSearchQueued(true);
+      return;
+    }
     try {
       const prefilledPlate = sessionStorage.getItem(QUICK_CHECK_PREFILL_KEY);
       if (prefilledPlate) {
@@ -264,7 +276,7 @@ export default function VehicleCheck() {
   };
 
   useEffect(() => {
-    if (!autoSearchQueued || isBusy) return;
+    if (!autoSearchQueued || isBusy || authLoading) return;
     const v = validateQuickCheckPlate(plate);
     if (!v.ok) {
       setAutoSearchQueued(false);
@@ -273,7 +285,7 @@ export default function VehicleCheck() {
     setAutoSearchQueued(false);
     void search();
      
-  }, [autoSearchQueued, plate, isBusy]);
+  }, [autoSearchQueued, plate, isBusy, authLoading]);
 
   const goToAuth = () => {
     if (result) saveLastQuickCheckResult(result);
@@ -1283,7 +1295,7 @@ function VehiclePrintReport({ result, variant = 'print' }) {
         <div className="report-brand">
           <BrandMark />
           <div>
-            <p className="report-brand-name">CarReminder</p>
+            <p className="report-brand-name">Car Reminder</p>
             <p className="report-brand-subtitle">דוח בדיקת רכב</p>
           </div>
         </div>
@@ -1750,6 +1762,10 @@ function PrintStyles() {
 function labelFor(key) {
   return ({
     licensePlate: 'מספר רישוי',
+    displayName: 'תיאור הרכב',
+    testDueEstimated: 'מועד טסט משוער',
+    isInactive: 'רכב לא פעיל',
+    ownershipDistribution: 'התפלגות סוגי בעלות',
     manufacturer: 'יצרן',
     model: 'דגם',
     year: 'שנה',

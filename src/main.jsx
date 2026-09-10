@@ -199,9 +199,19 @@ try {
 
 // Service Worker. offline support for web users only (Capacitor loads from
 // file:// and doesn't need/benefit from a SW).
+//
+// The path is ROOT-ABSOLUTE on purpose. It used to be './sw.js', which was
+// fine while every URL was either '/' or a single segment, but the marketing
+// site added nested routes: from '/website/guides/engine-hours' the browser
+// resolved './sw.js' to '/website/guides/sw.js', got the SPA's index.html
+// back from the rewrite, and refused it with "unsupported MIME type
+// ('text/html')" on all 19 marketing pages. '/sw.js' also gives the worker
+// the root scope it needs to serve the whole origin, which a nested
+// registration could never do. Safe next to `base: './'` because the
+// !isNative guard means this line never runs under file://.
 if (!isNative && 'serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(err => {
+    navigator.serviceWorker.register('/sw.js').catch(err => {
       console.warn('Service Worker registration failed:', err);
     });
   });

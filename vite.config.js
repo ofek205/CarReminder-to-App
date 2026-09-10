@@ -8,6 +8,7 @@ import { defineConfig, loadEnv } from 'vite'
 import { defaultExclude } from 'vitest/config'
 import path from 'path'
 import { readFileSync } from 'fs'
+import { marketingPrerender } from './scripts/marketing-prerender.mjs'
 
 // Read package.json once at build time and inline `version` as a
 // global (`__APP_VERSION__`) so the UI can render "גרסה 2.7.2" in the
@@ -58,6 +59,8 @@ export default defineConfig(({ command, mode }) => {
       __DEV_CREDS__: JSON.stringify(devCreds),
     },
     server: {
+      // Generated pages and other checkouts must not restart the local app.
+      watch: { ignored: ['**/dist/**', '**/.claude/worktrees/**'] },
       proxy: {
         '/gov-api': {
           target: 'https://data.gov.il',
@@ -68,6 +71,7 @@ export default defineConfig(({ command, mode }) => {
     },
     plugins: [
       react(),
+      marketingPrerender(),
     ],
     // ── vitest ───────────────────────────────────────────────────────
     //
