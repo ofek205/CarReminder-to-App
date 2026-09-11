@@ -24,7 +24,8 @@
     "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true",
     "test": "vitest run",
     "test:watch": "vitest",
-    "postbuild": "node ./scripts/build-precache-manifest.cjs"
+    "postbuild": "node ./scripts/build-precache-manifest.cjs",
+    "test:marketing": "node scripts/test-marketing.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^7.0.0",

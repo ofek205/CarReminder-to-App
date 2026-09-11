@@ -85,6 +85,15 @@ if [ "$HAVE_NPM" = 1 ]; then
     npm run -s build || fail "Production build failed."
     ok "build passed"
   fi
+  # 4b. Marketing gate. It reads dist/, so it can only run after the build,
+  # and it was wired to NOTHING until now: no npm script, no hook, no CI. It
+  # holds the dash ban, one-h1-per-page, that every heading reads as words
+  # across its line break, and the search-result budgets. All four fail
+  # invisibly, which is exactly why they were worth a gate.
+  if [ -f scripts/test-marketing.mjs ] && [ -d dist/website ]; then
+    npm run -s test:marketing || fail "Marketing gate failed. Headings, titles or descriptions broke a rule that only shows up in a search result."
+    ok "marketing gate passed"
+  fi
 else
   warn "npm not found (e.g. GitHub Desktop git env) - skipping local lint/build. CI enforces them on PR to main."
 fi
