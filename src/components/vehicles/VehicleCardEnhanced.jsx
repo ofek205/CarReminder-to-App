@@ -252,6 +252,18 @@ function VehicleCardEnhanced({ vehicle }) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="font-bold text-base truncate" style={{ color: C.text }}>{name}</h3>
+                  {/* Transferred away. The card stays in the list rather than
+                      disappearing, because the whole promise the seller was
+                      given is that they KEEP the record — "יעבור לארכיון
+                      ויישאר לקריאה בלבד". Hiding it would make that copy false
+                      in the other direction. Grey and not a status colour: it
+                      is not a warning, it is a car that is no longer theirs. */}
+                  {vehicle.lifecycle === 'sold_archive' && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0"
+                      style={{ background: C.gray100, color: C.gray500, border: `1px solid ${C.gray200}` }}>
+                      נמכר
+                    </span>
+                  )}
                   {vehicle._isDemo && (
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0"
                       style={{ background: C.yellow, color: C.warnDark }}>
@@ -416,5 +428,9 @@ export default React.memo(VehicleCardEnhanced, (prev, next) => {
     // Sharing fields from my_vehicles_v — re-render the badge when the
     // owner adds/removes a sharee or a recipient leaves.
     a.share_count === b.share_count &&
-    a.is_shared_with_me === b.is_shared_with_me;
+    a.is_shared_with_me === b.is_shared_with_me &&
+    // Same reason as the two lines above: without it, a vehicle that has just
+    // been transferred away keeps rendering its old card and the "נמכר" badge
+    // never appears, because nothing else about the row changed.
+    a.lifecycle === b.lifecycle;
 });

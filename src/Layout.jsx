@@ -893,7 +893,19 @@ function LayoutInner({ children }) {
   // resolves to a real support page for App Review reviewers, who are never signed in.
   // Apple 1.5 rejection (May 2026) was caused by an auth gate sending the reviewer
   // to /Auth instead of letting them see contact info.
-  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components', '/Contact'];
+  //
+  // /VehicleTransfer is public for a different reason from the rest, and the
+  // reason is the whole point of the feature. Someone being handed a car
+  // arrives on a link from WhatsApp or email with no account and no app. If
+  // the gate below bounced them to /Auth they would be asked to register
+  // before seeing what they are being offered, which is the one order that
+  // guarantees they do not. So the page renders the offer first — counts and
+  // a date range only, never row content and never the licence plate, which
+  // is why preview_vehicle_transfer is granted to `anon` — and registering is
+  // what it asks for next. ACCEPTING still requires a signed-in user whose
+  // own email matches the invited address; the database enforces that, and
+  // being on this list changes nothing about it.
+  const PUBLIC_PAGES = ['/Auth', '/', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount', '/vehicle-check', '/dev/components', '/Contact', '/VehicleTransfer'];
   const isMarketingRoute = location.pathname === '/website' || location.pathname.startsWith('/website/');
   const isPublicRoute = PUBLIC_PAGES.includes(location.pathname) || isMarketingRoute;
   const isAuthRoute = location.pathname === '/Auth' || location.pathname === '/';

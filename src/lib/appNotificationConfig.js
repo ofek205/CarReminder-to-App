@@ -10,11 +10,12 @@
  * this module is purely visual / navigational.
  */
 
-import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, Mail, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus, Download, Car } from 'lucide-react';
+import { Share2, Check, X, UserMinus, LogOut, Trash2, Clock, Edit3, Bell, Mail, MessageSquare, Briefcase, Truck, ClipboardList, ShieldCheck, UserPlus, Download, Car, ArrowLeftRight } from 'lucide-react';
 import { C } from '@/lib/designTokens';
 
 const ACTION_REQUIRED_TYPES = new Set([
   'share_offered',
+  'transfer_offered',
   'account_invite_offered',
   'task_assigned',
   'driver_assigned',
@@ -67,6 +68,52 @@ export const APP_NOTIF_CONFIG = {
     iconColor: C.orange,
     iconBg: C.orange,
     buildHref: hrefForVehicleDetail,
+  },
+  // ── ownership transfer ───────────────────────────────────────────────
+  // The sibling of the share_* family above, and shaped the same way on
+  // purpose. The one difference that matters visually: transfer_offered is
+  // in ACTION_REQUIRED_TYPES, because a share left unanswered costs the
+  // recipient nothing, while a transfer left unanswered expires after seven
+  // days and the seller has to start over.
+  transfer_offered: {
+    icon: ArrowLeftRight,
+    bg: C.successSubtle,
+    iconColor: '#059669',
+    iconBg: '#059669',
+    // Straight to the approval screen. The token is what identifies the
+    // offer for a recipient who reached the app from the email link; an
+    // in-app recipient has the id, and the screen accepts either.
+    buildHref: (data) => data?.transfer_id
+      ? `/VehicleTransfer?id=${encodeURIComponent(data.transfer_id)}`
+      : (data?.invite_token
+        ? `/VehicleTransfer?token=${encodeURIComponent(data.invite_token)}`
+        : '/MyVehicles'),
+  },
+  transfer_accepted: {
+    // Read by the SENDER. Their vehicle is now archived, not gone, so this
+    // routes to it: the archive copy is exactly what they want to see.
+    icon: Check,
+    bg: '#F0FDF4',
+    iconColor: '#16A34A',
+    iconBg: '#16A34A',
+    buildHref: hrefForVehicleDetail,
+  },
+  transfer_declined: {
+    icon: X,
+    bg: C.errorBg,
+    iconColor: C.error,
+    iconBg: C.error,
+    buildHref: hrefForVehicleDetail,
+  },
+  transfer_cancelled: {
+    // Read by the RECIPIENT, about a vehicle that was never theirs and that
+    // they cannot open. Navigating anywhere would be a dead end, so the tap
+    // just dismisses — same call as share_deleted.
+    icon: UserMinus,
+    bg: C.orangeBg,
+    iconColor: C.orange,
+    iconBg: C.orange,
+    buildHref: () => null,
   },
   share_deleted: {
     icon: Trash2,

@@ -383,6 +383,13 @@ function VehiclesContent({ vehicles, isLoading }) {
     // Sort
     result.sort((a, b) => {
       const va = a.vehicle, vb = b.vehicle;
+      // Sold vehicles sink to the bottom BEFORE the chosen order is applied,
+      // and they do it under every sort option. A car the user no longer owns
+      // should never sit above one they drive — least of all under "newest",
+      // where a recent sale would land it first.
+      const soldA = va.lifecycle === 'sold_archive' ? 1 : 0;
+      const soldB = vb.lifecycle === 'sold_archive' ? 1 : 0;
+      if (soldA !== soldB) return soldA - soldB;
       switch (sortBy) {
         case 'newest':
           return new Date(vb.created_at || vb.created_date || 0) - new Date(va.created_at || va.created_date || 0);

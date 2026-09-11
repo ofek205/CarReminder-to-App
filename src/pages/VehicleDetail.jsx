@@ -4,10 +4,12 @@ import { dal } from '@/lib/dal';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2, Search, Camera, Zap } from "lucide-react";
+import { Trash2, Edit, FileText, Lock, Car, Ship, Calendar, Shield, ChevronLeft, ChevronDown, ChevronUp, Bike, Truck, Bell, Share2, Loader2, Search, Camera, Zap, ArrowLeftRight } from "lucide-react";
 import useFileUpload from '@/hooks/useFileUpload';
 import { validateUploadFile } from '@/lib/securityUtils';
 import ShareVehicleDialog from "@/components/sharing/ShareVehicleDialog";
+import TransferVehicleDialog from "@/components/sharing/TransferVehicleDialog";
+import PendingTransferBanner from "@/components/sharing/PendingTransferBanner";
 import SharedIndicator from "@/components/sharing/SharedIndicator";
 import VehicleAccessModal from "@/components/sharing/VehicleAccessModal";
 import SharingHelpButton from "@/components/sharing/SharingHelpButton";
@@ -627,6 +629,7 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
   const shareCountKnown = shareInfo !== undefined;
 
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [accessModalOpen, setAccessModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -985,6 +988,44 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
                   )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
+
+              {/* The transfer offer, placed HERE and not in the hero cluster.
+                  "I sold the car" is the moment this feature exists for, and in
+                  this app that moment currently expresses itself as a tap on the
+                  delete button — so this is where someone is standing when the
+                  alternative is worth anything. Offering it from a quiet corner
+                  of the page instead would mean showing it to everyone except
+                  the person about to need it.
+
+                  Not shown to a share RECIPIENT (their tap means "leave the
+                  share", and the vehicle was never theirs to hand on), and not
+                  in a business workspace, where a vehicle belongs to the fleet
+                  and leaves it through the driver/asset flow rather than by
+                  being given to a private person. */}
+              {!isSharedWithMe && vehicleIsOwned && !isBusiness && (
+                <div className="rounded-2xl p-4 my-1 text-right" style={{ background: C.light }}>
+                  <p className="text-sm font-bold mb-1" style={{ color: C.primary }}>מכרת את הרכב?</p>
+                  <p className="text-xs leading-relaxed mb-3" style={{ color: C.gray700 }}>
+                    אפשר להעביר אותו לבעלים החדשים יחד עם כל היסטוריית הטיפולים, במקום למחוק אותה.
+                    אצלך הוא יעבור לארכיון ויישאר לקריאה בלבד.
+                  </p>
+                  {/* AlertDialogCancel closes the alert; onClick then opens the
+                      transfer dialog. Two dialogs open at once would trap focus
+                      in the wrong one. */}
+                  <AlertDialogCancel asChild>
+                    <button
+                      type="button"
+                      onClick={() => setTransferDialogOpen(true)}
+                      className="w-full h-11 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] mt-0"
+                      style={{ background: C.primary, color: '#fff' }}
+                    >
+                      <ArrowLeftRight className="w-4 h-4" />
+                      העבר את הרכב במקום
+                    </button>
+                  </AlertDialogCancel>
+                </div>
+              )}
+
               <AlertDialogFooter className="flex-row-reverse gap-2">
                 <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700">
                   {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : (isSharedWithMe ? 'יציאה מהשיתוף' : 'מחק')}
@@ -996,11 +1037,32 @@ function AuthVehicleDetail({ vehicleId, navigate, queryClient }) {
         )}
       </div>
 
+      {/* An open transfer offer freezes this vehicle's history in the
+          database, and this is what tells the seller so — plus the way out.
+          Renders nothing when no offer is open.
+
+          ⚠️ BELOW the action row, not above it. The action row carries
+          `-mt-5 relative z-20` so it can overlap the hero image, and a
+          sibling placed before it gets that negative margin pulled into its
+          own bottom edge, with the buttons then painting over the last 20px
+          on top. Above the row reads better on paper and is broken on
+          screen. */}
+      {vehicleIsOwned && !isBusiness && (
+        <div className="px-4">
+          <PendingTransferBanner vehicleId={vehicleId} isOwner={vehicleIsOwned} />
+        </div>
+      )}
+
       {/* Sharing dialogs — rendered once at the top level so the share
           button + indicator above can open them without prop-drilling. */}
       <ShareVehicleDialog
         open={shareDialogOpen}
         onOpenChange={setShareDialogOpen}
+        vehicle={vehicle}
+      />
+      <TransferVehicleDialog
+        open={transferDialogOpen}
+        onOpenChange={setTransferDialogOpen}
         vehicle={vehicle}
       />
       <VehicleAccessModal

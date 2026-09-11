@@ -62,6 +62,10 @@ const AccountSettings = React.lazy(() => import('./pages/AccountSettings'));
 const AdminReviews = React.lazy(() => import('./pages/AdminReviews'));
 const DemoVehicleDetail = React.lazy(() => import('./pages/DemoVehicleDetail'));
 const JoinInvite = React.lazy(() => import('./pages/JoinInvite'));
+// The recipient's side of an ownership transfer. Lazy like its sibling:
+// it is only ever reached from a link or a notification, never from
+// navigation, so it has no business in the initial bundle.
+const VehicleTransfer = React.lazy(() => import('./pages/VehicleTransfer'));
 const MaintenanceTemplates = React.lazy(() => import('./pages/MaintenanceTemplates'));
 const Notifications = React.lazy(() => import('./pages/Notifications'));
 const ReminderSettingsPage = React.lazy(() => import('./pages/ReminderSettingsPage'));
@@ -145,6 +149,7 @@ export const PAGES = {
     "EditVehicle": EditVehicle,
     "FindGarage": FindGarage,
     "JoinInvite": JoinInvite,
+    "VehicleTransfer": VehicleTransfer,
     "MaintenanceTemplates": MaintenanceTemplates,
     "Notifications": Notifications,
     "ReminderSettingsPage": ReminderSettingsPage,
