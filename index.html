@@ -120,6 +120,14 @@
          consent screen crawler — the only consumer that requires
          it. */
       html.native-app #cr-legal-footer { display: none; }
+
+      /* Hidden in the marketing preview too. Inside the demo iframe this
+         footer is 134px of pure repetition: the marketing page carries its
+         own footer with the same three links directly below the device, and
+         a version number and copyright line mean nothing to a visitor who is
+         looking at a product tour. main.jsx sets html.cr-demo the same way it
+         sets native-app. */
+      html.cr-demo #cr-legal-footer { display: none; }
     </style>
     <script type="module" src="./src/main.jsx"></script>
   </body>

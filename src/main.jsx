@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { isDemoMode } from '@/lib/demoMode';
 import App from '@/App.jsx'
 // Self-hosted Rubik (bundled by Vite → same-origin, no font CSP needed).
 // The app declared 'Rubik' as its font but never loaded it; these imports
@@ -63,6 +64,12 @@ try {
 // but iOS WKWebView and desktop Chrome are unaffected. Splitting the
 // class into iOS/Android variants lets each platform's CSS opt in
 // independently to behaviors that are safe on its rendering engine.
+// The marketing preview runs the real app inside an iframe, so it inherits the
+// full web chrome including the legal footer. This flag lets index.html drop
+// that footer there; the reasoning sits beside the rule. Derived from the URL
+// exactly like isDemoMode() itself, so it can never land on a normal app tab.
+if (isDemoMode()) document.documentElement.classList.add('cr-demo');
+
 if (isNative) {
   document.documentElement.classList.add('native-app');
   if (isIOS) document.documentElement.classList.add('ios-app');

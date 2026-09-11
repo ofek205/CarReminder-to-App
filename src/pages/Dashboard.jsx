@@ -1340,15 +1340,22 @@ export default function Dashboard() {
         <SignUpPromptDialog open={showSignUp} onClose={() => setShowSignUp(false)}
           reason="כדי לשמור את הרכבים שלך לצמיתות ולגשת אליהם מכל מכשיר" />
 
+        {/* The plate-check block is the first ~430px of this screen, which is
+            wrong for the marketing preview: it opens the demo on a form the
+            visitor cannot use and pushes the vehicle cards, the thing the copy
+            beside the frame is describing, below an inner fold that costs 897px
+            of scrolling inside a scaled-down phone. Hidden in demo mode only, so
+            the preview opens on exactly what the text promises. Real guests keep
+            it: for them it is the fastest way to add a first vehicle. */}
         <div className="px-4 pt-6">
-          <VehicleCheckHero
+          {!isDemoMode() && <VehicleCheckHero
             hasVehicles={hasGuestVehicles}
             plate={quickCheckPlate}
             onPlateChange={setQuickCheckPlate}
             onSubmit={openQuickCheck}
             submitting={quickCheckSubmitting}
             compact={hasUrgentReminders(upcomingReminders)}
-          />
+          />}
 
           {/* Section header */}
           <div className="flex items-center justify-between mb-4" dir="rtl">
