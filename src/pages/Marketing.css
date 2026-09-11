@@ -412,6 +412,6 @@ body:has(.cm-site) #cr-legal-footer{display:none}
    Scoped to direct children of <main>: the child-reminder page reuses .cm-faq
    inside its own tinted wrapper, where the gap would fill with #f8f7f0 rather
    than white and separate two blocks that are meant to butt. */
-.cm-site{--cm-band-gap:16px}
+.cm-site{--cm-band-gap:40px}
 #cm-main>.cm-check-section,#cm-main>.cm-product,#cm-main>.cm-child-reminder,#cm-main>.cm-specialties,#cm-main>.cm-faq,#cm-main>.cm-download{margin-block:var(--cm-band-gap)}
-@media(max-width:620px){.cm-site{--cm-band-gap:12px}}
+@media(max-width:620px){.cm-site{--cm-band-gap:28px}}
