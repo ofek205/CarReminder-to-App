@@ -181,7 +181,15 @@ export default function ExportHistorySheet({ open, onOpenChange, vehicle, logs =
  *  scanning. */
 function HistoryDocument({ history }) {
   const { identity, services, repairs, accidents } = history;
-  const money = (v) => (v == null || v === '' ? '' : `${Number(v).toLocaleString('he-IL')} ₪`);
+  // A cost that reached the database as a formatted string ('1,200') makes
+  // Number() return NaN, and the document would print 'NaN ₪' to whoever
+  // was sent it. Strip grouping separators first, and show the original
+  // text rather than NaN if it still will not parse.
+  const money = (v) => {
+    if (v == null || v === '') return '';
+    const n = Number(String(v).replace(/[,\s₪]/g, ''));
+    return Number.isFinite(n) ? `${n.toLocaleString('he-IL')} ₪` : String(v);
+  };
 
   const Table = ({ title, rows, columns }) => {
     if (!rows.length) return null;

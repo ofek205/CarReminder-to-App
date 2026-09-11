@@ -24,6 +24,24 @@ const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 
+/**
+ * Neutralise spreadsheet formula injection.
+ *
+ * This file is built to be handed to a stranger — a garage, a buyer, an
+ * insurer — and Excel treats a cell whose text begins with = + - @ or a
+ * control character as a formula, not as text. A service titled `=1+1` is
+ * harmless; the same field is also where an attacker (or an imported row)
+ * can put something that runs on the recipient's machine. Prefixing with an
+ * apostrophe is the standard mitigation: Excel stores it as text and does
+ * not display the apostrophe, so the reader sees exactly what was typed.
+ *
+ * Only strings are touched. Numbers and Dates must stay typed, or sorting
+ * and filtering — the whole reason to choose Excel over the PDF — break.
+ */
+function sanitizeCell(value) {
+  if (typeof value !== 'string') return value;
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
 /** ExcelJS writes a real date cell only for a Date object. Anything
  *  unparseable is passed through as-is rather than becoming 1970 or an
  *  Invalid Date, both of which look like data and are not. */
@@ -67,17 +85,17 @@ function writeIdentity(ws, identity) {
     ['תאריך הפקה', identity.exportedAt],
   ];
   for (const [label, value] of pairs) {
-    const row = ws.addRow([label, value]);
+    const row = ws.addRow([label, sanitizeCell(value)]);
     row.getCell(1).font = { bold: true };
   }
   ws.addRow([]);
 }
 
 function writeTable(ws, columns, rows) {
-  const header = ws.addRow(columns.map(c => c.header));
+  const header = ws.addRow(columns.map(c => sanitizeCell(c.header)));
   header.font = { bold: true };
   for (const row of rows) {
-    ws.addRow(columns.map(c => (c.date ? dateCell(row[c.key]) : (row[c.key] ?? ''))));
+    ws.addRow(columns.map(c => (c.date ? dateCell(row[c.key]) : sanitizeCell(row[c.key] ?? ''))));
   }
   columns.forEach((c, i) => { ws.getColumn(i + 1).width = c.width; });
 }
@@ -111,6 +129,12 @@ export async function renderHistoryXlsx(history) {
   if (services.length)  addSection(wb, 'טיפולים',  SERVICE_COLUMNS,  services,  identity);
   if (repairs.length)   addSection(wb, 'תיקונים',  SERVICE_COLUMNS,  repairs,   identity);
   if (accidents.length) addSection(wb, 'תאונות',   ACCIDENT_COLUMNS, accidents, identity);
+
+  // Excel refuses to open a workbook containing no worksheets. The button
+  // is hidden when there is no history so this should be unreachable, but a
+  // file that cannot be opened is a worse failure than an empty sheet, and
+  // the guard costs nothing.
+  if (wb.worksheets.length === 0) addSection(wb, 'היסטוריה', SERVICE_COLUMNS, [], identity);
 
   const buffer = await wb.xlsx.writeBuffer();
   return {
