@@ -5,7 +5,7 @@
  */
 
 import { differenceInDays, differenceInYears } from 'date-fns';
-import { getVehicleLabels, isVessel, getTestPolicy, usesHours, isGenerator } from './DateStatusUtils';
+import { getVehicleLabels, isVessel, getTestPolicy, usesHours, isGenerator, requiresBrakeCertificate } from './DateStatusUtils';
 
 //  Primitive helpers
 
@@ -378,22 +378,42 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
       }
     }
 
-    // 7. Brakes (15+ year vehicles)
+    // 7. Brakes — תקנה 273(ה), motor vehicles 15+ years old
     // Fires for upcoming AND overdue tests — the old guard (td > 0) muted
     // the alert the moment the test expired, which is the WORST time to
     // stop reminding the owner that their 15-year-old car still needs a
     // brakes certificate before the new test. Now it nags until the test
     // is renewed.
-    if (!isV && vehicleAge >= 15 && v.test_due_date) {
+    //
+    // The type gate lives in requiresBrakeCertificate, not here: the old
+    // condition was `!isV && vehicleAge >= 15`, i.e. everything that was not
+    // a boat, so trailers were told to buy a certificate that תקנה 273(ה)
+    // does not require of them ("רכב מנועי" — a trailer has no engine).
+    //
+    // 60 days is not arbitrary either: the certificate is only valid for
+    // three months before the test, so reminding much earlier would send
+    // the owner to buy one that expires before it is needed.
+    if (requiresBrakeCertificate(v.vehicle_type, v.year) && v.test_due_date) {
       const td = daysUntil(v.test_due_date);
       if (td !== null && td <= 60) {
         const overdue = td < 0;
+        // From 19 the vehicle is also רכב מיושן, and that is a SECOND,
+        // separate certificate — the two are cumulative, not alternatives.
+        // Naming only the brakes here is what made a 23-year-old car's
+        // owner report this reminder as a bug: it looked wrong because it
+        // was incomplete. Someone who brings one of the two is sent home.
+        const alsoAging = testPolicy.category === 'aging';
         items.push({
           id: `brakes-${v.id}`, type: 'safety', emoji: '🛑',
-          typeName: 'בלמים', name: vName, vehicleId: v.id,
+          typeName: alsoAging ? 'בלמים ומיושן' : 'בלמים', name: vName, vehicleId: v.id,
           dueDate: v.test_due_date, daysLeft: td,
           status: overdue ? 'danger' : 'warn',
-          label: `${vLabels.vehicleWord || 'רכב'} ותיק (${vehicleAge} שנים), נדרש אישור בלמים`,
+          // "שני אישורים" sits early on purpose: NotificationBell renders
+          // this with `truncate`, one line, so the count has to survive the
+          // cut. The Notifications page wraps and shows the tail.
+          label: alsoAging
+            ? `${vLabels.vehicleWord || 'רכב'} מיושן (${vehicleAge} שנים), נדרשים שני אישורים: בלמים ורכב מיושן`
+            : `${vLabels.vehicleWord || 'רכב'} ותיק (${vehicleAge} שנים), נדרש אישור בלמים`,
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }
@@ -411,7 +431,33 @@ export function calcAllReminders({ vehicles = [], documents = [], settings = {} 
           typeName: 'בדיקת חורף', name: vName, vehicleId: v.id,
           dueDate: null, daysLeft: inWindow ? 0 : 30,
           status: inWindow ? 'warn' : 'upcoming',
-          label: 'נדרשת בדיקת חורף למשאית (נובמבר עד מרץ)',
+          // Was hardcoded to "למשאית". תקנה 273ד also covers every bus,
+          // weight regardless, so the wording follows the vehicle now.
+          label: `נדרשת בדיקת חורף ל${v.vehicle_type === 'אוטובוס' ? 'אוטובוס' : 'משאית'} (נובמבר עד מרץ)`,
+          linkTo: `VehicleDetail?id=${v.id}`,
+        });
+      }
+    }
+
+    // 7c. Brake inspection every six months — תקנה 273ב.
+    // Buses, taxis, tour vehicles and טיולית at any weight, plus commercial
+    // vehicles from 16,000 kg. Only אוטובוס and משאית exist as types here,
+    // so those are what this can reach; see the note in getTestPolicy.
+    //
+    // Anchored to the test rather than to a six-month clock ON PURPOSE: two
+    // certificates must be produced at licence renewal, and that is a date
+    // we actually hold. A true six-month cadence needs a stored
+    // last-brake-inspection date, which does not exist in the schema, and
+    // inventing one from the test date would be a guess presented as fact.
+    if (testPolicy.brakeInspection6m && v.test_due_date) {
+      const td = daysUntil(v.test_due_date);
+      if (td !== null && td <= 60) {
+        items.push({
+          id: `brakes6m-${v.id}`, type: 'safety', emoji: '🛑',
+          typeName: 'בדיקת בלמים', name: vName, vehicleId: v.id,
+          dueDate: v.test_due_date, daysLeft: td,
+          status: td < 0 ? 'danger' : 'warn',
+          label: 'נדרשות שתי תעודות בדיקת בלמים ממוסך מורשה (כל 6 חודשים)',
           linkTo: `VehicleDetail?id=${v.id}`,
         });
       }
