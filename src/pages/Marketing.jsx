@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useRef, useState, useCallback } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BellRing, BriefcaseBusiness, Car, Database, FileText, Loader2, LockKeyhole, Menu, Pencil, ShieldCheck, Ship, Smartphone, Sparkles, Trash2, Users, Wallet, X } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { ArrowLeft, BellRing, BriefcaseBusiness, Car, Database, FileText, Loader2, LockKeyhole, Menu, ShieldCheck, Ship, Smartphone, Sparkles, Trash2, Users, Wallet, X } from 'lucide-react';
 import { guides, productPages } from '@/lib/marketingContent';
 import { businessFeatures, specialtyPages } from '@/lib/marketingSpecialties';
 import MarketingProductPage from '@/components/MarketingProductPage';
@@ -9,6 +9,7 @@ import MarketingPhone from '@/components/MarketingPhone';
 import MarketingReviewsPhone from '@/components/MarketingReviewsPhone';
 import MarketingBusinessPreview from '@/components/MarketingBusinessPreview';
 import MarketingChildReminderPage from '@/components/MarketingChildReminderPage';
+import MarketingCheckForm from '@/components/MarketingCheckForm';
 const logo = '/marketing/logo.webp';
 import './Marketing.css';
 import { applyMarketingSeo } from '@/lib/marketingSeo';
@@ -76,12 +77,7 @@ function StoreLinks() {
 export default function Marketing() {
   const location = useLocation();
   const pathname = location.pathname.replace(/\/+$/, '') || '/';
-  const navigate = useNavigate();
   const [menu, setMenu] = useState(false);
-  const [plate, setPlate] = useState('');
-  const plateInput = useRef(null);
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const dialog = useRef(null);
   const selectRef = useRef(null);
 
@@ -184,20 +180,6 @@ export default function Marketing() {
     };
   }, [pathname, article, product, checkPage, businessPage, location.hash]);
 
-  async function startCheck(event) {
-    event.preventDefault();
-    if (submitting) return;
-    setSubmitting(true);
-    try {
-      const { validateQuickCheckPlate } = await import('@/services/vehicleQuickCheck');
-      const validation = validateQuickCheckPlate(plate);
-      if (!validation.ok) { setError(validation.message); plateInput.current?.focus(); marketingEvent('check_validation_error', 'home'); return; }
-      // Router state keeps the plate out of URLs and referrer/analytics logs.
-      marketingEvent('check_submit', 'home');
-      navigate('/website/vehicle-check', { state: { marketingPlate: validation.plate } });
-    } catch { setError('לא הצלחנו לפתוח את הבדיקה. נסו שוב.'); }
-    finally { setSubmitting(false); }
-  }
 
   const BusinessHeading = businessPage ? 'h1' : 'h2';
   const business = <section id="business" className="cm-business"><div className="cm-wrap cm-business-grid"><div className="cm-business-copy"><span className="cm-kicker">Car Reminder לעסקים</span><BusinessHeading>מערכת לניהול<br />{' '}<em>צי רכב לעסקים.</em></BusinessHeading><p>לכל נהג אפליקציה משלו, ולמנהלים תמונת מצב ברורה של הצי במחשב, באייפון ובאנדרואיד.</p><ul className="cm-business-proofs"><li><Database size={18} /> מייבאים גם צי גדול מאקסל</li><li><Wallet size={18} /> סורקים קבלות ומרכזים הוצאות</li><li><LockKeyhole size={18} /> הרשאות לפי תפקיד והפרדה בין עבודה לפרטי</li></ul><Link className="cm-button cm-gold" to={businessPage ? '/Contact?topic=business' : '/website/business'}>{businessPage ? 'לפנייה בנושא חשבון עסקי' : 'למערכת העסקית'} <ArrowLeft size={18} /></Link><small>פתיחת חשבון עסקי כפופה להגשת בקשה ואישור.</small></div><div className="cm-business-showcase"><MarketingBusinessPreview /></div></div></section>;
@@ -209,16 +191,7 @@ export default function Marketing() {
       {home && <>
         <section className="cm-hero"><MarketingHeroBackground /><div className="cm-wrap cm-hero-grid"><div className="cm-hero-copy"><span className="cm-kicker">הרכב, האופנוע וכלי השיט שלכם</span><h1>הטסט, הביטוח והטיפול הבא.{' '}<br /><em>הכול במקום אחד.</em></h1><p className="cm-hero-lead">Car Reminder מרכזת מועדים, מסמכים והוצאות ומזכירה לכם לפני שמגיע הזמן.</p><div className="cm-actions"><a href="#download" className="cm-button cm-gold">מורידים את Car Reminder <ArrowLeft size={19} /></a></div></div><div className="cm-hero-visual"><div className="cm-orbit" /><MarketingPhone src="/marketing/dashboard.webp" alt="לוח הבקרה באפליקציה עם נתוני הדגמה" priority /><span className="cm-photo-note">מסך מהאפליקציה במסגרת להמחשה</span></div></div></section>
         <div className="cm-audiences cm-wrap"><a href="#features"><Car /> לרכב שלי <ArrowLeft size={16} /></a><a href="#vessels"><Ship /> לכלי השיט שלי <ArrowLeft size={16} /></a><Link to="/website/business"><BriefcaseBusiness /> לעסק שלי <ArrowLeft size={16} /></Link></div>
-        <section id="check" className="cm-section cm-check-section"><div className="cm-wrap cm-check-grid"><div><span className="cm-kicker">בדיקה ראשונה בלי הרשמה</span><h2>בדיקת רכב לפי מספר רישוי{' '}<br /><em>ממקורות משרד התחבורה.</em></h2><p>הזינו מספר רישוי וראו את פרטי הזיהוי, שנת הייצור והמפרט שנמצאו במקורות הציבוריים הזמינים. אפשר להוריד את התוצאה גם כקובץ PDF.</p><div className="cm-report-preview"><FileText size={25} /><div><strong>מה מחכה בדוח?</strong><span>פרטי זיהוי · שנת ייצור · מפרט זמין</span><small>אנחנו מציגים רק את המידע שנמצא. התוכן משתנה בין כלי לכלי ואינו מחליף בדיקה מקצועית.</small></div></div></div><form className="cm-check-form cm-check-interactive" onSubmit={startCheck} noValidate aria-label="בדיקת רכב לפי מספר רישוי" aria-busy={submitting}>
-          <div className="cm-check-form-heading"><p>הקלידו את המספר בלוחית ולחצו לבדיקה.</p></div>
-          <label htmlFor="cm-plate">מספר הרישוי <Pencil size={15} aria-hidden="true" /></label>
-          <div className={`cm-plate${plate ? ' has-value' : ''}${error ? ' has-error' : ''}`}><span aria-hidden="true">IL</span><input ref={plateInput} id="cm-plate" type="text" inputMode="numeric" autoComplete="off" spellCheck={false} value={plate} onChange={event => { setPlate(event.target.value.replace(/[^0-9-]/g, '').slice(0, 10)); setError(''); }} placeholder="הקלידו מספר" aria-invalid={!!error} aria-describedby={`cm-plate-hint cm-check-note${error ? ' cm-plate-error' : ''}`} /></div>
-          <p id="cm-plate-hint" className="cm-input-hint">אפשר גם להדביק מספר, עם מקפים או בלעדיהם.</p>
-          {error && <p id="cm-plate-error" role="alert" className="cm-error">{error}</p>}
-          <button className="cm-button cm-check-submit" disabled={submitting} type="submit">{submitting ? 'פותחים את הבדיקה…' : plate ? 'בדקו את הרכב' : 'להתחלת הבדיקה'} <ArrowLeft size={19} /></button>
-          <p id="cm-check-note" className="cm-check-access"><ShieldCheck size={16} /> הבדיקה הראשונה ללא הרשמה</p>
-          <details className="cm-check-fineprint"><summary>מה חשוב לדעת לפני הבדיקה?</summary><p>לבדיקת רכב נוסף או לשמירה בחשבון יש להתחבר. המידע עשוי להיות חלקי או לא מעודכן ואינו מחליף בדיקה מקצועית.</p></details>
-        </form></div></section>
+        <section id="check" className="cm-section cm-check-section"><div className="cm-wrap cm-check-grid"><div><span className="cm-kicker">בדיקה ראשונה בלי הרשמה</span><h2>בדיקת רכב לפי מספר רישוי{' '}<br /><em>ממקורות משרד התחבורה.</em></h2><p>הזינו מספר רישוי וראו את פרטי הזיהוי, שנת הייצור והמפרט שנמצאו במקורות הציבוריים הזמינים. אפשר להוריד את התוצאה גם כקובץ PDF.</p><div className="cm-report-preview"><FileText size={25} /><div><strong>מה מחכה בדוח?</strong><span>פרטי זיהוי · שנת ייצור · מפרט זמין</span><small>אנחנו מציגים רק את המידע שנמצא. התוכן משתנה בין כלי לכלי ואינו מחליף בדיקה מקצועית.</small></div></div></div><MarketingCheckForm /></div></section>
         <section id="trust" className="cm-section cm-trust"><div className="cm-wrap"><div className="cm-trust-heading"><span className="cm-kicker">אמינות ופרטיות</span><h2>האמינות מתחילה במה{' '}<br /><em>שהמשתמשים אומרים.</em></h2></div><div className="cm-trust-proof"><div className="cm-trust-reviews"><MarketingReviewsPhone /><small><Smartphone size={15} /> כל חוות הדעת שמופיעות במערכת</small></div></div><div className="cm-security-panel"><div className="cm-security-copy"><span className="cm-kicker">אבטחת מידע</span><h3>שכבות הגנה שאפשר להבין.</h3><p>המידע בחשבון מאוחסן ב־Supabase עם הצפנה ומוגן ברמת כל רשומה. במצב אורח פרטי הכלים נשמרים במכשיר, ואפשר למחוק את החשבון והמידע מתוך המערכת.</p><Link to="/PrivacyPolicy" className="cm-text-link">איך אנחנו שומרים ומשתפים מידע <ArrowLeft size={17} /></Link></div><div className="cm-security-map" aria-label="אמצעי הגנה ופרטיות"><div className="cm-security-rings" aria-hidden="true" /><span className="cm-security-core"><ShieldCheck /><strong>המידע שלכם</strong></span>{[[LockKeyhole, 'אחסון מוצפן'], [Database, 'הגנה ברמת הרשומה'], [Smartphone, 'מידע אורח במכשיר'], [Users, 'הרשאות לצוות'], [Trash2, 'מחיקת חשבון'], [Sparkles, 'שימוש ב־AI בשקיפות']].map(([Icon, label], index) => <span key={label} className={`cm-security-chip cm-security-chip-${index + 1}`}><Icon />{label}</span>)}</div></div></div></section>
         <section id="how" className="cm-section"><div className="cm-wrap"><div className="cm-section-heading"><h2>שלושה צעדים,{' '}<br /><em>ופחות דברים לזכור לבד.</em></h2></div><div className="cm-steps">{[['01', 'מוסיפים כלי פעם אחת', 'רכב, אופנוע או כלי שיט. הפרטים נשמרים בתיק של הכלי.'], ['02', 'מרכזים תוקפים ומסמכים', 'טסט, ביטוח, טיפולים, קבלות והוצאות נשארים במקום שקל למצוא.'], ['03', 'מקבלים תזכורת לפני המועד', 'מגדירים מתי להזכיר ומוודאים שההתראות פעילות במכשיר.']].map(([num, title, text]) => <div key={num}><span>{num}</span><h3>{title}</h3><p>{text}</p></div>)}</div></div></section>
         <section id="features" className="cm-section cm-product"><div className="cm-wrap cm-product-grid"><div><span className="cm-kicker">{offList ? OFF_LIST_COPY.title : activeScreen.title}</span><h2>תנסו את האפליקציה כאן</h2><p>{demoLive && <><strong>זה לא צילום מסך. אפשר לגלול, לפתוח כלי ולשחק בה.</strong>{' '}</>}{offList ? OFF_LIST_COPY.text : activeScreen.text}</p><div ref={selectRef} className="cm-screen-select" role="group" aria-label="בחירת מסך להדגמה">{screens.map(item => { const isMarked = markedId === item.id; const isPending = pendingId === item.id; return <button key={item.id} type="button" aria-pressed={isMarked} data-state={isPending ? 'pending' : isMarked ? 'marked' : 'plain'} onClick={() => pickScreen(item.id)}><item.icon size={19} /><span>{item.name}</span><i className="cm-screen-slot" aria-hidden="true">{isPending ? <Loader2 size={16} className="cm-screen-spin" /> : <ArrowLeft size={17} />}</i></button>; })}</div><p className="cm-sr-live" role="status" aria-live="polite">{pendingId ? 'טוענים את המסך…' : ''}</p><div className="cm-product-links"><Link to="/website/reminders">על התזכורות</Link><Link to="/website/documents">מסמכים והוצאות</Link></div><div className="cm-benefits">{[[BellRing, 'מועדים ותזכורות'], [FileText, 'מסמכים זמינים'], [Wallet, 'מעקב הוצאות'], [Users, 'שיתוף והרשאות']].map(([Icon, text]) => <span key={text}><Icon size={19} />{text}</span>)}</div></div><MarketingDemoEmbed gotoScreen={requestedId} onStatusChange={onDemoStatus} src={`/marketing/${activeScreen.image}.${activeScreen.extension || 'webp'}`} alt={`${activeScreen.name} באפליקציה, במסגרת להמחשה`} screenName={activeScreen.name} onEnlarge={() => dialog.current?.showModal()} /></div></section>
