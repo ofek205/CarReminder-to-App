@@ -30,6 +30,7 @@ import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { useAuth } from '@/components/shared/GuestContext';
 import useIsAdmin from '@/hooks/useIsAdmin';
+import useAccountPlanRollup from '@/hooks/useAccountPlanRollup';
 import {
   describeOverrides, exceptionUrgency, daysUntil, isOverCap, summarise,
 } from '@/lib/planExceptions';
@@ -42,6 +43,88 @@ const URGENCY_BADGE = {
 };
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('he-IL') : '');
+
+/**
+ * PlanDistribution — how many accounts sit on each plan.
+ *
+ * The screen below it lists EXCEPTIONS only, so until now nothing anywhere
+ * answered "how many accounts are on each plan". That is the question the
+ * whole monetization effort is judged by, and it had no home.
+ *
+ * ⚠️ IT COUNTS SUBSCRIPTION ROWS, NOT ACCOUNTS, AND THE COPY SAYS SO. An
+ * account with no row resolves to free through account_plan()'s
+ * `coalesce(..., 'free')`, so the free number here is a floor rather than a
+ * total. Presenting it as a total would overstate precision in the one
+ * direction that matters, and the fix is a sentence rather than a silent
+ * approximation.
+ *
+ * Ordered by sort_order from plan_limits, so the ladder reads in price order
+ * and a plan added later lands in the right place without touching this file.
+ */
+function PlanDistribution() {
+  const { rows, plans, isLoading, isError, refetch } = useAccountPlanRollup();
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4" aria-hidden="true">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="rounded-xl border border-gray-200 bg-white p-3">
+            <div className="h-7 w-10 rounded bg-gray-100 animate-pulse" />
+            <div className="h-3 w-16 rounded bg-gray-100 animate-pulse mt-2" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-3 mb-4 flex items-center justify-between gap-3">
+        <p className="text-xs text-red-700">לא הצלחנו לטעון את ההתפלגות.</p>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="text-xs font-bold text-red-700 underline shrink-0"
+          style={{ minHeight: 32 }}
+        >
+          נסה שוב
+        </button>
+      </div>
+    );
+  }
+
+  if (!plans.length) return null;
+
+  const counts = {};
+  for (const r of rows) {
+    const code = r.plan || 'free';
+    counts[code] = (counts[code] || 0) + 1;
+  }
+
+  return (
+    <div className="mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {plans.map((p) => {
+          const paid = Number(p.price_ils_month) > 0;
+          return (
+            <div
+              key={p.plan}
+              className={`rounded-xl border p-3 ${paid
+                ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                : 'text-gray-700 bg-gray-50 border-gray-200'}`}
+            >
+              <p className="text-2xl font-bold leading-none" dir="ltr">{counts[p.plan] || 0}</p>
+              <p className="text-[11px] font-semibold mt-1">{p.label_he || p.plan}</p>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-gray-500 mt-1.5">
+        נספרות <span dir="ltr">{rows.length}</span> רשומות מנוי. חשבון שאין לו רשומה נפתר לחינם, ולכן מספר החינם הוא רצפה ולא סך הכול.
+      </p>
+    </div>
+  );
+}
 
 export default function AdminPlans() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -136,9 +219,11 @@ export default function AdminPlans() {
       <div className="mb-4">
         <h1 className="text-xl font-bold text-gray-900">מסלולים וחריגים</h1>
         <p className="text-xs text-gray-500">
-          כל חשבון שמצבו אינו סטנדרטי: מענק אדמין או מגבלות מותאמות
+          ההתפלגות על פני כל החשבונות, ומתחתיה כל חשבון שמצבו אינו סטנדרטי
         </p>
       </div>
+
+      <PlanDistribution />
 
       {/* Summary. "ללא תפוגה" leads, because that is the number that leaks. */}
       {!isLoading && !isError && rows.length > 0 && (
