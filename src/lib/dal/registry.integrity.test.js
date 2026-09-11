@@ -47,7 +47,13 @@ for (const file of walk(SRC)) {
   if (rel.includes('src/lib/dal/commands/')) continue;
   const lines = readFileSync(file, 'utf8').split('\n');
   lines.forEach((line, i) => {
-    const re = /dal\.run\(\s*'([^']+)'/g;
+    // `runOrThrow(` counts too. It is the thin wrapper some screens put
+    // around dal.run so that an envelope command's failure actually throws,
+    // and it takes the SAME command-name string as its first argument. Left
+    // out, ten PostCard call sites would silently leave this scan and a typo
+    // in one of them would reach production unchallenged: exactly the hole
+    // this test exists to close, reopened by a rename.
+    const re = /(?:dal\.run|runOrThrow)\(\s*'([^']+)'/g;
     let m;
     while ((m = re.exec(line))) {
       // Skip the doc placeholder in registry.js's header comment.

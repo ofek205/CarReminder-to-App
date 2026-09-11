@@ -16,6 +16,35 @@ import CommentSection from './CommentSection';
 import ReportDialog from './ReportDialog';
 import ConfirmDeleteDialog from '../shared/ConfirmDeleteDialog';
 
+
+/**
+ * Run a DAL command and throw if it failed.
+ *
+ * ⚠️ THIS EXISTS BECAUSE THE catch BLOCKS BELOW WERE DEAD. Every community
+ * interaction command declares `returnsEnvelope`, so `dal.run` resolves to
+ * `{ data, error }` instead of throwing (src/lib/dal/run.js:74). A failed
+ * like, reaction, save or post delete therefore resolved cleanly: the
+ * optimistic rollback never ran, and the error toast never appeared. On a
+ * delete that is the costly one, since the post looks gone until the refetch
+ * puts it back.
+ *
+ * ⚠️ AND IT IS NOT A REGRESSION FROM THE DAL MIGRATION. On main these were
+ * raw table-client mutations, which likewise resolve with an error rather
+ * than throwing, so the same catch blocks were equally dead there. The seam
+ * migration preserved the behaviour faithfully; this fixes the original bug.
+ *
+ * (Written without the literal call form on purpose: the seam test in
+ * registry.integrity.test.js scans raw lines and would read the example in
+ * this comment as a real direct write.)
+ *
+ * `res?.error` is deliberately loose: a command that throws instead of
+ * returning an envelope simply never reaches the check.
+ */
+async function runOrThrow(name, payload) {
+  const res = await dal.run(name, payload);
+  if (res?.error) throw res.error;
+  return res;
+}
 function timeAgo(date) {
   try { return formatDistanceToNow(new Date(date), { addSuffix: false, locale: he }); }
   catch { return ''; }
@@ -144,14 +173,14 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     try {
       if (prevLiked) {
         const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await dal.run('community.likeRemove', { id: data.id });
+        if (data) await runOrThrow('community.likeRemove', { id: data.id });
       } else {
         if (myReaction) {
           const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-          if (data) await dal.run('community.reactionRemove', { id: data.id });
+          if (data) await runOrThrow('community.reactionRemove', { id: data.id });
           setOptReaction(false);
         }
-        await dal.run('community.likeAdd', { userId: user.id, postId: post.id });
+        await runOrThrow('community.likeAdd', { userId: user.id, postId: post.id });
       }
       await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
       setOptLiked(null);
@@ -177,15 +206,15 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     try {
       if (prevLiked) {
         const { data } = await supabase.from('community_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await dal.run('community.likeRemove', { id: data.id });
+        if (data) await runOrThrow('community.likeRemove', { id: data.id });
       }
       if (toggling) {
         const { data } = await supabase.from('community_reactions').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await dal.run('community.reactionRemove', { id: data.id });
+        if (data) await runOrThrow('community.reactionRemove', { id: data.id });
       } else if (prevReaction) {
-        await dal.run('community.reactionUpdate', { userId: user.id, postId: post.id, emoji });
+        await runOrThrow('community.reactionUpdate', { userId: user.id, postId: post.id, emoji });
       } else {
-        await dal.run('community.reactionAdd', { userId: user.id, postId: post.id, emoji });
+        await runOrThrow('community.reactionAdd', { userId: user.id, postId: post.id, emoji });
       }
       await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
       setOptReaction(null);
@@ -208,9 +237,9 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     try {
       if (prevSaved) {
         const { data } = await supabase.from('community_saved').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
-        if (data) await dal.run('community.savedRemove', { id: data.id });
+        if (data) await runOrThrow('community.savedRemove', { id: data.id });
       } else {
-        await dal.run('community.savedAdd', { userId: user.id, postId: post.id });
+        await runOrThrow('community.savedAdd', { userId: user.id, postId: post.id });
       }
       await queryClient.invalidateQueries({ queryKey: ['community_interactions'] });
       setOptSaved(null);
@@ -244,7 +273,7 @@ export default function PostCard({ post, T, canComment, commentCount, vehicle, o
     setConfirmDeleteOpen(false);
     setDeleting(true);
     try {
-      await dal.run('community.postDelete', { id: post.id });
+      await runOrThrow('community.postDelete', { id: post.id });
       queryClient.invalidateQueries({ queryKey: ['community_posts', post.domain] });
     } catch { toast.error('שגיאה במחיקה'); }
     setDeleting(false);
