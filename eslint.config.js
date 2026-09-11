@@ -87,6 +87,13 @@ export default [
     rules: {
       "no-unused-vars": "off",
       "react/jsx-uses-vars": "error",
+      // no-undef does NOT see an undefined COMPONENT in JSX, only a bare
+      // identifier. That blind spot let <ScanReviewSheet> ship without its
+      // import in 16c1114 (2026-05-27) and crash the business expense
+      // editor on open for three and a half months, while lint stayed
+      // green the whole time. One error across all of src/, fixed in this
+      // same commit.
+      "react/jsx-no-undef": "error",
       "react/jsx-uses-react": "error",
       "unused-imports/no-unused-imports": "error",
       "unused-imports/no-unused-vars": [
