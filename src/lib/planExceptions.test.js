@@ -1,10 +1,26 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import {
   limitText, describeOverrides, exceptionUrgency, daysUntil, isOverCap, summarise, toWireOverride, endOfDayIso,
 } from './planExceptions';
 
 const DAY = 86_400_000;
 const NOW = new Date('2026-09-08T12:00:00Z').getTime();
+
+/*
+ * Freeze the clock to NOW.
+ *
+ * The fixtures are anchored to a fixed NOW, but summarise() calls
+ * exceptionUrgency(r) WITHOUT a `now` argument, so that path fell through to
+ * the real Date.now(). The row written as "expires in 3 days" therefore meant
+ * 2026-09-11T12:00:00Z in absolute terms, and on 2026-09-11 the real clock
+ * reached it: the row reclassified from 'soon' to 'expired' and the suite went
+ * red on a date rather than on a change. It blocked pushes for everyone.
+ *
+ * Only Date is faked; timers are left real so nothing else in the file
+ * changes behaviour.
+ */
+beforeAll(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW); });
+afterAll(() => { vi.useRealTimers(); });
 
 const row = (over = {}) => ({
   account_id: 'a1',
