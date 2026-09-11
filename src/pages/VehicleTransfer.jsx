@@ -38,6 +38,7 @@ import {
 import { C } from '@/lib/designTokens';
 import { capWallAction } from '@/lib/billingGate';
 import { toastError } from '@/lib/userErrorReport';
+import { rpcErrorCode } from '@/lib/rpcErrors';
 
 // Errors raised by accept_vehicle_transfer / decline_vehicle_transfer.
 //
@@ -69,9 +70,8 @@ function acceptErrorCopy(code) {
   return ACCEPT_ERROR_COPY[code];
 }
 
-// Supabase raises the name inside a longer message. Same scrape the share
-// dialog uses, so the two behave identically on an unmapped code.
-const codeOf = (error) => (error?.message || '').match(/[a-z_]+/)?.[0] || '';
+// The scrape lives in @/lib/rpcErrors — it was written six times across this
+// project before it was written once.
 
 const fmtDate = (d) => {
   if (!d) return null;
@@ -120,19 +120,17 @@ export default function VehicleTransfer() {
     } catch { /* treated as signed out */ }
     setSignedIn(!!user);
 
-    // The preview works from a token only. Someone who arrived from the
-    // in-app notification has an id instead — they are signed in and the
-    // notification already carried the vehicle label, so the offer card
-    // renders from what the RPC returns at accept time rather than blocking
-    // the screen on a lookup they do not need.
-    if (!token) {
-      setOffer(null);
-      setStatus('offer');
-      return;
-    }
-
     try {
-      const { data, error } = await dal.run('vehicleTransfer.preview', { token });
+      // BOTH identifiers, so the in-app recipient sees the same card as a
+      // stranger holding a link. An earlier version previewed by token only,
+      // which left the ?id= path — the common one for an existing user —
+      // approving a transfer on a generic card with no counts, no date range
+      // and no vehicle named. Less information for the person the app
+      // already knows is the wrong way round.
+      const { data, error } = await dal.run('vehicleTransfer.preview', {
+        token,
+        transferId,
+      });
       if (error) {
         setStatus('error');
         setMessage('לא הצלחנו לטעון את ההצעה. נסה/י שוב.');
@@ -172,7 +170,7 @@ export default function VehicleTransfer() {
         token: token || null,
       });
       if (error) {
-        const msg = acceptErrorCopy(codeOf(error)) || 'לא הצלחנו להשלים את ההעברה. נסה/י שוב.';
+        const msg = acceptErrorCopy(rpcErrorCode(error)) || 'לא הצלחנו להשלים את ההעברה. נסה/י שוב.';
         toastError(msg, { action: 'vehicle_transfer_accept', err: error });
         if (import.meta.env.DEV) console.warn('accept_vehicle_transfer:', error);
         setActing(null);
@@ -210,7 +208,7 @@ export default function VehicleTransfer() {
         token: token || null,
       });
       if (error) {
-        const msg = acceptErrorCopy(codeOf(error)) || 'לא הצלחנו לדחות את ההצעה. נסה/י שוב.';
+        const msg = acceptErrorCopy(rpcErrorCode(error)) || 'לא הצלחנו לדחות את ההצעה. נסה/י שוב.';
         toastError(msg, { action: 'vehicle_transfer_decline', err: error });
         setActing(null);
         return;
@@ -254,18 +252,17 @@ export default function VehicleTransfer() {
                 <Car className="h-10 w-10" style={{ color: C.primary }} />
               </div>
               <h2 className="font-bold text-xl text-gray-900">מעבירים אליך רכב</h2>
-              {offer ? (
-                <p className="text-base text-gray-700 leading-relaxed">
-                  <strong>{offer.sender_name || 'משתמש'}</strong>
-                  {' '}מעביר/ה אליך את <strong>{vehicleLabel}</strong>
-                  {offer.year ? ` ${offer.year}` : ''}
-                  {' '}יחד עם ההיסטוריה שלו.
-                </p>
-              ) : (
-                <p className="text-base text-gray-700 leading-relaxed">
-                  אישור ההעברה יוסיף את הרכב ואת ההיסטוריה שלו לחשבון שלך.
-                </p>
-              )}
+              {/* No fallback branch. status==='offer' is only reached after
+                  the preview returned a row, so an offer with nothing to
+                  describe cannot occur, and a second paragraph for it would
+                  be copy for a state that does not exist. That branch was
+                  live until the ?id= path stopped skipping the preview. */}
+              <p className="text-base text-gray-700 leading-relaxed">
+                <strong>{offer.sender_name || 'משתמש'}</strong>
+                {' '}מעביר/ה אליך את <strong>{vehicleLabel}</strong>
+                {offer.year ? ` ${offer.year}` : ''}
+                {' '}יחד עם ההיסטוריה שלו.
+              </p>
             </div>
 
             {/* What is actually in the package. Counts and a date range, never

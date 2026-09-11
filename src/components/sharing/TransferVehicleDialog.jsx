@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
+import { rpcErrorCode } from '@/lib/rpcErrors';
 import { C } from '@/lib/designTokens';
 import { useAuth } from '@/components/shared/GuestContext';
 import { rememberShareEmail } from '@/lib/recentShareEmails';
@@ -102,7 +103,7 @@ export default function TransferVehicleDialog({ open, onOpenChange, vehicle }) {
         manifest,
       });
       if (error) {
-        const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
+        const code = rpcErrorCode(error);
         const msg = TRANSFER_ERROR_COPY[code] || `שגיאה בהעברה: ${error.message}`;
         toastError(msg, { action: 'transfer_vehicle_send', err: error });
         if (import.meta.env.DEV) console.warn('transfer_vehicle_to_email error:', error);

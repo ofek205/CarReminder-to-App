@@ -64,7 +64,15 @@ defineCommand('vehicleTransfer.offer', {
 // a stranger guessing tokens learns nothing from the difference.
 defineCommand('vehicleTransfer.preview', {
   ...online,
-  run: ({ token }) => supabase.rpc('preview_vehicle_transfer', { p_token: token }),
+  // Either identifier. A token IS the authorisation, so that branch answers
+  // anyone. An id is not a secret — it travels in notification payloads and
+  // URLs — so the server additionally requires a signed-in caller whose own
+  // email matches the invited address before it answers.
+  run: ({ token, transferId }) =>
+    supabase.rpc('preview_vehicle_transfer', {
+      p_token: token ?? null,
+      p_transfer_id: transferId ?? null,
+    }),
 });
 
 // Recipient: take it. One transaction on the server creates the vehicle in the

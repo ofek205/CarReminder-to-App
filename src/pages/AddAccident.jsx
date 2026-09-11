@@ -20,6 +20,7 @@ import { Link } from 'react-router-dom';
 import { lookupVehicleByPlate } from '../services/vehicleLookup';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
+import { freezeMessageFor } from '@/lib/rpcErrors';
 import PlateScanButton from '@/components/shared/PlateScanButton';
 import { useAuth } from '../components/shared/GuestContext';
 import { DEMO_ACCIDENTS, DEMO_VEHICLE } from '../components/shared/demoVehicleData';
@@ -389,9 +390,12 @@ export default function AddAccident() {
     } catch (err) {
       console.error('Error saving accident:', err);
       const isTimeout = err?.message === 'save-timeout';
+      // Same trigger, same reasoning as MaintenanceSection: accidents carry
+      // the freeze too, so this screen can be refused for a reason that has
+      // nothing to do with the report being saved.
       const msg = isTimeout
         ? 'השמירה נמשכת זמן רב מהצפוי. בדוק את החיבור ונסה שוב — התמונות עלולות להיות גדולות.'
-        : 'אירעה שגיאה בשמירת הדיווח';
+        : (freezeMessageFor(err) || 'אירעה שגיאה בשמירת הדיווח');
       setSystemError(msg);
       toastError(msg, { action: 'accident_save' });
     } finally {

@@ -24,6 +24,7 @@ import { withTimeout } from '@/lib/supabaseQuery';
 import { ArrowLeftRight, Loader2, Snowflake } from 'lucide-react';
 import { toast } from 'sonner';
 import { toastError } from '@/lib/userErrorReport';
+import { rpcErrorCode } from '@/lib/rpcErrors';
 import { C } from '@/lib/designTokens';
 
 const fmtDate = (d) => {
@@ -36,7 +37,7 @@ export default function PendingTransferBanner({ vehicleId, isOwner }) {
   const queryClient = useQueryClient();
   const [cancelling, setCancelling] = useState(false);
 
-  const { data: pending, isError, refetch } = useQuery({
+  const { data: pending, isError, isLoading, refetch } = useQuery({
     queryKey: ['vehicle-transfers', vehicleId],
     queryFn: async () => {
       // withTimeout even though this goes through the DAL rather than a bare
@@ -67,7 +68,7 @@ export default function PendingTransferBanner({ vehicleId, isOwner }) {
     try {
       const { error } = await dal.run('vehicleTransfer.cancel', { transferId: pending.id });
       if (error) {
-        const code = (error.message || '').match(/[a-z_]+/)?.[0] || '';
+        const code = rpcErrorCode(error);
         toastError(
           code === 'transfer_not_pending'
             ? 'ההצעה כבר טופלה'
@@ -99,6 +100,20 @@ export default function PendingTransferBanner({ vehicleId, isOwner }) {
           className="text-xs font-bold shrink-0" style={{ color: C.primary }}>
           נסה שוב
         </button>
+      </div>
+    );
+  }
+
+  // A frozen vehicle must not LOOK unfrozen while the lookup is in flight.
+  // Rendering null here would give a short window in which the page offers
+  // edits that the database is already refusing, and the user meets the
+  // refusal with no explanation on screen.
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl p-3 mb-3 flex items-center gap-2"
+        style={{ background: C.grayBg, border: `1px solid ${C.gray200}` }} dir="rtl">
+        <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: C.gray400 }} />
+        <span className="text-xs" style={{ color: C.gray500 }}>בודק אם יש הצעת העברה פתוחה</span>
       </div>
     );
   }

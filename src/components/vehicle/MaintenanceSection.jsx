@@ -1,4 +1,5 @@
 import { toastError, toast } from '@/lib/userErrorReport';
+import { freezeMessageFor } from '@/lib/rpcErrors';
 import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
@@ -508,7 +509,11 @@ export default function MaintenanceSection({ vehicle }) {
       setEditingId(null);
       setDialogOpen(false);
     } catch (err) {
-      toastError('לא הצלחנו לשמור. נסה שוב', { action: 'maint_save', err });
+      // A vehicle with an open transfer offer, or one already handed over,
+      // is refused by a database trigger. "נסה שוב" is the worst possible
+      // answer there: it invites the user to retry something that cannot
+      // ever succeed, and never mentions the state that is blocking them.
+      toastError(freezeMessageFor(err) || 'לא הצלחנו לשמור. נסה שוב', { action: 'maint_save', err });
       reportUserError('save_maintenance', err, { vehicleId: vehicle?.id });
     } finally {
       setSaving(false);
@@ -521,7 +526,7 @@ export default function MaintenanceSection({ vehicle }) {
       queryClient.invalidateQueries({ queryKey: ['maintenance-logs-v2', vehicle.id] });
     } catch (err) {
       console.error('Delete maintenance error:', err);
-      toastError('שגיאה במחיקת טיפול', { action: 'maint_delete', err });
+      toastError(freezeMessageFor(err) || 'שגיאה במחיקת טיפול', { action: 'maint_delete', err });
       reportUserError('delete_maintenance', err, { vehicleId: vehicle?.id });
     }
   };
