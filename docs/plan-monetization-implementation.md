@@ -17,7 +17,7 @@ create table public.plan_limits (
   plan                   text primary key,   -- 'free' | 'p9' | 'p19' | 'p50'
   label_he               text not null,
   price_ils_month        numeric(6,2) not null,
-  max_vehicles           int,                -- 5 / 10 / 30 / NULL
+  max_vehicles           int,                -- החי: 10 / 15 / 30 / NULL (הוכרע 2026-09-11). הזרע ההיסטורי היה 5 / 10 / 30 / NULL
   ai_daily_cap           int,                -- fair-use; NULL = ללא הגבלה
   ai_lifetime_teaser     int,                -- free בלבד: 1
   plate_checks_per_month int,                -- 3 / NULL
