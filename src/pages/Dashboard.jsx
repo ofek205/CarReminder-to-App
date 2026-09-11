@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { SYSTEM_POPUP_IDS, logSystemPopupEvent } from '@/lib/popups/systemPopups';
 import { db } from '@/lib/supabaseEntities';
 import { dal } from '@/lib/dal';
+import { isDemoMode } from '@/lib/demoMode';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/supabaseQuery';
 import { MEMBER_STATUS, isActiveMember } from '@/lib/enums';
@@ -1292,7 +1293,14 @@ export default function Dashboard() {
 
     const hasGuestVehicles = guestVehicles.length > 0;
     const vehiclesToShow = hasGuestVehicles ? guestVehicles : [DEMO_VEHICLE, DEMO_VESSEL];
-    const isShowingDemo = vehiclesToShow.some(v => v._isDemo);
+    // The two demo notices below (the yellow "these are sample vehicles"
+    // strip and the "sign up to keep your data" button) are conversion
+    // prompts aimed at a guest who is about to lose their work. Inside the
+    // marketing preview neither is true: the visitor has no data to lose,
+    // and the page already captions the frame with "הנתונים להמחשה בלבד".
+    // Same reasoning that already suppresses GuestBanner, the welcome popup
+    // and the update banner in demo mode.
+    const isShowingDemo = !isDemoMode() && vehiclesToShow.some(v => v._isDemo);
 
     // Build reminders from vehicle dates.
     //
