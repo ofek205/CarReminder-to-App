@@ -73,7 +73,7 @@ export default function MarketingReviewsPhone() {
     return () => { active = false; };
   }, []);
 
-  return <MarketingPhone trimGuest={false} className="cm-reviews-device">
+  return <MarketingPhone className="cm-reviews-device">
     <div className="cm-reviews-screen" aria-label="חוות דעת שנכתבו ב־Car Reminder">
       <header className="cm-reviews-header">
         <div className="cm-reviews-appbar" aria-hidden="true"><Menu /><strong>חוות דעת משתמשים</strong><Bell /></div>
