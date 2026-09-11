@@ -9,7 +9,7 @@ import {
 import { marketingEvent } from '@/lib/marketingEvents';
 
 const faqs = [
-  ['האם התזכורת מזהה ילד ברכב?', 'לא. Car Reminder אינה משתמשת בחיישן מושב ואינה יודעת אם יש ילד ברכב. היא מזהה את סיום הנסיעה לפי ניתוק מחיבור ה-Bluetooth שבחרתם ומזכירה לכם לבדוק.'],
+  ['האם זו מערכת למניעת שכחת ילדים ברכב?', 'Car Reminder היא אפליקציית תזכורת וכלי עזר נוסף. היא אינה חיישן ואינה יודעת אם יש ילד ברכב. בסיום הנסיעה היא מזכירה לכם לבדוק את המושב האחורי.'],
   ['באילו מכשירים הפיצ׳ר זמין?', 'התזכורת זמינה באפליקציית Car Reminder ל-iPhone ול-Android.'],
   ['האם השימוש בתזכורת עולה כסף?', 'לא. תזכורת הבטיחות כלולה בחינם ב-Car Reminder ואינה דורשת רכישה נפרדת.'],
   ['האם צריך להתקין ציוד ברכב?', 'לא. צריך מערכת Bluetooth שהטלפון יכול להתחבר אליה. בוחרים באפליקציה את המכשיר המזווג של הרכב.'],
@@ -101,7 +101,7 @@ function NotificationScreen() {
 }
 
 const walkthroughSteps = [
-  { title: 'מבינים מה התזכורת עושה', text: 'בכניסה הראשונה מופיע הסבר קצר שמבהיר שההתראה היא שכבת עזר ואינה מחליפה בדיקה ידנית.', Screen: IntroScreen },
+  { title: 'מבינים מה התזכורת עושה', text: 'בכניסה הראשונה מופיע הסבר קצר על זיהוי סיום הנסיעה ועל ההרשאות שנדרשות לקבלת ההתראה.', Screen: IntroScreen },
   { title: 'בוחרים רכב ומפעילים', text: 'מסמנים את חיבור ה-Bluetooth של הרכב ורואים מיד אם ההרשאות וההגדרות מאפשרות לתזכורת לפעול.', Screen: ActiveScreen },
   { title: 'מקבלים תזכורת בסיום', text: 'כשהטלפון מתנתק מהרכב מתקבלת התראה ברורה. בודקים את המושב האחורי ואז מאשרים במסך.', Screen: NotificationScreen },
 ];
@@ -158,9 +158,9 @@ export default function MarketingChildReminderPage() {
       <div className="cm-wrap cm-child-page-hero-grid">
         <div className="cm-child-page-copy">
           <Link className="cm-text-link" to="/website">חזרה לעמוד הראשי <ArrowLeft size={17} /></Link>
-          <span className="cm-kicker">חינמית וזמינה ב-iPhone וב-Android</span>
-          <h1>תזכורת לבדוק את הילדים ברכב{' '}<br /><em>בסיום הנסיעה.</em></h1>
-          <p>Car Reminder מזהה שהטלפון התנתק ממערכת ה-Bluetooth שבחרתם ומזכירה לבדוק שכל הילדים יצאו מהרכב.</p>
+          <span className="cm-kicker">כלי חינמי ל-iPhone ול-Android</span>
+          <h1>אפליקציה חינמית לתזכורת{' '}<br /><em>ילדים ברכב.</em></h1>
+          <p>Car Reminder מוסיפה הרגל קטן לסוף הנסיעה: כשהטלפון מתנתק מהרכב, מתקבלת תזכורת לבדוק את המושב האחורי. ההפעלה בחינם ואינה דורשת התקנת ציוד נוסף.</p>
           <div className="cm-child-page-actions"><a className="cm-button cm-gold" href="#how-it-works">איך מפעילים? <ArrowLeft size={17} /></a></div>
           <p className="cm-child-safety-line"><ShieldCheck /> התזכורת אינה מזהה ילד ברכב ואינה מחליפה בדיקה ידנית.</p>
         </div>
@@ -171,9 +171,9 @@ export default function MarketingChildReminderPage() {
     <section className="cm-section cm-child-why">
       <div className="cm-wrap cm-child-narrow">
         <span className="cm-kicker">עוד הרגל קטן ברגע חשוב</span>
-        <h2>שינוי בשגרה יכול לקרות לכל אחד.</h2>
+        <h2>איך מצמצמים את הסיכון לשכחת ילדים ברכב?</h2>
         <p>עייפות, מתח, הסחת דעת או נסיעה שלא מתנהלת כרגיל עלולים לגרום גם לאנשים אחראים לפעול מתוך הרגל. לכן כדאי לבנות כמה שכבות של תשומת לב: להביט במושב האחורי בכל יציאה, להשאיר ליד הילד חפץ שתצטרכו לקחת, ולהפעיל תזכורת נוספת בטלפון.</p>
-        <div className="cm-child-source-note"><ShieldCheck /><p><strong>תזכורת היא שכבת עזר.</strong> משרד הבריאות מדגיש שכל אמצעי טכנולוגי מסייע לנהג לשאת באחריות ואינו מחליף את הבדיקה שלו.</p></div>
+        <div className="cm-child-source-note"><ShieldCheck /><p><strong>בונים יותר מהרגל אחד.</strong> משרד הבריאות ממליץ לאמץ הרגלי מניעה קבועים ולהתייחס לכל אמצעי טכנולוגי ככלי עזר נוסף.</p></div>
       </div>
     </section>
 
@@ -215,7 +215,7 @@ export default function MarketingChildReminderPage() {
     </section>
 
     <section className="cm-child-resources">
-      <div className="cm-wrap"><span className="cm-kicker">מקורות והמשך קריאה</span><h2>הרגלי בטיחות שכדאי לאמץ</h2><div><a href="https://me.health.gov.il/parenting/raising-children/safe-environment/outdoor-safety/child-unattended-car/" target="_blank" rel="noopener noreferrer">משרד הבריאות: מניעת שכחת ילדים ברכב <ExternalLink /></a><a href="https://www.nhtsa.gov/campaign/heatstroke" target="_blank" rel="noopener noreferrer">NHTSA: מניעת פגיעת חום בילדים ברכב <ExternalLink /></a></div></div>
+      <div className="cm-wrap"><span className="cm-kicker">מקורות והמשך קריאה</span><h2>הרגלי בטיחות שכדאי לאמץ</h2><div><a href="https://me.health.gov.il/parenting/raising-children/safe-environment/outdoor-safety/child-unattended-car/" target="_blank" rel="noopener noreferrer">משרד הבריאות: מניעת שכחת ילדים ברכב <ExternalLink /></a><a href="https://www.nhtsa.gov/campaign/heatstroke" target="_blank" rel="noopener noreferrer">NHTSA: מניעת פגיעת חום בילדים ברכב <ExternalLink /></a><Link to="/website/reminders">תזכורות נוספות ב-Car Reminder <ArrowLeft /></Link></div></div>
     </section>
 
     <section className="cm-child-final"><div className="cm-wrap"><Smartphone /><span className="cm-kicker">זמין ב-iPhone וב-Android</span><h2>מוסיפים עוד רגע של בדיקה{' '}<br />לסוף כל נסיעה.</h2><p>הפיצ׳ר כלול בחינם ב-Car Reminder.</p><PlatformLinks /><small>זמינות ההתראה תלויה בחיבור ובהרשאות המכשיר. תמיד בדקו את הרכב בעצמכם.</small></div></section>
