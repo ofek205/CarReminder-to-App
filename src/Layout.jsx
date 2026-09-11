@@ -1032,7 +1032,7 @@ function LayoutInner({ children }) {
           onClose here also writes to sessionStorage, which is shared with the
           real app on this origin, so suppressing it avoids that too. */}
       <SafeComponent label="GuestWelcomePopup">
-        <GuestWelcomePopup open={!demoMode && isGuest && !guestPopupClosed} onClose={() => { setGuestPopupClosed(true); sessionStorage.setItem('guest_popup_closed', '1'); }} />
+        <GuestWelcomePopup open={!demoMode && !isPublicRoute && isGuest && !guestPopupClosed} onClose={() => { setGuestPopupClosed(true); sessionStorage.setItem('guest_popup_closed', '1'); }} />
       </SafeComponent>
       <SafeComponent label="WelcomePopup">
         <WelcomePopup open={welcomeState !== null} isReturningUser={welcomeState?.isReturning ?? false} userName={welcomeState?.userName ?? ''} onClose={() => setWelcomeState(null)} />
