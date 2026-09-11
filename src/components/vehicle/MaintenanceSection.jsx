@@ -2,8 +2,9 @@ import { toastError, toast } from '@/lib/userErrorReport';
 import React, { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/shared/GuestContext';
-import { Wrench, Plus, Trash2, AlertTriangle, Settings, Camera, Upload, FileText, X, Sparkles, Loader2, Edit } from 'lucide-react';
+import { Wrench, Plus, Trash2, AlertTriangle, Settings, Camera, Upload, FileText, X, Sparkles, Loader2, Edit, Download } from 'lucide-react';
 import { C, getTheme } from '@/lib/designTokens';
+import ExportHistorySheet from './ExportHistorySheet';
 import { isVessel as checkVessel } from '../shared/DateStatusUtils';
 import { BLUR_CLOSE_DELAY_MS } from '@/lib/timingConstants';
 import { Anchor } from 'lucide-react';
@@ -40,6 +41,7 @@ export default function MaintenanceSection({ vehicle }) {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState('טיפול'); // 'טיפול' or 'תיקון'
+  const [exportOpen, setExportOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serviceSize, setServiceSize] = useState('small');
   const [receiptPhoto, setReceiptPhoto] = useState(null);
@@ -557,6 +559,14 @@ export default function MaintenanceSection({ vehicle }) {
                 </>
               );
             })()}
+            {logs.length > 0 && (
+              <button type="button" onClick={() => setExportOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-[0.95]"
+                style={{ background: C.light, color: T.primary, border: `1px solid ${C.border}` }}
+                aria-label="ייצוא היסטוריית הרכב">
+                <Download className="w-3 h-3" /> ייצוא
+              </button>
+            )}
           </div>
           <div className="flex gap-1.5">
             <button onClick={() => openDialog('טיפול')}
@@ -1001,6 +1011,12 @@ export default function MaintenanceSection({ vehicle }) {
         onConfirm={handleReviewConfirm}
         onSkip={handleReviewSkip}
         onBack={handleReviewBack}
+      />
+      <ExportHistorySheet
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        vehicle={vehicle}
+        logs={logs}
       />
     </>
   );
