@@ -810,7 +810,7 @@ function LayoutInner({ children }) {
     sessionStorage.setItem(key, '1');
     // Public static pages aren't features. skip to keep the dashboard clean.
     const SKIP = ['/', '/Auth', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
-    if (SKIP.includes(location.pathname)) return;
+    if (SKIP.includes(location.pathname) || location.pathname.startsWith('/website')) return;
     // The analytics table aggregates per (event, date). so encode the page
     // into the event name to get one row per (page, day).
     const page = location.pathname.replace(/^\//, '').split('?')[0] || 'root';
@@ -830,7 +830,7 @@ function LayoutInner({ children }) {
   // `/Dashboard`, which is the default anyway.
   useEffect(() => {
     const REMEMBER_SKIP = ['/', '/Auth', '/PrivacyPolicy', '/TermsOfService', '/DeleteAccount'];
-    if (REMEMBER_SKIP.includes(location.pathname)) return;
+    if (REMEMBER_SKIP.includes(location.pathname) || location.pathname.startsWith('/website')) return;
     try {
       sessionStorage.setItem('cr_last_route', location.pathname);
     } catch {}
