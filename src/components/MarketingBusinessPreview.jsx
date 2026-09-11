@@ -8,32 +8,32 @@ import {
 const views = [
   {
     id: 'overview', label: 'לוח בקרה', icon: LayoutDashboard,
-    image: '/marketing/business-dashboard-real.png',
+    image: '/marketing/business-dashboard-real.webp',
     alt: 'לוח הבקרה העסקי של Car Reminder עם מצב הצי, משימות, הוצאות והתראות',
   },
   {
     id: 'fleet', label: 'צי הרכבים', icon: Car,
-    image: '/marketing/business-fleet-real.png',
+    image: '/marketing/business-fleet-real.webp',
     alt: 'מסך צי הרכבים העסקי של Car Reminder עם חיפוש, מיון וסינון',
   },
   {
     id: 'expenses', label: 'הוצאות וסריקה', icon: Receipt,
-    image: '/marketing/business-expense-real.png',
+    image: '/marketing/business-expense-real.webp',
     alt: 'מסך הוספת הוצאה לרכב עם צילום וסריקת קבלה במערכת העסקית',
   },
   {
     id: 'import', label: 'ייבוא צי', icon: FileSpreadsheet,
-    image: '/marketing/business-bulk-import-real.png',
+    image: '/marketing/business-bulk-import-real.webp',
     alt: 'מסך ייבוא מרובה של רכבים מקובץ אקסל או מרשימת מספרי רישוי',
   },
   {
     id: 'add', label: 'הוספת כלי', icon: CirclePlus,
-    image: '/marketing/business-add-vehicle-real.png',
+    image: '/marketing/business-add-vehicle-real.webp',
     alt: 'מסך הוספת כלי תחבורה למערכת העסקית לפי סוג כלי ומספר רישוי',
   },
   {
     id: 'accidents', label: 'תאונות ודוחות', icon: TriangleAlert,
-    image: '/marketing/business-accident-real.png',
+    image: '/marketing/business-accident-real.webp',
     alt: 'מסך צפייה, הורדה ושיתוף של דוח תאונה במערכת העסקית',
   },
 ];
