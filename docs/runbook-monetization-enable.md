@@ -145,7 +145,16 @@ select count(*) as still_frozen, min(ovr_max_vehicles) as lowest from public.acc
 
 ---
 
-## שלב 2 — `monetization_ui_enabled`. בטוח עכשיו, הכרזה בעתיד
+## שלב 2 — `monetization_ui_enabled`. חייב להישאר כבוי עד אחרי המיזוג
+
+**המצב הנדרש עכשיו, וזו הפקודה שמחזירה אותו אם מישהו הדליק:**
+
+```sql
+update public.app_config set value = 'false'::jsonb, updated_at = now()
+ where key = 'monetization_ui_enabled';
+```
+
+**ורק אחרי שהמיזוג ל-main הושלם ובדקת בייצור**, ההדלקה:
 
 ```sql
 insert into public.app_config (key, value) values ('monetization_ui_enabled', 'true'::jsonb) on conflict (key) do update set value = excluded.value, updated_at = now();
@@ -154,7 +163,21 @@ insert into public.app_config (key, value) values ('monetization_ui_enabled', 't
 **מה זה עושה:** פותח את השורה „המסלול והחיוב" בהגדרות, ודרכה את `/MyPlan`
 ואת `/Plans`. **תצוגה בלבד, אפס אכיפה.**
 
-✅ **ובניגוד למה שגרסה קודמת של הקובץ הזה אמרה, כרגע הוא לא נוגע בייצור בכלל.**
+🔴 **הדגל הזה נמצא דלוק ב-2026-09-11, ובוטל.** הוא היה `true` ב-`app_config`
+בזמן שאף שורה על `main` לא קוראת אותו, כלומר לא הזיק לאיש. הבעיה לא הייתה
+בהווה אלא בעתיד: **דגל שדלוק מראש הופך את המיזוג עצמו להכרזה.** ברגע שהקוד
+שקורא אותו מגיע לייצור הוא מוצא `true`, ו-737 החשבונות רואים מחירים באותה
+שנייה, בלי צעד נפרד ובלי רגע שבו אפשר לבדוק ואז להחליט.
+
+**הכלל שנובע מזה: הדגל נשאר כבוי עד אחרי המיזוג.** קודם ממזגים, ואז בודקים
+בייצור עם חשבון אדמין, **ורק אז** מדליקים. כך תקלה מתגלה ע"י אדם אחד ולא ע"י
+שבע מאות.
+
+**וזה לא עולה כלום בבדיקות:** `useFeatureFlag` מחזיר
+`isAdmin === true || flagValue === true`, אז אדמין רואה את המסכים בפריוויו בין
+אם הדגל דלוק ובין אם לאו.
+
+✅ **ולמה הדלקה מוקדמת נראתה בטוחה:**
 `Settings.jsx` על `main` אינו מזכיר את הדגל, ו-`MyPlan.jsx`, `Plans.jsx`,
 `useAccountPlan` ו-`billingGate` אינם שם. אין בייצור מי שיקרא אותו. הדלקה עכשיו
 מדליקה את המסכים **רק ב-preview של staging**, וזו בדיוק הדרך לבדוק אותם באמת.
