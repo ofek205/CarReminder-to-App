@@ -404,3 +404,12 @@ body:has(.cm-site) #cr-legal-footer{display:none}
 .cm-trust>.cm-wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:42px 72px;align-items:center}.cm-trust-heading{grid-column:1/-1;margin-bottom:0}.cm-trust-proof{display:contents}.cm-trust-reviews{grid-column:2;grid-row:2}.cm-trust>.cm-wrap>.cm-security-panel{grid-column:1;grid-row:2;grid-template-columns:1fr;gap:12px;margin:0;padding:34px}.cm-trust>.cm-wrap>.cm-security-panel .cm-security-map{min-height:320px}.cm-trust>.cm-wrap>.cm-security-panel .cm-security-copy p{margin-bottom:6px}
 @media(max-width:900px){.cm-trust>.cm-wrap{grid-template-columns:1fr;gap:30px}.cm-trust-heading{grid-column:1;grid-row:1}.cm-trust-reviews{grid-column:1;grid-row:2}.cm-trust>.cm-wrap>.cm-security-panel{grid-column:1;grid-row:3;max-width:650px;width:100%;margin:auto}.cm-trust>.cm-wrap>.cm-security-panel .cm-security-map{min-height:330px}}
 @media(max-width:620px){.cm-trust>.cm-wrap{gap:26px}.cm-trust>.cm-wrap>.cm-security-panel{padding:28px 22px}.cm-trust>.cm-wrap>.cm-security-panel .cm-security-map{min-height:0}}
+
+/* Bands float on the page's white instead of butting into each other.
+   Two tinted sections that touch read as one continuous mass: on the home page
+   that happened twice, child-reminder into specialties (#fbf7e8 -> #f0f0e4) and
+   faq into download (#fafbf7 -> #f0f2e6). The margins collapse, so a run of
+   bands is separated by one gap each, never a doubled one. */
+.cm-site{--cm-band-gap:16px}
+.cm-site .cm-check-section,.cm-site .cm-product,.cm-site .cm-child-reminder,.cm-site .cm-specialties,.cm-site .cm-faq,.cm-site .cm-download{margin-block:var(--cm-band-gap)}
+@media(max-width:620px){.cm-site{--cm-band-gap:12px}}
