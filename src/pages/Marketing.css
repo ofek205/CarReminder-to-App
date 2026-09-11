@@ -409,7 +409,10 @@ body:has(.cm-site) #cr-legal-footer{display:none}
    Two tinted sections that touch read as one continuous mass: on the home page
    that happened twice, child-reminder into specialties (#fbf7e8 -> #f0f0e4) and
    faq into download (#fafbf7 -> #f0f2e6). The margins collapse, so a run of
-   bands is separated by one gap each, never a doubled one. */
+   bands is separated by one gap each, never a doubled one.
+   Scoped to direct children of <main>: the child-reminder page reuses .cm-faq
+   inside its own tinted wrapper, where the gap would fill with #f8f7f0 rather
+   than white and separate two blocks that are meant to butt. */
 .cm-site{--cm-band-gap:16px}
-.cm-site .cm-check-section,.cm-site .cm-product,.cm-site .cm-child-reminder,.cm-site .cm-specialties,.cm-site .cm-faq,.cm-site .cm-download{margin-block:var(--cm-band-gap)}
+#cm-main>.cm-check-section,#cm-main>.cm-product,#cm-main>.cm-child-reminder,#cm-main>.cm-specialties,#cm-main>.cm-faq,#cm-main>.cm-download{margin-block:var(--cm-band-gap)}
 @media(max-width:620px){.cm-site{--cm-band-gap:12px}}
