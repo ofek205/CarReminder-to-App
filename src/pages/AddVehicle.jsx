@@ -53,6 +53,7 @@ import { isAiScanEnabled } from '@/lib/aiScanGate';
 import VesselScanWizard from "../components/vehicle/VesselScanWizard";
 import { toast } from "sonner";
 import { toastError } from "@/lib/userErrorReport";
+import { GUEST_VEHICLE_CAP } from "@/contexts/GuestDataContext";
 import { isVehicleCapError, vehicleCapKind } from "@/lib/vehicleCapError";
 import useVehicleCapacity from "@/hooks/useVehicleCapacity";
 import useAccountPlan from "@/hooks/useAccountPlan";
@@ -1009,6 +1010,18 @@ export default function AddVehicle() {
     Object.keys(data).forEach(k => { if (data[k] === '' || data[k] === undefined) delete data[k]; });
 
     if (isGuest) {
+      // ⚠️ The cap is checked HERE, not left to addGuestVehicle's null return.
+      // That function returns null for a full store and for a genuine save
+      // failure alike, so the caller used to report both as
+      // "שגיאה בשמירה הזמנית" — telling a user something broke when they had
+      // simply reached a limit. Invisible while the cap was 20; the common
+      // path now that it is 5.
+      if (guestVehicles.length >= GUEST_VEHICLE_CAP) {
+        hapticFeedback('heavy');
+        toast(`במצב אורח אפשר לשמור עד ${GUEST_VEHICLE_CAP} כלי תחבורה. הירשם בחינם כדי להוסיף עוד, והרכבים שכבר הוספת יעברו איתך.`);
+        return;
+      }
+
       // Save vehicle locally first, then prompt registration
       const saved = addGuestVehicle(data);
       if (saved) {
@@ -1016,6 +1029,7 @@ export default function AddVehicle() {
         setShowGuestSignup(true);
       } else {
         hapticFeedback('heavy');
+        // A real failure now, not a full store: quota is handled above.
         toastError('שגיאה בשמירה הזמנית', { action: 'add_vehicle_draft_save' });
       }
       return;

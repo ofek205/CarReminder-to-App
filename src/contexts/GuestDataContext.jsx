@@ -28,6 +28,22 @@ const VESSEL_ISSUES_KEY    = 'fleet_guest_vessel_issues';
 const CORK_NOTES_KEY       = 'fleet_guest_cork_notes';
 const DEMO_DISMISSED_KEY   = 'fleet_guest_demo_dismissed';
 
+/**
+ * How many vehicles a guest may hold on the device.
+ *
+ * Lowered from 20 to 5 on 2026-09-11 (open question 6). It is NOT a plan
+ * limit and does not belong in plan_limits: a guest has no account and
+ * therefore no plan, and the number exists to make signing up worthwhile,
+ * not to price anything.
+ *
+ * ⚠️ IT GUARDS ADDING ONLY. An existing guest already holding more than this
+ * keeps every vehicle and simply cannot add another, and migration on signup
+ * still carries all of them across (the migration asks for headroom equal to
+ * what it is actually moving). Lowering the number can therefore never
+ * destroy data someone already has on their device.
+ */
+export const GUEST_VEHICLE_CAP = 5;
+
 const DEFAULT_REMINDER_SETTINGS = {
   remind_test_days_before:       14,
   remind_insurance_days_before:  14,
@@ -133,7 +149,7 @@ export function GuestDataProvider({ children }) {
 
   // ── Vehicles ───────────────────────────────────────────────
   const addGuestVehicle = useCallback((vehicleData) => {
-    if (guestVehicles.length >= 20) return null;
+    if (guestVehicles.length >= GUEST_VEHICLE_CAP) return null;
     const cleanData = Object.fromEntries(
       Object.entries(vehicleData).filter(([k]) => !k.startsWith('_'))
     );
