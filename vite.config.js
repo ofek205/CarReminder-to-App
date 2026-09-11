@@ -117,6 +117,20 @@ export default defineConfig(({ command, mode }) => {
           // Split heavy vendor code into its own chunks so the main bundle stays lean.
           // Only code that actually runs on the first page gets bundled into "index".
           manualChunks: {
+            // clsx and tailwind-merge ARE cn(), which 50 files import, so they
+            // load on the first paint of every page including the marketing
+            // site. They must be named BEFORE vendor-charts.
+            //
+            // In the object form of manualChunks a package drags its whole
+            // dependency subtree into the chunk, and recharts depends on clsx.
+            // So clsx, about half a kilobyte, was living inside vendor-charts,
+            // and the entry had to import all 434KB of it to call cn(). The
+            // comment below said charts load only on AdminDashboard; the built
+            // entry disagreed, with a plain `import{c as Ef}from"./vendor-charts"`
+            // whose only use was `twMerge(clsx(...))`.
+            //
+            // Naming them here keeps them out of that subtree.
+            'vendor-cn': ['clsx', 'tailwind-merge'],
             // Charts — only loaded on AdminDashboard (recharts is ~400KB raw)
             'vendor-charts': ['recharts'],
             // Maps — only loaded on FindGarage (leaflet + react-leaflet)
