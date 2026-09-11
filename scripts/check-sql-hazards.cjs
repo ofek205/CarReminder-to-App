@@ -29,15 +29,21 @@
  * only when a file's count RISES above its baseline. Existing debt is
  * grandfathered; new SQL must be clean. `--update-baseline` re-records.
  *
- * STATUS: NOT WIRED IN. This gate runs only when invoked by hand. An earlier
- * version of this comment claimed it was wired into .githooks/pre-push and
- * .github/workflows/production-gates.yml — neither was ever true, and a
- * grep for its name across the repo returns nothing but this file.
+ * STATUS, and read it precisely, because this comment has lied before.
  *
- * Before wiring it up you must run `--update-baseline` once. With no
- * .sql-hazard-baseline.json every finding counts as a regression, and a cold
- * run currently reports 236 hazards across 80 files, so adding it to pre-push
- * as-is would block every push immediately.
+ *   .githooks/pre-push          WIRED, gate 8, since 2026-09-11.
+ *   production-gates.yml        NOT wired. There is no CI backstop.
+ *
+ * An earlier version of this block claimed both, while a grep for the script
+ * name across the whole repo returned nothing but this file. It is the
+ * reason gate 5 (DB Safety) sat automated-on-paper and unautomated in fact,
+ * so the split above is written as two lines that can each be checked rather
+ * than one sentence that can be half true.
+ *
+ * Baselined at the same moment it was wired: 237 hazards across 81 files.
+ * With no .sql-hazard-baseline.json every finding counts as a regression and
+ * a cold run would block every push, which is precisely why it went unwired
+ * for so long. `--update-baseline` re-records after a deliberate change.
  *
  * Complements scripts/sql-ledger.cjs rather than duplicating it: the ledger
  * classifies re-run safety and records what was applied; this finds security

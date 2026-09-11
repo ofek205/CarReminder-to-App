@@ -310,7 +310,7 @@ git checkout staging && git merge main && git push origin staging
 | שכבה | מתי | מה |
 |---|---|---|
 | `.githooks/pre-commit` | כל commit מקומי | קבצי סוד (`.env`/`.pem`/`.key`), סמני קונפליקט, מפתחות מקודדים (`sk-`/`AKIA`/`ghp_`), eslint על הקבצים בסטייג' |
-| `.githooks/pre-push` | כל push מקומי | **שבע** בדיקות: אזהרת main, `npm run lint`, `npm test`, `npm run build`, שער query-timeout, שער זהות view-as, שער statement משוכפל ב-SQL |
+| `.githooks/pre-push` | כל push מקומי | **שמונה** בדיקות: אזהרת main, `npm run lint`, `npm test`, `npm run build`, שער query-timeout, שער זהות view-as, שער statement משוכפל ב-SQL, שער SQL hazards |
 | `.claude/hooks/commit-gate.cjs` | כל פקודת git שיוצרת או משכתבת קומיט של קלוד (commit/push/merge/pull/rebase/cherry-pick/revert/am) | דורש אסימון APPROVED טרי מ-commit-gatekeeper |
 | `production-gates.yml` | **PR ל-main בלבד** | **ארבעה** jobs: build, lint, query-timeout, view-as identity |
 
@@ -320,7 +320,9 @@ git checkout staging && git merge main && git push origin staging
 
 > **שתי נקודות שהמסמך הזה תיאר בחסר עד 2026-09-01:** הוא כלל לא הזכיר שקיים `pre-commit` hook, ומנה שלוש בדיקות ב-pre-push ושלושה jobs ב-CI במקום חמש וארבעה. שער זהות ה-view-as (`scripts/check-view-as-identity.cjs`) קיים בשניהם ולא הוזכר באף אחד.
 
-> **ואזהרה שעדיין בתוקף:** הגנת הענף על `main` ב-GitHub **כבויה** (ה-ruleset קיים במצב `enforcement: disabled`). כלומר ה-jobs של `production-gates.yml` הם כרגע מייעצים ולא חוסמים merge. יש להפעיל אותה.
+> **תוקן 2026-09-10:** השורה הזו אמרה שהגנת הענף על `main` **כבויה** ושה-jobs מייעצים בלבד. **זה כבר לא נכון**, וזה סתר את הבאנר בראש הקובץ הזה שמכריז על ה-ruleset כ-`Active` עם ארבע בדיקות נדרשות. סתירה בתוך אותו מסמך היא גרועה מהיעדר מידע: סשן שקורא דווקא כאן מסיק שהשערים לא חוסמים, ומתנהג לפי זה.
+>
+> **מה שכן נשאר להדגיש:** ארבע הבדיקות הנדרשות הן `Build`, `Lint`, `Query timeout gate` ו-`View-as identity gate`. ה-workflow מריץ **חמישה** jobs, ו-`Unit tests` **אינו** ברשימת הנדרשות, ולכן סוויטה אדומה **אינה** חוסמת merge ל-main. מקומית היא כן חוסמת push, דרך `.githooks/pre-push`.
 
 אם בעתיד יחזרו שגיאות lint — לתקן לפני push, לא לעקוף. `--no-verify` נשאר זמין כ-escape hatch לחירום מקומי בלבד, ולעולם לא בעלייה לפרודקשן.
 
@@ -349,11 +351,17 @@ no-undef נמחק שקטית מההגדרה.
 - **Query Timeout Gate** (ראה למטה)
 - **View-As Identity Gate** — `scripts/check-view-as-identity.cjs`, מוודא שקריאות `admin_*` לא רצות על מישור ההתחזות
 
-חוסם merge ב-GitHub UI **רק כשהגנת הענף מופעלת** — נכון ל-2026-09-01 היא כבויה, ולכן ה-jobs מייעצים בלבד.
+**חוסם merge ב-GitHub UI מ-2026-09-09**, כשה-ruleset הופעל. ⚠️ אבל רק **ארבעה** מחמשת ה-jobs ברשימת הבדיקות הנדרשות: `Unit tests` רץ ואינו חוסם. כלומר PR עם סוויטה אדומה יכול להתמזג ל-main, וההגנה היחידה מפני זה היא ה-pre-push המקומי.
 
 השערים הקוגניטיביים (3, 4, 5, 6) **לא** ניתנים לאוטומציה ב-Actions — הם דורשים סקילים של Claude. הם חייבים לרוץ בסשן Claude לפני יצירת ה-PR.
 
-> **שער 5 (DB Safety) הוא החור הגדול ביותר.** `scripts/check-sql-hazards.cjs` נכתב בדיוק בשבילו — והוא לא מקומט, לא מחובר לשום hook או workflow, וה-docblock שלו *מצהיר* שהוא מחובר ל-pre-push ול-CI. שתי ההצהרות שקריות. בהרצה הוא מוצא **236 סכנות ב-80 קבצים**, כי אין לו baseline. לפני שמחברים אותו חובה להריץ `--update-baseline` פעם אחת, אחרת הוא יחסום כל push מיידית.
+> **שער 5 (DB Safety) — חובר חלקית 2026-09-11.** `scripts/check-sql-hazards.cjs` היה מקומט אבל **לא מחובר לשום דבר**, בזמן שה-docblock שלו הצהיר שהוא רץ ב-pre-push וב-CI. שתי ההצהרות היו שקריות, וזו הסיבה שהשער היה „אוטומטי על הנייר" ולא אוטומטי בפועל.
+>
+> **עכשיו:** baseline של **237 סכנות ב-81 קבצים**, ומחובר כשער 8 ב-`.githooks/pre-push`. אותה עסקה כמו query-timeouts: חוב קיים מגודר, חוב חדש נדחה. אומת במבחן, קובץ עם `create table` חשוף נחסם עם exit 1.
+>
+> ⚠️ **עדיין לא ב-CI.** אין backstop ב-`production-gates.yml`, ולכן `--no-verify` מקומי עוקף אותו לגמרי. חיבור ל-CI דורש הוספת job, וזה שינוי ב-workflow.
+>
+> **`--update-baseline`** אחרי שינוי מכוון, ולא כדי להשתיק ממצא.
 
 ---
 

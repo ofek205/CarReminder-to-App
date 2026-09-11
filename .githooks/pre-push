@@ -132,5 +132,27 @@ elif [ "$HAVE_NODE" != 1 ]; then
   warn "node not found - skipping sql duplicate-statement gate. NOT enforced by a required CI check; re-run it before merging."
 fi
 
+# 8. SQL hazard gate - gate 5 (DB Safety) is the only production gate with no
+# automation, and CLAUDE.md calls it the biggest hole in the process. The
+# script existed and was committed, but was wired to NOTHING, while its own
+# docblock claimed it ran in pre-push and in CI. Both claims were false.
+#
+# It catches the shapes that fail on a SECOND run against a database staging
+# shares with production: a bare `create table`, `add column` without
+# `if not exists`, an unguarded `drop`, a SECURITY DEFINER function with no
+# `revoke`, and cron registrations.
+#
+# Baselined at 237 hazards across 81 files on 2026-09-11, the same bargain
+# already made for query-timeouts: existing debt is grandfathered, new debt
+# is refused. It does NOT clean anything up; it stops the pile growing.
+if [ "$HAVE_NODE" = 1 ] && [ -f scripts/check-sql-hazards.cjs ]; then
+  node scripts/check-sql-hazards.cjs || fail "check-sql-hazards gate failed. A new migration adds a hazard the baseline does not cover - read the lines above, then either guard the statement or run: node scripts/check-sql-hazards.cjs --update-baseline"
+  ok "sql hazard gate passed"
+elif [ "$HAVE_NODE" != 1 ]; then
+  # Same honesty as gate 7: this one is not in production-gates.yml either,
+  # so there is no CI backstop to promise.
+  warn "node not found - skipping sql hazard gate. NOT enforced by any CI check; re-run it before merging."
+fi
+
 printf "${GRN}[ok] pre-push checks done${NC}\n"
 exit 0
