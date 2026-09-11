@@ -19,6 +19,11 @@ for (const route of marketingRoutes) {
 }
 for (const page of [...guides, ...productPages]) {
   const route = `/website/${guides.includes(page) ? 'guides/' : ''}${page.slug}`;
+  // A page may be rendered by its own component rather than the shared
+  // sections list (the child-reminder page is), so there is nothing to assert
+  // about section text for it. Guard rather than crash: this check exists to
+  // prove sections are crawlable, not to require that every page have them.
+  if (!Array.isArray(page.sections)) continue;
   for (const [heading, paragraph] of page.sections) {
     assert.ok(pages.get(route).includes(heading), `${route}: section heading is available without JavaScript`);
     assert.ok(pages.get(route).includes(paragraph), `${route}: full article is available without JavaScript`);
