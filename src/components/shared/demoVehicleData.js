@@ -4,6 +4,30 @@
  * It is never written to the database and is fully isolated from real user data.
  */
 
+/**
+ * Demo dates are computed from today, never written down.
+ *
+ * They used to be literals authored in early 2026. By 2026-09-11 the Corolla
+ * test_due_date ('2026-08-01') was 41 days past, so the demo dashboard, which
+ * is exactly what the marketing site shows in its live preview, opened on a red
+ * "דרושה התייחסות מיידית" alarm with an overdue test and an overdue oil change.
+ * A demo that ages into an alarm is worse than no demo, and it got worse every
+ * day nobody looked at it.
+ *
+ * monthsOut(3) also says at the call site what a bare date cannot: that the
+ * next test is meant to read as comfortably ahead, not that it happens to fall
+ * on some day in August.
+ *
+ * Deliberately NOT converted: first_registration_date, which is tied to the
+ * 2016 model year and is a fact about the car, and every created_date, which
+ * records when the demo record was added and carries no status badge.
+ */
+const monthsOut = (n) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() + n);
+  return d.toISOString().slice(0, 10);
+};
+
 export const DEMO_VEHICLE_ID = 'demo_vehicle_001';
 
 export const DEMO_VEHICLE = {
@@ -16,8 +40,8 @@ export const DEMO_VEHICLE = {
   nickname: 'הקורולה שלי',
   license_plate: '12-345-67',
   license_plate_normalized: '1234567',
-  test_due_date: '2026-08-01',
-  insurance_due_date: '2026-09-15',
+  test_due_date: monthsOut(3),
+  insurance_due_date: monthsOut(5),
   insurance_company: 'הראל',
   current_km: 148200,
   notes: 'רכב במצב טוב, משמש לנסיעות יומיות',
@@ -57,7 +81,7 @@ export const DEMO_TREATMENTS = [
     vehicle_id: DEMO_VEHICLE_ID,
     _type: 'maintenance',
     title: 'החלפת שמן',
-    date: '2025-06-01',
+    date: monthsOut(-3),
     cost: 320,
     status: 'completed',
     notes: 'הוחלפו שמן מנוע ופילטר שמן',
@@ -67,7 +91,7 @@ export const DEMO_TREATMENTS = [
     vehicle_id: DEMO_VEHICLE_ID,
     _type: 'repair',
     title: 'החלפת רפידות בלמים',
-    date: '2025-01-15',
+    date: monthsOut(-8),
     cost: 850,
     status: 'completed',
     notes: 'הוחלפו רפידות בלמים קדמיים',
@@ -77,7 +101,7 @@ export const DEMO_TREATMENTS = [
     vehicle_id: DEMO_VEHICLE_ID,
     _type: 'maintenance',
     title: 'טיפול שנתי',
-    date: '2025-03-10',
+    date: monthsOut(-6),
     cost: 650,
     status: 'completed',
     notes: 'טיפול תקופתי מלא',
@@ -87,7 +111,7 @@ export const DEMO_TREATMENTS = [
     vehicle_id: DEMO_VEHICLE_ID,
     _type: 'maintenance',
     title: 'החלפת שמן הבאה',
-    date: '2026-09-01',
+    date: monthsOut(2),
     cost: 350,
     status: 'upcoming',
     notes: 'החלפת שמן מתוכננת',
@@ -97,7 +121,7 @@ export const DEMO_TREATMENTS = [
     vehicle_id: DEMO_VEHICLE_ID,
     _type: 'maintenance',
     title: 'בדיקת צמיגים',
-    date: '2026-07-15',
+    date: monthsOut(1),
     cost: 0,
     status: 'upcoming',
     notes: 'בדיקת לחץ ומצב צמיגים',
@@ -110,21 +134,21 @@ export const DEMO_REMINDERS = [
     id: 'demo_reminder_001',
     vehicle_id: DEMO_VEHICLE_ID,
     title: 'חידוש ביטוח',
-    date: '2026-09-15',
+    date: monthsOut(5),
     type: 'insurance',
   },
   {
     id: 'demo_reminder_002',
     vehicle_id: DEMO_VEHICLE_ID,
     title: 'טסט רכב',
-    date: '2026-08-01',
+    date: monthsOut(3),
     type: 'test',
   },
   {
     id: 'demo_reminder_003',
     vehicle_id: DEMO_VEHICLE_ID,
     title: 'החלפת שמן',
-    date: '2026-09-01',
+    date: monthsOut(2),
     type: 'maintenance',
   },
 ];
@@ -136,7 +160,7 @@ export const DEMO_DOCUMENTS = [
     vehicle_id: 'demo_vehicle_001',
     title: 'פוליסת ביטוח',
     document_type: 'ביטוח חובה',
-    expiry_date: '2026-09-15',
+    expiry_date: monthsOut(5),
     file_type: 'pdf',
     _isDemo: true,
   },
@@ -145,7 +169,7 @@ export const DEMO_DOCUMENTS = [
     vehicle_id: 'demo_vehicle_001',
     title: 'רישיון רכב',
     document_type: 'רישיון רכב',
-    expiry_date: '2027-01-31',
+    expiry_date: monthsOut(9),
     file_type: 'pdf',
     _isDemo: true,
   },
@@ -217,7 +241,7 @@ export const DEMO_CORK_NOTES = [
     content: 'לתאם עם המוסך של אבי ברחוב הרצל',
     color: 'yellow',
     rotation: -2,
-    due_date: '2026-09-01',
+    due_date: monthsOut(2),
     is_done: false,
     created_date: '2026-03-01T10:00:00.000Z',
   },
@@ -225,10 +249,10 @@ export const DEMO_CORK_NOTES = [
     id: 'demo_note_002',
     vehicle_id: DEMO_VEHICLE_ID,
     title: 'לחדש ביטוח',
-    content: 'לבדוק הצעות מחיר מ-3 חברות לפחות. ביטוח נגמר בספטמבר.',
+    content: 'לבדוק הצעות מחיר מ-3 חברות לפחות לפני החידוש.',
     color: 'pink',
     rotation: 1.5,
-    due_date: '2026-08-15',
+    due_date: monthsOut(5),
     is_done: false,
     created_date: '2026-03-10T14:00:00.000Z',
   },
@@ -272,14 +296,14 @@ export const DEMO_VESSEL = {
   current_engine_hours: 620,
   notes: 'מפרשית 38 רגל, מנוע Yanmar 30HP, עגינה במרינה הרצליה. יאכטה נוני, הסירה של המשפחה.',
   vehicle_photo: 'https://images.pexels.com/photos/273886/pexels-photo-273886.jpeg?auto=compress&cs=tinysrgb&w=600',
-  test_due_date: '2026-11-15',
-  insurance_due_date: '2026-10-20',
+  test_due_date: monthsOut(4),
+  insurance_due_date: monthsOut(6),
   insurance_company: 'הכשרה',
-  pyrotechnics_expiry_date: '2026-12-01',
-  fire_extinguisher_expiry_date: '2027-03-15',
-  life_raft_expiry_date: '2027-06-01',
+  pyrotechnics_expiry_date: monthsOut(8),
+  fire_extinguisher_expiry_date: monthsOut(11),
+  life_raft_expiry_date: monthsOut(14),
   engine_manufacturer: 'Yanmar',
-  last_shipyard_date: '2025-09-10',
+  last_shipyard_date: monthsOut(-12),
   hours_since_shipyard: 180,
   flag_country: 'IL',
   marina: 'מרינה הרצליה',
@@ -301,22 +325,22 @@ export const DEMO_VESSEL = {
 export const DEMO_VESSEL_TREATMENTS = [
   {
     id: 'demo_vt_001', vehicle_id: DEMO_VESSEL_ID, _type: 'maintenance',
-    title: 'החלפת שמן מנוע + פילטרים', date: '2025-10-15', cost: 1200, status: 'completed',
+    title: 'החלפת שמן מנוע + פילטרים', date: monthsOut(-10), cost: 1200, status: 'completed',
     notes: 'שמן Yanmar, פילטר שמן, פילטר דלק, פילטר אוויר',
   },
   {
     id: 'demo_vt_002', vehicle_id: DEMO_VESSEL_ID, _type: 'maintenance',
-    title: 'בדיקת מערכות חשמל', date: '2025-12-01', cost: 800, status: 'completed',
+    title: 'בדיקת מערכות חשמל', date: monthsOut(-8), cost: 800, status: 'completed',
     notes: 'בדיקת מערכת טעינה, סוללות, תאורת ניווט',
   },
   {
     id: 'demo_vt_003', vehicle_id: DEMO_VESSEL_ID, _type: 'repair',
-    title: 'תיקון מפרש ראשי', date: '2026-01-20', cost: 2500, status: 'completed',
+    title: 'תיקון מפרש ראשי', date: monthsOut(-6), cost: 2500, status: 'completed',
     notes: 'קרע בגודל 40 ס"מ ליד הלאף. תופר ותוקן במפרשייה של עמי, הרצליה.',
   },
   {
     id: 'demo_vt_004', vehicle_id: DEMO_VESSEL_ID, _type: 'maintenance',
-    title: 'העלאה למספנה: ניקוי תחתית', date: '2026-10-01', cost: 4500, status: 'upcoming',
+    title: 'העלאה למספנה: ניקוי תחתית', date: monthsOut(1), cost: 4500, status: 'upcoming',
     notes: 'ניקוי, צביעת אנטיפאולינג, בדיקת הגה ופרופלר',
   },
 ];
@@ -349,8 +373,8 @@ export const DEMO_VESSEL_CORK_NOTES = [
   {
     id: 'demo_vnote_001', vehicle_id: DEMO_VESSEL_ID,
     title: 'להזמין מקום במרינה לקיץ',
-    content: 'מרינה הרצליה, לצלצל לרונית 09-9541234. מקדמה עד סוף אפריל.',
-    color: 'blue', rotation: -1.5, due_date: '2026-04-30', is_done: false,
+    content: 'מרינה הרצליה, לצלצל לרונית 09-9541234. מקדמה מראש.',
+    color: 'blue', rotation: -1.5, due_date: monthsOut(2), is_done: false,
     created_date: '2026-03-15T10:00:00.000Z',
   },
   {
@@ -364,14 +388,14 @@ export const DEMO_VESSEL_CORK_NOTES = [
     id: 'demo_vnote_003', vehicle_id: DEMO_VESSEL_ID,
     title: 'אנטיפאולינג חדש',
     content: 'לקנות צבע International Micron Extra 2, 2.5 ליטר',
-    color: 'yellow', rotation: -2.5, due_date: '2026-09-15', is_done: false,
+    color: 'yellow', rotation: -2.5, due_date: monthsOut(3), is_done: false,
     created_date: '2026-02-01T12:00:00.000Z',
   },
 ];
 
 export const DEMO_VESSEL_DOCUMENTS = [
-  { id: 'demo_vdoc_001', vehicle_id: 'demo_vessel_001', title: 'רישיון שייט', document_type: 'כושר שייט', expiry_date: '2026-11-15', file_type: 'pdf', _isDemo: true },
-  { id: 'demo_vdoc_002', vehicle_id: 'demo_vessel_001', title: 'ביטוח ימי', document_type: 'ביטוח ימי חובה', expiry_date: '2026-10-20', file_type: 'pdf', _isDemo: true },
+  { id: 'demo_vdoc_001', vehicle_id: 'demo_vessel_001', title: 'רישיון שייט', document_type: 'כושר שייט', expiry_date: monthsOut(4), file_type: 'pdf', _isDemo: true },
+  { id: 'demo_vdoc_002', vehicle_id: 'demo_vessel_001', title: 'ביטוח ימי', document_type: 'ביטוח ימי חובה', expiry_date: monthsOut(6), file_type: 'pdf', _isDemo: true },
   { id: 'demo_vdoc_003', vehicle_id: 'demo_vessel_001', title: 'אישור מספנה', document_type: 'מסמך אחר', file_type: 'pdf', _isDemo: true },
 ];
 
