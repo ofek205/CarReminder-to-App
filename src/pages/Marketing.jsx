@@ -10,6 +10,7 @@ import MarketingReviewsPhone from '@/components/MarketingReviewsPhone';
 import MarketingBusinessPreview from '@/components/MarketingBusinessPreview';
 import MarketingChildReminderPage from '@/components/MarketingChildReminderPage';
 import MarketingCheckForm from '@/components/MarketingCheckForm';
+import MarketingAccessibilityPage from '@/components/MarketingAccessibilityPage';
 const logo = '/marketing/logo.webp';
 import './Marketing.css';
 import { applyMarketingSeo } from '@/lib/marketingSeo';
@@ -165,6 +166,7 @@ export default function Marketing() {
   const article = guides.find(item => pathname === `/website/guides/${item.slug}`);
   const product = productPages.find(item => pathname === `/website/${item.slug}`);
   const childReminderPage = product?.slug === 'child-in-car-reminder';
+  const accessibilityPage = product?.slug === 'accessibility';
   const home = !checkPage && !businessPage && !article && !product;
 
   useEffect(() => {
@@ -187,7 +189,7 @@ export default function Marketing() {
   return <div className="cm-site" dir="rtl">
     <a className="cm-skip" href="#cm-main">דילוג לתוכן</a>
     <header className="cm-header"><div className="cm-wrap cm-nav"><Link to="/website" className="cm-brand"><img src={logo} width="44" height="44" alt="" /><span>Car Reminder<small>כל מה שחשוב לכלי התחבורה שלך</small></span></Link><button className="cm-menu-toggle" aria-label={menu ? 'סגירת תפריט' : 'פתיחת תפריט'} aria-expanded={menu} aria-controls="cm-navigation" onClick={() => setMenu(!menu)}>{menu ? <X /> : <Menu />}</button><nav id="cm-navigation" className={menu ? 'cm-menu is-open' : 'cm-menu'} aria-label="ניווט ראשי"><a href="/website#how" onClick={() => setMenu(false)}>איך זה עובד</a><a href="/website#check" onClick={() => setMenu(false)}>בדיקת רכב</a><a href="/website#trust" onClick={() => setMenu(false)}>אמינות ופרטיות</a><Link to="/website/business">לעסקים</Link><a href="/website#guides">מדריכים</a><Link to="/Auth">כניסה לחשבון</Link></nav><a className="cm-button cm-header-cta" href="/website#download">להורדת האפליקציה <ArrowLeft size={16} /></a></div></header>
-    <main id="cm-main">
+    <main id="cm-main" tabIndex={-1}>
       {home && <>
         <section className="cm-hero"><MarketingHeroBackground /><div className="cm-wrap cm-hero-grid"><div className="cm-hero-copy"><span className="cm-kicker">הרכב, האופנוע וכלי השיט שלכם</span><h1>הטסט, הביטוח והטיפול הבא.{' '}<br /><em>הכול במקום אחד.</em></h1><p className="cm-hero-lead">Car Reminder מרכזת מועדים, מסמכים והוצאות ומזכירה לכם לפני שמגיע הזמן.</p><div className="cm-actions"><a href="#download" className="cm-button cm-gold">מורידים את Car Reminder <ArrowLeft size={19} /></a></div></div><div className="cm-hero-visual"><div className="cm-orbit" /><MarketingPhone src="/marketing/dashboard.webp" alt="לוח הבקרה באפליקציה עם נתוני הדגמה" priority /><span className="cm-photo-note">מסך מהאפליקציה במסגרת להמחשה</span></div></div></section>
         <div className="cm-audiences cm-wrap"><a href="#features"><Car /> לרכב שלי <ArrowLeft size={16} /></a><a href="#vessels"><Ship /> לכלי השיט שלי <ArrowLeft size={16} /></a><Link to="/website/business"><BriefcaseBusiness /> לעסק שלי <ArrowLeft size={16} /></Link></div>
@@ -205,11 +207,12 @@ export default function Marketing() {
       {checkPage && <section className="cm-report"><div className="cm-wrap"><Link className="cm-text-link" to="/website#check">חזרה לאתר <ArrowLeft size={17} /></Link></div><Suspense fallback={<p className="cm-loading" role="status">טוענים את בדיקת הרכב…</p>}><VehicleCheck marketingPlate={location.state?.marketingPlate} /></Suspense></section>}
       {businessPage && <>{business}<section className="cm-section"><div className="cm-wrap cm-business-details"><h2>הרכבים והצוות באותה מערכת</h2><p>מרכזים את הרכבים והמסמכים, מחברים נהגים ומשתמשים ומנהלים משימות לפי תפקיד. אפשר לעקוב אחרי הוצאות ופעילות ולהשתמש בכלי הייבוא והדוחות הקיימים במערכת.</p><div className="cm-business-feature-grid">{businessFeatures.map(([title, text]) => <section key={title}><h2>{title}</h2><p>{text}</p></section>)}</div><nav className="cm-related" aria-label="סוגי כלים לעסקים"><Link to="/website/trucks">ניהול משאיות</Link><Link to="/website/heavy-equipment">טרקטורים וכלי צמ״ה</Link><Link to="/website/offroad">כלי שטח</Link></nav><h3>איך מתחילים?</h3><p>מכירים את הצרכים של העסק, מגישים בקשה לפתיחת חשבון עסקי וממתינים לאישור. אם כבר יש לכם חשבון, אפשר להגיע לתהליך הבקשה מתוך המערכת.</p><Link className="cm-button" to="/Contact?topic=business">פנייה בנושא התאמה לעסק <ArrowLeft size={18} /></Link></div></section></>}
       {article && <article className="cm-section cm-article cm-wrap"><Link className="cm-text-link" to="/website#guides">כל המדריכים <ArrowLeft size={17} /></Link><span className="cm-kicker">מדריך לשימוש מסודר</span><h1>{article.heading || article.title}</h1><p className="cm-article-lead">{article.text}</p>{article.sections.map(([heading, paragraph]) => <section key={heading}><h2>{heading}</h2><p>{paragraph}</p></section>)}{article.sources && <aside className="cm-article-sources"><h2>מקורות והמשך קריאה</h2>{article.sources.map(item => <a href={item.url} key={item.url} target="_blank" rel="noopener noreferrer">{item.title}</a>)}</aside>}<p className="cm-article-related"><Link to={`/website/${article.related}`}>איך משתמשים בזה ב־Car Reminder?</Link></p><Link className="cm-button" to="/website#check">מתחילים מבדיקת הרכב <ArrowLeft size={17} /></Link></article>}
+      {accessibilityPage && <MarketingAccessibilityPage />}
       {childReminderPage && <MarketingChildReminderPage />}
-      {product && !childReminderPage && <MarketingProductPage product={product} />}
+      {product && !childReminderPage && !accessibilityPage && <MarketingProductPage product={product} />}
       {!checkPage && !childReminderPage && <section id="download" className="cm-download"><div className="cm-wrap cm-download-simple"><span className="cm-kicker">הצעד הבא שלכם</span><h2>הרכב הראשון שלכם{' '}<br /><em>יכול להיות מסודר כבר היום.</em></h2><p className="cm-download-lead">מורידים את Car Reminder, מוסיפים כלי ומרכזים את המועד הבא במקום אחד.</p><StoreLinks /><Link className="cm-text-link" to="/Auth">מעדיפים דפדפן? לכניסה באתר <ArrowLeft size={17} /></Link></div></section>}
     </main>
-    <footer className="cm-footer"><div className="cm-wrap"><Link className="cm-brand" to="/website"><img src={logo} width="35" height="35" alt="" />Car Reminder</Link><nav aria-label="מידע וקשר"><Link to="/Contact">יצירת קשר</Link><Link to="/PrivacyPolicy">מדיניות פרטיות</Link><Link to="/TermsOfService">תנאי שימוש</Link><Link to="/Auth">כניסה לחשבון</Link></nav><span>תזכורות, מסמכים ותחזוקה לכל כלי תחבורה.</span></div></footer>
+    <footer className="cm-footer"><div className="cm-wrap"><Link className="cm-brand" to="/website"><img src={logo} width="35" height="35" alt="" />Car Reminder</Link><nav aria-label="מידע וקשר"><Link to="/Contact">יצירת קשר</Link><Link to="/PrivacyPolicy">מדיניות פרטיות</Link><Link to="/TermsOfService">תנאי שימוש</Link><Link to="/website/accessibility">הצהרת נגישות</Link><Link to="/Auth">כניסה לחשבון</Link></nav><span>תזכורות, מסמכים ותחזוקה לכל כלי תחבורה.</span></div></footer>
     <dialog ref={dialog} className="cm-lightbox" aria-label="צילום מסך מהאפליקציה"><button autoFocus onClick={() => dialog.current?.close()} aria-label="סגירת צילום המסך"><X /></button><MarketingPhone src={`/marketing/${activeScreen.image}.${activeScreen.extension || 'webp'}`} alt={`${activeScreen.name} באפליקציה, במסגרת להמחשה`} /></dialog>
   </div>;
 }

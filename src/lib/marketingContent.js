@@ -57,6 +57,13 @@ export const guides = [
 export const productPages = [
   ...specialtyPages,
   {
+    slug: 'accessibility',
+    title: 'הצהרת נגישות',
+    heading: 'הצהרת נגישות',
+    description: 'הצהרת הנגישות של Car Reminder: מה כבר מונגש באתר ובאפליקציה לפי תקן ישראלי 5568 ברמה AA, אילו מגבלות ידועות לנו, ואיך פונים אלינו בנושא נגישות.',
+    text: 'מה מונגש באתר, מה עדיין לא, ואיך לפנות אלינו בנושא נגישות.',
+  },
+  {
     slug: 'child-in-car-reminder',
     title: 'אפליקציה חינמית לתזכורת ילדים ברכב',
     heading: 'אפליקציה חינמית לתזכורת ילדים ברכב',

@@ -32,7 +32,7 @@ function ReviewCard({ review }) {
       <div><strong>{publicName(review.author_name)}</strong><ReviewStars rating={review.rating} /></div>
       <span className="cm-review-source"><SourceIcon /><small>{sourceLabel}</small></span>
     </div>
-    {review.title && <h4>{review.title}</h4>}
+    {review.title && <h3>{review.title}</h3>}
     <p>{review.body}</p>
     <span className="cm-review-type"><VehicleIcon /> {review.vehicle_type || 'כלי תחבורה'}</span>
   </article>;
