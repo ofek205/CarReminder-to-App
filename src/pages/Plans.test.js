@@ -20,7 +20,8 @@ vi.mock('@/lib/supabase', () => ({ supabase: { from: () => ({}) } }));
 
 const {
   capLabel, monthlyLabel, advisorLabel, includedLabel,
-  personalNote, unavailableCopy,
+  personalNote, unavailableCopy, rowOrder, rowValue, higherTiers,
+  labelStatesPrice,
 } = await import('./Plans');
 
 describe('capLabel', () => {
@@ -153,5 +154,141 @@ describe('unavailableCopy', () => {
     // the website string onto an unrecognised native platform would be the
     // expensive direction to be wrong in.
     expect(unavailableCopy('something-else')).not.toContain('אתר');
+  });
+});
+
+// ── the card layout ─────────────────────────────────────────────────────
+
+describe('rowOrder', () => {
+  it('keeps the business row last for a personal account', () => {
+    expect(rowOrder(false)[0]).toBe('vehicles');
+    expect(rowOrder(false)[4]).toBe('business');
+  });
+
+  it('lifts the business row to the top for a business account', () => {
+    // For a business account sitting on free, "ממשק עסקי: לא כלול" is the
+    // single most consequential line on the screen. As row five it is the
+    // last thing read.
+    expect(rowOrder(true)[0]).toBe('business');
+  });
+
+  it('never drops or invents a row', () => {
+    // The two orders must be permutations of each other. A typo in one
+    // branch would silently delete a whole dimension from the card for one
+    // class of account, and nothing else would catch it.
+    expect([...rowOrder(true)].sort()).toEqual([...rowOrder(false)].sort());
+    expect(rowOrder(false)).toHaveLength(5);
+    expect(new Set(rowOrder(true)).size).toBe(5);
+  });
+});
+
+describe('rowValue', () => {
+  const plan = {
+    maxVehicles: 15, aiLifetimeTeaser: null, plateChecksPerMonth: null,
+    maxShares: null, businessUi: true,
+  };
+
+  it('routes each dimension through its own helper', () => {
+    expect(rowValue('vehicles', plan)).toBe('עד 15');
+    expect(rowValue('ai', plan)).toBe('פתוח');
+    expect(rowValue('plate', plan)).toBe('ללא הגבלה');
+    expect(rowValue('shares', plan)).toBe('ללא הגבלה');
+    expect(rowValue('business', plan)).toBe('כלול');
+  });
+
+  it('preserves NULL as unlimited rather than zero', () => {
+    const freeish = { maxVehicles: null, maxShares: 2, plateChecksPerMonth: 3, aiLifetimeTeaser: 1, businessUi: false };
+    expect(rowValue('vehicles', freeish)).toBe('ללא הגבלה');
+    expect(rowValue('shares', freeish)).toBe('עד 2');
+    expect(rowValue('plate', freeish)).toBe('3 בחודש');
+    expect(rowValue('ai', freeish)).toBe('שאלה אחת להתרשמות');
+    expect(rowValue('business', freeish)).toBe('לא כלול');
+  });
+
+  it('renders nothing rather than throwing on missing data', () => {
+    // A card must never crash the screen because one field is absent.
+    expect(rowValue('vehicles', null)).toBe('');
+    expect(rowValue('nope', plan)).toBe('');
+  });
+});
+
+describe('labelStatesPrice', () => {
+  it('is true for the seeded paid labels, which already carry the price', () => {
+    // ⚠️ THE REGRESSION THIS EXISTS FOR. label_he is seeded as "₪9 לחודש",
+    // so a card printing the label plus a price built from price_ils_month
+    // rendered "₪9 לחודש" twice, one line under the other. Caught in the
+    // preview, not by reading the code.
+    expect(labelStatesPrice({ labelHe: '₪9 לחודש',  priceIlsMonth: 9 })).toBe(true);
+    expect(labelStatesPrice({ labelHe: '₪19 לחודש', priceIlsMonth: 19 })).toBe(true);
+    expect(labelStatesPrice({ labelHe: '₪49 לחודש', priceIlsMonth: 49 })).toBe(true);
+  });
+
+  it('is true for free, because "חינם" states the price in words', () => {
+    expect(labelStatesPrice({ labelHe: 'חינם', priceIlsMonth: 0 })).toBe(true);
+  });
+
+  it('is false when a rename drops the price, so the price line returns', () => {
+    // The failure to avoid is the opposite one: a plan renamed in the
+    // database to a word with no number, leaving the screen with no price
+    // anywhere. This is what makes the check dynamic instead of hardcoded.
+    expect(labelStatesPrice({ labelHe: 'בסיסי',   priceIlsMonth: 9 })).toBe(false);
+    expect(labelStatesPrice({ labelHe: '',        priceIlsMonth: 9 })).toBe(false);
+    expect(labelStatesPrice({ labelHe: null,      priceIlsMonth: 9 })).toBe(false);
+  });
+
+  it('does not throw on a missing plan', () => {
+    expect(() => labelStatesPrice(null)).not.toThrow();
+    expect(labelStatesPrice(null)).toBe(false);
+  });
+});
+
+describe('higherTiers', () => {
+  const P9  = { code: 'p9',  maxVehicles: 15 };
+  const P19 = { code: 'p19', maxVehicles: 30 };
+  const P49 = { code: 'p49', maxVehicles: null };  // unlimited
+  const ALL = [P9, P19, P49];
+
+  it('offers only what is strictly above the featured tier', () => {
+    expect(higherTiers(ALL, P9).map((p) => p.code)).toEqual(['p19', 'p49']);
+    expect(higherTiers(ALL, P19).map((p) => p.code)).toEqual(['p49']);
+  });
+
+  it('offers nothing above the unlimited tier, with no special case', () => {
+    // ⚠️ This is what makes the top-tier account work. NULL is unlimited, so
+    // nothing outranks it, the group renders empty, and the "more vehicles"
+    // heading disappears on its own instead of needing a separate branch.
+    expect(higherTiers(ALL, P49)).toEqual([]);
+  });
+
+  it('never offers a downgrade', () => {
+    // A screen with no purchase button offering a smaller plan is pure noise.
+    // NULL is unlimited, so it outranks every number and nothing outranks it.
+    const outranks = (a, b) => {
+      if (a.maxVehicles === null) return b.maxVehicles !== null;
+      if (b.maxVehicles === null) return false;
+      return a.maxVehicles > b.maxVehicles;
+    };
+
+    let checked = 0;
+    for (const featured of ALL) {
+      for (const p of higherTiers(ALL, featured)) {
+        expect(outranks(p, featured), `${p.code} vs ${featured.code}`).toBe(true);
+        checked++;
+      }
+    }
+    // Positive control. Without it this test passes just as happily if
+    // higherTiers returns an empty array for every input, which is the one
+    // bug that would make the loop above prove nothing.
+    expect(checked).toBe(3);
+  });
+
+  it('excludes the featured plan itself', () => {
+    expect(higherTiers(ALL, P9).some((p) => p.code === 'p9')).toBe(false);
+  });
+
+  it('survives an empty or missing catalogue', () => {
+    expect(higherTiers([], P9)).toEqual([]);
+    expect(higherTiers(ALL, null)).toEqual([]);
+    expect(higherTiers(undefined, P9)).toEqual([]);
   });
 });
