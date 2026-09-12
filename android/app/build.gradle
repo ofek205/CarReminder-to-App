@@ -47,7 +47,19 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
+            // 2026-09-12: Play Console's Release Center flagged this app at
+            // 2% code obfuscation (deadline Feb 2027, up to 25% ranking
+            // impact across several categories if unaddressed) because this
+            // was `false`. shrinkResources requires minifyEnabled and is the
+            // standard pairing, trimming unused resources the same pass.
+            //
+            // Verify on a real device before this ever reaches Play: the
+            // Capacitor JS<->native bridge and the two manifest-declared
+            // TripGuard receivers (child-in-car reminder) are exactly the
+            // kind of reflection-based wiring R8 can silently break without
+            // the right keep rules. See proguard-rules.pro.
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
