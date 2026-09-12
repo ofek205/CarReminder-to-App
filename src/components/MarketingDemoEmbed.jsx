@@ -232,18 +232,41 @@ export default function MarketingDemoEmbed({ src, alt, screenName, onEnlarge, go
             <span className="cm-demo-loading-text">טוענים את ההדגמה…</span>
           </div>
         )}
-        <iframe
-          ref={frameRef}
-          src={DEMO_URL}
-          title="הדגמה אינטראקטיבית של האפליקציה"
-          onLoad={event => { setState(didFrameRender(event.currentTarget) ? 'live' : 'failed'); }}
-          onError={() => setState('failed')}
-          sandbox="allow-scripts allow-same-origin allow-top-navigation-by-user-activation"
-          /* eager, deliberately: by the time this element exists the scroll
-             listener above has already decided the section is close, so the
-             browser must not add a second, unpredictable delay on top. */
-          loading="eager"
-        />
+        {/* The element does not exist until the scroll gate above has moved the
+            state off 'resting', and THAT is the deferral. It used to sit
+            unconditional here, which quietly meant the gate deferred nothing:
+            its only output is `state`, and nothing below read `state` before
+            deciding to mount. Measured on production before this changed,
+            /demo booted at scrollY 0 and booted TWICE, the second time
+            because main.jsx mounts with createRoot rather than hydrateRoot,
+            so React discarded the prerendered iframe and built a fresh one.
+            The first fetch was pure waste for every visitor, every visit.
+
+            Gating the ELEMENT rather than the surrounding frame is deliberate.
+            The resting and live views are two different boxes, 915px against
+            947px when measured, so hiding the whole frame until the gate fires
+            would trade a wasted fetch for a 32px layout shift on a component
+            whose CLS is held at zero by structure. The cover screenshot above
+            already fills this viewport while state is 'resting', so omitting
+            only the iframe changes nothing anyone can see.
+
+            It also keeps the iframe out of the prerendered HTML, where it
+            could only ever cost a fetch: renderToString never runs the effect,
+            so the snapshot holds 'resting', and no crawler reads an iframe. */}
+        {state !== 'resting' && (
+          <iframe
+            ref={frameRef}
+            src={DEMO_URL}
+            title="הדגמה אינטראקטיבית של האפליקציה"
+            onLoad={event => { setState(didFrameRender(event.currentTarget) ? 'live' : 'failed'); }}
+            onError={() => setState('failed')}
+            sandbox="allow-scripts allow-same-origin allow-top-navigation-by-user-activation"
+            /* eager, deliberately: by the time this element exists the scroll
+               listener above has already decided the section is close, so the
+               browser must not add a second, unpredictable delay on top. */
+            loading="eager"
+          />
+        )}
           </div>
         </div>
       </div>
