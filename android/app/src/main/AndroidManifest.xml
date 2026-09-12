@@ -31,14 +31,43 @@
                 <data android:scheme="carreminder" />
             </intent-filter>
 
-            <!-- App links: https://car-reminder.app/... opens inside the app
-                 (App Links verification can be turned on later via assetlinks.json) -->
-            <intent-filter>
+            <!-- App Links: the three https URLs this product actually sends to a
+                 person open in the app. Everything else on the domain stays in the
+                 browser, on purpose.
+
+                 ⚠️ DO NOT widen this back to the whole host. It used to be a bare
+                 `android:host="car-reminder.app"` with no path at all, which claims
+                 EVERY url on the domain. car-reminder.app/website now serves twenty
+                 prerendered, indexed marketing pages, and those exist to be read in a
+                 browser by people deciding whether to install. Claiming them would
+                 mean a Google result opening the app instead of the page for every
+                 visitor who already has it installed, which hides the marketing site
+                 from exactly the audience Google sent to it.
+
+                 ⚠️ /Contact is deliberately absent. It is the App Store support URL,
+                 opened by reviewers who are not signed in and have no app; an
+                 Apple 1.5 rejection in May 2026 came from that page being unreachable.
+
+                 ⚠️ www.car-reminder.app is gone because it has no DNS record at all.
+                 It was listed here, and the Play Console derives its domain list from
+                 this file, so it appeared there permanently failing verification. A
+                 host that does not resolve can never verify, and autoVerify is
+                 all-or-nothing across the filter: leaving it here would hold back the
+                 real domain with it.
+
+                 Verification reads public/.well-known/assetlinks.json over https, so
+                 this filter and that file ship together or not at all: the app half
+                 alone verifies nothing, and the web half alone is never consulted.
+                 That file carried REPLACE_WITH placeholders from the day it was added
+                 until 2026-09-12, which is why the Play Console had been reporting a
+                 failed domain check the whole time. -->
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="car-reminder.app" />
-                <data android:scheme="https" android:host="www.car-reminder.app" />
+                <data android:scheme="https" android:host="car-reminder.app" android:pathPrefix="/JoinInvite" />
+                <data android:scheme="https" android:host="car-reminder.app" android:pathPrefix="/VehicleTransfer" />
+                <data android:scheme="https" android:host="car-reminder.app" android:pathPrefix="/Notifications" />
             </intent-filter>
         </activity>
 

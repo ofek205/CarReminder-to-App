@@ -5,8 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.carreminder.app",
       "sha256_cert_fingerprints": [
-        "REPLACE_WITH_UPLOAD_CERT_SHA256",
-        "REPLACE_WITH_PLAY_SIGNING_CERT_SHA256"
+        "A6:3E:7E:26:F1:1D:BF:A2:0B:F2:A0:CE:AE:5A:8E:68:09:AF:05:9A:A9:52:17:60:F9:CC:1C:6A:E1:1E:5B:B9",
+        "D6:2D:79:5A:F9:B2:84:54:34:FF:39:45:3D:BA:4A:1B:96:78:EC:4B:10:53:D5:5C:E8:B6:FE:38:08:39:12:66"
       ]
     }
   }
